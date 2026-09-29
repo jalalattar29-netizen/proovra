@@ -85,6 +85,7 @@ import type {
   ReportsArtifactsEnvelope,
   ReportsSummary,
 } from "./types";
+import { lifecycleFilterFromSearch } from "./types";
 
 /**
  * THE SUMMARY STRIP, declared once.
@@ -579,6 +580,13 @@ export function ReportsIndex() {
     setFilter(next);
     setCursors([]);
   }, []);
+  // A deep link opens on its filter (2026-09-29; e.g. Billing →
+  // "First issuance pending"). Read after mount so the server-rendered and
+  // first client render agree; an unknown value is ignored.
+  useEffect(() => {
+    const linked = lifecycleFilterFromSearch(window.location.search);
+    if (linked && linked !== "all") changeFilter(linked);
+  }, [changeFilter]);
   const changeSearch = useCallback((next: string) => {
     setSearch(next);
     setCursors([]);

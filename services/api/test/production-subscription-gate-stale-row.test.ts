@@ -4,23 +4,25 @@
  *
  * PHASE 9 STEP 5 (2026-07-22): the subscription-active + grace DECISION was
  * relocated out of billing-guards' `assertSubscriptionActiveOrGraceAllowed`
- * into the ONE canonical lifecycle policy — `resolvePaidLifecycle` in
- * `services/api/src/services/billing/commercial-context.service.ts`. billing-
- * guards is now a thin adapter. This test therefore pins the SAME four-branch
- * corroboration invariant AT ITS NEW HOME (the resolver) and asserts the
- * adapter carries no competing engine. The business invariant is unchanged:
+ * into ONE canonical lifecycle policy. EVIDENCE OUTPUT LIFECYCLE (2026-09-29):
+ * that policy moved, rules unchanged, to `readCommercialLifecycle` in
+ * `@proovra/shared-runtime`, so the worker's issuance gates read the SAME
+ * answer; `resolvePaidLifecycle` in commercial-context is now a thin adapter.
+ *
+ * Because the policy is now a pure reader over an injected client, the four
+ * branches are pinned by BEHAVIOUR instead of by source text:
  *
  *   1. Live (ACTIVE/TRIALING) matching-scope row → allow.
  *   2. Matching PAST_DUE row inside the ONE bounded grace window → allow.
  *   3. No matching-scope row → allow (authoritative field governs; tolerate
  *      webhook lag) — a stale row for a DIFFERENT plan never leaks in.
  *   4. Every matching row terminal → block (SUBSCRIPTION_INACTIVE → 402).
- *
- * Style: source-contract (file-text). No DB I/O.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+
+import { readCommercialLifecycle } from "@proovra/shared-runtime";
 
 import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
@@ -34,66 +36,132 @@ const SHARED_CODES = readFileSync(
   "utf8",
 );
 
-// Isolate the canonical lifecycle policy body so the assertions cannot be
-// satisfied by an unrelated query elsewhere in the file.
-function extractLifecycle(src: string) {
-  const fn = functionSource(src, "resolvePaidLifecycle", "commercial-context.service.ts");
-  expect(fn, "resolvePaidLifecycle must exist in commercial-context.service.ts").toContain(
-    "async function resolvePaidLifecycle",
-  );
-  return fn;
+type Row = {
+  userId?: string;
+  teamId?: string;
+  plan: string;
+  status: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED";
+  currentPeriodEnd: Date | null;
+  updatedAt: Date;
+};
+
+/** A subscription table honouring the where-shapes the reader uses. */
+function fakeClient(rows: Row[]) {
+  const queries: Array<Record<string, unknown>> = [];
+  const match = (where: Record<string, unknown>) => (r: Row) => {
+    for (const [k, v] of Object.entries(where)) {
+      if (k === "status") {
+        const s = v as string | { in: string[] };
+        if (typeof s === "string" ? r.status !== s : !s.in.includes(r.status)) return false;
+      } else if ((r as Record<string, unknown>)[k] !== v) return false;
+    }
+    return true;
+  };
+  const sorted = (where: Record<string, unknown>) =>
+    rows.filter(match(where)).sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  return {
+    queries,
+    client: {
+      subscription: {
+        findMany: async (args: { where: Record<string, unknown>; take?: number }) => {
+          queries.push(args.where);
+          return sorted(args.where).slice(0, args.take ?? Infinity);
+        },
+        findFirst: async (args: { where: Record<string, unknown> }) => {
+          queries.push(args.where);
+          return sorted(args.where)[0] ?? null;
+        },
+      },
+    } as never,
+  };
 }
-const GATE = extractLifecycle(RESOLVER);
+
+const NOW = new Date("2026-09-29T12:00:00Z");
+const DAY = 24 * 60 * 60 * 1000;
+const at = (offsetDays: number) => new Date(NOW.getTime() + offsetDays * DAY);
+const PERSONAL = { kind: "PERSONAL" as const, ownerUserId: "u1", plan: "PRO" };
+const WORKSPACE = { kind: "WORKSPACE" as const, teamId: "t1", plan: "TEAM" };
 
 describe("Phase 9 STEP 5 — canonical lifecycle no longer picks stale rows", () => {
-  it("does NOT contain the legacy `findFirst({ where: { userId } })` shape", () => {
-    expect(GATE).not.toMatch(/subscription\.findFirst\(\s*\{\s*where:\s*\{\s*userId\s*,?\s*\}\s*\}/);
+  it("resolvePaidLifecycle is a thin adapter over the shared reader", () => {
+    const fn = functionSource(RESOLVER, "resolvePaidLifecycle", "commercial-context.service.ts");
+    expect(fn).toMatch(/readCommercialLifecycle\(/);
+    expect(fn).not.toMatch(/subscription\.find/);
   });
-  it("every subscription.findFirst in the policy is scope-filtered (plan or teamId)", () => {
-    const calls = GATE.match(/subscription\.findFirst\(\{[\s\S]{0,800}?\}\)/g) ?? [];
-    expect(calls.length, "policy must consult at least one scope-filtered subscription row").toBeGreaterThan(0);
-    // Scope is built once as `scopeWhere` ({ teamId } | { userId, plan }) and
-    // spread into every query, so each call is scoped by construction.
-    expect(GATE).toMatch(/const\s+scopeWhere\s*=/);
-    expect(GATE).toMatch(/teamId:\s*scope\.teamId/);
-    expect(GATE).toMatch(/userId:\s*scope\.ownerUserId,\s*plan:\s*scope\.plan/);
-    for (const call of calls) {
-      expect(call, `every subscription.findFirst must spread scopeWhere — found: ${call.slice(0, 160)}`).toMatch(/\.\.\.scopeWhere|scopeWhere/);
-    }
+
+  it("every query is scope-filtered: a personal subject by user AND plan, a workspace by team", async () => {
+    const p = fakeClient([]);
+    await readCommercialLifecycle(p.client, PERSONAL, NOW);
+    expect(p.queries.length).toBeGreaterThan(0);
+    for (const q of p.queries) expect(q).toMatchObject({ userId: "u1", plan: "PRO" });
+    const w = fakeClient([]);
+    await readCommercialLifecycle(w.client, WORKSPACE, NOW);
+    for (const q of w.queries) expect(q).toMatchObject({ teamId: "t1" });
+  });
+
+  it("a stale terminal row for a DIFFERENT plan never leaks into the decision", async () => {
+    const { client } = fakeClient([
+      { userId: "u1", plan: "BASIC", status: "CANCELED", currentPeriodEnd: at(-30), updatedAt: at(-1) },
+    ]);
+    const r = await readCommercialLifecycle(client, PERSONAL, NOW);
+    expect(r.state).toBe("ACTIVE");
+    expect(r.mutationsAllowed).toBe(true);
   });
 });
 
-describe("Phase 9 STEP 5 — four-branch corroboration policy is wired", () => {
-  it("Step 1 — live (ACTIVE/TRIALING) matching row", () => {
-    expect(GATE).toMatch(/status:\s*\{\s*in:\s*\[S\.ACTIVE,\s*S\.TRIALING\]\s*\}/);
+describe("Phase 9 STEP 5 — four-branch corroboration policy (behaviour)", () => {
+  it("Step 1 — a live (ACTIVE/TRIALING) matching row allows", async () => {
+    for (const status of ["ACTIVE", "TRIALING"] as const) {
+      const { client } = fakeClient([
+        { userId: "u1", plan: "PRO", status, currentPeriodEnd: at(20), updatedAt: at(-1) },
+        { userId: "u1", plan: "PRO", status: "CANCELED", currentPeriodEnd: at(-60), updatedAt: at(-90) },
+      ]);
+      const r = await readCommercialLifecycle(client, PERSONAL, NOW);
+      expect(r.state).toBe("ACTIVE");
+      expect(r.providerStatus).toBe(status);
+    }
   });
-  it("Step 2 — matching PAST_DUE row → the ONE bounded grace window", () => {
-    expect(GATE).toMatch(/status:\s*S\.PAST_DUE/);
-    expect(GATE).toMatch(/evalPastDueGrace/);
-    expect(RESOLVER).toMatch(/COMMERCIAL_GRACE_PERIOD_MS/);
+
+  it("Step 2 — a matching PAST_DUE row is in the ONE bounded grace window, then expires", async () => {
+    const inside = fakeClient([
+      { userId: "u1", plan: "PRO", status: "PAST_DUE", currentPeriodEnd: at(-3), updatedAt: at(-1) },
+    ]);
+    const g = await readCommercialLifecycle(inside.client, PERSONAL, NOW);
+    expect(g.state).toBe("GRACE");
+    expect(g.mutationsAllowed).toBe(true);
+    const outside = fakeClient([
+      { userId: "u1", plan: "PRO", status: "PAST_DUE", currentPeriodEnd: at(-8), updatedAt: at(-1) },
+    ]);
+    const x = await readCommercialLifecycle(outside.client, PERSONAL, NOW);
+    expect(x.state).toBe("PAST_DUE_EXPIRED");
+    expect(x.mutationsAllowed).toBe(false);
   });
-  it("Step 3 — no matching-scope row → tolerate webhook lag → ACTIVE", () => {
-    expect(GATE).toMatch(/anyMatching/);
-    expect(GATE).toMatch(/if\s*\(\s*!anyMatching\s*\)\s*return\s+LIFE_ACTIVE/);
+
+  it("Step 3 — no matching-scope row tolerates webhook lag: ACTIVE", async () => {
+    const { client } = fakeClient([]);
+    expect((await readCommercialLifecycle(client, WORKSPACE, NOW)).state).toBe("ACTIVE");
   });
-  it("Step 4 — terminal matching row → paid-through respected, then deny (CANCELLED, fail closed)", () => {
-    const idx = GATE.indexOf("Step 4");
-    expect(idx, "Step 4 comment present").toBeGreaterThan(-1);
-    // Step 4 is the policy's last step: from its banner to the function end.
-    const slice = GATE.slice(idx);
-    // §9.5 — an explicit canonical paid-through date keeps the subject
-    // active until it…
-    expect(slice).toMatch(/currentPeriodEnd\.getTime\(\)\s*>\s*Date\.now\(\)/);
-    // …after which (or without a valid date) paid capability is denied.
-    expect(slice).toMatch(/state:\s*"CANCELLED"/);
-    expect(slice).toMatch(/mutationsAllowed:\s*false/);
+
+  it("Step 4 — a terminal matching row: paid-through respected, then denied (CANCELLED, fail closed)", async () => {
+    const paidThrough = fakeClient([
+      { teamId: "t1", plan: "TEAM", status: "CANCELED", currentPeriodEnd: at(5), updatedAt: at(-1) },
+    ]);
+    expect((await readCommercialLifecycle(paidThrough.client, WORKSPACE, NOW)).state).toBe("ACTIVE");
+    const ended = fakeClient([
+      { teamId: "t1", plan: "TEAM", status: "CANCELED", currentPeriodEnd: at(-1), updatedAt: at(-1) },
+    ]);
+    const r = await readCommercialLifecycle(ended.client, WORKSPACE, NOW);
+    expect(r.state).toBe("CANCELLED");
+    expect(r.mutationsAllowed).toBe(false);
   });
-  it("FREE short-circuit precedes every subscription query", () => {
-    const freeIdx = GATE.indexOf("scope.plan === prismaPkg.PlanType.FREE");
-    const firstQueryIdx = GATE.indexOf("subscription.findFirst");
-    expect(freeIdx).toBeGreaterThan(-1);
-    expect(firstQueryIdx).toBeGreaterThan(-1);
-    expect(freeIdx, "FREE early-return must precede subscription queries").toBeLessThan(firstQueryIdx);
+
+  it("FREE short-circuits before any subscription query", async () => {
+    const f = fakeClient([
+      { userId: "u1", plan: "FREE", status: "PAST_DUE", currentPeriodEnd: null, updatedAt: at(-1) },
+    ]);
+    const r = await readCommercialLifecycle(f.client, { ...PERSONAL, plan: "FREE" }, NOW);
+    expect(r.state).toBe("INACTIVE");
+    expect(f.queries).toEqual([]);
   });
 });
 

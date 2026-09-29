@@ -134,6 +134,12 @@ const ENTRYPOINTS = Object.freeze({
     // Read-only by default; its execution arm refuses without an owner
     // approval bound to the dry run's plan hash.
     "services/api/src/scripts/package-recovery-backfill.ts",
+    // EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — two READ-ONLY operator reports
+    // run before the rollout flags / any certificate correction:
+    // `pnpm --filter proovra-api ops:output-reconciliation-dry-run` and
+    // `pnpm --filter proovra-api ops:destruction-certificate-audit`.
+    "services/api/src/scripts/output-reconciliation-dry-run.ts",
+    "services/api/src/scripts/destruction-certificate-audit.ts",
   ],
 });
 

@@ -322,9 +322,11 @@ describe("no Search condition closes without proven recovery", () => {
     );
     expect(sweep).toContain('if (observation.activity !== "RECOVERED") continue;');
     // …and the skip happens before the writer, not after it.
-    expect(sweep.indexOf('!== "RECOVERED") continue;')).toBeLessThan(
-      sweep.indexOf("operationalIncident.update("),
-    );
+    // (2026-09-29: the close is a compare-and-set `updateMany` on status, so
+    // a concurrent sweep cannot close the same incident twice.)
+    const writerIdx = sweep.indexOf("operationalIncident.updateMany(");
+    expect(writerIdx).toBeGreaterThan(-1);
+    expect(sweep.indexOf('!== "RECOVERED") continue;')).toBeLessThan(writerIdx);
   });
 
   it("13. THE PROBE IS READ-ONLY AND CALLS THE SHARED AUTHORITY", () => {

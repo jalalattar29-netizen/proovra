@@ -176,3 +176,31 @@ export type LifecycleFilter =
   | "report_awaiting_issuance"
   | "package_missing"
   | "entitlement_unavailable";
+
+/** Every filter, for validating a `?lifecycle=` deep link. */
+export const LIFECYCLE_FILTERS: ReadonlyArray<LifecycleFilter> = [
+  "all",
+  "report_ready",
+  "report_pending",
+  "report_failed",
+  "package_ready",
+  "package_pending",
+  "package_failed",
+  "package_blocked",
+  "report_not_issued",
+  "report_awaiting_issuance",
+  "package_missing",
+  "entitlement_unavailable",
+];
+
+/**
+ * A deep link's filter (e.g. Billing → `/reports?lifecycle=report_awaiting_issuance`),
+ * or null when absent or not a known filter — an unknown value never reaches
+ * the server.
+ */
+export function lifecycleFilterFromSearch(search: string): LifecycleFilter | null {
+  const value = new URLSearchParams(search).get("lifecycle");
+  return value && (LIFECYCLE_FILTERS as readonly string[]).includes(value)
+    ? (value as LifecycleFilter)
+    : null;
+}

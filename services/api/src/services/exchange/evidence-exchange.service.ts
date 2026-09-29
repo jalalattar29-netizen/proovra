@@ -31,6 +31,7 @@ import {
   type ExchangePackageState,
   type WebhookEventKind,
 } from "@proovra/shared";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { signPackageManifest } from "./signed-delivery.service.js";
@@ -99,10 +100,13 @@ export async function createExchangePackage(
   }
   const prisma = input.prisma ?? defaultPrisma;
   // Every id must belong to THIS workspace (2026-09-29). The answer does not
-  // say which id failed, so it cannot be used to probe other tenants.
+  // say which id failed, so it cannot be used to probe other tenants. The
+  // canonical scope, not a bare `teamId`: a personal workspace's records may
+  // carry team_id NULL and are still its own.
   const uniqueIds = [...new Set(input.evidenceIds)];
+  const scope = await workspaceEvidenceWhere(input.teamId, prisma);
   const owned = await prisma.evidence.count({
-    where: { id: { in: uniqueIds }, teamId: input.teamId },
+    where: { AND: [{ id: { in: uniqueIds } }, scope] },
   });
   if (owned !== uniqueIds.length) {
     return { ok: false, denial: "INVALID_EVIDENCE" };

@@ -28,8 +28,8 @@
  *        * tsa_failure_reason → null
  *      + append a `TIMESTAMP_APPLIED` custody event marked
  *      `repair_source: 'tsa_replay_from_token'` for forensic traceability
- *      + enqueue a report regen via `enqueueGenerateReportJob(...)` so
- *      the surfaces re-render with the corrected state.
+ *      No report is re-issued (2026-09-29): issued reports keep what they
+ *      said; the corrected state is shown by Verify and the record.
  *   5. On any failure code from the parser — KEEP the row FAILED, log
  *      the bounded reason. The script never writes a fake success.
  *

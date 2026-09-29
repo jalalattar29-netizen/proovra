@@ -213,7 +213,8 @@ describe("Wave A CHAIN 6 — destruction: retention → legal-hold precedence �
     expect(processor).toMatch(/legalHold: hold\.held/);
     // …and the executor is what refuses, fail-closed, before any storage call.
     const blockIdx = executor.indexOf("if (!eligibility.eligible)");
-    const deleteIdx = executor.indexOf("storage.deleteObject(target)");
+    // 2026-09-29: destruction deletes every object VERSION (never a key).
+    const deleteIdx = executor.indexOf("storage.deleteObjectVersion(");
     expect(blockIdx).toBeGreaterThan(-1);
     expect(deleteIdx).toBeGreaterThan(blockIdx);
     expect(executor).toMatch(/await releaseClaim\(\);\s*return \{\s*ok: false,\s*outcome: "BLOCKED"/);

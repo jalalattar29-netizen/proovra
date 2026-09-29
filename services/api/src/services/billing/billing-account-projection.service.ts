@@ -1521,13 +1521,14 @@ export async function buildBillingAccountProjection(input: {
       historicalOutputEligibility = {
         eligibleWithoutOutputs,
         /*
-         * The Reports surface, unfiltered. Deliberately NOT a lifecycle
-         * deep-link: the bounded filter vocabulary
-         * (`ReportLifecycleFilter`) has no member for "eligible but not
-         * generated", and pointing at the nearest one would land the customer
-         * on a different population than the number they clicked.
+         * EVIDENCE OUTPUT LIFECYCLE (2026-09-29): the vocabulary now has the
+         * member this count needed — `report_awaiting_issuance` ("First
+         * issuance pending"): finalized, entitled, no report, nothing live.
+         * The Reports filter additionally applies the issuance decision, so
+         * it may show FEWER records than this best-effort number (never a
+         * different population).
          */
-        reviewHref: "/reports",
+        reviewHref: "/reports?lifecycle=report_awaiting_issuance",
       };
     } catch {
       historicalOutputEligibility = undefined;

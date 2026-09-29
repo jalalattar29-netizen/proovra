@@ -45,8 +45,10 @@ export interface ReportsSummary {
   packagesPending: number | null;
   packagesBlocked: number | null;
   packagesFailed: number | null;
-  reportsNotRequested: number | null;
-  packagesNotRequested: number | null;
+  reportsNotIssued: number | null;
+  reportsAwaitingFirstIssuance: number | null;
+  packagesMissingForLatestReport: number | null;
+  outputsEntitlementUnavailable: number | null;
   totalEvidenceWithArtifacts: number | null;
   totalArtifactVersions: number | null;
 }
@@ -69,8 +71,12 @@ export const REPORTS_METRICS: ReadonlyArray<{
   { key: "packagesPending", label: "Packages pending", tone: "pending" },
   { key: "packagesFailed", label: "Packages failed", tone: "risk" },
   { key: "packagesBlocked", label: "Packages blocked", tone: "risk" },
-  { key: "reportsNotRequested", label: "Reports not requested", tone: "neutral" },
-  { key: "packagesNotRequested", label: "Packages not requested", tone: "neutral" },
+  // "Reports / Packages not requested" are retired (2026-09-29, web parity):
+  // they mixed a Free record's correct "nothing issued" with real gaps.
+  { key: "reportsNotIssued", label: "Not issued (plan)", tone: "neutral" },
+  { key: "reportsAwaitingFirstIssuance", label: "First issuance pending", tone: "pending" },
+  { key: "packagesMissingForLatestReport", label: "Package missing for latest report", tone: "risk" },
+  { key: "outputsEntitlementUnavailable", label: "Subscription check pending", tone: "neutral" },
   { key: "totalEvidenceWithArtifacts", label: "Records with artifacts", tone: "neutral" },
   { key: "totalArtifactVersions", label: "Artifact versions", tone: "info" },
 ];
@@ -88,8 +94,10 @@ export function parseReportsSummary(payload: unknown): ReportsSummary | null {
     packagesPending: int(d.packagesPending),
     packagesFailed: int(d.packagesFailed),
     packagesBlocked: int(d.packagesBlocked),
-    reportsNotRequested: int(d.reportsNotRequested),
-    packagesNotRequested: int(d.packagesNotRequested),
+    reportsNotIssued: int(d.reportsNotIssued),
+    reportsAwaitingFirstIssuance: int(d.reportsAwaitingFirstIssuance),
+    packagesMissingForLatestReport: int(d.packagesMissingForLatestReport),
+    outputsEntitlementUnavailable: int(d.outputsEntitlementUnavailable),
     totalEvidenceWithArtifacts: int(d.totalEvidenceWithArtifacts),
     totalArtifactVersions: int(d.totalArtifactVersions),
   };

@@ -89,10 +89,16 @@ describe("partial Report/Package failure — the state transition", () => {
     // above is only meaningful if this is the error actually thrown.
     const guard = PROCESSOR.slice(
       PROCESSOR.indexOf("if (packageTechnicalFailure && verificationPackageEntitled)"),
-    ).slice(0, 700);
+    ).slice(0, 1400);
     expect(guard).toContain("recordPackageGenerationIncident");
     expect(guard).toMatch(
       /throw createWorkerError\(\s*"VERIFICATION_PACKAGE_INCOMPLETE_"[\s\S]{0,120}true,?\s*\)/,
+    );
+    // 2026-09-29: a DETERMINISTIC storage refusal (e.g. S3 InvalidRequest) is
+    // the one exception — retrying the same bytes the same way cannot succeed,
+    // so it is terminal, after the CRITICAL incident naming the storage code.
+    expect(guard.indexOf("recordPackageGenerationIncident")).toBeLessThan(
+      guard.indexOf('createWorkerError("VERIFICATION_PACKAGE_STORAGE_REJECTED", false)'),
     );
   });
 

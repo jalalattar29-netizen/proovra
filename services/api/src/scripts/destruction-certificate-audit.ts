@@ -13,7 +13,7 @@
  * certificate. Correction is a separate, authorized procedure (see
  * docs/architecture/evidence-output-lifecycle-2026-09-29.md §Destruction).
  *
- *   pnpm --filter proovra-api exec tsx src/scripts/destruction-certificate-audit.ts [--limit=500] [--json]
+ *   pnpm --filter proovra-api ops:destruction-certificate-audit -- [--limit=500] [--json]
  *
  * Output identifies records by the first 8 characters of their id only.
  */

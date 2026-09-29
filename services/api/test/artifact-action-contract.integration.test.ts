@@ -35,6 +35,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
+/** An updated report records why it was issued (2026-09-29). */
+const REASON = "Document the later anchor";
+
 type Output = {
   state: string;
   generation: string;
@@ -288,7 +291,7 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     expect(s.outputs.report).toMatchObject({ state: "READY", action: "NONE", actionUnavailableReason: "ESCALATED_TO_OPERATOR" });
     expect(s.outputs.newVersion).toMatchObject({ action: "NONE", reason: "ESCALATED_TO_OPERATOR" });
     expect(s.report.available).toBe(true);
-    const res = await post(A().ownerToken, id, { intent: "NEW_VERSION" }, { "idempotency-key": `k-${randomUUID()}` });
+    const res = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON }, { "idempotency-key": `k-${randomUUID()}` });
     expect(res.statusCode).toBe(409);
     expect(res.json()).toMatchObject({ reason: "ESCALATED_TO_OPERATOR" });
   });
@@ -341,7 +344,7 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     await pkg(id, 1);
     const s2 = await status(id);
     expect(s2.outputs.newVersion).toMatchObject({ action: "NONE", reason: "LEGAL_HOLD_ACTIVE" });
-    const res = await post(A().ownerToken, id, { intent: "NEW_VERSION" }, { "idempotency-key": `k-${randomUUID()}` });
+    const res = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON }, { "idempotency-key": `k-${randomUUID()}` });
     expect(res.statusCode).toBe(409);
     expect(res.json()).toMatchObject({ reason: "LEGAL_HOLD_ACTIVE" });
   });
@@ -427,13 +430,13 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     await report(id, 1, new Date(Date.now() - 60_000));
     await pkg(id, 1);
 
-    const noKey = await post(A().ownerToken, id, { intent: "NEW_VERSION" });
+    const noKey = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON });
     expect(noKey.statusCode).toBe(400);
     expect(noKey.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REQUIRED" });
     expect(await requestCount(id)).toBe(0);
 
     const key = `nv-${randomUUID()}`;
-    const first = await post(A().ownerToken, id, { intent: "NEW_VERSION" }, { "idempotency-key": key });
+    const first = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON }, { "idempotency-key": key });
     expect(first.statusCode, first.body).toBe(202);
     expect(first.json()).toMatchObject({ operation: "NEW_VERSION", outcome: "ENQUEUED" });
     const firstId = (first.json() as { requestId: string }).requestId;
@@ -443,10 +446,39 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     await report(id, 2);
     await pkg(id, 2);
 
-    const replay = await post(A().ownerToken, id, { intent: "NEW_VERSION" }, { "idempotency-key": key });
+    const replay = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON }, { "idempotency-key": key });
     expect(replay.statusCode, replay.body).toBe(202);
     expect(replay.json()).toMatchObject({ outcome: "REPLAYED", requestId: firstId });
     expect(await requestCount(id), "no second version request").toBe(1);
+  });
+
+  it("an updated report requires a reason, stores it sanitized, and is purpose updated_report (2026-09-29)", async () => {
+    const id = await evidence();
+    await report(id, 1, new Date(Date.now() - 60_000));
+    await pkg(id, 1);
+
+    for (const reason of [undefined, "", "  x ", "<>"]) {
+      const res = await post(
+        A().ownerToken,
+        id,
+        { intent: "NEW_VERSION", ...(reason === undefined ? {} : { reason }) },
+        { "idempotency-key": `nv-${randomUUID()}` },
+      );
+      expect(res.statusCode, String(reason)).toBe(400);
+      expect(res.json()).toMatchObject({ code: "UPDATED_REPORT_REASON_REQUIRED" });
+    }
+    expect(await requestCount(id), "a refused request writes nothing").toBe(0);
+
+    const res = await post(
+      A().ownerToken,
+      id,
+      { intent: "NEW_VERSION", reason: "Document\u0000 the <b>later</b>\n‮anchor" },
+      { "idempotency-key": `nv-${randomUUID()}` },
+    );
+    expect(res.statusCode, res.body).toBe(202);
+    const row = await prisma.reportGenerationRequest.findFirstOrThrow({ where: { evidenceId: id } });
+    expect(row.purpose).toBe("updated_report");
+    expect(row.regenerateReason).toBe("Document the b later /b anchor");
   });
 
   it("D6 — concurrent web and mobile recovery clicks produce ONE request", async () => {
@@ -464,10 +496,10 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
       const id = await evidence();
       await report(id, 1, new Date(Date.now() - 60_000));
       await pkg(id, 1);
-      const first = await post(A().ownerToken, id, { intent: "NEW_VERSION" }, { "idempotency-key": `a-${randomUUID()}` });
+      const first = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON }, { "idempotency-key": `a-${randomUUID()}` });
       expect(first.statusCode).toBe(202);
       await prisma.reportGenerationRequest.updateMany({ where: { evidenceId: id }, data: { state: "SUCCEEDED" } });
-      const second = await post(A().ownerToken, id, { intent: "NEW_VERSION" }, { "idempotency-key": `b-${randomUUID()}` });
+      const second = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON }, { "idempotency-key": `b-${randomUUID()}` });
       expect(second.statusCode).toBe(429);
       expect(second.json()).toMatchObject({ code: "RATE_LIMITED" });
       expect(await requestCount(id)).toBe(1);

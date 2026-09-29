@@ -31,7 +31,6 @@ import {
   assertWorkspaceAllowsReportArtifact,
   assertWorkspaceAllowsVerificationPackageArtifact,
   resolveEffectivePlanForEvidence,
-  resolveEvidenceFundingSource,
 } from "./workspace-billing.js";
 import {
   OUTPUT_ENTITLEMENT_UNRESOLVED,
@@ -94,7 +93,6 @@ import { logger, withJobContext } from "./logger.js";
 // import is not tidying — an unused deletion primitive in the worker's largest
 // module is an invitation to re-open the second delete path this pass closed.
 import {
-  deleteObject,
   getObjectStream,
   headObject,
 } from "./storage.js";
@@ -134,7 +132,6 @@ import {
 import { buildVerificationPackageIntelligence } from "./verification-package-intelligence-bridge.js";
 import {
   enqueueEvidencePurgeJob,
-  enqueueReportGenerationRequest,
   reportDlqQueue,
 } from "./queue.js";
 import { captureException } from "./sentry.js";
@@ -148,11 +145,9 @@ import {
   markRequestRetryable,
   markRequestTerminal,
   mintRequestForLegacyJob,
-  requestReportGenerationFromWorker,
   resolveAndClaimReportRequest,
   type ResolvedReportCommand,
 } from "./report-generation-authority.js";
-import type { ReportGenerationPurpose } from "@proovra/shared-runtime/reports";
 
 type WorkerError = Error & {
   code: string;

@@ -334,6 +334,7 @@ import {
   isOperatorCapabilityGap,
 } from "../services/ai/workspace-ai-policy.service.js";
 import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
+import { collapseControlCharacters, stripControlAndInvisible } from "../lib/text-sanitize.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
   appendReviewerAuditEvent,
@@ -10667,7 +10668,11 @@ if (
        */
       const updatedReportReason =
         typeof body.reason === "string"
-          ? body.reason.replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120)
+          ? collapseControlCharacters(stripControlAndInvisible(body.reason), { c1: true })
+              .replace(/[<>]/g, " ")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 120)
           : "";
       if (intent === "NEW_VERSION" && updatedReportReason.length < 3) {
         return reply.code(400).send({

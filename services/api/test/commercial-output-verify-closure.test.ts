@@ -273,6 +273,9 @@ const NOT_A_REVIEW_GAP: ReadonlySet<EvidenceOutputState> = new Set([
   "READY",
   "NOT_INCLUDED",
   "NOT_APPLICABLE",
+  // 2026-09-29: the subscription could not be confirmed. Nothing is issued
+  // and nothing is actionable by the reader; the worker retries.
+  "ENTITLEMENT_UNAVAILABLE",
 ]);
 
 describe("P1-1 — one output decision, rendered by every surface", () => {

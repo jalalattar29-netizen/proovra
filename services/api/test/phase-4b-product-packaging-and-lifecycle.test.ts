@@ -250,6 +250,10 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
       findUnique: async () => null,
       findFirst: async () => null,
       findMany: async () => [],
+      // Exchange creation checks every id belongs to the workspace (2026-09-29).
+      // The default models "all owned"; a test overrides it to prove refusal.
+      count: async (args: { where: { AND: Array<{ id?: { in: string[] } }> } }) =>
+        args.where.AND[0]?.id?.in.length ?? 0,
     },
     intelligenceActivityEvent: {
       create: async () => ({}),
@@ -1431,6 +1435,33 @@ describe("15. Evidence exchange package lifecycle", () => {
         data: { state: "BUILDING" },
       },
     ]);
+  });
+
+  it("createExchangePackage refuses an id outside the workspace, and writes nothing (2026-09-29)", async () => {
+    let created = false;
+    const prisma = makePrismaStub({
+      evidence: {
+        // Only one of the two requested ids is in scope.
+        count: async () => 1,
+        findMany: async () => [],
+      },
+      evidenceExchangePackage: {
+        create: async () => {
+          created = true;
+          return { id: "pkg-x" };
+        },
+        updateMany: async () => ({ count: 1 }),
+      },
+    });
+    const result = await createExchangePackage({
+      prisma: prisma as never,
+      teamId: "team-1",
+      kind: "EVIDENCE",
+      evidenceIds: ["ev-own", "ev-foreign"],
+      createdByUserId: "user-1",
+    });
+    expect(result).toEqual({ ok: false, denial: "INVALID_EVIDENCE" });
+    expect(created).toBe(false);
   });
 
   it("generateSignedUrl on READY package persists signedUrl + expiresAtUtc", async () => {

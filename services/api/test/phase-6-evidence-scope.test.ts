@@ -99,7 +99,8 @@ describe("Phase 6 §9.7 — purge worker legal-hold re-check", () => {
     const eligibilityIdx = executor.indexOf(
       "computeEvidenceDestructionEligibility(",
     );
-    const deleteIdx = executor.indexOf("storage.deleteObject(target)");
+    // 2026-09-29: destruction deletes every object VERSION (never a key).
+    const deleteIdx = executor.indexOf("storage.deleteObjectVersion(");
     expect(eligibilityIdx).toBeGreaterThan(-1);
     expect(deleteIdx).toBeGreaterThan(eligibilityIdx);
     expect(executor).toMatch(/legalHold: input.legalHold/);

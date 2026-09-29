@@ -144,11 +144,12 @@ export type EvidenceIntelligenceOutputs = {
  * which.
  */
 function outputAbsenceIsReviewGap(state: EvidenceOutputState): boolean {
+  // ENTITLEMENT_UNAVAILABLE: whether an output is owed is unknown for now;
+  // that is not a review gap in the evidence.
   switch (state) {
     case "READY":
     case "NOT_INCLUDED":
     case "NOT_APPLICABLE":
-    // Whether it is owed is unknown for now; not a review gap in the evidence.
     case "ENTITLEMENT_UNAVAILABLE":
       return false;
     case "ELIGIBLE_NOT_GENERATED":

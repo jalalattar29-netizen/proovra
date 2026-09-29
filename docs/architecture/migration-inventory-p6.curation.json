@@ -3200,6 +3200,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.tables WHERE table_name='billing_review_items'\"",
       "evidence": "BILLING PAYPAL INTEGRITY (2026-09-28). Adds nullable payments.product / checkout_attempt_id / provider_resource_id (+ index), subscriptions.pending_plan_awaiting_approval (NOT NULL DEFAULT false) / pending_plan_requested_at_utc / activated_at_utc / locally_terminated_at_utc, workspace_storage_addons.depends_on_subscription_id, one new table billing_review_items (FK users, DO-guarded), and one partial unique index on evidence_credit_ledger_entries (REVERSAL rows with no evidence). No enum, constraint or existing column is changed; nothing is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it ignores every new column (product is VARCHAR, not an enum), and code built after it needs the columns and table, so apply before deploying the API. Historic payments keep product NULL; reconciliation classifies them lazily and only EVIDENCE_CREDIT/NULL rows are ever eligible for credit recovery."
+    },
+    "20280730000000_evidence_output_lifecycle": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='verification_packages' AND column_name='package_sha256'\"",
+      "evidence": "EVIDENCE OUTPUT LIFECYCLE (2026-09-29). Adds nullable reports.s3_version_id / issue_kind / issue_reason / previous_report_version / custody_through_sequence and nullable verification_packages.package_sha256 / s3_version_id / package_format_version / report_issued_at_utc / custody_through_sequence. No enum, constraint or existing column is changed; nothing is rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns (issue_kind is VARCHAR, not an enum); code built after it writes them, so apply before deploying the API and worker. Historic rows keep NULL, which readers present as 'not recorded'."
     }
   }
 }

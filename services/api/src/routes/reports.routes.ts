@@ -247,6 +247,10 @@ export default async function registerReportsRoutes(
           // Soft-delete safety. Schemas without `deletedAt` ignore the
           // clause; rows with `deletedAt` set are excluded.
           { deletedAt: null },
+          // The workspace list's population (2026-09-29): a trashed record,
+          // one bound for destruction, or a destroyed one is not an artifact
+          // the reader can act on, so neither list shows it.
+          { lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] } },
           ...(cursorClause ? [cursorClause] : []),
         ],
       };

@@ -66,7 +66,7 @@ import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 import { logger } from "./logger.js";
 // The ONE export-package meter writer, shared with the API's completion route.
-import { recordExportPackageUsage } from "@proovra/shared-runtime";
+import { recordExportPackageUsage, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -280,10 +280,13 @@ async function appendKindContent(params: {
    * only ids that belong to THIS workspace.
    */
   const requestedIds = evidenceIds.slice(0, MAX_EVIDENCE_PER_PACKAGE);
+  // The canonical workspace scope (a personal workspace's records may carry
+  // team_id NULL), never a bare teamId.
+  const workspaceScope = await workspaceEvidenceWhere(teamId, prisma);
   const ownedIds = new Set(
     (
       await prisma.evidence.findMany({
-        where: { id: { in: requestedIds }, teamId },
+        where: { AND: [{ id: { in: requestedIds } }, workspaceScope] },
         select: { id: true },
       })
     ).map((row) => row.id),

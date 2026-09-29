@@ -430,8 +430,15 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // `teamId` so an action targets the record's workspace rather than the
       // selected one. No new authority, no platform-wide scan. Sanctioned,
       // audited growth — the pin moves so it keeps catching UNAUDITED drift.
+      // Rebaselined 2026-09-29 (EVIDENCE OUTPUT LIFECYCLE): 45,508 → 50,778.
+      // Audited diff: the summary and list share one finalized population
+      // (not deleted, not trashed / pending destruction / destroyed); four
+      // truthful buckets (not issued by plan, first issuance pending, package
+      // missing for the latest report, subscription check pending) with a
+      // filter each; restricted cases filtered; eligibility defaults to
+      // UNRESOLVED instead of ELIGIBLE. No new authority, no platform scan.
       rel: "src/services/reports/reports-aggregator.service.ts",
-        expected: 45508,
+        expected: 50778,
       },
     ];
     for (const { rel, expected } of PINS) {

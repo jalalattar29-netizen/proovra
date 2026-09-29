@@ -238,7 +238,12 @@ describe("Phase 9 STEP H — commercial authority-writer registry", () => {
 const SUBSCRIPTION_STATUS_REF =
   /\bSubscriptionStatus\.(ACTIVE|PAST_DUE|CANCELED|TRIALING)\b/;
 const SUBSCRIPTION_STATUS_ALLOWED: Record<string, string> = {
-  "services/billing/commercial-context.service.ts": "CANONICAL: the ONE subscription-active + grace decision (resolvePaidLifecycle)",
+  // EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — the ONE subscription-active +
+  // grace decision moved, rules unchanged, to `readCommercialLifecycle` in
+  // packages/shared-runtime/src/billing/commercial-lifecycle.ts (outside this
+  // scan) so the worker's issuance gates share it; commercial-context's
+  // `resolvePaidLifecycle` is now an adapter and names no status. Its behaviour
+  // is pinned in production-subscription-gate-stale-row.test.ts.
   // BILLING RECONCILIATION (2026-08-27) — the scheduled sweep names the three
   // repairable statuses when SELECTING which stored bindings to offer to the
   // reconciliation authority. It makes no active/grace decision: it decides

@@ -292,23 +292,17 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
     expect(SCRIPT).toMatch(/repair_source:\s*"tsa_replay_from_token"/);
   });
 
-  it("records a durable regeneration REQUEST with reason `tsa_repaired`, after the transaction commits", () => {
-    // PHASE 12 — POINT 5: `enqueueGenerateReportJob` is deleted along with the
-    // api's private report producer. The script now calls the durable report
-    // AUTHORITY, which persists a `ReportGenerationRequest` — carrying the
-    // force decision, the reason and the machine principal — and then enqueues
-    // that row's id. `forceRegenerate` is no longer a boolean on a message.
-    expect(SCRIPT).toMatch(
-      /requestReportGeneration\(\{[\s\S]{0,300}regenerateReason:\s*"tsa_repaired"/,
-    );
-    expect(SCRIPT).toMatch(/purpose:\s*"tsa_repair"/);
-    expect(SCRIPT).toMatch(/requestedByMachineId:\s*"script\.repair-tsa"/);
-    // Still strictly after the commit: the DB correction is the durable record
-    // and a queue failure must not roll it back.
-    const txIdx = SCRIPT.indexOf("transaction failed for");
-    const reqIdx = SCRIPT.indexOf("requestReportGeneration({");
-    expect(txIdx).toBeGreaterThan(-1);
-    expect(reqIdx).toBeGreaterThan(txIdx);
+  it("re-issues NO report — the repair is a custody fact, not a new version (Decision C, 2026-09-29)", () => {
+    // SUPERSEDED: this used to pin a forced regeneration request with reason
+    // `tsa_repaired`. Issued reports keep what they said when issued; the
+    // corrected timestamp reading is recorded in custody and shown by Verify,
+    // and an updated report is an explicit, reasoned user action.
+    expect(SCRIPT).not.toMatch(/requestReportGeneration\(|forceRegenerate|tsa_repaired/);
+    expect(SCRIPT).toMatch(/NO REPORT IS RE-ISSUED/);
+  });
+
+  it("the correction is compare-and-set: it only flips a row that is still FAILED", () => {
+    expect(SCRIPT).toMatch(/tx\.evidence\.updateMany\(\{[\s\S]{0,300}tsaStatus:\s*"FAILED"/);
   });
 
   it("does NOT call prisma update / delete outside the transaction", () => {

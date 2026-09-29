@@ -170,17 +170,17 @@ describe("Phase IA-forward-path — every report/package read site selects the L
 describe("Phase IA-forward-path — OTS-anchored regen produces a version bump", () => {
   const UP = readSource("../../worker/src/ots-upgrade.processor.ts");
 
-  it("FULLY_ANCHORED enqueues with forceRegenerate: true + regenerateReason ots_anchored", () => {
-    // The whole FULLY_ANCHORED `if` statement (WCC-NEW-027) — it used to
-    // be a character window widened 2500 → 5500 by Phase
-    // IA-OTS-info-fallback. The inner gaps (400 → 1200) leave room for the
-    // additional custody-payload fields the info probe adds.
+  it("FULLY_ANCHORED records the anchor and re-issues NO report (Decision C, 2026-09-29)", () => {
+    // SUPERSEDED: this used to pin a forced regeneration with reason
+    // `ots_anchored`. A report is a dated statement; a later anchor is a later
+    // fact, recorded in custody and shown by Verify. Minting a version here
+    // also left latest reports with no paired package. An updated report is
+    // the explicit, reasoned user action only.
     const block = enclosingSource(UP, 'if (classification.kind === "FULLY_ANCHORED")', "statement", {
       fileName: "ots-upgrade.processor.ts",
     });
-    expect(block).toMatch(
-      /enqueueReportJob\(evidenceId,\s*\{[\s\S]{0,1200}forceRegenerate:\s*true[\s\S]{0,1200}regenerateReason:\s*"ots_anchored"/,
-    );
+    expect(block).not.toMatch(/enqueueReportJob|requestReportGeneration|forceRegenerate/);
+    expect(block).toMatch(/NO REPORT IS RE-ISSUED BECAUSE A PROOF IMPROVED/);
   });
 
   it("ANCHOR_MATERIAL_RECOVERED (PENDING) does NOT enqueue with forceRegenerate", () => {

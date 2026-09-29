@@ -456,21 +456,26 @@ describe("SCENARIO 13 — the safe stored-token TSA repair is preserved", () => 
     const script = api("scripts/repair-tsa-failed-with-token.ts");
     expect(script).toMatch(/Never re-contacts the TSA provider/);
     expect(script).toMatch(/tsaStatus:\s*"STAMPED"/);
-    // And it asks for a fresh artifact under the bounded repair purpose.
-    expect(script).toMatch(/purpose:\s*"tsa_repair"/);
+    // EVIDENCE OUTPUT LIFECYCLE (2026-09-29, Decision C): a corrected TSA
+    // reading is a later fact, recorded in custody. It never mints a report
+    // version — an updated report is an explicit, reasoned user action.
+    expect(strip(script)).not.toMatch(/requestReportGeneration|enqueueGenerateReportJob|forceRegenerate/);
+    expect(script).toMatch(/NO REPORT IS RE-ISSUED/);
     // It is an operator CLI, not a route or a button.
     expect(strip(api("routes/evidence.routes.ts"))).not.toMatch(/repair-tsa/);
   });
 });
 
-describe("SCENARIO 14 — a late OTS anchor produces a NEW artifact version", () => {
-  it("WIRING: anchoring asks for a forced regeneration, gated on current entitlement", () => {
+describe("SCENARIO 14 — a late OTS anchor is a later fact; an updated report is explicit", () => {
+  it("WIRING: anchoring re-issues NO report (Decision C, 2026-09-29)", () => {
     const ots = strip(worker("ots-upgrade.processor.ts"));
-    expect(ots).toMatch(/purpose:\s*"ots_upgrade_completed"/);
-    expect(ots).toMatch(/forceRegenerate:\s*true/);
-    // The producer both OTS and lifecycle recovery reach checks eligibility, so
-    // a record the plan excludes gets no doomed request.
-    expect(strip(worker("processor.ts"))).toMatch(/report\.enqueue\.skipped_not_included/);
+    expect(ots).not.toMatch(/purpose:\s*"ots_upgrade_completed"/);
+    expect(ots).not.toMatch(/forceRegenerate:\s*true/);
+    expect(ots).not.toMatch(/enqueueReportJob|requestReportGeneration/);
+    // The only way to a new version is the reasoned user action.
+    const routes = strip(api("routes/evidence.routes.ts"));
+    expect(routes).toMatch(/UPDATED_REPORT_REASON_REQUIRED/);
+    expect(routes).toMatch(/"updated_report"/);
   });
 
   it("WIRING: the new version is created beside the old one, never over it", () => {

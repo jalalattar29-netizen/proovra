@@ -184,7 +184,9 @@ describe("AI Copilot — every typed result branch", () => {
   it("C8/C9/C10 — the three that were previously conflated are distinct", () => {
     expect(OUTCOME_READER).toMatch(/ALREADY_ACTIVE:[^\n]*already under way/);
     expect(OUTCOME_READER).toMatch(/QUEUE_UNAVAILABLE:[\s\S]{0,200}picked up automatically/);
-    expect(OUTCOME_READER).toMatch(/NOT_INCLUDED:[\s\S]{0,200}not included/);
+    // 2026-09-29: "not issued" — the original evidence is still finalized.
+    expect(OUTCOME_READER).toMatch(/NOT_INCLUDED:[\s\S]{0,200}not issued/);
+    expect(OUTCOME_READER).toMatch(/ENTITLEMENT_UNAVAILABLE:[\s\S]{0,200}could not confirm/);
   });
 
   it("C11 — no TSA action is reachable from the Copilot, at all", () => {

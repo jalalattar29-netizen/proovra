@@ -688,7 +688,7 @@ export function EvidenceDetailCard({
           {historicalEligible === 1 ? "record is" : "records are"} now eligible
           for a report and verification package.{" "}
           <Link href={projection.historicalOutputEligibility!.reviewHref}>
-            Open Reports
+            See first issuance pending
           </Link>
         </p>
       ) : null}
