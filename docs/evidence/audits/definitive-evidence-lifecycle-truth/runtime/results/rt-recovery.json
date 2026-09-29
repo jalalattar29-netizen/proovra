@@ -1,0 +1,71 @@
+{
+  "probe": "RT-RECOVERY",
+  "before": {
+    "requests": [
+      {
+        "artifactType": "PACKAGE",
+        "state": "FAILED_RETRYABLE",
+        "intent": null,
+        "clientRequestKey": null
+      }
+    ],
+    "reports": 1,
+    "creditLedger": 0
+  },
+  "concurrentNoKey": [
+    {
+      "status": 202,
+      "body": "{\"evidenceId\":\"eaf834e1-66cf-4679-8021-1bcb7101cb91\",\"enqueued\":true,\"outcome\":\"ENQUEUED\",\"operation\":\"PACKAGE_RECOVERY\",\"requestId\":\"af867e2a-33f0-4d1a-8625-7dffee8b81be\",\"reason\":null,\"message\":\"Recovery requested. The"
+    },
+    {
+      "status": 202,
+      "body": "{\"evidenceId\":\"eaf834e1-66cf-4679-8021-1bcb7101cb91\",\"enqueued\":true,\"outcome\":\"ENQUEUED\",\"operation\":\"PACKAGE_RECOVERY\",\"requestId\":\"af867e2a-33f0-4d1a-8625-7dffee8b81be\",\"reason\":null,\"message\":\"Recovery requested. The"
+    }
+  ],
+  "afterNoKey": {
+    "requests": [
+      {
+        "artifactType": "PACKAGE",
+        "state": "FAILED_RETRYABLE",
+        "intent": null,
+        "clientRequestKey": null
+      },
+      {
+        "artifactType": "VERIFICATION_PACKAGE",
+        "state": "QUEUED",
+        "intent": "RECOVER",
+        "clientRequestKey": null
+      }
+    ],
+    "reports": 1,
+    "creditLedger": 0
+  },
+  "concurrentSameKey": [
+    {
+      "status": 202,
+      "body": "{\"evidenceId\":\"eaf834e1-66cf-4679-8021-1bcb7101cb91\",\"enqueued\":false,\"outcome\":\"ALREADY_ACTIVE\",\"operation\":\"PACKAGE_RECOVERY\",\"requestId\":\"af867e2a-33f0-4d1a-8625-7dffee8b81be\",\"reason\":null,\"message\":\"Generation is al"
+    },
+    {
+      "status": 202,
+      "body": "{\"evidenceId\":\"eaf834e1-66cf-4679-8021-1bcb7101cb91\",\"enqueued\":false,\"outcome\":\"ALREADY_ACTIVE\",\"operation\":\"PACKAGE_RECOVERY\",\"requestId\":\"af867e2a-33f0-4d1a-8625-7dffee8b81be\",\"reason\":null,\"message\":\"Generation is al"
+    }
+  ],
+  "afterKey": {
+    "requests": [
+      {
+        "artifactType": "PACKAGE",
+        "state": "FAILED_RETRYABLE",
+        "intent": null,
+        "clientRequestKey": null
+      },
+      {
+        "artifactType": "VERIFICATION_PACKAGE",
+        "state": "QUEUED",
+        "intent": "RECOVER",
+        "clientRequestKey": null
+      }
+    ],
+    "reports": 1,
+    "creditLedger": 0
+  }
+}

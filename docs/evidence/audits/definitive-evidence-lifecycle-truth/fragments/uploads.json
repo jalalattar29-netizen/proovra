@@ -1,0 +1,141 @@
+{
+  "domain": "uploads",
+  "auditedSha": "a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8",
+  "inventories": {
+    "resumableUploadPaths": [
+      {"id":"ING-RS-WEB","route":"services/api/src/routes/upload-sessions.routes.ts:325-787","actor":"session user","authorization":"requireAuth + authorizeOrFail(body.teamId,'evidence.create') (OWNER/ADMIN/REVIEWER/CONTRIBUTOR); NOT evidence owner","workspaceBinding":"caller-supplied body.teamId (membership proven); evidenceId checked to exist in team only (upload-session.service.ts:360) — not status/deletedAt/lockedAt/legal hold/owner","protocol":"S3 multipart, presigned UploadPart 60-900s (default 300)","key":"server-built evidence/<evidenceId>/multipart/<sessionId>/object (storage-multipart.ts:81-93)","clientHash":"advisory per-part clientSha256; expectedSha256 optional, web never sends","serverHash":"whole-object streamed SHA-256 when verifyHash:true (storage-multipart.ts:465)","creator":"EvidencePart via bridge upload-session.service.ts:1885","custody":"none at this stage (completeEvidence emits later)","idempotency":"(team,idempotencyKey) lookup with no state/evidence filter (:370-387)","disposition":"MAPPED (web behind NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED; server routes live regardless)"},
+      {"id":"ING-RS-API","route":"services/api/src/routes/integrations-uploads.routes.ts:307-629","actor":"API key","authorization":"requireApiKey + requireApiScope('integration.evidence.upload'), INTEGRATIONS_ENABLED","workspaceBinding":"server-derived cred.teamId; gateEvidenceForUpload (:268) checks team/archivedAt/active hold, NOT SIGNED/REPORTED/lockedAt/deletedAt","creator":"same bridge EvidencePart","disposition":"MAPPED (no in-repo client)"},
+      {"id":"ING-RS-VERIFIED","route":"upload-sessions.routes.ts:503-521 /parts/:i/verified","authorization":"requireInternalServiceAuth","disposition":"MAPPED, zero product callers"},
+      {"id":"INT-SCOPE-CREATE","route":"packages/shared/src/permissions.ts:100 integration.evidence.create","disposition":"RETIRED-in-effect: no route consumes the scope"},
+      {"id":"OPS-SEED","route":"ops-seed.routes.ts:120","disposition":"BLOCKED by env (OPERATIONAL_SEEDING_ENABLED); creates no Evidence"},
+      {"id":"SCRIPT-SEED-HOME","route":"services/api/scripts/seed-home-personas.ts:238-931","disposition":"BLOCKED only by NODE_ENV==='production' (:50); loads dotenv"},
+      {"id":"SCRIPT-SEED-ADMIN","route":"services/api/scripts/seed-admin-fixture.ts:398","disposition":"BLOCKED (NODE_ENV + DB-name guard :94-123)"},
+      {"id":"WORKER","route":"services/worker/src/**","disposition":"no Evidence/EvidencePart creator"},
+      {"id":"REAPERS","route":"worker orphan-scan.ts:94 (count only); POST /v1/ops/reconcile reapStaleUploadSessions","disposition":"no job expires Evidence stuck in CREATED/UPLOADING"}
+    ]
+  },
+  "answers": [],
+  "findings": [
+    {
+      "localId": "UPL-01",
+      "severity": "P0",
+      "category": "integrity-custody-corruption",
+      "title": "Resumable-upload bridge attaches a new EvidencePart to any same-team evidence — including SIGNED/REPORTED or another member's in-flight record — and the next report run then declares sealed evidence FAILED_HASH_MISMATCH",
+      "affected": {"routes":["POST /v1/uploads/sessions","POST /v1/uploads/sessions/:id/multipart/complete","integrations-uploads multipart routes"],"jobs":["report generation (processor.ts multipart branch)"],"tables":["evidence_upload_sessions","evidence_parts","evidences","custody_events"],"roles":["CONTRIBUTOR","REVIEWER","ADMIN","API key with integration.evidence.upload"],"plans":["all with a shared workspace or integrations"]},
+      "evidence": [
+        {"file":"services/api/src/services/uploads/upload-session.service.ts","line":360,"snippet":"const owningEvidence = await client.evidence.findFirst({ where: { id: input.evidenceId, teamId: input.teamId }, select: { id: true } });"},
+        {"file":"services/api/src/services/uploads/upload-session.service.ts","line":1885,"snippet":"const partRow = await client.evidencePart.create({ data: { evidenceId: session.evidence_id, partIndex: session.target_part_index, ... sha256: serverSha256 } })"},
+        {"file":"services/api/src/routes/evidence.routes.ts","line":5975,"snippet":"legacy parts route: owner-only (403) and SIGNED/REPORTED/lockedAt -> 409, advisory lock, validateUploadedFile"},
+        {"file":"services/worker/src/processor.ts","line":2061,"snippet":"prisma.evidencePart.findMany({ where: { evidenceId: evidence.id }, orderBy: { partIndex: \"asc\" } ... }) — no artifactClass/uploadedAtUtc filter"},
+        {"file":"services/worker/src/processor.ts","line":2367,"snippet":"fileSha256 = hashes.length === 1 ? hashes[0] : sha256HexFromStrings(hashes); if (fileSha256 !== evidence.fileSha256 ...) await rejectEvidenceIntegrity({...})"},
+        {"file":"services/worker/src/integrity-rejection.service.ts","line":67,"snippet":"transition to FAILED_HASH_MISMATCH + custody rejection event"}
+      ],
+      "observed": "Session creation proves only that the evidence id exists in the caller's team. The multipart-complete bridge never re-reads the evidence and inserts an EvidencePart (uploadedAtUtc NULL) at the session's targetPartIndex. No DB trigger forbids parts on sealed evidence; the (evidenceId, partIndex) unique key is dodged by an unused index. The report worker enumerates ALL parts unfiltered and recomputes the composite; the extra part makes it differ from evidence.fileSha256 and rejectEvidenceIntegrity moves the record to FAILED_HASH_MISMATCH with a custody rejection event.",
+      "expected": "Parts may be added only by the evidence owner (or intake uploader) while the record is CREATED/UPLOADING, not locked, not held, not deleted — the same guards the legacy /v1/evidence/:id/parts route applies — re-checked inside the bridge transaction.",
+      "dataFlow": "POST /v1/uploads/sessions {teamId,evidenceId:E(SIGNED),targetPartIndex:9999} -> initiate -> presign -> PUT -> multipart/complete {verifyHash:true} -> evidence_parts INSERT -> (report/recovery/updated-report run) -> processor multipart rehash mismatch -> evidences.status=FAILED_HASH_MISMATCH + custody INTEGRITY rejection",
+      "rootCause": "The Phase 30.12 bridge was added as a second EvidencePart writer without the legacy route's state/owner/lock guards; the worker treats every EvidencePart as original material.",
+      "blastRadius": "Every evidence record in any workspace where a second member holds evidence.create, plus any workspace with an integration key holding integration.evidence.upload. Scenario B: injection into another member's UPLOADING record gets the attacker's bytes signed into the victim's custody with uploadedByUserId NULL.",
+      "impact": "A sealed evidence record can be made to read as tampered (FAILED_HASH_MISMATCH is terminal and suppresses verify/report), and foreign bytes can be sealed into another custodian's record — custody/integrity corruption.",
+      "reproduction": "As CONTRIBUTOR in team T with SIGNED evidence E owned by another member: create an upload session targeting E with an unused targetPartIndex, complete the multipart upload with verifyHash:true, then trigger any report run for E (updated report / lifecycle recovery).",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Integration probe on disposable PG: seed team + SIGNED evidence owned by user A, call createUploadSession as CONTRIBUTOR B -> expect evidence_not_found/refusal; observe it succeeds. Then call the bridge path (completeStorageMultipart with a local storage stub for S3 head/complete) and count evidence_parts before/after.",
+      "remediation": "Route every EvidencePart write through one guarded writer: require owner (or intake principal), status IN (CREATED, UPLOADING), lockedAt NULL, deletedAt NULL, no active legal hold — asserted in the same transaction as the insert with a row lock; refuse session creation on the same predicate; make the worker ignore parts whose uploadedAtUtc is NULL.",
+      "acceptanceProof": "Integration test: session creation and bridge both refuse for SIGNED/REPORTED/locked/held/other-owner evidence; a report run over a record with a stray NULL-uploadedAt part does not reject integrity.",
+      "migrationBackfill": "Scan production for evidence_parts with uploaded_at_utc NULL on evidences whose status is SIGNED/REPORTED, and for FAILED_HASH_MISMATCH rows whose extra part came from a bridged session.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "UPL-02",
+      "severity": "P2",
+      "category": "stuck-state",
+      "title": "One aborted or expired upload session blocks finalization of its evidence forever; the idempotency key returns the terminal session on retry",
+      "affected": {"routes":["POST /v1/evidence/:id/complete","POST /v1/uploads/sessions"],"tables":["evidence_upload_sessions","evidences"],"roles":["any evidence.create member"],"plans":["all"]},
+      "evidence": [
+        {"file":"services/api/src/services/uploads/upload-session.service.ts","line":1234,"snippet":"evaluateUploadSessionFinalizeGate denies for ANY session not COMPLETED"},
+        {"file":"services/api/src/services/uploads/upload-session.service.ts","line":370,"snippet":"WHERE \"team_id\" = $1 AND \"idempotency_key\" = $2 LIMIT 1 — no state filter despite 'non-terminal' comment"},
+        {"file":"apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts","line":95,"snippet":"idempotency key capture:${evidenceId}:${index}"}
+      ],
+      "observed": "Any non-COMPLETED session on an evidence id denies finalization; nothing deletes/supersedes sessions; the retry reuses the same key and gets the ABORTED/EXPIRED session back, whose initiate fails session_already_terminal. Any team member with evidence.create can create or abort a session on another member's evidence.",
+      "expected": "A terminal session must not block finalization, and a retry must mint a fresh session; session mutation limited to the session actor/evidence owner.",
+      "dataFlow": "cancel/expire session -> completeEvidence -> evaluateUploadSessionFinalizeGate -> 409 session_aborted/session_expired forever; evidence stays UPLOADING (no Evidence reaper)",
+      "rootCause": "Finalize gate treats ABORTED/EXPIRED the same as in-flight; idempotency lookup ignores state.",
+      "blastRadius": "Every resumable (large-file) web capture that is cancelled or left idle ~1h.",
+      "impact": "Evidence permanently stuck UPLOADING and (per ACQ-02) counted against the FREE record cap; teammate griefing possible.",
+      "reproduction": "Start a resumable capture, abort it (or let reapStaleUploadSessions expire it), retry: complete returns 409 indefinitely.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "Integration: create session, abort, call evaluateUploadSessionFinalizeGate -> denial; recreate with same key -> reused terminal row.",
+      "remediation": "Ignore terminal sessions in the finalize gate (or require only that no ACTIVE session exists), filter the idempotency lookup to non-terminal rows, and restrict session mutations to the session actor/evidence owner.",
+      "acceptanceProof": "Test: abort then retry completes; teammate cannot abort another member's session.",
+      "migrationBackfill": "Identify evidences stuck UPLOADING with only terminal sessions.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "UPL-03",
+      "severity": "P3",
+      "category": "idempotency",
+      "title": "Idempotent session reuse does not check the returned session belongs to the requested evidenceId",
+      "affected": {"routes":["POST /v1/uploads/sessions"],"tables":["evidence_upload_sessions"],"roles":["same-team member"],"plans":["all"]},
+      "evidence": [{"file":"services/api/src/services/uploads/upload-session.service.ts","line":370,"snippet":"lookup keyed on (team_id, idempotency_key) only; returns existing[0] regardless of evidence_id"}],
+      "observed": "A same-team member who pre-creates key capture:<X>:<i> bound to their own evidence Y diverts the victim's upload for X to Y's storage key and bridge.",
+      "expected": "Reuse only when evidence_id (and actor) match; otherwise 409.",
+      "dataFlow": "POST sessions {evidenceId:X, idempotencyKey:k} -> returns session for Y",
+      "rootCause": "Idempotency key not bound to its request parameters.",
+      "blastRadius": "Narrow: attacker needs X's id before the victim's large-item loop.",
+      "impact": "Victim's bytes land on another record.",
+      "reproduction": "Create session with key capture:X:0 for evidence Y; victim's client reuses it.",
+      "runtimeProofNeeded": false, "runtimeProofIdea": "unit on createUploadSession with fake client",
+      "remediation": "Compare evidence_id/actor on reuse; refuse mismatch.",
+      "acceptanceProof": "Test: mismatched reuse refused.",
+      "migrationBackfill": "none", "dependency": "none", "ownerDecision": null
+    },
+    {
+      "localId": "UPL-04",
+      "severity": "P2",
+      "category": "operator-safety",
+      "title": "seed-home-personas.ts writes fabricated SIGNED evidence and custody into whatever DATABASE_URL dotenv loads, guarded only by NODE_ENV",
+      "affected": {"routes":[],"tables":["evidences","custody_events"],"roles":["operator"],"plans":[]},
+      "evidence": [
+        {"file":"services/api/scripts/seed-home-personas.ts","line":50,"snippet":"if (process.env.NODE_ENV === \"production\") — only guard"},
+        {"file":"services/api/scripts/seed-home-personas.ts","line":36,"snippet":"import \"dotenv/config\""},
+        {"file":"services/api/scripts/seed-admin-fixture.ts","line":114,"snippet":"sibling script has a DB-name guard this one lacks"}
+      ],
+      "observed": "The script loads services/api/.env (which, per standing project knowledge, carries live production credentials) and has no database-name guard, so running it without NODE_ENV=production writes fabricated trust rows to whatever DB that file names.",
+      "expected": "Same DB-name/loopback guard as seed-admin-fixture.ts and no implicit dotenv load.",
+      "dataFlow": "pnpm seed:home-personas -> dotenv -> DATABASE_URL -> raw prisma.evidence.create + custodyEvent.createMany",
+      "rootCause": "Guard copied inconsistently across seed scripts.",
+      "blastRadius": "Operator workstation only; not remotely reachable.",
+      "impact": "Fabricated custody records in a real database if misrun.",
+      "reproduction": "Not executed (would contact the configured DB).",
+      "runtimeProofNeeded": false, "runtimeProofIdea": "none — source-proven",
+      "remediation": "Add the seed-admin-fixture DB-name/loopback guard and drop dotenv/config.",
+      "acceptanceProof": "Script refuses a non-loopback DATABASE_URL.",
+      "migrationBackfill": "none", "dependency": "none", "ownerDecision": null
+    },
+    {
+      "localId": "UPL-05",
+      "severity": "P3",
+      "category": "integrity-hygiene",
+      "title": "Multipart path never enforces expectedTotalBytes/partSizeBytes, marks parts VERIFIED without a reference hash, and leaves bridged parts without uploadedByUserId",
+      "affected": {"routes":["upload-sessions multipart routes"],"tables":["evidence_upload_session_parts","evidence_parts"],"roles":[],"plans":[]},
+      "evidence": [
+        {"file":"services/api/src/services/uploads/upload-session.service.ts","line":1830,"snippet":"parts marked VERIFIED when expected_sha256 is NULL"},
+        {"file":"services/api/src/services/uploads/upload-session.service.ts","line":1885,"snippet":"evidencePart.create data has no uploadedByUserId"}
+      ],
+      "observed": "expectedTotalBytes never compared to head.contentLength; VERIFIED set with no reference; attribution missing on bridged parts. Server whole-object hash still reflects real bytes, so this is not tampering.",
+      "expected": "Enforce declared size, do not label VERIFIED without a reference, record uploader.",
+      "dataFlow": "multipart/complete -> verifyCompletedObject -> parts VERIFIED",
+      "rootCause": "Hygiene gaps in the Phase 30.12 path.",
+      "blastRadius": "Resumable uploads.", "impact": "Misleading VERIFIED label; lost uploader attribution in custody.",
+      "reproduction": "Source-proven.", "runtimeProofNeeded": false, "runtimeProofIdea": "none",
+      "remediation": "Enforce sizes; use UNVERIFIED_NO_REFERENCE; set uploadedByUserId from the session actor.",
+      "acceptanceProof": "Unit tests on completeStorageMultipart.",
+      "migrationBackfill": "none", "dependency": "UPL-01", "ownerDecision": null
+    }
+  ],
+  "questions": [
+    {"q":"Does an S3 Object Lock bucket reject presigned UploadPart without Content-MD5/checksum? initiateMultipartUpload sets ObjectLockMode; presigned UploadPart (storage-multipart.ts:263) carries no checksum — same class as the package-staging incident.","evidence":[{"file":"services/api/src/services/uploads/storage-multipart.ts","line":263}]}
+  ],
+  "coverage": {"filesRead":["services/api/src/routes/upload-sessions.routes.ts","services/api/src/services/uploads/upload-session.service.ts","services/api/src/services/uploads/storage-multipart.ts","services/api/src/routes/integrations-uploads.routes.ts","services/worker/src/processor.ts:2040-2440"],"notReviewed":[]}
+}

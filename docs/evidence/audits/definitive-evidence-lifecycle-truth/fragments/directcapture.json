@@ -1,0 +1,564 @@
+{
+  "domain": "directcapture",
+  "auditedSha": "a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8",
+  "inventories": {
+    "directCapturePaths": [
+      {
+        "id": "DC-MOBILE",
+        "acquisitionMode": "PROOVRA_MOBILE_APP",
+        "client": "apps/mobile/app/(stack)/capture.tsx:1398/1438/1492; apps/mobile/src/direct-capture.ts",
+        "api": "capture-trust.routes.ts:358 open, :404 reserve, :432 declare, :494 complete, :525 discard; evidence.routes.ts:5898 presign",
+        "authz": "authorizeOrFail(evidence.create) at open; authorizeOwnedSession on every call (routes :703-746)",
+        "planGate": "createEvidence -> assertWorkspaceAllowsEvidenceCreation",
+        "workspace": "body.teamId proven by authorizeOrFail else personal team",
+        "upload": "presigned single PUT per part (600s), client pins x-amz-checksum-sha256 + MD5",
+        "key": "evidence/{evidenceId}/parts/{NNN}-{sanitizedName}",
+        "clientHash": "declared per part, expected value only; server re-hashes (evidence-complete.service.ts:807-821) and refuses mismatch/undeclared/count mismatch",
+        "custody": "EVIDENCE_CREATED/IDENTITY/UPLOAD_AUTHORIZED at reserve; CAPTURE_SESSION_BOUND mirrored",
+        "idempotency": "reserve under advisory lock; re-declare same hash 200 / different hash PART_ALREADY_DECLARED; double complete idempotent",
+        "final": "SIGNED, session BOUND",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "DC-WEB",
+        "acquisitionMode": "DIRECT_WEB_CAPTURE_EXTENSION",
+        "client": "apps/extension/src/background.ts:46-55 (captures BEFORE opening the session), :76-84, :116-128",
+        "api": "open/reserve/declare + capture-trust.routes.ts:549 web-complete; extension-oauth.routes.ts:48/:80",
+        "authz": "extension JWT scope capture.direct (extension-scope.ts:38-46)",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "DC-SCREEN-ANDROID",
+        "acquisitionMode": "DIRECT_SCREEN_CAPTURE_ANDROID",
+        "client": "apps/mobile/src/screen-capture.ts:126 (opens session AFTER frames exist, no teamId)",
+        "api": "capture-trust.routes.ts:580",
+        "workspace": "personal only",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "DC-CONT-ANDROID",
+        "acquisitionMode": "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
+        "client": "apps/mobile/src/continuous-capture.ts:186-219 (local segment deleted after PUT)",
+        "api": "capture-trust.routes.ts:612",
+        "workspace": "personal only",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "DC-IOS",
+        "acquisitionMode": "DIRECT_SCREEN_CAPTURE_IOS",
+        "client": "same JS path as continuous; native Swift writes files only",
+        "api": "continuous-complete",
+        "workspace": "personal only",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "DC-DEVICE-BOUND",
+        "acquisitionMode": "any, opened with deviceId",
+        "client": "none — zero first-party callers of /v1/capture/devices, /attestation",
+        "api": "capture-trust.routes.ts:243, :470",
+        "disposition": "MAPPED (API-only; attestation verifier fails closed)"
+      }
+    ]
+  },
+  "answers": [],
+  "findings": [
+    {
+      "localId": "DC-01",
+      "severity": "P1",
+      "category": "custody-consistency-race",
+      "title": "Discard racing direct-capture completion signs a soft-deleted record, writes DELETED-then-SIGNED custody, and answers bound:true",
+      "affected": {
+        "routes": [
+          "POST /v1/capture/direct/:id/complete",
+          "continuous-complete",
+          "POST /v1/capture/direct/:id/discard"
+        ],
+        "tables": [
+          "evidences",
+          "capture_sessions",
+          "custody_events"
+        ],
+        "roles": [
+          "capture owner"
+        ],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+          "line": 928,
+          "snippet": "pg_advisory_xact_lock(hashtext(`capture-session:${session.id}`)) — comment: a discard can never race a binding"
+        },
+        {
+          "file": "services/api/src/services/evidence-complete.service.ts",
+          "line": 1098,
+          "snippet": "tx.evidence.updateMany({ where: { id: evidence.id, status: { in: [CREATED, UPLOADING] } } }) — no deletedAt predicate"
+        },
+        {
+          "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+          "line": 844,
+          "snippet": "bound: true, alreadyBound: claim.count !== 1"
+        }
+      ],
+      "observed": "Completion serialises on the evidence lock and checks session ACTIVE/deletedAt only at entry; discard serialises on a different (capture-session) lock, sets deletedAt and appends EVIDENCE_DELETED while status is still UPLOADING. Completion's final claim does not test deletedAt, so it signs, timestamps and enqueues the deleted record; completeDirectCapture returns bound:true regardless of the session claim count.",
+      "expected": "Discard and completion must exclude each other (same lock) and the finalize claim must require deletedAt IS NULL; a failed session claim must not report bound:true.",
+      "dataFlow": "client /complete (long rehash) -> network drop -> user Discard -> deletedAt set + EVIDENCE_DELETED -> completion claim succeeds -> SIGNED record with deletedAt, custody DELETED then SIGNED, session DISCARDED not BOUND",
+      "rootCause": "Two different advisory-lock keys guard the same record; the finalize claim predicate omits deletedAt.",
+      "blastRadius": "Direct-capture records (mobile, extension, screen, continuous) whose completion request outlives the client.",
+      "impact": "A signed evidence record hidden from both the active list and the trash, with a self-contradicting custody chain and a false API answer. Bytes and hash are intact.",
+      "reproduction": "Start a large continuous completion, drop the client connection, press Discard while the server is hashing.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Needs a deterministic interleave point inside completeEvidence after the entry checks (no injection hook exists).",
+      "remediation": "Take the capture-session lock in completeDirectCapture before completeEvidence (or the evidence lock in discard); add deletedAt: null to the finalize claim; derive bound from the session claim.",
+      "acceptanceProof": "Interleaved integration test: discard after entry check -> completion refuses, no SIGNED+deleted row.",
+      "migrationBackfill": "Query evidences with status SIGNED/REPORTED AND deleted_at NOT NULL AND lifecycle_state <> TRASHED.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-02",
+      "severity": "P1",
+      "category": "false-provenance-claim",
+      "title": "Acquisition statement says the capture session was 'started before the capture'; UC-1 and UC-2 open it after the capture and the server never checks",
+      "affected": {
+        "pages": [
+          "report",
+          "Verify",
+          "verification package"
+        ],
+        "tables": [
+          "capture_sessions"
+        ],
+        "roles": [],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "packages/shared/src/evidence-acquisition.ts",
+          "line": 254,
+          "snippet": "in a server-issued capture session started before the capture"
+        },
+        {
+          "file": "apps/extension/src/background.ts",
+          "line": 48,
+          "snippet": "const startedAtUtc = ...; capture = await captureFullPage(...); ... openWebSession(token, req.teamId) at :55"
+        },
+        {
+          "file": "apps/mobile/src/screen-capture.ts",
+          "line": 126,
+          "snippet": "const session: DirectCaptureSession = await openDirectCaptureSession(\"DIRECT_SCREEN_CAPTURE_ANDROID\");"
+        }
+      ],
+      "observed": "The extension captures the page, then opens the session; Android single screen capture opens it after frames exist. Manifest captureStartedAtUtc is never compared with CaptureSession.startedAtUtc.",
+      "expected": "Either open the session before capture and enforce manifest window ⊆ session window, or change the statement.",
+      "dataFlow": "resolver statement -> report/Verify/package acquisition section",
+      "rootCause": "Statement written for the mobile path and reused for modes that do not satisfy it.",
+      "blastRadius": "Every UC-1 and UC-2 record.",
+      "impact": "An untrue evidentiary statement about acquisition timing on customer-facing outputs.",
+      "reproduction": "Source order in background.ts:46-55.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none — client source order is decisive",
+      "remediation": "Reorder clients and enforce the window server-side, or reword per mode.",
+      "acceptanceProof": "Server refuses a manifest whose captureStartedAtUtc precedes session start; statement test per mode.",
+      "migrationBackfill": "Existing UC-1/UC-2 outputs carry the statement; decide whether to annotate.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-03",
+      "severity": "P1",
+      "category": "false-provenance-claim",
+      "title": "'Direct capture' provenance (e.g. 'PROOVRA's own adapter produced the bytes') is selected by the caller's mode string with no client proof",
+      "affected": {
+        "routes": [
+          "POST /v1/capture/direct/sessions"
+        ],
+        "pages": [
+          "report",
+          "Verify",
+          "package"
+        ],
+        "roles": [
+          "any authenticated user"
+        ],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/capture-trust.routes.ts",
+          "line": 157,
+          "snippet": "mode: z.enum(DIRECT_CAPTURE_SESSION_MODES)"
+        },
+        {
+          "file": "packages/shared/src/evidence-acquisition.ts",
+          "line": 253,
+          "snippet": "statement ... isDirectCapture: true"
+        }
+      ],
+      "observed": "Any bearer (web JWT, script) can open a DIRECT_WEB_CAPTURE_EXTENSION or DIRECT_SCREEN_CAPTURE_IOS session, upload arbitrary files plus a self-written manifest, and seal; outputs then say PROOVRA captured them. No limitation code discloses that the capturing client was unverified.",
+      "expected": "Direct-capture statements only when the client is authenticated as that adapter (extension-scoped token for UC-1, device binding for native), or a limitation disclosing unverified client.",
+      "dataFlow": "open(mode) -> reserve -> declare -> complete -> acquisitionMode -> statement",
+      "rootCause": "Mode is a caller-supplied enum; no binding between token audience/device and mode.",
+      "blastRadius": "All direct-capture modes.",
+      "impact": "Fabricated material presented as platform-captured.",
+      "reproduction": "curl open with mode DIRECT_SCREEN_CAPTURE_IOS using a web session token, upload PNGs + manifest, complete.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "Integration: open session with web JWT for every mode -> accepted.",
+      "remediation": "Bind mode to token scope/audience (extension token only for UC-1; native app attestation or at least app-scoped token for UC-2..UC-5); add a CLIENT_NOT_VERIFIED limitation otherwise.",
+      "acceptanceProof": "Web JWT opening a DIRECT_* session is refused or labelled.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": "How strong must the client binding be (scoped token vs attestation)?"
+    },
+    {
+      "localId": "DC-04",
+      "severity": "P2",
+      "category": "authentication",
+      "title": "Extension OAuth accepts any chromiumapp.org extension id when EXTENSION_OAUTH_REDIRECT_ALLOW is unset, with no consent step",
+      "affected": {
+        "routes": [
+          "GET /v1/oauth/extension/authorize"
+        ],
+        "roles": [
+          "any signed-in user"
+        ],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/auth/extension-oauth.service.ts",
+          "line": 37,
+          "snippet": "if (explicit.length > 0) return explicit.includes(redirectUri); return CHROMIUMAPP_REDIRECT.test(redirectUri);"
+        }
+      ],
+      "observed": "Fail-open allow-list; authorize issues a code using the ambient session and redirects immediately. A third-party extension can silently obtain a capture.direct token able to create evidence and presign parts on the user's unsealed evidence.",
+      "expected": "Fail closed without a configured extension id; show consent.",
+      "dataFlow": "launchWebAuthFlow(any id) -> authorize -> code -> token",
+      "rootCause": "Permissive default for unset config.",
+      "blastRadius": "Users with a hostile browser extension installed.",
+      "impact": "Silent token issuance to arbitrary extensions.",
+      "reproduction": "Call authorize with redirect https://<32 a-p>.chromiumapp.org/ while signed in.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "Unit: isAllowedExtensionRedirect with env unset.",
+      "remediation": "Fail closed when unset; add a consent screen.",
+      "acceptanceProof": "Unset env refuses every redirect.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": "Confirm whether EXTENSION_OAUTH_REDIRECT_ALLOW is set in production (not readable from this audit)."
+    },
+    {
+      "localId": "DC-05",
+      "severity": "P2",
+      "category": "stuck-state",
+      "title": "No reaper for ACTIVE/INTERRUPTED direct-capture sessions; the extension never discards, so failed captures leave permanent empty Evidence rows and orphan objects",
+      "affected": {
+        "jobs": [
+          "capture-reaper (DRAFT only)"
+        ],
+        "tables": [
+          "capture_sessions",
+          "evidences"
+        ],
+        "roles": [],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/worker/src/capture-reaper.ts",
+          "line": 77,
+          "snippet": "only status DRAFT"
+        },
+        {
+          "file": "apps/extension/src/lib/api-client.ts",
+          "line": 57,
+          "snippet": "no discard call exists in apps/extension/src"
+        }
+      ],
+      "observed": "Sessions expire lazily only when the owner calls again; reserved CREATED evidence and S3 parts remain forever after a failure.",
+      "expected": "A reaper expires sessions and releases reserved records.",
+      "dataFlow": "reserve -> failure -> nothing",
+      "rootCause": "Reaper scoped to drafts.",
+      "blastRadius": "Every abandoned direct capture.",
+      "impact": "Orphan records (counted against FREE cap per commercial findings) and storage.",
+      "reproduction": "Close the extension popup mid-upload.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Extend the reaper to ACTIVE/INTERRUPTED sessions past TTL; release reserved records.",
+      "acceptanceProof": "Reaper test.",
+      "migrationBackfill": "Clean existing orphans.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-06",
+      "severity": "P2",
+      "category": "stuck-state",
+      "title": "Fixed 1h session TTL strands continuous captures finalized late; local segments are already deleted so the recording is unrecoverable",
+      "affected": {
+        "routes": [
+          "continuous-complete"
+        ],
+        "roles": [],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+          "line": 155,
+          "snippet": "const DEFAULT_TTL_SECONDS = 60 * 60; const MAX_TTL_SECONDS = 4 * 60 * 60;"
+        },
+        {
+          "file": "apps/mobile/src/continuous-capture.ts",
+          "line": 216,
+          "snippet": "// Bytes are now durably in storage; drop the only-on-device copy so a long session cannot accumulate unbounded temp mp4s."
+        }
+      ],
+      "observed": "A 50-minute recording sealed >~10 minutes after stopping hits SESSION_EXPIRED, goes INTERRUPTED and can never seal.",
+      "expected": "TTL covers max session + finalize window, or seal is independent of TTL once all parts are declared.",
+      "dataFlow": "record -> stop -> later Finish & Sign -> requireActive -> INTERRUPTED",
+      "rootCause": "TTL not sized for the continuous mode.",
+      "blastRadius": "Long continuous captures.",
+      "impact": "Lost recording.",
+      "reproduction": "Seal a 50-min recording 15 minutes after stop.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Mode-aware TTL; extend on activity.",
+      "acceptanceProof": "Test with late seal.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-07",
+      "severity": "P2",
+      "category": "atomicity",
+      "title": "reserveDirectCaptureEvidence runs createEvidence on the global client inside an outer transaction, so a failed reserve leaves an unbound committed Evidence row and a retry mints a second",
+      "affected": {
+        "routes": [
+          "reserve"
+        ],
+        "tables": [
+          "evidences",
+          "custody_events"
+        ],
+        "roles": [],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+          "line": 374,
+          "snippet": "return db.$transaction( async (tx) => { await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${input.sessionId}`}))`;"
+        },
+        {
+          "file": "services/api/src/services/evidence.service.ts",
+          "line": 427,
+          "snippet": "const created = await prisma.$transaction(async (tx) => { const evidence = await tx.evidence.create({"
+        }
+      ],
+      "observed": "Evidence + EVIDENCE_CREATED commit independently of the session binding.",
+      "expected": "One transaction.",
+      "dataFlow": "reserve -> createEvidence commit -> outer tx fails -> orphan",
+      "rootCause": "createEvidence does not accept a tx client.",
+      "blastRadius": "Reserve failures.",
+      "impact": "Orphan records consuming allowance.",
+      "reproduction": "Force tx.captureSession.update failure.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Pass tx into createEvidence.",
+      "acceptanceProof": "Failure-injection test.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-08",
+      "severity": "P2",
+      "category": "workspace-binding",
+      "title": "UC-2/UC-3/UC-5 screen captures always open in the personal workspace (no teamId), misfiling team work and refusing managed identities",
+      "affected": {
+        "routes": [
+          "open"
+        ],
+        "roles": [
+          "team members",
+          "managed identities"
+        ],
+        "plans": [
+          "TEAM",
+          "ENTERPRISE"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "apps/mobile/src/screen-capture.ts",
+          "line": 126,
+          "snippet": "const session: DirectCaptureSession = await openDirectCaptureSession(\"DIRECT_SCREEN_CAPTURE_ANDROID\");"
+        },
+        {
+          "file": "apps/mobile/src/continuous-capture.ts",
+          "line": 186,
+          "snippet": "const session = await openDirectCaptureSession(mode); const evidenceId = await reserveDirectCaptureEvidence(session, {"
+        }
+      ],
+      "observed": "Only capture.tsx:1398 passes teamId.",
+      "expected": "Screen capture uses the active workspace.",
+      "dataFlow": "mobile -> open (no teamId) -> personal team",
+      "rootCause": "D13 fix applied to one caller only.",
+      "blastRadius": "All native screen captures.",
+      "impact": "Evidence in the wrong workspace/billing subject.",
+      "reproduction": "Switch to a team workspace, record screen.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Pass active teamId.",
+      "acceptanceProof": "Mobile test.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-09",
+      "severity": "P2",
+      "category": "integrity-claim",
+      "title": "Continuous-capture continuity/completeness is client-asserted; the only downstream completeness check reads session status, which is always BOUND for sealed records",
+      "affected": {
+        "jobs": [
+          "screen intelligence"
+        ],
+        "roles": [],
+        "plans": [
+          "all"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "packages/shared/src/screen-continuous-manifest.ts",
+          "line": 310,
+          "snippet": "only 0..N-1 sequence contiguity and orientation checked"
+        },
+        {
+          "file": "services/worker/src/screen-intelligence.handler.ts",
+          "line": 144,
+          "snippet": "acquisitionComplete derived from CaptureSession.status === 'INTERRUPTED'"
+        }
+      ],
+      "observed": "Offsets/durations/gaps, window vs session, sizes vs server, platform vs mode and sessionCompleteness are never checked.",
+      "expected": "Server validates timing and sizes; completeness read from the manifest.",
+      "dataFlow": "manifest -> validator -> seal -> worker",
+      "rootCause": "Validator scope minimal.",
+      "blastRadius": "Continuous captures.",
+      "impact": "Derived reconstruction may call an interrupted recording complete.",
+      "reproduction": "Seal a manifest with a gap and sessionCompleteness=INTERRUPTED.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "unit on validateScreenContinuousManifest",
+      "remediation": "Validate timings/sizes/platform; propagate sessionCompleteness.",
+      "acceptanceProof": "Validator tests.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-10",
+      "severity": "P3",
+      "category": "concurrency",
+      "title": "Capture trust-event sub-chain read-then-insert with no lock and no unique (session, sequence) — concurrent declarations fork the chain",
+      "affected": {
+        "tables": [
+          "capture_trust_events"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/capture-trust/trust-event.service.ts",
+          "line": 115,
+          "snippet": "orderBy: { sequence: \"desc\" }, select: { sequence: true, eventHash: true },"
+        }
+      ],
+      "observed": "Duplicate sequence numbers possible; first-by-sequence resolution nondeterministic.",
+      "expected": "Lock or unique constraint.",
+      "dataFlow": "declare x2 concurrently",
+      "rootCause": "No serialization.",
+      "blastRadius": "Owner-only concurrency.",
+      "impact": "Forked trust chain.",
+      "reproduction": "Parallel declares.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Unique (session_id, sequence) + advisory lock.",
+      "acceptanceProof": "Concurrency test.",
+      "migrationBackfill": "Detect duplicates first.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "DC-11",
+      "severity": "P3",
+      "category": "hygiene",
+      "title": "CAPTURE_MANIFEST relabel happens after the seal outside the signed fingerprint; extension token can presign parts on any owned unsealed evidence; draft route uses a hand-rolled membership check; dead device-identity code",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/:id/parts",
+          "POST /v1/capture/sessions"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/auth/extension-scope.ts",
+          "line": 43,
+          "snippet": "parts presign allowed for extension scope"
+        },
+        {
+          "file": "services/api/src/routes/capture.routes.ts",
+          "line": 269,
+          "snippet": "hand-rolled ACTIVE-membership check"
+        },
+        {
+          "file": "services/api/src/services/capture-trust/device-identity.service.ts",
+          "line": 229,
+          "snippet": "findDeviceByPubkey — 0 callers"
+        }
+      ],
+      "observed": "Several low-risk scope/atomicity/dead-code gaps.",
+      "expected": "Atomic relabel, narrower scope, canonical authorizer.",
+      "dataFlow": "n/a",
+      "rootCause": "Incremental UC work.",
+      "blastRadius": "Low.",
+      "impact": "Low.",
+      "reproduction": "Source.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Tidy.",
+      "acceptanceProof": "Unit tests.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    }
+  ],
+  "questions": [],
+  "coverage": {
+    "filesRead": [
+      "services/api/src/routes/capture-trust.routes.ts",
+      "services/api/src/services/capture-trust/*",
+      "apps/extension/src/*",
+      "apps/mobile/src/*capture*"
+    ],
+    "notReviewed": []
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "probe": "RT-INTAKE",
+  "linkCreate": {
+    "reusable": 201,
+    "oneTime": 201
+  },
+  "int03": {
+    "ownerCountBeforeAnonymous": 2,
+    "anonymousJourney": {
+      "boot": 200,
+      "sessionId": "a2fb1a61-5b38-4743-b74c-081bdce8ff94",
+      "consent": 200,
+      "part": 201
+    },
+    "ownerCountAfterAnonymous": 3,
+    "anonymousRecordStatus": "UPLOADING",
+    "ownerOwnCreateAfter": {
+      "status": 409,
+      "code": "FREE_LIMIT_REACHED"
+    }
+  },
+  "int01": {
+    "open": {
+      "boot": 200,
+      "sessionId": "37efc6a1-2e41-4953-a797-36d3f8cc478f",
+      "consent": 200,
+      "part": null
+    },
+    "transitionStatus": 200,
+    "transitionBody": "{\"session\":{\"id\":\"37efc6a1-2e41-4953-a797-36d3f8cc478f\",\"status\":\"SUBMITTED\",\"openedAtUtc\":\"2026-09-29T12:48:00.187Z\",\"uploadStartedAtUtc\":null,\"uploadCompletedAtUtc\":null,\"submittedAtUtc\":\"2026-09-29",
+    "linkAfter": {
+      "status": "EXPIRED",
+      "usedCount": 1
+    },
+    "sessionAfter": {
+      "status": "SUBMITTED",
+      "evidenceId": null
+    },
+    "realContributorReopen": {
+      "status": 410,
+      "body": "{\"error\":{\"code\":\"LINK_NO_LONGER_AVAILABLE\",\"message\":\"This upload link is no longer available. It may have expired or been revoked. Please contact the sender f"
+    }
+  }
+}

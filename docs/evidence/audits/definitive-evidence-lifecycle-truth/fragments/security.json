@@ -1,0 +1,2616 @@
+{
+  "domain": "security",
+  "auditedSha": "a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8",
+  "inventories": {
+    "duplicateAuthorities": [
+      {
+        "concern": "evidence create",
+        "impl": "services/api/src/services/evidence.service.ts:428",
+        "classification": "canonical",
+        "note": "callers evidence.routes.ts:5363, direct-capture-ingest.service.ts:390, external-intake-orchestration.service.ts:295"
+      },
+      {
+        "concern": "capture UC modes",
+        "impl": "services/api/src/routes/capture-trust.routes.ts direct-sessions/*",
+        "classification": "intentional projection",
+        "note": "all funnel into createEvidence/completeEvidence"
+      },
+      {
+        "concern": "upload sessions",
+        "impl": "services/api/src/routes/upload-sessions.routes.ts vs routes/integrations-uploads.routes.ts",
+        "classification": "duplicate route family (different authz)",
+        "note": "SEC-25"
+      },
+      {
+        "concern": "finalize",
+        "impl": "services/api/src/services/evidence-complete.service.ts:474",
+        "classification": "canonical",
+        "note": "single finalizer; TSA columns written only here (+ repair script)"
+      },
+      {
+        "concern": "hash (stream/multipart/fingerprint)",
+        "impl": "services/api/src/stream-hash.ts:4; services/worker/src/processor.ts:1211/886/2388; evidence-complete.service.ts:852",
+        "classification": "canonical mirrors (same algorithm/order)",
+        "note": "no disagreement"
+      },
+      {
+        "concern": "verified headline",
+        "impl": "services/api/src/routes/evidence.routes.ts:1676 mapIntegrityHeadline",
+        "classification": "DANGEROUS competing projection",
+        "note": "SEC-10"
+      },
+      {
+        "concern": "trust verdict",
+        "impl": "packages/shared/src/trust-decision.ts:1228",
+        "classification": "canonical but materials-based",
+        "note": "SEC-10"
+      },
+      {
+        "concern": "web/mobile verdict overlays",
+        "impl": "apps/web/app/verify/[token]/page.tsx:1494; apps/mobile/src/product/public-verify.ts:631",
+        "classification": "competing overlay (conservative)",
+        "note": "web adds TSA-unavailable partial; mobile renders server headline"
+      },
+      {
+        "concern": "integrity snapshot",
+        "impl": "services/api/src/services/dashboard/integrity-snapshot.service.ts:111",
+        "classification": "stale/partly dead projection",
+        "note": "SEC-21, SEC-35"
+      },
+      {
+        "concern": "report/package backlog",
+        "impl": "command-center-counters.ts:283; trust-summary.service.ts:229; operations-source-probes.ts:246; case-risk-engine.service.ts:148; org-health.service.ts:150; matter-queue.service.ts:435",
+        "classification": "DANGEROUS competing aggregators",
+        "note": "SEC-20"
+      },
+      {
+        "concern": "output entitlement",
+        "impl": "packages/shared-billing/src/plan-catalog.ts:899 resolveOutputIssuanceEntitlement vs evidence-output-eligibility.service.ts:488 vs worker report-generation-authority.ts:749",
+        "classification": "canonical + plan-only competing predicates",
+        "note": "SEC-20"
+      },
+      {
+        "concern": "storage usage population",
+        "impl": "services/api/src/services/workspace-usage.service.ts:340/347 vs packages/shared-runtime/src/workspace-scope.ts:151",
+        "classification": "DANGEROUS competing population",
+        "note": "SEC-22"
+      },
+      {
+        "concern": "plan catalog",
+        "impl": "packages/shared-billing/src/plan-catalog.ts:323",
+        "classification": "canonical",
+        "note": "worker imports it; no worker-local plan table"
+      },
+      {
+        "concern": "pricing page add-ons",
+        "impl": "apps/web/app/pricing/page.tsx:558",
+        "classification": "competing hard-coded copy",
+        "note": "SEC-23"
+      },
+      {
+        "concern": "credits",
+        "impl": "services/api/src/services/billing/evidence-credits.service.ts:226/376/434",
+        "classification": "canonical",
+        "note": "single writer"
+      },
+      {
+        "concern": "custody append/verify",
+        "impl": "services/api/src/services/custody-events.service.ts:51; services/worker/src/custody-events.ts:20; packages/shared-runtime/src/evidence-destruction/executor.ts:764",
+        "classification": "compatible mirrors on shared buildCustodyEventHash",
+        "note": "drift risk only"
+      },
+      {
+        "concern": "report generation request",
+        "impl": "packages/shared-runtime/src/reports/report-generation-request.ts:457",
+        "classification": "canonical single writer",
+        "note": "API/worker wrappers"
+      },
+      {
+        "concern": "OTS state",
+        "impl": "services/worker/src/ots-state.ts:67-126",
+        "classification": "canonical single writer",
+        "note": "API+worker enqueue collapse on jobId ots-upgrade-<evidenceId>"
+      },
+      {
+        "concern": "recovery orchestrators",
+        "impl": "services/worker/src/lifecycle-recovery.ts:115 (+first-issuance, stranded requests, OTS init under one cron lock); API output-recovery.service.ts",
+        "classification": "canonical composition + operator entry",
+        "note": "operations-recovery.routes.ts is DR validation only (unrelated)"
+      },
+      {
+        "concern": "capture draft expiry",
+        "impl": "services/api/src/jobs/capture-draft-expiry.job.ts:87 vs services/worker/src/capture-reaper.ts:129",
+        "classification": "duplicate consumer",
+        "note": "SEC-24"
+      },
+      {
+        "concern": "case detach",
+        "impl": "services/api/src/services/cases/case-evidence-link.service.ts:207 vs case-lifecycle.service.ts:676",
+        "classification": "DANGEROUS competing authority",
+        "note": "SEC-02/SEC-16"
+      },
+      {
+        "concern": "evidence read gate",
+        "impl": "services/api/src/routes/evidence.routes.ts:3003 getEvidenceWithReadAccess vs services/evidence/evidence-record-access.service.ts:59",
+        "classification": "DANGEROUS competing authority",
+        "note": "SEC-03/04/05"
+      },
+      {
+        "concern": "byte release",
+        "impl": "services/api/src/services/evidence/artifact-download-gate.service.ts evaluateArtifactDownload; redaction.routes.ts:1614",
+        "classification": "canonical + ungated second path",
+        "note": "SEC-26"
+      },
+      {
+        "concern": "queue consumers",
+        "impl": "services/worker/src/index.ts:2061-2335 (15 Workers, distinct names)",
+        "classification": "canonical",
+        "note": "no duplicate consumers; API has none"
+      },
+      {
+        "concern": "route aliases",
+        "impl": "services/api/src/routes/workspace-alias.plugin.ts:64; routes/deprecated-alias.ts:66",
+        "classification": "compatibility alias",
+        "note": "same handler, same preHandler; no evidence-lifecycle aliases"
+      },
+      {
+        "concern": "legal-hold list helpers",
+        "impl": "services/api/src/services/governance/legal-hold.service.ts:917/937/1000",
+        "classification": "dead legacy (zero callers)",
+        "note": "SEC-34"
+      }
+    ],
+    "tenancyRoutes": [
+      {
+        "route": "POST /v1/evidence",
+        "file": "services/api/src/routes/evidence.routes.ts:5284",
+        "authn": "requireAuth+legal",
+        "gate": "createEvidence body.teamId ACTIVE-status only",
+        "antiEnum": "403",
+        "note": "SEC-03 status-only"
+      },
+      {
+        "route": "POST /v1/evidence/:id/parts",
+        "file": "services/api/src/routes/evidence.routes.ts:5898",
+        "authn": "requireAuth",
+        "gate": "RECORD(update_metadata)+owner in tx",
+        "antiEnum": "404",
+        "note": "key server-derived, 600s"
+      },
+      {
+        "route": "POST /v1/evidence/:id/complete",
+        "file": "services/api/src/routes/evidence.routes.ts:10116",
+        "authn": "requireAuth",
+        "gate": "RECORD(update_metadata)+ownerUserId where",
+        "antiEnum": "404",
+        "note": "cross-tenant refuted"
+      },
+      {
+        "route": "archive/unarchive/trash/restore",
+        "file": "services/api/src/routes/evidence.routes.ts:6704-6767",
+        "authn": "requireAuth",
+        "gate": "canonical resolveEvidenceRecordAccess",
+        "antiEnum": "404",
+        "note": "race SEC-12"
+      },
+      {
+        "route": "GET /v1/evidence (list, library-summary)",
+        "file": "services/api/src/routes/evidence.routes.ts:6792/6954",
+        "authn": "requireAuth",
+        "gate": "status-only membership + creator + CaseAccess",
+        "antiEnum": "404 on foreign ?teamId",
+        "note": "SEC-03/04/05"
+      },
+      {
+        "route": "POST /v1/evidence/bulk",
+        "file": "services/api/src/routes/evidence.routes.ts:7107",
+        "authn": "requireAuth",
+        "gate": "RECORD(update_metadata) evidence; weak case check",
+        "antiEnum": "mixed",
+        "note": "SEC-02/16"
+      },
+      {
+        "route": "comments/legal-notes/annotations CRUD",
+        "file": "services/api/src/routes/evidence.routes.ts:7352-7845",
+        "authn": "requireAuth",
+        "gate": "LEGACY read",
+        "antiEnum": "404",
+        "note": "SEC-03/04/05/32"
+      },
+      {
+        "route": "analysis/review reads, review-workspace, GET /:id, artifacts/status",
+        "file": "services/api/src/routes/evidence.routes.ts:7885-10616",
+        "authn": "requireAuth",
+        "gate": "LEGACY read",
+        "antiEnum": "404",
+        "note": "SEC-03"
+      },
+      {
+        "route": "POST /:id/relationships",
+        "file": "services/api/src/routes/evidence.routes.ts:8395",
+        "authn": "requireAuth",
+        "gate": "RECORD source / LEGACY target",
+        "antiEnum": "404",
+        "note": "SEC-07"
+      },
+      {
+        "route": "POST /:id/ai-categorization/run",
+        "file": "services/api/src/routes/evidence.routes.ts:8597",
+        "authn": "requireAuth",
+        "gate": "LEGACY read",
+        "antiEnum": "404",
+        "note": "SEC-15"
+      },
+      {
+        "route": "POST /:id/reports/regenerate",
+        "file": "services/api/src/routes/evidence.routes.ts:10697",
+        "authn": "requireAuth",
+        "gate": "resolveEvidenceOperationAccess(generate_report)",
+        "antiEnum": "404/403 reader",
+        "note": "SEC-14"
+      },
+      {
+        "route": "GET original/report/package downloads",
+        "file": "services/api/src/routes/evidence.routes.ts:10977/11227/11340/11474/11667",
+        "authn": "requireAuth",
+        "gate": "LEGACY read + evaluateArtifactDownload",
+        "antiEnum": "404",
+        "note": "DB-derived keys, versionId, 600s; SEC-03"
+      },
+      {
+        "route": "certifications",
+        "file": "services/api/src/routes/evidence.routes.ts:12056-12201",
+        "authn": "requireAuth",
+        "gate": "LEGACY read (GET) / RECORD(generate_report)",
+        "antiEnum": "404",
+        "note": ""
+      },
+      {
+        "route": "GET /public/verify/:id",
+        "file": "services/api/src/routes/evidence.routes.ts:12254",
+        "authn": "none (UUID ~122 bits)",
+        "gate": "publicVerifyState PUBLISHED, rate-limited",
+        "antiEnum": "404 except 409 unfinalized",
+        "note": "SEC-10, SEC-31"
+      },
+      {
+        "route": "/v1/uploads/sessions/*",
+        "file": "services/api/src/routes/upload-sessions.routes.ts:325-787",
+        "authn": "requireAuth",
+        "gate": "authorizeOrFail antiEnum",
+        "antiEnum": "404",
+        "note": "SEC-08, SEC-13"
+      },
+      {
+        "route": "/v1/integrations/api/uploads/sessions/*",
+        "file": "services/api/src/routes/integrations-uploads.routes.ts:307-600",
+        "authn": "API key+scope",
+        "gate": "cred.teamId",
+        "antiEnum": "404",
+        "note": "SEC-25"
+      },
+      {
+        "route": "/v1/capture/sessions*",
+        "file": "services/api/src/routes/capture.routes.ts:220-587",
+        "authn": "requireAuth",
+        "gate": "owner / status-only membership",
+        "antiEnum": "403 vs 404",
+        "note": "SEC-31"
+      },
+      {
+        "route": "capture-trust direct-sessions",
+        "file": "services/api/src/routes/capture-trust.routes.ts:358-631",
+        "authn": "requireAuth+legal",
+        "gate": "authorizeOrFail evidence.create + session owner",
+        "antiEnum": "404",
+        "note": "ok"
+      },
+      {
+        "route": "GET /v1/reports",
+        "file": "services/api/src/routes/reports.routes.ts:160",
+        "authn": "requireAuth",
+        "gate": "status-only membership",
+        "antiEnum": "n/a",
+        "note": "SEC-18"
+      },
+      {
+        "route": "cases.routes.ts",
+        "file": "services/api/src/routes/cases.routes.ts:310-2354",
+        "authn": "requireAuth+legal",
+        "gate": "ad-hoc membership; case owner trusted",
+        "antiEnum": "mixed",
+        "note": "SEC-02/04/16/17"
+      },
+      {
+        "route": "case-workspace.routes.ts",
+        "file": "services/api/src/routes/case-workspace.routes.ts:231-1235",
+        "authn": "requireAuth",
+        "gate": "requireCaseAccess owner/CaseAccess/member",
+        "antiEnum": "404",
+        "note": "SEC-04/09"
+      },
+      {
+        "route": "external-intake public",
+        "file": "services/api/src/routes/external-intake.routes.ts:775-1442",
+        "authn": "intake token",
+        "gate": "link row teamId; session.intakeLinkId===link.id",
+        "antiEnum": "404",
+        "note": "rebound refuted"
+      },
+      {
+        "route": "external-review/portal",
+        "file": "services/api/src/routes/external-review.routes.ts; external-portal.routes.ts",
+        "authn": "JWT/grant/portal session",
+        "gate": "authorizeOrFail; resolveWorkflowInGrantScope",
+        "antiEnum": "404/403 OUT_OF_SCOPE",
+        "note": "scope validated at issuance"
+      },
+      {
+        "route": "workflow-intake-links / evidence-requests",
+        "file": "services/api/src/routes/workflow-intake-links.routes.ts; evidence-requests.routes.ts",
+        "authn": "requireAuth",
+        "gate": "authorizeOrFail",
+        "antiEnum": "404",
+        "note": "SEC-33"
+      },
+      {
+        "route": "operations-recovery",
+        "file": "services/api/src/routes/operations-recovery.routes.ts:43-187",
+        "authn": "requireAuth",
+        "gate": "requirePlatformOpsActor (DB platform admin + membership)",
+        "antiEnum": "404",
+        "note": "DR validation only"
+      },
+      {
+        "route": "admin-evidence-ops",
+        "file": "services/api/src/routes/admin-evidence-ops.routes.ts:51/116",
+        "authn": "requireAuth",
+        "gate": "requirePlatformAdmin (DB)",
+        "antiEnum": "-",
+        "note": "cross-tenant read-only by design, no storage keys"
+      },
+      {
+        "route": "/v1/exchange/packages*",
+        "file": "services/api/src/routes/product-and-lifecycle.routes.ts:282-760",
+        "authn": "requireAuth",
+        "gate": "currentWorkspace + authorizeOrFail",
+        "antiEnum": "404",
+        "note": "SEC-19"
+      }
+    ],
+    "concurrencyScenarios": [
+      {
+        "scenario": "two finalize",
+        "path": "services/api/src/services/evidence-complete.service.ts:486-1267",
+        "tx": "interactive tx",
+        "lock": "pg_advisory_xact_lock(hashtext(evidenceId)) :488",
+        "optimistic": "updateMany status in CREATED/UPLOADING + count :1098-1125",
+        "unique": "EvidenceCreditLedgerEntry.evidenceId @unique",
+        "verdict": "SAFE (double-sign/charge); fan-out RACE SEC-11"
+      },
+      {
+        "scenario": "finalize + delete",
+        "path": "evidence-lifecycle.service.ts:195-420",
+        "tx": "write only",
+        "lock": "none",
+        "optimistic": "none",
+        "verdict": "RACE SEC-12"
+      },
+      {
+        "scenario": "finalize + plan change",
+        "path": "evidence-complete.service.ts:507, billing-enforcement.service.ts:693",
+        "tx": "plan read outside lock",
+        "verdict": "UNCLEAR/benign SEC-28"
+      },
+      {
+        "scenario": "two recovery clicks",
+        "path": "output-recovery.service.ts:456 -> report-generation-request.ts:203",
+        "unique": "idempotencyKey @unique; (evidenceId, clientRequestKey)",
+        "jobId": "deterministic",
+        "verdict": "SAFE; lease fencing SEC-30"
+      },
+      {
+        "scenario": "two report requests",
+        "path": "services/worker/src/processor.ts:3565-3953",
+        "tx": "reserve/commit under advisory lock",
+        "unique": "Report(evidenceId,version)",
+        "verdict": "SAFE (orphan S3 objects by design)"
+      },
+      {
+        "scenario": "two package requests",
+        "path": "services/worker/src/processor.ts:4813-4890; exchange-package-builder.ts:179-195",
+        "unique": "VerificationPackage(evidenceId,version)",
+        "verdict": "SAFE bundled; exchange RACE after lease SEC-27; pointer SEC-29"
+      },
+      {
+        "scenario": "TSA retry vs original",
+        "path": "services/api/src/services/timestamp.service.ts:215-260",
+        "tx": "inside finalize tx",
+        "verdict": "SAFE (no retry path)"
+      },
+      {
+        "scenario": "two OTS upgrades",
+        "path": "services/worker/src/ots-state.ts:399-409",
+        "optimistic": "CAS on full OTS snapshot; custody on win only",
+        "jobId": "ots-upgrade-<evidenceId>",
+        "verdict": "SAFE"
+      },
+      {
+        "scenario": "two credit purchases",
+        "path": "services/api/src/services/billing/evidence-credits.service.ts:176-261",
+        "unique": "partial unique (provider,provider_ref) PURCHASE; grantRef; webhook event ids; Payment(provider,providerPaymentId)",
+        "verdict": "SAFE"
+      },
+      {
+        "scenario": "last credit/slot",
+        "path": "evidence-credits.service.ts:434-449; billing-enforcement.service.ts:62-72",
+        "optimistic": "credits gte + count",
+        "lock": "capacity advisory lock",
+        "verdict": "SAFE credits/slots; storage RACE SEC-28"
+      },
+      {
+        "scenario": "plan webhook vs worker / downgrade during job",
+        "path": "services/worker/src/processor.ts:3862-3868",
+        "verdict": "UNCLEAR by design (no re-check at commit)"
+      },
+      {
+        "scenario": "legal hold vs destruction",
+        "path": "packages/shared-runtime/src/evidence-destruction/executor.ts:289-658",
+        "verdict": "RACE SEC-01 (P0); restore race SEC-06"
+      },
+      {
+        "scenario": "enqueue without jobId",
+        "path": "services/worker/src/processor.ts:5335/5378 reportDlqQueue.add",
+        "verdict": "DLQ sink only, P3 duplicates; all other producers deterministic jobId (packages/shared/src/queue-integrity/enqueue.ts:174)"
+      }
+    ]
+  },
+  "answers": [
+    {
+      "id": "18.1",
+      "question": "Are there route aliases with different authorization on the evidence lifecycle?",
+      "answer": "No. workspace-alias rewrites /v1/workspaces->/v1/teams before routing (same handler); deprecated-alias wraps the same handler for 4 admin/ops GETs with identical preHandler. No v0/unversioned evidence routes except /public/verify/:id. Real duplicate authorities are elsewhere: two evidence read gates (SEC-03), two case detach services (SEC-02/16), two upload auth families (SEC-25).",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/workspace-alias.plugin.ts",
+          "line": 64,
+          "snippet": "export function rewriteWorkspaceAliasUrl(rawUrl: string | undefined): string {"
+        },
+        {
+          "file": "services/api/src/routes/deprecated-alias.ts",
+          "line": 66,
+          "snippet": "export function deprecatedAlias("
+        }
+      ]
+    },
+    {
+      "id": "18.2",
+      "question": "Web vs API entitlement/pricing tables disagree?",
+      "answer": "Only the pricing page FREE storage add-on row (SEC-23); otherwise web/mobile read the API catalog.",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "apps/web/app/pricing/page.tsx",
+          "line": 558,
+          "snippet": "\"Not available\""
+        }
+      ]
+    },
+    {
+      "id": "18.3",
+      "question": "Worker-local plan rule copies?",
+      "answer": "No worker-local plan table; worker imports shared PLAN_CAPABILITIES. But plan-only vs lifecycle-aware owed-output predicates coexist in worker and API (SEC-20) and storage population differs (SEC-22).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "services/worker/src/report-generation-authority.ts",
+          "line": 749,
+          "snippet": "verificationPackageOwed via resolveEvidenceOutputEntitlements"
+        }
+      ]
+    },
+    {
+      "id": "18.4",
+      "question": "Multiple ready/status/verification aggregators?",
+      "answer": "Yes: verified headline vs live checks (SEC-10); five backlog aggregators (SEC-20); stale integrity snapshot (SEC-21).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 1698,
+          "snippet": "if (coreSignal?.status === \"passed\" && explicitlyVerified) { return \"Core Integrity Verified\"; }"
+        }
+      ]
+    },
+    {
+      "id": "18.5",
+      "question": "Multiple recovery orchestrators / duplicate queue consumers?",
+      "answer": "Recovery sweeps composed under one cron lock; operator paths reuse the same request authority with deterministic jobIds; one consumer per queue. Duplicate reaper exists only for capture drafts (SEC-24).",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/worker/src/lifecycle-recovery.ts",
+          "line": 115,
+          "snippet": "composes first-issuance, stranded requests, OTS init"
+        }
+      ]
+    },
+    {
+      "id": "19.1",
+      "question": "Cross-tenant upload/finalization possible?",
+      "answer": "Refuted: upload session binds evidenceId to proven teamId; completeEvidence loads by id+ownerUserId; parts require record access + owner in tx; keys server-derived. Intra-tenant part injection into signed evidence exists (SEC-08).",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/uploads/upload-session.service.ts",
+          "line": 360,
+          "snippet": "where: { id: input.evidenceId, teamId: input.teamId }"
+        }
+      ]
+    },
+    {
+      "id": "19.2",
+      "question": "Cross-tenant report/package generation or recovery?",
+      "answer": "Refuted: regenerate uses canonical resolveEvidenceOperationAccess (404); worker re-derives workspace from DB and refuses mismatch (report-generation-authority.ts:179-205); exchange builder reads teamId from package row.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/worker/src/report-generation-authority.ts",
+          "line": 179,
+          "snippet": "if (!workspaceId || workspaceId !== request.teamId)"
+        }
+      ]
+    },
+    {
+      "id": "19.3",
+      "question": "Verify-token access?",
+      "answer": "Public verify keyed by evidence UUID, rate-limited, PUBLISHED-only, PII redacted, original only via export gate; 409 status oracle for unfinalized records (SEC-31); headline false-verified (SEC-10).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 12569,
+          "snippet": "409 EVIDENCE_NOT_FINALIZED"
+        }
+      ]
+    },
+    {
+      "id": "19.4",
+      "question": "Case association to another tenant's case?",
+      "answer": "Refuted for team cases (evaluateCrossTeamAttach strict equality + service re-check). NULL/NULL exception via case-workspace evidence-links (SEC-09).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/cases/case-permission.service.ts",
+          "line": 390,
+          "snippet": "if (input.caseTeamId === input.evidenceTeamId) { return { allowed: true }; }"
+        }
+      ]
+    },
+    {
+      "id": "19.5",
+      "question": "Intake link rebound?",
+      "answer": "Refuted: target workspace from link row found by token hash; sessions checked session.intakeLinkId === link.id.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 296,
+          "snippet": "teamId: pair.link.teamId"
+        }
+      ]
+    },
+    {
+      "id": "19.6",
+      "question": "External reviewer reading unrelated evidence?",
+      "answer": "Refuted: grant scope validated at issuance; portal access through resolveWorkflowInGrantScope.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/external-review/portal-scope.service.ts",
+          "line": 38,
+          "snippet": "resolveWorkflowInGrantScope"
+        }
+      ]
+    },
+    {
+      "id": "19.7",
+      "question": "Platform admin acting in wrong workspace?",
+      "answer": "admin-evidence-ops is intentionally cross-tenant read-only with DB-confirmed platform admin and no storage keys; operations-recovery requires membership in named team; evidence.routes has no admin bypass.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/admin/evidence-records.service.ts",
+          "line": 186,
+          "snippet": "...(input.teamId ? { teamId: input.teamId } : {}),"
+        }
+      ]
+    },
+    {
+      "id": "19.8",
+      "question": "Worker trusts payload tenant ids?",
+      "answer": "Refuted for report, OTS, exchange: payload carries request/evidence/package id only; tenancy re-derived from DB.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/worker/src/report-generation-authority.ts",
+          "line": 179,
+          "snippet": "if (!workspaceId || workspaceId !== request.teamId)"
+        }
+      ]
+    },
+    {
+      "id": "19.9",
+      "question": "Prisma undefined-teamId (no filter) holes?",
+      "answer": "None on lifecycle routes: conditional spreads are audit metadata, platform-admin, system sweeps, or dead helpers (SEC-34). The real NULL-team hazard is code WRITING teamId:null (SEC-02) and NULL==NULL equality (SEC-09).",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/governance/legal-hold.service.ts",
+          "line": 930,
+          "snippet": "...(input.teamId ? { teamId: input.teamId } : {}),"
+        }
+      ]
+    },
+    {
+      "id": "19.10",
+      "question": "Membership re-proof on lifecycle routes?",
+      "answer": "Canonical routes re-prove via evaluateMemberAccess; ~30 legacy-gated routes, the download gate role lookup, list, reports list and capture create check status only (SEC-03), and case grants/creator bypass membership (SEC-04/05).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 3079,
+          "snippet": "if (member?.status === \"ACTIVE\") { return evidence; }"
+        }
+      ]
+    },
+    {
+      "id": "20.1",
+      "question": "Two finalize requests",
+      "answer": "Safe against double sign/charge (advisory lock + conditional updateMany + ledger unique); REPORTED repeat re-runs fan-out (SEC-11).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/evidence-complete.service.ts",
+          "line": 516,
+          "snippet": "if (evidence.status === EvidenceStatus.REPORTED) {"
+        }
+      ]
+    },
+    {
+      "id": "20.2",
+      "question": "Finalize + delete",
+      "answer": "Trash does not take the evidence lock; finalize claim lacks deletedAt predicate (SEC-12).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+          "line": 360,
+          "snippet": "await tx.evidence.update({ where: { id: evidence.id }, data: patch.data });"
+        }
+      ]
+    },
+    {
+      "id": "20.3",
+      "question": "Two recovery clicks / report / package requests",
+      "answer": "Safe via idempotency keys, deterministic jobIds, reserve/commit + unique version. Residual: lease fencing (SEC-30), exchange lease race (SEC-27), pointer regression (SEC-29).",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/worker/src/report-generation-authority.ts",
+          "line": 289,
+          "snippet": "updateMany where { id, OR:[{state in CLAIMABLE},{state:\"PROCESSING\", claimedAtUtc:{lt: leaseFloor}}] }"
+        }
+      ]
+    },
+    {
+      "id": "20.4",
+      "question": "TSA retry vs original / two OTS upgrades",
+      "answer": "TSA single call inside finalize tx, no retry path. OTS CAS on full snapshot; custody on win only.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/worker/src/ots-state.ts",
+          "line": 399,
+          "snippet": "applyOtsTransition CAS"
+        }
+      ]
+    },
+    {
+      "id": "20.5",
+      "question": "Credit purchases / last credit",
+      "answer": "Safe: partial unique indexes, grantRef unique, webhook ids unique, conditional decrement + count. Question: multi-active entitlements (Entitlement has no unique on userId).",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/billing/evidence-credits.service.ts",
+          "line": 434,
+          "snippet": "entitlement.updateMany({ where: { userId, active: true, credits: { gte: required } }"
+        }
+      ]
+    },
+    {
+      "id": "20.6",
+      "question": "Legal hold vs destruction",
+      "answer": "RACE: hold verdict computed before claim, not re-read (SEC-01, P0); restore during destruction (SEC-06).",
+      "disposition": "SOURCE_PROVEN_DEFECT",
+      "evidence": [
+        {
+          "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+          "line": 400,
+          "snippet": "legalHold: input.legalHold,"
+        }
+      ]
+    },
+    {
+      "id": "20.7",
+      "question": "Plan webhook vs worker / downgrade during job",
+      "answer": "Plan checked at claim and render, not at commit; finalize uses pre-lock plan snapshot. Treated as policy question.",
+      "disposition": "OWNER_DECISION_REQUIRED",
+      "evidence": [
+        {
+          "file": "services/worker/src/processor.ts",
+          "line": 3862,
+          "snippet": "assertWorkspaceAllowsReportArtifact({...evidenceId})"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "localId": "SEC-01",
+      "severity": "P0",
+      "category": "concurrency/legal-hold",
+      "title": "Destruction executor decides eligibility from a legal-hold boolean computed BEFORE its claim; a hold placed mid-execution does not stop byte deletion + certificate",
+      "affected": {
+        "routes": [
+          "legal hold placement routes"
+        ],
+        "pages": [],
+        "jobs": [
+          "destruction-orchestrator",
+          "trash-grace",
+          "retention"
+        ],
+        "tables": [
+          "evidence",
+          "evidence_legal_holds",
+          "destruction_executions"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
+          "line": 169,
+          "snippet": "const facts = await gatherDestructionFacts(review.evidenceId);"
+        },
+        {
+          "file": "services/worker/src/governance/destruction-orchestrator.worker.ts",
+          "line": 244,
+          "snippet": "legalHold: facts.hasActiveDirectHold || facts.hasActiveCaseHold,"
+        },
+        {
+          "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+          "line": 318,
+          "snippet": "const claim = await prisma.evidence.updateMany({ where: { id: input.evidenceId, OR: [ { lifecycleState: \"TRASHED\" }, ..."
+        },
+        {
+          "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+          "line": 400,
+          "snippet": "legalHold: input.legalHold,"
+        },
+        {
+          "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+          "line": 471,
+          "snippet": "const res = await storage.deleteObjectVersion({ ...target, versionId: v.versionId });"
+        },
+        {
+          "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+          "line": 608,
+          "snippet": "await tx.evidence.update({ where: { id: evidence.id }, data: { lifecycleState: \"DESTROYED\", destroyedAtUtc: now,"
+        },
+        {
+          "file": "services/api/src/services/governance/legal-hold.service.ts",
+          "line": 295,
+          "snippet": "const hold = (await client.evidenceLegalHold.create({ data: { teamId: input.teamId, scope, evidenceId, caseId,"
+        }
+      ],
+      "observed": "The hold verdict is read by the caller (orchestrator :169, also processor.ts:5668/5688, destruction-review.service.ts:658/670, destruction-governance.service.ts:579/590) and passed as a boolean. The executor re-reads the evidence row after its claim but never re-reads evidence_legal_holds. placeCanonicalLegalHold only verifies the tenant (:264-286) and inserts; it neither checks lifecycleState PENDING_DESTRUCTION nor takes any lock shared with the executor. The S3 object-lock legal-hold backstop (executor :446-462) only reacts to object-level holds, which application holds do not set.",
+      "expected": "A hold committed before bytes are deleted must block destruction (re-evaluate effective hold inside/after the claim, or serialize hold placement against PENDING_DESTRUCTION).",
+      "dataFlow": "orchestrator reads holds -> executeEvidenceDestruction(legalHold=false) -> claim -> computeEvidenceDestructionEligibility(input.legalHold) -> S3 list/delete all versions -> tombstone + EVIDENCE_PURGED + certificate",
+      "rootCause": "TOCTOU: hold is an input parameter rather than re-read under the claim.",
+      "blastRadius": "Every destruction entry point (4 callers) for WORKSPACE evidence.",
+      "impact": "Original evidence under an active legal hold is irreversibly destroyed and a destruction certificate is issued.",
+      "reproduction": "1) Evidence E trashed with grace expired. 2) Pause orchestrator after gatherDestructionFacts. 3) Place EVIDENCE hold on E (succeeds 200). 4) Resume: executor deletes all versions and tombstones E.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Integration test with real PG: stub storage to block on first deleteObjectVersion; place hold via placeCanonicalLegalHold in parallel; assert executor outcome is DESTROYED (defect) vs BLOCKED.",
+      "remediation": "Inside the executor, after the claim and immediately before the first delete, call evaluateEffectiveLegalHold(tx) and release the claim if held; make placeCanonicalLegalHold refuse (or flag) when lifecycleState='PENDING_DESTRUCTION' with a live claim, under the same pg_advisory_xact_lock(evidenceId).",
+      "acceptanceProof": "Concurrency test above returns BLOCKED/LEGAL_HOLD_ACTIVE and bytes remain.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-02",
+      "severity": "P0",
+      "category": "tenancy/custody",
+      "title": "Detaching evidence from its last case sets Evidence.teamId=NULL, moving workspace evidence into the creator's personal scope (escapes workspace/case holds, admins lose access, creator keeps bytes after revocation)",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/bulk (REMOVE_FROM_CASE)",
+          "DELETE /v1/cases/:id/evidence/:evidenceId"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "evidence",
+          "case_evidence_links"
+        ],
+        "roles": [
+          "MEMBER",
+          "CONTRIBUTOR",
+          "case owner (even SUSPENDED)"
+        ],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 7254,
+          "snippet": "await detachEvidenceFromCase({ caseId: link.caseId, evidenceId, actorUserId: userId, clearEvidenceTeamIdWhenUnlinked: true,"
+        },
+        {
+          "file": "services/api/src/routes/cases.routes.ts",
+          "line": 1637,
+          "snippet": "clearEvidenceTeamIdWhenUnlinked: true,"
+        },
+        {
+          "file": "services/api/src/services/cases/case-evidence-link.service.ts",
+          "line": 242,
+          "snippet": "if (input.clearEvidenceTeamIdWhenUnlinked === true) { ... if (!remaining) { await tx.evidence.update({ where: { id: evidence.id }, data: { teamId: null } });"
+        },
+        {
+          "file": "services/api/src/routes/cases.routes.ts",
+          "line": 1565,
+          "snippet": "let hasPermission = caseItem.ownerUserId === userId;"
+        },
+        {
+          "file": "services/api/src/services/evidence/artifact-download-gate.service.ts",
+          "line": 127,
+          "snippet": "const personalOwner = !teamId && evidenceForGate.ownerUserId === actorUserId;"
+        }
+      ],
+      "observed": "createEvidence never writes a null teamId (evidence.service.ts:433-439) but both detach paths reset it when the last case link is removed. Bulk REMOVE_FROM_CASE needs only update_metadata on the evidence and performs no case-level authorization (evidence.routes.ts:7236-7262); the single route admits the case owner without re-proving membership (cases.routes.ts:1565). Neither path evaluates an effective legal hold. After the reset, resolveEvidenceRecordAccess applies the personal-owner rule (only ownerUserId), the download gate treats the creator as personal owner (enforceSensitiveAction allows via personalOwnerVerified), and effective-legal-hold.ts:254-275 skips WORKSPACE/CASE holds when teamId is null. The case-workspace detach (case-lifecycle.service.ts:676-697 removeEvidenceLink) does NOT clear teamId: two detach authorities disagree.",
+      "expected": "Workspace-bound evidence is never re-scoped to a person by an unlink; tenancy is immutable after creation (or re-scoping requires an explicit, hold-checked, admin-only transfer).",
+      "dataFlow": "bulk ADD_TO_CASE E->C (ACTIVE member suffices, :7134-7141) -> bulk REMOVE_FROM_CASE -> detachEvidenceFromCase -> evidence.teamId=null -> personal-owner authority",
+      "rootCause": "Legacy 'return to personal pool' UI semantics retained on canonical detach service.",
+      "blastRadius": "Any workspace evidence reachable by a member holding evidence.update_metadata, or any case owner (including suspended).",
+      "impact": "Custody/tenancy corruption: workspace admins get 404 on their own evidence; WORKSPACE/CASE legal holds cease to apply; the creator (possibly a departing/revoked member) retains original/report/package download.",
+      "reproduction": "As CONTRIBUTOR U in org workspace T: POST /v1/evidence/bulk {action:ADD_TO_CASE, caseId:C, evidenceIds:[E]} then {action:REMOVE_FROM_CASE, evidenceIds:[E]}; SELECT team_id FROM evidence WHERE id=E -> NULL; admin GET /v1/evidence/E -> 404.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local fixture workspace with admin + contributor; run the two bulk calls; assert team_id NULL and admin 404; place WORKSPACE hold first and show trash/destroy now allowed.",
+      "remediation": "Remove clearEvidenceTeamIdWhenUnlinked from both routes (delete the option); if personal re-scoping is a product need, make it an explicit owner-decision flow with hold evaluation and admin authority.",
+      "acceptanceProof": "Detach leaves teamId unchanged; test asserting admin still reads E and holds still apply.",
+      "migrationBackfill": "Identify evidence with team_id NULL whose owner's personal team exists and custody/audit shows a prior workspace binding (cases.evidence_unlinked audit rows) and restore team binding.",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-03",
+      "severity": "P0",
+      "category": "tenancy/authz",
+      "title": "Legacy read gate and the byte-release gate's membership lookup ignore access expiry and organization lifecycle: expired members and members of SUSPENDED/ARCHIVED organizations can read, write collaboration content and download originals/reports/packages",
+      "affected": {
+        "routes": [
+          "GET /v1/evidence/:id",
+          "GET /v1/evidence/:id/original",
+          "GET /v1/evidence/:id/report/latest",
+          "GET /v1/evidence/:id/reports/:version",
+          "GET /v1/evidence/:id/verification-package(s)",
+          "GET /v1/evidence/:id/parts",
+          "comments/legal-notes/annotations routes",
+          "~30 LEGACY-gated routes"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "team_members",
+          "evidence"
+        ],
+        "roles": [
+          "time-bound members",
+          "members of suspended orgs"
+        ],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 3079,
+          "snippet": "if (member?.status === \"ACTIVE\") { return evidence; }"
+        },
+        {
+          "file": "services/api/src/services/evidence/artifact-download-gate.service.ts",
+          "line": 150,
+          "snippet": "role: membership?.status === \"ACTIVE\" ? membership.role : undefined,"
+        },
+        {
+          "file": "services/api/src/services/identity/access-policy.service.ts",
+          "line": 216,
+          "snippet": "actor.accessExpiresAtUtc !== null && actor.accessExpiresAtUtc.getTime() <= now.getTime() ) { return { allowed: false, reason: \"member_access_expired\" };"
+        },
+        {
+          "file": "services/api/src/services/identity/access-policy.service.ts",
+          "line": 234,
+          "snippet": "if (actor.organizationStatus !== \"ACTIVE\") { return { allowed: false, reason: \"organization_not_active\","
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 2993,
+          "snippet": "readAccess: getEvidenceWithReadAccess"
+        }
+      ],
+      "observed": "The canonical evaluateMember denies expired access and non-ACTIVE organizations; getEvidenceWithReadAccess (evidence.routes.ts:3003-3100) and evaluateArtifactDownload's role lookup check only teamMember.status==='ACTIVE'. No sweep flips expired rows' status (sub-agent grep of accessExpiresAtUtc writers). Same status-only pattern in getTeamMembershipRole (:3143), list membership (:6812-6816), createEvidence (evidence.service.ts:282-309), GET /v1/reports (reports.routes.ts:176-179), capture session create (capture.routes.ts:269-279).",
+      "expected": "Every evidence read/write/byte release uses evaluateMemberAccess (status + expiry + workspace kind + org lifecycle + role).",
+      "dataFlow": "GET /original -> getEvidenceWithReadAccess (status only) -> evaluateArtifactDownload -> enforceSensitiveAction(role from status-only lookup) -> checkExportEligibility -> presigned GET 600s",
+      "rootCause": "Two read gates: canonical getEvidenceWithRecordAccess vs legacy getEvidenceWithReadAccess; download gate re-implements membership lookup.",
+      "blastRadius": "All read/collab/download routes in evidence.routes.ts on LEGACY gate (~30) plus list/summary.",
+      "impact": "Customer data exposure after access should have ended (contractor expiry, org suspension for non-payment/offboarding).",
+      "reproduction": "Set team_members.access_expires_at_utc to past for user X (status ACTIVE); GET /v1/evidence/:id/original as X -> 200 with presigned URL; canonical routes (e.g. /reports/regenerate) -> 404.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local fixture: expired member + suspended-org member; call /original, /report/latest, /legal-notes; expect 200 (defect).",
+      "remediation": "Replace getEvidenceWithReadAccess with getEvidenceWithRecordAccess(userId,id,'evidence.read') and have evaluateArtifactDownload obtain role via evaluateMemberAccess.",
+      "acceptanceProof": "Route-matrix test: expired/suspended-org actor gets 404 on every evidence route.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-04",
+      "severity": "P1",
+      "category": "tenancy/authz",
+      "title": "Stale standing authority: CaseAccess grants and case ownership survive suspension/revocation and are honored without membership re-proof (legacy read gate, case-workspace requireCaseAccess, bulk case status, attach/detach)",
+      "affected": {
+        "routes": [
+          "LEGACY evidence reads/collab writes",
+          "GET /v1/cases/:id/linkable-evidence",
+          "case-workspace mutations",
+          "POST /v1/cases/bulk",
+          "DELETE /v1/cases/:id/evidence/:evidenceId"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "case_access",
+          "cases",
+          "team_members"
+        ],
+        "roles": [
+          "suspended/revoked members",
+          "VIEWER with CaseAccess"
+        ],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 3042,
+          "snippet": "if (caseItem.access.some((a) => a.userId === userId)) { return evidence; }"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 3038,
+          "snippet": "if (caseItem.ownerUserId === userId) { return evidence; }"
+        },
+        {
+          "file": "services/api/src/routes/case-workspace.routes.ts",
+          "line": 159,
+          "snippet": "if (caseRow.ownerUserId === userId) { return { userId, role: \"OWNER\" }; }"
+        },
+        {
+          "file": "services/api/src/routes/case-workspace.routes.ts",
+          "line": 164,
+          "snippet": "if (caseRow.access.length > 0) { return { userId, role: \"MEMBER\" }; }"
+        },
+        {
+          "file": "services/api/src/routes/cases.routes.ts",
+          "line": 2221,
+          "snippet": "{ ownerUserId: userId }, { access: { some: { userId } } }"
+        }
+      ],
+      "observed": "suspendWorkspaceMembership (membership-provisioning.service.ts:507-515) only updates team_members; caseAccess rows are deleted only on explicit ungrant/case delete. The legacy gate, requireCaseAccess, bulk case status and attach/detach owner arms return access before any membership check. linkable-evidence then lists all team evidence titles/status (case-workspace.routes.ts:820-845). A VIEWER granted CaseAccess is promoted to role MEMBER in case-workspace, passing EVIDENCE_LINK/STATUS_CHANGE that cases.routes.ts denies.",
+      "expected": "CaseAccess/case ownership are additive only for ACTIVE, non-expired members of the case's workspace.",
+      "dataFlow": "GET /v1/evidence/:id/* (legacy routes) -> getEvidenceWithReadAccess -> case_evidence_links -> cases.include(access) -> returns on caseItem.ownerUserId/access match before any team_members check; case-workspace routes -> requireCaseAccess returns OWNER/MEMBER from case row -> linkable-evidence/mutations.",
+      "rootCause": "Case-level grants treated as independent authority.",
+      "blastRadius": "Every workspace with cases that has ever granted CaseAccess or had a case owner later suspended/revoked; affects ~30 legacy evidence routes, case-workspace read/mutation routes, bulk case status and case attach/detach.",
+      "impact": "Suspended/revoked members keep reading evidence metadata, legal notes, INTERNAL comments, enumerating the team's evidence, and mutating cases (close/archive/link/unlink -> SEC-02). Bytes are blocked by the download gate's ACTIVE-role check.",
+      "reproduction": "Grant CaseAccess to M on case C; suspend M; as M GET /v1/evidence/:id/legal-notes for evidence linked to C -> 200; GET /v1/cases/C/linkable-evidence -> team evidence list.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local fixture with suspended member holding case_access row; hit the listed routes.",
+      "remediation": "Re-prove membership via evaluateMemberAccess before honoring case owner/CaseAccess; delete or disable caseAccess on suspension/removal.",
+      "acceptanceProof": "Suspended member receives 404 on all listed routes.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-05",
+      "severity": "P1",
+      "category": "tenancy/authz",
+      "title": "Creator identity alone grants read, write and moderation on workspace-bound evidence after the creator leaves the workspace (contradicts canonical 'creator grants nothing')",
+      "affected": {
+        "routes": [
+          "~30 LEGACY-gated evidence routes",
+          "DELETE/PATCH comments/legal-notes/annotations of others",
+          "GET /v1/evidence list"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 3018,
+          "snippet": "if (evidence.ownerUserId === userId) { return evidence; }"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 3157,
+          "snippet": "if (evidence.ownerUserId === userId) return true;"
+        },
+        {
+          "file": "services/api/src/services/evidence/evidence-record-access.service.ts",
+          "line": 79,
+          "snippet": "row.teamId === null -> row.ownerUserId === input.userId (personal rule only); workspace rows -> evaluateMemberAccess"
+        }
+      ],
+      "observed": "Legacy gate returns before any membership check for the creator; canManageEvidenceCollaborativeContent lets the creator edit/delete any team member's comment, legal note or annotation. List includes {ownerUserId:userId} (:2488).",
+      "expected": "Workspace evidence requires live membership regardless of creator identity.",
+      "dataFlow": "GET/DELETE /v1/evidence/:id/legal-notes|comments|annotations -> getEvidenceWithReadAccess (returns at ownerUserId===userId, :3018) -> canManageEvidenceCollaborativeContent (creator true, :3157) -> evidence_legal_notes/comments/annotations read or soft-delete.",
+      "rootCause": "The legacy gate predates the Phase-1 canonical rule and keeps a creator shortcut; the routes were never migrated to getEvidenceWithRecordAccess.",
+      "blastRadius": "All workspace evidence created by users who later left or were suspended/revoked; all LEGACY-gated read/collaboration routes and the evidence list (ownerUserId arm, :2488).",
+      "impact": "Removed member reads all legal notes (with author emails) and can soft-delete colleagues' work product on records they created. Bytes blocked by the download gate.",
+      "reproduction": "Remove U from T; as U GET /v1/evidence/E/legal-notes (E created by U) -> 200; DELETE /v1/evidence/E/legal-notes/:noteId -> 200.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local fixture: revoke creator membership, call legal-notes GET/DELETE.",
+      "remediation": "Same as SEC-03: migrate to getEvidenceWithRecordAccess; drop the creator arm in canManageEvidenceCollaborativeContent for workspace rows.",
+      "acceptanceProof": "Revoked creator gets 404.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": "Confirm creator access after leaving workspace is not an intended product rule.",
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-06",
+      "severity": "P1",
+      "category": "concurrency/lifecycle",
+      "title": "Restore-from-trash 'succeeds' (200 + EVIDENCE_RESTORED custody) while the destruction executor holds its claim; executor then tombstones the restored record",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/:id/restore"
+        ],
+        "pages": [],
+        "jobs": [
+          "destruction executor"
+        ],
+        "tables": [
+          "evidence",
+          "custody_events"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+          "line": 346,
+          "snippet": "data: { lifecycleState: \"PENDING_DESTRUCTION\", destructionClaimedAtUtc: now, },"
+        },
+        {
+          "file": "packages/shared/src/evidence-retention-lifecycle.ts",
+          "line": 189,
+          "snippet": "if (toDate(input.trashedAt)) return \"TRASHED\";"
+        },
+        {
+          "file": "packages/shared/src/evidence-retention-lifecycle.ts",
+          "line": 450,
+          "snippet": "canRestoreFromTrash: trashed && !locked,"
+        },
+        {
+          "file": "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+          "line": 360,
+          "snippet": "await tx.evidence.update({ where: { id: evidence.id }, data: patch.data });"
+        },
+        {
+          "file": "packages/shared-runtime/src/evidence-destruction/executor.ts",
+          "line": 608,
+          "snippet": "await tx.evidence.update({ where: { id: evidence.id }, data: { lifecycleState: \"DESTROYED\","
+        }
+      ],
+      "observed": "PENDING_DESTRUCTION is not a product state, so resolveEvidenceProductState falls back to deletedAt -> TRASHED and restore is allowed; both restore and tombstone write by id only with no state predicate and no shared lock.",
+      "expected": "Restore must fail (409) while a destruction claim is live, or the tombstone must be conditional on lifecycleState='PENDING_DESTRUCTION' with the claim timestamp.",
+      "dataFlow": "Worker executor claim (evidence.lifecycleState=PENDING_DESTRUCTION, deletedAt still set) -> user POST /v1/evidence/:id/restore -> applyEvidenceLifecycleAction -> resolveEvidenceProductState falls back to trashedAt => TRASHED -> canRestoreFromTrash -> tx.evidence.update by id (ACTIVE) + EVIDENCE_RESTORED custody -> executor deletes S3 versions -> tx.evidence.update by id (DESTROYED).",
+      "rootCause": "PENDING_DESTRUCTION is not a product state, so the capability model sees a trashed record; both the restore write and the tombstone write are unconditional by id with no shared lock.",
+      "blastRadius": "Any trashed workspace or personal evidence whose grace has expired and is being destroyed by any of the 4 executor callers; affects the restoring user and the custody ledger.",
+      "impact": "User told evidence is restored (custody says restored) but it is destroyed with a certificate: false success + evidence loss.",
+      "reproduction": "Block executor after claim; POST /restore -> 200; resume; row DESTROYED.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Integration test with blocking storage stub as in SEC-01.",
+      "remediation": "Restore/lifecycle writes use updateMany with lifecycleState predicate excluding PENDING_DESTRUCTION + count check; tombstone updateMany where {id, lifecycleState:'PENDING_DESTRUCTION', destructionClaimedAtUtc: now}.",
+      "acceptanceProof": "Concurrent test returns 409 for restore or executor aborts.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-07",
+      "severity": "P1",
+      "category": "tenancy/data-exposure",
+      "title": "Evidence relationships link records across workspaces; target metadata leaks to the source workspace's readers",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/:id/relationships",
+          "GET /v1/evidence/:id/relationships"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "evidence_relationships"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 8404,
+          "snippet": "const evidence = await getEvidenceWithRecordAccess(userId, id, \"evidence.update_metadata\");"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 8405,
+          "snippet": "const target = await getEvidenceWithReadAccess(userId, body.targetEvidenceId);"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 8413,
+          "snippet": "teamId: evidence.teamId ?? target.teamId ?? null,"
+        }
+      ],
+      "observed": "No same-workspace equality (unlike evaluateCrossTeamAttach). listEvidenceRelationships returns the linked record's title, filename, status, caseId, teamId (relationship-summary.service.ts:84-127) to anyone with read on the source.",
+      "expected": "Relationship target must be in the same workspace (or relationship listing must re-authorize the target per viewer).",
+      "dataFlow": "POST /v1/evidence/:id/relationships -> getEvidenceWithRecordAccess(source) + getEvidenceWithReadAccess(target) -> evidence_relationships.create(teamId = source ?? target) -> GET /v1/evidence/:id/relationships -> listEvidenceRelationships returns target title/filename/status/caseId/teamId.",
+      "rootCause": "The relationship route authorizes source and target independently and never applies the evaluateCrossTeamAttach equality used for case links; the listing does not re-authorize the target per viewer.",
+      "blastRadius": "Any user who can read records in two workspaces (multi-workspace members, or legacy-gate admits such as revoked creators/CaseAccess holders); exposes target metadata to every reader of the source record.",
+      "impact": "A user in two workspaces (or a revoked creator per SEC-05) exposes T2 record metadata to all T1 readers.",
+      "reproduction": "User in T1 and T2 POST relationship S(T1)->X(T2); T1-only user GET /v1/evidence/S/relationships sees X filename.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local fixture with dual-membership user.",
+      "remediation": "Require target.teamId === evidence.teamId via evaluateCrossTeamAttach; filter listing by viewer access.",
+      "acceptanceProof": "Cross-workspace link returns 404; listing omits inaccessible targets.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-08",
+      "severity": "P1",
+      "category": "custody/integrity",
+      "title": "Any same-team member (evidence.create) can open an upload session against a colleague's SIGNED/REPORTED evidence and bridge an extra unsigned EvidencePart into it",
+      "affected": {
+        "routes": [
+          "POST /v1/uploads/sessions",
+          "POST /v1/uploads/sessions/:id/complete"
+        ],
+        "pages": [],
+        "jobs": [
+          "report generation"
+        ],
+        "tables": [
+          "evidence_upload_sessions",
+          "evidence_parts"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/uploads/upload-session.service.ts",
+          "line": 360,
+          "snippet": "const owningEvidence = await client.evidence.findFirst({ where: { id: input.evidenceId, teamId: input.teamId }, select: { id: true },"
+        },
+        {
+          "file": "services/api/src/services/uploads/upload-session.service.ts",
+          "line": 1884,
+          "snippet": "const partRow = await client.evidencePart.create({ data: { evidenceId: session.evidence_id, partIndex: session.target_part_index,"
+        },
+        {
+          "file": "services/worker/src/processor.ts",
+          "line": 2061,
+          "snippet": "prisma.evidencePart.findMany({ where: { evidenceId: evidence.id }, orderBy: { partIndex: \"asc\" },"
+        }
+      ],
+      "observed": "Session creation checks only id+team (no status, owner, lock, archived or legal-hold check; integrations route does check archived/hold at integrations-uploads.routes.ts:282-295). The bridge inserts a part guarded only by @@unique([evidenceId, partIndex]). Worker report rendering reads all parts with no uploadedAtUtc filter.",
+      "expected": "Upload sessions may only target the actor's own evidence in CREATED/UPLOADING state; signed evidence is immutable.",
+      "dataFlow": "POST /v1/uploads/sessions -> authorizeOrFail(evidence.create) -> createUploadSession (evidence.findFirst {id, teamId}) -> evidence_upload_sessions insert -> upload -> POST .../complete -> multipart bridge evidencePart.create(evidenceId, target_part_index) -> worker processor.ts:2061 reads all parts for the report.",
+      "rootCause": "createUploadSession only proves tenant membership of the evidence id, not ownership or mutable status; the bridge insert relies solely on the (evidenceId, partIndex) unique constraint.",
+      "blastRadius": "Every SIGNED/REPORTED evidence record in a workspace, attackable by any member with evidence.create in that workspace; affects later report/package regenerations of the record.",
+      "impact": "Post-signature part injected into sealed evidence; appears in later report/package regeneration (integrity/custody confusion). Intra-tenant only; cross-tenant refuted.",
+      "reproduction": "As member M: POST /v1/uploads/sessions {teamId:T, evidenceId:E(signed by X), targetPartIndex:99, verifyHash:true}; upload; complete; SELECT * FROM evidence_parts WHERE evidence_id=E AND part_index=99.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local fixture with signed evidence; run the flow; then regenerate report and check parts in view-model.",
+      "remediation": "Require evidence.status in (CREATED,UPLOADING), ownerUserId===actor, not locked/held at session create AND at bridge time (conditional insert).",
+      "acceptanceProof": "Session create against SIGNED evidence -> 409.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-09",
+      "severity": "P1",
+      "category": "tenancy/data-exposure",
+      "title": "NULL-team case can link another user's NULL-team evidence via /v1/cases/:id/evidence-links (no ownership check), and matter workspace then reads it without tenant predicate",
+      "affected": {
+        "routes": [
+          "POST /v1/cases/:id/evidence-links",
+          "GET /v1/cases/:id/matter-workspace",
+          "case export"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "cases",
+          "case_evidence_links",
+          "evidence"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/cases/case-lifecycle.service.ts",
+          "line": 638,
+          "snippet": "if (existing.teamId && evidence.teamId !== existing.teamId) {"
+        },
+        {
+          "file": "services/api/src/services/cases/case-permission.service.ts",
+          "line": 390,
+          "snippet": "if (input.caseTeamId === input.evidenceTeamId) { return { allowed: true }; }"
+        },
+        {
+          "file": "services/api/src/services/cases/matter-workspace.service.ts",
+          "line": 708,
+          "snippet": "where: { id: { in: evidenceIds }, deletedAt: null },"
+        }
+      ],
+      "observed": "case-workspace addEvidenceLink has no evidence-ownership check (cases.routes.ts:1415 has one). NULL-team cases arise when a team is deleted (teams.routes.ts:1378-1381); NULL-team evidence arises from legacy personal rows or SEC-02. Evidence ids appear in public verify URLs.",
+      "expected": "Linking requires record access to the evidence (resolveEvidenceRecordAccess) regardless of case team.",
+      "dataFlow": "POST /v1/cases/:id/evidence-links -> requireCaseAccess(owner) -> addEvidenceLink (team check skipped when case.teamId null; NULL===NULL passes) -> case_evidence_links insert -> GET /v1/cases/:id/matter-workspace -> evidence.findMany {id in linked ids} -> title/status returned.",
+      "rootCause": "addEvidenceLink treats a null case team as 'no constraint' and never checks that the actor can access the evidence; cross-team equality treats null==null as same tenant.",
+      "blastRadius": "Owners of NULL-team cases (teams deleted) against any user's NULL-team evidence (legacy personal rows or rows produced by SEC-02) whose UUID is known, e.g. from a shared verify URL.",
+      "impact": "Metadata (title/status/id) of a victim's personal evidence exposed to an attacker's matter workspace/export; report bytes still gated.",
+      "reproduction": "Attacker owns NULL-team case C; POST /v1/cases/C/evidence-links {evidenceId: victim E from verify URL}; GET matter-workspace.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local fixture: two users, NULL-team case + NULL-team evidence.",
+      "remediation": "Call resolveEvidenceRecordAccess(actor, evidenceId, 'evidence.update_metadata') in addEvidenceLink.",
+      "acceptanceProof": "Link attempt returns 404.",
+      "migrationBackfill": "none",
+      "dependency": "Preconditions: NULL-team case and NULL-team evidence exist.",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-10",
+      "severity": "P1",
+      "category": "duplicate-authority/verification",
+      "title": "Public verify headline says 'Core Integrity Verified' from stored flag + materials even when live recompute (hash/signature/custody) fails; snapshot trust decision wins over live checks",
+      "affected": {
+        "routes": [
+          "GET /public/verify/:id"
+        ],
+        "pages": [
+          "web verify/[token]",
+          "mobile verify"
+        ],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 1698,
+          "snippet": "if (coreSignal?.status === \"passed\" && explicitlyVerified) { return \"Core Integrity Verified\"; }"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 13122,
+          "snippet": "const trustDecision = snapshotTrustDecision ?? liveTrustDecision;"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 13133,
+          "snippet": "const overallIntegrity = canonicalHashMatches && signatureValid && custodyChain.valid && !timestampLayerBlocksIntegrity && otsHashMatches !== false;"
+        },
+        {
+          "file": "packages/shared/src/trust-decision.ts",
+          "line": 655,
+          "snippet": "if (explicitVerified && hasSignatureMaterial) { ... status: \"passed\""
+        },
+        {
+          "file": "apps/mobile/app/verify.tsx",
+          "line": 300,
+          "snippet": "{v.integrityHeadline ? <ProovraText ...>{v.integrityHeadline}"
+        }
+      ],
+      "observed": "mapIntegrityHeadline's second branch ignores overallIntegrity; buildEvidenceTrustDecision takes no live check inputs; the sibling summary (mapIntegritySummaryText :1752) does say checks failed, so the same payload contradicts itself. trust-decision-consistency.service.ts:95 compares snapshot vs live decision only, neither carrying live results.",
+      "expected": "Any live check false => headline/verdict REVIEW_REQUIRED, never 'Verified'.",
+      "dataFlow": "GET /public/verify/:id -> live recompute (canonicalHashMatches, signatureValid, custodyChain.valid -> overallIntegrity :13133) -> trustDecision = snapshotTrustDecision ?? liveTrustDecision (:13122) -> mapIntegrityHeadline (branch at :1698 ignores overallIntegrity) -> humanSummary.integrityHeadline -> web/mobile verify render.",
+      "rootCause": "The headline and the shared trust decision derive 'passed' from the stored verificationStatus flag plus material presence, not from the live cryptographic results, and the stored report snapshot is preferred over the live decision.",
+      "blastRadius": "Every RECORDED_INTEGRITY_VERIFIED record on the public verify endpoint and the web/mobile verify pages, i.e. every third-party verifier of a tampered record.",
+      "impact": "False verification display on the public verify surface after DB tampering of fingerprint/custody (exactly what verify must detect). Borders P0 'false cryptographic verification'; kept P1 because sibling summary and client verdicts show review-required.",
+      "reproduction": "Alter fingerprint_canonical_json or a custody event on a RECORDED_INTEGRITY_VERIFIED record; GET /public/verify/:id -> integrityHeadline 'Core Integrity Verified', summary 'did not pass'.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Local DB fixture: tamper one custody hash; call public verify; inspect humanSummary.",
+      "remediation": "Pass overallIntegrity into mapIntegrityHeadline branch 2 and into buildEvidenceTrustDecision; live failure overrides snapshot.",
+      "acceptanceProof": "Test with tampered row returns non-verified headline and verdict.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": "Lead to decide P0 vs P1 per brief definition of false cryptographic verification.",
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-11",
+      "severity": "P2",
+      "category": "concurrency/idempotency",
+      "title": "Repeat /complete on a REPORTED record returns without alreadyFinalized, re-running the one-time fan-out (duplicate EVIDENCE_COMPLETED custody event, evidence.completed webhook, malware scan, post-finalize)",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/:id/complete"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "custody_events"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/evidence-complete.service.ts",
+          "line": 516,
+          "snippet": "if (evidence.status === EvidenceStatus.REPORTED) { return { result: {...}, shouldEnqueueReport: false, retentionTargets: [], };"
+        },
+        {
+          "file": "services/api/src/services/evidence-complete.service.ts",
+          "line": 1483,
+          "snippet": "if (final.alreadyFinalized) return final.result;"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 10244,
+          "snippet": "if (!result.alreadyFinalized) { await appendCustodyEvent({ evidenceId: id, eventType: prismaPkg.CustodyEventType.EVIDENCE_COMPLETED,"
+        }
+      ],
+      "observed": "SIGNED short-circuit sets alreadyFinalized:true (:580/589); REPORTED branch does not.",
+      "expected": "REPORTED branch returns alreadyFinalized:true.",
+      "dataFlow": "POST /v1/evidence/:id/complete -> completeEvidence -> advisory lock -> REPORTED early return without alreadyFinalized (:516) -> post-commit guard (:1483) not taken -> evidence.completed webhook, malware scan, runEvidenceCompletePostFinalize -> route appends EVIDENCE_COMPLETED custody (:10244).",
+      "rootCause": "The REPORTED short-circuit was written before the alreadyFinalized flag existed and was never updated to set it, unlike the SIGNED branch.",
+      "blastRadius": "Every record that reaches REPORTED and then receives another complete call (client retry, double click, mobile resend); affects the custody ledger and every subscribed webhook endpoint.",
+      "impact": "Duplicate custody events and external webhooks on client retry/double-click after the report exists.",
+      "reproduction": "Complete E; wait until REPORTED; POST /complete again; count EVIDENCE_COMPLETED custody events = 2.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Integration test calling completeEvidence twice around a REPORTED status update.",
+      "remediation": "Add alreadyFinalized:true to the REPORTED return.",
+      "acceptanceProof": "Second complete appends nothing.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-12",
+      "severity": "P2",
+      "category": "concurrency/lifecycle",
+      "title": "Archive/trash/restore/unarchive are check-then-write: read + hold evaluation outside the transaction, write by id only, no lock",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/:id/archive",
+          "DELETE /v1/evidence/:id",
+          "POST /v1/evidence/:id/restore",
+          "POST /v1/evidence/:id/unarchive"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+          "line": 212,
+          "snippet": "const evidence = await client.evidence.findUnique({ where: { id: input.evidenceId }, select: LIFECYCLE_SELECT });"
+        },
+        {
+          "file": "services/api/src/services/evidence/evidence-lifecycle.service.ts",
+          "line": 360,
+          "snippet": "await tx.evidence.update({ where: { id: evidence.id }, data: patch.data });"
+        }
+      ],
+      "observed": "Double trash writes two EVIDENCE_DELETE_SCHEDULED custody events; archive vs trash can leave lifecycleState ARCHIVED with deletedAt set; hold placed after the read does not block trash/archive; trash does not take the evidence advisory lock that finalize uses so a concurrent finalize still signs and charges a credit for a trashed record (evidence-complete.service.ts:1099-1104 claim lacks deletedAt:null).",
+      "expected": "Conditional updateMany on current lifecycleState + count, hold re-evaluated inside the tx under pg_advisory_xact_lock(evidenceId).",
+      "dataFlow": "POST archive / DELETE / POST restore / unarchive -> applyEvidenceLifecycleAction -> evidence.findUnique + evaluateEffectiveLegalHold + capability check outside tx -> tx.evidence.update where {id} + custody append.",
+      "rootCause": "Lifecycle transitions are decided in JS on a snapshot read and written unconditionally by id, with no lock shared with finalize or the destruction executor.",
+      "blastRadius": "All evidence lifecycle actions in every workspace; concurrent UI/bulk actions, hold placement and finalize on the same record.",
+      "impact": "Duplicate custody, inconsistent state pointer, hold bypass in a race window, paid signed record in trash with no report.",
+      "reproduction": "Send two parallel DELETE /v1/evidence/:id for one ACTIVE record; count EVIDENCE_DELETE_SCHEDULED custody events (2). Separately, send DELETE and POST /archive in parallel and check lifecycle_state=ARCHIVED with deleted_at set.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Two parallel TRASH calls against local API; count custody events.",
+      "remediation": "Take the same advisory lock as finalize; use conditional updateMany; include deletedAt:null in finalize claim.",
+      "acceptanceProof": "Parallel test yields one transition and one custody event.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-13",
+      "severity": "P2",
+      "category": "concurrency/state",
+      "title": "completeUploadSession can move an ABORTED session to COMPLETED (write guard only excludes COMPLETED)",
+      "affected": {
+        "routes": [
+          "POST /v1/uploads/sessions/:id/complete",
+          "POST /v1/uploads/sessions/:id/abort"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "evidence_upload_sessions"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/uploads/upload-session.service.ts",
+          "line": 808,
+          "snippet": "WHERE \"id\" = $1 AND \"team_id\" = $2 AND \"state\" <> 'COMPLETED'"
+        },
+        {
+          "file": "services/api/src/services/uploads/upload-session.service.ts",
+          "line": 938,
+          "snippet": "AND \"state\" NOT IN ('COMPLETED', 'ABORTED', 'EXPIRED')"
+        }
+      ],
+      "observed": "Complete checks terminal state in JS (:781-787) then updates with a predicate that admits ABORTED/EXPIRED/FAILED.",
+      "expected": "WHERE state = 'ACTIVE' (or NOT IN terminal set).",
+      "dataFlow": "POST /v1/uploads/sessions/:id/complete -> completeUploadSession reads state (:781) -> verifies parts -> UPDATE evidence_upload_sessions SET state='COMPLETED' WHERE state <> 'COMPLETED' (:808); concurrent POST .../abort sets ABORTED (:938).",
+      "rootCause": "The complete write predicate only excludes COMPLETED instead of requiring a non-terminal state, so an abort committed after the read is overwritten.",
+      "blastRadius": "Any upload session where the user cancels while completion is in flight (user and integration upload paths share the service).",
+      "impact": "User's cancel silently overridden; on multipart path the S3 upload was aborted so finalize fails at HEAD (stuck).",
+      "reproduction": "Open a session and upload all parts; hold complete after its state read (debugger/breakpoint); POST /abort (commits ABORTED); release complete; SELECT state FROM evidence_upload_sessions -> COMPLETED.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Parallel abort/complete against local PG.",
+      "remediation": "Use the abort predicate set on complete.",
+      "acceptanceProof": "Complete after abort returns session_already_terminal.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-14",
+      "severity": "P2",
+      "category": "authz/governance",
+      "title": "Report regeneration / NEW_VERSION bypasses workspace governance policy (requireReviewBeforeReport, allowReportDownload, template overlay)",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/:id/reports/regenerate"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 10757,
+          "snippet": "resolveEvidenceOperationAccess(... \"evidence.generate_report\")"
+        },
+        {
+          "file": "services/api/src/services/governance.service.ts",
+          "line": 893,
+          "snippet": "export async function enforceSensitiveAction("
+        }
+      ],
+      "observed": "No call to enforceSensitiveAction('generate_report') in the route or services/reports (sub-agent grep); governance is enforced only at finalization (finalization-governance.service.ts:53-70).",
+      "expected": "Regenerate runs the same sensitive-action policy as first issuance.",
+      "dataFlow": "POST /v1/evidence/:id/reports/regenerate -> resolveEvidenceOperationAccess(evidence.generate_report) -> requestOutputRecovery -> requestReportGeneration -> report_generation_requests -> worker renders new report version.",
+      "rootCause": "Workspace governance (enforceSensitiveAction/finalization-governance) was wired only into finalization, and the recovery/regenerate path was added later using the capability check alone.",
+      "blastRadius": "All workspaces that configure requireReviewBeforeReport, allowReportDownload or template policy overlays; any member holding evidence.generate_report.",
+      "impact": "Updated reports issued on unreviewed records contrary to workspace policy.",
+      "reproduction": "Set workspace policy requireReviewBeforeReport=true; leave record E unreviewed; as a member with generate_report POST /v1/evidence/E/reports/regenerate {mode:NEW_VERSION}; observe accepted request and a new report version.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Workspace policy requireReviewBeforeReport=true; regenerate as member -> 202 (defect).",
+      "remediation": "Call enforceSensitiveAction('generate_report', ctx) before requestOutputRecovery.",
+      "acceptanceProof": "Policy-blocked regenerate returns 403 with policy reason.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-15",
+      "severity": "P2",
+      "category": "authz/billing",
+      "title": "AI categorization run (paid, budget-consuming mutation) gated by legacy READ access only; AI policy evaluated without role/plan inputs",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/:id/ai-categorization/run"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [
+          "VIEWER",
+          "stale CaseAccess holders",
+          "expired members"
+        ],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 8603,
+          "snippet": "const evidence = await getEvidenceWithReadAccess(userId, id);"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 8686,
+          "snippet": "tryReserveAiBudget({ teamId: evidence.teamId"
+        }
+      ],
+      "observed": "evaluateWorkspaceAiPolicy({teamId, feature, dataClass}) passes no userRole/planAllowed (:8649-8653); decideAiPolicy skips plan check when planAllowed undefined (workspace-ai-policy.service.ts:192).",
+      "expected": "Canonical record access with a mutation permission, and full AI policy inputs.",
+      "dataFlow": "POST /v1/evidence/:id/ai-categorization/run -> getEvidenceWithReadAccess -> evaluateWorkspaceAiPolicy({teamId, feature, dataClass}) -> tryReserveAiBudget(teamId) -> AI provider call -> evidenceAiCategorization insert.",
+      "rootCause": "The route reused the read gate for a mutating, budget-consuming action and omitted role and plan inputs to the AI policy.",
+      "blastRadius": "Every workspace with AI enabled; any VIEWER, stale CaseAccess holder, expired member or revoked creator can spend the workspace AI budget.",
+      "impact": "Viewers/stale actors spend the workspace AI budget and write categorization rows.",
+      "reproduction": "As a VIEWER of workspace T, POST /v1/evidence/E/ai-categorization/run for E in T; observe 200, a new evidence_ai_categorizations row and increased AI budget usage for T.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "VIEWER calls the route in local fixture.",
+      "remediation": "Use getEvidenceWithRecordAccess(..., 'evidence.update_metadata' or ai permission) and pass role + plan.",
+      "acceptanceProof": "VIEWER receives 403/404.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-16",
+      "severity": "P2",
+      "category": "duplicate-authority/authz",
+      "title": "Two case-link authorities: bulk ADD/REMOVE_FROM_CASE use a weaker case check than the single routes; case-workspace detach vs cases detach disagree on teamId reset",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence/bulk",
+          "POST/DELETE /v1/cases/:id/evidence",
+          "/v1/cases/:id/evidence-links"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 7134,
+          "snippet": "let canAccessCase = caseItem.ownerUserId === userId; ... canAccessCase = caseTeamMember?.status === \"ACTIVE\";"
+        },
+        {
+          "file": "services/api/src/routes/cases.routes.ts",
+          "line": 1370,
+          "snippet": "evaluateCaseMutationPermission({ mutation: \"EVIDENCE_LINK\", accessRole ..."
+        }
+      ],
+      "observed": "Bulk ignores the case permission matrix and CaseAccess restrictions; REMOVE_FROM_CASE performs no case check at all. removeEvidenceLink (case-lifecycle.service.ts:676-697) does not clear teamId while detachEvidenceFromCase does.",
+      "expected": "One case-link authority with one permission rule.",
+      "dataFlow": "POST /v1/evidence/bulk {ADD_TO_CASE|REMOVE_FROM_CASE} -> case check owner OR ACTIVE member (:7134) / none for remove -> attachEvidenceToCase / detachEvidenceFromCase; vs POST/DELETE /v1/cases/:id/evidence -> evaluateCaseMutationPermission; vs case-workspace evidence-links -> removeEvidenceLink (no teamId reset).",
+      "rootCause": "Bulk actions and case-workspace routes each implemented their own case authorization and detach semantics instead of calling one case-link authority.",
+      "blastRadius": "All cases with restricted CaseAccess lists and all evidence linked to cases; any ACTIVE member with update_metadata on the evidence.",
+      "impact": "Members attach/detach restricted cases; feeds SEC-02.",
+      "reproduction": "Create case C with a CaseAccess list excluding member M; as M POST /v1/evidence/bulk {action:ADD_TO_CASE, caseId:C, evidenceIds:[E]} -> link created, while POST /v1/cases/C/evidence as M is denied.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Restricted case with CaseAccess list excluding member; bulk ADD_TO_CASE succeeds (defect).",
+      "remediation": "Route bulk through evaluateCaseMutationPermission; unify detach services.",
+      "acceptanceProof": "Bulk call by non-permitted member -> 404.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-17",
+      "severity": "P2",
+      "category": "custody/legal-hold",
+      "title": "Case-delete legal-hold check fails OPEN on DB error before hard-deleting the case and detaching all evidence",
+      "affected": {
+        "routes": [
+          "DELETE /v1/cases/:id"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "cases",
+          "case_evidence_links",
+          "case_access"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/cases.routes.ts",
+          "line": 79,
+          "snippet": "return { ok: true, holdIds: [] }; } catch { return { ok: true, holdIds: [] };"
+        }
+      ],
+      "observed": "The code comment above says 'an unresolvable ACTIVE hold must still block — fail closed' but the catch returns ok:true.",
+      "expected": "catch => { ok:false } (503).",
+      "dataFlow": "DELETE /v1/cases/:id -> hold check helper (evidenceLegalHold.findMany in try) -> catch returns {ok:true} -> detachAllEvidenceFromCase -> caseAccess.deleteMany -> prisma.case.delete.",
+      "rootCause": "The catch block returns the success value instead of failing closed, contradicting the helper's own fail-closed intent.",
+      "blastRadius": "Any case under CASE or WORKSPACE legal hold, whenever the hold query errors (DB blip, timeout, schema drift).",
+      "impact": "Transient DB error allows deleting a case under CASE/WORKSPACE hold.",
+      "reproduction": "In a test using the real route, make prisma.evidenceLegalHold.findMany throw; place an ACTIVE CASE hold on C; DELETE /v1/cases/C -> case deleted and evidence detached.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "Inject a Prisma error on evidenceLegalHold.findMany in a unit test using the real route.",
+      "remediation": "Fail closed.",
+      "acceptanceProof": "Error injection returns 503 and case remains.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-18",
+      "severity": "P2",
+      "category": "tenancy/authz",
+      "title": "GET /v1/reports skips authorizeOrFail (bare ACTIVE-status membership, no permission/expiry/org-lifecycle); fallback query drops deletedAt/lifecycle filters",
+      "affected": {
+        "routes": [
+          "GET /v1/reports"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/reports.routes.ts",
+          "line": 176,
+          "snippet": "bare teamMember status ACTIVE lookup"
+        },
+        {
+          "file": "services/api/src/routes/reports.routes.ts",
+          "line": 310,
+          "snippet": "fallbackWhere = { AND: [accessClause, { status: { in: [\"SIGNED\",\"REPORTED\"] } }, ...cursor] }"
+        }
+      ],
+      "observed": "Primary query filters deletedAt null and lifecycleState (:245-257); fallback on any primary error does not; unscoped arm includes ownerUserId across all teams (:225-229).",
+      "expected": "Canonical authorization; fallback preserves filters.",
+      "dataFlow": "GET /v1/reports -> teamMember.findMany status ACTIVE (:176) -> accessClause (team ids + ownerUserId) -> evidence.findMany primary (deletedAt null, lifecycle filter) -> on error fallbackWhere (:310) without those filters -> report rows.",
+      "rootCause": "The route predates authorizeOrFail and hand-rolls membership; the fallback query was written as a separate where object rather than reusing the primary builder.",
+      "blastRadius": "All users listing reports: expired members and members of suspended orgs see report metadata; on primary-query errors every caller sees trashed/destroyed records.",
+      "impact": "Suspended-org/expired members list report metadata; trashed/destroyed rows appear on error.",
+      "reproduction": "Set access_expires_at_utc in the past for an ACTIVE member X; GET /v1/reports as X -> team records listed. For the fallback, force the primary query to throw and observe TRASHED records in the response.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Expired member fixture call.",
+      "remediation": "Use authorizeOrFail/evaluateMemberAccess; share the where builder.",
+      "acceptanceProof": "Route test with expired member -> empty/404.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-19",
+      "severity": "P2",
+      "category": "authz/signed-url",
+      "title": "Exchange package signed URL (issued behind generate_package + step-up) is persisted and returned to any evidence.read member by list",
+      "affected": {
+        "routes": [
+          "GET /v1/exchange/packages",
+          "POST /v1/exchange/packages"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [
+          "evidence_exchange_packages"
+        ],
+        "roles": [
+          "VIEWER"
+        ],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
+          "line": 277,
+          "snippet": "signedUrl = `${base}${row.id}?token=${signed.token}`"
+        },
+        {
+          "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
+          "line": 593,
+          "snippet": "signedUrl: r.signedUrl,"
+        }
+      ],
+      "observed": "List route requires only evidence.read (product-and-lifecycle.routes.ts:282-290); TTL up to 7 days. No in-repo route consumes verifySignedManifest, so byte impact unproven.",
+      "expected": "Never persist/return bearer tokens to lower-privileged roles.",
+      "dataFlow": "POST /v1/exchange/packages (generate_package + step-up) -> evidence-exchange.service signs token -> row.signedUrl persisted (:277) -> GET /v1/exchange/packages (evidence.read) -> listPackages returns signedUrl (:593).",
+      "rootCause": "The bearer URL is stored as a column and serialized by the list projection instead of being minted on demand behind the privileged action.",
+      "blastRadius": "Every exchange package in a workspace; every member with evidence.read (including VIEWER) for up to the 7-day token TTL.",
+      "impact": "Step-up protection bypass if the URL is redeemable.",
+      "reproduction": "As an admin create an exchange package with step-up; as a VIEWER GET /v1/exchange/packages and read signedUrl with ?token= in the response.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Determine whether any deployed service redeems ?token=.",
+      "remediation": "Do not store the token; mint on demand behind generate_package.",
+      "acceptanceProof": "List response has no token.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-20",
+      "severity": "P2",
+      "category": "duplicate-authority/status",
+      "title": "Report/package backlog computed by five aggregators with three rules (entitlement-narrowed relation test, column test, un-narrowed); dashboard 'entitled' ignores subscription lifecycle while worker issuance honors it",
+      "affected": {
+        "routes": [],
+        "pages": [
+          "Home",
+          "Operations",
+          "Org health",
+          "Case risk",
+          "Matter queue"
+        ],
+        "jobs": [
+          "report worker",
+          "first-issuance-reconciliation"
+        ],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/dashboard/command-center-counters.ts",
+          "line": 283,
+          "snippet": "reports: { none: {} }"
+        },
+        {
+          "file": "services/api/src/services/operations/operations-source-probes.ts",
+          "line": 246,
+          "snippet": "{ status: \"SIGNED\", latestReportVersion: null }"
+        },
+        {
+          "file": "services/api/src/services/cases/case-risk-engine.service.ts",
+          "line": 148,
+          "snippet": "un-narrowed missing-report count"
+        },
+        {
+          "file": "services/api/src/services/billing/evidence-output-eligibility.service.ts",
+          "line": 488,
+          "snippet": "if (getPlanCapabilities(ctx.plan).reportsIncluded) return null;"
+        },
+        {
+          "file": "services/worker/src/report-generation-authority.ts",
+          "line": 749,
+          "snippet": "verificationPackageOwed uses resolveEvidenceOutputEntitlements (plan+funding only)"
+        }
+      ],
+      "observed": "FREE workspace: Home backlog 0 while org-health/case-risk penalize; lapsed PRO: Operations backlog counts records the worker refuses (processor.ts:2185) => never clears.",
+      "expected": "One owed-output predicate (resolveOutputIssuanceEntitlement) used by every aggregator.",
+      "dataFlow": "Home/Operations counters (command-center-counters.ts:283, operations-source-probes.ts:246), org-health, case-risk, matter-queue each query evidence with their own 'missing report' predicate; worker processor.ts:2185 and first-issuance-reconciliation decide via resolveOutputIssuanceEntitlement (lifecycle-aware).",
+      "rootCause": "Each dashboard implemented its own owed-output predicate; evidence-output-eligibility uses plan capabilities only while the worker uses the lifecycle-aware shared resolver.",
+      "blastRadius": "All workspace dashboards (Home, Operations, org health, case risk, matter queue) for FREE workspaces and lapsed/cancelled paid subscriptions.",
+      "impact": "Incorrect KPIs, permanent phantom backlog.",
+      "reproduction": "Fixture: PRO workspace with subscription status CANCELLED and SIGNED records without reports; compare Operations pipeline.report_backlog (>0) with worker decision REPORT_NOT_INCLUDED_IN_PLAN and first-issuance skip; backlog never drains.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Fixture with lapsed subscription; compare Operations vs worker decision.",
+      "remediation": "Centralize owed-output predicate in shared and use it everywhere.",
+      "acceptanceProof": "All aggregators agree on fixture workspaces (FREE, lapsed PRO).",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": "Confirm resolveCommercialPlan returns paid plan under lapsed lifecycle.",
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-21",
+      "severity": "P2",
+      "category": "duplicate-authority/integrity",
+      "title": "Case risk 'integrity' signal reads evidence_integrity_snapshots, which is backfilled once for SIGNED/REPORTED only and never refreshed, so it cannot report FAILED rows",
+      "affected": {
+        "routes": [],
+        "pages": [
+          "case risk"
+        ],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/cases/case-risk-engine.service.ts",
+          "line": 180,
+          "snippet": "counts integrityFailed from evidenceIntegritySnapshot.overallStatus"
+        },
+        {
+          "file": "services/api/src/services/dashboard/integrity-snapshot.service.ts",
+          "line": 439,
+          "snippet": "status: { in: [\"SIGNED\", \"REPORTED\"] }"
+        }
+      ],
+      "observed": "Integrity rejection sets status FAILED_HASH_MISMATCH (worker integrity-rejection.service.ts:163-164) so the row is never snapshotted; matter workspace groupBy on live verificationStatus shows FAILED.",
+      "expected": "Risk engine reads live verificationStatus.",
+      "dataFlow": "Case risk engine -> evidenceIntegritySnapshot.overallStatus count (:180) <- snapshots written once by command-center lazy backfill (status SIGNED/REPORTED only, :439); worker integrity rejection sets evidence.status FAILED_HASH_MISMATCH.",
+      "rootCause": "The risk engine reads a denormalized snapshot table whose only writer is a one-time backfill that excludes failed rows and is never refreshed.",
+      "blastRadius": "Every case's risk score/integrity card in every workspace once any snapshot row exists.",
+      "impact": "Case risk shows 0 integrity concerns while evidence failed (false all-clear on that card).",
+      "reproduction": "Fixture case with one evidence moved to FAILED_HASH_MISMATCH by integrity rejection; open case risk -> integrity concerns 0 while matter workspace groupBy shows FAILED.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Fixture case with one FAILED_HASH_MISMATCH evidence.",
+      "remediation": "Read evidence.verificationStatus directly; retire the snapshot or refresh on every transition.",
+      "acceptanceProof": "Fixture with FAILED evidence raises case risk integrity count.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-22",
+      "severity": "P2",
+      "category": "duplicate-authority/quota",
+      "title": "Storage-used population differs between evidence creation (includes legacy NULL-team rows) and completion/worker (strict team) for personal workspaces",
+      "affected": {
+        "routes": [
+          "POST /v1/evidence",
+          "POST /v1/evidence/:id/complete"
+        ],
+        "pages": [],
+        "jobs": [
+          "worker storage gate"
+        ],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/workspace-usage.service.ts",
+          "line": 340,
+          "snippet": "OR: [{ teamId: null }, ...personalTeamForUsage...]"
+        },
+        {
+          "file": "services/api/src/services/workspace-usage.service.ts",
+          "line": 347,
+          "snippet": "teamId: scope.teamId"
+        },
+        {
+          "file": "packages/shared-runtime/src/workspace-scope.ts",
+          "line": 151,
+          "snippet": "OR: [{ teamId: physicalWorkspaceId }, { AND: [{ ownerUserId: owner }, { teamId: null }] }]"
+        }
+      ],
+      "observed": "Creation passes teamId:null (evidence.service.ts:352-355); completion passes the personal team id (evidence-complete.service.ts:507-510).",
+      "expected": "Both use the canonical shared workspace-scope population.",
+      "dataFlow": "POST /v1/evidence -> createEvidence passes teamId:null -> getWorkspaceUsage personal branch (OR teamId null + personal team, :340); POST /complete -> scope from evidence.teamId -> strict branch (teamId only, :347); worker workspace-billing matches completion.",
+      "rootCause": "getWorkspaceUsage branches on whether the caller passed null or the personal team id instead of using the shared workspace-scope population.",
+      "blastRadius": "Personal-workspace users who own legacy NULL-team rows; quota admission and remaining-storage display.",
+      "impact": "Two quota answers for the same payer; admission at create, different remaining at complete.",
+      "reproduction": "Personal user with legacy NULL-team evidence near the storage limit: POST /v1/evidence passes the check with usage including legacy rows, then /complete computes a different (lower) used figure; compare the two usage values logged/returned.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Personal user with legacy NULL-team rows near quota.",
+      "remediation": "Use shared workspace-scope in getWorkspaceUsage.",
+      "acceptanceProof": "Unit test on fixture with legacy rows shows equal usage at both phases.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-23",
+      "severity": "P2",
+      "category": "duplicate-authority/pricing",
+      "title": "Pricing page says FREE storage add-ons 'Not available' while shared commercial policy and API allow FREE storage add-on purchase",
+      "affected": {
+        "routes": [],
+        "pages": [
+          "/pricing"
+        ],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": [
+          "FREE"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "apps/web/app/pricing/page.tsx",
+          "line": 558,
+          "snippet": "\"Not available\""
+        },
+        {
+          "file": "packages/shared-billing/src/plan-catalog.ts",
+          "line": 1049,
+          "snippet": "if (input.plan === \"FREE\") { return { storageAddonsPurchasable: true, source: \"FREE_STORAGE\" }; }"
+        }
+      ],
+      "observed": "API enforces the shared policy (billing.routes.ts:465, workspace-usage.service.ts:144).",
+      "expected": "Web reads the catalog.",
+      "dataFlow": "apps/web/app/pricing/page.tsx renders hard-coded 'Not available' for FREE storage add-ons; API billing.routes.ts:465 / workspace-usage.service.ts:144 consult plan-catalog.ts:1049 which returns storageAddonsPurchasable true for FREE.",
+      "rootCause": "The pricing page hard-codes the add-on row instead of reading the shared commercial policy.",
+      "blastRadius": "All visitors comparing plans on /pricing; FREE-plan customers.",
+      "impact": "Customer-facing pricing contradicts purchasable product.",
+      "reproduction": "Open /pricing and read the FREE 'Storage add-ons' cell ('Not available'); as a FREE user call the storage add-on purchase endpoint and observe it is permitted.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "",
+      "remediation": "Render from catalog.",
+      "acceptanceProof": "Pricing page row derived from storageAddonsPurchasable.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-24",
+      "severity": "P2",
+      "category": "duplicate-authority/consumer",
+      "title": "Two reapers expire the same capture drafts; the API sweep writes EXPIRED events for all selected rows, not only those it transitioned",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [
+          "capture-draft-expiry (API, CAPTURE_DRAFT_SWEEP_INPROCESS)",
+          "capture-reaper (worker, default on)"
+        ],
+        "tables": [
+          "capture_sessions"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/jobs/capture-draft-expiry.job.ts",
+          "line": 87,
+          "snippet": "updateMany({ where: { id: { in: ids }, status: \"DRAFT\" } ...})"
+        },
+        {
+          "file": "services/api/src/jobs/capture-draft-expiry.job.ts",
+          "line": 111,
+          "snippet": "createMany (events built from all selected rows)"
+        },
+        {
+          "file": "services/worker/src/capture-reaper.ts",
+          "line": 129,
+          "snippet": "per-row conditional claim + one event per claim"
+        }
+      ],
+      "observed": "Worker reaper enabled by default (index.ts:597-600); API sweep when env flag set or CLI script.",
+      "expected": "One reaper; events only for rows actually transitioned.",
+      "dataFlow": "API capture-draft-expiry job selects expired DRAFT rows -> updateMany status DRAFT->EXPIRED -> createMany events for all selected rows; worker capture-reaper claims each row conditionally and writes one event per claim.",
+      "rootCause": "Two reapers exist for the same rows and the API sweep builds events from the selected set, not from rows it actually transitioned.",
+      "blastRadius": "All expired capture drafts in deployments where CAPTURE_DRAFT_SWEEP_INPROCESS=true or the sweep CLI runs alongside the default-on worker reaper.",
+      "impact": "Duplicate EXPIRED ledger rows with different reasons.",
+      "reproduction": "Enable both reapers; create an expired DRAFT capture session; let the worker expire it just before the API sweep's updateMany; observe two EXPIRED events with reasons 'expiresAtUtc elapsed' and 'expires_at_utc_passed'.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Check whether CAPTURE_DRAFT_SWEEP_INPROCESS is set in any environment.",
+      "remediation": "Delete the API sweep or build events from updateMany-returned ids.",
+      "acceptanceProof": "Both running produce one event per row.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": "Confirm the in-process API sweep is enabled anywhere.",
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-25",
+      "severity": "P2",
+      "category": "tenancy/authz",
+      "title": "API-key upload path bypasses organization-lifecycle denial enforced on the user upload path",
+      "affected": {
+        "routes": [
+          "/v1/integrations/api/uploads/sessions/*"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/upload-sessions.routes.ts",
+          "line": 536,
+          "snippet": "authorizeOrFail(...)"
+        },
+        {
+          "file": "services/api/src/routes/integrations-uploads.routes.ts",
+          "line": 310,
+          "snippet": "requireApiKey + requireApiScope"
+        }
+      ],
+      "observed": "gateEvidenceForUpload (:268-297) checks team, archived, legal hold only; verifyApiKeyDetailed checks key status/expiry only (negative grep finding).",
+      "expected": "Suspended/terminated organization cannot ingest via API keys.",
+      "dataFlow": "/v1/integrations/api/uploads/sessions/* -> requireApiKey/requireApiScope (verifyApiKeyDetailed: key status/expiry) -> gateEvidenceForUpload (team, archived, hold) -> upload-session.service; vs user path authorizeOrFail (org lifecycle).",
+      "rootCause": "The integration auth path was built on API-key validity alone and never calls the organization-lifecycle check embedded in authorizeOrFail.",
+      "blastRadius": "All organizations with active API keys whose organization is SUSPENDED/TERMINATED/ARCHIVED.",
+      "impact": "Suspended org continues writing evidence via API.",
+      "reproduction": "Create an API key for workspace T; set T's organization status SUSPENDED; POST /v1/integrations/api/uploads/sessions with the key -> session created, while POST /v1/uploads/sessions as a member returns 404/403.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Suspend org in fixture; call integration upload create.",
+      "remediation": "Check organization lifecycle in integrations auth.",
+      "acceptanceProof": "Suspended org API key -> 403.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-26",
+      "severity": "P2",
+      "category": "byte-release",
+      "title": "Redaction derivative download presigns bytes outside the canonical byte-release gate (no legal-hold/export-eligibility evaluation)",
+      "affected": {
+        "routes": [
+          "redaction derivative download"
+        ],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/redaction.routes.ts",
+          "line": 1614,
+          "snippet": "presignGetObject({ bucket: d.storageBucket, key: d.storageKey ..."
+        },
+        {
+          "file": "services/api/src/services/evidence/artifact-download-gate.service.ts",
+          "line": 37,
+          "snippet": "ArtifactKind = \"report\" | \"package\" | \"original\""
+        }
+      ],
+      "observed": "Second byte-release path not covered by evaluateArtifactDownload.",
+      "expected": "All byte releases through one gate.",
+      "dataFlow": "Redaction derivative download route -> load derivative row -> presignGetObject(d.storageBucket, d.storageKey) (redaction.routes.ts:1614) -> presigned URL, bypassing evaluateArtifactDownload (kinds report|package|original only).",
+      "rootCause": "The byte-release gate's ArtifactKind union never included redaction derivatives, so the redaction route presigns directly.",
+      "blastRadius": "All redaction derivatives in workspaces with download-restricting governance policies or legal holds.",
+      "impact": "Policy (download restrictions / holds) not applied to redacted copies.",
+      "reproduction": "Workspace policy disallowing downloads (or active hold on E); create a redaction derivative of E; call the derivative download route -> presigned URL returned, while GET /v1/evidence/E/original is denied.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Workspace with download policy disallowing export; download redaction derivative.",
+      "remediation": "Add 'redaction' kind to the gate.",
+      "acceptanceProof": "Gate test covers redaction downloads.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": "Should a legal hold / download policy block redacted derivatives?",
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-27",
+      "severity": "P2",
+      "category": "concurrency/package",
+      "title": "Exchange-package build race after 30-min lease expiry: late builder overwrites fixed object key after the winner committed READY with its sha; failure path unconditionally marks build FAILED",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [
+          "exchange-package-builder"
+        ],
+        "tables": [
+          "evidence_exchange_packages",
+          "evidence_exchange_package_builds"
+        ],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/worker/src/exchange-package-builder.ts",
+          "line": 944,
+          "snippet": "const storageKey = `exchange-packages/${teamId}/${packageId}.zip`;"
+        },
+        {
+          "file": "services/worker/src/exchange-package-builder.ts",
+          "line": 237,
+          "snippet": "UPDATE evidence_exchange_package_builds SET state = 'FAILED' ... WHERE package_id = ${packageId}"
+        }
+      ],
+      "observed": "Upload precedes the conditional READY transition (:968-978).",
+      "expected": "Per-attempt key or conditional upload; FAILED write fenced by attempt token.",
+      "dataFlow": "exchange build job -> INSERT ... ON CONFLICT claim (30-min lease) -> build ZIP -> putObjectBuffer(exchange-packages/<team>/<package>.zip) -> updateMany state BUILDING->READY with sha -> on error UPDATE builds SET state='FAILED' by package_id.",
+      "rootCause": "The object upload happens before the conditional READY transition at a fixed key, and the FAILED write is not fenced by the attempt.",
+      "blastRadius": "Exchange package builds exceeding the 30-minute lease (large packages / slow storage).",
+      "impact": "READY package sha may not match stored object (if ZIP is non-deterministic); build tracker says FAILED.",
+      "reproduction": "Unit test with the lease shortened: start build W1, let the lease expire, start W2; W1 commits READY with sha1; W2 overwrites the object and marks the build FAILED; compare stored object sha with package_sha256.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Unit test with shortened lease.",
+      "remediation": "Write to attempt-scoped key and switch pointer in the conditional transition.",
+      "acceptanceProof": "Simulated lease expiry test keeps sha/object consistent.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-28",
+      "severity": "P3",
+      "category": "concurrency/quota",
+      "title": "Storage capacity check runs outside the capacity advisory lock; two finalizes in one workspace can both pass",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/evidence-complete.service.ts",
+          "line": 994,
+          "snippet": "await assertWorkspaceAllowsStorageGrowth({ scope, incomingBytes: incomingGrowth });"
+        },
+        {
+          "file": "services/api/src/services/workspace-usage.service.ts",
+          "line": 527,
+          "snippet": "const usage = await getWorkspaceUsage(params.scope);"
+        }
+      ],
+      "observed": "Capacity lock taken later in settlement (billing-enforcement.service.ts:62-72, :693). Plan snapshot also read before lock (:507-510).",
+      "expected": "Check under the capacity lock.",
+      "dataFlow": "POST /complete -> completeEvidence -> resolveEnforcementScopeForRequester (:507, global client) -> assertWorkspaceAllowsStorageGrowth -> getWorkspaceUsage (:994, no lock) -> ... -> settleEvidenceCompletionFunding takes capacity advisory lock (:1238).",
+      "rootCause": "The storage check and plan read happen before the per-workspace capacity lock; the per-evidence advisory lock does not serialize different records.",
+      "blastRadius": "Workspaces near their storage limit with concurrent finalizes; finalizes racing a plan webhook.",
+      "impact": "Quota overrun by up to N x max evidence size; plan change in-flight funded under old plan.",
+      "reproduction": "Workspace with 10 MB remaining; finalize two different 8 MB records concurrently; both succeed and usage exceeds the limit.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Parallel finalizes near limit.",
+      "remediation": "Move storage check after capacity lock.",
+      "acceptanceProof": "Parallel finalize test cannot exceed limit.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-29",
+      "severity": "P3",
+      "category": "concurrency/pointer",
+      "title": "Package commit sets evidence verificationPackageVersion without monotonic guard; package-only recovery of an older version regresses the pointer",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/worker/src/processor.ts",
+          "line": 4879,
+          "snippet": "await tx.evidence.update({ where: { id: prepared.evidenceId }, data: { verificationPackageGeneratedAtUtc: prepared.now, verificationPackageVersion: prepared.version,"
+        }
+      ],
+      "observed": "output-recovery.service.ts:515-573 supports packageForReportVersion.",
+      "expected": "Only advance pointer (version > current).",
+      "dataFlow": "Operator/recovery requestOutputRecovery(packageForReportVersion=v2) -> worker package commit -> tx.evidence.update {verificationPackageVersion: 2} (processor.ts:4879) after v3 already committed.",
+      "rootCause": "The pointer update is unconditional instead of monotonic.",
+      "blastRadius": "Records whose older-version package is recovered after a newer package exists.",
+      "impact": "Latest-package pointer shows an older version.",
+      "reproduction": "Record with report/package v3; trigger package-only recovery for report v2; after the job, evidence.verification_package_version = 2.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Sequential recovery fixture.",
+      "remediation": "Conditional update where verificationPackageVersion < version or null.",
+      "acceptanceProof": "Recovery of v2 after v3 leaves pointer 3.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-30",
+      "severity": "P3",
+      "category": "concurrency/lease",
+      "title": "Report request lease has no fencing token; a late worker's markRequestRetryable/terminal write overwrites the re-claimer's PROCESSING row",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/worker/src/report-generation-authority.ts",
+          "line": 374,
+          "snippet": "updateMany({ where: { id: input.requestId, state: \"PROCESSING\" }, data: { state: \"FAILED_RETRYABLE\", ..., claimedAtUtc: null } })"
+        }
+      ],
+      "observed": "Artifacts remain single due to reserve/commit + unique version.",
+      "expected": "Include claimedAtUtc/attempt in WHERE.",
+      "dataFlow": "Worker W1 claims report request (claimedAtUtc) -> exceeds 15-min lease -> reconciler releases / W2 re-claims -> W1 late markRequestRetryable updateMany where {id, state PROCESSING} -> FAILED_RETRYABLE + re-enqueue.",
+      "rootCause": "The claim has no fencing token; late writes match on state alone.",
+      "blastRadius": "Report/package requests whose processing exceeds REPORT_CLAIM_LEASE_MS.",
+      "impact": "Duplicate work, state thrash.",
+      "reproduction": "Unit test: claim request as W1, advance clock past lease, claim as W2, then call markRequestRetryable as W1; the row flips from W2's PROCESSING to FAILED_RETRYABLE (count 1).",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Unit test with two claims.",
+      "remediation": "Fence with claim token.",
+      "acceptanceProof": "Late write count 0.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-31",
+      "severity": "P3",
+      "category": "tenancy/enumeration",
+      "title": "Existence oracles: 404-vs-403 on case access, capture sessions, cases evidence attach, evidence create with foreign teamId; public verify 409 exposes status of unfinalized records",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 2356,
+          "snippet": "assertCaseAccess: 404 missing vs 403 foreign"
+        },
+        {
+          "file": "services/api/src/routes/capture.routes.ts",
+          "line": 154,
+          "snippet": "404 missing vs 403 not-owner"
+        },
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 12569,
+          "snippet": "409 EVIDENCE_NOT_FINALIZED with status"
+        }
+      ],
+      "observed": "UUIDv4 ids make blind enumeration infeasible; ids leak via verify URLs.",
+      "expected": "Uniform 404.",
+      "dataFlow": "GET /v1/evidence?caseId= -> assertCaseAccess (404 missing / 403 foreign); GET /v1/capture/sessions/:id -> loadOwnedDraft (404/403); POST /v1/evidence with foreign teamId -> 403; GET /public/verify/:id unfinalized -> 409 with status.",
+      "rootCause": "These handlers predate the anti-enumeration convention and return distinct status codes for existing-but-forbidden objects.",
+      "blastRadius": "Any authenticated user holding a UUID (or anyone with a verify id); existence/status disclosure only.",
+      "impact": "Low.",
+      "reproduction": "As an outsider GET /v1/evidence?caseId=<existing foreign case> -> 403 vs <random uuid> -> 404; GET /public/verify/<uploading evidence id> -> 409 with status.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "",
+      "remediation": "Return 404 uniformly.",
+      "acceptanceProof": "Route tests.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-32",
+      "severity": "P3",
+      "category": "integrity",
+      "title": "Annotation PATCH accepts any evidencePartId (no ownership check, unlike POST)",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 7793,
+          "snippet": "...(body.evidencePartId !== undefined ? { evidencePartId: body.evidencePartId ?? null } : {})"
+        }
+      ],
+      "observed": "POST checks part.evidenceId === id (:7707-7711).",
+      "expected": "Same check on PATCH.",
+      "dataFlow": "PATCH /v1/evidence/:id/annotations/:aid -> getEvidenceWithReadAccess -> evidence_annotations.update with body.evidencePartId unchecked (:7793).",
+      "rootCause": "The PATCH schema is AnnotationBody.partial() and the ownership check exists only in the POST handler.",
+      "blastRadius": "Annotations in any workspace; integrity of annotation-part references only.",
+      "impact": "Annotation may reference another tenant's part id; no read-out path found.",
+      "reproduction": "PATCH /v1/evidence/E/annotations/A {evidencePartId:<part of another tenant's evidence>} -> 200 and the annotation row references the foreign part.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "",
+      "remediation": "Validate part ownership.",
+      "acceptanceProof": "PATCH with foreign part -> 400.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-33",
+      "severity": "P3",
+      "category": "integrity",
+      "title": "Caller-supplied caseId/evidenceId on intake links and evidence requests stored without tenant validation (dangling foreign references copied to webhooks)",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/workflow-intake-link.service.ts",
+          "line": 272,
+          "snippet": "caseId: input.caseId ?? null,"
+        },
+        {
+          "file": "services/api/src/services/evidence-request.service.ts",
+          "line": 182,
+          "snippet": "evidenceId: parsed.evidenceId ?? null, caseId: parsed.caseId ?? null,"
+        }
+      ],
+      "observed": "No read-out of foreign record follows.",
+      "expected": "Validate same workspace.",
+      "dataFlow": "POST intake link / evidence request with body caseId/evidenceId -> workflow-intake-link.service (:272) / evidence-request.service (:182) store ids -> copied to webhooks and follow-up links.",
+      "rootCause": "The services validate the template/team but not optional reference ids.",
+      "blastRadius": "Intake links and evidence requests in all workspaces; webhook consumers receive misleading references.",
+      "impact": "Misleading references.",
+      "reproduction": "POST an evidence request in workspace T with caseId of a case in T2; the row stores it and the webhook payload carries the foreign caseId.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "",
+      "remediation": "Validate.",
+      "acceptanceProof": "Foreign id -> 404.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    },
+    {
+      "localId": "SEC-34",
+      "severity": "P3",
+      "category": "dead-legacy",
+      "title": "Dead exported legal-hold query helpers with optional teamId spread (would be unscoped if ever called)",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/governance/legal-hold.service.ts",
+          "line": 930,
+          "snippet": "...(input.teamId ? { teamId: input.teamId } : {}),"
+        },
+        {
+          "file": "services/api/src/services/governance/legal-hold.service.ts",
+          "line": 1007,
+          "snippet": "...(input.teamId ? { teamId: input.teamId } : {}),"
+        }
+      ],
+      "observed": "grep for listCaseHolds|countLifecycleHolds|countActiveCaseHolds across services/apps/packages returns only their definitions (zero callers).",
+      "expected": "Delete or require teamId.",
+      "dataFlow": "None at runtime: listCaseHolds/countLifecycleHolds/countActiveCaseHolds have zero callers; if called without teamId they query evidence_legal_holds across all tenants.",
+      "rootCause": "Legacy projection helpers kept after hold convergence with optional tenant spread.",
+      "blastRadius": "Latent only; any future caller omitting teamId.",
+      "impact": "Latent only.",
+      "reproduction": "grep -rn \"listCaseHolds\\|countLifecycleHolds\\|countActiveCaseHolds\" services apps packages returns only the three definitions in legal-hold.service.ts.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "",
+      "remediation": "Delete.",
+      "acceptanceProof": "grep zero.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": true
+    },
+    {
+      "localId": "SEC-35",
+      "severity": "P3",
+      "category": "presentation",
+      "title": "Integrity snapshot writes misleading booleans from status (MATERIALS_AVAILABLE => hash/signature/custody true; OTS matches true by status) — no reader; web library labels FAILED_HASH_MISMATCH 'Status not recorded'",
+      "affected": {
+        "routes": [],
+        "pages": [],
+        "jobs": [],
+        "tables": [],
+        "roles": [],
+        "plans": []
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/dashboard/integrity-snapshot.service.ts",
+          "line": 128,
+          "snippet": "isOk = vs === \"RECORDED_INTEGRITY_VERIFIED\" || vs === \"MATERIALS_AVAILABLE\""
+        },
+        {
+          "file": "apps/web/app/(app)/evidence/lib/evidence-library-status.ts",
+          "line": 168,
+          "snippet": "no case for FAILED_HASH_MISMATCH"
+        }
+      ],
+      "observed": "Latent columns; library label neutral for failed evidence.",
+      "expected": "Accurate labels.",
+      "dataFlow": "integrity-snapshot.service deriveIntegritySnapshot maps verificationStatus to hash/signature/custody booleans (:128) -> evidence_integrity_snapshots (no reader of those columns); web library getRecordStatusLabel lacks FAILED_HASH_MISMATCH -> 'Status not recorded'.",
+      "rootCause": "Status-derived booleans stand in for real checks; the web label map was not extended when FAILED_HASH_MISMATCH was added.",
+      "blastRadius": "Latent snapshot columns; web evidence library users viewing failed records.",
+      "impact": "Low.",
+      "reproduction": "Open the evidence library for a record with status FAILED_HASH_MISMATCH -> neutral 'Status not recorded' label, while the detail page shows the failure.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "",
+      "remediation": "Drop columns; add label.",
+      "acceptanceProof": "Unit test.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null,
+      "verifiedByLead": false
+    }
+  ],
+  "questions": [
+    {
+      "q": "Entitlement has only @@index([userId]); can a user hold two active entitlements? If so the credit decrement updateMany touches both, count=2 -> 402 with credits in hand.",
+      "evidence": [
+        {
+          "file": "services/api/src/services/billing/evidence-credits.service.ts",
+          "line": 434,
+          "snippet": "entitlement.updateMany({ where: { userId, active: true, credits: { gte: required } }"
+        }
+      ]
+    },
+    {
+      "q": "Is the exchange package ZIP byte-deterministic (decides SEC-27 impact) and is the exchange signedUrl redeemable anywhere (SEC-19)?",
+      "evidence": [
+        {
+          "file": "services/worker/src/exchange-package-builder.ts",
+          "line": 944,
+          "snippet": "const storageKey = `exchange-packages/${teamId}/${packageId}.zip`;"
+        }
+      ]
+    },
+    {
+      "q": "POST /v1/evidence/claim still honors GUEST JWTs and reassigns ownerUserId without team check; does verifyJwt enforce exp (guest login retired)?",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 6332,
+          "snippet": "verifyJwt ... provider === \"GUEST\""
+        }
+      ]
+    },
+    {
+      "q": "Caller-supplied captureSessionId on POST /v1/evidence stamps another user's template slug (no owner check). Can a template ever loosen policy?",
+      "evidence": [
+        {
+          "file": "services/api/src/services/templates/identity-resolver.service.ts",
+          "line": 157,
+          "snippet": "resolveTemplateTrioForCaptureSession"
+        }
+      ]
+    },
+    {
+      "q": "Should detaching evidence from a case under CASE hold be allowed at all? Should legal hold block redaction derivative downloads?",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/cases.routes.ts",
+          "line": 1637,
+          "snippet": "clearEvidenceTeamIdWhenUnlinked: true,"
+        }
+      ]
+    },
+    {
+      "q": "Does team deletion delete caseAccess rows? teams.routes.ts:1378 nulls case.teamId; if grants persist, former teammates reach the owner's evidence across workspaces via linkable-evidence ownerUserId arm.",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/case-workspace.routes.ts",
+          "line": 821,
+          "snippet": "? { teamId: caseRow.teamId } : { ownerUserId: caseRow.ownerUserId };"
+        }
+      ]
+    },
+    {
+      "q": "validateIntakeToken does not check owning org lifecycle; can a suspended org's intake link still create evidence?",
+      "evidence": [
+        {
+          "file": "services/api/src/services/workflow-intake-session.service.ts",
+          "line": 102,
+          "snippet": "validateIntakeToken"
+        }
+      ]
+    },
+    {
+      "q": "Support-context narrowing (evaluateSupportContextGuard) runs only inside authorizeOrFail; evidence record/legacy gates never consult it. Can support actors hold TeamMember rows?",
+      "evidence": [
+        {
+          "file": "services/api/src/middleware/authorize.ts",
+          "line": 365,
+          "snippet": "support-context guard"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "filesRead": [
+      "services/api/src/routes/evidence.routes.ts (route list + gates, ~60% by excerpt)",
+      "services/api/src/routes/{capture,capture-trust,citizen-capture,upload-sessions,integrations-uploads,reports,cases,case-workspace,external-intake,external-portal,external-review,evidence-requests,workflow-intake-links,operations-recovery,admin-evidence-ops,organizations-reports,product-and-lifecycle,redaction}.routes.ts",
+      "services/api/src/routes/workspace-alias.plugin.ts",
+      "services/api/src/routes/deprecated-alias.ts",
+      "services/api/src/middleware/authorize.ts",
+      "services/api/src/services/identity/access-policy.service.ts",
+      "services/api/src/services/evidence/{evidence-record-access,artifact-download-gate,evidence-lifecycle}.service.ts",
+      "services/api/src/services/evidence-complete.service.ts",
+      "services/api/src/services/uploads/upload-session.service.ts",
+      "services/api/src/services/cases/*",
+      "services/api/src/services/governance/legal-hold.service.ts",
+      "services/api/src/services/governance.service.ts",
+      "services/api/src/services/billing/*",
+      "services/api/src/services/workspace-usage.service.ts",
+      "services/api/src/services/dashboard/*",
+      "services/worker/src/processor.ts (excerpts)",
+      "services/worker/src/report-generation-authority.ts",
+      "services/worker/src/exchange-package-builder.ts",
+      "services/worker/src/ots-*.ts",
+      "services/worker/src/governance/destruction-orchestrator.worker.ts",
+      "services/worker/src/lifecycle-recovery.ts",
+      "services/worker/src/capture-reaper.ts",
+      "packages/shared-runtime/src/evidence-destruction/executor.ts",
+      "packages/shared-runtime/src/reports/report-generation-request.ts",
+      "packages/shared/src/evidence-retention-lifecycle.ts",
+      "packages/shared/src/trust-decision.ts",
+      "packages/shared-billing/src/plan-catalog.ts",
+      "services/api/prisma/schema.prisma + migrations (constraints)",
+      "apps/web verify/pricing/library-status (excerpts)",
+      "apps/mobile verify (excerpts)"
+    ],
+    "notReviewed": [
+      "evidence.routes.ts not read line-by-line in full (13,911 lines); every route registration inventoried, gates traced",
+      "teams.routes.ts, identity routes only partially (membership lifecycle)",
+      "apps/mobile beyond verify/pricing; apps/extension beyond endpoint grep",
+      "No runtime proof executed (brief forbids servers/tests); all P0/P1 marked runtimeProofNeeded",
+      "Method: four read-only sub-agents gathered file:line evidence; lead re-read cited lines for SEC-01, 02, 03, 06, 08, 10, 11, 13, 17, 34 (verifiedByLead=true)"
+    ]
+  }
+}

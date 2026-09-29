@@ -1,0 +1,85 @@
+{
+  "probe": "RT-FREE-PRO",
+  "before": {
+    "summary": {
+      "reportsReady": 0,
+      "reportsPending": 0,
+      "reportsFailed": 0,
+      "packagesReady": 0,
+      "packagesPending": 0,
+      "packagesBlocked": 0,
+      "packagesFailed": 0,
+      "reportsNotRequested": 0,
+      "packagesNotRequested": 0,
+      "reportsNotIssued": 2,
+      "reportsAwaitingFirstIssuance": 0,
+      "packagesMissingForLatestReport": 0,
+      "outputsEntitlementUnavailable": 0,
+      "totalEvidenceWithArtifacts": 0,
+      "totalArtifactVersions": 0
+    },
+    "recent": {
+      "state": "NOT_INCLUDED",
+      "action": "NONE",
+      "actionUnavailableReason": "NOT_INCLUDED",
+      "operation": null,
+      "terminalReasonClass": null,
+      "terminalReasonCode": null,
+      "downloadable": false
+    },
+    "old": {
+      "state": "NOT_INCLUDED",
+      "action": "NONE",
+      "actionUnavailableReason": "NOT_INCLUDED",
+      "operation": null,
+      "terminalReasonClass": null,
+      "terminalReasonCode": null,
+      "downloadable": false
+    }
+  },
+  "sync": {
+    "outcome": "APPLIED",
+    "subscriptionId": "a72a87e5-4722-4d8d-a198-a0839d31c3e6",
+    "status": "ACTIVE"
+  },
+  "after": {
+    "summary": {
+      "reportsReady": 0,
+      "reportsPending": 0,
+      "reportsFailed": 0,
+      "packagesReady": 0,
+      "packagesPending": 0,
+      "packagesBlocked": 0,
+      "packagesFailed": 0,
+      "reportsNotRequested": 2,
+      "packagesNotRequested": 2,
+      "reportsNotIssued": 0,
+      "reportsAwaitingFirstIssuance": 2,
+      "packagesMissingForLatestReport": 0,
+      "outputsEntitlementUnavailable": 0,
+      "totalEvidenceWithArtifacts": 0,
+      "totalArtifactVersions": 0
+    },
+    "recent": {
+      "state": "ELIGIBLE_NOT_GENERATED",
+      "action": "GENERATE",
+      "actionUnavailableReason": null,
+      "operation": "FULL_GENERATION",
+      "terminalReasonClass": null,
+      "terminalReasonCode": null,
+      "downloadable": false
+    },
+    "old": {
+      "state": "ELIGIBLE_NOT_GENERATED",
+      "action": "GENERATE",
+      "actionUnavailableReason": null,
+      "operation": "FULL_GENERATION",
+      "terminalReasonClass": null,
+      "terminalReasonCode": null,
+      "downloadable": false
+    }
+  },
+  "reportsCreatedByTheUpgradeItself": 0,
+  "requestsCreatedByTheUpgradeItself": 0,
+  "note": "automatic first issuance is the worker's job (first-issuance-reconciliation.ts: 7-day windows, OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED off by default); not executed here"
+}

@@ -1,0 +1,48 @@
+{
+  "probe": "RT-TSA",
+  "openssl": "OpenSSL 3.5.4 30 Sep 2025 (Library: OpenSSL 3.5.4 30 Sep 2025)",
+  "digest": "7c69d3c77d50cd402b23884a7152a88302e6e9ec99c9cb66dd334d71eb35e1ec",
+  "cases": [
+    {
+      "name": "forged-granted",
+      "opensslReplyTextExit": 0,
+      "productionParser": {
+        "granted": true,
+        "imprintMatchesRequest": true,
+        "failureCode": null,
+        "warnings": []
+      },
+      "productionPersistedStatus": "STAMPED",
+      "opensslVerifyAgainstSystemRoots": "REFUSED: Verify error:self-signed certificate"
+    },
+    {
+      "name": "mismatch",
+      "opensslReplyTextExit": 0,
+      "productionParser": {
+        "granted": false,
+        "imprintMatchesRequest": false,
+        "failureCode": "tsa_message_imprint_mismatch",
+        "warnings": []
+      },
+      "productionPersistedStatus": "FAILED",
+      "opensslVerifyAgainstSystemRoots": "REFUSED: Verify error:self-signed certificate"
+    },
+    {
+      "name": "granted-no-token",
+      "opensslReplyTextExit": 1,
+      "productionParser": {
+        "granted": false,
+        "imprintMatchesRequest": null,
+        "failureCode": "tsa_response_parse_failed",
+        "warnings": []
+      },
+      "productionPersistedStatus": "FAILED (subprocess error branch, timestamp.service.ts:334)",
+      "opensslVerifyAgainstSystemRoots": "REFUSED: 405B0000:error:06800064:asn1 encoding routines:asn1_item_embed_d2i:aux error:../openssl-3.5.4/crypto/asn1/tasn_dec.c:481:Type=TS_RESP"
+    }
+  ],
+  "verdict": {
+    "TSA-01": "DEFECT_REPRODUCED",
+    "imprint-mismatch-rejection": "CORRECT",
+    "TSA-02-no-token": "REFUTED_ON_THIS_OPENSSL"
+  }
+}

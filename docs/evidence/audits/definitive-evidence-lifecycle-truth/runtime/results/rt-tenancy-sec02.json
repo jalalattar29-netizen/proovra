@@ -1,0 +1,11 @@
+{
+  "probe": "RT-TENANCY/SEC-02",
+  "attachStatus": 200,
+  "attachBody": "{\"evidence\":{\"id\":\"23fa20a8-40b3-43bc-ad52-5fc51b1cfedb\",\"type\":\"PHOTO\",\"status\":\"SIGNED\",\"createdAt\":\"2026-09-29T12:48:15.954Z\",\"caseId\":\"090c3eba-5208-4560-ae05-c495e2d3e61a\",\"teamId\":\"c5e3ae55-f684-4da0-8fbf-f330d0347ce8\"}}",
+  "detachBody": "{\"evidence\":{\"id\":\"23fa20a8-40b3-43bc-ad52-5fc51b1cfedb\",\"type\":\"PHOTO\",\"status\":\"SIGNED\",\"createdAt\":\"2026-09-29T12:48:15.954Z\",\"caseId\":null,\"teamId\":null}}",
+  "workspaceAdminReadBefore": 200,
+  "detachStatus": 200,
+  "teamIdAfterDetach": null,
+  "workspaceAdminReadAfter": 404,
+  "creatorReadAfter": 200
+}

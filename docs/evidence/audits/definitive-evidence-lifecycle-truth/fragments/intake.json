@@ -1,0 +1,826 @@
+{
+  "domain": "intake",
+  "auditedSha": "a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8",
+  "inventories": {
+    "intakePaths": [
+      {
+        "id": "INTAKE-PUBLIC",
+        "routes": "external-intake.routes.ts:774-1421",
+        "auth": "token pwi_v1_<32B>; HMAC-SHA256 at rest; constant-time compare; expiry/revoke/usedCount checked every route; 30/min IP, 20/min token",
+        "binding": "server-derived from link row",
+        "creator": "createEvidence via createOrLoadExternalEvidence (orchestration:295)",
+        "finalize": "POST /submit -> completeEvidence",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "INTAKE-EVIDENCE-REQUEST",
+        "routes": "evidence-requests.routes.ts:205,:391",
+        "creator": "same pipeline",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "INTAKE-REQUEST-MORE",
+        "routes": "evidence-requests.routes.ts:638",
+        "disposition": "MAPPED"
+      },
+      {
+        "id": "INTAKE-LINK-INTEGRATIONS-API",
+        "routes": "integrations-api.routes.ts:186,~275",
+        "disposition": "MAPPED (broken: INT-10)"
+      },
+      {
+        "id": "CITIZEN-CAPTURE",
+        "routes": "citizen-capture.routes.ts:126,138",
+        "disposition": "RETIRED (410 CITIZEN_CAPTURE_RETIRED)"
+      },
+      {
+        "id": "EXTERNAL-PORTAL/REVIEW",
+        "routes": "external-portal.routes.ts, external-review.routes.ts",
+        "disposition": "NOT_APPLICABLE - no ingestion (0 presign/createEvidence hits)"
+      }
+    ]
+  },
+  "answers": [
+    {
+      "id": "2.B.1",
+      "question": "Are intake tokens high-entropy, hashed at rest, with expiry/revocation/use-limit enforced?",
+      "answer": "Yes: pwi_v1_ + 32 random bytes, HMAC-SHA256 at rest, constant-time compare, REVOKED/expired/usedCount checked on every public route. The use-count increment is not atomic (INT-09).",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/workflow-intake-session.service.ts",
+          "line": 102,
+          "snippet": "HMAC lookup + constantTimeEqualHex"
+        }
+      ]
+    },
+    {
+      "id": "2.B.2",
+      "question": "Can an intake link be rebound to another workspace/case/evidence by the caller?",
+      "answer": "No. Team, creator and customer come from the link row; no body field rebinds; sessions must belong to the link and parts to session.evidenceId.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 592,
+          "snippet": "part must belong to session.evidenceId"
+        }
+      ]
+    },
+    {
+      "id": "2.B.3",
+      "question": "Can an external submitter read other evidence?",
+      "answer": "No read/download route exists for contributors; portal/review surfaces have no ingestion.",
+      "disposition": "SOURCE_PROVEN_CORRECT",
+      "evidence": [
+        {
+          "file": "services/api/src/routes/external-intake.routes.ts",
+          "line": 774,
+          "snippet": "public routes: open/identity/consent/parts/patch/submit/transition only"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "localId": "INT-01",
+      "severity": "P1",
+      "category": "false-success",
+      "title": "Public /transition lets a token holder mark an intake session SUBMITTED without finalizing: link use is consumed, one-time link expires, Evidence stays CREATED",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/external-intake.routes.ts",
+          "line": 1406,
+          "snippet": "if (to === \"REVOKED\" || to === \"EXPIRED\" || to === \"CREATED\") { 403 }"
+        },
+        {
+          "file": "services/api/src/services/workflow-intake-session.service.ts",
+          "line": 546,
+          "snippet": "if (input.to === \"SUBMITTED\") { usedCount: { increment: 1 }, one-time -> status EXPIRED }"
+        },
+        {
+          "file": "packages/shared/src/workflow-intake-link.ts",
+          "line": 99,
+          "snippet": "OPENED->SUBMITTED and UPLOAD_STARTED->SUBMITTED allowed"
+        }
+      ],
+      "observed": "SUBMITTED is allowed over the public route; transitionIntakeSession increments usedCount and expires one-time links but never calls completeEvidence, emits no EXTERNAL_INTAKE_SUBMITTED and links no request response. The web page never calls /transition.",
+      "expected": "Only /submit (which finalizes) may reach SUBMITTED; the public transition route should not allow it.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "SUBMITTED is allowed over the public route; transitionIntakeSession increments usedCount and expires one-time links but never calls completeEvidence, emits no EXTERNAL_INTAKE_SUBMITTED and links no request response. The web page never calls /transition.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Link and submission list show SUBMITTED while nothing was finalized; the real contributor gets LINK_ALREADY_SUBMITTED; Evidence stranded CREATED.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Integration: open session, consent, POST /transition {to:SUBMITTED} -> expect refusal; observe 200, link EXPIRED, evidence CREATED.",
+      "remediation": "Remove SUBMITTED (and evidence-stranding ABANDONED) from the public transition route; SUBMITTED only from submitExternalIntake after completeEvidence.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-02",
+      "severity": "P1",
+      "category": "stuck-state",
+      "title": "A failed part PUT permanently blocks the intake session and the contributor is told the workspace refused",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 511,
+          "snippet": "EvidencePart row created before the PUT; no delete-part route"
+        },
+        {
+          "file": "services/api/src/services/evidence-complete.service.ts",
+          "line": 762,
+          "snippet": "OBJECT_NOT_FOUND with statusCode 404"
+        },
+        {
+          "file": "services/api/src/errors.ts",
+          "line": 387,
+          "snippet": "any 4xx classified EXPECTED_DENIAL"
+        },
+        {
+          "file": "services/api/src/routes/external-intake.routes.ts",
+          "line": 1340,
+          "snippet": "intakeBoundedDenial: this intake cannot accept evidence right now"
+        }
+      ],
+      "observed": "A part row whose object was never written makes every submit 404 at completion, which is classified as an expected denial and rendered as a workspace refusal plus a tenant audit 'evidence.create denied'. Re-posting the index returns PART_INDEX_TAKEN.",
+      "expected": "Missing-part completion failures are distinguished and the contributor can re-upload or remove the part.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "A part row whose object was never written makes every submit 404 at completion, which is classified as an expected denial and rendered as a workspace refusal plus a tenant audit 'evidence.create denied'. Re-posting the index returns PART_INDEX_TAKEN.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Intake submissions with any interrupted upload can never be submitted; misleading message and audit.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Add part replace/remove for unsubmitted sessions; classify OBJECT_NOT_FOUND at completion as contributor-recoverable.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-03",
+      "severity": "P1",
+      "category": "commercial-dos",
+      "title": "Any intake link holder can exhaust the workspace's evidence-record allowance with never-submitted records",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/external-intake.routes.ts",
+          "line": 788,
+          "snippet": "a fresh session per GET; usedCount only at SUBMITTED"
+        },
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 295,
+          "snippet": "first POST /parts per session calls createEvidence"
+        },
+        {
+          "file": "services/api/src/services/billing-enforcement.service.ts",
+          "line": 225,
+          "snippet": "prisma.evidence.count({ where: { teamId, deletedAt: null, createdAt: { gte: since } } }) - status not filtered"
+        },
+        {
+          "file": "services/worker/src/orphan-scan.ts",
+          "line": 107,
+          "snippet": "read-only, deletes nothing"
+        }
+      ],
+      "observed": "Each GET opens a new session; the first part creates a durable Evidence row that counts against the rolling cap regardless of status; nothing reaps it. About 3 requests per row within the per-token rate limit.",
+      "expected": "Unfinalized intake records must not consume the allowance (count finalized only, or reserve and release), and abandoned intake records are reaped.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "Each GET opens a new session; the first part creates a durable Evidence row that counts against the rolling cap regardless of status; nothing reaps it. About 3 requests per row within the per-token rate limit.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "An anonymous party (or accidental reloads) blocks the workspace's own members with EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED; Object-Lock-retained orphan bytes.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Integration: capped workspace, loop open/consent/part via intake token until limit -> member create refused.",
+      "remediation": "Count only finalized records toward caps (or reserve with expiry); reap abandoned intake evidence; resume sessions client-side.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-04",
+      "severity": "P1",
+      "category": "workflow-broken",
+      "title": "'Request more' follow-up submissions never reach the evidence request",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/evidence-request.service.ts",
+          "line": 1223,
+          "snippet": "new link created; only followUpIntakeLinkId in an event payload (:1259)"
+        },
+        {
+          "file": "services/api/src/services/evidence-request.service.ts",
+          "line": 869,
+          "snippet": "findFirst({ where: { intakeLinkId: params.intakeLinkId } }) returns if none"
+        }
+      ],
+      "observed": "The follow-up link is never written to evidenceRequest.intakeLinkId, so linkResponseFromIntakeSession finds no request.",
+      "expected": "Follow-up submissions attach a response to the originating request.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "The follow-up link is never written to evidenceRequest.intakeLinkId, so linkResponseFromIntakeSession finds no request.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Reviewer sees NEEDS_MORE_INFO forever while evidence was submitted and finalized.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Record follow-up links in a link->request relation and resolve through it.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-05",
+      "severity": "P1",
+      "category": "integrity",
+      "title": "Parts can be added to an intake record while it is being signed or after it is signed; the worker then includes them",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/external-intake.routes.ts",
+          "line": 990,
+          "snippet": "const session = await getIntakeSession(params.sid); if (!session || session.intakeLinkId !== link.id) {"
+        },
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 461,
+          "snippet": "export async function addExternalEvidencePart( input: AddExternalPartInput, client: PrismaClient = defaultPrisma,"
+        },
+        {
+          "file": "services/worker/src/processor.ts",
+          "line": 2061,
+          "snippet": "prisma.evidencePart.findMany({ where: { evidenceId: evidence.id }, orderBy: { partIndex: \"asc\" },"
+        }
+      ],
+      "observed": "submitExternalIntake runs completeEvidence before moving the session to SUBMITTED; a POST /parts in that window inserts an unhashed part on a SIGNED record and returns a PUT URL. The next report run rehashes all parts -> integrity rejection (same mechanism as UPL-01).",
+      "expected": "Part creation holds the evidence lock and requires status CREATED/UPLOADING.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "submitExternalIntake runs completeEvidence before moving the session to SUBMITTED; a POST /parts in that window inserts an unhashed part on a SIGNED record and returns a PUT URL. The next report run rehashes all parts -> integrity rejection (same mechanism as UPL-01).",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Signed intake evidence can be driven to FAILED_HASH_MISMATCH by the contributor.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Check evidence status under the completion advisory lock; move session to a SUBMITTING state before completion.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-06",
+      "severity": "P2",
+      "category": "control-not-enforced",
+      "title": "maxBytesPerSession and ipAllowlistCidrs are stored but never enforced",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/workflow-intake-link.service.ts",
+          "line": 289,
+          "snippet": "maxBytesPerSession: input.maxBytesPerSession ?? null,"
+        }
+      ],
+      "observed": "Operator-configured restrictions have no effect.",
+      "expected": "Enforce or remove.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "Operator-configured restrictions have no effect.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "False sense of control.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Enforce in validateIntakeToken/presign or remove from the API.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-07",
+      "severity": "P2",
+      "category": "gate-bypass",
+      "title": "Evidence-request send and request-more mint intake links without the plan and governance gates",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/evidence-request.service.ts",
+          "line": 672,
+          "snippet": "createWorkflowIntakeLink directly"
+        },
+        {
+          "file": "services/api/src/routes/evidence-requests.routes.ts",
+          "line": 223,
+          "snippet": "assertWorkspaceAllowsIntake only at create"
+        }
+      ],
+      "observed": "canCreateIntakeLink (allowAnonymousIntake etc.) is skipped; a post-downgrade send still mints links.",
+      "expected": "Same gates as the link route at mint time.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "canCreateIntakeLink (allowAnonymousIntake etc.) is skipped; a post-downgrade send still mints links.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Governance policy and plan bypass.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Call canCreateIntakeLink + assertWorkspaceAllowsIntake inside createWorkflowIntakeLink.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-08",
+      "severity": "P2",
+      "category": "lifecycle",
+      "title": "Cancelling/closing an evidence request does not revoke its link; submissions keep finalizing and attach responses to the cancelled request",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/workflow-intake-links.routes.ts",
+          "line": 904,
+          "snippet": "only caller of revokeWorkflowIntakeLink"
+        }
+      ],
+      "observed": "transitionEvidenceRequest does not revoke.",
+      "expected": "Terminal request revokes its links.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "transitionEvidenceRequest does not revoke.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Unwanted evidence and allowance use after cancel.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Revoke on request terminal transitions.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-09",
+      "severity": "P2",
+      "category": "concurrency",
+      "title": "ONE_TIME link use and per-session Evidence creation are check-then-write races",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/workflow-intake-session.service.ts",
+          "line": 136,
+          "snippet": "validateIntakeToken reads usedCount"
+        },
+        {
+          "file": "services/api/src/services/workflow-intake-session.service.ts",
+          "line": 546,
+          "snippet": "unconditional increment after completion"
+        },
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 283,
+          "snippet": "read session.evidenceId then create - no lock"
+        }
+      ],
+      "observed": "Concurrent submits on a one-time link finalize N records; concurrent first-part POSTs create two Evidence rows, one orphaned; maxFileCountPerSession not atomic; duplicate EXTERNAL_INTAKE_SUBMITTED custody.",
+      "expected": "Conditional updates / locks.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "Concurrent submits on a one-time link finalize N records; concurrent first-part POSTs create two Evidence rows, one orphaned; maxFileCountPerSession not atomic; duplicate EXTERNAL_INTAKE_SUBMITTED custody.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Over-use of one-time links; orphan records; duplicate custody.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Conditional updateMany on usedCount < maxUses; session row lock for evidence creation.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-10",
+      "severity": "P2",
+      "category": "broken-route",
+      "title": "Integrations-API intake-link and evidence-request routes pass an API-credential id as a User id",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/integrations-api.routes.ts",
+          "line": 249,
+          "snippet": "{ actorUserId: cred.credentialId }"
+        }
+      ],
+      "observed": "FK to User makes create fail P2003, returned as 400 with raw e.message; also skips assertWorkspaceAllowsIntake.",
+      "expected": "Resolve a service principal or refuse.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "FK to User makes create fail P2003, returned as 400 with raw e.message; also skips assertWorkspaceAllowsIntake.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Advertised integration route always fails and leaks DB error text.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Bind to credential owner user; add plan gate; map errors.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-11",
+      "severity": "P2",
+      "category": "custody-truth",
+      "title": "Intake consent is client-asserted: acceptedAtUtc taken from the body, termsAcknowledged/disclosure hash never checked, consent re-postable",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/workflow-intake-session.service.ts",
+          "line": 445,
+          "snippet": "consentAcceptedAtUtc: new Date(consent.acceptedAtUtc)"
+        }
+      ],
+      "observed": "Custody records 'consent accepted' for termsAcknowledged:false with a backdated timestamp.",
+      "expected": "Server time; require termsAcknowledged; one-shot.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "Custody records 'consent accepted' for termsAcknowledged:false with a backdated timestamp.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Custody asserts consent that was not given.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Server-stamp and validate consent; refuse re-post.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-12",
+      "severity": "P2",
+      "category": "custody-truth",
+      "title": "Intake submitter attribution: identity snapshot and public Verify name the link creator, not the contributor; surfaces disagree",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/evidence.routes.ts",
+          "line": 2013,
+          "snippet": "case prismaPkg.CustodyEventType.IDENTITY_SNAPSHOT_RECORDED: { const identityLevel = normalizePublicPayloadValue( obj.identityLevelSnapshot"
+        },
+        {
+          "file": "services/worker/src/report-v2/custody-model.ts",
+          "line": 100,
+          "snippet": "summary = isIntake ? INTAKE_IDENTITY_SNAPSHOT_SUMMARY : [CAPTURE_IDENTITY_SNAPSHOT_SUMMARY, flowAwareSummary]"
+        }
+      ],
+      "observed": "IDENTITY_SNAPSHOT_RECORDED carries the creator's email/provider/level; Verify shows it with no intake branch; report and package relabel.",
+      "expected": "One attribution rule across surfaces.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "IDENTITY_SNAPSHOT_RECORDED carries the creator's email/provider/level; Verify shows it with no intake branch; report and package relabel.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Public Verify misattributes who submitted the evidence.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Add intake branch to the Verify summarizer and legacy renderer.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-13",
+      "severity": "P2",
+      "category": "atomicity",
+      "title": "Intake submit can report failure after finalization; governance-denied retries append EXPORT_BLOCKED_BY_POLICY custody per anonymous retry",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 928,
+          "snippet": "await appendCustodyEvent({ evidenceId: evidence.id, eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_SUBMITTED,"
+        },
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 945,
+          "snippet": "const submitted = await transitionIntakeSession({ sessionId: input.session.id, expectedLinkId: input.link.id, to: \"SUBMITTED\","
+        }
+      ],
+      "observed": "Contributor sees 500 'try again' while record is SIGNED; anonymous retries grow custody.",
+      "expected": "Idempotent post-commit steps; bounded denial events.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "Contributor sees 500 'try again' while record is SIGNED; anonymous retries grow custody.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Misleading failure; custody noise.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Make post-commit steps idempotent/retried; dedupe denial events.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-14",
+      "severity": "P2",
+      "category": "deleted-reuse",
+      "title": "Soft-deleted in-progress intake Evidence is reused for new parts",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 284,
+          "snippet": "findUnique by session.evidenceId with no deletedAt filter"
+        }
+      ],
+      "observed": "Parts attach to a deleted record; completion then 404s as a workspace refusal.",
+      "expected": "Refuse or re-create.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "Parts attach to a deleted record; completion then 404s as a workspace refusal.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Stuck session.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Filter deletedAt.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "INT-15",
+      "severity": "P3",
+      "category": "hygiene",
+      "title": "Intake P3s: dead first-part capture-environment write, false magic-byte comment, UPLOAD_AUTHORIZED for an original URL never issued, swallowed LINK_USED/CONSENT custody failures, unvalidated caseId/evidenceId, stale citizen-capture comment",
+      "affected": {
+        "routes": [
+          "/v1/external-intake/*"
+        ],
+        "tables": [
+          "workflow_intake_links",
+          "workflow_intake_sessions",
+          "evidences"
+        ],
+        "roles": [
+          "intake token holder"
+        ],
+        "plans": [
+          "plans with intake"
+        ]
+      },
+      "evidence": [
+        {
+          "file": "services/api/src/routes/external-intake.routes.ts",
+          "line": 1088,
+          "snippet": "if (body.partIndex === 0 && session.evidenceId) - always null on a fresh session"
+        },
+        {
+          "file": "services/api/src/services/external-intake-orchestration.service.ts",
+          "line": 436,
+          "snippet": "custody emission failures swallowed"
+        }
+      ],
+      "observed": "Low-risk inconsistencies.",
+      "expected": "Tidy.",
+      "dataFlow": "public intake token -> external-intake.routes.ts -> external-intake-orchestration.service.ts -> createEvidence/completeEvidence",
+      "rootCause": "Low-risk inconsistencies.",
+      "blastRadius": "Workspaces that issue intake links / evidence requests.",
+      "impact": "Low.",
+      "reproduction": "See observed; source-proven.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "none",
+      "remediation": "Tidy each.",
+      "acceptanceProof": "Integration test covering the scenario.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    }
+  ],
+  "questions": [],
+  "coverage": {
+    "filesRead": [
+      "services/api/src/routes/external-intake.routes.ts",
+      "services/api/src/services/external-intake-orchestration.service.ts",
+      "services/api/src/services/workflow-intake-session.service.ts",
+      "services/api/src/services/evidence-request.service.ts"
+    ],
+    "notReviewed": []
+  }
+}

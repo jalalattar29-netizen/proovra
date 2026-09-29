@@ -1,0 +1,357 @@
+{
+  "domain": "ots",
+  "auditedSha": "a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8",
+  "inventories": {
+    "otsStateMap": [
+      {"persisted": "otsStatus=NULL, otsProofBase64=NULL", "meaning": "finalized record never entered OTS lifecycle (normal between finalize commit and first stamp; or lost handoff)", "writer": "none (default); finalize writes fingerprintCanonicalJson only (services/api/src/services/evidence-complete.service.ts:1039)", "recovery": "services/worker/src/ots-initialization-reconciler.ts:119-130 (30m..30d window) via lifecycle-recovery.ts:229, 5-min setInterval services/worker/src/index.ts:743-774", "display": "public verify anchorClaim NOT_CONFIGURED -> badge 'Unavailable' (packages/shared/src/ots.ts:124,170); ops condition evidence_integrity.ots_initialization_stalled after 6h (packages/shared-runtime/src/ops/ots-aging.ts:362-376), READ_ONLY_GUIDANCE"},
+      {"persisted": "otsStatus=DISABLED, all ots columns NULL", "meaning": "OTS_ENABLED!=true in worker at stamp time", "writer": "services/worker/src/ots.service.ts:158-169 -> ots-state.ts:63-74 via ots-lifecycle.ts:264-270", "recovery": "none automatic (reconciler requires otsStatus NULL)", "display": "anchorClaim UNAVAILABLE -> badge 'DISABLED' neutral; package companion suppressed (verification-package.ts:863-865)"},
+      {"persisted": "otsStatus=PENDING, proof present, otsBitcoinTxid NULL or valid txid, otsAnchoredAtUtc NULL", "meaning": "proof stamped / upgraded, no Bitcoin attestation for this hash observed", "writer": "init: ots-lifecycle.ts:264-270 (stamp PENDING); upgrade: ots-state.ts:294-329 applied CAS by ots-state.ts:399-410 from ots-upgrade.processor.ts:607-636", "recovery": "only the self-scheduled 60-min follow-up (ots-upgrade.processor.ts:698-708); NOT scheduled after initialization (see OTS-01); no scanner", "display": "anchorClaim PENDING -> badge 'PENDING' warning; report callout 'Pending' (report-v2/truth-model.ts:239-244); package 'Bitcoin anchoring pending' (verification-package.ts:1534-1541); ops ots_pending_aged WARNING 24h / HIGH 72h"},
+      {"persisted": "otsStatus=ANCHORED, otsAnchoredAtUtc set, otsAnchorCheck=BITCOIN_VERIFIED", "meaning": "`ots verify -d <otsHash>` output parsed as success (needs Bitcoin node)", "writer": "ots-state.ts:250-291 (ANCHOR_PROVEN, check from ots-upgrade.processor.ts:498-509)", "recovery": "terminal; processor skips (ots-upgrade.processor.ts:397-412)", "display": "anchorClaim VERIFIED (if valid txid) -> 'ANCHORED · VERIFIED' success; report 'Anchored and verified'. Unreachable in the shipped worker image (no bitcoind; Dockerfile only pip-installs opentimestamps-client, services/worker/Dockerfile:199)"},
+      {"persisted": "otsStatus=ANCHORED, otsAnchoredAtUtc=observation time, otsAnchorCheck=PROOF_STRUCTURE", "meaning": "`ots info` offline: file hash == otsHash AND >=1 BitcoinBlockHeaderAttestation AND a txid known; block header NOT checked against chain", "writer": "ots-upgrade-output.ts:479-503 -> ots-upgrade.processor.ts:498-509 -> ots-state.ts:250-291", "recovery": "terminal; never re-checked to BITCOIN_VERIFIED because processor exits early for any checked anchor (ots-upgrade.processor.ts:397-399)", "display": "anchorClaim ANCHORED_NOT_CHECKED -> 'ANCHORED · CHAIN NOT CHECKED' info tone; label 'anchored to a Bitcoin block; not checked against the Bitcoin chain' (packages/shared/src/ots.ts:176-177). anchoredAtUtc shown is the worker observation time, not block time"},
+      {"persisted": "otsStatus=ANCHORED, otsAnchorCheck=NULL, otsAnchoredAtUtc set", "meaning": "legacy anchor OR initializer text-heuristic anchor (shouldTreatOtsAsAnchored)", "writer": "ots.service.ts:241-279 -> ots-lifecycle.ts:264-270 (anchorCheck not passed -> NULL, ots-state.ts:118)", "recovery": "if txid valid: skipped forever (ots-upgrade.processor.ts:399); else re-checked and may be demoted to PENDING (ots-state.ts:303-321)", "display": "ANCHORED_NOT_CHECKED"},
+      {"persisted": "otsStatus=ANCHORED, otsAnchoredAtUtc NULL", "meaning": "incomplete legacy anchor", "writer": "legacy only; buildOtsEvidenceUpdateData degrades to PENDING (ots-state.ts:89-107)", "recovery": "treated as PENDING (resolveEffectiveOtsStatus packages/shared/src/ots.ts:45-53)", "display": "PENDING"},
+      {"persisted": "otsStatus=FAILED, otsFailureReason=PROOF_HASH_MISMATCH | MALFORMED_PROOF, proof preserved", "meaning": "proof established unusable", "writer": "ots-state.ts:334-354 from ots-upgrade.processor.ts:418-423 (magic) / 491-497 (hash)", "recovery": "terminal (processor 400; decide 299-301)", "display": "FAILED badge; report callout prints failureReason; ops ots_failed with RESUME action (no-op on terminal)"},
+      {"persisted": "otsStatus=FAILED, otsFailureReason=OTS_GLOBAL_BUDGET_EXHAUSTED", "meaning": "conclusive PENDING observation >30d after earliest OTS custody event", "writer": "ots-state.ts:356-375 from ots-upgrade.processor.ts:548-556; CRITICAL incident ots-upgrade.processor.ts:675-691", "recovery": "operator RESUME re-checks once; stays FAILED unless anchored (decide 357-358)", "display": "FAILED"},
+      {"persisted": "otsStatus=FAILED, otsProofBase64 NULL, otsFailureReason=<raw error text>", "meaning": "`ots stamp` failed (calendar timeout, DNS, binary missing) - a transient deployment/network fact persisted per record", "writer": "ots.service.ts:348-374 -> ots-lifecycle.ts:264-270; custody OTS_FAILED ots-lifecycle.ts:273-297", "recovery": "manual only: Operations ots_failure RESUME (remediation-registry.ts:277-279) -> re-stamp through otsProofBase64 IS NULL guard", "display": "FAILED badge, raw failureReason on public verify (evidence.routes.ts:13893) and review-workspace (9729), report callout (truth-model.ts:245-250)"},
+      {"persisted": "otsStatus=FAILED, proof present, otsFailureReason=<raw upgrade error>", "meaning": "stamp ok but immediate `ots upgrade` error not matching pending vocabulary", "writer": "ots.service.ts:312-321", "recovery": "manual RESUME -> upgrade -> PENDING 'recovered_from_failed_attempt'", "display": "FAILED"},
+      {"persisted": "CustodyEvent OTS_APPLIED / OTS_FAILED / OTS_ATTEMPT_ERROR", "meaning": "init, material transitions, transient attempt failures", "writer": "ots-lifecycle.ts:273-297; ots-upgrade.processor.ts:579-591, 610-634", "recovery": "n/a; earliest event is the budget start (ots-upgrade.processor.ts:186-216)", "display": "custody timeline labels processor.ts:669-690, 824"}
+    ],
+    "schedulersAndDelays": [
+      {"what": "PENDING follow-up", "delay": "60 min", "file": "services/worker/src/ots-upgrade.processor.ts", "line": 703, "note": "only after a CAS-won WRITE with status PENDING; uses selfJobId"},
+      {"what": "enqueueOtsUpgradeJob default", "delay": "5 min", "file": "services/worker/src/queue.ts", "line": 500},
+      {"what": "BullMQ retries for thrown errors", "delay": "20 attempts exponential from 60s", "file": "packages/shared/src/queue-integrity/retry-policy.ts", "line": 101},
+      {"what": "lifecycle recovery (includes OTS init reconciler)", "delay": "every 5 min, cron lock", "file": "services/worker/src/index.ts", "line": 743},
+      {"what": "init reconciler window", "delay": "30 min .. 30 days, NULL-status rows only", "file": "services/worker/src/ots-initialization-reconciler.ts", "line": 101},
+      {"what": "global budget", "delay": "30 days (OTS_GLOBAL_BUDGET_DAYS)", "file": "packages/shared-runtime/src/ops/ots-aging.ts", "line": 38},
+      {"what": "ops pending aging", "delay": "WARNING 24h / HIGH 72h", "file": "packages/shared-runtime/src/ops/ots-aging.ts", "line": 183}
+    ],
+    "fixtures": [
+      {"item": "real .ots files", "result": "NONE in repo (`git ls-files | grep '\\.ots$'` empty)"},
+      {"item": "synthetic proof", "file": "services/worker/test/ots-upgrade-processor.behaviour.test.ts", "line": 19, "snippet": "const MAGIC = Buffer.from(\"004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294\", \"hex\");"}
+    ]
+  },
+  "answers": [
+    {"id": "7.1", "question": "Digest submitted and identical to intended evidence/version/manifest digest?", "answer": "The initializer stamps the UTF-8 bytes of Evidence.fingerprintCanonicalJson (the signed canonical fingerprint, which embeds fileSha256/part hashes). `ots stamp` hashes the file with SHA-256, so the committed digest = sha256(fingerprintCanonicalJson) = Evidence.fingerprintHash (API computes sha256Hex(canonical), crypto.ts sha256 of utf8 string). otsHash is stored as that same sha256 (contentHash). It is the fingerprint digest, not the raw file digest; binding to the original is indirect via the signed fingerprint. fingerprintCanonicalJson has a single writer (finalize), so it cannot drift after stamping.", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-lifecycle.ts", "line": 229, "snippet": "stamp = await createOpenTimestamp({ content: Buffer.from(evidence.fingerprintCanonicalJson, \"utf8\"),"},
+      {"file": "services/worker/src/ots.service.ts", "line": 195, "snippet": "const contentHash = sha256Hex(params.content);"},
+      {"file": "services/api/src/services/evidence-complete.service.ts", "line": 917, "snippet": "canonical = canonicalJson(fingerprint); fingerprintHash = sha256Hex(canonical);"},
+      {"file": "services/api/src/services/evidence-complete.service.ts", "line": 1039, "snippet": "fingerprintCanonicalJson: canonical, fingerprintHash,"}]},
+    {"id": "7.2", "question": "Initial .ots stored?", "answer": "Yes. After stamp the proof file is read, base64'd and written to Evidence.otsProofBase64 (plus otsHash/otsCalendar/otsStatus) in a transaction guarded by `otsProofBase64: null`, with an OTS_APPLIED/OTS_FAILED custody event. If `ots stamp` itself fails, FAILED is written with proofBase64 NULL.", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots.service.ts", "line": 211, "snippet": "const proofBuffer = await fs.readFile(proofFile); const proofBase64 = proofBuffer.toString(\"base64\");"},
+      {"file": "services/worker/src/ots-lifecycle.ts", "line": 265, "snippet": "where: { id: evidenceId, otsProofBase64: null, deletedAt: null },"}]},
+    {"id": "7.3", "question": "Bound to evidence version?", "answer": "Bound to the Evidence row (columns on Evidence), not to a version/report row. Evidence has one fingerprint written once at finalize, so the proof is bound to the finalized record; there is no per-version OTS. Reports/packages snapshot the row's OTS state at issuance and are not re-issued when OTS changes (ots-upgrade.processor.ts:653-660).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-state.ts", "line": 405, "snippet": "const res = await tx.evidence.updateMany({ where: otsSnapshotWhere(evidenceId, row),"}]},
+    {"id": "7.4", "question": "Calendar selection?", "answer": "Single configured URL OTS_CALENDAR_URL (prod compose: https://a.pool.opentimestamps.org, an aggregator) passed as `-c <url> -m 1`; if unset, the ots client defaults apply. No app-level multi-calendar redundancy or fallback.", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots.service.ts", "line": 202, "snippet": "...(calendar ? [\"-c\", calendar, \"-m\", \"1\"] : []),"},
+      {"file": "infra/docker/docker-compose.prod.yml", "line": 59, "snippet": "OTS_CALENDAR_URL: https://a.pool.opentimestamps.org"}]},
+    {"id": "7.5", "question": "Response merge?", "answer": "No application-level merge. The ots CLI performs stamp/upgrade in place on the proof file; the worker reads back the whole file and replaces otsProofBase64 wholesale (CAS-guarded).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 448, "snippet": "const proofBase64 = (await fs.readFile(file)).toString(\"base64\");"}]},
+    {"id": "7.6", "question": "Upgrade idempotency?", "answer": "Yes at the row level: decideOtsTransition returns NO_CHANGE for already-recorded anchors and invalid proofs; the processor early-exits for checked anchors, legacy anchors with txid and permanent failures; every write is compare-and-set against the snapshot (status, txid, anchoredAt, upgradedAt, anchorCheck, failureReason).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 397, "snippet": "isCheckedOtsAnchor(snapshot) || (effectiveStatus === \"ANCHORED\" && hasDefensibleTxid) ||"},
+      {"file": "services/worker/src/ots-state.ts", "line": 383, "snippet": "export function otsSnapshotWhere(evidenceId: string, row: OtsRowSnapshot)"}]},
+    {"id": "7.7", "question": "Concurrent upgrades overwriting proof?", "answer": "Guarded. Initialization uses updateMany WHERE otsProofBase64 IS NULL; upgrades use updateMany WHERE <full OTS snapshot> (otsUpgradedAtUtc changes on every write, so a stale observation loses and is discarded). Job ids are deterministic `ots-upgrade-<evidenceId>` (collapse onto live) plus a deterministic `-next-` id for self follow-ups. Covered by the behaviour test that runs the real processor against an in-memory CAS row (services/worker/test/ots-upgrade-processor.behaviour.test.ts:49-60).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-state.ts", "line": 384, "snippet": "id: evidenceId, otsStatus: row.otsStatus, otsBitcoinTxid: row.otsBitcoinTxid, ... otsUpgradedAtUtc: row.otsUpgradedAtUtc,"},
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 638, "snippet": "if (!applied) { // The row moved on since it was read"}]},
+    {"id": "7.8", "question": "Retry schedule?", "answer": "Thrown errors (init transient OtsInitializationTransientError; upgrade TRANSIENT_ERROR -> 'OTS_UPGRADE_ATTEMPT_FAILED') use BullMQ TIMESTAMP_AUTHORITY: 20 attempts, exponential backoff from 60s. Successful PENDING observations re-enqueue a 60-minute follow-up. Budget: 30 days from earliest OTS custody event.", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "packages/shared/src/queue-integrity/retry-policy.ts", "line": 101, "snippet": "TIMESTAMP_AUTHORITY: { attempts: 20, backoff: \"exponential\", backoffDelayMs: 60_000,"},
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 604, "snippet": "throw new Error(\"OTS_UPGRADE_ATTEMPT_FAILED\");"}]},
+    {"id": "7.9", "question": "Is a 60-minute follow-up actually scheduled?", "answer": "Only on the upgrade branch after a CAS-won PENDING write (delayMs 60*60*1000, selfJobId). It is NOT scheduled after initialization: the init branch enqueues without selfJobId while running as `ots-upgrade-<id>`, so enqueueCanonicalJob finds its own active job and collapses (OTS-01). The self-follow-up also uses a deterministic `-next-` id that collides with its own retained completed job on the 3rd hop and is silently dropped by BullMQ (OTS-02).", "disposition": "SOURCE_PROVEN_DEFECT", "evidence": [
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 351, "snippet": "await enqueueOtsUpgradeJob(evidenceId, { traceId: requestId }).catch("},
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 703, "snippet": "await enqueueOtsUpgradeJob(evidenceId, { delayMs: 60 * 60 * 1000, traceId: \"ots_followup\", selfJobId: job.id,"},
+      {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 161, "snippet": "if (isLiveQueueJobState(state)) { return { enqueued: true, jobId, collapsed: true };"}]},
+    {"id": "7.10", "question": "Worker restart?", "answer": "Delayed/waiting jobs persist in Redis. A crash mid-job is handled by BullMQ stalled-job recovery; initialization is safe to re-run (proof-null guard; a lost stamp just re-stamps). A crash after the init DB write loses nothing new because the init follow-up is never scheduled anyway (OTS-01).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-lifecycle.ts", "line": 212, "snippet": "if (evidence.otsProofBase64) { return { initialized: false, reason: \"already_initialized\" };"}]},
+    {"id": "7.11", "question": "Lost queue job?", "answer": "NULL-status rows: recovered by the init reconciler (30 min..30 days, every 5 min). PENDING rows (and FAILED rows): nothing scans them; a lost/collapsed/dropped follow-up leaves the row PENDING with no job. Only manual: admin queue replay of a FAILED job (step-up) or scripts.", "disposition": "SOURCE_PROVEN_DEFECT", "evidence": [
+      {"file": "services/worker/src/ots-initialization-reconciler.ts", "line": 126, "snippet": "otsStatus: null, otsProofBase64: null,"}]},
+    {"id": "7.12", "question": "Can proof remain Pending forever without escalation (incident? max age?)", "answer": "It can remain PENDING forever: the 30-day budget only fires on a CONCLUSIVE pending observation made by a running job, and with no job (OTS-01/02) no observation happens. Escalation exists but is not a recovery: evidence_integrity.ots_pending_aged opens WARNING at 24h / HIGH at 72h (never CRITICAL), with READ_ONLY_GUIDANCE that claims the ladder is still running and offers no action.", "disposition": "SOURCE_PROVEN_DEFECT", "evidence": [
+      {"file": "services/api/src/services/operations/remediation-registry.ts", "line": 299, "snippet": "the upgrade ladder is still running inside its budget, so this resolves on its own. No manual action is available"},
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 548, "snippet": "if (observation.kind === \"PENDING\" && effectiveStatus !== \"ANCHORED\") {"}]},
+    {"id": "7.13", "question": "Is Bitcoin attestation verified LOCALLY (block header lookup) or trusting calendar/library upgrade result?", "answer": "In the shipped image: NOT verified against block headers. `ots verify -d` needs a Bitcoin node; the worker image installs only opentimestamps-client, so verify errors and the anchor is established from `ots info` offline parsing (BitcoinBlockHeaderAttestation present + file hash match + txid), recorded as anchorCheck=PROOF_STRUCTURE and labelled 'chain not checked'. The text-only upgrade heuristic was removed from the upgrade classifier but still exists in the initializer (OTS-05). BITCOIN_VERIFIED is only reachable with a Bitcoin node.", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-upgrade-output.ts", "line": 486, "snippet": "if (hashMatches && hasBlockAttestation && txid != null) {"},
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 503, "snippet": "check: verified ? \"BITCOIN_VERIFIED\" : \"PROOF_STRUCTURE\","},
+      {"file": "packages/shared/src/ots.ts", "line": 115, "snippet": "const chainChecked = normalizeOtsAnchorCheck(input.anchorCheck) === \"BITCOIN_VERIFIED\";"}]},
+    {"id": "7.14", "question": "Attestation checked against the exact digest?", "answer": "Yes against Evidence.otsHash: verify is run with `-d <otsHash>`, and the info branch requires `File sha256 hash` == otsHash; a mismatch is terminal PROOF_HASH_MISMATCH. The processor trusts the stored otsHash (does not recompute from fingerprintCanonicalJson); public verify separately compares otsHash to fingerprintHash (hashMatches).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots.service.ts", "line": 485, "snippet": "[\"verify\", \"-d\", hashHex.toLowerCase(), proofFile],"},
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 491, "snippet": "if (info?.fileHash != null && expectedHash != null && info.fileHash !== expectedHash) {"}]},
+    {"id": "7.15", "question": "Malformed proof rejection?", "answer": "Missing OpenTimestamps magic header -> terminal FAILED MALFORMED_PROOF (offline, before invoking the binary). A proof with a valid header but corrupt body that `ots info` cannot parse is classified TRANSIENT_ERROR, retried 20 times, then the job fails and the row stays PENDING (OTS-06).", "disposition": "SOURCE_PROVEN_DEFECT", "evidence": [
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 418, "snippet": "if (!hasOtsProofMagic(storedProof)) { observation = { kind: \"PROOF_INVALID\", code: \"MALFORMED_PROOF\","},
+      {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 514, "snippet": "} else if (!isConclusivelyUnanchored({ info, expectedHash })) {"}]},
+    {"id": "7.16", "question": "Does Verify page independently validate or trust DB status?", "answer": "Trusts DB. /public/verify/:id returns ots.status/anchorClaim computed by resolveOtsAnchorClaim over stored columns plus hashMatchesFingerprintHash (DB-to-DB compare); technicalMaterials exposes only otsProofPresent, not the bytes; the web badge renders the server claim (otsTone -> otsClaimBadge). No proof parsing or chain check on the verify path. Claim vocabulary is honest (green only for BITCOIN_VERIFIED+txid).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/api/src/routes/evidence.routes.ts", "line": 13897, "snippet": "anchorClaim: resolveOtsAnchorClaim({ status: evidence.otsStatus, anchoredAtUtc: effectiveOtsAnchoredAtUtc,"},
+      {"file": "apps/web/components/verify-v2/_helpers.ts", "line": 143, "snippet": "parseOtsAnchorClaim(input.anchorClaim) ?? resolveOtsAnchorClaim({"},
+      {"file": "services/api/src/routes/evidence.routes.ts", "line": 4408, "snippet": "otsProofPresent: Boolean(params.evidence.otsProofBase64),"}]},
+    {"id": "7.17", "question": "Raw proofs included in packages?", "answer": "Yes: opentimestamps-proof.ots (raw bytes) plus opentimestamps.json companion, and fingerprint.json (the exact stamped bytes). The companion's verificationHint command is wrong (OTS-07).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/verification-package.ts", "line": 882, "snippet": "proofFile: proofBytes ? \"opentimestamps-proof.ots\" : null,"},
+      {"file": "services/worker/src/processor.ts", "line": 4425, "snippet": "fingerprint: prepared.fingerprintCanonicalJson,"}]},
+    {"id": "7.18", "question": "Report wording submitted vs anchored?", "answer": "Report callout derives from resolveOtsAnchorClaim: VERIFIED 'Anchored and verified'; ANCHORED_NOT_CHECKED 'Anchored — chain not checked'; PENDING 'Pending … proof material is present, but Bitcoin anchoring had not completed'; FAILED prints raw failureReason. PENDING rows carrying a txid are not promoted. `buildAnchorPublicationSummary` (which would label any txid as anchored) is dead code (0 callers).", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/report-v2/truth-model.ts", "line": 216, "snippet": "const claim = resolveOtsAnchorClaim({ status: ots.effectiveStatus ?? ots.otsStatus,"},
+      {"file": "services/worker/src/report-v2/truth-model.ts", "line": 283, "snippet": "export function buildAnchorPublicationSummary("}]},
+    {"id": "7.19", "question": "OTS/TSA disagreement presentation?", "answer": "No code compares OTS anchor time/digest with TSA genTime/imprint; the two are presented as independent layers ('This anchoring layer is independent from RFC 3161 timestamping'). OTS commits to fingerprintHash while TSA may commit to fileSha256 or fingerprint (tsaInputKind), so a digest-level disagreement cannot be represented; no disagreement state exists.", "disposition": "OWNER_DECISION_REQUIRED", "evidence": [
+      {"file": "services/worker/src/verification-package.ts", "line": 1524, "snippet": "This anchoring layer is independent from RFC 3161 timestamping."}]},
+    {"id": "7.20", "question": "What does Recovery do for OTS?", "answer": "runLifecycleRecovery (5-min interval, cron lock) calls runOtsInitializationReconciler, which only enqueues rows with otsStatus NULL and proof NULL aged 30 min..30 days. It writes no OTS column. It does nothing for PENDING or FAILED rows. Operator remediation: ots_failure -> RESUME (requestEvidenceOtsAnchoring); ots_pending_aged and ots_initialization_stalled -> READ_ONLY_GUIDANCE only.", "disposition": "SOURCE_PROVEN_DEFECT", "evidence": [
+      {"file": "services/worker/src/lifecycle-recovery.ts", "line": 229, "snippet": "const summary = await runOtsInitializationReconciler({ trigger });"},
+      {"file": "services/api/src/services/operations/remediation-registry.ts", "line": 296, "snippet": "ots_pending_aged: { disposition: \"READ_ONLY_GUIDANCE\","}]},
+    {"id": "7.21", "question": "Can Recovery create duplicate jobs/proof rows?", "answer": "No. Proof lives in Evidence columns (no proof-row table); jobs use the deterministic `ots-upgrade-<id>` id and collapse onto live jobs; the initializer write is proof-null guarded so concurrent reconciler/API/job runs store one proof and one custody event. Worst case is an extra calendar stamp that is discarded ('raced').", "disposition": "SOURCE_PROVEN_CORRECT", "evidence": [
+      {"file": "services/worker/src/ots-lifecycle.ts", "line": 265, "snippet": "where: { id: evidenceId, otsProofBase64: null, deletedAt: null },"},
+      {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 130, "snippet": "jobId = buildCanonicalJobId(prefixed, commandId);"}]},
+    {"id": "7.22", "question": "Fixture .ots files usable for runtime probes, and exact probes for pending/upgrade/invalid proof", "answer": "No real .ots fixtures exist in the tree. Probes that need no binary/network: (a) PENDING/UPGRADE/INVALID classification: import { parseOtsInfoOutput, classifyOtsResult, parseOtsUpgradeOutput } from 'services/worker/src/ots-upgrade-output.ts' with synthetic `ots info` text ('File sha256 hash: <otsHash>' + 'PendingAttestation(\\'https://a.pool.opentimestamps.org\\')' for pending; + 'BitcoinBlockHeaderAttestation(953006)' and '# transaction id <64hex>' for upgraded; a different hash for mismatch). (b) Full processor: reuse the harness in services/worker/test/ots-upgrade-processor.behaviour.test.ts (MAGIC header line 19; PROOF_V1/V2) calling processOtsUpgrade from services/worker/src/ots-upgrade.processor.ts; invalid proof = Buffer.from('not a proof') -> expect FAILED MALFORMED_PROOF. (c) hasOtsProofMagic/decideOtsTransition from services/worker/src/ots-state.ts. (d) OTS-01/02 queue probes: enqueueCanonicalJob from packages/shared/src/queue-integrity/enqueue.ts with a fake QueueHandleLike (no Redis). A real-proof probe needs the `ots` CLI and a real .ots file, neither in the repo.", "disposition": "BLOCKED_FIXTURE_CAPABILITY", "evidence": [
+      {"file": "services/worker/test/ots-upgrade-processor.behaviour.test.ts", "line": 19, "snippet": "const MAGIC = Buffer.from(\"004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294\", \"hex\");"}]}
+  ],
+  "findings": [
+    {
+      "localId": "OTS-01",
+      "severity": "P1",
+      "category": "stuck-pipeline / lost follow-up",
+      "title": "After initialization the upgrade follow-up collapses onto the running job itself, so no newly stamped proof is ever upgraded",
+      "affected": {"routes": [], "pages": ["/verify/[id]", "/evidence/[id]"], "jobs": ["ots-upgrade (UpgradeOts)"], "tables": ["Evidence.ots*"], "roles": [], "plans": ["all"]},
+      "evidence": [
+        {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 350, "snippet": "if (init.initialized && init.needsUpgrade) { await enqueueOtsUpgradeJob(evidenceId, { traceId: requestId }).catch("},
+        {"file": "services/worker/src/queue.ts", "line": 500, "snippet": "delayMs: options.delayMs ?? 5 * 60 * 1000, traceparent: currentTraceparent(), selfJobId: options.selfJobId,"},
+        {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 146, "snippet": "const existing = await queue.getJob(jobId); if (existing) { const isSelfReference = input.selfJobId != null && ..."},
+        {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 161, "snippet": "if (isLiveQueueJobState(state)) { return { enqueued: true, jobId, collapsed: true };"},
+        {"file": "services/api/src/services/integrity/ots-anchoring-authority.service.ts", "line": 85, "snippet": "const outcome = await enqueueCanonicalWork({ workName: JOB_NAMES.UPGRADE_OTS, commandId: input.evidenceId,"}
+      ],
+      "observed": "The first ots-upgrade job for a record (id `ots-upgrade-<evidenceId>`, enqueued by finalize or the reconciler) stamps the proof, then calls enqueueOtsUpgradeJob WITHOUT selfJobId. enqueueCanonicalJob looks up the canonical id, finds the caller itself in state 'active', and returns {enqueued:true, collapsed:true} without adding anything. The job completes; no follow-up exists.",
+      "expected": "The init branch passes selfJobId: job.id (as the upgrade branch at line 703-707 does) so a delayed follow-up is scheduled.",
+      "dataFlow": "evidence-complete.service.ts:1454 requestEvidenceOtsAnchoring -> enqueueCanonicalJob(id=ots-upgrade-<id>) -> processOtsUpgrade (no proof) -> ensureEvidenceOtsInitialized writes PENDING -> enqueueOtsUpgradeJob (collapse onto self) -> job completes -> row PENDING with no job.",
+      "rootCause": "The selfJobId escape hatch added for the production 'stuck PENDING' incident was applied only to the upgrade branch, not to the init branch that runs under the same canonical id.",
+      "blastRadius": "Every record finalized since initialization moved into the ots-upgrade queue (all plans). Records stamped through any path that runs init inside a canonical-id job.",
+      "impact": "OTS proofs never progress from PENDING to anchored automatically; 30-day budget never fires (no observation), so rows stay PENDING indefinitely; ops shows HIGH pending_aged with guidance saying the ladder is still running (OTS-03). Public anchoring promise silently unmet.",
+      "reproduction": "Finalize a record with OTS_ENABLED=true; after the init job completes, inspect BullMQ: no delayed `ots-upgrade-<id>` or `-next-` job exists; Evidence.otsStatus stays PENDING and otsUpgradedAtUtc never changes.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "No Redis needed: call enqueueCanonicalJob (packages/shared/src/queue-integrity/enqueue.ts) with a fake queue whose getJob('ots-upgrade-ev1') returns {id:'ots-upgrade-ev1', getState: async()=>'active', remove} and whose add records calls, passing no selfJobId -> expect add() never called and {collapsed:true}. Then a processor-level probe: run processOtsUpgrade with a job id 'ots-upgrade-ev1', the real queue.ts against local Redis (P7_TEST_REDIS_URL) and ensureEvidenceOtsInitialized mocked to {initialized:true, needsUpgrade:true}; assert otsUpgradeQueue.getDelayed() is empty afterwards.",
+      "remediation": "Pass `selfJobId: job.id` and an explicit upgrade delay in the init branch (ots-upgrade.processor.ts:351); add a behaviour test that does not mock queue.js collapse semantics.",
+      "acceptanceProof": "Processor probe against real BullMQ shows a delayed follow-up job after initialization; end-to-end a fresh record reaches an upgrade attempt within the delay.",
+      "migrationBackfill": "Re-enqueue every Evidence with otsStatus='PENDING' and no live ots-upgrade job (one-off script using enqueueOtsUpgradeJob).",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "OTS-02",
+      "severity": "P1",
+      "category": "stuck-pipeline / silent enqueue no-op",
+      "title": "Self follow-up job id `-next-` is deterministic and collides with its own retained completed job, so the ladder dies silently on the third hop",
+      "affected": {"routes": [], "pages": [], "jobs": ["ots-upgrade"], "tables": ["Evidence.ots*"], "roles": [], "plans": ["all"]},
+      "evidence": [
+        {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 156, "snippet": "jobId = `${jobId}-next-${(existing.id ?? \"self\").toString().slice(-8)}-${ (payload.commandId.length + jobId.length) % 997 }`;"},
+        {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 174, "snippet": "await queue.add(entry.workName, payload, { jobId, ... removeOnComplete: input.removeOnComplete ?? 100,"},
+        {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 72, "snippet": "BullMQ IGNORES an `add` whose jobId already exists — INCLUDING a retained completed or failed job — and still returns a Job object."},
+        {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 703, "snippet": "await enqueueOtsUpgradeJob(evidenceId, { delayMs: 60 * 60 * 1000, traceId: \"ots_followup\", selfJobId: job.id,"}
+      ],
+      "observed": "Hop 1: job A=`ots-upgrade-<id>` schedules B=`ots-upgrade-<id>-next-<last8>-<n>` (deterministic). Hop 2: B finds A completed, removes it, re-adds A. Hop 3: A is self, computes the SAME B id; B is still in the completed set (removeOnComplete keeps the last 100 completions queue-wide), so the self-reference branch skips the existence check and queue.add is ignored while returning enqueued:true.",
+      "expected": "The self-reference branch must also release/validate an existing job under the discriminated id (or alternate between two ids with remove-if-spent), and must never report a schedule it did not make.",
+      "dataFlow": "processOtsUpgrade PENDING -> enqueueOtsUpgradeJob(selfJobId) -> enqueueCanonicalJob self-reference branch -> queue.add(duplicate id) ignored -> no future job.",
+      "rootCause": "The discriminated id contains no nonce and the self-reference branch bypasses the spent-job release that the normal branch performs.",
+      "blastRadius": "Any PENDING record once its ladder is running (after an operator RESUME, or after OTS-01 is fixed), in any deployment with fewer than ~100 ots-upgrade completions per follow-up interval.",
+      "impact": "PENDING proofs stop being upgraded after ~2 hours with no log or error; budget never fires; row stays PENDING indefinitely.",
+      "reproduction": "Against local Redis: enqueue A, run it (PENDING observation), let B run, let A run again; inspect getDelayed(): empty, while logs report the follow-up enqueued.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Pure probe: call enqueueCanonicalJob twice with a fake queue where getJob(canonical) returns {id: canonical} and selfJobId=canonical; assert both calls compute the identical jobId. BullMQ probe (local Redis via P7_TEST_REDIS_URL): queue.add(name, data, {jobId:X}); move to completed; queue.add again with jobId X -> assert getJob(X).finishedOn unchanged and no new delayed job.",
+      "remediation": "In the self-reference branch, getJob(discriminatedId) and remove it when not live (or include a monotonic nonce and dedupe via a durable row); report enqueued:false when add is a no-op (check returned job.timestamp).",
+      "acceptanceProof": "Real-BullMQ test runs >=4 hops for one evidence id and observes a delayed job after each hop.",
+      "migrationBackfill": "Same re-enqueue of PENDING rows as OTS-01.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "OTS-03",
+      "severity": "P2",
+      "category": "missing recovery / misleading operator guidance",
+      "title": "No automatic or operator recovery exists for a PENDING (or FAILED) row whose job is gone; pending_aged guidance falsely says the ladder is still running",
+      "affected": {"routes": ["Operations remediation"], "pages": ["/operations"], "jobs": ["lifecycle-recovery", "ots-upgrade"], "tables": ["Evidence", "OperationalIncident"], "roles": ["operator"], "plans": ["all"]},
+      "evidence": [
+        {"file": "services/worker/src/ots-initialization-reconciler.ts", "line": 119, "snippet": "export function neverAttemptedOtsWhere(...) { return { deletedAt: null, fingerprintCanonicalJson: { not: null }, otsStatus: null, otsProofBase64: null,"},
+        {"file": "services/api/src/services/operations/remediation-registry.ts", "line": 296, "snippet": "ots_pending_aged: { disposition: \"READ_ONLY_GUIDANCE\", guidance: \"... the upgrade ladder is still running inside its budget, so this resolves on its own. No manual action is available\""},
+        {"file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts", "line": 847, "snippet": "\"The platform continues its own anchoring attempts on their existing schedule; nothing here retries, re-anchors or alters a proof.\""},
+        {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 548, "snippet": "if (observation.kind === \"PENDING\" && effectiveStatus !== \"ANCHORED\") { const budgetStart = await loadOtsBudgetStart(evidenceId);"}
+      ],
+      "observed": "The only OTS reconciler scans otsStatus NULL. A PENDING row with no live job (OTS-01, OTS-02, exhausted 20 retries, Redis loss) is never re-enqueued; the budget cannot fire without a running job; the operator condition offers no action and states the opposite of the truth.",
+      "expected": "A reconciler re-enqueues PENDING rows with no live job (e.g. otsUpgradedAtUtc older than 2x the follow-up interval), and ots_pending_aged offers RESUME.",
+      "dataFlow": "PENDING row -> no job -> reconciler skips (status not null) -> ops discovery opens ots_pending_aged -> remediation registry READ_ONLY_GUIDANCE -> nothing.",
+      "rootCause": "Recovery modelled only the finalize->enqueue handoff; the ladder was assumed self-sustaining.",
+      "blastRadius": "All PENDING rows whose ladder broke; combined with OTS-01 this is every new record.",
+      "impact": "Unrecoverable stuck PENDING except via admin queue replay (only for FAILED jobs, step-up) or manual scripts; operators told nothing is needed.",
+      "reproduction": "Set a row to PENDING with no job; run runLifecycleRecovery; no enqueue; ops shows HIGH after 72h with no action.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Integration: seed Evidence(otsStatus='PENDING', otsProofBase64=<MAGIC+bytes>, createdAt=now-2d) in TEST_DATABASE_URL; call runOtsInitializationReconciler({minAgeMs:0}) from services/worker/src/ots-initialization-reconciler.ts -> scanned=0; call entryForIncident({category:'EVIDENCE_INTEGRITY', fingerprint:'ots_pending_aged:<id>'}) from remediation-registry.ts -> no action.",
+      "remediation": "Add a PENDING-without-live-job arm to the reconciler (via enqueueOtsUpgradeJob, collapse-safe), give ots_pending_aged the RESUME action, and correct both guidance strings.",
+      "acceptanceProof": "Reconciler test re-enqueues a stale PENDING row and skips one with a live job; ops entry exposes ots.resume_anchoring.",
+      "migrationBackfill": "none (the reconciler itself drains the backlog)",
+      "dependency": "OTS-01, OTS-02",
+      "ownerDecision": null
+    },
+    {
+      "localId": "OTS-04",
+      "severity": "P2",
+      "category": "transient failure persisted as integrity failure",
+      "title": "A calendar/network failure during `ots stamp` is persisted as per-record FAILED (no proof), never retried automatically, and its raw error text is shown publicly",
+      "affected": {"routes": ["GET /public/verify/:id", "GET /v1/evidence/:id/review-workspace"], "pages": ["/verify/[id]"], "jobs": ["ots-upgrade"], "tables": ["Evidence.otsStatus", "Evidence.otsFailureReason"], "roles": ["public"], "plans": ["all"]},
+      "evidence": [
+        {"file": "services/worker/src/ots.service.ts", "line": 348, "snippet": "} catch (error) { const message = normalizeErrorMessage(error); ... return { status: \"FAILED\", proofBase64: null, ... failureReason: message,"},
+        {"file": "services/worker/src/ots-lifecycle.ts", "line": 266, "snippet": "data: buildOtsEvidenceUpdateData({ ...stamp, existingBitcoinTxid: evidence.otsBitcoinTxid ?? null, })"},
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 13893, "snippet": "failureReason: evidence.otsFailureReason ?? null,"},
+        {"file": "services/worker/src/report-v2/truth-model.ts", "line": 245, "snippet": "body: `OpenTimestamps processing reported a failure state.${safe(failureReason, \"\") ? ` ${safe(failureReason)}` : \"\"}`.trim(),"}
+      ],
+      "observed": "createOpenTimestamp converts every error from execFile('ots stamp') (timeout, DNS, calendar 5xx) into a returned FAILED with proof NULL and failureReason = raw error message (e.g. 'Command failed: ots stamp -c ... /tmp/ots-XXXX/fingerprint-<id>.json ...'). The initializer persists it, emits OTS_FAILED, and the job completes. The reconciler skips non-NULL status.",
+      "expected": "Stamp-call failures that are not about the record are thrown (OtsInitializationTransientError) so the 20-attempt retry budget applies and the row stays NULL; failureReason shown to users is a bounded code.",
+      "dataFlow": "processOtsUpgrade -> ensureEvidenceOtsInitialized -> createOpenTimestamp catch -> FAILED -> Evidence.otsStatus=FAILED -> public verify FAILED badge + raw reason; ops ots_failure.",
+      "rootCause": "The failure-vocabulary split described in ots-lifecycle.ts:495-535 is implemented on the wrong side of the try in ots.service.ts.",
+      "blastRadius": "Every record finalized during a calendar outage.",
+      "impact": "Records publicly display 'OpenTimestamps anchoring failed' for a transient outage; each needs a manual operator RESUME; internal temp paths/command lines exposed on public verify and in PDFs.",
+      "reproduction": "Set OTS_CALENDAR_URL to an unreachable host locally, finalize a record: Evidence.otsStatus=FAILED, otsProofBase64 NULL, no retry job.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Call createOpenTimestamp({content: Buffer.from('x')}) from services/worker/src/ots.service.ts with OTS_ENABLED=true and OTS_BIN pointing to a script that exits 1 with 'Connection timed out' -> returns status FAILED with raw failureReason (no network contact).",
+      "remediation": "Throw on stamp execFile failures (keep structured FAILED only for record-specific outcomes), map otsFailureReason to a bounded code for public surfaces.",
+      "acceptanceProof": "Unit test: stamp error -> OtsInitializationTransientError, row stays NULL; public verify never returns free-form failure text.",
+      "migrationBackfill": "Rows with otsStatus=FAILED AND otsProofBase64 IS NULL and a non-code failureReason: reset to NULL (via ots-state writer) so the reconciler re-stamps; owner to confirm.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "OTS-05",
+      "severity": "P3",
+      "category": "latent false-success heuristic",
+      "title": "Initializer still promotes to ANCHORED from `ots upgrade` text alone (heuristic removed elsewhere); such an anchor is never re-checked when a txid is present",
+      "affected": {"routes": [], "pages": ["/verify/[id]"], "jobs": ["ots-upgrade"], "tables": ["Evidence.ots*"], "roles": [], "plans": []},
+      "evidence": [
+        {"file": "services/worker/src/ots.service.ts", "line": 250, "snippet": "const ok = shouldTreatOtsAsAnchored(parsedUpgrade);"},
+        {"file": "services/worker/src/ots-upgrade-output.ts", "line": 50, "snippet": "lower.includes(\"success! timestamp complete\") || lower.includes(\"timestamp complete\") || lower.includes(\"bitcoin transaction\")"},
+        {"file": "services/worker/src/ots-lifecycle.ts", "line": 339, "snippet": "return stamp.status === \"ANCHORED\" && !stamp.bitcoinTxid;"},
+        {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 399, "snippet": "(effectiveStatus === \"ANCHORED\" && hasDefensibleTxid) ||"}
+      ],
+      "observed": "createOpenTimestamp returns ANCHORED when upgrade output contains 'timestamp complete' or 'bitcoin transaction' and no pending phrase, with no hash check and no block attestation check; persisted with anchorCheck NULL; if a txid was parsed (generic 64-hex fallback in parseTxid) no follow-up runs and the processor skips it forever.",
+      "expected": "Initialization never writes ANCHORED; it writes PENDING and lets the upgrade classifier (verify/info) establish the anchor.",
+      "dataFlow": "stamp -> immediate upgrade -> text heuristic -> ANCHORED (anchorCheck NULL) -> claim ANCHORED_NOT_CHECKED.",
+      "rootCause": "The 2026-09-29 removal of the text-only promotion covered classifyOtsResult but not createOpenTimestamp.",
+      "blastRadius": "Practically unreachable with real calendars for a seconds-old stamp; latent.",
+      "impact": "Would display 'anchored to a Bitcoin block' without any attestation evidence; never VERIFIED (claim is honest about the chain check).",
+      "reproduction": "OTS_BIN stub printing 'Success! Timestamp complete' on upgrade.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "createOpenTimestamp with OTS_BIN stub: `stamp` writes <file>.ots with MAGIC bytes, `upgrade` prints 'Success! Timestamp complete' -> status ANCHORED.",
+      "remediation": "Drop the anchored branch from createOpenTimestamp (return PENDING, needsUpgrade true).",
+      "acceptanceProof": "Unit test: any upgrade text at init yields PENDING.",
+      "migrationBackfill": "Rows ANCHORED with otsAnchorCheck NULL and first custody otsPhase 'anchored' at initialization: re-check via processor.",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "OTS-06",
+      "severity": "P3",
+      "category": "stuck state",
+      "title": "A header-valid but unparseable proof (or block attestation without readable txid) is treated as transient forever and never reaches a terminal state",
+      "affected": {"routes": [], "pages": [], "jobs": ["ots-upgrade"], "tables": ["Evidence.ots*"], "roles": [], "plans": []},
+      "evidence": [
+        {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 532, "snippet": "observation = { kind: \"TRANSIENT_ERROR\", reason: inconclusiveCheckReason({ infoStatus: infoResult.status, info, expectedHash }),"},
+        {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 249, "snippet": "the proof carries a Bitcoin block attestation but no transaction id could be read; the anchor is neither recorded nor withdrawn."}
+      ],
+      "observed": "Deterministic parse failures are routed to TRANSIENT_ERROR; after 20 BullMQ attempts the job fails and the row stays PENDING (then OTS-03 applies).",
+      "expected": "Repeated deterministic `ots info` parse failure -> MALFORMED_PROOF; attested-without-txid -> anchor recorded as PROOF_STRUCTURE (txid optional for the not-checked claim).",
+      "dataFlow": "info ERROR -> TRANSIENT -> throw -> retries -> failed job.",
+      "rootCause": "No distinction between network-transient and deterministic proof-read failures.",
+      "blastRadius": "Corrupt stored proofs; proofs whose ots info output lacks a txid line.",
+      "impact": "Stuck PENDING with HIGH ops condition and no action.",
+      "reproduction": "Store MAGIC + garbage as otsProofBase64 and run processOtsUpgrade with a real `ots` binary.",
+      "runtimeProofNeeded": true,
+      "runtimeProofIdea": "Behaviour-test harness (ots-upgrade-processor.behaviour.test.ts) with h.info = {status:'ERROR', info:null} repeated -> each run throws OTS_UPGRADE_ATTEMPT_FAILED, row unchanged.",
+      "remediation": "Classify deterministic info failures as MALFORMED_PROOF after N consecutive identical results; accept attested proofs without txid as PROOF_STRUCTURE.",
+      "acceptanceProof": "Behaviour test reaches terminal FAILED MALFORMED_PROOF.",
+      "migrationBackfill": "none",
+      "dependency": "OTS-03",
+      "ownerDecision": null
+    },
+    {
+      "localId": "OTS-07",
+      "severity": "P3",
+      "category": "package wording",
+      "title": "Package verification hint `ots verify opentimestamps-proof.ots` cannot succeed; the stamped file is fingerprint.json",
+      "affected": {"routes": [], "pages": [], "jobs": ["verification package"], "tables": [], "roles": ["external reviewer"], "plans": []},
+      "evidence": [
+        {"file": "services/worker/src/verification-package.ts", "line": 887, "snippet": "? \"Verify with: ots verify opentimestamps-proof.ots\""},
+        {"file": "services/worker/src/verification-package.ts", "line": 2776, "snippet": "\"fingerprint.json\", textBuffer(data.fingerprint),"}
+      ],
+      "observed": "`ots verify X.ots` looks for target file X (`opentimestamps-proof`), which is not in the package; the committed bytes are fingerprint.json.",
+      "expected": "`ots verify -f fingerprint.json opentimestamps-proof.ots` (or -d <fingerprintHash>).",
+      "dataFlow": "package companion -> reviewer instruction.",
+      "rootCause": "Proof renamed without adjusting the hint.",
+      "blastRadius": "Every package with a proof.",
+      "impact": "Independent verification instruction fails for reviewers.",
+      "reproduction": "Unzip a package and run the hint with the ots client.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "decideOtsPackageArtifact({status:'PENDING', proofBase64:<b64>}) -> inspect companion.verificationHint.",
+      "remediation": "Change hint to reference fingerprint.json.",
+      "acceptanceProof": "Hint string test.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    },
+    {
+      "localId": "OTS-08",
+      "severity": "P3",
+      "category": "operator outcome mislabel",
+      "title": "requestEvidenceOtsAnchoring can never return 'collapsed', so Operations reports QUEUED when it joined (or no-op'd onto) existing work",
+      "affected": {"routes": ["Operations remediation execute"], "pages": ["/operations"], "jobs": ["ots-upgrade"], "tables": [], "roles": ["operator"], "plans": []},
+      "evidence": [
+        {"file": "services/api/src/services/integrity/ots-anchoring-authority.service.ts", "line": 91, "snippet": "if (outcome.enqueued) return { requested: true, jobId: outcome.jobId };"},
+        {"file": "packages/shared/src/queue-integrity/enqueue.ts", "line": 162, "snippet": "return { enqueued: true, jobId, collapsed: true };"}
+      ],
+      "observed": "Collapse returns enqueued:true, so the 'collapsed' branch and ALREADY_IN_PROGRESS outcome are unreachable; reconciler counts collapses as 'enqueued' too (ots-initialization-reconciler.ts:203).",
+      "expected": "Check outcome.collapsed.",
+      "dataFlow": "remediation-executor.ts:265 -> authority -> enqueueCanonicalWork.",
+      "rootCause": "Outcome shape change not propagated.",
+      "blastRadius": "Operator console and reconciler metrics.",
+      "impact": "Misleading operator feedback/metrics.",
+      "reproduction": "Execute RESUME twice quickly; second reports QUEUED.",
+      "runtimeProofNeeded": false,
+      "runtimeProofIdea": "Unit: stub enqueueCanonicalWork -> {enqueued:true, collapsed:true}; expect reason 'collapsed'.",
+      "remediation": "Branch on outcome.collapsed in authority and reconciler.",
+      "acceptanceProof": "Unit test.",
+      "migrationBackfill": "none",
+      "dependency": "none",
+      "ownerDecision": null
+    }
+  ],
+  "questions": [
+    {"q": "Does any production worker have a Bitcoin node configured? If not, BITCOIN_VERIFIED (green 'ANCHORED · VERIFIED') is unreachable and every anchor is PROOF_STRUCTURE; processor never re-checks PROOF_STRUCTURE anchors (early exit), so enabling a node later would not upgrade existing anchors.", "evidence": [{"file": "services/worker/Dockerfile", "line": 199, "snippet": "RUN /opt/ots-venv/bin/pip install --no-cache-dir opentimestamps-client"}, {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 398, "snippet": "isCheckedOtsAnchor(snapshot) ||"}]},
+    {"q": "DISABLED rows (stamped while OTS_ENABLED=false) are never re-entered after enabling OTS; NULL rows older than 30 days are left to a manual script while ots_initialization_stalled guidance says 'PROOVRA retries this automatically'. Intended?", "evidence": [{"file": "services/worker/src/ots-initialization-reconciler.ts", "line": 102, "snippet": "const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;"}, {"file": "services/api/src/services/operations/remediation-registry.ts", "line": 289, "snippet": "PROOVRA retries this automatically on a scheduled sweep"}]},
+    {"q": "parseTxid in upgrade output falls back to ANY 64-hex string when the text mentions 'bitcoin'/'blockchain' (e.g. 'Pending confirmation in Bitcoin blockchain'); could a non-txid hash be persisted as otsBitcoinTxid and displayed as a Bitcoin transaction?", "evidence": [{"file": "services/worker/src/ots-upgrade-output.ts", "line": 41, "snippet": "if (hasBitcoinContext(text)) { const genericMatch = text.match(/\\b([a-f0-9]{64})\\b/i);"}]},
+    {"q": "PROOF_STRUCTURE anchors record anchoredAtUtc = worker observation time (block time unknown) and surfaces display it as the anchor time; acceptable (it is later than the true block time) or should it be labelled 'recorded at'?", "evidence": [{"file": "services/worker/src/ots-state.ts", "line": 256, "snippet": "observation.blockTimeUtc ?? (effective === \"ANCHORED\" ? row.otsAnchoredAtUtc : null) ?? observedAt;"}]}
+  ],
+  "coverage": {
+    "filesRead": [
+      "services/worker/src/ots.service.ts",
+      "services/worker/src/ots-state.ts",
+      "services/worker/src/ots-lifecycle.ts",
+      "services/worker/src/ots-upgrade.processor.ts",
+      "services/worker/src/ots-upgrade-output.ts",
+      "services/worker/src/ots-initialization-reconciler.ts",
+      "services/worker/src/lifecycle-recovery.ts",
+      "services/worker/src/index.ts (OTS worker registration, failed handler, lifecycle recovery scheduler)",
+      "services/worker/src/queue.ts (otsUpgradeQueue, enqueueOtsUpgradeJob)",
+      "packages/shared/src/queue-integrity/enqueue.ts",
+      "packages/shared/src/queue-integrity/retry-policy.ts (TIMESTAMP_AUTHORITY)",
+      "packages/shared/src/ots.ts",
+      "packages/shared/src/anchor.ts (deriveAnchorSemantics)",
+      "packages/shared-runtime/src/ops/ots-aging.ts",
+      "services/api/src/services/integrity/ots-anchoring-authority.service.ts",
+      "services/api/src/services/evidence-complete.service.ts (finalize fingerprint + OTS request)",
+      "services/api/src/services/operations/remediation-executor.ts (resumeOtsAnchoring)",
+      "services/api/src/services/operations/remediation-registry.ts (integrity entries)",
+      "services/api/src/services/operations/evidence-integrity-conditions.service.ts (ots_failed / pending_aged / stalled)",
+      "services/api/src/services/operations/queue-replay-safety.service.ts (ots-upgrade replay)",
+      "services/api/src/routes/evidence.routes.ts (review-workspace ots block, /public/verify/:id ots block, buildTechnicalMaterials)",
+      "apps/web/components/verify-v2/_helpers.ts (otsTone)",
+      "services/worker/src/verification-package.ts (decideOtsPackageArtifact, ANCHOR STATUS text, package entries)",
+      "services/worker/src/report-v2/truth-model.ts (buildOtsCallout, buildAnchorPublicationSummary)",
+      "services/worker/src/processor.ts (buildFinalizedAnchorPayload, otsHashMatches)",
+      "services/worker/test/ots-upgrade-processor.behaviour.test.ts (harness only)",
+      "services/worker/Dockerfile, infra/docker/docker-compose.prod.yml (OTS env)"
+    ],
+    "notReviewed": [
+      "apps/mobile OTS rendering (uses the same shared resolveOtsAnchorClaim/otsClaimBadge; not traced)",
+      "services/worker/src/scripts/* OTS scripts (manual, operator-gated; only headers read)",
+      "report-v2/normalizers.ts OTS rows beyond confirming they use resolveOtsAnchorClaim",
+      "BullMQ runtime semantics (duplicate-id no-op, stalled recovery) not executed — relied on the codebase's own documented contract at enqueue.ts:72-73; runtime proof requested",
+      "remediation-executor teamId scoping for personal (teamId NULL) evidence — outside OTS domain"
+    ]
+  }
+}

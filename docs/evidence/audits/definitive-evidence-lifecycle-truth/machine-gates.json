@@ -1,0 +1,56 @@
+[
+  {
+    "id": 23,
+    "name": "Regeneration twice yields zero diff",
+    "ok": true,
+    "detail": "build+render run twice; byte-compared JSON and Markdown"
+  },
+  {
+    "id": 19,
+    "name": "Findings have unique IDs",
+    "ok": true,
+    "detail": "153 ids, 153 unique"
+  },
+  {
+    "id": 20,
+    "name": "Severity counts equal unique findings",
+    "ok": true,
+    "detail": "P0..P3 = 6/20/77/50 sum 153; findings 153"
+  },
+  {
+    "id": 21,
+    "name": "JSON and Markdown totals agree",
+    "ok": true,
+    "detail": "md finding headings 153; totals line present true"
+  },
+  {
+    "id": 22,
+    "name": "Renderer fails on missing mandatory fields",
+    "ok": true,
+    "detail": "finding.remediation: exit 1; finding.evidence: exit 1; section.backlog: exit 1; meta.productionContacted: exit 1"
+  },
+  {
+    "id": 24,
+    "name": "No product file changed",
+    "ok": true,
+    "detail": "0 committed + 52 working paths, all under docs/evidence/audits/"
+  },
+  {
+    "id": 25,
+    "name": "No Production system contacted",
+    "ok": true,
+    "detail": "25 recorded endpoints; non-loopback 0"
+  },
+  {
+    "id": "1-18",
+    "name": "Content gates each carry an explicit adjudicated status",
+    "ok": true,
+    "detail": "18/18 recorded; FAIL 0"
+  },
+  {
+    "id": "no-unknown",
+    "name": "No UNKNOWN or NOT_REVIEWED disposition",
+    "ok": true,
+    "detail": "scanned canonical JSON"
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "probe": "RT-UPL/UPL-01",
+  "actor": "teamA MEMBER (not the evidence owner)",
+  "evidenceStatus": "SIGNED",
+  "steps": {
+    "createSession": 201,
+    "initiate": 200,
+    "presign": 200,
+    "put": 200,
+    "markUploaded": 200,
+    "multipartComplete": 200
+  },
+  "responses": {
+    "create": "{\"session\":{\"id\":\"8bd3996f-3fe6-49ad-a64f-5b97edad5a56\",\"evidenceId\":\"7ccd300e-ff64-4ce2-a71b-41cf44eb8715\",\"state\":\"INITIATED\",\"expectedPartCount\":1,\"expectedTotalBytes\":null,\"expectedSha256\":null,\"s",
+    "complete": "{\"etag\":\"\\\"b7eaff4a6bd4c2a05cfceb0907cfa351-1\\\"\",\"contentLength\":51,\"serverSha256\":\"f755a30c460f805f54f96eb8e5573dc792e02b05df211f987e48145684966a32\"}"
+  },
+  "partsBefore": 1,
+  "partsAfter": [
+    {
+      "partIndex": 0,
+      "originalFileName": null,
+      "uploadedAtUtcNull": false,
+      "sha256": "e1b80e935f094097529943ca2a42e8fb56901fbaa274495a725efbbde4b4374e"
+    },
+    {
+      "partIndex": 9999,
+      "originalFileName": "injected.png",
+      "uploadedAtUtcNull": true,
+      "sha256": "f755a30c460f805f54f96eb8e5573dc792e02b05df211f987e48145684966a32"
+    }
+  ],
+  "injectedBytesSha256": "f755a30c460f805f54f96eb8e5573dc792e02b05df211f987e48145684966a32",
+  "workerCompositeAfterInjection": "de51328a87332ed61098de627a76678d0f9a012e60c0e97c14634b176ebb97ba",
+  "storedFileSha256": "e1b80e935f094097529943ca2a42e8fb56901fbaa274495a725efbbde4b4374e",
+  "nextReportRunWouldRejectIntegrity": true
+}
