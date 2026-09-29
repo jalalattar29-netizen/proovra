@@ -1,3 +1,4 @@
+import { remediationAuditOutcome } from "../services/operations/remediation-registry.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -716,7 +717,8 @@ export async function adminSecurityRoutes(app: FastifyInstance) {
       });
       await emitPlatformAudit({
         action: "admin.incident_remediate",
-        outcome: result.result === "FAILED" ? "error" : "success",
+        // ET-REC-07 — the same mapping as the workspace path.
+        outcome: remediationAuditOutcome(result.result),
         sourceApp: "API",
         actorUserId,
         resourceType: "operational_incident",

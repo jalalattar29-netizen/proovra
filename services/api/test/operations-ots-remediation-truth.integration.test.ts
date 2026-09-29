@@ -135,4 +135,38 @@ describe("OTS remediation truth (live PostgreSQL 16)", () => {
     const second = await requestEvidenceOtsAnchoring({ evidenceId, trigger: "operations.remediation" });
     expect(second).toMatchObject({ requested: false, reason: "collapsed" });
   });
+
+  it("ET-REC-07: an intent already satisfied is audited as success, not error", async () => {
+    const A = h.fixtures.teamA;
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
+    const evidenceId = (
+      await prisma.evidence.create({
+        data: { title: "anchored", type: "PHOTO", status: "SIGNED", teamId: A.teamId, organizationId: team.organizationId, ownerUserId: A.ownerUserId, otsStatus: "ANCHORED" } as never,
+        select: { id: true },
+      })
+    ).id;
+    const incidents = await import("../src/services/observability/incident.service.js");
+    const { incident } = await incidents.recordIncident({
+      teamId: A.teamId,
+      sourceId: "evidence_integrity.ots_failure",
+      category: "EVIDENCE_INTEGRITY",
+      severity: "HIGH",
+      fingerprint: `ots_failure:${evidenceId}`,
+      title: "OpenTimestamps anchor failed",
+      safeSummary: "stale condition",
+      relatedEvidenceId: evidenceId,
+    } as never);
+    const res = await h.app.inject({
+      method: "POST",
+      url: `/v1/ops/incidents/${incident.id}/remediate`,
+      headers: { authorization: `Bearer ${A.ownerToken}`, "content-type": "application/json" },
+      payload: JSON.stringify({ teamId: A.teamId, actionId: "ots.resume_anchoring" }),
+    });
+    expect((res.json() as { remediation: { result: string } }).remediation.result).toBe("ALREADY_SATISFIED");
+    const row = await prisma.adminAuditLog.findFirst({
+      where: { action: "operations.remediation.ots.resume_anchoring", resourceId: incident.id },
+      select: { outcome: true },
+    });
+    expect(row?.outcome).toBe("success");
+  });
 });

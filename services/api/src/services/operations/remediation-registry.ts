@@ -120,6 +120,35 @@ export const REMEDIATION_RESULTS = [
 ] as const;
 export type RemediationResult = (typeof REMEDIATION_RESULTS)[number];
 
+/**
+ * THE AUDIT OUTCOME OF A REMEDIATION ANSWER (ET-REC-07, 2026-09-29) — one
+ * mapping for the workspace and the platform paths.
+ *
+ * They disagreed: the platform path recorded "success" for NOT_ELIGIBLE,
+ * REFUSED and QUEUE_UNAVAILABLE, and the workspace path recorded
+ * ALREADY_SATISFIED / ALREADY_IN_PROGRESS as "error". The result code was in
+ * metadata, but the outcome column an access review filters on was wrong.
+ *
+ *   success — the intent is met or being met (queued, already running,
+ *             already satisfied);
+ *   denied  — we said no (refused, not eligible);
+ *   error   — the work could not be accepted (queue unavailable, failed).
+ */
+export function remediationAuditOutcome(result: RemediationResult): "success" | "denied" | "error" {
+  switch (result) {
+    case "QUEUED":
+    case "ALREADY_IN_PROGRESS":
+    case "ALREADY_SATISFIED":
+      return "success";
+    case "REFUSED":
+    case "NOT_ELIGIBLE":
+      return "denied";
+    case "QUEUE_UNAVAILABLE":
+    case "FAILED":
+      return "error";
+  }
+}
+
 // ===========================================================================
 // DESCRIPTORS
 // ===========================================================================

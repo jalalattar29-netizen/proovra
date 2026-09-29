@@ -54,6 +54,7 @@ import {
   entryForIncident,
   type RemediationActionId,
   type RemediationResult,
+  remediationAuditOutcome,
 } from "./remediation-registry.js";
 
 export type ExecuteRemediationInput = {
@@ -171,16 +172,9 @@ export async function executeRemediation(
   await emitTenantAudit(
     {
       action: `operations.remediation.${action.actionId}`,
-      // The canonical vocabulary is success | denied | error. A refusal is
-      // DENIED (an authorization answer); everything else that is not queued
-      // is an ERROR (the work could not be accepted). Collapsing the two would
-      // make an access review unable to tell "we said no" from "it broke".
-      outcome:
-        dispatched.result === "QUEUED"
-          ? "success"
-          : dispatched.result === "REFUSED" || dispatched.result === "NOT_ELIGIBLE"
-            ? "denied"
-            : "error",
+      // THE one mapping (ET-REC-07), shared with the platform path: an intent
+      // already met is not an error, and "we said no" is not "it broke".
+      outcome: remediationAuditOutcome(dispatched.result),
       sourceApp: "API",
       actorUserId: input.actorUserId,
       workspaceId: input.teamId,
@@ -195,9 +189,10 @@ export async function executeRemediation(
         severity: incident.severity,
         reference: dispatched.reference ?? null,
         reason: input.reason?.trim().slice(0, 500) || null,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
       },
+      // ET-CUS-14: masked columns, not hashed metadata.
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
     client,
   ).catch(() => {
