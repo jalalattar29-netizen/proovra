@@ -334,19 +334,22 @@ describe("Phase G1 (F.3) — export eligibility pre-flight", () => {
   it("the eligibility verdict the UI shows is enforced server-side", () => {
     // Without this, a direct API call bypasses the gate the product
     // told the operator was in force.
+    // (2026-09-29, audit M2) Every byte route — report, package AND the
+    // original — asks THE shared download gate, which consults
+    // checkExportEligibility and refuses with the kind's own message.
     const evidenceRoutes = readSource("../src/routes/evidence.routes.ts");
-    const blocks =
-      evidenceRoutes.match(/checkExportEligibility\(\{[\s\S]{0,400}?\}\)/g) ?? [];
-    expect(
-      blocks.length,
-      "report + package download routes must both consult checkExportEligibility",
-    ).toBeGreaterThanOrEqual(2);
-    expect(evidenceRoutes).toMatch(
-      /Report download is blocked by evidence export eligibility/,
-    );
-    expect(evidenceRoutes).toMatch(
-      /Verification package download is blocked by evidence export eligibility/,
-    );
+    const gate = readSource("../src/services/evidence/artifact-download-gate.service.ts");
+    for (const kind of ["report", "package", "original"]) {
+      expect(
+        evidenceRoutes,
+        `the ${kind} download route must call the shared gate`,
+      ).toMatch(new RegExp(`assertArtifactDownloadAllowed\\(req, reply, \\{[\\s\\S]{0,120}kind: "${kind}"`));
+    }
+    expect(gate).toMatch(/checkExportEligibility\(\{ teamId, evidenceId, actorUserId \}\)/);
+    expect(gate).toMatch(/is blocked by evidence export eligibility/);
+    expect(gate).toMatch(/report: "Report download"/);
+    expect(gate).toMatch(/package: "Verification package download"/);
+    expect(gate).toMatch(/original: "Original file download"/);
   });
 
   it("is read-only — never mutates state", () => {

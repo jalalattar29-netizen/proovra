@@ -501,35 +501,40 @@ describe("Download routes (authoritative governance gate)", () => {
   const src = readSource(
     "../../../services/api/src/routes/evidence.routes.ts",
   );
+  const gate = readSource(
+    "../../../services/api/src/services/evidence/artifact-download-gate.service.ts",
+  );
 
   it("GET /v1/evidence/:id/report/latest exists and runs enforceSensitiveAction(\"download_report\", ...)", () => {
     // The latest-report route is registered.
     expect(src).toMatch(/"\/v1\/evidence\/:id\/report\/latest"/);
-    // And the route body invokes the canonical sensitive-action gate
-    // with the download_report action name.
-    expect(src).toMatch(
-      /enforceSensitiveAction\(\s*"download_report"\s*,/,
-    );
+    // (2026-09-29) The route body invokes THE shared download gate, which
+    // runs the canonical sensitive-action gate with download_report.
+    expect(src).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "report"/);
+    expect(gate).toMatch(/report: "download_report"/);
+    expect(gate).toMatch(/enforceSensitiveAction\(SENSITIVE_ACTION\[kind\]/);
   });
 
   it("GET /v1/evidence/:id/verification-package exists and runs enforceSensitiveAction(\"download_package\", ...)", () => {
     expect(src).toMatch(/"\/v1\/evidence\/:id\/verification-package"/);
-    expect(src).toMatch(
-      /enforceSensitiveAction\(\s*"download_package"\s*,/,
-    );
+    expect(src).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "package"/);
+    expect(gate).toMatch(/package: "download_package"/);
   });
 
   it("a blocked decision returns 403/503 — never a signed URL leak", () => {
     // The gate rejects with 403 (or 503 for GOVERNANCE_CHECK_FAILED) and
     // never falls through to the signed-URL response. Assert both code
     // branches exist in the route source.
-    expect(src).toMatch(
+    expect(gate).toMatch(
       /decision\.code === "GOVERNANCE_CHECK_FAILED"\s*\?\s*503\s*:\s*403/,
     );
+    // The route returns the gate's reply before any presign.
+    expect(src).toMatch(/if \(!reportGate\.allowed\) return reportGate\.reply;/);
+    expect(src).toMatch(/if \(!packageGate\.allowed\) return packageGate\.reply;/);
   });
 
   it("custody event EXPORT_BLOCKED_BY_POLICY is appended when a download is blocked (no silent failure)", () => {
-    expect(src).toMatch(
+    expect(gate).toMatch(
       /CustodyEventType\.EXPORT_BLOCKED_BY_POLICY/,
     );
   });

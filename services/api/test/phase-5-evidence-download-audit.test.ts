@@ -170,13 +170,14 @@ describe("Phase 5 — download audit carries actor + evidence id", () => {
     expect(call).toContain("resourceId: id");
   });
 
+  // (2026-09-29, audit M2) The governance decision is THE shared download gate
+  // (artifact-download-gate.service.ts, which calls enforceSensitiveAction
+  // with the kind's action); each route calls it through
+  // assertArtifactDownloadAllowed and returns on refusal. The pin is the same:
+  // the gate's early return precedes the download audit.
   it("report download audit is emitted AFTER the governance gate", () => {
-    // The Phase 9.5 enforceSensitiveAction gate + its EXPORT_BLOCKED
-    // custody event must precede the successful-download audit, so a
-    // blocked download returns before recording a download.
-    const gateIdx = REPORT_ROUTE.indexOf(
-      'enforceSensitiveAction("download_report"',
-    );
+    const gateIdx = REPORT_ROUTE.indexOf("if (!reportGate.allowed) return reportGate.reply;");
+    expect(REPORT_ROUTE).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "report"/);
     const auditIdx = REPORT_ROUTE.indexOf(
       'action: "evidence.report.downloaded"',
     );
@@ -185,9 +186,8 @@ describe("Phase 5 — download audit carries actor + evidence id", () => {
   });
 
   it("verification-package download audit is emitted AFTER the governance gate", () => {
-    const gateIdx = PACKAGE_ROUTE.indexOf(
-      'enforceSensitiveAction("download_package"',
-    );
+    const gateIdx = PACKAGE_ROUTE.indexOf("if (!packageGate.allowed) return packageGate.reply;");
+    expect(PACKAGE_ROUTE).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "package"/);
     const auditIdx = PACKAGE_ROUTE.indexOf(
       'action: "evidence.verification_package.downloaded"',
     );
@@ -196,9 +196,8 @@ describe("Phase 5 — download audit carries actor + evidence id", () => {
   });
 
   it("original download audit is emitted AFTER the governance gate", () => {
-    const gateIdx = ORIGINAL_ROUTE.indexOf(
-      'enforceSensitiveAction("download_original"',
-    );
+    const gateIdx = ORIGINAL_ROUTE.indexOf("if (!originalGate.allowed) return originalGate.reply;");
+    expect(ORIGINAL_ROUTE).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "original"/);
     const auditIdx = ORIGINAL_ROUTE.indexOf(
       'action: "evidence.original.downloaded"',
     );
@@ -213,7 +212,7 @@ describe("Phase 5 — download audit carries actor + evidence id", () => {
     // that builds the response, but is still after the gate + headObject
     // existence check — i.e. the artifact is confirmed servable.)
     const blockedReturnIdx = REPORT_ROUTE.indexOf(
-      "Report download is blocked by workspace governance policy",
+      "if (!reportGate.allowed) return reportGate.reply;",
     );
     const auditIdx = REPORT_ROUTE.indexOf(
       'action: "evidence.report.downloaded"',

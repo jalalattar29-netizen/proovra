@@ -739,9 +739,16 @@ describe("16. VERIFICATION gate wired", () => {
       path.resolve("src/routes/evidence.routes.ts"),
       "utf8",
     );
+    // (2026-09-29) The package download's verification gate is THE shared
+    // download gate, which the route calls with kind "package".
+    const gate = fs.readFileSync(
+      path.resolve("src/services/evidence/artifact-download-gate.service.ts"),
+      "utf8",
+    );
     const found =
       src.includes("gateVerificationAction") ||
-      src.includes("evaluateVerificationPolicy");
+      src.includes("evaluateVerificationPolicy") ||
+      (gate.includes("gateVerificationAction") && /kind: "package"/.test(src));
     expect(found).toBe(true);
   });
 });

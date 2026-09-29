@@ -1245,6 +1245,14 @@ export function resolveEvidenceOutputActions(
 
   // Restrictions and permission withdraw recovery verbs too, but never hide
   // WHY nothing is needed: a READY output keeps NOT_REQUIRED.
+  //
+  // A LEGAL HOLD IS NOT A RESTRICTION HERE — BY RULE (2026-09-29). A hold
+  // preserves: it refuses every destructive or REPLACING action (an updated
+  // report above: LEGAL_HOLD_ACTIVE) and every RELEASE of bytes (export
+  // eligibility at THE download gate, for the original, report, package, case
+  // export and SIU bundle alike). Creating a first missing report or package
+  // replaces nothing and destroys nothing, so it stays available; what it
+  // produces is withheld from download until the hold is released.
   const gate = (d: OutputActionDecision): OutputActionDecision => {
     if (d.action === "NONE") return d;
     if (restriction) return none(restriction);

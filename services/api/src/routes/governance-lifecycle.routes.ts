@@ -42,6 +42,7 @@ import { z } from "zod";
 import type { Permission } from "@proovra/shared";
 
 import { prisma } from "../db.js";
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -1030,8 +1031,20 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
       // signal — same permission level as governance.policy.read.
       const ok = await requireMember(req, reply, query.teamId, "governance.policy.read");
       if (!ok) return;
+      // A Personal record stored with team_id NULL belongs to its owner's
+      // personal workspace (2026-09-29): answered for the PERSISTED value, as
+      // the download gate decides it, instead of "not found" for the id the
+      // client scoped the request to.
+      const row = await prisma.evidence.findUnique({
+        where: { id: query.evidenceId },
+        select: { teamId: true, ownerUserId: true },
+      });
+      const personalRecordOfThisWorkspace =
+        row != null &&
+        row.teamId == null &&
+        (await resolveEvidenceWorkspaceId(row, prisma)) === query.teamId;
       const result = await checkExportEligibility({
-        teamId: query.teamId,
+        teamId: personalRecordOfThisWorkspace ? null : query.teamId,
         evidenceId: query.evidenceId,
         actorUserId: ok.actorUserId,
       });

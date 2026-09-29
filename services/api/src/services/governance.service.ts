@@ -868,6 +868,12 @@ export type SensitiveActionContext = {
    * for-bit.
    */
   consultTemplatePolicy?: boolean;
+  /**
+   * (2026-09-29, audit M2) Set ONLY by a caller that has itself established
+   * that the actor is the Personal owner of a record with no workspace row.
+   * A missing workspace grants nothing on its own.
+   */
+  personalOwnerVerified?: boolean;
 };
 
 export type SensitiveAction =
@@ -890,9 +896,18 @@ export async function enforceSensitiveAction(
   client: PrismaClient = defaultPrisma,
 ): Promise<EnforcementResult> {
   if (!ctx.teamId) {
-    // Personal-scope evidence — Phase 9.5 governance applies only at the
-    // workspace level. Allow.
-    return { allowed: true };
+    // NO WORKSPACE GRANTS NOTHING (2026-09-29, audit M2). Workspace policy has
+    // nothing to evaluate for a Personal record with no workspace row, so the
+    // decision is the Personal-owner rule — which the CALLER must have
+    // established and says so. Anything else (an unresolved workspace, a
+    // caller that forgot to resolve one) is refused, never allowed by default.
+    return ctx.personalOwnerVerified === true
+      ? { allowed: true }
+      : {
+          allowed: false,
+          code: "WORKSPACE_UNRESOLVED",
+          reason: "no_workspace_and_personal_owner_not_established",
+        };
   }
 
   let policy: EffectivePolicy;
@@ -1099,9 +1114,11 @@ async function evaluateWorkspaceSensitiveAction(
           reason: perm.reason,
         };
       }
-      // Legal hold does NOT block original downloads — a hold preserves
-      // the record, it does not seal it from authorized review. The
-      // existing storage object-lock fields handle physical immutability.
+      // The legal hold is NOT decided here (2026-09-29, one rule for every
+      // byte boundary): export eligibility — applied by THE download gate to
+      // the original exactly as to the report and the package — refuses
+      // release while any hold is effective. This function answers only the
+      // workspace policy and role question.
       return { allowed: true };
     }
     case "publish_public_verify": {

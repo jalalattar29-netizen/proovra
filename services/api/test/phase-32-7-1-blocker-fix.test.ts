@@ -279,7 +279,10 @@ describe("Phase 32.7.1 — custody/audit semantics preserved", () => {
   });
 
   it("EXPORT_BLOCKED_BY_POLICY custody event still emitted on governance denial", () => {
-    expect(SRC).toMatch(
+    // (2026-09-29) Written by THE shared download gate the routes call.
+    const gate = readApi("src/services/evidence/artifact-download-gate.service.ts");
+    expect(SRC).toMatch(/assertArtifactDownloadAllowed\(req, reply/);
+    expect(gate).toMatch(
       /prismaPkg\.CustodyEventType\.EXPORT_BLOCKED_BY_POLICY/,
     );
   });

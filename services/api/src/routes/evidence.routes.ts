@@ -2938,13 +2938,49 @@ type ArtifactDownloadGateResult =
   | { allowed: true; teamId: string | null }
   | { allowed: false; reply: unknown; teamId: string | null };
 
+/**
+ * May a record VIEW include presigned ORIGINAL urls for this signed-in viewer
+ * (2026-09-29, audit M2)? THE download gate with kind "original", as a view:
+ * the caller already authorized the read, and a refusal writes no custody
+ * event because nothing was attempted.
+ */
+async function originalReleaseForViewer(evidenceId: string, userId: string): Promise<boolean> {
+  const decision = await evaluateArtifactDownload({
+    evidenceId,
+    actorUserId: userId,
+    kind: "original",
+    readAccess: async () => undefined,
+    recordDenial: false,
+  });
+  return decision.allowed;
+}
+
+/**
+ * May the public Verify page include presigned ORIGINAL urls (2026-09-29,
+ * audit M2)? The surface policy decides whether downloads are offered at all;
+ * export eligibility (legal hold of any scope, trashed / destruction-bound
+ * lifecycle, an active destruction review) can only withdraw them.
+ */
+async function originalReleaseForPublic(evidenceId: string): Promise<boolean> {
+  const row = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { teamId: true },
+  });
+  if (!row) return false;
+  const { checkExportEligibility } = await import(
+    "../services/governance-lifecycle/export-governance.service.js"
+  );
+  const eligibility = await checkExportEligibility({ teamId: row.teamId ?? null, evidenceId });
+  return eligibility.outcome === "ALLOWED";
+}
+
 async function assertArtifactDownloadAllowed(
   req: FastifyRequest,
   reply: FastifyReply,
   input: {
     evidenceId: string;
     actorUserId: string;
-    kind: "report" | "package";
+    kind: "report" | "package" | "original";
   },
 ): Promise<ArtifactDownloadGateResult> {
   // The decision lives in the shared gate (artifact-download-gate.service.ts)
@@ -3620,6 +3656,14 @@ function parseEvidenceMultiEnumFilter<T extends string>(
 
 async function buildPublicEvidenceContent(params: {
   accessPolicy: PublicVerifyContentAccessPolicy;
+  /**
+   * May an ORIGINAL object be presigned for this viewer at all (2026-09-29,
+   * audit M2)? Decided by THE download gate (authenticated) or by export
+   * eligibility (public), never by the surface policy alone: a surface that
+   * allows downloads does not outrank a legal hold, a lifecycle state or the
+   * workspace's original-download policy. Required, so no caller can forget.
+   */
+  originalReleaseAllowed: boolean;
   previews?: Map<
     string,
     {
@@ -3664,7 +3708,7 @@ async function buildPublicEvidenceContent(params: {
 
   const accessPolicy = params.accessPolicy;
   const canExposeContent = accessPolicy.allowContentView;
-  const canDownload = accessPolicy.allowDownload;
+  const canDownload = accessPolicy.allowDownload && params.originalReleaseAllowed;
 
   const buildRoleDecision = (input: {
     privateRole?: string | null;
@@ -6168,24 +6212,16 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
        * presigned every part to anyone with read access. The same decision now
        * governs here: refused, the parts keep their metadata and carry no URL.
        */
-      let originalDownloadAllowed = true;
-      if (evidence.teamId) {
-        const { enforceSensitiveAction } = await import("../services/governance.service.js");
-        const membership = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: evidence.teamId, userId: ownerUserId } },
-          select: { role: true, status: true },
-        });
-        const decision = await enforceSensitiveAction("download_original", {
-          teamId: evidence.teamId,
-          role: membership?.status === "ACTIVE" ? membership.role : undefined,
-          evidence: {
-            id: evidence.id,
-            teamId: evidence.teamId,
-            retentionUntilUtc: evidence.retentionUntilUtc ?? null,
-          },
-        });
-        originalDownloadAllowed = decision.allowed;
-      }
+      const originalDownloadAllowed = (
+        await evaluateArtifactDownload({
+          evidenceId: id,
+          actorUserId: ownerUserId,
+          kind: "original",
+          readAccess: async () => evidence,
+          // A listing is not a download attempt: no custody event.
+          recordDenial: false,
+        })
+      ).allowed;
 
       const enrichedParts = await Promise.all(
         parts.map(async (part) => {
@@ -9157,6 +9193,7 @@ return {
           });
         const content = await buildPublicEvidenceContent({
           accessPolicy: authenticatedContentAccessPolicy,
+  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
           previews: reportPreviewMap,
           evidence: {
             id: evidence.id,
@@ -9989,6 +10026,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
 
 const content = await buildPublicEvidenceContent({
   accessPolicy: authenticatedContentAccessPolicy,
+  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
   evidence: {
     id: evidence.id,
     mimeType: evidence.mimeType,
@@ -10341,6 +10379,7 @@ const authenticatedContentAccessPolicy: PublicVerifyContentAccessPolicy =
 
 const content = await buildPublicEvidenceContent({
   accessPolicy: authenticatedContentAccessPolicy,
+  originalReleaseAllowed: await originalReleaseForViewer(id, ownerUserId),
   evidence: {
     id: refreshed.id,
     mimeType: refreshed.mimeType,
@@ -10966,103 +11005,17 @@ if (
         return reply.code(statusCode).send({ message });
       }
 
-      // Phase 9.5 — gate report download by workspace policy. Fail-closed:
-      // a transient policy lookup blocks the export rather than leaking
-      // a download URL.
-      let reportDownloadTeamId: string | null = null;
-      {
-        const evidenceForGate = await prisma.evidence.findUnique({
-          where: { id },
-          select: { id: true, teamId: true, retentionUntilUtc: true },
-        });
-        reportDownloadTeamId = evidenceForGate?.teamId ?? null;
-        if (evidenceForGate?.teamId) {
-          const { enforceSensitiveAction } = await import(
-            "../services/governance.service.js"
-          );
-          // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-          const membership = await prisma.teamMember.findUnique({
-            where: {
-              teamId_userId: {
-                teamId: evidenceForGate.teamId,
-                userId: ownerUserId,
-              },
-            },
-            select: { role: true, status: true },
-          });
-          const decision = await enforceSensitiveAction("download_report", {
-            teamId: evidenceForGate.teamId,
-            role: membership?.status === "ACTIVE" ? membership.role : undefined,
-            evidence: {
-              id: evidenceForGate.id,
-              teamId: evidenceForGate.teamId,
-              retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
-            },
-            // Phase 5 — opt into the workflow template exportPolicy
-            // overlay (workspace policy still governs first; the
-            // template overlay can only tighten an allowed decision).
-            consultTemplatePolicy: true,
-          });
-          if (!decision.allowed) {
-            await appendCustodyEvent({
-              evidenceId: id,
-              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-              payload: {
-                action: "report_download",
-                reason: decision.reason,
-                actorUserId: ownerUserId,
-              },
-              ip: req.ip,
-              userAgent: req.headers["user-agent"],
-            }).catch(noteCustodyFailure);
-            return reply
-              .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
-              .send({
-                code: decision.code,
-                reason: decision.reason,
-                message:
-                  "Report download is blocked by workspace governance policy.",
-              });
-          }
-
-          // Phase 12 Point 4 — enforce the SAME export-eligibility
-          // verdict the operator UI displays. `GovernedExportAction`
-          // disables this button and shows "Blocked by legal hold /
-          // lifecycle / destruction review" from
-          // `GET /v1/governance/export-eligibility`; before this the
-          // server did not consult that evaluation on the download
-          // path, so a direct API call bypassed the gate the product
-          // told the operator was in force. Fail-closed like the
-          // policy gate above.
-          const { checkExportEligibility } = await import(
-            "../services/governance-lifecycle/export-governance.service.js"
-          );
-          const eligibility = await checkExportEligibility({
-            teamId: evidenceForGate.teamId,
-            evidenceId: evidenceForGate.id,
-            actorUserId: ownerUserId,
-          });
-          if (eligibility.outcome !== "ALLOWED") {
-            await appendCustodyEvent({
-              evidenceId: id,
-              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-              payload: {
-                action: "report_download",
-                reason: eligibility.outcome,
-                actorUserId: ownerUserId,
-              },
-              ip: req.ip,
-              userAgent: req.headers["user-agent"],
-            }).catch(noteCustodyFailure);
-            return reply.code(403).send({
-              code: eligibility.outcome,
-              reason: eligibility.reason,
-              message:
-                "Report download is blocked by evidence export eligibility.",
-            });
-          }
-        }
-      }
+      // Phase 9.5 / Phase 12 Point 4 — THE shared download gate (workspace
+      // policy, template overlay, export eligibility), fail-closed. The inline
+      // copy it was extracted from skipped every rule for a record with no
+      // workspace row (2026-09-29, audit M2); the gate does not.
+      const reportGate = await assertArtifactDownloadAllowed(req, reply, {
+        evidenceId: id,
+        actorUserId: ownerUserId,
+        kind: "report",
+      });
+      if (!reportGate.allowed) return reportGate.reply;
+      const reportDownloadTeamId: string | null = reportGate.teamId;
 
       const latest = await prisma.report.findFirst({
         where: { evidenceId: id },
@@ -11544,52 +11497,16 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         return reply.code(404).send({ message: "Original file not found" });
       }
 
-      // Phase 10 — original-download governance gate. Fail-closed.
-      if (evidence.teamId) {
-        const { enforceSensitiveAction } = await import(
-          "../services/governance.service.js"
-        );
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        const membership = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: {
-              teamId: evidence.teamId,
-              userId: ownerUserId,
-            },
-          },
-          select: { role: true, status: true },
-        });
-        const decision = await enforceSensitiveAction("download_original", {
-          teamId: evidence.teamId,
-          role: membership?.status === "ACTIVE" ? membership.role : undefined,
-          evidence: {
-            id: evidence.id,
-            teamId: evidence.teamId,
-            retentionUntilUtc: evidence.retentionUntilUtc ?? null,
-          },
-        });
-        if (!decision.allowed) {
-          await appendCustodyEvent({
-            evidenceId: id,
-            eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-            payload: {
-              action: "download_original",
-              reason: decision.reason,
-              actorUserId: ownerUserId,
-            },
-            ip: req.ip,
-            userAgent: req.headers["user-agent"],
-          }).catch(noteCustodyFailure);
-          return reply
-            .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
-            .send({
-              code: decision.code,
-              reason: decision.reason,
-              message:
-                "Original file download is blocked by workspace governance policy.",
-            });
-        }
-      }
+      // Phase 10 — original-download governance gate, now THE shared gate
+      // (2026-09-29, audit M2): workspace policy AND export eligibility (legal
+      // hold, lifecycle, destruction review), and for a record with no
+      // workspace row the Personal-owner rule instead of "allowed".
+      const originalGate = await assertArtifactDownloadAllowed(req, reply, {
+        evidenceId: id,
+        actorUserId: ownerUserId,
+        kind: "original",
+      });
+      if (!originalGate.allowed) return originalGate.reply;
 
       const url = await presignGetObject({
         bucket: evidence.storageBucket,
@@ -11778,133 +11695,17 @@ displayName: resolvedDisplayName,
         return reply.code(statusCode).send({ message });
       }
 
-      // Phase 9.5 — gate package download by workspace policy. Fail-closed.
-      let packageDownloadTeamId: string | null = null;
-      {
-        const evidenceForGate = await prisma.evidence.findUnique({
-          where: { id },
-          select: { id: true, teamId: true, retentionUntilUtc: true },
-        });
-        packageDownloadTeamId = evidenceForGate?.teamId ?? null;
-        if (evidenceForGate?.teamId) {
-          const { enforceSensitiveAction } = await import(
-            "../services/governance.service.js"
-          );
-          // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-          const membership = await prisma.teamMember.findUnique({
-            where: {
-              teamId_userId: {
-                teamId: evidenceForGate.teamId,
-                userId: ownerUserId,
-              },
-            },
-            select: { role: true, status: true },
-          });
-          const decision = await enforceSensitiveAction("download_package", {
-            teamId: evidenceForGate.teamId,
-            role: membership?.status === "ACTIVE" ? membership.role : undefined,
-            evidence: {
-              id: evidenceForGate.id,
-              teamId: evidenceForGate.teamId,
-              retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
-            },
-            // Phase 5 — opt into the workflow template exportPolicy
-            // overlay (workspace policy still governs first; the
-            // template overlay can only tighten an allowed decision).
-            consultTemplatePolicy: true,
-          });
-          if (!decision.allowed) {
-            await appendCustodyEvent({
-              evidenceId: id,
-              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-              payload: {
-                action: "verification_package_download",
-                reason: decision.reason,
-                actorUserId: ownerUserId,
-              },
-              ip: req.ip,
-              userAgent: req.headers["user-agent"],
-            }).catch(noteCustodyFailure);
-            return reply
-              .code(decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 403)
-              .send({
-                code: decision.code,
-                reason: decision.reason,
-                message:
-                  "Verification package download is blocked by workspace governance policy.",
-              });
-          }
-
-          // Phase 4A Closure — VERIFICATION policy gate. The Phase 4A
-          // governance engine evaluates effective VERIFICATION policies
-          // (e.g. requireDualApproval on package publish, public-verify
-          // exposure rules) and BLOCKs publish/expose when the policy
-          // denies. Distinct from the Phase 9.5 sensitive-action gate
-          // above: the Phase 9.5 gate enforces role + retention; this
-          // gate enforces the dedicated verification policy kind.
-          const { gateVerificationAction } = await import(
-            "../services/governance/policy-runtime-gates.service.js"
-          );
-          const verifyGate = await gateVerificationAction({
-            teamId: evidenceForGate.teamId,
-            evidenceId: evidenceForGate.id,
-            action: "PUBLISH_PACKAGE",
-          });
-          if (!verifyGate.ok) {
-            await appendCustodyEvent({
-              evidenceId: id,
-              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-              payload: {
-                action: "verification_package_publish_gate",
-                denial: verifyGate.denial,
-                reason: verifyGate.reason,
-                actorUserId: ownerUserId,
-              },
-              ip: req.ip,
-              userAgent: req.headers["user-agent"],
-            }).catch(noteCustodyFailure);
-            return reply.code(403).send({
-              code: "VERIFICATION_POLICY_BLOCKED",
-              denial: verifyGate.denial,
-              reason: verifyGate.reason,
-              message:
-                "Verification package publish is blocked by workspace verification policy.",
-            });
-          }
-
-          // Phase 12 Point 4 — enforce the SAME export-eligibility
-          // verdict the operator UI displays for this button (legal
-          // hold / lifecycle state / active destruction review). See
-          // the matching block on `/report/latest`.
-          const { checkExportEligibility } = await import(
-            "../services/governance-lifecycle/export-governance.service.js"
-          );
-          const eligibility = await checkExportEligibility({
-            teamId: evidenceForGate.teamId,
-            evidenceId: evidenceForGate.id,
-            actorUserId: ownerUserId,
-          });
-          if (eligibility.outcome !== "ALLOWED") {
-            await appendCustodyEvent({
-              evidenceId: id,
-              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-              payload: {
-                action: "verification_package_download",
-                reason: eligibility.outcome,
-                actorUserId: ownerUserId,
-              },
-              ip: req.ip,
-              userAgent: req.headers["user-agent"],
-            }).catch(noteCustodyFailure);
-            return reply.code(403).send({
-              code: eligibility.outcome,
-              reason: eligibility.reason,
-              message:
-                "Verification package download is blocked by evidence export eligibility.",
-            });
-          }
-        }
-      }
+      // Phase 9.5 / Phase 4A / Phase 12 Point 4 — THE shared download gate
+      // (workspace policy, verification publish policy, export eligibility),
+      // fail-closed. The inline copy it was extracted from skipped every rule
+      // for a record with no workspace row (2026-09-29, audit M2).
+      const packageGate = await assertArtifactDownloadAllowed(req, reply, {
+        evidenceId: id,
+        actorUserId: ownerUserId,
+        kind: "package",
+      });
+      if (!packageGate.allowed) return packageGate.reply;
+      const packageDownloadTeamId: string | null = packageGate.teamId;
 
       /*
        * THE PACKAGE PAIRED WITH THE LATEST REPORT. Report v2 beside package v1
@@ -13159,6 +12960,7 @@ const publicVerifyAccessPolicy = resolveEvidenceContentAccessPolicyForSurface({
 });
 const content = await buildPublicEvidenceContent({
   accessPolicy: publicVerifyAccessPolicy,
+  originalReleaseAllowed: await originalReleaseForPublic(evidence.id),
   previews: reportPreviewMap,
   evidence: {
     id: evidence.id,

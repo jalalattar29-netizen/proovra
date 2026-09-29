@@ -7,7 +7,19 @@
  *
  * Hard rules:
  *   - Active legal hold → BLOCKED_BY_HOLD. The hold's existence is
- *     enough; the reason text is never returned.
+ *     enough; the reason text is never returned. (2026-09-29) "Active" is
+ *     THE effective-hold union — evidence, case AND workspace scope — from
+ *     `evaluateEffectiveLegalHold`, fail-closed: a hold state that cannot
+ *     be read blocks. A workspace-scoped hold used to be invisible here.
+ *   - Lifecycle state TRASHED (or a legacy deleted row) → BLOCKED_BY_LIFECYCLE.
+ *
+ * ONE RULE FOR EVERY BYTE BOUNDARY (2026-09-29). This verdict governs the
+ * original, its parts, the report, the package, the case export and the SIU
+ * bundle alike. A hold PRESERVES: it blocks release of bytes out of custody
+ * and every destructive or replacing action, never the in-app record view,
+ * and never the creation of a first missing output (which replaces nothing).
+ * Personal records (no workspace row) are checked too: `teamId` is the
+ * PERSISTED value, null included.
  *   - Lifecycle state ∈ {PENDING_DESTRUCTION, DESTROYED} → BLOCKED_BY_LIFECYCLE.
  *   - Lifecycle state ∈ {ON_HOLD, RETENTION_LOCKED} → BLOCKED_BY_LIFECYCLE
  *     (same outcome class — operator-readable reason carries the detail).
@@ -26,20 +38,22 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import * as prismaPkg from "@prisma/client";
 import {
   type EvidenceLifecycleState,
   type ExportEligibilityResult,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+import { evaluateEffectiveLegalHold } from "../governance/effective-legal-hold.js";
 import { bump } from "../ops/metrics.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 
 const REVIEW_GATING_STATUSES = ["PENDING", "UNDER_REVIEW", "DEFERRED", "APPROVED"];
 
 export type CheckExportEligibilityInput = {
-  teamId: string;
+  /** The record's PERSISTED workspace — null for a Personal record. */
+  teamId: string | null;
   evidenceId: string;
   actorUserId?: string | null;
 };
@@ -53,6 +67,8 @@ export async function checkExportEligibility(
     select: {
       id: true,
       lifecycleState: true,
+      deletedAt: true,
+      ownerUserId: true,
       caseLinks: { select: { caseId: true }, take: 100 },
     },
   });
@@ -65,37 +81,42 @@ export async function checkExportEligibility(
   }
   const lifecycleState = ev.lifecycleState as EvidenceLifecycleState;
 
-  // Hold check FIRST — the most-restrictive signal wins.
-  const directHold = await client.evidenceLegalHold.findFirst({
-    where: {
-      evidenceId: ev.id,
-      status: prismaPkg.LegalHoldStatus.ACTIVE,
-    },
-    select: { id: true },
-  });
-  // Track 1B closure — a hold on ANY linked case blocks the export.
-  let caseHold: { id: string } | null = null;
+  // Hold check FIRST — the most-restrictive signal wins. THE union evaluator
+  // (evidence, case and workspace scope); it throws on a transient failure,
+  // and an unreadable hold state blocks rather than releasing bytes.
   const linkedCaseIds = ev.caseLinks.map((l) => l.caseId);
-  if (!directHold && linkedCaseIds.length > 0) {
-    // PHASE 12 POINT 3 — canonical-only (scope=CASE).
-    caseHold = await client.evidenceLegalHold.findFirst({
-      where: {
-        scope: prismaPkg.LegalHoldScope.CASE,
-        caseId: { in: linkedCaseIds },
-        status: prismaPkg.LegalHoldStatus.ACTIVE,
-      },
-      select: { id: true },
+  let held: { held: boolean; reasonCode: string | null };
+  try {
+    held = await evaluateEffectiveLegalHold(client, {
+      // A Personal record (team_id NULL) is held through its owner's personal
+      // workspace: that is where its holds are recorded (teamId is required).
+      teamId:
+        input.teamId ??
+        (await resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: ev.ownerUserId }, client)),
+      evidenceId: ev.id,
+      caseIds: linkedCaseIds,
     });
+  } catch {
+    held = { held: true, reasonCode: "UNRESOLVED_HOLD" };
   }
-  if (directHold || caseHold) {
+  if (held.held) {
     emitBlocked(input, "BLOCKED_BY_HOLD", {
       lifecycleState,
-      directHold: Boolean(directHold),
-      caseHold: Boolean(caseHold),
+      holdSource: held.reasonCode,
     });
     return {
       outcome: "BLOCKED_BY_HOLD",
       reason: "active_legal_hold",
+      lifecycleState,
+    };
+  }
+
+  // A trashed record is not exported (legacy rows carry only deletedAt).
+  if (String(ev.lifecycleState) === "TRASHED" || ev.deletedAt != null) {
+    emitBlocked(input, "BLOCKED_BY_LIFECYCLE", { lifecycleState });
+    return {
+      outcome: "BLOCKED_BY_LIFECYCLE",
+      reason: "evidence_trashed",
       lifecycleState,
     };
   }
@@ -140,7 +161,8 @@ export async function checkExportEligibility(
   const activeReview = await client.destructionReview.findFirst({
     where: {
       evidenceId: ev.id,
-      teamId: input.teamId,
+      // A Personal record (no workspace row) is matched by the record alone.
+      ...(input.teamId ? { teamId: input.teamId } : {}),
       status: { in: REVIEW_GATING_STATUSES },
     },
     select: { id: true, status: true },

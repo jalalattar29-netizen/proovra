@@ -224,8 +224,15 @@ describe("Phase 32.6.6 — route /v1/evidence/:id/verification-package 410 retir
     // The `enforceSensitiveAction("download_package", ...)` call must
     // still exist for team evidence. Confirm presence by exact action
     // name and that it's gated by `evidenceForGate?.teamId`.
-    expect(SRC).toMatch(/enforceSensitiveAction\("download_package"/);
-    expect(SRC).toMatch(/if \(evidenceForGate\?\.teamId\)/);
+    // (2026-09-29, audit M2) The route calls THE shared download gate with
+    // kind "package"; the gate runs enforceSensitiveAction("download_package")
+    // for team evidence and the Personal-owner rule for a record with no
+    // workspace row — never "allowed" by default.
+    expect(SRC).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "package"/);
+    const gate = readApi("src/services/evidence/artifact-download-gate.service.ts");
+    expect(gate).toMatch(/package: "download_package"/);
+    expect(gate).toMatch(/enforceSensitiveAction\(SENSITIVE_ACTION\[kind\]/);
+    expect(gate).toMatch(/personalOwnerVerified: personalOwner/);
   });
 });
 
