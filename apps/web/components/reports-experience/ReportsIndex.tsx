@@ -401,6 +401,9 @@ export function ReportsIndex() {
   // ET-RPT-05 — the summary has a LOADING phase; "temporarily unavailable"
   // is said only after it was asked for and did not come back.
   const [summaryAnswered, setSummaryAnswered] = useState(false);
+  // True while the list on screen came from the user-scoped fallback, where
+  // workspace totals cannot be computed (ET-RPT-05).
+  const [userScopedView, setUserScopedView] = useState(false);
 
   const loadSummary = useCallback(async () => {
     if (!workspaceId) return;
@@ -496,12 +499,14 @@ export function ReportsIndex() {
         ) {
           const recovered = await tryUserScopedReports(workspaceId);
           if (recovered && isCurrent()) {
+            setUserScopedView(true);
             setState({ status: "ready", envelope: recovered });
             return;
           }
         }
         // The list owns the list. The summary has its own state and its own
         // request, so nothing here can blank it.
+        setUserScopedView(false);
         setState({ status: "ready", envelope });
       } catch (err) {
         // An aborted request is a request we replaced on purpose.
@@ -515,6 +520,7 @@ export function ReportsIndex() {
         if (e.statusCode === 404) {
           const recovered = await tryUserScopedReports(workspaceId);
           if (recovered && isCurrent()) {
+            setUserScopedView(true);
             setState({ status: "ready", envelope: recovered });
             return;
           }
@@ -846,7 +852,7 @@ export function ReportsIndex() {
             >
               {!summaryAnswered
                 ? "Loading the summary…"
-                : state.status === "ready" && state.envelope.workspace.id === "user-scoped"
+                : userScopedView
                   ? "Workspace totals are not available for this view: these records were found through your own account, not through workspace membership. The list below is complete for you."
                   : "Summary is temporarily unavailable. The artifact list below remains usable."}
             </span>

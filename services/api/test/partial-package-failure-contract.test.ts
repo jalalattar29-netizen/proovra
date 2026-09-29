@@ -148,7 +148,9 @@ describe("partial Report/Package failure — the state transition", () => {
     // report v2 beside package v1 is not a pair.
     expect(guard).toContain("version: packageTargetVersion");
     // The return is conditional on completeness, never on the report alone.
-    expect(guard).toMatch(/if \(pairComplete\) \{[\s\S]{0,300}return;/);
+    // (ET-RPT-07: the no-op returns what it found — pair_complete at that
+    // version — so the request records it rather than "the newest report".)
+    expect(guard).toMatch(/if \(pairComplete\) \{[\s\S]{0,300}return \{ outcome: "pair_complete", reportVersion: packageTargetVersion \};/);
   });
 
   it("the package row and its version pointer commit together", () => {

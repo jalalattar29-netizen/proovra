@@ -104,7 +104,8 @@ test("ET-RPT-05/06 — the summary has a loading phase and a fallback-view notic
     "utf8",
   );
   assert.match(index, /!summaryAnswered\s*\?\s*"Loading the summary…"/);
-  assert.match(index, /state\.envelope\.workspace\.id === "user-scoped"/);
+  assert.match(index, /:\s*userScopedView\s*$/m);
+  assert.match(index, /setUserScopedView\(true\);/);
   assert.match(index, /setRegenNotice\(\{ message: outcome\.message, tone: outcome\.tone \}\)/);
   assert.match(index, /data-tone=\{GENERATION_OUTCOME_STATUS_TONE\[regenNotice\.tone\]\}/);
   assert.doesNotMatch(index, /color: "#167A5B"/);
