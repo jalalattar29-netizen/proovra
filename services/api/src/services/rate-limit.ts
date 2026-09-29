@@ -207,6 +207,91 @@ export async function enforceRateLimit(params: {
   });
 }
 
+// =============================================================================
+// ET-PKG-17 — a DISTINCT-CLIENT limit.
+//
+// A request-count bucket shared by everyone who opens one resource is a
+// denial-of-service lever: two clients at their own per-client allowance
+// exhaust it and every legitimate viewer gets 429 for the window. This limit
+// counts DISTINCT clients per window instead. A client admitted in the window
+// stays admitted (its request volume is the per-client bucket's business); a
+// few clients can never exhaust it; only many distinct clients (the rotating-
+// address enumeration the resource bucket exists to stop) reach the cap.
+// =============================================================================
+
+const DISTINCT_CLIENT_LIMIT_SCRIPT = [
+  "if redis.call('sismember', KEYS[1], ARGV[1]) == 1 then",
+  "  return {1, redis.call('scard', KEYS[1]), redis.call('pttl', KEYS[1])}",
+  "end",
+  "local n = redis.call('scard', KEYS[1])",
+  "if n >= tonumber(ARGV[2]) then return {0, n, redis.call('pttl', KEYS[1])} end",
+  "redis.call('sadd', KEYS[1], ARGV[1])",
+  "if redis.call('pttl', KEYS[1]) < 0 then redis.call('pexpire', KEYS[1], ARGV[3]) end",
+  "return {1, n + 1, redis.call('pttl', KEYS[1])}",
+].join("\n");
+
+type MemoryMemberSet = { members: Set<string>; resetAtMs: number };
+const memoryMemberSets = new Map<string, MemoryMemberSet>();
+
+function enforceMemoryDistinctClientLimit(params: {
+  key: string;
+  member: string;
+  max: number;
+  windowSec: number;
+}): RateLimitResult {
+  const now = Date.now();
+  let set = memoryMemberSets.get(params.key);
+  if (!set || set.resetAtMs <= now) {
+    set = { members: new Set(), resetAtMs: buildWindowReset(now, params.windowSec) };
+    memoryMemberSets.set(params.key, set);
+  }
+  if (set.members.has(params.member)) {
+    return { allowed: true, remaining: Math.max(0, params.max - set.members.size), resetAtMs: set.resetAtMs };
+  }
+  if (set.members.size >= params.max) {
+    return { allowed: false, remaining: 0, resetAtMs: set.resetAtMs };
+  }
+  set.members.add(params.member);
+  return { allowed: true, remaining: Math.max(0, params.max - set.members.size), resetAtMs: set.resetAtMs };
+}
+
+export async function enforceDistinctClientLimit(params: {
+  key: string;
+  /** The client identity (e.g. the trusted client-address key). */
+  member: string;
+  max: number;
+  windowSec: number;
+}): Promise<RateLimitResult> {
+  const key = normalizeKey(params.key);
+  const member = normalizeKey(params.member);
+  const max = clampPositiveInt(params.max, 60);
+  const windowSec = clampPositiveInt(params.windowSec, 60);
+  const redisClient = getRedis();
+  if (!redisClient) {
+    return enforceMemoryDistinctClientLimit({ key, member, max, windowSec });
+  }
+  const now = Date.now();
+  const redisKey = `${REDIS_KEY_PREFIX}${key}`;
+  try {
+    if (redisClient.status === "wait") await redisClient.connect();
+    // One atomic decision. Membership first: an admitted client never consumes
+    // another slot and is never refused inside its window.
+    const [allowed, size, ttl] = (await redisClient.eval(
+      DISTINCT_CLIENT_LIMIT_SCRIPT,
+      1,
+      redisKey,
+      member,
+      String(max),
+      String(windowSec * 1000),
+    )) as [number, number, number];
+    const resetAtMs = Number(ttl) > 0 ? now + Number(ttl) : buildWindowReset(now, windowSec);
+    return { allowed: Number(allowed) === 1, remaining: Math.max(0, max - Number(size)), resetAtMs };
+  } catch {
+    markRedisUnavailable();
+    return enforceMemoryDistinctClientLimit({ key, member, max, windowSec });
+  }
+}
+
 /**
  * Phase 2.7Z+ — Test-only helper: wipe ALL rate-limit state.
  *
@@ -236,6 +321,7 @@ export async function clearAllRateLimitBuckets(): Promise<{
 }> {
   const memoryCleared = memoryStore.size;
   memoryStore.clear();
+  memoryMemberSets.clear();
   memoryLeases.clear();
 
   let redisCleared = 0;

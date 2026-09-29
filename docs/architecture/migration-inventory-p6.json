@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 295,
-    "classifiedMigrations": 295,
+    "filesystemMigrations": 296,
+    "classifiedMigrations": 296,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 295,
+    "productionSnapshotUnknown": 296,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 295,
-    "classifiedMigrations": 295,
+    "filesystemMigrations": 296,
+    "classifiedMigrations": 296,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 295,
+    "productionSnapshotUnknown": 296,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
       "EXPAND": 73,
-      "BACKFILL": 21,
+      "BACKFILL": 22,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 84,
+      "SAFE_TO_APPLY_NOW": 85,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 295
+    "ProductionMigrationStateUnknown": 296
   },
   "gateFailures": [],
   "migrations": [
@@ -22694,8 +22694,71 @@
       "evidence": "UPLOAD PART STATE HASHED (2026-09-30, ET-UPL-05). Widens evidence_upload_session_parts_state_bounded to admit HASHED: a part the server hashed whole-object with no client-declared reference (VERIFIED now means the digest matched a declared reference). EXPAND: a CHECK IN-list cannot be extended in place, so the constraint is DROPPED and RE-ADDED with the same name and a strictly WIDER value set (a constraint SWAP, not a removal). Every existing row already satisfies the narrower set. Apply BEFORE the ET-UPL-05 image (the old image never writes HASHED). Idempotent (DROP CONSTRAINT IF EXISTS + ADD). ROLLBACK is code-first: revert the image and leave the widened constraint. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280811000000_verification_views_anonymize",
       "order": 294,
+      "sqlPresent": true,
+      "byteLength": 1537,
+      "checksumSha256": "1d9687dc6cc2226e81d3cd7d23ca0580e38f6206291acaf710b0afa203be9365",
+      "checksumSha256Raw": "1d9687dc6cc2226e81d3cd7d23ca0580e38f6206291acaf710b0afa203be9365",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "BACKFILL",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): verification_views",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "verification_views"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "verification_views"
+      ],
+      "dependencies": [
+        "20260925000000_phase0_schema_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM verification_views WHERE user_agent IS NOT NULL OR (ip_address IS NOT NULL AND ip_address NOT LIKE '%.x.x' AND ip_address NOT LIKE '%:…')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": "ROLL_FORWARD — the masking is deliberately irreversible; re-running is a no-op.",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "VERIFICATION VIEW ANONYMIZATION (2026-09-30, ET-PKG-09). verification_views stored every anonymous public Verify viewer's full IP address and user agent with no retention and no reader (the only readers select evidence_id / viewer_type / created_at or count rows). The write path now stores only a masked network prefix (IPv4 a.b.x.x, IPv6 the first two groups; private/reserved -> NULL) and no user agent; this migration rewrites the rows written before. CLASSIFIED BACKFILL because it writes to existing rows: user_agent -> NULL; ip_address -> the masked prefix (IPv4 and ::ffff:-mapped IPv4 -> a.b.x.x, IPv6 -> g1:g2:…, anything else -> NULL). No column, table or index changes. Both UPDATEs are conditioned (user_agent IS NOT NULL; ip_address not already masked), so the migration is idempotent and a re-run is a no-op — proven on disposable PostgreSQL 16 by test/public-verify-view-privacy-and-debounce.integration.test.ts. SAFE BEFORE CODE: the previous image keeps writing raw values until replaced, which a re-run of this migration would mask; readinessCommand must read 0 after apply and after the new image is live. ROLLBACK: none needed and none possible — the raw values are intentionally destroyed. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 295,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

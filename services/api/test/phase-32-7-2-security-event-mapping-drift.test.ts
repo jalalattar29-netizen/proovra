@@ -1373,6 +1373,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280809000000_worker_sweep_cursors",
       // Upload part state HASHED (2026-09-30, ET-UPL-05): CHECK constraint swap to a wider set. EXPAND.
       "20280810000000_upload_part_state_hashed",
+      // Verification view anonymization (2026-09-30, ET-PKG-09): conditioned UPDATEs, no schema change. BACKFILL.
+      "20280811000000_verification_views_anonymize",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

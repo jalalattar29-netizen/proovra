@@ -193,7 +193,8 @@ import {
   isDomainError,
 } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
-import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { trustedClientIp, trustedClientIpKey } from "../middleware/client-ip.js";
+import { maskIp } from "@proovra/shared-runtime/technical-metadata";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 // Phase G4.5 — extracted saved-view CRUD module.
@@ -217,7 +218,7 @@ import {
   getObjectRange,
 } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
-import { enforceRateLimit } from "../services/rate-limit.js";
+import { enforceDistinctClientLimit, enforceRateLimit } from "../services/rate-limit.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
 // The same enqueue function the evidence-complete service already uses
 // on first finalize, surfaced as an audited owner-only mutation.
@@ -1263,9 +1264,11 @@ function getVerifyLimit() {
 
 // Phase 1 — per-evidence-id verify limit. Stops one attacker from
 // using rotated IPs / TLS-resumed connections to enumerate a single
-// evidence record's history. Lower default than the per-IP bucket;
-// legitimate viewers refresh a verify page at most a handful of
-// times per minute.
+// evidence record's history.
+// ET-PKG-17 — the cap counts DISTINCT CLIENTS per window, not requests: a
+// shared request counter let two clients at their per-IP allowance lock every
+// legitimate viewer out of the record. Request volume per client is the
+// per-IP bucket's job.
 function getVerifyPerEvidenceLimit() {
   return {
     max: readPositiveIntEnv("VERIFY_RATE_LIMIT_PER_EVIDENCE_MAX", 60),
@@ -12344,8 +12347,9 @@ action: "evidence.certification_requested",
     // unparseable input is concealed as 404 without consuming a
     // rate-limit slot.
     const perEvidenceLimit = getVerifyPerEvidenceLimit();
-    const perEvidenceRate = await enforceRateLimit({
-      key: `ratelimit:verify:evidence:${id}`,
+    const perEvidenceRate = await enforceDistinctClientLimit({
+      key: `ratelimit:verify:evidence-clients:${id}`,
+      member: trustedClientIpKey(req),
       max: perEvidenceLimit.max,
       windowSec: perEvidenceLimit.windowSec,
     });
@@ -13235,30 +13239,49 @@ const overallIntegrity =
       // value is the natural debounce gate. The payload is bounded
       // (no IP, no user agent, no fingerprinting) so the privacy
       // posture stays clean.
-      const viewerUserAgent = readUserAgent(req);
-      const viewerIp = req.ip;
-      const previousPublicViewAt = evidence.lastPublicVerifyViewAtUtc ?? null;
+      // ET-PKG-09 — an anonymous view keeps no personal data: the masked
+      // network prefix only (maskIp; private/reserved -> null) and no user
+      // agent. Nothing reads either column; they were raw PII with no
+      // retention (migration 20280811000000 anonymizes the historical rows).
+      const viewerNetwork = maskIp(trustedClientIp(req));
       const debounceMs = 24 * 60 * 60 * 1000;
-      const shouldEmitVerifyViewed =
-        previousPublicViewAt === null ||
-        verifiedAt.getTime() - previousPublicViewAt.getTime() >= debounceMs;
       const authedUserId =
         (req as FastifyRequest & { user?: { sub?: string } }).user?.sub ??
         null;
       void (async () => {
+        // ET-PKG-09 — the debounce is ONE conditional write: only the request
+        // that moves lastPublicVerifyViewAtUtc across the 24h gap (or sets it
+        // first) emits VERIFY_VIEWED. Deciding from the value read at the top
+        // of the handler let concurrent first views both append.
+        let shouldEmitVerifyViewed = false;
         const results = await Promise.allSettled([
-          prisma.evidence.update({
-            where: { id },
-            data: { lastPublicVerifyViewAtUtc: verifiedAt },
-          }),
+          (async () => {
+            const claimed = await prisma.evidence.updateMany({
+              where: {
+                id,
+                OR: [
+                  { lastPublicVerifyViewAtUtc: null },
+                  { lastPublicVerifyViewAtUtc: { lte: new Date(verifiedAt.getTime() - debounceMs) } },
+                ],
+              },
+              data: { lastPublicVerifyViewAtUtc: verifiedAt },
+            });
+            shouldEmitVerifyViewed = claimed.count === 1;
+            if (!shouldEmitVerifyViewed) {
+              await prisma.evidence.update({
+                where: { id },
+                data: { lastPublicVerifyViewAtUtc: verifiedAt },
+              });
+            }
+          })(),
           prisma.verificationView.create({
             data: {
               evidenceId: id,
               viewerType: VerificationViewerType.PUBLIC,
               viewerUserId: null,
               accessMode: "public_verify",
-              ipAddress: viewerIp,
-              userAgent: viewerUserAgent,
+              ipAddress: viewerNetwork,
+              userAgent: null,
             },
           }),
         ]);
