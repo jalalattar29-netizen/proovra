@@ -1350,6 +1350,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280730000000_evidence_output_lifecycle",
       // Evidence OTS anchor check (2026-09-29): one nullable evidence column. EXPAND.
       "20280731000000_evidence_ots_anchor_check",
+      // Evidence original version id (2026-09-29, D14): nullable storage_version_id
+      // on evidence and evidence_parts. EXPAND.
+      "20280801000000_evidence_original_version_id",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

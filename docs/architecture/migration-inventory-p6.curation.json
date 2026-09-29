@@ -3216,6 +3216,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name='ots_anchor_check'\"",
       "evidence": "EVIDENCE OTS ANCHOR CHECK (2026-09-29). Adds nullable evidence.ots_anchor_check VARCHAR(24): BITCOIN_VERIFIED (ots verify against the Bitcoin chain) | PROOF_STRUCTURE (the proof commits to this hash with a Bitcoin block attestation; chain not checked). No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the column; code built after it reads and writes it, so apply before deploying the API and worker. Historic rows keep NULL, which every reader presents as anchored-not-checked."
+    },
+    "20280801000000_evidence_original_version_id": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name IN ('evidence','evidence_parts') AND column_name='storage_version_id'\"",
+      "evidence": "EVIDENCE ORIGINAL VERSION ID (2026-09-29, audit D14). Adds nullable evidence.storage_version_id and evidence_parts.storage_version_id VARCHAR(1024): the S3 VersionId of each original as it was hashed and signed at finalization, so re-hash and download read the signed version rather than whatever a later PUT left latest at the key. No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns; code built after it writes them at finalization, so apply before deploying the API and worker. Historic rows keep NULL and readers fall back to the key."
     }
   }
 }

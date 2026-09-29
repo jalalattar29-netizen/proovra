@@ -997,6 +997,8 @@ const SAFE_EVIDENCE_SELECT = {
   mimeType: true,
   storageBucket: true,
   storageKey: true,
+  // (2026-09-29, D14) The signed version of the original.
+  storageVersionId: true,
   storageRegion: true,
   storageObjectLockMode: true,
   storageObjectLockRetainUntilUtc: true,
@@ -6194,6 +6196,8 @@ const key = `evidence/${id}/parts/${String(body.partIndex).padStart(3, "0")}-${f
                 bucket: part.storageBucket,
                 key: part.storageKey,
                 expiresInSeconds: 600,
+                // (2026-09-29, D14) The signed version, when recorded.
+                versionId: part.storageVersionId ?? null,
               })
             : null;
 
@@ -11591,6 +11595,9 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         bucket: evidence.storageBucket,
         key: evidence.storageKey,
         expiresInSeconds: 600,
+        // (2026-09-29, D14) The signed version, when recorded — never whatever a
+        // later write left latest at the key.
+        versionId: evidence.storageVersionId ?? null,
       });
 
       const accessedAt = new Date();

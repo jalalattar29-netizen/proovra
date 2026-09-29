@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 285,
-    "classifiedMigrations": 285,
+    "filesystemMigrations": 286,
+    "classifiedMigrations": 286,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 285,
+    "productionSnapshotUnknown": 286,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 285,
-    "classifiedMigrations": 285,
+    "filesystemMigrations": 286,
+    "classifiedMigrations": 286,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 285,
+    "productionSnapshotUnknown": 286,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 63,
+      "EXPAND": 64,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 74,
+      "SAFE_TO_APPLY_NOW": 75,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 285
+    "ProductionMigrationStateUnknown": 286
   },
   "gateFailures": [],
   "migrations": [
@@ -22024,8 +22024,8 @@
       "checksumSha256": "6d7d2cff5342a90fc5acf1c439b5efe9a4e6fe950d3e5d2a6be851ba6b67dbfa",
       "checksumSha256Raw": "6d7d2cff5342a90fc5acf1c439b5efe9a4e6fe950d3e5d2a6be851ba6b67dbfa",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
-      "gitIntroductionCommit": null,
+      "gitTracked": true,
+      "gitIntroductionCommit": "d28f2367ebcc855cb352d4ae9540f9e21f8cef41",
       "sqlChangedSinceIntroduction": false,
       "classification": "EXPAND",
       "sqlShape": "EXPAND",
@@ -22080,8 +22080,73 @@
       "evidence": "EVIDENCE OTS ANCHOR CHECK (2026-09-29). Adds nullable evidence.ots_anchor_check VARCHAR(24): BITCOIN_VERIFIED (ots verify against the Bitcoin chain) | PROOF_STRUCTURE (the proof commits to this hash with a Bitcoin block attestation; chain not checked). No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the column; code built after it reads and writes it, so apply before deploying the API and worker. Historic rows keep NULL, which every reader presents as anchored-not-checked."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280801000000_evidence_original_version_id",
       "order": 284,
+      "sqlPresent": true,
+      "byteLength": 863,
+      "checksumSha256": "3fcad534ce046b87c87116f721520e78c3f6a59ecd5f396d31c60ed5162c7c97",
+      "checksumSha256Raw": "3fcad534ce046b87c87116f721520e78c3f6a59ecd5f396d31c60ed5162c7c97",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:1 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence",
+          "evidence_parts"
+        ],
+        "addedColumns": [
+          "storage_version_id"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init",
+        "20260205093000_evidence_parts"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name IN ('evidence','evidence_parts') AND column_name='storage_version_id'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "EVIDENCE ORIGINAL VERSION ID (2026-09-29, audit D14). Adds nullable evidence.storage_version_id and evidence_parts.storage_version_id VARCHAR(1024): the S3 VersionId of each original as it was hashed and signed at finalization, so re-hash and download read the signed version rather than whatever a later PUT left latest at the key. No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns; code built after it writes them at finalization, so apply before deploying the API and worker. Historic rows keep NULL and readers fall back to the key."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 285,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

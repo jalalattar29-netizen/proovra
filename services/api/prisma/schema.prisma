@@ -42,6 +42,10 @@ model Evidence {
   fileSha256                       String?             @map("file_sha256") @db.VarChar(64)
   storageBucket                    String?             @map("storage_bucket") @db.VarChar(255)
   storageKey                       String?             @map("storage_key") @db.VarChar(512)
+  /// (2026-09-29, audit D14) The S3 VersionId of the original that was hashed
+  /// and signed at finalization. NULL on rows finalized before it existed and
+  /// on unversioned stores; readers then fall back to the key.
+  storageVersionId                 String?             @map("storage_version_id") @db.VarChar(1024)
   storageRegion                    String?             @map("storage_region") @db.VarChar(64)
   storageObjectLockMode            String?             @map("storage_object_lock_mode") @db.VarChar(32)
   storageObjectLockRetainUntilUtc  DateTime?           @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
@@ -427,6 +431,9 @@ model EvidencePart {
   partIndex                        Int                  @map("part_index")
   storageBucket                    String               @map("storage_bucket") @db.VarChar(255)
   storageKey                       String               @map("storage_key") @db.VarChar(512)
+  /// (2026-09-29, audit D14) The S3 VersionId of this part as hashed and
+  /// signed at finalization; NULL before it existed / on unversioned stores.
+  storageVersionId                 String?              @map("storage_version_id") @db.VarChar(1024)
   originalFileName                 String?              @map("original_file_name") @db.VarChar(255)
   storageRegion                    String?              @map("storage_region") @db.VarChar(64)
   storageObjectLockMode            String?              @map("storage_object_lock_mode") @db.VarChar(32)

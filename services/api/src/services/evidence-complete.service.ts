@@ -73,6 +73,8 @@ type ProcessedPart = {
   mimeType: string | null;
   bucket: string;
   key: string;
+  /** (2026-09-29, D14) The exact version hashed and signed; null if unversioned. */
+  versionId: string | null;
 };
 
 type RetentionTarget = {
@@ -236,9 +238,12 @@ async function safeHead(bucket: string, key: string) {
   }
 }
 
-async function safeGetStream(bucket: string, key: string) {
+async function safeGetStream(bucket: string, key: string, versionId?: string | null) {
   try {
-    return await getObjectStream({ bucket, key });
+    // (2026-09-29, D14) The version the HEAD described, so the bytes hashed are
+    // exactly the version recorded — a PUT landing between the two calls can
+    // not change them.
+    return await getObjectStream({ bucket, key, versionId: versionId ?? null });
   } catch (e) {
     const errObj = e as {
       name?: unknown;
@@ -717,6 +722,7 @@ export async function completeEvidence(params: {
       let fileSha256 = "";
       let primaryBucket = evidenceBucket;
       let primaryKey = evidenceKey;
+      let primaryVersionId: string | null = null;
       let primaryMimeType = evidenceMime;
       let multipartItemCount = 1;
       let multipart = false;
@@ -759,7 +765,7 @@ export async function completeEvidence(params: {
             throw err;
           }
 
-          const body = await safeGetStream(bucket, key);
+          const body = await safeGetStream(bucket, key, meta.versionId);
           const sha256 = await sha256HexFromStream(body as unknown as Readable);
 
           sizeBytesNum += size;
@@ -777,6 +783,7 @@ export async function completeEvidence(params: {
             mimeType,
             bucket,
             key,
+            versionId: meta.versionId ?? null,
           });
 
           retentionTargets.push({
@@ -823,6 +830,7 @@ export async function completeEvidence(params: {
 
         primaryBucket = updatedParts[0].bucket;
         primaryKey = updatedParts[0].key;
+        primaryVersionId = updatedParts[0].versionId;
         primaryMimeType =
           updatedParts[0].mimeType ?? primaryMimeType ?? evidenceMime;
         canonicalEvidenceType = deriveCanonicalEvidenceTypeFromParts(
@@ -868,6 +876,7 @@ multipartItemCount = updatedParts.length;
                 sizeBytes: p.sizeBytes,
                 sha256: p.sha256,
                 mimeType: p.mimeType,
+                storageVersionId: p.versionId,
                 uploadedByUserId: params.ownerUserId,
                 uploadedAtUtc: now,
               },
@@ -946,7 +955,8 @@ const fingerprint = buildFingerprint({
           key,
         });
 
-        const body = await safeGetStream(bucket, key);
+        primaryVersionId = meta.versionId ?? null;
+        const body = await safeGetStream(bucket, key, primaryVersionId);
         fileSha256 = await sha256HexFromStream(body as unknown as Readable);
 
         const fingerprint = buildFingerprint({
@@ -1019,6 +1029,8 @@ const captureMethod =
         sizeBytes: BigInt(sizeBytesNum),
         mimeType: primaryMimeType,
         fileSha256,
+        // (2026-09-29, D14) The signed version of the primary original.
+        storageVersionId: primaryVersionId,
         // Phase C #4: explicit multipart hash semantics, see schema
         // comments. fileSha256 alone is ambiguous for multipart records
         // because it's a synthetic composite of per-part hashes.

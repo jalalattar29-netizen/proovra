@@ -1964,6 +1964,8 @@ async function prepareReportArtifacts(
       mimeType: true,
       storageBucket: true,
       storageKey: true,
+      // (2026-09-29, D14) The version that was hashed and signed.
+      storageVersionId: true,
       storageRegion: true,
       storageObjectLockMode: true,
       storageObjectLockRetainUntilUtc: true,
@@ -2070,6 +2072,7 @@ async function prepareReportArtifacts(
         artifactClass: true,
         storageBucket: true,
         storageKey: true,
+        storageVersionId: true,
         storageRegion: true,
         storageObjectLockMode: true,
         storageObjectLockRetainUntilUtc: true,
@@ -2288,6 +2291,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         headObject({
           bucket: part.storageBucket,
           key: part.storageKey,
+          versionId: part.storageVersionId ?? null,
         }),
       );
 
@@ -2299,6 +2303,7 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
         getObjectStream({
           bucket: part.storageBucket,
           key: part.storageKey,
+          versionId: part.storageVersionId ?? null,
         }),
       );
 
@@ -2391,6 +2396,7 @@ if (
       headObject({
         bucket: evidence.storageBucket!,
         key: evidence.storageKey!,
+        versionId: evidence.storageVersionId ?? null,
       }),
     );
 
@@ -2402,6 +2408,7 @@ if (
       getObjectStream({
         bucket: evidence.storageBucket!,
         key: evidence.storageKey!,
+        versionId: evidence.storageVersionId ?? null,
       }),
     );
 

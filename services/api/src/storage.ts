@@ -541,6 +541,8 @@ export async function headObject(params: {
 
       return {
         sizeBytes: res.ContentLength ?? null,
+        /** The version this HEAD described (versioned stores); null otherwise. */
+        versionId: res.VersionId ?? null,
         checksumSha256: res.ChecksumSHA256 ?? null,
         contentType: res.ContentType ?? null,
         etag: res.ETag ?? null,

@@ -40,6 +40,8 @@ import type { IntegrationHarness } from "./integration-harness.js";
 // -----------------------------------------------------------------------------
 
 const objects = vi.hoisted(() => new Map<string, Buffer>());
+/** Earlier versions of a key, oldest first (2026-09-29, D14); latest is in `objects`. */
+const history = vi.hoisted(() => new Map<string, Buffer[]>());
 
 vi.mock("../src/storage.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -54,6 +56,7 @@ vi.mock("../src/storage.js", async (importOriginal) => {
       if (!b) throw Object.assign(new Error("NotFound"), { name: "NotFound" });
       return {
         sizeBytes: b.length,
+        versionId: `v${(history.get(id(p))?.length ?? 0) + 1}`,
         contentType: "image/jpeg",
         etag: null,
         metadata: null,
@@ -62,8 +65,10 @@ vi.mock("../src/storage.js", async (importOriginal) => {
         objectLockLegalHoldStatus: null,
       };
     },
-    getObjectStream: async (p: { bucket: string; key: string }) => {
-      const b = objects.get(id(p));
+    getObjectStream: async (p: { bucket: string; key: string; versionId?: string | null }) => {
+      const earlier = history.get(id(p)) ?? [];
+      const n = p.versionId ? Number(p.versionId.slice(1)) : 0;
+      const b = n > 0 && n <= earlier.length ? earlier[n - 1] : objects.get(id(p));
       if (!b) throw Object.assign(new Error("NotFound"), { name: "NotFound" });
       return Readable.from([b]);
     },
@@ -486,6 +491,37 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       });
     }
   }
+
+  it("D14: finalization records the signed version; a later overwrite of the key does not change what /original and /parts serve", async () => {
+    const staged = await stageDeclared();
+    const done = await call(
+      "POST",
+      `/v1/capture/direct-sessions/${staged.session.captureSessionId}/complete`,
+      staged.token,
+    );
+    expect(done.statusCode, done.body).toBe(200);
+    const ev = await prisma.evidence.findUniqueOrThrow({
+      where: { id: staged.evidenceId },
+      select: { storageVersionId: true },
+    });
+    const part = await prisma.evidencePart.findFirstOrThrow({
+      where: { evidenceId: staged.evidenceId },
+      select: { storageBucket: true, storageKey: true, storageVersionId: true },
+    });
+    expect(part.storageVersionId).toBe("v1");
+    expect(ev.storageVersionId).toBe("v1");
+
+    // A still-valid upload URL writes new bytes to the same key: version 2.
+    const pid = `${part.storageBucket}/${part.storageKey}`;
+    history.set(pid, [objects.get(pid)!]);
+    objects.set(pid, Buffer.from("replacement-bytes"));
+
+    const original = await call("GET", `/v1/evidence/${staged.evidenceId}/original`, staged.token);
+    expect(original.statusCode, original.body).toBe(200);
+    expect(JSON.stringify(original.json())).toMatch(/versionId=v1/);
+    const parts = await call("GET", `/v1/evidence/${staged.evidenceId}/parts`, staged.token);
+    expect(parts.json().parts[0].url).toMatch(/versionId=v1/);
+  });
 
   it("D11: a session whose record is already SIGNED is not discarded — completing it binds it", async () => {
     const staged = await stageDeclared();

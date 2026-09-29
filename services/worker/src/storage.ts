@@ -204,9 +204,15 @@ function buildS3ClientConfig(): S3ClientConfig {
 
 export const s3 = new S3Client(buildS3ClientConfig());
 
-export async function getObjectStream(params: { bucket: string; key: string }) {
+export async function getObjectStream(params: {
+  bucket: string;
+  key: string;
+  /** (2026-09-29, D14) Read exactly this recorded version when there is one. */
+  versionId?: string | null;
+}) {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
+  const versionId = params.versionId?.trim() || null;
 
   // Phase O1.4 — bounded S3 span. Attributes carry the bucket +
   // bounded key prefix only; never body bytes or signed URLs.
@@ -222,6 +228,7 @@ export async function getObjectStream(params: { bucket: string; key: string }) {
         new GetObjectCommand({
           Bucket: bucket,
           Key: key,
+          ...(versionId ? { VersionId: versionId } : {}),
         })
       );
 
@@ -426,9 +433,15 @@ export async function applyDefaultObjectRetention(params: {
   });
 }
 
-export async function headObject(params: { bucket: string; key: string }) {
+export async function headObject(params: {
+  bucket: string;
+  key: string;
+  /** (2026-09-29, D14) Describe exactly this recorded version when there is one. */
+  versionId?: string | null;
+}) {
   const bucket = mustClean(params.bucket, "bucket");
   const key = mustClean(params.key, "key");
+  const versionId = params.versionId?.trim() || null;
 
   // Phase O1.4 — bounded S3 HEAD span.
   return withProovraSpan(
@@ -443,6 +456,7 @@ export async function headObject(params: { bucket: string; key: string }) {
         new HeadObjectCommand({
           Bucket: bucket,
           Key: key,
+          ...(versionId ? { VersionId: versionId } : {}),
           // Returns the SHA-256 the store validated and kept when the object
           // was PUT with `ChecksumSHA256` (every report PDF is). Package-only
           // recovery verifies legacy report bytes against it.
