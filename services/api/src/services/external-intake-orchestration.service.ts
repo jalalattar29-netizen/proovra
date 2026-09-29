@@ -39,6 +39,7 @@
  *     pipelines mask it via maskPublicEmail per the Phase 1 baseline.
  */
 
+import { evaluateFinalizationGovernance } from "./governance/finalization-governance.service.js";
 import { Prisma } from "@prisma/client";
 import type {
   PrismaClient,
@@ -99,6 +100,8 @@ export type ExternalIntakeOrchestrationErrorCode =
   | "submission_not_ready"
   | "submission_already_submitted"
   | "location_required"
+  // The receiving workspace's policy refuses finalization (2026-09-29, D3).
+  | "finalization_blocked_by_policy"
   | "internal_error";
 
 export class ExternalIntakeOrchestrationError extends Error {
@@ -873,6 +876,16 @@ export async function submitExternalIntake(
   // headObject verification, sha256 streaming, fingerprint, signature,
   // EVIDENCE_COMPLETED custody event, report-v2 enqueue, OTS/TSA pipeline,
   // anchor publishing.
+  // The ONE finalization governance gate (2026-09-29, audit D3), on the
+  // authority of the link's owner — the same policy the web upload obeys.
+  const gate = await evaluateFinalizationGovernance({
+    evidenceId: evidence.id,
+    actorUserId: evidence.ownerUserId,
+  });
+  if (!gate.allowed) {
+    throw new ExternalIntakeOrchestrationError("finalization_blocked_by_policy");
+  }
+
   await completeEvidence({
     evidenceId: evidence.id,
     ownerUserId: evidence.ownerUserId,

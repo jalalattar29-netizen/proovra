@@ -32,6 +32,7 @@
  * text reaches a trust payload or a response.
  */
 
+import { evaluateFinalizationGovernance } from "../governance/finalization-governance.service.js";
 import { createHash, randomBytes } from "node:crypto";
 
 import * as prismaPkg from "@prisma/client";
@@ -134,6 +135,8 @@ export const DIRECT_CAPTURE_DENIALS = {
   CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH: 422,
   // A manifest-sealed mode completed through the generic route (2026-09-29).
   MANIFEST_SEAL_ROUTE_REQUIRED: 409,
+  // Workspace policy refuses finalization (2026-09-29, audit D3).
+  FINALIZATION_BLOCKED_BY_POLICY: 409,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 
@@ -736,6 +739,12 @@ export async function completeDirectCapture(input: {
   if (!session.finalizedEvidenceId) throw new DirectCaptureError("SESSION_NOT_RESERVED");
   const evidenceId = session.finalizedEvidenceId;
   const declarations = await readPartDeclarations(db, session);
+
+  // The ONE finalization governance gate (2026-09-29, audit D3): the same
+  // policy the web upload obeys. A refusal leaves the session ACTIVE and the
+  // record unsigned — nothing is published that policy forbids.
+  const gate = await evaluateFinalizationGovernance({ evidenceId, actorUserId: input.ownerUserId });
+  if (!gate.allowed) throw new DirectCaptureError("FINALIZATION_BLOCKED_BY_POLICY");
 
   let result;
   try {

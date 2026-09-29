@@ -10159,80 +10159,25 @@ try {
         return reply.code(429).send({ message: "Rate limit exceeded" });
       }
 
-      // Phase 9.5 — governance gate on completion. Completion triggers the
-      // existing pipeline that produces the report-v2 PDF and the
-      // verification package. If policy denies report or package
-      // generation, block completion and emit a custody event recording
-      // the blocked attempt. Public-verify is also gated here because
-      // there is no separate publish endpoint — public verify eligibility
-      // is a side-effect of completion.
-      const completionEvidence = await prisma.evidence.findUnique({
-        where: { id },
-        select: { id: true, teamId: true, retentionUntilUtc: true },
+      // Phase 9.5 — governance gate on completion, now the ONE finalization
+      // gate every capture path asks (2026-09-29, audit D3). If policy denies
+      // report or package generation or public Verify publication for this
+      // record, completion is refused and the attempt is recorded in custody.
+      const { evaluateFinalizationGovernance } = await import(
+        "../services/governance/finalization-governance.service.js"
+      );
+      const finalizationGate = await evaluateFinalizationGovernance({
+        evidenceId: id,
+        actorUserId: ownerUserId,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"] ?? null,
       });
-      if (completionEvidence?.teamId) {
-        const { enforceSensitiveAction, evidenceIsReviewed } = await import(
-          "../services/governance.service.js"
-        );
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        const membership = await prisma.teamMember.findUnique({
-          where: {
-            teamId_userId: {
-              teamId: completionEvidence.teamId,
-              userId: ownerUserId,
-            },
-          },
-          select: { role: true, status: true },
+      if (!finalizationGate.allowed) {
+        return reply.code(finalizationGate.statusCode).send({
+          code: finalizationGate.code,
+          reason: finalizationGate.reason,
+          message: "Evidence finalization is blocked by workspace governance policy.",
         });
-        const membershipRole =
-          membership?.status === "ACTIVE" ? membership.role : undefined;
-        const isReviewed = await evidenceIsReviewed(id);
-        const reviewState = { isReviewed };
-
-        for (const action of [
-          "generate_report",
-          "generate_package",
-          "publish_public_verify",
-        ] as const) {
-          const decision = await enforceSensitiveAction(action, {
-            teamId: completionEvidence.teamId,
-            role: membershipRole,
-            evidence: {
-              id: completionEvidence.id,
-              teamId: completionEvidence.teamId,
-              retentionUntilUtc: completionEvidence.retentionUntilUtc ?? null,
-            },
-            reviewState,
-            // Phase 5 — opt into the workflow template exportPolicy
-            // overlay. The enforcer resolves the templateId itself
-            // (fail-safe: a resolution failure leaves the workspace
-            // decision unchanged) and applies the overlay only when
-            // the workspace decision is already ALLOWED. The overlay
-            // can ONLY tighten, never enable.
-            consultTemplatePolicy: true,
-          });
-          if (!decision.allowed) {
-            await appendCustodyEvent({
-              evidenceId: id,
-              eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-              payload: {
-                action,
-                reason: decision.reason,
-                actorUserId: ownerUserId,
-              },
-              ip: req.ip,
-              userAgent: req.headers["user-agent"],
-            }).catch(noteCustodyFailure);
-            const statusCode =
-              decision.code === "GOVERNANCE_CHECK_FAILED" ? 503 : 409;
-            return reply.code(statusCode).send({
-              code: decision.code,
-              reason: decision.reason,
-              message:
-                "Evidence finalization is blocked by workspace governance policy.",
-            });
-          }
-        }
       }
 
       try {

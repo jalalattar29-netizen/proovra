@@ -326,6 +326,16 @@ function orchestrationErrorToReply(
         },
       });
       return;
+    case "finalization_blocked_by_policy":
+      // The receiving workspace's policy — the sender's to resolve, never
+      // disclosed to the contributor (2026-09-29, D3).
+      reply.code(409).send({
+        error: {
+          code: "INTAKE_NOT_ACCEPTING_EVIDENCE",
+          message: friendly("INTAKE_NOT_ACCEPTING_EVIDENCE"),
+        },
+      });
+      return;
     case "location_required":
       reply.code(412).send({
         error: {

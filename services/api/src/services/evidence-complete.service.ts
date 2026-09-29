@@ -1046,6 +1046,23 @@ const captureMethod =
         tsaFailureReason: tsaResult?.failureReason ?? null,
       } satisfies prismaPkg.Prisma.EvidenceUpdateManyMutationInput;
 
+      /*
+       * PUBLICATION APPROVAL IS HONOURED AT THE ONE FINALIZE BOUNDARY
+       * (2026-09-29, audit D3). A workspace that requires approval before a
+       * record is publicly verifiable had the flag stored and never read:
+       * every record, on every capture path, finalized PUBLISHED. The record
+       * now finalizes NOT_PUBLISHED there; an operator publishes it through
+       * the publication workflow.
+       */
+      const publicationApprovalRequired = evidence.teamId
+        ? (
+            await tx.workspaceGovernancePolicy.findUnique({
+              where: { teamId: evidence.teamId },
+              select: { requirePublicationApproval: true },
+            })
+          )?.requirePublicationApproval === true
+        : false;
+
       const finalizeClaim = await tx.evidence.updateMany({
         where: {
           id: evidence.id,
@@ -1053,7 +1070,9 @@ const captureMethod =
             in: [EvidenceStatus.CREATED, EvidenceStatus.UPLOADING],
           },
         },
-        data: finalizeData,
+        data: publicationApprovalRequired
+          ? { ...finalizeData, publicVerifyState: "NOT_PUBLISHED" }
+          : finalizeData,
       });
       if (finalizeClaim.count !== 1) {
         // Race lost — another finalize won between the early-return

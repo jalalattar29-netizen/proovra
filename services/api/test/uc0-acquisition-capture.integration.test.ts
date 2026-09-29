@@ -413,6 +413,77 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
     expect(serialized).not.toMatch(/verified at source|authentic|tamper-proof/i);
   });
 
+  // ===========================================================================
+  // D3 (2026-09-29) — one finalization governance boundary for every path
+  // ===========================================================================
+
+  async function stageDeclared() {
+    const staged = await stageSession(Buffer.from(`mobile-photo-${randomBytes(8).toString("hex")}`));
+    const bytes = objects.get([...objects.keys()].find((k) => k.includes(staged.evidenceId))!)!;
+    const declare = await call(
+      "POST",
+      `/v1/capture/direct-sessions/${staged.session.captureSessionId}/parts/0/declaration`,
+      staged.token,
+      { sha256: sha256(bytes), clientReportedSource: "CAMERA", signed: null },
+    );
+    expect(declare.statusCode, declare.body).toBe(201);
+    return staged;
+  }
+
+  async function withPolicy(data: Record<string, unknown>, fn: () => Promise<void>) {
+    const teamId = owner().teamId;
+    const existing = await prisma.workspaceGovernancePolicy.findUnique({ where: { teamId } });
+    if (existing) await prisma.workspaceGovernancePolicy.update({ where: { teamId }, data: data as never });
+    else await prisma.workspaceGovernancePolicy.create({ data: { teamId, ...data } as never });
+    try {
+      await fn();
+    } finally {
+      await prisma.workspaceGovernancePolicy.update({
+        where: { teamId },
+        data: { allowPublicVerify: true, requirePublicationApproval: false } as never,
+      });
+    }
+  }
+
+  it("D3: a mobile capture in a workspace whose policy forbids public Verify is NOT finalized (as the web path)", async () => {
+    await withPolicy({ allowPublicVerify: false }, async () => {
+      const staged = await stageDeclared();
+      const done = await call(
+        "POST",
+        `/v1/capture/direct-sessions/${staged.session.captureSessionId}/complete`,
+        staged.token,
+      );
+      expect(done.statusCode, done.body).toBe(409);
+      expect(done.json().denial).toBe("FINALIZATION_BLOCKED_BY_POLICY");
+      const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: staged.evidenceId }, select: { status: true } });
+      expect(ev.status).not.toBe("SIGNED");
+      const blocked = await prisma.custodyEvent.count({
+        where: { evidenceId: staged.evidenceId, eventType: "EXPORT_BLOCKED_BY_POLICY" },
+      });
+      expect(blocked).toBe(1);
+    });
+  });
+
+  it("D3: publication approval — the record finalizes NOT_PUBLISHED and public Verify does not serve it", async () => {
+    await withPolicy({ requirePublicationApproval: true }, async () => {
+      const staged = await stageDeclared();
+      const done = await call(
+        "POST",
+        `/v1/capture/direct-sessions/${staged.session.captureSessionId}/complete`,
+        staged.token,
+      );
+      expect(done.statusCode, done.body).toBe(200);
+      const ev = await prisma.evidence.findUniqueOrThrow({
+        where: { id: staged.evidenceId },
+        select: { status: true, publicVerifyState: true },
+      });
+      expect(ev.status).toBe("SIGNED");
+      expect(ev.publicVerifyState).toBe("NOT_PUBLISHED");
+      const pub = await harness.app.inject({ method: "GET", url: `/public/verify/${staged.evidenceId}` });
+      expect(pub.statusCode).toBe(404);
+    });
+  });
+
   it("a digest mismatch is refused before signing and interrupts the session", async () => {
     const bytes = Buffer.from(`real-bytes-${randomBytes(8).toString("hex")}`);
     const { token, session, evidenceId } = await stageSession(bytes);
