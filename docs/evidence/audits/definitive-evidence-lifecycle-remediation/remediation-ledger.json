@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 80,
+    "FIXED_IN_THIS_TASK": 89,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 73,
+    "STILL_PRESENT": 64,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,8 +18,8 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 46,
-      "P3": 27
+      "P2": 40,
+      "P3": 24
     }
   },
   "openIds": {
@@ -50,8 +50,6 @@
       "ET-PKG-06",
       "ET-PKG-07",
       "ET-PKG-08",
-      "ET-SEC-11",
-      "ET-SEC-13",
       "ET-SEC-14",
       "ET-SEC-15",
       "ET-SEC-16",
@@ -66,11 +64,7 @@
       "ET-SEC-25",
       "ET-SEC-26",
       "ET-SEC-27",
-      "ET-SM-02",
-      "ET-SM-03",
       "ET-SM-07",
-      "ET-SM-08",
-      "ET-UPL-02",
       "ET-UPL-04"
     ],
     "P3": [
@@ -88,7 +82,6 @@
       "ET-PKG-11",
       "ET-PKG-13",
       "ET-PKG-14",
-      "ET-PKG-15",
       "ET-PKG-17",
       "ET-Q-07",
       "ET-SEC-28",
@@ -98,9 +91,7 @@
       "ET-SEC-32",
       "ET-SEC-33",
       "ET-SEC-34",
-      "ET-SEC-35",
-      "ET-UPL-03",
-      "ET-UPL-05"
+      "ET-SEC-35"
     ]
   },
   "rows": [
@@ -2518,6 +2509,8 @@
       "canonicalAuthority": "shared-runtime run tracker (markRunProcessing / fenced markRunCompleted / markRunFailed) via media-intelligence.processor settleRunAround + refuseRun",
       "obsoleteRemoved": null,
       "productFiles": [
+        "services/api/scripts/capability-authority/manifests/origin-resolutions.json",
+        "services/api/scripts/capability-authority/mutation-closure.mjs",
         "services/worker/src/media-intelligence.processor.ts"
       ],
       "redTest": "services/api/test/point5/family-intelligence-operations.integration.test.ts [ET-Q-03] (evidence/ET-Q-03-red-baseline.txt)",
@@ -2527,7 +2520,9 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "f89f4909a3 fix(worker): every media-intelligence run kind with a durable row reaches a terminal state (ET-Q-03)"
+        "f89f4909a3 fix(worker): every media-intelligence run kind with a durable row reaches a terminal state (ET-Q-03)",
+        "1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated",
+        "e2ca76ba73 fix(worker): an ended cross-workspace run carries the same neutral reason as a missing record (ET-Q-03 follow-up)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -2550,6 +2545,8 @@
       "obsoleteRemoved": null,
       "productFiles": [
         "packages/shared/src/queue-integrity/registry.ts",
+        "services/api/scripts/capability-authority/manifests/origin-resolutions.json",
+        "services/api/scripts/capability-authority/mutation-closure.mjs",
         "services/worker/src/redaction/redaction-derivative-writer.ts",
         "services/worker/src/redaction/redaction-derivative.processor.ts"
       ],
@@ -2561,7 +2558,8 @@
       "compatibilityImpact": "none",
       "commits": [
         "e950ba769b fix(redaction): a derivative claim is released on a transient failure and taken over past its lease (ET-Q-04)",
-        "3b566105b8 test(redaction): the writer fake evaluates the ET-Q-04 claim predicate (OR QUEUED / lease-expired RENDERING)"
+        "3b566105b8 test(redaction): the writer fake evaluates the ET-Q-04 claim predicate (OR QUEUED / lease-expired RENDERING)",
+        "1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -2582,8 +2580,15 @@
       "canonicalAuthority": "worker_sweep_cursors keyset cursor (trash-grace, wraps at the end); enqueueWork/enqueueEvidencePurgeJob selfJobId",
       "obsoleteRemoved": null,
       "productFiles": [
+        "packages/shared-runtime/src/ops/metrics.service.ts",
         "services/api/prisma/migrations/20280809000000_worker_sweep_cursors/migration.sql",
+        "services/api/prisma/migrations/20280810000000_upload_part_state_hashed/migration.sql",
         "services/api/prisma/schema.prisma",
+        "services/api/scripts/capability-authority/manifests/origin-resolutions.json",
+        "services/api/scripts/capability-authority/mutation-closure.mjs",
+        "services/api/src/routes/integrations-uploads.routes.ts",
+        "services/api/src/routes/upload-sessions.routes.ts",
+        "services/api/src/services/uploads/upload-session.service.ts",
         "services/worker/src/governance/trash-grace-reconciler.ts",
         "services/worker/src/processor.ts",
         "services/worker/src/queue.ts"
@@ -2595,7 +2600,9 @@
       "migrationImpact": "20280809000000_worker_sweep_cursors: one new table (EXPAND); read/write fail-open",
       "compatibilityImpact": "none",
       "commits": [
-        "ff7965066d fix(worker): trash-grace makes progress past blocked rows; a blocked purge reschedules for real (ET-Q-05)"
+        "ff7965066d fix(worker): trash-grace makes progress past blocked rows; a blocked purge reschedules for real (ET-Q-05)",
+        "1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated",
+        "0f49532af2 fix(uploads): declared size enforced; VERIFIED only against a declared reference; abandoned-only gate is no-session (ET-UPL-05)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -2616,6 +2623,8 @@
       "canonicalAuthority": "services/worker/src/index.ts startConsumers() — every Worker autorun:false; called once after bootstrapObjectLockVerification",
       "obsoleteRemoved": null,
       "productFiles": [
+        "services/api/scripts/capability-authority/manifests/origin-resolutions.json",
+        "services/api/scripts/capability-authority/mutation-closure.mjs",
         "services/worker/src/index.ts"
       ],
       "redTest": "services/worker/test/worker-bootstrap-hotfix.test.ts [ET-Q-06] (evidence/ET-Q-06-red-baseline.txt)",
@@ -2625,7 +2634,9 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "c5650faa4b fix(worker): no consumer claims work before secrets, the package signer and the Object Lock bootstrap succeed (ET-Q-06)"
+        "c5650faa4b fix(worker): no consumer claims work before secrets, the package signer and the Object Lock bootstrap succeed (ET-Q-06)",
+        "1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated",
+        "786b0b1508 chore(point5): ledger from one fresh full integration run; openConsumers is not a sweep launcher"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -2861,20 +2872,27 @@
         "services/api/src/services/evidence-complete.service.ts:1483",
         "services/api/src/routes/evidence.routes.ts:10244"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The REPORTED short-circuit was written before the alreadyFinalized flag existed and was never updated to set it, unlike the SIGNED branch.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A repeat complete on a REPORTED record fell through the SIGNED short-circuit and re-ran finalization against a record whose report was already issued.",
+      "canonicalAuthority": "evidence-complete.service completeEvidence: SIGNED and REPORTED both answer alreadyFinalized with the existing chain",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/src/services/uploads/upload-session.service.ts",
+        "services/worker/src/processor.ts"
+      ],
+      "redTest": "services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-11] (evidence/ET-SEC-11-13-SM-02-red-baseline.txt)",
+      "greenTest": "services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-11]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "32daa64b69 fix(evidence): a repeat complete on a REPORTED record is alreadyFinalized; only a live upload session completes (ET-SEC-11, ET-SEC-13)",
+        "e16588fb76 fix(worker): a report commit re-checks the record under its lock and never overwrites an integrity failure, trash or destruction (ET-SM-02)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-12",
@@ -2944,20 +2962,25 @@
         "services/api/src/services/uploads/upload-session.service.ts:808",
         "services/api/src/services/uploads/upload-session.service.ts:938"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The complete write predicate only excludes COMPLETED instead of requiring a non-terminal state, so an abort committed after the read is overwritten.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "completeUploadSession's UPDATE did not exclude terminal states, so an ABORTED/EXPIRED/FAILED session could be flipped to COMPLETED.",
+      "canonicalAuthority": "upload-session.service completeUploadSession: the atomic UPDATE admits only live (non-terminal) sessions",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/src/services/uploads/upload-session.service.ts"
+      ],
+      "redTest": "services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13] (evidence/ET-SEC-11-13-SM-02-red-baseline.txt)",
+      "greenTest": "services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13]",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13: a session aborted between the read and the write is NOT completed]",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "32daa64b69 fix(evidence): a repeat complete on a REPORTED record is alreadyFinalized; only a live upload session completes (ET-SEC-11, ET-SEC-13)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-14",
@@ -3309,20 +3332,24 @@
         "services/worker/src/processor.ts:3947",
         "services/worker/src/processor.ts:4010"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The 2026-09 reserve/render/commit split moved the status guard to phase A and left the phase-C write unconditional.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The report commit wrote REPORTED without re-reading the record under its lock, overwriting an integrity failure, trash or destruction that landed while the report rendered.",
+      "canonicalAuthority": "services/worker/src/processor.ts REPORTABLE_AT_COMMIT_WHERE / isReportableAtCommit (conditional commit; REPORT_EVIDENCE_STATE_CHANGED otherwise)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/processor.ts"
+      ],
+      "redTest": "services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02] (evidence/ET-SEC-11-13-SM-02-red-baseline.txt)",
+      "greenTest": "services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: integrity rejection and trash during render]",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: an integrity rejection that lands while the PDF renders is never overwritten by REPORTED]",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "e16588fb76 fix(worker): a report commit re-checks the record under its lock and never overwrites an integrity failure, trash or destruction (ET-SM-02)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SM-03",
@@ -3338,20 +3365,27 @@
         "services/api/src/services/evidence.service.ts:612",
         "services/api/src/routes/evidence.routes.ts:6019"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Version pinning was retrofitted to selected readers; key-addressed helpers (presignGetObject without versionId, applyObjectRetention, headObject, copyObjectStorageClass, restoreObject) were not converted.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The verify link, retention application, lock snapshot and archive copy addressed latest-at-the-key instead of the sealed object version.",
+      "canonicalAuthority": "storage.ts versioned applyObjectRetention / applyDefaultObjectRetention / headObject / copyObjectStorageClass(sourceVersionId); evidence-complete RetentionTarget.versionId; buildPublicEvidenceContent pins sealedVersionId",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/src/services/lifecycle/archive-tier.service.ts",
+        "services/api/src/storage.ts"
+      ],
+      "redTest": "services/api/test/storage-sealed-version.test.ts (evidence/ET-SM-03-red-baseline.txt)",
+      "greenTest": "services/api/test/storage-sealed-version.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "49e9a5f3eb fix(storage): the verify link, retention, lock snapshot and archive copy address the sealed version (ET-SM-03)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SM-07",
@@ -3390,20 +3424,28 @@
         "apps/mobile/src/product/domain-display.ts:60",
         "services/api/src/services/operations/operations-source-probes.ts:301"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Enum value added (Phase A0) without updating the frontend switch statements; mirrors hand-copied.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Web and mobile each mapped record statuses with their own tables; an integrity failure rendered as \"Status not recorded\".",
+      "canonicalAuthority": "packages/shared/src/evidence-record-status.ts evidenceRecordStatusLabel / evidenceRecordStatusTone (EVIDENCE_RECORD_STATUSES_PRESENTED); web and mobile delegate",
+      "obsoleteRemoved": "per-surface status label/tone tables in apps/web evidence-library-status.ts and mobile",
+      "productFiles": [
+        "apps/mobile/src/product/evidence-library.ts",
+        "apps/web/app/(app)/evidence/lib/evidence-library-status.ts",
+        "apps/web/components/home-experience/home-view-model.ts",
+        "packages/shared/src/evidence-record-status.ts",
+        "packages/shared/src/index.ts"
+      ],
+      "redTest": "services/api/test/evidence-record-status-coverage.test.ts (evidence/ET-SM-08-red-baseline.txt)",
+      "greenTest": "services/api/test/evidence-record-status-coverage.test.ts; apps/mobile/test/evidence-library.test.mjs",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "a25e13daf6 fix(presentation): one evidence record-status label and tone; an integrity failure is never \"Status not recorded\" (ET-SM-08)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-TSA-02",
@@ -3641,20 +3683,29 @@
         "services/api/src/services/uploads/upload-session.service.ts:370",
         "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:95"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Finalize gate treats ABORTED/EXPIRED the same as in-flight; idempotency lookup ignores state.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "One ABORTED/EXPIRED session blocked its record's finalization forever, the retry got the dead session back through its idempotency key, and any team member could abort another member's session.",
+      "canonicalAuthority": "upload-session.service: evaluateUploadSessionFinalizeGate (abandoned sessions skipped, superseded FAILED skipped, abandoned-only = applies:false); createUploadSession releases a terminal session's key; abortUploadSession limited to the session actor or record owner",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/ops/metrics.service.ts",
+        "services/api/prisma/migrations/20280810000000_upload_part_state_hashed/migration.sql",
+        "services/api/src/routes/integrations-uploads.routes.ts",
+        "services/api/src/routes/upload-sessions.routes.ts",
+        "services/api/src/services/uploads/upload-session.service.ts"
+      ],
+      "redTest": "services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02] (evidence/ET-UPL-02-03-red-baseline.txt)",
+      "greenTest": "services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02]; services/api/test/phase-30-11-unified-evidence-model.test.ts; services/api/test/phase-30-7-finalize-gate.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "68235bdaa4 fix(uploads): idempotency keys stay with their record and actor; a dead session neither blocks finalization nor comes back (ET-UPL-02, ET-UPL-03)",
+        "0f49532af2 fix(uploads): declared size enforced; VERIFIED only against a declared reference; abandoned-only gate is no-session (ET-UPL-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-UPL-04",
@@ -4196,20 +4247,25 @@
         "services/worker/src/verification-package.ts:961",
         "services/worker/src/processor.ts:2306"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Field not propagated.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The integrity pre-read was pinned to the sealed version but the package stream read latest-at-the-key, so a newer object at the key failed the build as a digest mismatch.",
+      "canonicalAuthority": "services/worker verification-package: getObjectStream versionId = VerificationEvidenceFile.storageVersionId from the processor's pre-read",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/processor.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "redTest": "services/worker/test/package-sealed-version.test.ts (evidence/ET-PKG-15-red-baseline.txt)",
+      "greenTest": "services/worker/test/package-sealed-version.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "b560aeee10 fix(package): the verification package streams the sealed version the integrity pre-read hashed (ET-PKG-15)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-17",
@@ -4250,14 +4306,19 @@
       "rootCause": "Registry maintained by hand; closure gate checks file existence, not behaviour.",
       "canonicalAuthority": null,
       "obsoleteRemoved": null,
-      "productFiles": [],
+      "productFiles": [
+        "services/api/scripts/capability-authority/manifests/origin-resolutions.json",
+        "services/api/scripts/capability-authority/mutation-closure.mjs"
+      ],
       "redTest": null,
       "greenTest": null,
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated"
+      ],
       "remainingExternalProof": null,
       "finalResult": "OPEN"
     },
@@ -5161,20 +5222,26 @@
       "citations": [
         "services/api/src/services/uploads/upload-session.service.ts:370"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Idempotency key not bound to its request parameters.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "An idempotency key collapsed onto ANY team session with that key, so a member who pre-created the key for their own record diverted another member's upload to it.",
+      "canonicalAuthority": "upload-session.service createUploadSession: a key reuses only the SAME record and actor; otherwise idempotency_key_conflict (409)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/integrations-uploads.routes.ts",
+        "services/api/src/routes/upload-sessions.routes.ts",
+        "services/api/src/services/uploads/upload-session.service.ts"
+      ],
+      "redTest": "services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-03] (evidence/ET-UPL-02-03-red-baseline.txt)",
+      "greenTest": "services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-03]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "68235bdaa4 fix(uploads): idempotency keys stay with their record and actor; a dead session neither blocks finalization nor comes back (ET-UPL-02, ET-UPL-03)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-UPL-05",
@@ -5185,20 +5252,28 @@
         "services/api/src/services/uploads/upload-session.service.ts:1830",
         "services/api/src/services/uploads/upload-session.service.ts:1885"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Hygiene gaps in the Phase 30.12 path.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Multipart completion never enforced the declared total size and marked every part VERIFIED whenever the server hashed the object, even with no client-declared reference hash.",
+      "canonicalAuthority": "upload-session.service completeStorageMultipart: size_mismatch fails the session; parts settle VERIFIED only on a matched declared reference, else HASHED; SETTLED_PART_STATES_SQL is the one settled set",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/ops/metrics.service.ts",
+        "services/api/prisma/migrations/20280810000000_upload_part_state_hashed/migration.sql",
+        "services/api/src/routes/integrations-uploads.routes.ts",
+        "services/api/src/routes/upload-sessions.routes.ts",
+        "services/api/src/services/uploads/upload-session.service.ts"
+      ],
+      "redTest": "services/api/test/upload-multipart-size-and-reference.test.ts (evidence/ET-UPL-05-red-baseline.txt)",
+      "greenTest": "services/api/test/upload-multipart-size-and-reference.test.ts; services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-05: HASHED admitted by the live constraint]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
+      "migrationImpact": "20280810000000_upload_part_state_hashed: CHECK constraint swap to a strictly wider set (EXPAND); apply before the image",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "0f49532af2 fix(uploads): declared size enforced; VERIFIED only against a declared reference; abandoned-only gate is no-session (ET-UPL-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     }
   ]
 }

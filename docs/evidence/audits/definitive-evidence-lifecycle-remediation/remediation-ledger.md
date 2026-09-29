@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 80 |
+| FIXED_IN_THIS_TASK | 89 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 73 |
+| STILL_PRESENT | 64 |
 
-Open by severity: P0 0 · P1 0 · P2 46 · P3 27
+Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -83,19 +83,19 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 | ET-PKG-06 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-07 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-08 | P2 | STILL_PRESENT |  |  |  |
-| ET-Q-03 | P2 | FIXED_IN_THIS_TASK | shared-runtime run tracker (markRunProcessing / fenced markRunCompleted / markRunFailed) via media-intelligence.processor settleRunAround + refuseRun | f89f4909a3 | services/api/test/point5/family-intelligence-operations.integration.test.ts [ET-Q-03: COMPLETED; FAILED kind_not_implemented / evidence_scope_mismatch] |
-| ET-Q-04 | P2 | FIXED_IN_THIS_TASK | redaction-derivative-writer: claimDerivativeForRender (QUEUED or lease-expired RENDERING, REDACTION_RENDER_LEASE_MS from the registry), releaseDerivativeClaim; reconciler lists lease-expired RENDERING | e950ba769b, 3b566105b8 | services/api/test/point5/family-redaction.integration.test.ts [ET-Q-04: stale taken over, live not stolen, transient releases] |
-| ET-Q-05 | P2 | FIXED_IN_THIS_TASK | worker_sweep_cursors keyset cursor (trash-grace, wraps at the end); enqueueWork/enqueueEvidencePurgeJob selfJobId | ff7965066d | services/api/test/point5/family-trash-grace.integration.test.ts [ET-Q-05: next tick passes the blocked rows; dry run does not move the cursor] |
-| ET-Q-06 | P2 | FIXED_IN_THIS_TASK | services/worker/src/index.ts startConsumers() — every Worker autorun:false; called once after bootstrapObjectLockVerification | c5650faa4b | services/worker/test/worker-bootstrap-hotfix.test.ts [ET-Q-06: all autorun off, one .run() site, one call after storage bootstrap] |
+| ET-Q-03 | P2 | FIXED_IN_THIS_TASK | shared-runtime run tracker (markRunProcessing / fenced markRunCompleted / markRunFailed) via media-intelligence.processor settleRunAround + refuseRun | f89f4909a3, 1bc4344ed4, e2ca76ba73 | services/api/test/point5/family-intelligence-operations.integration.test.ts [ET-Q-03: COMPLETED; FAILED kind_not_implemented / evidence_scope_mismatch] |
+| ET-Q-04 | P2 | FIXED_IN_THIS_TASK | redaction-derivative-writer: claimDerivativeForRender (QUEUED or lease-expired RENDERING, REDACTION_RENDER_LEASE_MS from the registry), releaseDerivativeClaim; reconciler lists lease-expired RENDERING | e950ba769b, 3b566105b8, 1bc4344ed4 | services/api/test/point5/family-redaction.integration.test.ts [ET-Q-04: stale taken over, live not stolen, transient releases] |
+| ET-Q-05 | P2 | FIXED_IN_THIS_TASK | worker_sweep_cursors keyset cursor (trash-grace, wraps at the end); enqueueWork/enqueueEvidencePurgeJob selfJobId | ff7965066d, 1bc4344ed4, 0f49532af2 | services/api/test/point5/family-trash-grace.integration.test.ts [ET-Q-05: next tick passes the blocked rows; dry run does not move the cursor] |
+| ET-Q-06 | P2 | FIXED_IN_THIS_TASK | services/worker/src/index.ts startConsumers() — every Worker autorun:false; called once after bootstrapObjectLockVerification | c5650faa4b, 1bc4344ed4, 786b0b1508 | services/worker/test/worker-bootstrap-hotfix.test.ts [ET-Q-06: all autorun off, one .run() site, one call after storage bootstrap] |
 | ET-REC-02 | P2 | FIXED_IN_THIS_TASK | shared parseOtsBudgetExhaustedFingerprint: the OTS probe resolves it when otsStatus leaves FAILED; entryForIncident routes it to the ots_failure entry | a35244ea60, 4421a752c9 | services/api/test/operations-ots-remediation-truth.integration.test.ts [ET-REC-02: offered Resume; stays open while failing; resolves when anchored] |
 | ET-REC-03 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime resolveEvidenceWorkspaceIds (batched; resolveEvidenceWorkspaceId delegates) used by loadEvidenceOutputFacts | 7726a1b540, 4421a752c9 | services/api/test/output-facts-null-team-workspace.integration.test.ts; services/api/test/artifact-action-contract.integration.test.ts |
 | ET-REC-04 | P2 | FIXED_IN_THIS_TASK | mobile ops-console buildRemediateBody + remediationReasonReady; the inspector collects the reason | 2223b6502a, 4421a752c9 | apps/mobile/test/ops-remediation-reason.test.mjs |
 | ET-RPT-01 | P2 | FIXED_IN_THIS_TASK | reports-aggregator classifyWorkspaceOutputs reportUpdateFailed (READY + latest report request failed) → reportsUpdateFailed card, report_update_failed filter, row report.updateFailed | 717dad0252, 4421a752c9 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-01]; services/api/test/reports-summary-filter-parity.integration.test.ts (tile = filter total); apps/web/__tests__/reports-lifecycle-deep-link.test.ts; apps/mobile/test/reports.test.mjs |
 | ET-RPT-02 | P2 | FIXED_IN_THIS_TASK | toReportLifecycle/toPackageLifecycle: canonical BLOCKED → 'blocked' (server, web fallback, mobile fallback); reportsBlocked card + report_blocked filter | 717dad0252, 4421a752c9 | services/api/test/reports-blocked-update-failed.integration.test.ts [ET-RPT-02: every row the Packages blocked card opens says blocked]; apps/mobile/test/reports.test.mjs |
 | ET-RPT-03 | P2 | FIXED_IN_THIS_TASK | worker finalized report path: evaluateEffectiveLegalHold → ReportRecordLegalHold (ACTIVE/NONE/UNAVAILABLE) → reportLegalHoldLabel; storage header its own 'Storage Object Lock legal hold' row | 0ec7406c30, 4421a752c9 | services/worker/test/report-legal-hold-truth.test.ts |
-| ET-SEC-11 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-11 | P2 | FIXED_IN_THIS_TASK | evidence-complete.service completeEvidence: SIGNED and REPORTED both answer alreadyFinalized with the existing chain | 32daa64b69, e16588fb76 | services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-11] |
 | ET-SEC-12 | P2 | FIXED_IN_THIS_TASK | lifecycle service: locked re-read + fresh capability + conditional updateMany; governance transitionLifecycle: locked conditional updateMany (no destruction claim); executor tombstone: conditional on its own claim | 8babf130d1 | services/api/test/legal-hold-destruction-serialization.integration.test.ts [ET-SEC-12 concurrent restores produce one custody event] and [ET-SEC-12 (STATEMACHINE-04) an operator transition cannot resurrect a record the executor is destroying] |
-| ET-SEC-13 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-13 | P2 | FIXED_IN_THIS_TASK | upload-session.service completeUploadSession: the atomic UPDATE admits only live (non-terminal) sessions | 32daa64b69 | services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13] |
 | ET-SEC-14 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-15 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-16 | P2 | STILL_PRESENT |  |  |  |
@@ -110,15 +110,15 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 | ET-SEC-25 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-26 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-27 | P2 | STILL_PRESENT |  |  |  |
-| ET-SM-02 | P2 | STILL_PRESENT |  |  |  |
-| ET-SM-03 | P2 | STILL_PRESENT |  |  |  |
+| ET-SM-02 | P2 | FIXED_IN_THIS_TASK | services/worker/src/processor.ts REPORTABLE_AT_COMMIT_WHERE / isReportableAtCommit (conditional commit; REPORT_EVIDENCE_STATE_CHANGED otherwise) | e16588fb76 | services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: integrity rejection and trash during render] |
+| ET-SM-03 | P2 | FIXED_IN_THIS_TASK | storage.ts versioned applyObjectRetention / applyDefaultObjectRetention / headObject / copyObjectStorageClass(sourceVersionId); evidence-complete RetentionTarget.versionId; buildPublicEvidenceContent pins sealedVersionId | 49e9a5f3eb | services/api/test/storage-sealed-version.test.ts |
 | ET-SM-07 | P2 | STILL_PRESENT |  |  |  |
-| ET-SM-08 | P2 | STILL_PRESENT |  |  |  |
+| ET-SM-08 | P2 | FIXED_IN_THIS_TASK | packages/shared/src/evidence-record-status.ts evidenceRecordStatusLabel / evidenceRecordStatusTone (EVIDENCE_RECORD_STATUSES_PRESENTED); web and mobile delegate | a25e13daf6 | services/api/test/evidence-record-status-coverage.test.ts; apps/mobile/test/evidence-library.test.mjs |
 | ET-TSA-02 | P2 | FIXED_IN_THIS_TASK | parseTsaReply (missing imprint => tsa_response_parse_failed) + timestamp.service reply stage (openssl 'token not present' => tsa_token_missing) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-02]; services/api/test/phase-ia-tsa-false-failed.test.ts [granted reply with NO readable imprint] |
 | ET-TSA-04 | P2 | FIXED_IN_THIS_TASK | processor.ts passes timestampToken only when presentedTsaStatus === STAMPED; README describes a not-included unvalidated reply | d263f4f61f | services/worker unit suite (package README/entries); source: processor.ts timestampToken gate |
 | ET-TSA-05 | P2 | FIXED_IN_THIS_TASK | verification-package README timestamp.tsr section + fileSha256Label state the exact recomputation (per-part lowercase hex in partIndex order joined by '\|', SHA-256) and that it differs from multipartManifestSha256 | d263f4f61f | services/worker unit suite |
 | ET-TSA-06 | P2 | FIXED_IN_THIS_TASK | evidence.tsa_failure_code (bounded TimestampFailureCode) written at finalize and in the TIMESTAMP_* custody payload | d263f4f61f | services/api/test/tsa-finalize-persistence.integration.test.ts [tsa_token_untrusted, tsa_message_imprint_mismatch persisted] |
-| ET-UPL-02 | P2 | STILL_PRESENT |  |  |  |
+| ET-UPL-02 | P2 | FIXED_IN_THIS_TASK | upload-session.service: evaluateUploadSessionFinalizeGate (abandoned sessions skipped, superseded FAILED skipped, abandoned-only = applies:false); createUploadSession releases a terminal session's key; abortUploadSession limited to the session actor or record owner | 68235bdaa4, 0f49532af2 | services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02]; services/api/test/phase-30-11-unified-evidence-model.test.ts; services/api/test/phase-30-7-finalize-gate.test.ts |
 | ET-UPL-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-ACQ-05 | P3 | STILL_PRESENT |  |  |  |
 | ET-ACQ-06 | P3 | STILL_PRESENT |  |  |  |
@@ -138,9 +138,9 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 | ET-PKG-12 | P3 | FIXED_IN_THIS_TASK | BasicVerification.report.sha256 (the latest report's pdfSha256) | 9ae43300d1 | public-verify-package-seal-identity.integration.test.ts [report.sha256] |
 | ET-PKG-13 | P3 | STILL_PRESENT |  |  |  |
 | ET-PKG-14 | P3 | STILL_PRESENT |  |  |  |
-| ET-PKG-15 | P3 | STILL_PRESENT |  |  |  |
+| ET-PKG-15 | P3 | FIXED_IN_THIS_TASK | services/worker verification-package: getObjectStream versionId = VerificationEvidenceFile.storageVersionId from the processor's pre-read | b560aeee10 | services/worker/test/package-sealed-version.test.ts |
 | ET-PKG-17 | P3 | STILL_PRESENT |  |  |  |
-| ET-Q-07 | P3 | STILL_PRESENT |  |  |  |
+| ET-Q-07 | P3 | STILL_PRESENT |  | 1bc4344ed4 |  |
 | ET-Q-08 | P3 | FIXED_IN_THIS_TASK | report DLQ written only by the terminal (non-retriable) branch with a bounded code; media-intelligence DLQ written on a job's final attempt (job-event-context isFinalAttempt / boundedErrorCode) | d821f1419d | services/worker/test/job-event-context.test.ts |
 | ET-Q-09 | P3 | FIXED_IN_THIS_TASK | services/worker/src/job-event-context.ts (jobCommandId, isExpectedOtsPendingError); UnprocessableJobPayload extends BullMQ UnrecoverableError | d2b0d7da95 | services/worker/test/job-event-context.test.ts |
 | ET-Q-10 | P3 | FIXED_IN_THIS_TASK | intelligence-run-reconciler selectChunksOwingEmbedding (embedding_vector IS NULL, AI policy allows embeddings) | a7ee273c80 | services/api/test/embed-owed-predicate.integration.test.ts |
@@ -168,8 +168,8 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 | ET-TSA-07 | P3 | FIXED_IN_THIS_TASK | classifyTsaSubprocessError reads killed / curl exit code / HTTP status only; credentials in a 0600 curl config (-K) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-07, credentials absent from the result]; services/api/test/phase-ia-tsa-false-failed.test.ts [credentials never in argv] |
 | ET-TSA-08 | P3 | FIXED_IN_THIS_TASK | report technical-model reference notes point to the package (timestamp.tsr when validated); integrity-snapshot docblock states no parser is wired and names the validator | d263f4f61f | services/worker unit suite; grep: no 'technical verification endpoint' remains in services/apps/packages |
 | ET-TSA-09 | P3 | FIXED_IN_THIS_TASK | kept-token-validation.ts evaluateKeptTsaToken (same parser + same validator; serial, genTime, imprint required) used by repair-tsa-failed-with-token.ts; remediation-registry names the CLI as the one later writer | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-09 kept-token decision: validated ok; other digest, forged, no anchor, no token refused]; services/api/test/phase-ia-tsa-false-failed.test.ts [ET-TSA-09 source contracts] |
-| ET-UPL-03 | P3 | STILL_PRESENT |  |  |  |
-| ET-UPL-05 | P3 | STILL_PRESENT |  |  |  |
+| ET-UPL-03 | P3 | FIXED_IN_THIS_TASK | upload-session.service createUploadSession: a key reuses only the SAME record and actor; otherwise idempotency_key_conflict (409) | 68235bdaa4 | services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-03] |
+| ET-UPL-05 | P3 | FIXED_IN_THIS_TASK | upload-session.service completeStorageMultipart: size_mismatch fails the session; parts settle VERIFIED only on a matched declared reference, else HASHED; SETTLED_PART_STATES_SQL is the one settled set | 0f49532af2 | services/api/test/upload-multipart-size-and-reference.test.ts; services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-05: HASHED admitted by the live constraint] |
 
 ## ET-CUS-01 — Public Verify shows internal legal-hold notes, hold titles, publication/suspension reasons and actor user IDs to anonymous viewers
 
@@ -801,8 +801,8 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/worker/src/media-intelligence.processor.ts`
-- **commits:** f89f4909a3 fix(worker): every media-intelligence run kind with a durable row reaches a terminal state (ET-Q-03)
+- **productFiles:** `services/api/scripts/capability-authority/manifests/origin-resolutions.json`, `services/api/scripts/capability-authority/mutation-closure.mjs`, `services/worker/src/media-intelligence.processor.ts`
+- **commits:** f89f4909a3 fix(worker): every media-intelligence run kind with a durable row reaches a terminal state (ET-Q-03); 1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated; e2ca76ba73 fix(worker): an ended cross-workspace run carries the same neutral reason as a missing record (ET-Q-03 follow-up)
 
 ## ET-Q-04 — A redaction derivative that hits a transient storage error or a worker crash after its claim is stuck in RENDERING forever; retries, the reconciler and a user re-request all skip it
 
@@ -816,8 +816,8 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared/src/queue-integrity/registry.ts`, `services/worker/src/redaction/redaction-derivative-writer.ts`, `services/worker/src/redaction/redaction-derivative.processor.ts`
-- **commits:** e950ba769b fix(redaction): a derivative claim is released on a transient failure and taken over past its lease (ET-Q-04); 3b566105b8 test(redaction): the writer fake evaluates the ET-Q-04 claim predicate (OR QUEUED / lease-expired RENDERING)
+- **productFiles:** `packages/shared/src/queue-integrity/registry.ts`, `services/api/scripts/capability-authority/manifests/origin-resolutions.json`, `services/api/scripts/capability-authority/mutation-closure.mjs`, `services/worker/src/redaction/redaction-derivative-writer.ts`, `services/worker/src/redaction/redaction-derivative.processor.ts`
+- **commits:** e950ba769b fix(redaction): a derivative claim is released on a transient failure and taken over past its lease (ET-Q-04); 3b566105b8 test(redaction): the writer fake evaluates the ET-Q-04 claim predicate (OR QUEUED / lease-expired RENDERING); 1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated
 
 ## ET-Q-05 — Trash-grace reconciler re-reads the same oldest 200 TRASHED rows every hour; once 200 of them are blocked (hold, retention, object lock, approval pending) eligible records are never purged, and the purge job's own BLOCKED reschedule is a no-op
 
@@ -830,8 +830,8 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **migrationImpact:** 20280809000000_worker_sweep_cursors: one new table (EXPAND); read/write fail-open
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/prisma/migrations/20280809000000_worker_sweep_cursors/migration.sql`, `services/api/prisma/schema.prisma`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/queue.ts`
-- **commits:** ff7965066d fix(worker): trash-grace makes progress past blocked rows; a blocked purge reschedules for real (ET-Q-05)
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `services/api/prisma/migrations/20280809000000_worker_sweep_cursors/migration.sql`, `services/api/prisma/migrations/20280810000000_upload_part_state_hashed/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/scripts/capability-authority/manifests/origin-resolutions.json`, `services/api/scripts/capability-authority/mutation-closure.mjs`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/queue.ts`
+- **commits:** ff7965066d fix(worker): trash-grace makes progress past blocked rows; a blocked purge reschedules for real (ET-Q-05); 1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated; 0f49532af2 fix(uploads): declared size enforced; VERIFIED only against a declared reference; abandoned-only gate is no-session (ET-UPL-05)
 
 ## ET-Q-06 — 14 of 15 BullMQ workers and 4 sweeps start claiming work at module import, before secrets hydration, package-signer validation and object-lock bootstrap
 
@@ -844,8 +844,8 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/worker/src/index.ts`
-- **commits:** c5650faa4b fix(worker): no consumer claims work before secrets, the package signer and the Object Lock bootstrap succeed (ET-Q-06)
+- **productFiles:** `services/api/scripts/capability-authority/manifests/origin-resolutions.json`, `services/api/scripts/capability-authority/mutation-closure.mjs`, `services/worker/src/index.ts`
+- **commits:** c5650faa4b fix(worker): no consumer claims work before secrets, the package signer and the Object Lock bootstrap succeed (ET-Q-06); 1bc4344ed4 chore(audit): ledger + checkpoint for the queue batch (ET-Q-03..06, -08..10); artifacts regenerated; 786b0b1508 chore(point5): ledger from one fresh full integration run; openConsumers is not a sweep launcher
 
 ## ET-REC-02 — OTS budget-exhausted incident (WORKER, OTS:<id>:GLOBAL_BUDGET_EXHAUSTED) can never auto-resolve and tells operators the record will recover on its own
 
@@ -933,6 +933,20 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **productFiles:** `packages/shared/src/custody-labels.ts`, `services/api/scripts/capability-authority/manifests/consumer-resolutions.json`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/build-view-model.ts`, `services/worker/src/report-v2/custody-model.ts`, `services/worker/src/report-v2/types.ts`
 - **commits:** 0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13); 4421a752c9 chore(audit): ledger + checkpoint for the reports/recovery batch (ET-RPT-01..07, -09; ET-REC-01..11); artifacts regenerated
 
+## ET-SEC-11 — Repeat /complete on a REPORTED record returns without alreadyFinalized, re-running the one-time fan-out (duplicate EVIDENCE_COMPLETED custody event, evidence.completed webhook, malware scan, post-finalize)
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** A repeat complete on a REPORTED record fell through the SIGNED short-circuit and re-ran finalization against a record whose report was already issued.
+- **canonicalAuthority:** evidence-complete.service completeEvidence: SIGNED and REPORTED both answer alreadyFinalized with the existing chain
+- **redTest:** services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-11] (evidence/ET-SEC-11-13-SM-02-red-baseline.txt)
+- **greenTest:** services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-11]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/processor.ts`
+- **commits:** 32daa64b69 fix(evidence): a repeat complete on a REPORTED record is alreadyFinalized; only a live upload session completes (ET-SEC-11, ET-SEC-13); e16588fb76 fix(worker): a report commit re-checks the record under its lock and never overwrites an integrity failure, trash or destruction (ET-SM-02)
+
 ## ET-SEC-12 — Archive/trash/restore/unarchive are check-then-write: read + hold evaluation outside the transaction, write by id only, no lock
 
 - **severity:** P2
@@ -947,6 +961,65 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
+
+## ET-SEC-13 — completeUploadSession can move an ABORTED session to COMPLETED (write guard only excludes COMPLETED)
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** completeUploadSession's UPDATE did not exclude terminal states, so an ABORTED/EXPIRED/FAILED session could be flipped to COMPLETED.
+- **canonicalAuthority:** upload-session.service completeUploadSession: the atomic UPDATE admits only live (non-terminal) sessions
+- **redTest:** services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13] (evidence/ET-SEC-11-13-SM-02-red-baseline.txt)
+- **greenTest:** services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13]
+- **concurrencyTest:** services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13: a session aborted between the read and the write is NOT completed]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`
+- **commits:** 32daa64b69 fix(evidence): a repeat complete on a REPORTED record is alreadyFinalized; only a live upload session completes (ET-SEC-11, ET-SEC-13)
+
+## ET-SM-02 — Report commit (phase C) writes status=REPORTED with WHERE id only, so it can overwrite FAILED_HASH_MISMATCH and commit a Report on a trashed/destroyed record
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The report commit wrote REPORTED without re-reading the record under its lock, overwriting an integrity failure, trash or destruction that landed while the report rendered.
+- **canonicalAuthority:** services/worker/src/processor.ts REPORTABLE_AT_COMMIT_WHERE / isReportableAtCommit (conditional commit; REPORT_EVIDENCE_STATE_CHANGED otherwise)
+- **redTest:** services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02] (evidence/ET-SEC-11-13-SM-02-red-baseline.txt)
+- **greenTest:** services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: integrity rejection and trash during render]
+- **concurrencyTest:** services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: an integrity rejection that lands while the PDF renders is never overwritten by REPORTED]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/processor.ts`
+- **commits:** e16588fb76 fix(worker): a report commit re-checks the record under its lock and never overwrites an integrity failure, trash or destruction (ET-SM-02)
+
+## ET-SM-03 — Several original-byte paths still address latest-at-key instead of the signed storageVersionId (verify-content viewUrl, retention apply + lock snapshot, archive tier), while the owner can still write new versions at the key
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The verify link, retention application, lock snapshot and archive copy addressed latest-at-the-key instead of the sealed object version.
+- **canonicalAuthority:** storage.ts versioned applyObjectRetention / applyDefaultObjectRetention / headObject / copyObjectStorageClass(sourceVersionId); evidence-complete RetentionTarget.versionId; buildPublicEvidenceContent pins sealedVersionId
+- **redTest:** services/api/test/storage-sealed-version.test.ts (evidence/ET-SM-03-red-baseline.txt)
+- **greenTest:** services/api/test/storage-sealed-version.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/lifecycle/archive-tier.service.ts`, `services/api/src/storage.ts`
+- **commits:** 49e9a5f3eb fix(storage): the verify link, retention, lock snapshot and archive copy address the sealed version (ET-SM-03)
+
+## ET-SM-08 — Evidence library status maps (web + mobile mirror) render FAILED_HASH_MISMATCH as a neutral 'Status not recorded'; UPLOADED is a dead enum still driving UI copy and probes
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Web and mobile each mapped record statuses with their own tables; an integrity failure rendered as "Status not recorded".
+- **canonicalAuthority:** packages/shared/src/evidence-record-status.ts evidenceRecordStatusLabel / evidenceRecordStatusTone (EVIDENCE_RECORD_STATUSES_PRESENTED); web and mobile delegate
+- **obsoleteRemoved:** per-surface status label/tone tables in apps/web evidence-library-status.ts and mobile
+- **redTest:** services/api/test/evidence-record-status-coverage.test.ts (evidence/ET-SM-08-red-baseline.txt)
+- **greenTest:** services/api/test/evidence-record-status-coverage.test.ts; apps/mobile/test/evidence-library.test.mjs
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/product/evidence-library.ts`, `apps/web/app/(app)/evidence/lib/evidence-library-status.ts`, `apps/web/components/home-experience/home-view-model.ts`, `packages/shared/src/evidence-record-status.ts`, `packages/shared/src/index.ts`
+- **commits:** a25e13daf6 fix(presentation): one evidence record-status label and tone; an integrity failure is never "Status not recorded" (ET-SM-08)
 
 ## ET-TSA-02 — Granted reply without a parseable imprint (incl. granted status with no timeStampToken) is persisted as STAMPED
 
@@ -1001,6 +1074,20 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
 - **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-UPL-02 — One aborted or expired upload session blocks finalization of its evidence forever; the idempotency key returns the terminal session on retry
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** One ABORTED/EXPIRED session blocked its record's finalization forever, the retry got the dead session back through its idempotency key, and any team member could abort another member's session.
+- **canonicalAuthority:** upload-session.service: evaluateUploadSessionFinalizeGate (abandoned sessions skipped, superseded FAILED skipped, abandoned-only = applies:false); createUploadSession releases a terminal session's key; abortUploadSession limited to the session actor or record owner
+- **redTest:** services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02] (evidence/ET-UPL-02-03-red-baseline.txt)
+- **greenTest:** services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02]; services/api/test/phase-30-11-unified-evidence-model.test.ts; services/api/test/phase-30-7-finalize-gate.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `services/api/prisma/migrations/20280810000000_upload_part_state_hashed/migration.sql`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/uploads/upload-session.service.ts`
+- **commits:** 68235bdaa4 fix(uploads): idempotency keys stay with their record and actor; a dead session neither blocks finalization nor comes back (ET-UPL-02, ET-UPL-03); 0f49532af2 fix(uploads): declared size enforced; VERIFIED only against a declared reference; abandoned-only gate is no-session (ET-UPL-05)
 
 ## ET-CUS-12 — Redaction publication and derivatives, and reviewer workflow decisions, never reach the evidence custody chain; they live in unhashed, mutable side tables
 
@@ -1058,6 +1145,20 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
 - **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
+
+## ET-PKG-15 — Package streams originals without the pinned storageVersionId used by the integrity pre-read
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The integrity pre-read was pinned to the sealed version but the package stream read latest-at-the-key, so a newer object at the key failed the build as a digest mismatch.
+- **canonicalAuthority:** services/worker verification-package: getObjectStream versionId = VerificationEvidenceFile.storageVersionId from the processor's pre-read
+- **redTest:** services/worker/test/package-sealed-version.test.ts (evidence/ET-PKG-15-red-baseline.txt)
+- **greenTest:** services/worker/test/package-sealed-version.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
+- **commits:** b560aeee10 fix(package): the verification package streams the sealed version the integrity pre-read hashed (ET-PKG-15)
 
 ## ET-Q-08 — media-intelligence-dlq is a phantom sink (never written) shown as an operator DLQ, and report-dlq entries are written for requests that are still being retried
 
@@ -1329,4 +1430,32 @@ Open by severity: P0 0 · P1 0 · P2 46 · P3 27
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
 - **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-UPL-03 — Idempotent session reuse does not check the returned session belongs to the requested evidenceId
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** An idempotency key collapsed onto ANY team session with that key, so a member who pre-created the key for their own record diverted another member's upload to it.
+- **canonicalAuthority:** upload-session.service createUploadSession: a key reuses only the SAME record and actor; otherwise idempotency_key_conflict (409)
+- **redTest:** services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-03] (evidence/ET-UPL-02-03-red-baseline.txt)
+- **greenTest:** services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-03]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/uploads/upload-session.service.ts`
+- **commits:** 68235bdaa4 fix(uploads): idempotency keys stay with their record and actor; a dead session neither blocks finalization nor comes back (ET-UPL-02, ET-UPL-03)
+
+## ET-UPL-05 — Multipart path never enforces expectedTotalBytes/partSizeBytes, marks parts VERIFIED without a reference hash, and leaves bridged parts without uploadedByUserId
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Multipart completion never enforced the declared total size and marked every part VERIFIED whenever the server hashed the object, even with no client-declared reference hash.
+- **canonicalAuthority:** upload-session.service completeStorageMultipart: size_mismatch fails the session; parts settle VERIFIED only on a matched declared reference, else HASHED; SETTLED_PART_STATES_SQL is the one settled set
+- **redTest:** services/api/test/upload-multipart-size-and-reference.test.ts (evidence/ET-UPL-05-red-baseline.txt)
+- **greenTest:** services/api/test/upload-multipart-size-and-reference.test.ts; services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-05: HASHED admitted by the live constraint]
+- **migrationImpact:** 20280810000000_upload_part_state_hashed: CHECK constraint swap to a strictly wider set (EXPAND); apply before the image
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `services/api/prisma/migrations/20280810000000_upload_part_state_hashed/migration.sql`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/uploads/upload-session.service.ts`
+- **commits:** 0f49532af2 fix(uploads): declared size enforced; VERIFIED only against a declared reference; abandoned-only gate is no-session (ET-UPL-05)
 
