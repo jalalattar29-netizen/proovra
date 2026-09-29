@@ -45,6 +45,7 @@ import { otsUpgradeQueue } from "../queue.js";
 import {
   getOtsGlobalBudgetMs,
   isOtsGlobalBudgetExhausted,
+  resolveOtsBudgetStart,
 } from "../ots-upgrade.processor.js";
 // Phase IA-OTS-hybrid-fix — surface the verify result + the
 // classifier output + the next delayed job runAt directly in the
@@ -380,11 +381,25 @@ async function probe(evidenceId: string): Promise<{
     // FAILED — that's an open governance question (out of scope of
     // this probe). If budget is not exhausted, this is the invariant
     // violation: PENDING + no future retry + budget remains.
-    const budgetExhausted = isOtsGlobalBudgetExhausted({
-      firstAttemptAtUtc: ev.createdAt,
-      nowUtc: new Date(),
-      budgetMs: getOtsGlobalBudgetMs(),
+    // The processor's own start (2026-09-29): the proof's earliest recorded
+    // OTS event, never createdAt; no recorded event means no budget.
+    const otsEvents = await prisma.custodyEvent.findMany({
+      where: {
+        evidenceId,
+        eventType: { in: ["OTS_APPLIED", "OTS_FAILED", "OTS_ATTEMPT_ERROR"] },
+      },
+      orderBy: { sequence: "asc" },
+      select: { atUtc: true, payload: true },
     });
+    const budgetStart = resolveOtsBudgetStart(otsEvents);
+    probes.push({ name: "ots_budget_start", value: budgetStart?.toISOString() ?? "none_recorded" });
+    const budgetExhausted =
+      budgetStart !== null &&
+      isOtsGlobalBudgetExhausted({
+        firstAttemptAtUtc: budgetStart,
+        nowUtc: new Date(),
+        budgetMs: getOtsGlobalBudgetMs(),
+      });
     probes.push({
       name: "ots_budget_exhausted",
       value: String(budgetExhausted),

@@ -26,6 +26,8 @@ const h = vi.hoisted(() => {
   const state = {
     row: null as Record<string, unknown> | null,
     custody: [] as Array<{ eventType: string; payload: Record<string, unknown> }>,
+    /** Pre-existing OTS custody history the budget reads (sequence order). */
+    custodyHistory: [] as Array<{ atUtc: Date; payload: Record<string, unknown> }>,
     enqueued: [] as string[],
     incidents: [] as string[],
     reportRequests: 0,
@@ -59,6 +61,9 @@ vi.mock("../src/db.js", () => {
   };
   const prisma = {
     evidence,
+    custodyEvent: {
+      findMany: async () => h.custodyHistory.map((e) => ({ ...e })),
+    },
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(prisma),
   };
   return { prisma };
@@ -181,8 +186,11 @@ const verifyConfirmed = {
 };
 
 beforeEach(() => {
+  // A test that spies on a doubled export must not leak it into the next.
+  vi.restoreAllMocks();
   h.row = null;
   h.custody.length = 0;
+  h.custodyHistory.length = 0;
   h.enqueued.length = 0;
   h.incidents.length = 0;
   h.reportRequests = 0;
@@ -325,6 +333,7 @@ describe("inconclusive check (info timeout, unreadable output, attestation witho
 
   it("UNCHANGED: a proof READ and pinned with no attestation is still pending, and the budget still applies to it", async () => {
     h.row = baseRow({ createdAt: FORTY_DAYS_AGO });
+    h.custodyHistory.push({ atUtc: FORTY_DAYS_AGO, payload: { phase: "ots_initialized", otsPhase: "proof_created" } });
     h.upgrades.push(upgradedTo(PROOF_V1));
     h.info = infoPending;
     await processOtsUpgrade(job() as never);
@@ -413,5 +422,112 @@ describe("stale and concurrent completions", () => {
     await a;
     expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE", otsProofBase64: PROOF_V2 });
     expect(h.custody.map((c) => c.payload.otsPhase)).toEqual(["anchored_by_proof_structure"]);
+  });
+});
+
+/*
+ * THE BUDGET CLOCK STARTS WHEN THE PROOF DID (2026-09-29).
+ *
+ * It started at evidence.createdAt, so an old Free record stamped recently
+ * was "exhausted" on its first pending observation.
+ */
+describe("global budget start", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const ago = (days: number) => new Date(Date.now() - days * DAY);
+
+  it("an old Free record whose proof was initialized hours ago is NOT failed on its first pending observation", async () => {
+    h.row = baseRow({ createdAt: ago(400) });
+    h.custodyHistory.push({ atUtc: new Date(Date.now() - 2 * 60 * 60 * 1000), payload: { phase: "ots_initialized", otsPhase: "proof_created" } });
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoPending;
+    await processOtsUpgrade(job() as never);
+    expect(h.row!.otsStatus).toBe("PENDING");
+    expect(h.incidents).toEqual([]);
+    expect(h.enqueued).toEqual(["ev-1"]); // followed up on the normal cadence
+  });
+
+  it("a historical row with NO recorded OTS event is never failed by the budget (no date is invented)", async () => {
+    h.row = baseRow({ createdAt: ago(400) });
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoPending;
+    await processOtsUpgrade(job() as never);
+    expect(h.row!.otsStatus).toBe("PENDING");
+    expect(h.incidents).toEqual([]);
+  });
+
+  it("the report job's legacy proof_created event is the start for pre-2026-09-09 proofs", async () => {
+    h.row = baseRow({ createdAt: ago(400) });
+    h.custodyHistory.push({ atUtc: ago(45), payload: { otsStatus: "PENDING", otsPhase: "proof_created" } });
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoPending;
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "FAILED", otsFailureReason: "OTS_GLOBAL_BUDGET_EXHAUSTED" });
+    expect(h.incidents).toEqual(["OTS:ev-1:GLOBAL_BUDGET_EXHAUSTED"]);
+  });
+
+  it("a demoted anchor gets a full budget from its demotion, not from its initialization", async () => {
+    h.row = baseRow({ createdAt: ago(400) });
+    h.custodyHistory.push(
+      { atUtc: ago(300), payload: { otsPhase: "proof_created" } },
+      { atUtc: ago(10), payload: { otsPhase: "anchor_not_confirmed_on_recheck" } },
+    );
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoPending;
+    await processOtsUpgrade(job() as never);
+    expect(h.row!.otsStatus).toBe("PENDING");
+    expect(h.incidents).toEqual([]);
+  });
+
+  it("an inconclusive check past the budget still fails nothing (the budget is only read for a conclusive pending)", async () => {
+    h.row = baseRow({ createdAt: ago(400) });
+    h.custodyHistory.push({ atUtc: ago(300), payload: { otsPhase: "proof_created" } });
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = { status: "ERROR", info: null, binaryMissing: false, error: "timeout" };
+    const before = { ...h.row };
+    await expect(processOtsUpgrade(job() as never)).rejects.toThrow("OTS_UPGRADE_ATTEMPT_FAILED");
+    expect(h.row).toEqual(before);
+    expect(h.incidents).toEqual([]);
+  });
+
+  it("a stale worker cannot write budget exhaustion over a newer anchor", async () => {
+    h.row = baseRow({ createdAt: ago(400) });
+    h.custodyHistory.push({ atUtc: ago(45), payload: { otsPhase: "proof_created" } });
+    h.upgrades.push(async (file) => {
+      h.row = {
+        ...h.row!,
+        otsStatus: "ANCHORED",
+        otsAnchorCheck: "PROOF_STRUCTURE",
+        otsBitcoinTxid: TXID,
+        otsAnchoredAtUtc: new Date("2026-09-20T10:00:00Z"),
+        otsUpgradedAtUtc: new Date("2026-09-29T11:00:00Z"),
+      };
+      await writeFile(file, Buffer.from(PROOF_V1, "base64"));
+      return { stdout: "Pending confirmation", stderr: "" };
+    });
+    h.info = infoPending;
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE" });
+    expect(h.incidents).toEqual([]);
+  });
+});
+
+describe("resolveOtsBudgetStart", () => {
+  it("is the earliest recorded OTS event, moved forward only by a demotion", async () => {
+    const { resolveOtsBudgetStart } = await import("../src/ots-upgrade.processor.js");
+    const t = (iso: string) => new Date(iso);
+    expect(resolveOtsBudgetStart([])).toBeNull();
+    expect(
+      resolveOtsBudgetStart([
+        { atUtc: t("2026-05-02T00:00:00Z"), payload: { otsPhase: "pending_confirmation" } },
+        { atUtc: t("2026-05-01T00:00:00Z"), payload: { otsPhase: "proof_created" } },
+      ])?.toISOString(),
+    ).toBe("2026-05-01T00:00:00.000Z");
+    expect(
+      resolveOtsBudgetStart([
+        { atUtc: t("2026-05-01T00:00:00Z"), payload: { otsPhase: "proof_created" } },
+        { atUtc: t("2026-08-01T00:00:00Z"), payload: { otsPhase: "anchor_not_confirmed_on_recheck" } },
+        { atUtc: t("2026-08-02T00:00:00Z"), payload: null },
+      ])?.toISOString(),
+    ).toBe("2026-08-01T00:00:00.000Z");
   });
 });

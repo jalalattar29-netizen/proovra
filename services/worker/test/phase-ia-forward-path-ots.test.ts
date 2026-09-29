@@ -232,14 +232,21 @@ describe("Phase IA-forward-path-OTS — upgrade processor wires verify + classif
   });
 
   it("global budget exhaustion is an observation on a PENDING proof, then FAILED + a CRITICAL incident", () => {
-    const block = enclosingSource(UP, "isOtsGlobalBudgetExhausted({", "statement", {
-      unique: true,
-      fileName: "ots-upgrade.processor.ts",
-    });
-    // Only a pending observation of a record that is not anchored qualifies.
-    expect(block).toMatch(/observation\.kind === "PENDING"/);
-    expect(block).toMatch(/effectiveStatus !== "ANCHORED"/);
+    // Only a pending observation of a record that is not anchored qualifies:
+    // the budget is read INSIDE that guard.
+    const block = enclosingSource(
+      UP,
+      'if (observation.kind === "PENDING" && effectiveStatus !== "ANCHORED")',
+      "statement",
+      { unique: true, fileName: "ots-upgrade.processor.ts" },
+    );
+    expect(block).toMatch(/isOtsGlobalBudgetExhausted\(\{/);
     expect(block).toMatch(/kind:\s*"BUDGET_EXHAUSTED"/);
+    // (2026-09-29) Measured from the proof's recorded start, never createdAt;
+    // no recorded start means no automatic failure.
+    expect(block).toMatch(/loadOtsBudgetStart\(evidenceId\)/);
+    expect(block).toMatch(/budgetStart !== null/);
+    expect(block).not.toMatch(/createdAt/);
     // occurrence 1: the first is the custody payload's budgetDays spread.
     const incident = enclosingSource(UP, 'transition.phase === "global_budget_exhausted"', "statement", {
       occurrence: 1,

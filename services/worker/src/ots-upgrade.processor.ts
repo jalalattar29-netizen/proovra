@@ -61,9 +61,10 @@ function now(): Date {
 //      same evidence reuses the same id, so BullMQ's attempts ceiling
 //      is honored.
 //
-//   2. **Global attempt budget (30 days).** If the first OTS
-//      submission for this evidence is older than `OTS_GLOBAL_BUDGET_DAYS`
-//      and the proof still won't anchor, the processor marks the row
+//   2. **Global attempt budget (30 days).** If the proof's recorded start
+//      (`resolveOtsBudgetStart`, 2026-09-29; it was `createdAt`) is older
+//      than `OTS_GLOBAL_BUDGET_DAYS` and a CONCLUSIVE check still finds no
+//      anchor, the processor marks the row
 //      FAILED with reason `OTS_GLOBAL_BUDGET_EXHAUSTED` and stops
 //      re-enqueueing. Operators see the stuck row on the canonical
 //      OTS status surface (evidence detail / `/operations/queues`).
@@ -157,6 +158,64 @@ export {
  * database read.
  */
 /**
+ * WHEN THE GLOBAL BUDGET STARTS FOR THIS PROOF (2026-09-29).
+ *
+ * It used to start at `evidence.createdAt`. A record finalized long before its
+ * proof existed — every Free record captured before initialization moved out
+ * of the report job, stamped later by the reconciler — was therefore
+ * "exhausted" on its FIRST genuinely pending observation and marked FAILED
+ * with a CRITICAL incident, although its proof was hours old.
+ *
+ * The start is now a DURABLE, RECORDED fact about the proof: the earliest OTS
+ * custody event for the record (the initializer's `ots_initialized` /
+ * `proof_created` event on every proof since 2026-09-09; the report job's
+ * `proof_created` / `anchored` event before that). A proof existed no later
+ * than that event, so the budget can start late but never early.
+ *
+ * A proof whose anchor was DEMOTED on a conclusive re-check restarts at the
+ * demotion: it was treated as anchored until then, and the calendar gets a
+ * full budget to upgrade it before it can be called failed.
+ *
+ * NO RECORDED OTS EVENT AT ALL (rows older than any OTS custody writing):
+ * `null` — no date is invented and the budget never fails the proof
+ * automatically. It stays PENDING and visible to operators through the
+ * separate `evidence_integrity.ots_pending_aged` condition.
+ *
+ * Exported for the behaviour test.
+ */
+export function resolveOtsBudgetStart(
+  events: ReadonlyArray<{ atUtc: Date; payload: unknown }>,
+): Date | null {
+  if (events.length === 0) return null;
+  let start = events[0]!.atUtc;
+  for (const event of events) {
+    if (event.atUtc < start) start = event.atUtc;
+  }
+  for (const event of events) {
+    const payload = (event.payload ?? {}) as { otsPhase?: unknown };
+    if (payload.otsPhase === "anchor_not_confirmed_on_recheck" && event.atUtc > start) {
+      start = event.atUtc;
+    }
+  }
+  return start;
+}
+
+const OTS_BUDGET_EVENT_TYPES = [
+  prismaPkg.CustodyEventType.OTS_APPLIED,
+  prismaPkg.CustodyEventType.OTS_FAILED,
+  prismaPkg.CustodyEventType.OTS_ATTEMPT_ERROR,
+];
+
+async function loadOtsBudgetStart(evidenceId: string): Promise<Date | null> {
+  const events = await prisma.custodyEvent.findMany({
+    where: { evidenceId, eventType: { in: OTS_BUDGET_EVENT_TYPES } },
+    orderBy: { sequence: "asc" },
+    select: { atUtc: true, payload: true },
+  });
+  return resolveOtsBudgetStart(events);
+}
+
+/**
  * True only when the proof was READ (`ots info` parsed), is pinned to THIS
  * record (its file hash equals `evidence.otsHash`), and carries NO Bitcoin
  * block attestation. That — and nothing weaker — is what a PENDING
@@ -212,11 +271,8 @@ export async function processOtsUpgrade(job: Job<unknown>) {
     where: { id: evidenceId },
     select: {
       id: true,
-      // Phase Final-Worker-Visibility — `createdAt` is the anchor
-      // for the global OTS attempt budget. We use it (not the
-      // upgrade timestamp) because `upgradedAt` is the CURRENT
-      // run's clock and `otsAnchoredAtUtc` is null for proofs that
-      // never anchored.
+      // (2026-09-29) No longer the budget anchor — see
+      // `resolveOtsBudgetStart`. Kept for the incident and log context.
       createdAt: true,
       // Phase IA-reliability — required so the incident bridge can
       // scope the OperationalIncident row to the right workspace.
@@ -486,12 +542,17 @@ export async function processOtsUpgrade(job: Job<unknown>) {
   }
 
   const observedAt = now();
-  if (
-    observation.kind === "PENDING" &&
-    effectiveStatus !== "ANCHORED" &&
-    isOtsGlobalBudgetExhausted({ firstAttemptAtUtc: evidence.createdAt, nowUtc: observedAt })
-  ) {
-    observation = { kind: "BUDGET_EXHAUSTED" };
+  // The budget applies only to a CONCLUSIVE pending observation of a proof
+  // that is not anchored, measured from the proof's recorded start (see
+  // `resolveOtsBudgetStart`) — never from when the record was created.
+  if (observation.kind === "PENDING" && effectiveStatus !== "ANCHORED") {
+    const budgetStart = await loadOtsBudgetStart(evidenceId);
+    if (
+      budgetStart !== null &&
+      isOtsGlobalBudgetExhausted({ firstAttemptAtUtc: budgetStart, nowUtc: observedAt })
+    ) {
+      observation = { kind: "BUDGET_EXHAUSTED" };
+    }
   }
 
   const transition = decideOtsTransition(snapshot, observation, observedAt);
