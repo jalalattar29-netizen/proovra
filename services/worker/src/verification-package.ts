@@ -503,7 +503,61 @@ function normalizeFileNameSegments(parts: Array<string | null | undefined>): str
     .join("-");
 }
 
-function buildEvidencePackageFileName(params: {
+/**
+ * ET-PKG-14 — every ROOT entry name the generator writes itself. A single-file
+ * record is placed at the package root under a name derived from its title, so
+ * a record titled "fingerprint" with no capture/upload time became
+ * "fingerprint.json" — a second entry with the path of the fixed fingerprint,
+ * listed twice in the checksum index while Map-based verifiers saw one. Kept
+ * exhaustive by test/package-entry-name-collision.test.ts.
+ */
+export const RESERVED_ROOT_ENTRY_NAMES: ReadonlySet<string> = new Set([
+  "README.txt",
+  "access-activity.json",
+  "acquisition.json",
+  "anchor.json",
+  "audit-access-report.json",
+  "canonical-record.json",
+  "capture-context.json",
+  "case-metadata.json",
+  "court-admissibility-checklist.json",
+  "custody.json",
+  "duplicate-digests.json",
+  "evidence-manifest.json",
+  "fingerprint.json",
+  "forensic-custody.json",
+  "integrity-summary.json",
+  "map-preview.png",
+  "opentimestamps-proof.ots",
+  "opentimestamps.json",
+  "original-linkage.json",
+  "package-checksums.json",
+  "package-manifest-public-key.pem",
+  "package-manifest.json",
+  "package-manifest.sig",
+  "package-manifest.verify.txt",
+  "package-mode.json",
+  PACKAGE_SEAL_FILE,
+  PACKAGE_SEAL_SIGNATURE_FILE,
+  "public-key.pem",
+  "review-artifact-boundaries.json",
+  "signature.txt",
+  "timestamp.tsr",
+  "trust-decision.json",
+]);
+
+const RESERVED_ROOT_ENTRY_NAMES_FOLDED = new Set([...RESERVED_ROOT_ENTRY_NAMES].map((n) => n.toLowerCase()));
+
+/** A root evidence file never takes a reserved entry name. */
+export function avoidReservedRootEntryName(name: string): string {
+  // Case-insensitive: most extractors (Windows, macOS) fold case, so README.txt
+  // and readme.txt collide on disk even though ZIP paths are case-sensitive.
+  return RESERVED_ROOT_ENTRY_NAMES_FOLDED.has(name.toLowerCase())
+    ? `evidence-${name}`
+    : name;
+}
+
+export function buildEvidencePackageFileName(params: {
   evidenceTitle?: string | null;
   originalFileName?: string | null;
   evidenceType?: string | null;
@@ -580,7 +634,9 @@ function buildEvidencePackageFileName(params: {
     baseName = `${orderPrefix}-${baseName}`;
   }
 
-  return `${baseName}.${extension}`;
+  const fileName = `${baseName}.${extension}`;
+  // Multi-part files live under evidence-parts/; only a root file can collide.
+  return params.totalParts > 1 ? fileName : avoidReservedRootEntryName(fileName);
 }
 
 function normalizeAnchorMode(value: string | null | undefined): AnchorMode {
@@ -1860,13 +1916,15 @@ function buildPackageManifest(params: {
       reportArtifact: params.hasReportArtifact,
       courtReadiness: true,
       certificationTemplates: true,
-      verifyHtml: true,
+      // ET-PKG-04 — the local verify page and verification script were removed
+      // from the package; the signed manifest must not claim them.
+      verifyHtml: false,
       readme: true,
       actualCertifications: params.hasActualCertifications,
       packageChecksums: true,
       signedPackageManifest: true,
       verificationInstructions: true,
-      verificationScript: true,
+      verificationScript: false,
       caseMetadata: true,
       auditAccessReport: true,
       captureContext: params.hasCaptureContext,

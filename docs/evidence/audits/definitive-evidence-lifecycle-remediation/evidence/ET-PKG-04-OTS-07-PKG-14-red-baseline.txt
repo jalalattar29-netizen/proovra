@@ -1,0 +1,23 @@
+ET-PKG-04 red — services/worker/test/package-manifest-contents-truth.test.ts against HEAD (d3f31f99) verification-package.ts:
+   ✓ signed package manifest contents (ET-PKG-04) > the flag map is exhaustive 1ms
+   × signed package manifest contents (ET-PKG-04) > every flag that can be true names an appended entry; the removed files' flags are false 4ms
+     → verifyHtml: expected 'true' to be 'false' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 1 passed (2)
+
+ET-OTS-07 red — services/worker/test/package-readme-seal-instructions.test.ts -t 'OTS hint' against a40ca76f verification-package.ts (the hint was corrected with ET-PKG-03 in 9ae43300; this proves the audited tree failed it):
+   × verification package README (ET-PKG-02/03) > the OTS hint names the digest, and no text claims platform-independent key trust 7ms
+     → expected 'import archiver from "archiver";\nimp…' to contain 'ots verify -d <hash in this file> ope…'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 2 skipped (3)
+
+ET-PKG-14 red — services/worker/test/package-entry-name-collision.test.ts against HEAD naming (buildEvidencePackageFileName exported, RESERVED_ROOT_ENTRY_NAMES stubbed to two names so the module loads):
+   × package root entry names (ET-PKG-14) > a record titled like a fixed entry gets a distinct root name 4ms
+     → expected true to be false // Object.is equality
+   × package root entry names (ET-PKG-14) > the collision check folds case (extractors do) 0ms
+     → expected 'custody.json' not to be 'custody.json' // Object.is equality
+   ✓ package root entry names (ET-PKG-14) > an ordinary title is untouched 0ms
+   × package root entry names (ET-PKG-14) > the reserved set covers every root entry the generator appends (exhaustive) 0ms
+     → evidence-manifest.json: expected false to be true // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed | 1 passed (4)
