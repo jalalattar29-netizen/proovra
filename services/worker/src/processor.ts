@@ -79,6 +79,7 @@ import {
   presentedTsaStatus,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
+import { custodyThroughIssuance } from "./custody-issuance-cutoff.js";
 import {
   EVIDENCE_TOO_LARGE_FOR_PROCESSING,
   exceedsProcessingCeiling,
@@ -3226,18 +3227,8 @@ async function loadCommittedReportForPackage(params: {
    * events are later facts; the seal records the cut-off and that the package
    * was assembled after the report.
    */
-  const custodyEvents = await prisma.custodyEvent.findMany({
-    where: { evidenceId, atUtc: { lte: report.generatedAtUtc } },
-    orderBy: { sequence: "asc" },
-    select: {
-      sequence: true,
-      atUtc: true,
-      eventType: true,
-      payload: true,
-      prevEventHash: true,
-      eventHash: true,
-    },
-  });
+  // ET-CUS-06: a contiguous prefix by SEQUENCE (custody-issuance-cutoff).
+  const custodyEvents = await custodyThroughIssuance(prisma, evidenceId, report.generatedAtUtc);
 
   const effectiveVerificationStatus =
     current.verificationStatus ?? prepared.identitySnapshot.verificationStatus;

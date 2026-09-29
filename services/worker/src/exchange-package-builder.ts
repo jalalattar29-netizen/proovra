@@ -359,34 +359,44 @@ async function appendKindContent(params: {
             "application/json",
           );
 
-          const custody = await prisma.custodyEvent
-            .findMany({
-              where: { evidenceId: eid },
-              orderBy: { sequence: "asc" },
-              take: 500,
-              select: {
-                sequence: true,
-                eventType: true,
-                atUtc: true,
-                eventHash: true,
-                prevEventHash: true,
-              },
-            })
-            .catch(() => []);
+          // ET-CUS-09: the COMPLETE chain with every payload exactly as
+          // hashed, so a recipient can recompute each eventHash (the formula is
+          // stated in the file). It used to omit payloads, stop at 500 events,
+          // and turn a database error into an empty chain; a read failure now
+          // fails the package instead of shipping a chain that is not one.
+          const custody = await prisma.custodyEvent.findMany({
+            where: { evidenceId: eid },
+            orderBy: { sequence: "asc" },
+            select: {
+              sequence: true,
+              eventType: true,
+              atUtc: true,
+              payload: true,
+              eventHash: true,
+              prevEventHash: true,
+            },
+          });
           appendEntry(
             archive,
             entries,
             `evidence/${eid}/custody-chain.json`,
             jsonBuffer({
               schema: "PROOVRA_EXCHANGE_CUSTODY_CHAIN",
+              version: 2,
               evidenceId: eid,
               generatedAtUtc: new Date().toISOString(),
-              events: custody,
+              eventCount: custody.length,
+              hashFormula:
+                "eventHash = lowercase hex SHA-256 of the UTF-8 canonical JSON of {v:1, evidenceId, sequence, eventType, atUtc (ISO-8601), payload (or null), prevEventHash (or null)}; object keys sorted by code point at every level, no whitespace.",
+              events: custody.map((e) => ({ ...e, atUtc: e.atUtc.toISOString() })),
             }),
             "application/json",
           );
-        } catch {
-          // per-evidence failure is non-fatal
+        } catch (err) {
+          // ET-CUS-09: a record whose metadata or custody chain cannot be read
+          // fails the build (the job retries) instead of shipping a package
+          // that silently omits it.
+          throw Object.assign(new Error("EXCHANGE_EVIDENCE_READ_FAILED"), { cause: err, evidenceId: eid });
         }
       }
       break;

@@ -1,0 +1,4 @@
+[31m   [31m×[31m package custody is complete and recomputable (live PostgreSQL 16)[2m > [22mET-CUS-09: the exchange custody chain carries every event with its payload, and every hash recomputes[39m[33m 2771[2mms[22m[39m
+[31m     → expected [ { sequence: 1, …(4) }, …(499) ] to have a length of 520 but got 500[39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
