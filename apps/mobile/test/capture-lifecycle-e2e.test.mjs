@@ -501,3 +501,18 @@ test("11c. the capture screen consults the guard on BOTH the add and the seal", 
   );
   assert.match(screen, /setMixedOrigin\(/, "the refusal never reaches the person");
 });
+
+test("D13 (2026-09-29): a session opened in a Team workspace names it; without one the server's personal default applies", async () => {
+  await directCapture.openDirectCaptureSession("PROOVRA_MOBILE_APP", { teamId: "team-123" });
+  const withTeam = requests.filter((r) => r.path === "/v1/capture/direct-sessions").at(-1);
+  assert.deepEqual(withTeam.body, { mode: "PROOVRA_MOBILE_APP", teamId: "team-123" });
+
+  await directCapture.openDirectCaptureSession("PROOVRA_MOBILE_APP");
+  const personal = requests.filter((r) => r.path === "/v1/capture/direct-sessions").at(-1);
+  assert.deepEqual(personal.body, { mode: "PROOVRA_MOBILE_APP" });
+});
+
+test("D13: the capture screen opens its session in the ACTIVE workspace", () => {
+  const src = readFileSync(resolve(HERE, "../app/(stack)/capture.tsx"), "utf8");
+  assert.match(src, /openDirectCaptureSession\("PROOVRA_MOBILE_APP", \{ teamId \}\)/);
+});

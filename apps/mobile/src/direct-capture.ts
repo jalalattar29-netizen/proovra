@@ -58,10 +58,17 @@ export type DirectCaptureSessionMode =
 
 export async function openDirectCaptureSession(
   mode: DirectCaptureSessionMode = "PROOVRA_MOBILE_APP",
+  /**
+   * The workspace the capture belongs to (2026-09-29, audit D13). Omitted,
+   * the server uses the caller's personal workspace — which is where every
+   * mobile capture landed, even one taken in a Team workspace. The server
+   * authorizes the caller against it.
+   */
+  options: { teamId?: string | null } = {},
 ): Promise<DirectCaptureSession> {
   const res = await apiFetch("/v1/capture/direct-sessions", {
     method: "POST",
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify(options.teamId ? { mode, teamId: options.teamId } : { mode }),
   });
   const session = res?.session as
     | { captureSessionId?: string; expiresAtUtc?: string }

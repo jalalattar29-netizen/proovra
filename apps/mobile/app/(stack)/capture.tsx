@@ -1394,7 +1394,8 @@ if (!isRecording || busy) return;
         const gps = await getGps();
         const rootType = deriveBatchEvidenceType(items.map((i) => i.mimeType));
         const primary = primaryItem(items);
-        captureSession = await openDirectCaptureSession();
+        // The active workspace, not always the personal one (2026-09-29, D13).
+        captureSession = await openDirectCaptureSession("PROOVRA_MOBILE_APP", { teamId });
         captureSessionRef.current = captureSession;
         evidenceId = await reserveDirectCaptureEvidence(captureSession, {
           type: rootType,
