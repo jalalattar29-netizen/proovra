@@ -1,0 +1,7 @@
+ET-REC-11 red baseline — automation-evidence-reported-issued.integration.test.ts against HEAD automation-triggers.ts + report-generation-authority.service.ts
+   × EVIDENCE_REPORTED follows issued reports (live PostgreSQL 16) > a generation request fires nothing; the issued report fires exactly once 65ms
+     → expected [] to deeply equal [ Array(1) ]
+   × EVIDENCE_REPORTED follows issued reports (live PostgreSQL 16) > a team_id-NULL Personal record's report fires in its owner's personal workspace 17ms
+     → expected [] to deeply equal [ Array(1) ]
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed (2)

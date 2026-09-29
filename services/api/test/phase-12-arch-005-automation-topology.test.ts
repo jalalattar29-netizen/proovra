@@ -75,7 +75,7 @@ describe("§2 — ARCH-005 topology: one authority, one registration, one exempt
     const emitters = [
       "triggerEvidenceCreated",
       "triggerEvidenceFinalized",
-      "triggerEvidenceReported",
+      // EVIDENCE_REPORTED is DETECTED from the issued Report row (ET-REC-11).
       "triggerReviewAssigned",
       "triggerEscalationCreated",
       "triggerLegalHoldCreated",
@@ -85,7 +85,6 @@ describe("§2 — ARCH-005 topology: one authority, one registration, one exempt
     const PRODUCTION_CALLERS = [
       "services/api/src/services/evidence.service.ts",
       "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts",
-      "services/api/src/services/reports/report-generation-authority.service.ts",
       "services/api/src/services/review-operations/review-operations.service.ts",
       "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
       "services/api/src/services/governance/legal-hold.service.ts",

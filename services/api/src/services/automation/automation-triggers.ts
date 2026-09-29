@@ -12,14 +12,15 @@
  *
  * TWO KINDS OF SOURCE, AND THE DIFFERENCE MATTERS
  * ---------------------------------------------------------------------------
- * EVENT-SOURCED (6) — EVIDENCE_CREATED, EVIDENCE_FINALIZED, EVIDENCE_REPORTED,
+ * EVENT-SOURCED (5) — EVIDENCE_CREATED, EVIDENCE_FINALIZED,
  * REVIEW_ASSIGNED, ESCALATION_CREATED, LEGAL_HOLD_CREATED. Something happened
  * in a transaction. These call `enqueueAutomationTrigger` with the SOURCE
  * TRANSACTION'S client, so the run commits with the change or not at all, and
  * the source event id is the durable id of the thing that happened.
  *
- * DETECTED (5) — REVIEW_OVERDUE, SLA_DUE_SOON, EXTERNAL_ACCESS_EXPIRING,
- * RETENTION_CANDIDATE_FOUND, PACKAGE_READY.
+ * DETECTED (6) — REVIEW_OVERDUE, SLA_DUE_SOON, EXTERNAL_ACCESS_EXPIRING,
+ * RETENTION_CANDIDATE_FOUND, PACKAGE_READY, EVIDENCE_REPORTED (ET-REC-11: the
+ * worker issues the report; the durable Report row is read, like PACKAGE_READY).
  *
  * Four of those are genuinely TIME-BASED: nothing happens. A due date passes,
  * an access grant nears expiry, a retention clock runs out. There is no event
@@ -46,6 +47,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { resolveEvidenceWorkspaceIds } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -105,25 +107,12 @@ export function triggerEvidenceFinalized(
   });
 }
 
-/** EVIDENCE_REPORTED — a report was requested for this evidence. */
-export function triggerEvidenceReported(
-  tx: AutomationOutboxClient,
-  input: {
-    teamId: string;
-    evidenceId: string;
-    reportId: string;
-    context?: Record<string, unknown>;
-  },
-): Promise<EnqueueAutomationTriggerOutcome> {
-  return enqueueAutomationTrigger(tx, {
-    teamId: input.teamId,
-    triggerType: "EVIDENCE_REPORTED",
-    targetType: "evidence",
-    targetId: input.evidenceId,
-    sourceEventId: `report:${input.reportId}`,
-    context: input.context,
-  });
-}
+// EVIDENCE_REPORTED has NO emitter here either (ET-REC-11, 2026-09-29): it is
+// DETECTED below from the durable Report row the worker commits — "Report
+// generated" in the rule builder. It was emitted on the creation of every
+// API-side generation REQUEST (package-only recovery, superseding retries,
+// requests the worker later refused) before any report existed, keyed by the
+// request id, while worker-originated first issuance never emitted it.
 
 // PACKAGE_READY has NO emitter here on purpose. Its writer is the worker's
 // exchange-package builder, and the worker does not import API modules; it is
@@ -216,6 +205,7 @@ export type TimeTriggerDetectionOutcome = {
   externalAccessExpiring: number;
   retentionCandidate: number;
   packageReady: number;
+  evidenceReported: number;
 };
 
 /**
@@ -239,6 +229,7 @@ export async function detectTimeBasedAutomationTriggers(input?: {
     externalAccessExpiring: 0,
     retentionCandidate: 0,
     packageReady: 0,
+    evidenceReported: 0,
   };
 
   // -------------------------------------------------------------------------
@@ -423,6 +414,44 @@ export async function detectTimeBasedAutomationTriggers(input?: {
         context: { state: "READY" },
       });
       out.packageReady += r.enqueued;
+    }
+  } catch {
+    /* as above */
+  }
+
+  // -------------------------------------------------------------------------
+  // EVIDENCE_REPORTED — DETECTED from the issued Report row (ET-REC-11).
+  //
+  // Same shape as PACKAGE_READY: the writer is the worker, which does not
+  // import API modules, and a report is issued exactly once per (record,
+  // version), so the source identity is the report id and re-detection
+  // collapses on the unique index. The workspace is the record's, by THE
+  // writer's rule (a team_id-NULL Personal record resolves to its owner's
+  // personal workspace).
+  // -------------------------------------------------------------------------
+  try {
+    const issued = await prisma.report.findMany({
+      where: { generatedAtUtc: { gte: new Date(nowMs - 7 * 24 * 3600 * 1000) } },
+      select: { id: true, version: true, evidence: { select: { id: true, teamId: true, ownerUserId: true } } },
+      orderBy: { generatedAtUtc: "desc" },
+      take: DETECT_LIMIT,
+    });
+    const workspaceBy = await resolveEvidenceWorkspaceIds(
+      issued.map((r) => ({ id: r.evidence.id, teamId: r.evidence.teamId, ownerUserId: r.evidence.ownerUserId })),
+      prisma,
+    );
+    for (const report of issued) {
+      const teamId = workspaceBy.get(report.evidence.id) ?? null;
+      if (!teamId) continue;
+      const r = await enqueueAutomationTrigger(prisma, {
+        teamId,
+        triggerType: "EVIDENCE_REPORTED",
+        targetType: "evidence",
+        targetId: report.evidence.id,
+        sourceEventId: `report.issued:${report.id}`,
+        context: { reportVersion: report.version },
+      });
+      out.evidenceReported += r.enqueued;
     }
   } catch {
     /* as above */

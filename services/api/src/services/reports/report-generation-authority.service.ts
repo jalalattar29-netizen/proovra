@@ -53,7 +53,6 @@ import {
   type GenerationIntent,
   type GenerationRequestOutcome,
 } from "@proovra/shared";
-import { triggerEvidenceReported } from "../automation/automation-triggers.js";
 
 import { prisma } from "../../db.js";
 import { enqueueCanonicalWork } from "../../queue/canonical-queue-client.js";
@@ -331,35 +330,9 @@ export async function requestReportGeneration(
   }
   bump("report_generation_request_created_total");
 
-  /**
-   * ARCH-005 (2026-08-07) — EVIDENCE_REPORTED.
-   *
-   * Fired on the CREATION of the durable request, not on the report's
-   * completion: "reported" is what the operator asked for, and the request row
-   * is the durable fact. The tenant is read from the evidence row rather than
-   * taken from the input — `RequestReportGenerationInput` carries no teamId,
-   * and inventing a parameter for one would be a caller-supplied tenant claim.
-   *
-   * `persisted.created` is already false for a duplicate, so this is reached
-   * once per genuine request; the source identity collapses anything the
-   * guard above lets through twice.
-   */
-  try {
-    const ev = await prisma.evidence.findUnique({
-      where: { id: input.evidenceId },
-      select: { teamId: true },
-    });
-    if (ev?.teamId) {
-      await triggerEvidenceReported(prisma, {
-        teamId: ev.teamId,
-        evidenceId: input.evidenceId,
-        reportId: persisted.requestId,
-        context: { purpose: String(input.purpose) },
-      });
-    }
-  } catch {
-    /* a report request is never broken by an automation lookup */
-  }
+  // EVIDENCE_REPORTED is NOT emitted for a request (ET-REC-11): it means "a
+  // report was generated" and is detected from the issued Report row
+  // (automation-triggers detectTimeBasedAutomationTriggers).
 
   // A request that already reached a terminal state is REPORTED, not re-run.
   // Re-enqueuing it would make the worker's replay path do the work of

@@ -1392,6 +1392,8 @@ describe("§2 — ARCH-005: the Automation runtime is durable, fenced and reacha
     }
     expect(Object.keys(first).sort()).toEqual(
       [
+        // ET-REC-11 — EVIDENCE_REPORTED is detected from the issued Report row.
+        "evidenceReported",
         "externalAccessExpiring",
         "packageReady",
         "retentionCandidate",
