@@ -64,7 +64,7 @@ import {
   DIRECT_CAPTURE_CLIENT_SOURCES,
   DIRECT_CAPTURE_SESSION_MODES,
   DirectCaptureError,
-  completeDirectCapture,
+  completeGenericDirectCapture,
   declareDirectCapturePart,
   loadOwnedDirectCaptureSession,
   openDirectCaptureSession,
@@ -499,7 +499,8 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       const { id } = SessionParams.parse(req.params);
       if (!(await authorizeOwnedSession(req, reply, id, userId))) return reply;
       try {
-        const done = await completeDirectCapture({ sessionId: id, ownerUserId: userId });
+        // A manifest-sealed mode is refused here; it seals through its own route.
+        const done = await completeGenericDirectCapture({ sessionId: id, ownerUserId: userId });
         return reply.code(200).send({ result: done });
       } catch (err) {
         return sendDirectCaptureError(reply, err);

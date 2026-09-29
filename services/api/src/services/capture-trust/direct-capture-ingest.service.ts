@@ -132,6 +132,8 @@ export const DIRECT_CAPTURE_DENIALS = {
   CONTINUOUS_MANIFEST_INVALID: 422,
   CONTINUOUS_MANIFEST_DIGEST_UNDECLARED: 422,
   CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH: 422,
+  // A manifest-sealed mode completed through the generic route (2026-09-29).
+  MANIFEST_SEAL_ROUTE_REQUIRED: 409,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 
@@ -672,6 +674,37 @@ export type CompleteDirectCaptureResult = {
   alreadyBound: boolean;
   digestsConfirmed: number;
 };
+
+/**
+ * MODES WHOSE SEAL VALIDATES A CAPTURE MANIFEST (2026-09-29, audit D12).
+ *
+ * UC-1/UC-2/UC-3/UC-5 sessions are sealed by their own routes, which check the
+ * manifest schema, that the manifest's digest is a declared part and that its
+ * artifacts map 1:1 to the declared parts. The generic complete route called
+ * `completeDirectCapture` with no mode check, so the same session could be
+ * sealed there with no manifest validation at all.
+ */
+export const MANIFEST_SEALED_DIRECT_CAPTURE_MODES: ReadonlySet<string> = new Set([
+  "DIRECT_WEB_CAPTURE_EXTENSION",
+  "DIRECT_SCREEN_CAPTURE_ANDROID",
+  "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS",
+  "DIRECT_SCREEN_CAPTURE_IOS",
+]);
+
+/** The GENERIC seal: refused for a manifest-sealed mode. */
+export async function completeGenericDirectCapture(input: {
+  prisma?: PrismaClient;
+  sessionId: string;
+  ownerUserId: string;
+  now?: Date;
+}): Promise<CompleteDirectCaptureResult> {
+  const db = input.prisma ?? defaultPrisma;
+  const loaded = await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId);
+  if (MANIFEST_SEALED_DIRECT_CAPTURE_MODES.has(String(loaded.acquisitionMode))) {
+    throw new DirectCaptureError("MANIFEST_SEAL_ROUTE_REQUIRED");
+  }
+  return completeDirectCapture(input);
+}
 
 export async function completeDirectCapture(input: {
   prisma?: PrismaClient;

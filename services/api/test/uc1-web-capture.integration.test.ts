@@ -264,6 +264,17 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
     expect(boundAfter).toBe(1);
   });
 
+  it("D12 (2026-09-29): the GENERIC complete route refuses a manifest-sealed session — nothing is sealed there", async () => {
+    // Even a manifest that omits a declared part: the generic route used to
+    // seal it with no manifest check at all.
+    const { token, sessionId, evidenceId } = await stageWebCapture({ omitDomFromManifest: true });
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/complete`, token, {});
+    expect(done.statusCode, done.body).toBe(409);
+    expect(done.json().denial).toBe("MANIFEST_SEAL_ROUTE_REQUIRED");
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } });
+    expect(ev.status).not.toBe("SIGNED");
+  });
+
   it("refuses a manifest that omits a declared part", async () => {
     const { token, sessionId, manifestJson } = await stageWebCapture({ omitDomFromManifest: true });
     const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/web-complete`, token, { manifestJson });
