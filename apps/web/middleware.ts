@@ -173,7 +173,18 @@ function buildCsp(nonce: string, isProd: boolean, relaxed: boolean, allowEval: b
   return base.join("; ");
 }
 
-function applySecurityHeaders(response: NextResponse, csp: string) {
+/**
+ * ET-PKG-13 — a public Verify URL is a capability to the record: it must never
+ * be indexed, followed or archived by a crawler that saw the link.
+ */
+export function isPublicVerifyCapabilityPath(pathname: string): boolean {
+  return pathname.startsWith("/verify/");
+}
+
+function applySecurityHeaders(response: NextResponse, csp: string, pathname: string) {
+  if (isPublicVerifyCapabilityPath(pathname)) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  }
   // The policy is BUILT ONCE per request and passed in, so the header the
   // browser enforces and the header the render read are the same string with
   // the same nonce. Building it twice was safe only by coincidence.
@@ -316,7 +327,7 @@ export async function middleware(req: NextRequest) {
     // dev / vercel preview: no host switching
     if (!host || host.includes("localhost") || host.includes("127.0.0.1") || host.endsWith(".vercel.app")) {
       const res = nextWithNonce(req, nonce, csp);
-      if (isProd) applySecurityHeaders(res, csp);
+      if (isProd) applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -325,7 +336,7 @@ export async function middleware(req: NextRequest) {
 
     if (!appBaseUrl && !webBaseUrl) {
       const res = nextWithNonce(req, nonce, csp);
-      if (isProd) applySecurityHeaders(res, csp);
+      if (isProd) applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -357,13 +368,13 @@ export async function middleware(req: NextRequest) {
           const target = req.nextUrl.clone();
           target.pathname = `/settings/legal/${internalSlug}`;
           const res = NextResponse.redirect(target, 308);
-          if (isProd) applySecurityHeaders(res, csp);
+          if (isProd) applySecurityHeaders(res, csp, pathname);
           return res;
         }
       }
 
       const res = nextWithNonce(req, nonce, csp);
-      if (isProd) applySecurityHeaders(res, csp);
+      if (isProd) applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -372,7 +383,7 @@ export async function middleware(req: NextRequest) {
       const target = new URL(req.url);
       target.pathname = "/home";
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, csp);
+      if (isProd) applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -382,7 +393,7 @@ export async function middleware(req: NextRequest) {
       target.pathname = pathname;
       req.nextUrl.searchParams.forEach((v, k) => target.searchParams.set(k, v));
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, csp);
+      if (isProd) applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -458,7 +469,7 @@ export async function middleware(req: NextRequest) {
       const target = new URL(appBaseUrl);
       target.pathname = pathname;
       const res = NextResponse.redirect(target);
-      if (isProd) applySecurityHeaders(res, csp);
+      if (isProd) applySecurityHeaders(res, csp, pathname);
       return res;
     }
 
@@ -470,13 +481,13 @@ export async function middleware(req: NextRequest) {
     if (isAppHost) {
       const tierGated = applySurfaceTierGate(req, pathname);
       if (tierGated) {
-        if (isProd) applySecurityHeaders(tierGated, csp);
+        if (isProd) applySecurityHeaders(tierGated, csp, pathname);
         return tierGated;
       }
     }
 
     const res = nextWithNonce(req, nonce, csp);
-    if (isProd) applySecurityHeaders(res, csp);
+    if (isProd) applySecurityHeaders(res, csp, pathname);
     return res;
   } catch {
     return NextResponse.next();

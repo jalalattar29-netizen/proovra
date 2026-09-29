@@ -3378,7 +3378,9 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
       } catch (err) {
         if (cancelled || !isMountedRef.current) return;
 
-        captureException(err, { feature: "web_verify", token: params.token });
+        // ET-PKG-13 — the token is the capability to the record; it never goes
+        // to Sentry. The feature tag is enough to find the failure.
+        captureException(err, { feature: "web_verify" });
 
         if (!background) {
           const message =
