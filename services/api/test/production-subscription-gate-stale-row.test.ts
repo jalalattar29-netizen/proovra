@@ -40,6 +40,7 @@ type Row = {
   userId?: string;
   teamId?: string;
   plan: string;
+  provider?: "STRIPE" | "PAYPAL";
   status: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED";
   currentPeriodEnd: Date | null;
   updatedAt: Date;
@@ -50,7 +51,11 @@ function fakeClient(rows: Row[]) {
   const queries: Array<Record<string, unknown>> = [];
   const match = (where: Record<string, unknown>) => (r: Row) => {
     for (const [k, v] of Object.entries(where)) {
-      if (k === "status") {
+      if (k === "NOT") {
+        // The reader excludes unapproved PayPal checkout attempts (2026-09-29).
+        const not = v as Record<string, unknown>;
+        if (Object.entries(not).every(([nk, nv]) => (r as Record<string, unknown>)[nk] === nv)) return false;
+      } else if (k === "status") {
         const s = v as string | { in: string[] };
         if (typeof s === "string" ? r.status !== s : !s.in.includes(r.status)) return false;
       } else if ((r as Record<string, unknown>)[k] !== v) return false;
@@ -120,6 +125,27 @@ describe("Phase 9 STEP 5 — four-branch corroboration policy (behaviour)", () =
       expect(r.state).toBe("ACTIVE");
       expect(r.providerStatus).toBe(status);
     }
+  });
+
+  it("D5 (2026-09-29) — an unapproved PayPal checkout attempt beside ACTIVE does not cancel it; two genuine live rows still fail closed", async () => {
+    const attempt = fakeClient([
+      { userId: "u1", plan: "PRO", provider: "PAYPAL", status: "TRIALING", currentPeriodEnd: null, updatedAt: at(-1) },
+      { userId: "u1", plan: "PRO", provider: "STRIPE", status: "ACTIVE", currentPeriodEnd: at(20), updatedAt: at(-5) },
+    ]);
+    const a = await readCommercialLifecycle(attempt.client, PERSONAL, NOW);
+    expect(a).toMatchObject({ state: "ACTIVE", paidActive: true, providerStatus: "ACTIVE" });
+
+    const genuine = fakeClient([
+      { userId: "u1", plan: "PRO", provider: "PAYPAL", status: "ACTIVE", currentPeriodEnd: at(20), updatedAt: at(-1) },
+      { userId: "u1", plan: "PRO", provider: "STRIPE", status: "ACTIVE", currentPeriodEnd: at(20), updatedAt: at(-5) },
+    ]);
+    expect((await readCommercialLifecycle(genuine.client, PERSONAL, NOW)).state).toBe("CANCELLED");
+
+    // A Stripe TRIALING row stays authoritative (the provider reports it).
+    const stripeTrial = fakeClient([
+      { userId: "u1", plan: "PRO", provider: "STRIPE", status: "TRIALING", currentPeriodEnd: at(20), updatedAt: at(-1) },
+    ]);
+    expect((await readCommercialLifecycle(stripeTrial.client, PERSONAL, NOW)).providerStatus).toBe("TRIALING");
   });
 
   it("Step 2 — a matching PAST_DUE row is in the ONE bounded grace window, then expires", async () => {

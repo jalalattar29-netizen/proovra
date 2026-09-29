@@ -141,7 +141,7 @@ export async function runLifecycleRecovery(
     reenqueued = fi.firstIssueScheduled + fi.packageScheduled;
     skippedIneligiblePlan = fi.firstIssueSkippedNotEntitled + fi.packageSkippedNotEntitled;
     failed = fi.failed;
-    scanned = fi.firstIssueScanned + fi.packageScanned;
+    scanned = fi.activationScanned + fi.firstIssueScanned + fi.packageScanned;
   } catch (err) {
     failed++;
     logger.error({ err, trigger }, "lifecycle.recovery.first_issuance_failed");

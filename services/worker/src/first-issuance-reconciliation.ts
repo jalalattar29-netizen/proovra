@@ -52,6 +52,16 @@ const MIN_SIGNED_AGE_MS = 15 * 60 * 1000;
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_BATCH = 200;
 const MAX_BATCH = 1000;
+/**
+ * ACTIVATION-DRIVEN FIRST ISSUANCE (2026-09-29). Subjects whose paid
+ * subscription was provider-confirmed within this window are served FIRST each
+ * tick, whatever the age of their records — the global keyset scan below walks
+ * every signed record in the product and could take hours to reach one newly
+ * paying customer. Re-running inside the window is harmless: a record with a
+ * live request is skipped and the durable writer collapses duplicate intent.
+ */
+const ACTIVATION_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const ACTIVATION_SUBJECTS_PER_TICK = 50;
 
 const LIVE_REQUEST_STATES = ["QUEUED", "PROCESSING", "FAILED_RETRYABLE"] as const;
 
@@ -69,6 +79,8 @@ function flag(name: string): boolean {
 }
 
 export type FirstIssuanceSummary = {
+  /** Records reached through a recently confirmed paid subscription. */
+  activationScanned: number;
   firstIssueScanned: number;
   firstIssueScheduled: number;
   firstIssueSkippedNotEntitled: number;
@@ -93,6 +105,7 @@ export async function runFirstIssuanceReconciliation(options: {
   const historicalEnabled = flag("OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED");
   const packageRecoveryEnabled = flag("OUTPUT_PACKAGE_RECOVERY_ENABLED");
   const summary: FirstIssuanceSummary = {
+    activationScanned: 0,
     firstIssueScanned: 0,
     firstIssueScheduled: 0,
     firstIssueSkippedNotEntitled: 0,
@@ -107,39 +120,33 @@ export async function runFirstIssuanceReconciliation(options: {
   // ---- FIRST REPORT ---------------------------------------------------------
   const signedBefore = new Date(now.getTime() - MIN_SIGNED_AGE_MS);
   const recentFloor = new Date(now.getTime() - RECENT_WINDOW_MS);
-  const firstIssue = await prisma.evidence.findMany({
-    where: {
-      status: prismaPkg.EvidenceStatus.SIGNED,
-      deletedAt: null,
-      // Usable records only: never a trashed, archived, destruction-bound or
-      // destroyed one. A legal hold does not block a FIRST issuance — it
-      // replaces nothing.
-      lifecycleState: { in: ["ACTIVE", "UNDER_REVIEW", "ON_HOLD", "RETENTION_LOCKED"] },
-      signedAtUtc: { lte: signedBefore },
-      reports: { none: {} },
-      ...(firstIssueCursor ? { id: { gt: firstIssueCursor } } : {}),
-    },
-    select: { id: true, ownerUserId: true, teamId: true, signedAtUtc: true },
-    orderBy: { id: "asc" },
-    take: batch,
-  });
-  firstIssueCursor = firstIssue.length === batch ? firstIssue[firstIssue.length - 1].id : null;
-  summary.firstIssueScanned = firstIssue.length;
+  const firstIssueWhere = {
+    status: prismaPkg.EvidenceStatus.SIGNED,
+    deletedAt: null,
+    lifecycleState: { in: ["ACTIVE", "UNDER_REVIEW", "ON_HOLD", "RETENTION_LOCKED"] as prismaPkg.EvidenceLifecycleState[] },
+    signedAtUtc: { lte: signedBefore },
+    reports: { none: {} },
+  } satisfies prismaPkg.Prisma.EvidenceWhereInput;
 
-  const ids = firstIssue.map((e) => e.id);
-  const busy = ids.length
-    ? new Set(
-        (
-          await prisma.reportGenerationRequest.findMany({
-            where: { evidenceId: { in: ids }, state: { in: [...LIVE_REQUEST_STATES] } },
-            select: { evidenceId: true },
-          })
-        ).map((r) => r.evidenceId),
-      )
-    : new Set<string>();
+  const busyAmong = async (ids: string[]): Promise<Set<string>> =>
+    ids.length
+      ? new Set(
+          (
+            await prisma.reportGenerationRequest.findMany({
+              where: { evidenceId: { in: ids }, state: { in: [...LIVE_REQUEST_STATES] } },
+              select: { evidenceId: true },
+            })
+          ).map((r) => r.evidenceId),
+        )
+      : new Set<string>();
 
-  for (const ev of firstIssue) {
-    if (busy.has(ev.id)) continue;
+  /** One candidate: the per-record decision both passes share. */
+  const issueFirst = async (ev: {
+    id: string;
+    ownerUserId: string;
+    teamId: string | null;
+    signedAtUtc: Date | null;
+  }): Promise<void> => {
     try {
       const issuance = await resolveEvidenceOutputIssuance({
         id: ev.id,
@@ -148,7 +155,7 @@ export async function runFirstIssuanceReconciliation(options: {
       });
       if (issuance.decision === "UNRESOLVED") {
         summary.unresolved++;
-        continue;
+        return;
       }
       if (
         issuance.decision !== "ENTITLED" ||
@@ -156,16 +163,16 @@ export async function runFirstIssuanceReconciliation(options: {
         !issuance.mayIssueHistoricalFirstOutputs
       ) {
         summary.firstIssueSkippedNotEntitled++;
-        continue;
+        return;
       }
       const recent = ev.signedAtUtc != null && ev.signedAtUtc >= recentFloor;
       if (!recent && !historicalEnabled) {
         summary.firstIssueSkippedHistoricalGate++;
-        continue;
+        return;
       }
       if (options.dryRun) {
         summary.firstIssueScheduled++;
-        continue;
+        return;
       }
       const res = await requestReportGenerationFromWorker({
         evidenceId: ev.id,
@@ -178,6 +185,69 @@ export async function runFirstIssuanceReconciliation(options: {
       summary.failed++;
       logger.error({ err, evidenceId: ev.id, trigger }, "first_issuance.report.failed");
     }
+  };
+
+  // ---- (a) SUBJECTS WHOSE PAID SUBSCRIPTION WAS JUST CONFIRMED -------------
+  // Provider-confirmed only (`activatedAtUtc` is stamped when the provider
+  // first reports ACTIVE); an unapproved checkout attempt never has it, and a
+  // credit purchase is not a subscription at all. The per-record entitlement
+  // below is still the authority — this pass only decides WHO is served first.
+  const handled = new Set<string>();
+  const activated = await prisma.subscription.findMany({
+    where: {
+      activatedAtUtc: { gte: new Date(now.getTime() - ACTIVATION_LOOKBACK_MS) },
+      status: { in: ["ACTIVE", "PAST_DUE"] },
+    },
+    select: { userId: true, teamId: true },
+    orderBy: { activatedAtUtc: "desc" },
+    take: ACTIVATION_SUBJECTS_PER_TICK,
+  });
+  if (activated.length > 0) {
+    const userIds = [...new Set(activated.filter((a) => !a.teamId).map((a) => a.userId))];
+    const teamIds = [...new Set(activated.map((a) => a.teamId).filter((t): t is string => !!t))];
+    const subjectRecords = await prisma.evidence.findMany({
+      where: {
+        ...firstIssueWhere,
+        OR: [
+          ...(userIds.length ? [{ ownerUserId: { in: userIds } }] : []),
+          ...(teamIds.length ? [{ teamId: { in: teamIds } }] : []),
+        ],
+      },
+      select: { id: true, ownerUserId: true, teamId: true, signedAtUtc: true },
+      // Oldest first: a resumed tick continues where the last one stopped.
+      orderBy: [{ signedAtUtc: "asc" }, { id: "asc" }],
+      take: batch,
+    });
+    summary.activationScanned = subjectRecords.length;
+    const busySubject = await busyAmong(subjectRecords.map((e) => e.id));
+    for (const ev of subjectRecords) {
+      handled.add(ev.id);
+      if (busySubject.has(ev.id)) continue;
+      await issueFirst(ev);
+    }
+  }
+
+  // ---- (b) THE GLOBAL KEYSET SCAN ------------------------------------------
+  const firstIssue = await prisma.evidence.findMany({
+    where: {
+      // Usable records only: never a trashed, archived, destruction-bound or
+      // destroyed one. A legal hold does not block a FIRST issuance — it
+      // replaces nothing.
+      ...firstIssueWhere,
+      ...(firstIssueCursor ? { id: { gt: firstIssueCursor } } : {}),
+    },
+    select: { id: true, ownerUserId: true, teamId: true, signedAtUtc: true },
+    orderBy: { id: "asc" },
+    take: batch,
+  });
+  firstIssueCursor = firstIssue.length === batch ? firstIssue[firstIssue.length - 1].id : null;
+  summary.firstIssueScanned = firstIssue.length;
+
+  const busy = await busyAmong(firstIssue.map((e) => e.id));
+
+  for (const ev of firstIssue) {
+    if (busy.has(ev.id) || handled.has(ev.id)) continue;
+    await issueFirst(ev);
   }
 
   // ---- MISSING PACKAGE FOR THE LATEST REPORT --------------------------------

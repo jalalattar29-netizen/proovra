@@ -24,11 +24,13 @@ const requestFindMany = vi.fn();
 const queryRaw = vi.fn();
 const requestFromWorker = vi.fn();
 const issuance = vi.fn();
+const subscriptionFindMany = vi.fn();
 
 vi.mock("../src/db.js", () => ({
   prisma: {
     evidence: { findMany: (...a: unknown[]) => evidenceFindMany(...a) },
     reportGenerationRequest: { findMany: (...a: unknown[]) => requestFindMany(...a) },
+    subscription: { findMany: (...a: unknown[]) => subscriptionFindMany(...a) },
     $queryRaw: (...a: unknown[]) => queryRaw(...a),
   },
 }));
@@ -75,6 +77,8 @@ beforeEach(() => {
   queryRaw.mockReset().mockResolvedValue([]);
   requestFromWorker.mockReset().mockResolvedValue({ enqueued: true, requestId: "r1" });
   issuance.mockReset().mockResolvedValue(paid);
+  // No recent activations unless a case says so.
+  subscriptionFindMany.mockReset().mockResolvedValue([]);
 });
 afterEach(() => {
   delete process.env.OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED;
@@ -82,6 +86,35 @@ afterEach(() => {
 });
 
 describe("first issuance", () => {
+  it("(2026-09-29) serves a just-activated subscriber FIRST, records of any age, oldest first, provider-confirmed only", async () => {
+    subscriptionFindMany.mockResolvedValue([{ userId: "u-new", teamId: null }]);
+    evidenceFindMany
+      .mockResolvedValueOnce([
+        { id: "old", ownerUserId: "u-new", teamId: "t", signedAtUtc: days(400) },
+        { id: "new", ownerUserId: "u-new", teamId: "t", signedAtUtc: days(2) },
+      ])
+      .mockResolvedValue([{ id: "new", ownerUserId: "u-new", teamId: "t", signedAtUtc: days(2) }]);
+    process.env.OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED = "true";
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    const subWhere = subscriptionFindMany.mock.calls[0][0].where;
+    expect(subWhere.activatedAtUtc.gte).toBeInstanceOf(Date);
+    expect(subWhere.status.in).toEqual(["ACTIVE", "PAST_DUE"]);
+    const subjectQuery = evidenceFindMany.mock.calls[0][0];
+    expect(subjectQuery.where.OR).toEqual([{ ownerUserId: { in: ["u-new"] } }]);
+    expect(subjectQuery.orderBy[0]).toEqual({ signedAtUtc: "asc" });
+    expect(res.activationScanned).toBe(2);
+    // Each record is requested ONCE even though the global scan also saw it.
+    expect(requestFromWorker.mock.calls.map((c) => c[0].evidenceId).sort()).toEqual(["new", "old"]);
+  });
+
+  it("(2026-09-29) a just-activated subscriber's OLD records still need the historical flag", async () => {
+    subscriptionFindMany.mockResolvedValue([{ userId: "u-new", teamId: null }]);
+    evidenceFindMany.mockResolvedValueOnce([{ id: "old", ownerUserId: "u-new", teamId: "t", signedAtUtc: days(400) }]);
+    const res = await runFirstIssuanceReconciliation({ now: NOW });
+    expect(res.firstIssueSkippedHistoricalGate).toBe(1);
+    expect(requestFromWorker).not.toHaveBeenCalled();
+  });
+
   it("scans finalized, usable, report-less records with NO upper age bound", async () => {
     await runFirstIssuanceReconciliation({ now: NOW });
     const where = evidenceFindMany.mock.calls[0][0].where;

@@ -204,7 +204,8 @@ describe("SCENARIO 4 — FREE upgrades to PRO and its history becomes generatabl
     // The per-output control (2026-09-26): the server's verb for THAT output,
     // sent as its intent.
     expect(tab).toMatch(/function OutputActionButton/);
-    expect(tab).toMatch(/ctx\.generateOutputs\(action\)/);
+    // The output whose control was used travels with the intent (2026-09-29).
+    expect(tab).toMatch(/ctx\.generateOutputs\(action, kind\)/);
     expect(tab).toMatch(/<OutputActionButton ctx=\{ctx\} kind="report"/);
     expect(tab).toMatch(/ELIGIBLE_NOT_GENERATED/);
     const actions = strip(

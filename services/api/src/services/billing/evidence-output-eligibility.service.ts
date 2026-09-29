@@ -77,7 +77,8 @@ import {
  */
 export type EvidenceOutputEligibility = {
   plan: PlanType;
-  funding: EvidenceFundingSource;
+  /** null when the funding ledger could not be read (eligibility then UNRESOLVED). */
+  funding: EvidenceFundingSource | null;
   reportsIncluded: boolean;
   verificationPackageIncluded: boolean;
   publicVerifyIncluded: boolean;
@@ -101,7 +102,8 @@ function toEligibility(included: boolean): OutputCommercialEligibility {
 
 function project(input: {
   plan: PlanType | null;
-  funding: EvidenceFundingSource;
+  /** null = the funding read FAILED: unresolved, never assumed to be PLAN. */
+  funding: EvidenceFundingSource | null;
   lifecycle: OutputIssuanceLifecycle;
 }): EvidenceOutputEligibility {
   const issuance = resolveOutputIssuanceEntitlement({
@@ -111,7 +113,7 @@ function project(input: {
   });
   // Public verification is never gated on the subscription (Decision B).
   const publicVerifyIncluded = input.plan
-    ? resolveEvidenceOutputEntitlements({ plan: input.plan, funding: input.funding })
+    ? resolveEvidenceOutputEntitlements({ plan: input.plan, funding: input.funding ?? "PLAN" })
         .publicVerifyIncluded
     : true;
   const unresolved = issuance.decision === "UNRESOLVED";
@@ -247,9 +249,14 @@ export async function resolveEvidenceOutputEligibility(input: {
 }): Promise<EvidenceOutputEligibility> {
   const [subject, funding] = await Promise.all([
     resolveSubject({ ownerUserId: input.ownerUserId, teamId: input.teamId }),
-    resolveEvidenceFunding(input.evidenceId).catch(
-      (): EvidenceFundingSource => "PLAN",
-    ),
+    /*
+     * A FAILED FUNDING READ IS UNRESOLVED, NOT PLAN (2026-09-29). It used to
+     * default to PLAN, so a credit-funded record on a FREE account read
+     * "not included" whenever the ledger could not be read — while the worker,
+     * reading the same ledger, answered UNRESOLVED and retried. Unknown is
+     * neither a paid activation nor a permanent refusal.
+     */
+    resolveEvidenceFunding(input.evidenceId).catch((): EvidenceFundingSource | null => null),
   ]);
   const plan = input.plan ?? subject?.plan ?? null;
   const lifecycle = await resolveSubjectLifecycle(
@@ -285,9 +292,8 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
 
   const [subject, fundingById] = await Promise.all([
     resolveSubject({ ownerUserId: input.ownerUserId, teamId: input.teamId }),
-    resolveEvidenceFundingMany(input.evidenceIds).catch(
-      () => new Map<string, EvidenceFundingSource>(),
-    ),
+    // A failed read is unresolved for every record (see the single variant).
+    resolveEvidenceFundingMany(input.evidenceIds).catch(() => null),
   ]);
   const plan = input.plan ?? subject?.plan ?? null;
   const lifecycle = await resolveSubjectLifecycle(
@@ -297,7 +303,12 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
   for (const evidenceId of input.evidenceIds) {
     out.set(
       evidenceId,
-      project({ plan, funding: fundingById.get(evidenceId) ?? "PLAN", lifecycle }),
+      project({
+        plan,
+        // No ledger consumption row = PLAN; a failed read = unresolved.
+        funding: fundingById === null ? null : (fundingById.get(evidenceId) ?? "PLAN"),
+        lifecycle,
+      }),
     );
   }
   return out;

@@ -59,10 +59,23 @@ export async function readCommercialLifecycle(
     };
   }
 
-  const where =
+  /*
+   * AN UNAPPROVED CHECKOUT ATTEMPT IS NOT A COMMERCIAL FACT (2026-09-29).
+   *
+   * PayPal stores a checkout that is created, awaiting approval or approved
+   * but not yet active as TRIALING (there is no trial product). Counting such
+   * a row as "live" beside the real ACTIVE subscription made the subject read
+   * CANCELLED — a paying customer lost report issuance and paid mutations
+   * because they had once opened a second checkout. The rule is the one the
+   * billing service already applies (isAuthoritativeLiveBaseSubscriptionStatus):
+   * a PayPal TRIALING row is an attempt and is ignored here entirely. Two
+   * genuine live subscriptions still fail closed below.
+   */
+  const scope =
     subject.kind === "WORKSPACE"
       ? { teamId: subject.teamId }
       : { userId: subject.ownerUserId, plan: subject.plan as never };
+  const where = { ...scope, NOT: { provider: "PAYPAL" as never, status: "TRIALING" as never } };
 
   const live = await client.subscription.findMany({
     where: { ...where, status: { in: ["ACTIVE", "TRIALING"] } },
