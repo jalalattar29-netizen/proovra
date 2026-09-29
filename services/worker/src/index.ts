@@ -1004,7 +1004,7 @@ function startRedactionReconcilerScheduler() {
   }, redactionReconcilerIntervalMs);
   redactionReconcilerTimer.unref?.();
 }
-// ET-Q-06: started by startConsumers() after the bootstrap chain.
+// ET-Q-06: started by openConsumers() after the bootstrap chain.
 void redactionReconcilerTimer;
 
 // ---------------------------------------------------------------------------
@@ -1063,7 +1063,7 @@ function startTrashGraceReconcilerScheduler() {
     "trash_grace.reconciler.scheduler.started",
   );
 }
-// ET-Q-06: started by startConsumers() after the bootstrap chain.
+// ET-Q-06: started by openConsumers() after the bootstrap chain.
 void trashGraceReconcilerTimer;
 
 // ===========================================================================
@@ -1236,7 +1236,7 @@ function stopIntelligenceRunReconcilerScheduler() {
   intelligenceRunReconcilerTimer = null;
 }
 
-// ET-Q-06: both started by startConsumers() after the bootstrap chain.
+// ET-Q-06: both started by openConsumers() after the bootstrap chain.
 
 const retentionReconciliationEnabled = envBoolean(
   "RETENTION_RECONCILIATION_ENABLED",
@@ -2109,7 +2109,7 @@ const otsUpgradeWorker = safeRegisterWorker("ots-upgrade", () =>
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2126,7 +2126,7 @@ const evidencePurgeWorker = safeRegisterWorker("evidence-purge", () =>
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2144,7 +2144,7 @@ const searchIndexingWorker = safeRegisterWorker("search-indexing", () =>
     {
       connection: redisConnection,
       concurrency: 2,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2166,7 +2166,7 @@ const mediaIntelligenceWorker = safeRegisterWorker("media-intelligence", () =>
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2188,7 +2188,7 @@ const derivedAssetsWorker = safeRegisterWorker("derived-assets", () =>
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2210,7 +2210,7 @@ const redactionDerivativeWorker = safeRegisterWorker("redaction-derivative", () 
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2241,7 +2241,7 @@ const exifWorker = safeRegisterWorker("mi-exif", () =>
     {
       connection: redisConnection,
       concurrency: 2,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2273,7 +2273,7 @@ const miSearchIndexWorker = safeRegisterWorker("mi-search-index", () =>
     {
       connection: redisConnection,
       concurrency: 2,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2290,7 +2290,7 @@ const graphReconcileWorker = safeRegisterWorker("graph-reconcile", () =>
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2311,7 +2311,7 @@ const miEmbedWorker = safeRegisterWorker("mi-embed", () =>
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2332,7 +2332,7 @@ const graphDomainSyncWorker = safeRegisterWorker("graph-domain-sync", () =>
     {
       connection: redisConnection,
       concurrency: 1,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2349,7 +2349,7 @@ const graphTimelineSyncWorker = safeRegisterWorker("graph-timeline-sync", () =>
     {
       connection: redisConnection,
       concurrency: 2,
-      // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
       autorun: false,
     },
   ),
@@ -2368,7 +2368,7 @@ const graphSearchProjectionWorker = safeRegisterWorker(
       {
         connection: redisConnection,
         concurrency: 2,
-        // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+        // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
         autorun: false,
       },
     ),
@@ -2391,7 +2391,7 @@ const orgHealthRefreshWorker = safeRegisterWorker(
       {
         connection: redisConnection,
         concurrency: 4,
-        // ET-Q-06 — claims nothing until startConsumers() (after bootstrap).
+        // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
         autorun: false,
       },
     ),
@@ -2427,7 +2427,7 @@ const REGISTERED_WORKERS: ReadonlyArray<readonly [WorkerKind, Worker | null]> = 
   ["org-health-refresh", orgHealthRefreshWorker],
 ];
 
-function startConsumers(): void {
+function openConsumers(): void {
   for (const [kind, w] of REGISTERED_WORKERS) {
     if (!w) continue;
     void w.run().catch((err) => {
@@ -2737,7 +2737,7 @@ initSecretsAuthority(logger)
       throw new Error("Report worker was not registered");
     }
     // ET-Q-06: the report worker starts with every other consumer, after the
-    // Object Lock bootstrap below — see startConsumers().
+    // Object Lock bootstrap below — see openConsumers().
   })
   .then(() => startHealthServer())
   .then(async (server) => {
@@ -2759,7 +2759,7 @@ initSecretsAuthority(logger)
     }
     // ET-Q-06 — secrets hydrated, signer validated, storage bootstrap passed:
     // only now may anything claim work.
-    startConsumers();
+    openConsumers();
     startDemoFollowUpScheduler();
     startCaptureDraftReaperScheduler();
     startOrphanScanScheduler();

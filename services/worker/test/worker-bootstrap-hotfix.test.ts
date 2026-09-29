@@ -179,8 +179,8 @@ describe("worker bootstrap — startup readiness protection", () => {
     const autorunOff = code.match(/autorun:\s*false/g) ?? [];
     expect(workers.length).toBeGreaterThanOrEqual(15);
     expect(autorunOff.length).toBe(workers.length);
-    // …the only .run() is inside startConsumers()…
-    const consumers = code.slice(code.indexOf("function startConsumers()"));
+    // …the only .run() is inside openConsumers()…
+    const consumers = code.slice(code.indexOf("function openConsumers()"));
     const consumersBody = consumers.slice(0, consumers.indexOf("\n}\n"));
     expect((code.match(/\.run\(\)/g) ?? []).length).toBe(1);
     expect(consumersBody).toContain("w.run()");
@@ -196,15 +196,15 @@ describe("worker bootstrap — startup readiness protection", () => {
       const calls = code.split(s).length - 1 - (code.split(`function ${s}`).length - 1);
       expect(calls, s).toBe(1);
     }
-    // …and startConsumers() runs once, after the signer and the storage bootstrap.
+    // …and openConsumers() runs once, after the signer and the storage bootstrap.
     const bootstrap = code.slice(code.indexOf("initSecretsAuthority(logger)"));
     const validateAt = bootstrap.indexOf("await validatePackageSignerAtStartup()");
     const objectLockAt = bootstrap.indexOf("await bootstrapObjectLockVerification()");
-    const startAt = bootstrap.indexOf("startConsumers();");
+    const startAt = bootstrap.indexOf("openConsumers();");
     expect(validateAt).toBeGreaterThanOrEqual(0);
     expect(objectLockAt).toBeGreaterThan(validateAt);
     expect(startAt).toBeGreaterThan(objectLockAt);
-    expect(code.split("startConsumers();").length - 1).toBe(1);
+    expect(code.split("openConsumers();").length - 1).toBe(1);
   });
 });
 
