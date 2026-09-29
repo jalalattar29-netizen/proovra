@@ -144,7 +144,8 @@ describe("a failure the contributor cannot fix is at least recorded", () => {
     expect(
       delegations.length,
       "every generic catch-all must go through the one handler",
-    ).toBe(5);
+      // 4: the /transition route is a retired tombstone (ET-INT-01).
+    ).toBe(4);
 
     const handler = ROUTES.slice(
       ROUTES.indexOf("function intakeUnhandled("),

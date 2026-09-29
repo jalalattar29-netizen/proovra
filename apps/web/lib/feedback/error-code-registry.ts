@@ -251,6 +251,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   MIME_TYPE_NOT_ALLOWED: { disposition: "customer", where: PUBLIC_INTAKE },
   FILE_VALIDATION_BLOCKED: { disposition: "customer", where: PUBLIC_INTAKE },
   PART_INDEX_TAKEN: { disposition: "customer", where: PUBLIC_INTAKE },
+  PART_NOT_UPLOADED: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMITTER_IDENTITY_INVALID: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMISSION_NOT_READY: { disposition: "customer", where: PUBLIC_INTAKE },
   SUBMIT_FAILED: { disposition: "customer", where: PUBLIC_INTAKE },
@@ -475,6 +476,12 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     why:
       "A retired read answering a legacy client, not a person. No surface read " +
       "it; every case surface reads the matter workspace.",
+  },
+  INTAKE_SESSION_TRANSITION_RETIRED: {
+    disposition: "internal",
+    why:
+      "A retired operation answering a legacy client, not a person. The intake " +
+      "page never moved a session's state directly; it submits (ET-INT-01).",
   },
   EXCHANGE_PACKAGE_MANUAL_READY_RETIRED: {
     disposition: "internal",

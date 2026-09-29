@@ -328,6 +328,10 @@ type StagedPart = {
   uploadProgress: number;
   uploadedAtUtc: string | null;
   error?: string | null;
+  /** The part's position; a retry re-posts the SAME index (ET-INT-02). */
+  partIndex?: number;
+  /** Kept only while an upload has failed, so the contributor can retry it. */
+  retryFile?: File | null;
 };
 
 const DEFAULT_DISCLOSURE = [
@@ -747,35 +751,57 @@ export default function ExternalIntakePage({
         { auth: false },
       );
 
-      // Stage the part with progress 0 before upload.
-      setParts((prev) => [
-        ...prev,
-        {
-          id: res.part.id,
-          fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          checklistStepId: null,
-          uploadProgress: 0,
-          uploadedAtUtc: null,
-        },
-      ]);
+      // Stage the part with progress 0 before upload. A retry (ET-INT-02)
+      // gets the SAME reserved row back and replaces it in place.
+      setParts((prev) =>
+        prev.some((p) => p.id === res.part.id)
+          ? prev.map((p) =>
+              p.id === res.part.id
+                ? { ...p, uploadProgress: 0, error: null, retryFile: null }
+                : p,
+            )
+          : [
+              ...prev,
+              {
+                id: res.part.id,
+                fileName: file.name,
+                mimeType: file.type,
+                sizeBytes: file.size,
+                checklistStepId: null,
+                uploadProgress: 0,
+                uploadedAtUtc: null,
+                partIndex,
+                retryFile: null,
+              },
+            ],
+      );
 
       // Direct upload to S3 via presigned URL. Skip the api wrapper —
-      // this request must hit S3 directly without our auth cookie.
-      const putRes = await fetch(res.upload.putUrl, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "content-type": file.type || "application/octet-stream",
-          "x-amz-checksum-sha256": checksum,
-        },
-      });
-      if (!putRes.ok) {
+      // this request must hit S3 directly without our auth cookie. A network
+      // failure is a failed upload the contributor can retry, not a fault.
+      let putStatus: number | null = null;
+      try {
+        const putRes = await fetch(res.upload.putUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "content-type": file.type || "application/octet-stream",
+            "x-amz-checksum-sha256": checksum,
+          },
+        });
+        putStatus = putRes.ok ? null : putRes.status;
+      } catch {
+        putStatus = 0;
+      }
+      if (putStatus !== null) {
         setParts((prev) =>
           prev.map((p) =>
             p.id === res.part.id
-              ? { ...p, error: `Upload failed (${putRes.status})` }
+              ? {
+                  ...p,
+                  error: putStatus ? `Upload failed (${putStatus})` : "Upload interrupted",
+                  retryFile: file,
+                }
               : p,
           ),
         );
@@ -1476,6 +1502,16 @@ export default function ExternalIntakePage({
                           ? p.error
                           : `${p.uploadProgress}%`}
                     </div>
+                    {p.error && p.retryFile && typeof p.partIndex === "number" ? (
+                      <button
+                        type="button"
+                        className="app-secondary-action"
+                        data-intake-part-retry={p.id}
+                        onClick={() => void stageFile(p.retryFile!, p.partIndex!)}
+                      >
+                        Retry upload
+                      </button>
+                    ) : null}
                   </div>
                   {expectedSteps.length > 0 ? (
                     <select

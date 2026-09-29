@@ -1,4 +1,5 @@
 import * as prismaPkg from "@prisma/client";
+import { countedEvidenceRecordWhere } from "./evidence/evidence-record-counting.js";
 import { prisma } from "../db.js";
 import { DomainError } from "../errors.js";
 import {
@@ -227,6 +228,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
             teamId: scope.teamId,
             deletedAt: null,
             createdAt: { gte: since },
+            AND: [countedEvidenceRecordWhere()],
           },
         })
       : await countPersonalEvidenceRecords(scope.ownerUserId, {
@@ -467,6 +469,7 @@ export async function countPersonalEvidenceRecords(
         { teamId: null },
         ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
       ],
+      AND: [countedEvidenceRecordWhere()],
       ...(excludeEvidenceId ? { NOT: { id: excludeEvidenceId } } : {}),
       ...(options?.createdSince ? { createdAt: { gte: options.createdSince } } : {}),
       ...(options?.createdBeforeEvidence
@@ -764,6 +767,7 @@ export async function settleEvidenceCompletionFunding(
             deletedAt: null,
             createdAt: { gte: since },
             ...createdBeforeEvidenceWhere(settlingEvidence),
+            AND: [countedEvidenceRecordWhere()],
           },
         })
       : await countPersonalEvidenceRecords(scope.ownerUserId, {

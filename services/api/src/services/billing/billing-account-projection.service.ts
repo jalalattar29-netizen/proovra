@@ -69,6 +69,7 @@ import {
   startOfCurrentMonthUtc,
 } from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
+import { countedEvidenceRecordWhere } from "../evidence/evidence-record-counting.js";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
@@ -1318,7 +1319,7 @@ export async function buildBillingAccountProjection(input: {
     } else {
       const since = new Date(Date.now() - THIRTY_DAYS_MS);
       const used = await prisma.evidence.count({
-        where: { teamId: account.id, deletedAt: null, createdAt: { gte: since } },
+        where: { teamId: account.id, deletedAt: null, createdAt: { gte: since }, AND: [countedEvidenceRecordWhere()] },
       });
       evidence = {
         state: "MEASURED",
@@ -2047,6 +2048,7 @@ async function buildOrganizationProjection(input: {
                   teamId: { in: workspaceIds },
                   deletedAt: null,
                   createdAt: { gte: new Date(Date.now() - THIRTY_DAYS_MS) },
+                  AND: [countedEvidenceRecordWhere()],
                 },
               }),
               limit: limits.evidenceRecordsPerMonth,

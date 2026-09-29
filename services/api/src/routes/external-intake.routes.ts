@@ -3,7 +3,7 @@
  *
  *   GET   /v1/external-intake/:token                      — validate + open
  *   POST  /v1/external-intake/:token/sessions/:sid/consent — record consent
- *   POST  /v1/external-intake/:token/sessions/:sid/transition — lifecycle move
+ *   POST  /v1/external-intake/:token/sessions/:sid/transition — RETIRED (410; ET-INT-01)
  *
  * Phase 4 intentionally does NOT expose any upload endpoint here. The
  * existing presigned-upload pipeline in evidence.routes.ts remains the
@@ -27,11 +27,7 @@ import type {
   FastifyRequest,
 } from "fastify";
 import { z, ZodError } from "zod";
-import {
-  WORKFLOW_INTAKE_SESSION_STATUSES,
-  WorkflowIntakeConsentSnapshotSchema,
-  WorkflowIntakeSessionStatus,
-} from "@proovra/shared";
+import { WorkflowIntakeConsentSnapshotSchema } from "@proovra/shared";
 
 import { enforceRateLimit } from "../services/rate-limit.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
@@ -44,7 +40,6 @@ import {
   projectIntakeLinkForExternalView,
   projectIntakeSessionForExternalView,
   recordIntakeConsent,
-  transitionIntakeSession,
   validateIntakeToken,
   WorkflowIntakeSessionError,
   recordIntakeSubmitterIdentity,
@@ -103,10 +98,6 @@ const SubmitterIdentityBody = z.object({
     .max(INTAKE_EMAIL_MAX_LENGTH)
     .nullable()
     .optional(),
-});
-
-const TransitionBody = z.object({
-  to: z.enum(WORKFLOW_INTAKE_SESSION_STATUSES),
 });
 
 // Public submit body — every field is optional so a NONE-policy link
@@ -318,6 +309,11 @@ function orchestrationErrorToReply(
         error: { code: "PART_INDEX_TAKEN", message: friendly("PART_INDEX_TAKEN") },
       });
       return;
+    case "part_not_uploaded":
+      reply.code(409).send({
+        error: { code: "PART_NOT_UPLOADED", message: friendly("PART_NOT_UPLOADED") },
+      });
+      return;
     case "session_not_open_for_upload":
       reply.code(409).send({
         error: {
@@ -388,6 +384,8 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "Your submission isn't quite ready yet. Make sure every required file is uploaded, then try again.";
     case "NOT_FOUND":
       return "We couldn't find what you were trying to access. Try refreshing the page.";
+    case "PART_NOT_UPLOADED":
+      return "One of your files did not finish uploading. Upload it again, then submit.";
     case "PART_INDEX_TAKEN":
       return "A file with that position already exists. Please try the upload again.";
     case "SESSION_NOT_OPEN_FOR_UPLOAD":
@@ -1386,57 +1384,28 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
     },
   );
 
-  // POST /v1/external-intake/:token/sessions/:sid/transition
+  // ---------------------------------------------------------------------------
+  // (RETIRED) POST /v1/external-intake/:token/sessions/:sid/transition — typed
+  // 410 (ET-INT-01, evidence-lifecycle remediation 2026-09-29).
+  //
+  // It let any token holder move a session to SUBMITTED without finalizing
+  // anything: the one-time link was consumed and expired, the Evidence stayed
+  // CREATED forever, no EXTERNAL_INTAKE_SUBMITTED custody was written and no
+  // request response was linked — while the link and submission lists said
+  // SUBMITTED. SUBMITTED is reachable ONLY through /submit, which finalizes.
+  // No web, mobile or e2e caller existed. The tombstone reads and writes no
+  // session, link or evidence data.
+  // ---------------------------------------------------------------------------
   app.post(
     "/v1/external-intake/:token/sessions/:sid/transition",
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      if (workflowIntakeFeatureDisabledReason()) {
-        return sendFeatureDisabled(reply);
-      }
-
-      const params = ParamsTokenSession.parse(req.params);
-      const okRate = await applyRateLimits(req, reply, params.token);
-      if (!okRate) return;
-
-      const body = TransitionBody.parse(req.body ?? {});
-      const to: WorkflowIntakeSessionStatus = body.to;
-
-      // Disallow callers from claiming admin-only transitions over the
-      // public route.
-      if (to === "REVOKED" || to === "EXPIRED" || to === "CREATED") {
-        return reply.code(403).send({
-          error: { code: "TRANSITION_NOT_ALLOWED" },
-        });
-      }
-
-      try {
-        const { link } = await validateIntakeToken(params.token);
-        const session = await getIntakeSession(params.sid);
-        if (!session || session.intakeLinkId !== link.id) {
-          return reply
-            .code(404)
-            .send({ error: { code: "SESSION_NOT_FOUND" } });
-        }
-
-        const updated = await transitionIntakeSession({
-          sessionId: params.sid,
-          expectedLinkId: link.id,
-          to,
-        });
-
-        return reply
-          .code(200)
-          .send({
-            session: projectIntakeSessionForExternalView(updated),
-          });
-      } catch (err) {
-        if (err instanceof WorkflowIntakeSessionError) {
-          intakeErrorToReply(err, reply);
-          return;
-        }
-        intakeUnhandled(err, req, reply, "external-intake.transition");
-        return;
-      }
-    },
+    async (_req: FastifyRequest, reply: FastifyReply) =>
+      reply.code(410).send({
+        error: {
+          code: "INTAKE_SESSION_TRANSITION_RETIRED",
+          message:
+            "Changing a submission's state directly is no longer supported. Submit your files to complete the submission.",
+        },
+        canonical: "/v1/external-intake/:token/sessions/:sid/submit",
+      }),
   );
 }

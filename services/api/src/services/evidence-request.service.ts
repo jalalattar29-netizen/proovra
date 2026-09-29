@@ -866,10 +866,9 @@ export async function linkResponseFromIntakeSession(
   },
   client: PrismaClient = defaultPrisma,
 ): Promise<void> {
-  const request = await client.evidenceRequest.findFirst({
-    where: { intakeLinkId: params.intakeLinkId },
-  });
-  if (!request) return; // not request-driven; nothing to do
+  const requestId = await resolveEvidenceRequestIdForIntakeLink(params.intakeLinkId, client);
+  if (!requestId) return; // not request-driven; nothing to do
+  const request = await client.evidenceRequest.findUniqueOrThrow({ where: { id: requestId } });
 
   await client.$transaction(async (tx) => {
     await tx.evidenceRequestResponse.create({
@@ -1481,12 +1480,42 @@ export type ExternalRequestPublicView = {
   }>;
 };
 
+/**
+ * ET-INT-04 — THE one answer to "which evidence request does this intake link
+ * serve?". The original link is the request's `intakeLinkId` pointer; a
+ * "request more" follow-up link is recorded, append-only, on the request's
+ * EVIDENCE_REQUEST_NEEDS_MORE_INFO event (`followUpIntakeLinkId`). Before this,
+ * only the pointer was consulted, so a follow-up submission was finalized and
+ * then silently attached to nothing — the reviewer saw NEEDS_MORE_INFO forever.
+ */
+export async function resolveEvidenceRequestIdForIntakeLink(
+  intakeLinkId: string,
+  client: Pick<PrismaClient, "evidenceRequest" | "evidenceRequestEvent"> = defaultPrisma,
+): Promise<string | null> {
+  const direct = await client.evidenceRequest.findFirst({
+    where: { intakeLinkId },
+    select: { id: true },
+  });
+  if (direct) return direct.id;
+  const followUp = await client.evidenceRequestEvent.findFirst({
+    where: {
+      eventType: "EVIDENCE_REQUEST_NEEDS_MORE_INFO",
+      payload: { path: ["followUpIntakeLinkId"], equals: intakeLinkId },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { evidenceRequestId: true },
+  });
+  return followUp?.evidenceRequestId ?? null;
+}
+
 export async function projectRequestForExternalView(
   intakeLinkId: string,
   client: PrismaClient = defaultPrisma,
 ): Promise<ExternalRequestPublicView | null> {
+  const requestId = await resolveEvidenceRequestIdForIntakeLink(intakeLinkId, client);
+  if (!requestId) return null;
   const request = await client.evidenceRequest.findFirst({
-    where: { intakeLinkId },
+    where: { id: requestId },
     include: {
       deliverables: { orderBy: { sortOrder: "asc" } },
     },

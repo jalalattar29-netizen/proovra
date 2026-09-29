@@ -680,10 +680,11 @@
     },
     {
       "routeId": "POST /v1/external-intake/:token/sessions/:sid/transition",
-      "disposition": "EXTERNAL_API",
-      "reason": "token-scoped public intake contract; caller is the external responder client, not an in-app surface",
-      "evidence": "reg services/api/src/routes/external-intake.routes.ts:1094 app.post(\"/v1/external-intake/:token/sessions/:sid/transition\") with no auth preHandler + applyRateLimits(req, reply, params.token); packages/shared-evidence-presentation/src/external-access-content.ts:113-116 {\"id\":\"workflow-intake-link\",\"apiSurface\":\"/v1/external-intake/:token/* (POST)\",\"accessShape\":\"TOKEN\"}; the in-app responder page apps/web/app/intake/[token]/page.tsx wires :300 GET token, :419 /identity, :447 /consent, :530 /parts, :619 /parts/:partId, :698 /submit but not /transition",
-      "reviewedAtUtc": "2026-08-16"
+      "disposition": "COMPATIBILITY_TOMBSTONE",
+      "reason": "retired to a typed 410 naming what replaced it (or that the capability is not offered); kept so a stale client is told rather than 404-ed",
+      "evidence": "reg services/api/src/routes/external-intake.routes.ts app.post(\"/v1/external-intake/:token/sessions/:sid/transition\"). Retired 2026-09-29 (ET-INT-01, evidence-lifecycle remediation): it let a token holder move a session to SUBMITTED without finalizing, consuming a one-time link while the Evidence stayed CREATED. Consumer search: 0 call sites in apps/web (apps/web/app/intake/[token]/page.tsx wires GET, /identity, /consent, /parts, /submit only), apps/mobile, e2e. Handler replies 410 INTAKE_SESSION_TRANSITION_RETIRED with canonical /v1/external-intake/:token/sessions/:sid/submit and reads/writes no session, link or evidence data. Pinned by services/api/test/intake-lifecycle-remediation.integration.test.ts; code registered internal in apps/web/lib/feedback/error-code-registry.ts.",
+      "reviewedAtUtc": "2026-09-29",
+      "replacement": "POST /v1/external-intake/:token/sessions/:sid/submit"
     },
     {
       "routeId": "POST /v1/external-review/access/:token",

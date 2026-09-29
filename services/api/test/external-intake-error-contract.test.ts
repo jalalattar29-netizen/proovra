@@ -58,7 +58,9 @@ describe("public intake error contract", () => {
 
     // Every generic catch-all delegates to it.
     const delegations = ROUTES.match(/intakeUnhandled\(\s*err,\s*req,\s*reply,\s*"/g) ?? [];
-    expect(delegations.length).toBe(5);
+    // 4: the /transition route is a retired 410 tombstone (ET-INT-01) that
+    // touches nothing, so it has no catch-all to route.
+    expect(delegations.length).toBe(4);
   });
 
   it("never turns a rejected body into a 500", () => {
@@ -93,9 +95,10 @@ describe("public intake error contract", () => {
         "external-intake.consent",
         "external-intake.part.create",
         "external-intake.part.update",
-        "external-intake.transition",
       ]),
     );
+    // The retired /transition route (ET-INT-01) must not come back.
+    expect(labels).not.toContain("external-intake.transition");
     // The mislabelled one must not come back.
     expect(labels).not.toContain("external-intake.identity");
   });

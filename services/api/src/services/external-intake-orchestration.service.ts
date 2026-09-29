@@ -101,6 +101,9 @@ export type ExternalIntakeOrchestrationErrorCode =
   | "part_not_found"
   | "part_not_in_session"
   | "part_index_taken"
+  // ET-INT-02 — a declared part never received its bytes (an interrupted or
+  // failed upload). Recoverable by the contributor: upload that file again.
+  | "part_not_uploaded"
   | "submission_not_ready"
   | "submission_already_submitted"
   | "location_required"
@@ -515,7 +518,8 @@ export async function addExternalEvidencePart(
     // ET-INT-05 / ET-INT-14 — the ONE byte-write authority: it takes the
     // evidence lock finalize holds, so a part can never land on a record that
     // is being signed or already signed, nor on a soft-deleted record.
-    ({ part } = await writeEvidencePart(
+    let createdNow: boolean;
+    ({ part, created: createdNow } = await writeEvidencePart(
       {
         evidenceId: evidence.id,
         principal: {
@@ -524,7 +528,10 @@ export async function addExternalEvidencePart(
           sessionId: input.session.id,
         },
         partIndex,
-        onExistingIndex: "REFUSE",
+        // ET-INT-02 — a retry of an index whose upload never completed returns
+        // the SAME reserved row with a fresh upload URL (checked below); only
+        // a different file on a taken index is refused.
+        onExistingIndex: "RETURN_EXISTING",
         data: {
         storageBucket: bucket,
         storageKey: key,
@@ -546,7 +553,16 @@ export async function addExternalEvidencePart(
       },
       client,
     ));
+    if (
+      !createdNow &&
+      (part.uploadedAtUtc !== null ||
+        part.originalFileName !== fileName ||
+        part.mimeType !== input.mimeType.slice(0, PART_MIME_TYPE_MAX))
+    ) {
+      throw new ExternalIntakeOrchestrationError("part_index_taken", { partIndex });
+    }
   } catch (err) {
+    if (err instanceof ExternalIntakeOrchestrationError) throw err;
     if (err instanceof EvidencePartWriteRefused) {
       if (err.code === "PART_INDEX_TAKEN") {
         throw new ExternalIntakeOrchestrationError("part_index_taken", { partIndex });
@@ -911,10 +927,25 @@ export async function submitExternalIntake(
     throw new ExternalIntakeOrchestrationError("finalization_blocked_by_policy");
   }
 
-  await completeEvidence({
-    evidenceId: evidence.id,
-    ownerUserId: evidence.ownerUserId,
-  });
+  try {
+    await completeEvidence({
+      evidenceId: evidence.id,
+      ownerUserId: evidence.ownerUserId,
+    });
+  } catch (err) {
+    // ET-INT-02 — a part whose object was never written is the contributor's
+    // to fix (upload it again), not "this intake can't accept evidence".
+    // Both not-found shapes completion raises: a zero-size object, and a HEAD
+    // that found no object (OBJECT_HEAD_FAILED with a 404 status).
+    const status = (err as { statusCode?: number }).statusCode;
+    if (
+      err instanceof Error &&
+      (err.message === "OBJECT_NOT_FOUND" || (status === 404 && err.message.startsWith("OBJECT_HEAD_FAILED")))
+    ) {
+      throw new ExternalIntakeOrchestrationError("part_not_uploaded");
+    }
+    throw err;
+  }
 
   // Audit the contributor's location decision. Coordinates are NEVER
   // logged here — only the consent state and an accuracy band. The

@@ -1,5 +1,6 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
+import { countedEvidenceRecordWhere } from "./evidence/evidence-record-counting.js";
 import { sumDerivedAssetStorageBytes } from "@proovra/shared-runtime";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
@@ -389,8 +390,10 @@ export async function getWorkspaceUsage(
       where: verificationPackageWhere,
       _sum: { sizeBytes: true },
     }),
+    // ET-INT-03 — the record meter counts established records and live
+    // reservations only (the storage sum above still counts stored bytes).
     prisma.evidence.count({
-      where: evidenceWhere,
+      where: { ...evidenceWhere, AND: [countedEvidenceRecordWhere()] },
     }),
     scope.teamId
       ? prisma.teamMember.count({
