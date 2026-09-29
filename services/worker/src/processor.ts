@@ -124,7 +124,7 @@ import {
 } from "./report-v2/build-report-pdf.js";
 import {
   resolveCustodyCapturePresentation,
-  normalizeCustodyEventPayloadForPresentation,
+  packageCustodyEntry,
 } from "./report-v2/normalizers.js";
 import { buildReportMediaIntelligence } from "./media-intelligence-report-bridge.js";
 import { buildReportDerivedReview } from "./report-v2/derived-review-bridge.js";
@@ -4433,18 +4433,16 @@ signature: evidence.signatureBase64!,
           timestampToken:
             presentedTsaStatus(evidence) === "STAMPED" ? evidence.tsaTokenBase64 ?? null : null,
 publicKey: finalized.finalizedReportEvidencePayload.publicKeyPem as string,
-          // Presentation copy for custody.json / forensic-custody.json: the
-          // raw structure enum (MULTIPART_PACKAGE) in the captureMethodSnapshot
-          // payload is replaced with the role-safe capture method + a separate
-          // structure label. The immutable event hash is preserved.
-          custody: finalized.finalizedCustodyEvents.map((e) => ({
-            ...e,
-            payload: normalizeCustodyEventPayloadForPresentation(e.payload, {
+          // custody.json / forensic-custody.json (ET-PKG-01): each payload
+          // exactly as hashed, so the chain recomputes from the package; the
+          // role-safe presentation copy rides beside it as presentationPayload.
+          custody: finalized.finalizedCustodyEvents.map((e) =>
+            packageCustodyEntry(e, {
               acquisitionMode:
                 finalized.finalizedReportEvidencePayload.acquisitionMode ?? null,
               isIntake: packageAcquisition?.isIntake === true,
             }),
-          })),
+          ),
           evidenceId: prepared.evidenceId,
           reportVersion: prepared.version,
           trustDecision: finalized.finalizedTrustDecision,

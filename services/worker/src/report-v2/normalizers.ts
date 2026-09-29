@@ -61,6 +61,26 @@ export function resolveCustodyCapturePresentation(
 }
 
 /**
+ * THE EXPORTED CUSTODY ENTRY (ET-PKG-01, 2026-09-29).
+ *
+ * custody.json / forensic-custody.json carry each event's `payload` EXACTLY as
+ * it was hashed, so a recipient can recompute `eventHash` with the formula the
+ * package README states. The presentation copy (role-safe capture method,
+ * structure label, relabelled upload kind) is added beside it as
+ * `presentationPayload` — only when it differs — and is not part of the hash.
+ *
+ * Until 2026-09-29 the presentation copy REPLACED `payload`, so recomputing
+ * the chain from the package produced mismatches that read as tampering.
+ */
+export function packageCustodyEntry<E extends { payload?: unknown }>(
+  event: E,
+  acquisition: CustodyAcquisitionContext,
+): E & { presentationPayload?: unknown } {
+  const presentation = normalizeCustodyEventPayloadForPresentation(event.payload, acquisition);
+  return presentation === event.payload ? { ...event } : { ...event, presentationPayload: presentation };
+}
+
+/**
  * Presentation copy of a custody-event payload for the exported
  * custody.json / forensic-custody.json. Leaves non-capture payloads and the
  * event hash untouched; for payloads carrying `captureMethodSnapshot` /

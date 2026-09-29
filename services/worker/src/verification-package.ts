@@ -2004,7 +2004,7 @@ public-key.pem
 Public key used to verify the signature.
 
 custody.json
-Chain of custody events recorded by the system.
+Chain of custody events recorded by the system. Each event's eventHash can be recomputed from this file: eventHash = lowercase hex SHA-256 of the UTF-8 canonical JSON of {"v":1,"evidenceId":<Evidence ID>,"sequence":<sequence>,"eventType":<eventType>,"atUtc":<atUtc>,"payload":<payload, or null>,"prevEventHash":<prevEventHash, or null>}. Canonical JSON: object keys sorted by code point at every level, no whitespace, strings and numbers as JSON.stringify writes them. Use "payload" exactly as it appears; "presentationPayload", where present, is a reader-friendly relabelling and is not part of the hash. Each event's prevEventHash equals the previous event's eventHash.
 
 ${anchorReadmeLine}
 
@@ -2064,7 +2064,7 @@ ${params.hasReportArtifact ? "Includes the generated PROOVRA verification report
 
 CUSTODY CHAIN INTERPRETATION
 
-custody.json contains the complete immutable sequence of all recorded system events.
+custody.json contains every custody event recorded for this record up to and including the package's own issuance events, as stored and hashed.
 forensic-custody.json contains a curated subset of integrity-relevant events used for forensic review.
 access-activity.json contains access, viewing, download, and verification activity that is not part of the forensic custody chronology shown in the PDF report.
 It is a package access snapshot at generation time. Current live access activity may increase later on the verification page.

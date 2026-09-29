@@ -147,10 +147,10 @@ describe("processor render wiring (REPORT_GENERATED custody summary)", () => {
     );
   });
 
-  it("normalizes the exported custody array before the package build", () => {
-    expect(processorSrc).toContain(
-      "normalizeCustodyEventPayloadForPresentation(",
-    );
+  it("exports custody with the role-safe presentation beside the hashed payload (ET-PKG-01)", () => {
+    // The presentation copy no longer REPLACES the payload: custody.json must
+    // recompute (see package-custody-recompute.test.ts).
+    expect(processorSrc).toContain("packageCustodyEntry(e, {");
   });
 
   it("threads isIntake into both trust-decision builds", () => {
