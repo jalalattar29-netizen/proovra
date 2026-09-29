@@ -114,7 +114,7 @@ import { runWebhookDispatcherTick } from "./webhook-dispatcher.js";
 import { pollExchangePackageBuilds } from "./exchange-package-builder.js";
 import { recordQueueReplayResultIfRequested } from "./queue-replay-correlation.js";
 import { validatePackageSignerAtStartup } from "./signing/package-signer.js";
-import { isExpectedOtsPendingError, jobCommandId } from "./job-event-context.js";
+import { boundedErrorCode, isExpectedOtsPendingError, isFinalAttempt, jobCommandId } from "./job-event-context.js";
 // Hotfix — API readiness probe so startup-triggered fetches don't
 // race the api process and trigger spurious operational alerts.
 import {
@@ -286,6 +286,19 @@ function bindWorkerEvents(
     }
 
     logger.error({ ...context, err }, `${jobKind}.job.failed`);
+    // ET-Q-08 — the media-intelligence DLQ was declared, shown to operators and
+    // never written: exhausted jobs sat in the failed set while it read 0. A
+    // job that has spent its LAST attempt is recorded there (bounded code only;
+    // its run row is already FAILED by the processor or the reconciler).
+    if (jobKind === "media-intelligence" && isFinalAttempt(job)) {
+      void mediaIntelligenceDlqQueue
+        .add(
+          "MediaIntelligenceDLQ",
+          { commandId: jobCommandId(job) ?? null, jobId: job.id ?? null, errorCode: boundedErrorCode(err) },
+          { removeOnComplete: true, removeOnFail: false },
+        )
+        .catch((dlqErr) => logger.warn({ err: dlqErr, jobId: job.id }, "media_intelligence.dlq_write_failed"));
+    }
     captureException(err, {
       requestId,
       commandId: jobCommandId(job) ?? null,

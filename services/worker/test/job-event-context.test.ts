@@ -36,8 +36,29 @@ describe("the worker's event handlers use these rules (ET-Q-09)", () => {
   it("index.ts classifies and logs through job-event-context, not payload.evidenceId", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
-    expect(src).toContain('import { isExpectedOtsPendingError, jobCommandId } from "./job-event-context.js";');
+    expect(src).toMatch(/import \{[^}]*\bisExpectedOtsPendingError\b[^}]*\bjobCommandId\b[^}]*\} from "\.\/job-event-context\.js";/);
     expect(src).toContain("isExpectedOtsPendingError(jobKind, err, job)");
     expect(src).not.toMatch(/evidenceId: \(job\.data as JobData \| undefined\)\?\.evidenceId/);
+  });
+});
+
+describe("dead-letter records (ET-Q-08)", () => {
+  it("a final attempt is recognised, and a DLQ code never carries a message or stack", async () => {
+    const { isFinalAttempt, boundedErrorCode } = await import("../src/job-event-context.js");
+    expect(isFinalAttempt({ attemptsMade: 3, opts: { attempts: 3 } })).toBe(true);
+    expect(isFinalAttempt({ attemptsMade: 1, opts: { attempts: 3 } })).toBe(false);
+    expect(boundedErrorCode(Object.assign(new Error("s3://bucket/key failed"), { code: "STORAGE_READ_FAILED" }))).toBe("STORAGE_READ_FAILED");
+    expect(boundedErrorCode(new Error("OTS_UPGRADE_ATTEMPT_FAILED"))).toBe("OTS_UPGRADE_ATTEMPT_FAILED");
+    expect(boundedErrorCode(new Error("could not read /var/app/evidence/secret.bin"))).toBe("Error");
+  });
+
+  it("the report DLQ holds terminal failures only and no raw stack; the MI DLQ is written", async () => {
+    const { readFileSync } = await import("node:fs");
+    const proc = readFileSync(new URL("../src/processor.ts", import.meta.url), "utf8");
+    const adds = proc.match(/reportDlqQueue\.add\(/g) ?? [];
+    expect(adds.length, "only the non-retriable (terminal) branch writes the report DLQ").toBe(1);
+    expect(proc).not.toMatch(/errorStack:/);
+    const index = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+    expect(index).toMatch(/mediaIntelligenceDlqQueue\s*\.add\(\s*"MediaIntelligenceDLQ"/);
   });
 });

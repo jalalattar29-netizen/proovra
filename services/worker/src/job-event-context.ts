@@ -44,3 +44,17 @@ export function jobCommandId(job: { data?: unknown }): string | undefined {
   if (typeof d.commandId === "string" && d.commandId) return d.commandId;
   return typeof d.evidenceId === "string" && d.evidenceId ? d.evidenceId : undefined;
 }
+
+/** A job that has spent its last attempt: BullMQ will not run it again. */
+export function isFinalAttempt(job: { attemptsMade: number; opts?: { attempts?: number } }): boolean {
+  return job.attemptsMade >= (job.opts?.attempts ?? 1);
+}
+
+/** An error's own code (never its message or stack), bounded, for a DLQ record. */
+export function boundedErrorCode(err: unknown): string {
+  if (err && typeof err === "object" && "code" in err && typeof (err as { code?: unknown }).code === "string") {
+    return String((err as { code: string }).code).slice(0, 64);
+  }
+  if (err instanceof Error && /^[A-Z0-9_:.-]{1,64}$/.test(err.message.trim())) return err.message.trim();
+  return err instanceof Error ? err.name.slice(0, 64) : "UNKNOWN";
+}

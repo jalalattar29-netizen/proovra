@@ -5383,13 +5383,14 @@ trustDecisionSnapshot:
 
     if (!retriable) {
       await job.discard();
+      // ET-Q-08 — a DLQ record carries a bounded error CODE, never the raw
+      // message or stack (a stack names storage keys and file paths).
       await reportDlqQueue.add(
         "ReportDLQ",
         {
           evidenceId,
           jobId: job.id,
-          errorMessage: (error as Error).message,
-          errorStack: (error as Error).stack ?? null,
+          errorCode: toBoundedReasonCode(error),
           retriable: false,
         },
         { removeOnComplete: true, removeOnFail: false }
@@ -5426,17 +5427,11 @@ trustDecisionSnapshot:
     }
 
     if (job.attemptsMade + 1 >= attempts) {
-      await reportDlqQueue.add(
-        "ReportDLQ",
-        {
-          evidenceId,
-          jobId: job.id,
-          errorMessage: (error as Error).message,
-          errorStack: (error as Error).stack ?? null,
-          retriable: true,
-        },
-        { removeOnComplete: true, removeOnFail: false }
-      );
+      // ET-Q-08 — NO DLQ record here. BullMQ's per-run attempts are spent, but
+      // the durable request stays FAILED_RETRYABLE and lifecycle recovery
+      // re-drives it (up to 12 claims), so it is not dead letter. The DLQ holds
+      // only terminal failures; a request that exhausts its DURABLE budget is
+      // retired and escalated by the report authority.
 
       // ET-REC-10 — ONE BUDGET. This is BullMQ's per-run budget (5 attempts);
       // the request's DURABLE budget (REPORT_RECONCILE_MAX_ATTEMPTS = 12 claims)
