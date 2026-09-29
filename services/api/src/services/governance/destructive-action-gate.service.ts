@@ -37,6 +37,7 @@ import { teamMemberStatusGrantsAccess } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEvent } from "../../services/custody-events.service.js";
+import { swallowCustodyAppendError } from "../custody-events-observability.js";
 import {
   enforceSensitiveAction,
   type SensitiveAction,
@@ -134,8 +135,9 @@ export async function runDestructiveActionGate(
         : prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY;
 
   // Custody event for the blocked attempt — visible in the same
-  // forensic chain as integrity events. Best-effort; never breaks the
-  // gate response.
+  // forensic chain as integrity events. The refusal stands either way (it is
+  // the only write), but a failed append is OBSERVABLE (ET-CUS-11): logged,
+  // counted and reported — never silently dropped.
   await appendCustodyEvent({
     evidenceId: input.evidence.id,
     eventType: custodyEventType,
@@ -146,7 +148,13 @@ export async function runDestructiveActionGate(
     },
     ip: input.req?.ip,
     userAgent: input.req?.headers["user-agent"] as string | undefined,
-  }).catch(() => null);
+  }).catch((err) =>
+    swallowCustodyAppendError(err, {
+      surface: "destructive-action-gate",
+      evidenceId: input.evidence.id,
+      custodyEventType: String(custodyEventType),
+    }),
+  );
 
   // Map decision code → HTTP status. Matches the pre-Phase X.1
   // mapping in evidence.routes.ts exactly.

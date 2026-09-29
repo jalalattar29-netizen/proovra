@@ -6,6 +6,7 @@ import * as prismaPkg from "@prisma/client";
 import archiver from "archiver";
 import { getObjectStream } from "../storage.js";
 import { appendCustodyEvent } from "../services/custody-events.service.js";
+import { swallowCustodyAppendError } from "../services/custody-events-observability.js";
 import { resolveEvidenceRecordAccess } from "../services/evidence/evidence-record-access.service.js";
 import { evaluateArtifactDownload } from "../services/evidence/artifact-download-gate.service.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -1031,7 +1032,14 @@ export async function casesRoutes(app: FastifyInstance) {
             },
             ip: req.ip,
             userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
-          }).catch(() => null);
+          }).catch((err) =>
+            // ET-CUS-11: an access fact that fails to record is observable.
+            swallowCustodyAppendError(err, {
+              surface: "cases.routes:case_export",
+              evidenceId: ev.id,
+              custodyEventType: "REPORT_DOWNLOADED",
+            }),
+          );
         }
       }
 

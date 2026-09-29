@@ -12021,19 +12021,9 @@ return reply.code(200).send({
           declarationType: body.declarationType,
           requestedByUserId: ownerUserId,
           statementMarkdown: body.statementMarkdown,
+          // ET-CUS-11: the custody event commits with the request.
+          custody: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
         });
-
-void appendCustodyEvent({
-  evidenceId: id,
-  eventType: prismaPkg.CustodyEventType.CERTIFICATION_REQUESTED,
-  payload: {
-    declarationType: body.declarationType,
-    requestedByUserId: ownerUserId,
-    version: certification.version,
-  } as Prisma.InputJsonValue,
-  ip: req.ip,
-  userAgent: req.headers["user-agent"],
-}).catch(noteCustodyFailure);
         auditEvidenceAction(req, {
           userId: ownerUserId,
 action: "evidence.certification_requested",
@@ -12084,19 +12074,9 @@ action: "evidence.certification_requested",
           statementMarkdown: body.statementMarkdown,
           statementSnapshot: body.statementSnapshot ?? null,
           signatureText: body.signatureText,
+          // ET-CUS-11: the custody event commits with the signature.
+          custody: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
         });
-
-        void appendCustodyEvent({
-          evidenceId: id,
-          eventType: prismaPkg.CustodyEventType.CERTIFICATION_ATTESTED,
-          payload: {
-            declarationType: body.declarationType,
-            attestedByUserId: ownerUserId,
-            version: certification.version,
-          } as Prisma.InputJsonValue,
-          ip: req.ip,
-          userAgent: req.headers["user-agent"],
-        }).catch(noteCustodyFailure);
 
         auditEvidenceAction(req, {
           userId: ownerUserId,
@@ -12136,20 +12116,9 @@ action: "evidence.certification_requested",
           declarationType: body.declarationType,
           revokedByUserId: ownerUserId,
           reason: body.reason,
+          // ET-CUS-11: the custody event commits with the revocation.
+          custody: { ip: req.ip, userAgent: req.headers["user-agent"] ?? null },
         });
-
-        void appendCustodyEvent({
-          evidenceId: id,
-          eventType: prismaPkg.CustodyEventType.CERTIFICATION_REVOKED,
-          payload: {
-            declarationType: body.declarationType,
-            revokedByUserId: ownerUserId,
-            version: certification.version,
-            revokeReason: certification.revokeReason,
-          } as Prisma.InputJsonValue,
-          ip: req.ip,
-          userAgent: req.headers["user-agent"],
-        }).catch(noteCustodyFailure);
 
         auditEvidenceAction(req, {
           userId: ownerUserId,

@@ -70,15 +70,23 @@ describe("case legal hold service", () => {
     expect(evaluator).not.toMatch(/prisma\.caseLegalHold\./);
     expect(evaluator).not.toMatch(/prisma\.legalHold\./);
     // The canonical placement/release commands own the CASE_LEGAL_HOLD_*
-    // custody emissions for CASE-scoped holds.
+    // custody emissions for CASE-scoped holds — since ET-CUS-03 through the
+    // shared hold-custody authority (per covered record, reconciled).
     const canonical = await rf(
       fileURLToPath(
         new URL("../src/services/governance/legal-hold.service.ts", import.meta.url),
       ),
       "utf8",
     );
-    expect(canonical).toMatch(/CASE_LEGAL_HOLD_APPLIED/);
-    expect(canonical).toMatch(/CASE_LEGAL_HOLD_RELEASED/);
+    expect(canonical).toMatch(/reconcileLegalHoldCustody\(/);
+    const holdCustody = await rf(
+      fileURLToPath(
+        new URL("../../../packages/shared-runtime/src/governance/legal-hold-custody.ts", import.meta.url),
+      ),
+      "utf8",
+    );
+    expect(holdCustody).toMatch(/CASE_LEGAL_HOLD_APPLIED/);
+    expect(holdCustody).toMatch(/CASE_LEGAL_HOLD_RELEASED/);
   });
 
   it("projection omits release note and reason (internal only)", async () => {

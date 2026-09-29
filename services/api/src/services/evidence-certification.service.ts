@@ -6,6 +6,7 @@ import type {
 } from "@prisma/client";
 import { CertificationType as PrismaCertificationType, CertificationStatus as PrismaCertificationStatus } from "@prisma/client";
 import { prisma } from "../db.js";
+import { appendCustodyEventTx } from "@proovra/shared-runtime";
 
 type SerializedEvidenceCertification = {
   id: string;
@@ -182,6 +183,8 @@ export async function requestEvidenceCertification(params: {
   declarationType: PrismaCertificationType;
   requestedByUserId: string;
   statementMarkdown: string;
+  /** Request context recorded on the custody event (ET-CUS-11). */
+  custody?: { ip?: string | null; userAgent?: string | null };
 }): Promise<SerializedEvidenceCertification> {
   const statementMarkdown = normalizeOptionalText(params.statementMarkdown);
   if (!statementMarkdown) {
@@ -212,16 +215,32 @@ export async function requestEvidenceCertification(params: {
   const version = latest ? latest.version + 1 : 1;
   const requestedAtUtc = new Date();
 
-  const created = await prisma.evidenceCertification.create({
-    data: {
+  // ET-CUS-11: the certification row and its custody event commit together.
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.evidenceCertification.create({
+      data: {
+        evidenceId: params.evidenceId,
+        declarationType: params.declarationType,
+        status: PrismaCertificationStatus.REQUESTED,
+        version,
+        requestedByUserId: params.requestedByUserId,
+        requestedAtUtc,
+        statementMarkdown,
+      },
+    });
+    await appendCustodyEventTx(tx, {
       evidenceId: params.evidenceId,
-      declarationType: params.declarationType,
-      status: PrismaCertificationStatus.REQUESTED,
-      version,
-      requestedByUserId: params.requestedByUserId,
-      requestedAtUtc,
-      statementMarkdown,
-    },
+      eventType: prismaPkg.CustodyEventType.CERTIFICATION_REQUESTED,
+      atUtc: requestedAtUtc,
+      payload: {
+        declarationType: params.declarationType,
+        requestedByUserId: params.requestedByUserId,
+        version,
+      },
+      ip: params.custody?.ip ?? null,
+      userAgent: params.custody?.userAgent ?? null,
+    });
+    return row;
   });
 
   return serializeCertification(created);
@@ -238,6 +257,8 @@ export async function attestEvidenceCertification(params: {
   statementMarkdown: string;
   statementSnapshot?: unknown | null;
   signatureText: string;
+  /** Request context recorded on the custody event (ET-CUS-11). */
+  custody?: { ip?: string | null; userAgent?: string | null };
 }): Promise<SerializedEvidenceCertification> {
   const latest = await getLatestEvidenceCertification(
     params.evidenceId,
@@ -320,8 +341,10 @@ export async function attestEvidenceCertification(params: {
 
   // The status filter makes the transition atomic: of two concurrent
   // signers, the second finds no signable row (P2025) and is refused.
-  const updated = await prisma.evidenceCertification
-    .update({
+  const attestedAtUtc = new Date();
+  const updated = await prisma
+    .$transaction(async (tx) => {
+      const row = await tx.evidenceCertification.update({
       where: {
         id: latest.id,
         status: {
@@ -331,7 +354,7 @@ export async function attestEvidenceCertification(params: {
       data: {
         status: PrismaCertificationStatus.ATTESTED,
         attestedByUserId: params.attestedByUserId,
-        attestedAtUtc: new Date(),
+        attestedAtUtc,
         attestorName,
         attestorTitle,
         attestorEmail,
@@ -341,6 +364,21 @@ export async function attestEvidenceCertification(params: {
         signatureText,
         certificationHash,
       },
+    });
+      // ET-CUS-11: the signature and its custody event commit together.
+      await appendCustodyEventTx(tx, {
+        evidenceId: latest.evidenceId,
+        eventType: prismaPkg.CustodyEventType.CERTIFICATION_ATTESTED,
+        atUtc: attestedAtUtc,
+        payload: {
+          declarationType: latest.declarationType,
+          attestedByUserId: params.attestedByUserId,
+          version: latest.version,
+        },
+        ip: params.custody?.ip ?? null,
+        userAgent: params.custody?.userAgent ?? null,
+      });
+      return row;
     })
     .catch((err: unknown) => {
       if ((err as { code?: string })?.code === "P2025") {
@@ -361,6 +399,8 @@ export async function revokeEvidenceCertification(params: {
   declarationType: PrismaCertificationType;
   revokedByUserId: string;
   reason: string;
+  /** Request context recorded on the custody event (ET-CUS-11). */
+  custody?: { ip?: string | null; userAgent?: string | null };
 }): Promise<SerializedEvidenceCertification> {
   const latest = await getLatestEvidenceCertification(
     params.evidenceId,
@@ -385,14 +425,32 @@ export async function revokeEvidenceCertification(params: {
 
   const revokeReason = normalizeOptionalText(params.reason, 500);
 
-  const updated = await prisma.evidenceCertification.update({
-    where: { id: latest.id },
-    data: {
-      status: PrismaCertificationStatus.REVOKED,
-      revokedByUserId: params.revokedByUserId,
-      revokedAtUtc: new Date(),
-      revokeReason,
-    },
+  const revokedAtUtc = new Date();
+  // ET-CUS-11: the revocation and its custody event commit together.
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.evidenceCertification.update({
+      where: { id: latest.id },
+      data: {
+        status: PrismaCertificationStatus.REVOKED,
+        revokedByUserId: params.revokedByUserId,
+        revokedAtUtc,
+        revokeReason,
+      },
+    });
+    await appendCustodyEventTx(tx, {
+      evidenceId: latest.evidenceId,
+      eventType: prismaPkg.CustodyEventType.CERTIFICATION_REVOKED,
+      atUtc: revokedAtUtc,
+      payload: {
+        declarationType: latest.declarationType,
+        revokedByUserId: params.revokedByUserId,
+        version: latest.version,
+        revokeReason,
+      },
+      ip: params.custody?.ip ?? null,
+      userAgent: params.custody?.userAgent ?? null,
+    });
+    return row;
   });
 
   return serializeCertification(updated);

@@ -26,10 +26,9 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendCustodyEvent } from "../custody-events.service.js";
 import { safeEmitSecurityEvent } from "../security/security-event.service.js";
 import { isEvidenceUnderAnyLegalHold } from "./legal-hold.service.js";
-import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { appendCustodyEventTx, workspaceEvidenceWhere } from "@proovra/shared-runtime";
 
 const FLAG_REISSUE_WINDOW_MS = 24 * 3600 * 1000;
 
@@ -95,36 +94,34 @@ export async function reconcileRetention(
         continue;
       }
       const held = await isEvidenceUnderAnyLegalHold(ev.id, client);
-      if (held) {
-        skippedHeld += 1;
-        // Audit the block so reviewers can see retention pressure
-        // was applied + blocked by hold.
-        await appendCustodyEvent({
+      // Mark the row as a retention candidate. NOT a deletion — the operator
+      // still has to act in the /governance ops UI.
+      //
+      // ET-CUS-11 / ET-CUS-13 (2026-09-29): the flag and its custody event
+      // commit together (both were written separately, the event with a
+      // silent catch). A HELD record is recorded the same way, as a candidate
+      // blocked by its hold — it used to get DELETE_BLOCKED_BY_LEGAL_HOLD on
+      // EVERY run, which read as a deletion attempt that never happened and
+      // repeated forever. The flag now bounds it to once per reissue window.
+      await client.$transaction(async (tx) => {
+        await tx.evidence.update({
+          where: { id: ev.id },
+          data: { retentionReconciliationFlaggedAtUtc: now },
+        });
+        await appendCustodyEventTx(tx, {
           evidenceId: ev.id,
-          eventType: "DELETE_BLOCKED_BY_LEGAL_HOLD",
+          eventType: "RETENTION_CANDIDATE_IDENTIFIED",
+          atUtc: now,
           payload: {
-            reason: "retention_expired_but_under_legal_hold",
             retentionUntilUtc: ev.retentionUntilUtc?.toISOString() ?? null,
+            // Operator-readable note; never destructive.
+            reasonInternal: "retention_expired",
+            blockedByLegalHold: held,
           },
-        }).catch(() => null);
-        continue;
-      }
-      // Mark the row as a retention candidate. NOT a deletion — the
-      // operator still has to act in the /governance ops UI.
-      await client.evidence.update({
-        where: { id: ev.id },
-        data: { retentionReconciliationFlaggedAtUtc: now },
+        });
       });
-      await appendCustodyEvent({
-        evidenceId: ev.id,
-        eventType: "RETENTION_CANDIDATE_IDENTIFIED",
-        payload: {
-          retentionUntilUtc: ev.retentionUntilUtc?.toISOString() ?? null,
-          // Operator-readable note; never destructive.
-          reasonInternal: "retention_expired",
-        },
-      }).catch(() => null);
-      flagged += 1;
+      if (held) skippedHeld += 1;
+      else flagged += 1;
     } catch {
       errors += 1;
     }

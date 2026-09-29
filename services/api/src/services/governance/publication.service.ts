@@ -25,12 +25,14 @@
 
 import type {
   Evidence as DbEvidence,
+  Prisma,
   PrismaClient,
   PublicVerifyState,
 } from "@prisma/client";
+import type * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendCustodyEvent } from "../custody-events.service.js";
+import { appendCustodyEventTx } from "@proovra/shared-runtime";
 
 export class PublicationError extends Error {
   constructor(
@@ -74,22 +76,33 @@ async function applyTransition(
     publicVerifySuspensionReason?: string | null;
   },
   client: PrismaClient,
+  custody: { eventType: prismaPkg.CustodyEventType; payload: Prisma.InputJsonValue },
 ): Promise<DbEvidence> {
   const allowed = ALLOWED_TRANSITIONS[from] ?? [];
   if (!allowed.includes(to)) {
     throw new PublicationError("invalid_state_transition", { from, to });
   }
-  // Atomic where-status guard so concurrent operators cannot both win.
-  const claim = await client.evidence.updateMany({
-    where: { id: evidenceId, publicVerifyState: from },
-    data: { publicVerifyState: to, ...patch },
-  });
-  if (claim.count !== 1) {
-    // Lost the race; return canonical state to caller.
-    const fresh = await client.evidence.findUniqueOrThrow({
-      where: { id: evidenceId },
+  // ET-CUS-11: the state claim and its custody event commit together. Until
+  // 2026-09-29 the event was appended afterwards with a silent catch, so a
+  // failure left the state changed and the chain without it — and a transition
+  // that LOST the race still appended an event for a change it did not make.
+  const run = async (c: PrismaClient): Promise<void> => {
+    // Atomic where-status guard so concurrent operators cannot both win.
+    const claim = await c.evidence.updateMany({
+      where: { id: evidenceId, publicVerifyState: from },
+      data: { publicVerifyState: to, ...patch },
     });
-    return fresh;
+    if (claim.count !== 1) return; // Lost the race: nothing changed, nothing recorded.
+    await appendCustodyEventTx(c as unknown as Prisma.TransactionClient, {
+      evidenceId,
+      eventType: custody.eventType,
+      payload: custody.payload,
+    });
+  };
+  if ("$transaction" in client && typeof client.$transaction === "function") {
+    await client.$transaction((tx) => run(tx as unknown as PrismaClient));
+  } else {
+    await run(client);
   }
   return client.evidence.findUniqueOrThrow({ where: { id: evidenceId } });
 }
@@ -129,20 +142,19 @@ export async function publishPublicVerify(
       publicVerifySuspensionReason: null,
     },
     client,
-  );
-  await appendCustodyEvent({
-    evidenceId: input.evidenceId,
-    eventType:
-      ev.publicVerifyState === "SUSPENDED"
-        ? "PUBLIC_VERIFY_RESTORED"
-        : "PUBLIC_VERIFY_PUBLISHED",
-    payload: {
-      previousState: ev.publicVerifyState,
-      actorUserId: input.actorUserId,
-      // Reason is internal; captured in custody chain only.
-      reasonInternal: input.reason ?? null,
+    {
+      eventType:
+        ev.publicVerifyState === "SUSPENDED"
+          ? "PUBLIC_VERIFY_RESTORED"
+          : "PUBLIC_VERIFY_PUBLISHED",
+      payload: {
+        previousState: ev.publicVerifyState,
+        actorUserId: input.actorUserId,
+        // Reason is internal; captured in custody chain only.
+        reasonInternal: input.reason ?? null,
+      },
     },
-  }).catch(() => null);
+  );
   return updated;
 }
 
@@ -163,16 +175,15 @@ export async function unpublishPublicVerify(
     "UNPUBLISHED",
     {},
     client,
-  );
-  await appendCustodyEvent({
-    evidenceId: input.evidenceId,
-    eventType: "PUBLIC_VERIFY_UNPUBLISHED",
-    payload: {
-      previousState: ev.publicVerifyState,
-      actorUserId: input.actorUserId,
-      reasonInternal: input.reason ?? null,
+    {
+      eventType: "PUBLIC_VERIFY_UNPUBLISHED",
+      payload: {
+        previousState: ev.publicVerifyState,
+        actorUserId: input.actorUserId,
+        reasonInternal: input.reason ?? null,
+      },
     },
-  }).catch(() => null);
+  );
   return updated;
 }
 
@@ -200,18 +211,17 @@ export async function suspendPublicVerify(
       publicVerifySuspensionReason: reason.slice(0, 400),
     },
     client,
-  );
-  await appendCustodyEvent({
-    evidenceId: input.evidenceId,
-    eventType: "PUBLIC_VERIFY_SUSPENDED",
-    payload: {
-      previousState: ev.publicVerifyState,
-      actorUserId: input.actorUserId,
-      // Reason captured INTERNALLY in the custody chain. The public
-      // verify route NEVER returns this value.
-      reasonInternal: reason,
+    {
+      eventType: "PUBLIC_VERIFY_SUSPENDED",
+      payload: {
+        previousState: ev.publicVerifyState,
+        actorUserId: input.actorUserId,
+        // Reason captured INTERNALLY in the custody chain. The public
+        // verify route NEVER returns this value.
+        reasonInternal: reason,
+      },
     },
-  }).catch(() => null);
+  );
   return updated;
 }
 

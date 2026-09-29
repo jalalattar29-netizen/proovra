@@ -35,10 +35,11 @@ type CertRow = Record<string, unknown> & {
 const H = vi.hoisted(() => ({
   latest: null as CertRow | null,
   updates: [] as Array<{ where: { id: string }; data: Record<string, unknown> }>,
+  custody: [] as Array<Record<string, unknown>>,
 }));
 
-vi.mock("../src/db.js", () => ({
-  prisma: {
+vi.mock("../src/db.js", () => {
+  const client: Record<string, unknown> = {
     evidenceCertification: {
       findFirst: async () => H.latest,
       update: async (args: {
@@ -49,8 +50,20 @@ vi.mock("../src/db.js", () => ({
         return { ...(H.latest as CertRow), ...args.data };
       },
     },
-  },
-}));
+    // ET-CUS-11 — the signature and its custody event commit in one
+    // transaction, through the shared custody appender.
+    custodyEvent: {
+      findFirst: async () => null,
+      create: async (args: { data: Record<string, unknown> }) => {
+        H.custody.push(args.data);
+        return args.data;
+      },
+    },
+    $executeRaw: async () => 0,
+  };
+  client.$transaction = async (fn: (tx: unknown) => Promise<unknown>) => fn(client);
+  return { prisma: client };
+});
 
 import { attestEvidenceCertification } from "../src/services/evidence-certification.service.js";
 
@@ -216,13 +229,18 @@ describe("POST /v1/evidence/:id/certifications/attest — route wiring", () => {
     );
   });
 
-  it("emits the CERTIFICATION_ATTESTED custody event and the attest audit action", () => {
+  it("records the CERTIFICATION_ATTESTED custody event with the signature, and the attest audit action", () => {
+    // ET-CUS-11 (2026-09-29): the custody event moved from a fire-and-forget
+    // route append into the service's signing transaction; the route passes
+    // the request context.
     const body = attestHandler();
-    expect(body).toMatch(
-      /eventType:\s*prismaPkg\.CustodyEventType\.CERTIFICATION_ATTESTED/,
-    );
+    expect(body).toMatch(/custody:\s*\{\s*ip:\s*req\.ip/);
     expect(body).toMatch(/action:\s*"evidence\.certification_attested"/);
-    expect(body).toMatch(/\.catch\(noteCustodyFailure\)/);
+    expect(body).not.toMatch(/appendCustodyEvent\(/);
+    const service = readApi("../src/services/evidence-certification.service.ts");
+    expect(functionSource(service, "attestEvidenceCertification")).toMatch(
+      /appendCustodyEventTx\(tx,[\s\S]{0,200}CustodyEventType\.CERTIFICATION_ATTESTED/,
+    );
   });
 
   it("projects service errors through the shared statusCode arm (no generic 500)", () => {

@@ -18,7 +18,7 @@
 import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
-import { appendCustodyEvent } from "../custody-events.service.js";
+import { appendCustodyEventTx } from "@proovra/shared-runtime";
 import { enforceSensitiveAction, evidenceIsReviewed } from "../governance.service.js";
 
 export const FINALIZATION_GOVERNED_ACTIONS = [
@@ -80,19 +80,22 @@ export async function evaluateFinalizationGovernance(input: {
       // in the library filter. It is marked NOT_PUBLISHED; a later
       // finalization under a changed policy then needs an explicit publish.
       // A signed record is never touched here.
-      await prisma.evidence
-        .updateMany({
+      // ET-CUS-11: the NOT_PUBLISHED mark and the refusal's custody event
+      // commit together, and a failure fails the request rather than leaving
+      // a record marked with no trace (both used to be swallowed).
+      await prisma.$transaction(async (tx) => {
+        await tx.evidence.updateMany({
           where: { id: evidence.id, signedAtUtc: null },
           data: { publicVerifyState: "NOT_PUBLISHED" },
-        })
-        .catch(() => undefined);
-      await appendCustodyEvent({
-        evidenceId: evidence.id,
-        eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-        payload: { action, reason: decision.reason, actorUserId: input.actorUserId },
-        ip: input.ip ?? undefined,
-        userAgent: input.userAgent ?? undefined,
-      }).catch(() => undefined);
+        });
+        await appendCustodyEventTx(tx, {
+          evidenceId: evidence.id,
+          eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+          payload: { action, reason: decision.reason, actorUserId: input.actorUserId },
+          ip: input.ip ?? null,
+          userAgent: input.userAgent ?? null,
+        });
+      });
       return {
         allowed: false,
         action,
