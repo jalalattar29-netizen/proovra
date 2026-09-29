@@ -602,16 +602,19 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
       first,
       `lifecycle recovery outcome: ${JSON.stringify(first)}`,
     ).toMatchObject({ failed: 0 });
-    expect(first.skippedIneligiblePlan, JSON.stringify(first)).toBe(0);
-
     const requests = await prisma.reportGenerationRequest.findMany({
       where: { evidenceId: { in: [stranded, fresh] } },
       select: { evidenceId: true, id: true },
     });
+    // THIS suite's entitled record was not refused as ineligible: it was
+    // launched. (The sweep scans every workspace in a database other suites
+    // have used, and `skippedIneligiblePlan` counts THEIR unentitled records
+    // too — a global zero was never a property of this record.) The outcome
+    // is the failure message, so a refusal still shows which gate it fell to.
+    expect(requests.map((r) => r.evidenceId), JSON.stringify(first)).toContain(stranded);
     // Only the aged one was launched. The fresh one is inside the grace
     // window: a reconciler that recovered it would be racing the producer it
     // exists to back up.
-    expect(requests.map((r) => r.evidenceId)).toContain(stranded);
     expect(requests.map((r) => r.evidenceId)).not.toContain(fresh);
     // The tenant came from the evidence row, not from anywhere else.
     const req = await prisma.reportGenerationRequest.findFirstOrThrow({
@@ -697,16 +700,30 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
     expect(first.ok).toBe(true);
     expect(first.missing).toBeGreaterThanOrEqual(1);
     expect(queued.searchIndex.some((q) => q.sourceId === drifted)).toBe(true);
-    // Every command it emitted names a real, undeleted source row with a
-    // workspace. A reconciler that enqueues an unprojectable row produces a
-    // permanent, unfixable drift signal.
+    // Every command it emitted names a real source row with a workspace that
+    // the index is SUPPOSED to hold. A reconciler that enqueues an
+    // unprojectable row produces a permanent, unfixable drift signal.
+    //
+    // "Supposed to hold" is `isSearchIndexableLifecycle` — the one authority
+    // the reconciler's own selection (`searchIndexableLifecycleSql`) and the
+    // readiness counter share. A TRASHED record IS in that population (it is
+    // indexed with an in_trash tag so it can be found and restored), so
+    // `deletedAt` is not the test. This assertion used to demand
+    // `deletedAt: null`; alone on a fresh database no trashed record ever had
+    // drift, so it passed, and after earlier suites left trashed records
+    // behind it failed on a row the reconciler was right to emit.
+    const { isSearchIndexableLifecycle } = await import("@proovra/shared");
     for (const q of queued.searchIndex) {
-      const ev = await prisma.evidence.findFirst({
-        where: { id: q.sourceId, deletedAt: null },
-        select: { teamId: true },
+      const ev = await prisma.evidence.findUnique({
+        where: { id: q.sourceId },
+        select: { teamId: true, lifecycleState: true },
       });
       expect(ev, `enqueued a source row that does not exist: ${q.sourceId}`).not.toBeNull();
-      expect(ev!.teamId).not.toBeNull();
+      expect(ev!.teamId, `enqueued a row with no workspace: ${q.sourceId}`).not.toBeNull();
+      expect(
+        isSearchIndexableLifecycle(ev!.lifecycleState),
+        `enqueued a row the index must not hold (${ev!.lifecycleState}): ${q.sourceId}`,
+      ).toBe(true);
     }
 
     // Two overlapping ticks collapse onto one live job per source.
