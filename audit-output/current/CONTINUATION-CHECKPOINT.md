@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1307
-ROUTE_ATTRIBUTED_REACHABLE                  1169
+TerminalWriters                             1308
+ROUTE_ATTRIBUTED_REACHABLE                  1170
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -331,7 +331,25 @@ Measured against the previous commit, not asserted.
   finalization-governance.service.ts`, the one finalization governance gate
   (audit D3). It holds no terminal writer.
 
- from two inputs — open actionable findings
+### 2026-09-29 — BYTE-RELEASE AUTHORITY / REFUSED FINALIZATION (writers 1307 -> 1308)
+
+Measured against the previous commit, not asserted.
+
+- TerminalWriters 1307 -> 1308, ROUTE_ATTRIBUTED_REACHABLE 1169 -> 1170,
+  EVIDENCE_CUSTODY_FINALIZATION 294 -> 295: `evidence.updateMany` in
+  `services/api/src/services/governance/finalization-governance.service.ts`
+  (`evaluateFinalizationGovernance`). A finalization the workspace policy
+  refuses marks the still-unsigned record NOT_PUBLISHED (the column default is
+  PUBLISHED, so a refused record read "Published" in the library filter). It
+  is bounded to `signedAtUtc: null` and reached only from the existing
+  finalizers (web complete, direct capture, external intake); no new route.
+- The byte routes (/original, /parts, /report/latest, /verification-package,
+  the content views, the SIU export and its re-download) now call THE shared
+  download gate; their inline governance copies were removed. No writer is
+  added or removed by that move: the refusal custody event was already
+  written through `appendCustodyEvent`.
+
+`ReleaseBlockingClosure` is DERIVED from two inputs — open actionable findings
 and undisposed routes. Both are zero, so it prints PASS. That is a statement
 about the LOCAL evidence and nothing wider: `node services/api/scripts/audit/
 index.mjs --closure-check` reports the same verdict from the same two inputs,
