@@ -1,0 +1,9 @@
+ET-UPL-02 / ET-UPL-03 red baseline — upload-session-key-and-terminal.integration.test.ts against HEAD upload-session.service.ts
+   × upload-session keys and terminal sessions (live PostgreSQL 16) > ET-UPL-03: a key pre-created for another record or actor is refused, never reused 38ms
+     → expected { ok: true, session: { …(17) }, …(1) } to deeply equal { ok: false, …(1) }
+   × upload-session keys and terminal sessions (live PostgreSQL 16) > ET-UPL-02: a retry after an aborted session mints a FRESH session, and the aborted one does not block finalization 24ms
+     → expected '7299d36c-c208-4161-9820-f2e2dac1c9d0' not to be '7299d36c-c208-4161-9820-f2e2dac1c9d0' // Object.is equality
+   × upload-session keys and terminal sessions (live PostgreSQL 16) > ET-UPL-02: only the session's actor or the record's owner may abort it 20ms
+     → expected { ok: true, session: { …(17) } } to deeply equal { ok: false, …(1) }
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed (3)

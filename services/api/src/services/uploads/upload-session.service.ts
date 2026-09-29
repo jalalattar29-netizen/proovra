@@ -93,6 +93,9 @@ export const UPLOAD_SESSION_DENIAL_CODES = [
   // ET-UPL-01 — the actor owns the record but it no longer accepts original
   // bytes (signing has begun, SIGNED/REPORTED, locked, trashed or archived).
   "evidence_not_writable",
+  // ET-UPL-03 — the idempotency key names a session for ANOTHER record or
+  // actor; reusing it would divert this upload to that record's storage key.
+  "idempotency_key_conflict",
 ] as const;
 
 /**
@@ -407,8 +410,29 @@ export async function createUploadSession(
         input.idempotencyKey,
       )) as RawSession[];
       if (existing.length > 0) {
-        bump("upload_session_idempotent_reuse_total");
-        return { ok: true, session: projectSession(existing[0]!), reused: true };
+        const prior = existing[0]!;
+        // ET-UPL-03 — a key only collapses onto the SAME record and actor.
+        // A same-team member who pre-created the key for their own record Y
+        // could otherwise divert this upload for X to Y's key and bridge.
+        if (prior.evidence_id !== input.evidenceId || prior.actor_user_id !== input.actorUserId) {
+          return { ok: false, reason: "idempotency_key_conflict" };
+        }
+        // ET-UPL-02 — a retry after an ABORTED / EXPIRED / FAILED session mints
+        // a FRESH session: the terminal row keeps its history but gives the key
+        // up (the unique index would otherwise hand the dead session back and
+        // its initiate fails session_already_terminal, forever).
+        if (prior.state === "ABORTED" || prior.state === "EXPIRED" || prior.state === "FAILED") {
+          await client.$executeRawUnsafe(
+            `UPDATE "evidence_upload_sessions"
+                SET "idempotency_key" = NULL, "updated_at_utc" = NOW()
+              WHERE "id" = $1 AND "team_id" = $2 AND "state" IN ('ABORTED', 'EXPIRED', 'FAILED')`,
+            prior.id,
+            input.teamId,
+          );
+        } else {
+          bump("upload_session_idempotent_reuse_total");
+          return { ok: true, session: projectSession(prior), reused: true };
+        }
       }
     } catch {
       // Fall through to insert path; the unique index will catch a
@@ -915,6 +939,24 @@ export async function abortUploadSession(
   client: PrismaClient = defaultPrisma,
 ): Promise<{ ok: true; session: UploadSessionRow } | { ok: false; reason: UploadSessionDenialCode }> {
   try {
+    // ET-UPL-02 — team membership is not authority over another member's
+    // upload: only the session's actor or the record's owner may abort it.
+    // Anyone else gets the same answer as an unknown session.
+    const owner = (await client.$queryRawUnsafe(
+      `SELECT s."actor_user_id", e."owner_user_id"
+         FROM "evidence_upload_sessions" s
+         JOIN "evidence" e ON e."id" = s."evidence_id"
+        WHERE s."id" = $1 AND s."team_id" = $2
+        LIMIT 1`,
+      input.sessionId,
+      input.teamId,
+    )) as Array<{ actor_user_id: string; owner_user_id: string | null }>;
+    if (
+      owner.length === 0 ||
+      (owner[0]!.actor_user_id !== input.actorUserId && owner[0]!.owner_user_id !== input.actorUserId)
+    ) {
+      return { ok: false, reason: "session_not_found" };
+    }
     // PHASE 13 §4 (2026-08-17) — A SESSION ABORT NOW CANCELS THE STORAGE
     // MULTIPART TOO, so it is sufficient on its own.
     //
@@ -1273,7 +1315,15 @@ export async function evaluateUploadSessionFinalizeGate(
   // For COMPLETED sessions, defense-in-depth verify every part is VERIFIED.
   const completedIds: string[] = [];
   const completedAtUtcs: string[] = [];
+  // ET-UPL-02 — an ABORTED or EXPIRED session committed nothing, so it no
+  // longer blocks finalization forever; a FAILED one blocks until a later
+  // session for the record COMPLETES (the retry that replaced it).
+  const lastCompletedAt = rows
+    .filter((r) => r.state === "COMPLETED")
+    .reduce<number>((m, r) => Math.max(m, r.created_at_utc.getTime()), -Infinity);
   for (const row of rows) {
+    if (row.state === "ABORTED" || row.state === "EXPIRED") continue;
+    if (row.state === "FAILED" && row.created_at_utc.getTime() < lastCompletedAt) continue;
     if (row.state !== "COMPLETED") {
       bump("upload_session_finalize_gate_denied_total");
       bump("mixed_material_finalize_blocked_total");

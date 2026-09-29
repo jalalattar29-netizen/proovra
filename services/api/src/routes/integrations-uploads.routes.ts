@@ -189,6 +189,7 @@ function statusForDenial(
     case "session_already_terminal":
     case "evidence_not_writable":
     case "invalid_state_transition":
+    case "idempotency_key_conflict":
       return 409;
     default:
       return 400;
