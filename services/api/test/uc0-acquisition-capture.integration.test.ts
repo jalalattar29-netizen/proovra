@@ -200,6 +200,48 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
   // Acquisition authority through the real routes
   // ===========================================================================
 
+  it("D11 (2026-09-29): a duplicate web complete repeats no custody event and changes nothing", async () => {
+    const token = owner().ownerToken;
+    const created = await call("POST", "/v1/evidence", token, {
+      type: "PHOTO",
+      mimeType: "image/jpeg",
+      teamId: owner().teamId,
+    });
+    const id = created.json().id as string;
+    const part = await call("POST", `/v1/evidence/${id}/parts`, token, {
+      partIndex: 0,
+      mimeType: "image/jpeg",
+      originalFileName: "photo.jpg",
+    });
+    const u = part.json().upload;
+    objects.set(`${u.bucket}/${u.key}`, Buffer.from(`web-part-${randomBytes(4).toString("hex")}`));
+    const first = await call("POST", `/v1/evidence/${id}/complete`, token, {});
+    expect(first.statusCode, first.body).toBe(200);
+    const snapshot = async () => {
+      const events = await prisma.custodyEvent.groupBy({
+        by: ["eventType"],
+        where: { evidenceId: id },
+        _count: { _all: true },
+      });
+      const row = await prisma.evidence.findUniqueOrThrow({
+        where: { id },
+        select: { status: true, signedAtUtc: true, fingerprintHash: true, signatureBase64: true, storageObjectLockRetainUntilUtc: true },
+      });
+      return { events: Object.fromEntries(events.map((e) => [e.eventType, e._count._all])), row };
+    };
+    const afterFirst = await snapshot();
+    for (let i = 0; i < 2; i++) {
+      const again = await call("POST", `/v1/evidence/${id}/complete`, token, {});
+      expect(again.statusCode, again.body).toBe(200);
+    }
+    const afterRepeats = await snapshot();
+    expect(afterRepeats.row).toEqual(afterFirst.row);
+    for (const type of ["EVIDENCE_COMPLETED", "EVIDENCE_LOCKED", "STORAGE_PROTECTION_UNAVAILABLE", "SIGNATURE_APPLIED", "UPLOAD_COMPLETED"]) {
+      expect(afterRepeats.events[type] ?? 0, type).toBe(afterFirst.events[type] ?? 0);
+    }
+    expect(afterFirst.events.EVIDENCE_COMPLETED).toBe(1);
+  });
+
   it("web upload records PROOVRA_WEB_UPLOAD and completion never changes it", async () => {
     const token = owner().ownerToken;
     const created = await call("POST", "/v1/evidence", token, {
@@ -444,6 +486,40 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       });
     }
   }
+
+  it("D11: a session whose record is already SIGNED is not discarded — completing it binds it", async () => {
+    const staged = await stageDeclared();
+    // The record was signed, then the finalize failed after commit (e.g. the
+    // retention call threw): SIGNED, session still ACTIVE.
+    await prisma.evidence.update({
+      where: { id: staged.evidenceId },
+      data: { status: "SIGNED", signedAtUtc: new Date(), fileSha256: "e".repeat(64) } as never,
+    });
+    const discard = await call(
+      "POST",
+      `/v1/capture/direct-sessions/${staged.session.captureSessionId}/discard`,
+      staged.token,
+      {},
+    );
+    expect(discard.statusCode, discard.body).toBe(409);
+    expect(discard.json().denial).toBe("EVIDENCE_ALREADY_FINALIZED");
+    const still = await prisma.captureSession.findUniqueOrThrow({
+      where: { id: staged.session.captureSessionId },
+      select: { status: true },
+    });
+    expect(still.status).toBe("ACTIVE");
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: staged.evidenceId }, select: { deletedAt: true } });
+    expect(ev.deletedAt).toBeNull();
+
+    const done = await call(
+      "POST",
+      `/v1/capture/direct-sessions/${staged.session.captureSessionId}/complete`,
+      staged.token,
+    );
+    expect(done.statusCode, done.body).toBe(200);
+    expect(done.json().result).toMatchObject({ bound: true });
+    expect(await bindEvents(staged.session.captureSessionId)).toHaveLength(1);
+  });
 
   it("D3: a mobile capture in a workspace whose policy forbids public Verify is NOT finalized (as the web path)", async () => {
     await withPolicy({ allowPublicVerify: false }, async () => {

@@ -85,6 +85,13 @@ type CompleteEvidenceTransactionResult = {
   result: CompleteEvidenceReturn;
   shouldEnqueueReport: boolean;
   retentionTargets: RetentionTarget[];
+  /**
+   * (2026-09-29, audit D11) The record was ALREADY finalized: this call is a
+   * duplicate. The one-time fan-out (webhook, malware scan, post-finalize
+   * hooks) does not run again, and retention is re-applied only when the
+   * first finalize never recorded it.
+   */
+  alreadyFinalized?: boolean;
 };
 
 const { EvidenceStatus } = prismaPkg;
@@ -97,6 +104,8 @@ type CompleteEvidenceReturn = {
   signatureBase64: string | null;
   signingKeyId: string | null;
   signingKeyVersion: number | null;
+  /** (2026-09-29, D11) This call was a duplicate of an earlier finalize. */
+  alreadyFinalized?: boolean;
 };
 
 function asIso(d: Date | null | undefined): string | null {
@@ -545,8 +554,17 @@ export async function completeEvidence(params: {
           evidenceId: evidence.id,
           details: { reason: "already_signed" },
         });
+        /*
+         * A DUPLICATE COMPLETE REPEATS NOTHING THAT ALREADY HAPPENED
+         * (2026-09-29, audit D11). It used to hand the primary object back
+         * for retention every time — re-applying PutObjectRetention (which
+         * can extend retain-until) and appending another lock custody event
+         * — and the fan-out below re-emitted the webhook and the scan.
+         * Retention is now re-applied only when the first finalize never
+         * recorded a lock (a post-commit failure this call can repair).
+         */
         const retentionTargets: RetentionTarget[] = [];
-        if (evidenceBucket && evidenceKey) {
+        if (evidenceBucket && evidenceKey && !evidence.storageObjectLockMode) {
           retentionTargets.push({
             bucket: evidenceBucket,
             key: evidenceKey,
@@ -554,6 +572,7 @@ export async function completeEvidence(params: {
         }
 
         return {
+          alreadyFinalized: true,
           result: {
             id: evidence.id,
             status: evidence.status,
@@ -562,6 +581,7 @@ export async function completeEvidence(params: {
             signatureBase64: evidence.signatureBase64,
             signingKeyId: evidence.signingKeyId,
             signingKeyVersion: evidence.signingKeyVersion,
+            alreadyFinalized: true,
           },
           // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the already-signed
           // path re-reads how THIS record was funded instead of re-asking the
@@ -1291,6 +1311,16 @@ const captureMethod =
           }
         }
 
+        // A repeat complete that repaired retention appends nothing if the
+        // record already carries its lock outcome (2026-09-29, audit D11).
+        const recordedOutcome = async (
+          type: prismaPkg.CustodyEventType,
+        ): Promise<boolean> =>
+          final.alreadyFinalized === true &&
+          (await prisma.custodyEvent.count({
+            where: { evidenceId: final.result.id, eventType: type },
+          })) > 0;
+
         // Decide truthfully whether to append EVIDENCE_LOCKED.
         //
         // We require ALL of the following to be true:
@@ -1316,7 +1346,7 @@ const captureMethod =
           (lockMode === "COMPLIANCE" || lockMode === "GOVERNANCE") &&
           retentionInForce;
 
-        if (lockTrulyApplied) {
+        if (lockTrulyApplied && !(await recordedOutcome(prismaPkg.CustodyEventType.EVIDENCE_LOCKED))) {
           await appendCustodyEvent({
             evidenceId: final.result.id,
             eventType: prismaPkg.CustodyEventType.EVIDENCE_LOCKED,
@@ -1334,7 +1364,11 @@ const captureMethod =
               retentionApplied: true,
             } as prismaPkg.Prisma.InputJsonValue,
           });
-        } else {
+        } else if (
+          !lockTrulyApplied &&
+          !(await recordedOutcome(prismaPkg.CustodyEventType.STORAGE_PROTECTION_UNAVAILABLE)) &&
+          !(await recordedOutcome(prismaPkg.CustodyEventType.EVIDENCE_LOCKED))
+        ) {
           await appendCustodyEvent({
             evidenceId: final.result.id,
             eventType:
@@ -1429,6 +1463,12 @@ const captureMethod =
     evidenceId: final.result.id,
     to: "COMPLETED",
   }).catch(() => null);
+
+  // (2026-09-29, audit D11) A duplicate complete stops here: the record's
+  // one-time fan-out already ran with its first finalize. OTS and the report
+  // request above are idempotent and double as recovery for a first finalize
+  // that failed after commit.
+  if (final.alreadyFinalized) return final.result;
 
   // Phase 10 — fire `evidence.completed` to any subscribed webhook
   // endpoints in this workspace. The dispatcher is feature-flag gated

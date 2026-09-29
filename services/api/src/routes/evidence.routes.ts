@@ -10198,16 +10198,19 @@ try {
         // silently capped every shared workspace at 1 GiB a month regardless
         // of what it had bought. One authority now owns storage.
 
-        await appendCustodyEvent({
-  evidenceId: id,
-  eventType: prismaPkg.CustodyEventType.EVIDENCE_COMPLETED,
-  payload: {
-    completedByUserId: ownerUserId,
-    completedAtUtc: new Date().toISOString(),
-  } as Prisma.InputJsonValue,
-  ip: req.ip,
-  userAgent: req.headers["user-agent"],
-}).catch(noteCustodyFailure);
+        // A duplicate complete records nothing new (2026-09-29, audit D11).
+        if (!result.alreadyFinalized) {
+          await appendCustodyEvent({
+            evidenceId: id,
+            eventType: prismaPkg.CustodyEventType.EVIDENCE_COMPLETED,
+            payload: {
+              completedByUserId: ownerUserId,
+              completedAtUtc: new Date().toISOString(),
+            } as Prisma.InputJsonValue,
+            ip: req.ip,
+            userAgent: req.headers["user-agent"],
+          }).catch(noteCustodyFailure);
+        }
 
         // Initialize the EvidenceReviewWorkflow at NOT_STARTED so the
         // evidence shows up in the reviewer queue immediately on completion.

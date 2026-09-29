@@ -137,6 +137,8 @@ export const DIRECT_CAPTURE_DENIALS = {
   MANIFEST_SEAL_ROUTE_REQUIRED: 409,
   // Workspace policy refuses finalization (2026-09-29, audit D3).
   FINALIZATION_BLOCKED_BY_POLICY: 409,
+  // A discard of a session whose record is already signed (2026-09-29, D11).
+  EVIDENCE_ALREADY_FINALIZED: 409,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 
@@ -746,7 +748,7 @@ export async function completeDirectCapture(input: {
   const gate = await evaluateFinalizationGovernance({ evidenceId, actorUserId: input.ownerUserId });
   if (!gate.allowed) throw new DirectCaptureError("FINALIZATION_BLOCKED_BY_POLICY");
 
-  let result;
+  let result: { status: unknown; fileSha256: string | null } | undefined;
   try {
     result = await completeEvidence({
       evidenceId,
@@ -776,8 +778,27 @@ export async function completeDirectCapture(input: {
       await interruptSession(db, session, code, now);
       throw new DirectCaptureError(code as DirectCaptureDenial);
     }
-    throw err;
+    /*
+     * A FAILURE AFTER THE RECORD WAS SIGNED DOES NOT UNSEAL IT
+     * (2026-09-29, audit D11). completeEvidence commits the signature and
+     * only then applies retention; a throw there left the record SIGNED and
+     * the session unbound — and the mobile client then discarded the session.
+     * If the record is finalized, bind the session to it (the reconcilers
+     * carry the post-commit OTS/report work) and surface nothing to discard.
+     */
+    const sealed = await db.evidence.findUnique({
+      where: { id: evidenceId },
+      select: { status: true, fileSha256: true },
+    });
+    if (
+      sealed?.status !== prismaPkg.EvidenceStatus.SIGNED &&
+      sealed?.status !== prismaPkg.EvidenceStatus.REPORTED
+    ) {
+      throw err;
+    }
+    result = { status: sealed.status, fileSha256: sealed.fileSha256 ?? null };
   }
+  if (!result) throw new DirectCaptureError("SESSION_NOT_ACTIVE");
 
   // Exactly one bind: only the caller that moves ACTIVE -> BOUND emits it.
   const claim = await db.captureSession.updateMany({
@@ -913,6 +934,20 @@ export async function discardDirectCaptureSession(
     if (!fresh) throw new DirectCaptureError("SESSION_NOT_FOUND");
     if (fresh.status === prismaPkg.CaptureSessionStatus.BOUND) {
       throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+    }
+    // A session whose record is already signed is not discarded — it is
+    // completed again, which binds it (2026-09-29, audit D11).
+    if (fresh.finalizedEvidenceId) {
+      const reserved = await tx.evidence.findUnique({
+        where: { id: fresh.finalizedEvidenceId },
+        select: { status: true },
+      });
+      if (
+        reserved?.status === prismaPkg.EvidenceStatus.SIGNED ||
+        reserved?.status === prismaPkg.EvidenceStatus.REPORTED
+      ) {
+        throw new DirectCaptureError("EVIDENCE_ALREADY_FINALIZED");
+      }
     }
 
     const claim = await tx.captureSession.updateMany({
