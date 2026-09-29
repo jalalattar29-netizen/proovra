@@ -23,6 +23,7 @@ import { getAuthUserId } from "../auth.js";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail } from "../middleware/authorize.js";
 
 import { buildCasesSummary } from "../services/cases/case-workspace.service.js";
 import {
@@ -125,20 +126,25 @@ async function requireWorkspaceMember(
   reply: FastifyReply,
   teamId: string,
 ): Promise<{ userId: string; role: string } | null> {
-  const userId = getAuthUserId(req);
+  // ET-SEC-18 — THE authorization decision (status AND expiry, evidence.read,
+  // organization lifecycle, support context), concealed as 404 outside the
+  // workspace. A bare ACTIVE-status row admitted expired members and members
+  // of suspended organizations.
+  const authorized = await authorizeOrFail(req, reply, {
+    teamId,
+    permission: "evidence.read",
+    antiEnumeration: true,
+  });
+  if (!authorized) return null;
   const membership = await prisma.teamMember.findUnique({
-    where: { teamId_userId: { teamId, userId } },
-    select: { role: true, status: true },
+    where: { teamId_userId: { teamId, userId: authorized.actorUserId } },
+    select: { role: true },
   });
   if (!membership) {
     reply.code(404).send({ error: { code: "not_found" } });
     return null;
   }
-  if (membership.status !== "ACTIVE") {
-    reply.code(403).send({ error: { code: "member_inactive" } });
-    return null;
-  }
-  return { userId, role: membership.role };
+  return { userId: authorized.actorUserId, role: membership.role };
 }
 
 async function requireCaseAccess(

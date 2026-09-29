@@ -41,6 +41,7 @@ import {
 } from "../services/reports/output-recovery.service.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
+import { authorizeOrFail, evaluateAuthorize } from "../middleware/authorize.js";
 import { prisma } from "../db.js";
 // COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — the shared state machine
 // and the record-aware eligibility resolver, so this fallback and the workspace
@@ -167,17 +168,15 @@ export default async function registerReportsRoutes(
       const cursor = decodeCursor(query.cursor);
 
       // -----------------------------------------------------------------
-      // Resolve the set of team workspaces the caller is an ACTIVE
-      // member of. The OR with `ownerUserId === userId` covers the
-      // self-serve PERSONAL case: when the workspace bootstrap missed
-      // the personal-Team membership row, the user still owns their
-      // evidence directly and the report shows up via that branch.
+      // ET-SEC-18 — every workspace this list reads is admitted by THE
+      // authorization decision (membership status AND expiry, the
+      // evidence.read permission, organization lifecycle, support
+      // context), never by a bare ACTIVE-status row. The owner arm is
+      // bounded to legacy NULL-team rows: owning a record in a workspace
+      // the caller can no longer enter grants nothing (current authority
+      // beats historical identity).
       // -----------------------------------------------------------------
-      const memberships = await prisma.teamMember.findMany({
-        where: { userId, status: "ACTIVE" },
-        select: { teamId: true },
-      });
-      const teamIds = memberships.map((m) => m.teamId);
+      const LEGACY_OWNED = { AND: [{ ownerUserId: userId }, { teamId: null }] };
 
       // The existing aggregator uses `Record<string, unknown>` for
       // its where-shape so the Prisma enum typing (EvidenceStatus)
@@ -190,7 +189,6 @@ export default async function registerReportsRoutes(
       let accessClause: Record<string, unknown>;
       if (query.teamId) {
         const scopedTeamId = query.teamId;
-        const isMember = teamIds.includes(scopedTeamId);
         // Phase HOME-DATA-OWNERSHIP — when the scoped workspace is the
         // CALLER'S OWN personal team, legacy rows created before the
         // team-id backfill carry `teamId NULL` but are still owned by
@@ -205,27 +203,35 @@ export default async function registerReportsRoutes(
         const isCallersPersonalTeam =
           scopedTeam?.isPersonal === true && scopedTeam.ownerUserId === userId;
         if (isCallersPersonalTeam) {
-          accessClause = {
-            OR: [
-              { teamId: scopedTeamId },
-              { AND: [{ ownerUserId: userId }, { teamId: null }] },
-            ],
-          };
+          accessClause = { OR: [{ teamId: scopedTeamId }, LEGACY_OWNED] };
         } else {
-          accessClause = {
-            AND: [
-              { teamId: scopedTeamId },
-              isMember
-                ? { OR: [{ ownerUserId: userId }, { teamId: scopedTeamId }] }
-                : { ownerUserId: userId },
-            ],
-          };
+          // A workspace the caller cannot read is concealed as 404.
+          const authorized = await authorizeOrFail(req, reply, {
+            teamId: scopedTeamId,
+            permission: "evidence.read",
+            antiEnumeration: true,
+          });
+          if (!authorized) return reply;
+          accessClause = { teamId: scopedTeamId };
         }
       } else {
+        const memberships = await prisma.teamMember.findMany({
+          where: { userId, status: "ACTIVE" },
+          select: { teamId: true },
+        });
+        const readableTeamIds: string[] = [];
+        for (const m of memberships) {
+          const outcome = await evaluateAuthorize(req, {
+            teamId: m.teamId,
+            permission: "evidence.read",
+            antiEnumeration: true,
+          });
+          if (outcome.allowed) readableTeamIds.push(m.teamId);
+        }
         accessClause = {
           OR: [
-            { ownerUserId: userId },
-            ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
+            LEGACY_OWNED,
+            ...(readableTeamIds.length > 0 ? [{ teamId: { in: readableTeamIds } }] : []),
           ],
         };
       }
@@ -279,64 +285,33 @@ export default async function registerReportsRoutes(
         caseLinks: Array<{ caseId: string }>;
         createdAt: Date;
       };
-      let rows: EvidenceListRow[] = [];
-      try {
-        rows = (await prisma.evidence.findMany({
-          where: whereEvidence as never,
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: limit + 1,
-          select: {
-            id: true,
-            // P2-2 — the record's own commercial subject travels with the row.
-            ownerUserId: true,
-            teamId: true,
-            title: true,
-            displayFileName: true,
-            originalFileName: true,
-            mimeType: true,
-            type: true,
-            status: true,
-            caseLinks: {
-              orderBy: { linkedAtUtc: "asc" },
-              select: { caseId: true },
-              take: 1,
-            },
-            createdAt: true,
+      // ET-SEC-18 — one query. The "deletedAt may not exist" fallback read
+      // the same rows WITHOUT the deletedAt and lifecycle filters, so any
+      // primary error surfaced trashed and destroyed records; the column has
+      // existed on every deployment for many releases.
+      const rows = (await prisma.evidence.findMany({
+        where: whereEvidence as never,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+        select: {
+          id: true,
+          // P2-2 — the record's own commercial subject travels with the row.
+          ownerUserId: true,
+          teamId: true,
+          title: true,
+          displayFileName: true,
+          originalFileName: true,
+          mimeType: true,
+          type: true,
+          status: true,
+          caseLinks: {
+            orderBy: { linkedAtUtc: "asc" },
+            select: { caseId: true },
+            take: 1,
           },
-        })) as EvidenceListRow[];
-      } catch {
-        // The `deletedAt` column may not exist on every deployment;
-        // retry without the clause. Other failures bubble up as 500.
-        const fallbackWhere: Record<string, unknown> = {
-          AND: [
-            accessClause,
-            { status: { in: ["SIGNED", "REPORTED"] } },
-            ...(cursorClause ? [cursorClause] : []),
-          ],
-        };
-        rows = (await prisma.evidence.findMany({
-          where: fallbackWhere as never,
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: limit + 1,
-          select: {
-            id: true,
-            // P2-2 — required on BOTH branches: the fallback select is what a
-            // deployment without `deleted_at` actually runs, and eligibility
-            // must be resolved against the record's subject there too.
-            ownerUserId: true,
-            teamId: true,
-            title: true,
-            type: true,
-            status: true,
-            caseLinks: {
-              orderBy: { linkedAtUtc: "asc" },
-              select: { caseId: true },
-              take: 1,
-            },
-            createdAt: true,
-          },
-        })) as EvidenceListRow[];
-      }
+          createdAt: true,
+        },
+      })) as EvidenceListRow[];
 
       const hasMore = rows.length > limit;
       const pageRows = hasMore ? rows.slice(0, limit) : rows;

@@ -158,14 +158,18 @@ describe("Phase IA-self-serve-regression-fix — BUG 3: user-scoped reports", ()
     expect(ROUTE).toMatch(/app\.get\(\s*"\/v1\/reports",\s*\{\s*preHandler:\s*requireAuth\s*\}/);
   });
 
-  it("scopes the evidence query to caller-owned OR active-team-membership rows (strict safety)", () => {
-    // The access clause MUST OR over `ownerUserId` AND `teamId in teamIds`.
-    expect(ROUTE).toMatch(/ownerUserId:\s*userId/);
-    expect(ROUTE).toMatch(/teamId:\s*\{\s*in:\s*teamIds\s*\}/);
-    // teamIds is sourced from ACTIVE memberships only.
-    expect(ROUTE).toMatch(
-      /prisma\.teamMember\.findMany\(\s*\{\s*where:\s*\{\s*userId,\s*status:\s*"ACTIVE"/,
-    );
+  // ET-SEC-18 — each workspace is admitted by THE authorization decision
+  // (not a bare ACTIVE row); the owner arm is bounded to legacy NULL-team
+  // rows; there is no filter-dropping fallback query.
+  it("scopes the evidence query to authorized workspaces + legacy caller-owned NULL-team rows (strict safety)", () => {
+    expect(ROUTE).toMatch(/const LEGACY_OWNED = \{ AND: \[\{ ownerUserId: userId \}, \{ teamId: null \}\] \};/);
+    expect(ROUTE).toMatch(/teamId:\s*\{\s*in:\s*readableTeamIds\s*\}/);
+    expect(ROUTE).toMatch(/evaluateAuthorize\(req, \{\s*teamId: m\.teamId,\s*permission: "evidence\.read",/);
+    expect(ROUTE).toMatch(/authorizeOrFail\(req, reply, \{\s*teamId: scopedTeamId,\s*permission: "evidence\.read",\s*antiEnumeration: true,/);
+    // No unbounded owner arm, and exactly one evidence query.
+    expect(ROUTE).not.toMatch(/OR:\s*\[\s*\{\s*ownerUserId:\s*userId\s*\}/);
+    expect(ROUTE.match(/prisma\.evidence\.findMany\(/g)?.length).toBe(1);
+    expect(ROUTE).not.toMatch(/fallbackWhere/);
   });
 
   it("applies the existing SIGNED/REPORTED status filter (no visibility widening)", () => {

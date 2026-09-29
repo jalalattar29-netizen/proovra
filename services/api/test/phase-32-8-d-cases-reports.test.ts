@@ -297,12 +297,19 @@ describe("Phase 32.8D — routes registered + workspace-gated", () => {
     expect(ROUTES).toMatch(/"\/v1\/cases\/:id\/evidence-links"/);
   });
 
-  it("workspace-membership gate uses 404-on-non-member / 403-on-inactive", () => {
+  // ET-SEC-18 — the gate is THE authorization decision (status AND expiry,
+  // evidence.read, organization lifecycle), concealed as 404 outside the
+  // workspace; a bare `membership.status !== "ACTIVE"` admitted expired
+  // members and members of suspended organizations.
+  it("workspace-membership gate is the canonical authorization decision, 404 outside the workspace", () => {
     expect(ROUTES).toMatch(/requireWorkspaceMember\(/);
+    expect(ROUTES).toMatch(
+      /authorizeOrFail\(req, reply, \{\s*teamId,\s*permission: "evidence\.read",\s*antiEnumeration: true,/,
+    );
     expect(ROUTES).toMatch(
       /code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"/,
     );
-    expect(ROUTES).toMatch(/membership\.status\s*!==\s*"ACTIVE"/);
+    expect(ROUTES).not.toMatch(/membership\.status\s*!==\s*"ACTIVE"/);
   });
 
   it("case-access gate (owner | direct access | workspace member) — 404 on no access", () => {
