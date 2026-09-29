@@ -1,0 +1,7 @@
+ET-REC-03 red baseline — output-facts-null-team-workspace.integration.test.ts against HEAD output-recovery.service.ts
+   × output facts: team_id-NULL Personal records (live PostgreSQL 16) > resolves to the owner's personal workspace; no action is withdrawn as WORKSPACE_UNRESOLVED 51ms
+     → expected false to be true // Object.is equality
+   × output facts: team_id-NULL Personal records (live PostgreSQL 16) > the personal workspace's own closed state applies to its NULL-team records 23ms
+     → expected false to be true // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 1 passed (3)

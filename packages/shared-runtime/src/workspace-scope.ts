@@ -295,13 +295,49 @@ export async function resolveEvidenceWorkspaceId(
   evidence: { teamId: string | null; ownerUserId: string | null },
   client: Pick<PrismaClient, "team"> = getRegisteredPrisma(),
 ): Promise<string | null> {
-  if (evidence.teamId) return evidence.teamId;
-  if (!evidence.ownerUserId) return null;
-  const personal = await client.team.findFirst({
-    where: { ownerUserId: evidence.ownerUserId, isPersonal: true },
-    select: { id: true },
-  });
-  return personal?.id ?? null;
+  const key = "_";
+  return (
+    await resolveEvidenceWorkspaceIds(
+      [{ id: key, teamId: evidence.teamId, ownerUserId: evidence.ownerUserId }],
+      client,
+    )
+  ).get(key) ?? null;
+}
+
+/**
+ * THE SAME RULE, FOR A PAGE OF RECORDS (ET-REC-03, 2026-09-29): its team, or
+ * — for a Personal record stored with team_id NULL — its owner's personal
+ * workspace. One query for every NULL-team owner on the page.
+ *
+ * The output projection decided "workspace resolved" from team_id alone, so
+ * Generate / Recover / Retry were withdrawn (WORKSPACE_UNRESOLVED) and a POST
+ * was declined for exactly the records the writer and the worker accept.
+ */
+export async function resolveEvidenceWorkspaceIds(
+  rows: ReadonlyArray<{ id: string; teamId: string | null; ownerUserId: string | null }>,
+  client: Pick<PrismaClient, "team"> = getRegisteredPrisma(),
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  const owners = [
+    ...new Set(
+      rows.filter((r) => !r.teamId && r.ownerUserId).map((r) => r.ownerUserId as string),
+    ),
+  ];
+  const personalBy = new Map<string, string>();
+  if (owners.length > 0) {
+    const personals = await client.team.findMany({
+      where: { ownerUserId: { in: owners }, isPersonal: true },
+      orderBy: { id: "asc" },
+      select: { id: true, ownerUserId: true },
+    });
+    for (const t of personals) {
+      if (t.ownerUserId && !personalBy.has(t.ownerUserId)) personalBy.set(t.ownerUserId, t.id);
+    }
+  }
+  for (const r of rows) {
+    out.set(r.id, r.teamId ?? (r.ownerUserId ? personalBy.get(r.ownerUserId) ?? null : null));
+  }
+  return out;
 }
 
 /**

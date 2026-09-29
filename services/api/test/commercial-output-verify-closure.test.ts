@@ -628,8 +628,14 @@ describe("P2-1 — legacy null-workspace records tell the truth", () => {
     // so an existing artifact on such a record stays READY and downloadable.
     const loader = strip(api("services/reports/output-recovery.service.ts"));
     const status = strip(api("services/evidence-artifact-status.service.ts"));
-    // The fact comes from the record's own workspace binding…
-    expect(loader).toMatch(/workspaceResolved:\s*Boolean\(ev\.teamId\)/);
+    // The fact comes from the record's own workspace binding, by THE writer's
+    // rule (ET-REC-03): its team, or the owner's personal workspace for a
+    // team_id-NULL Personal record. `Boolean(ev.teamId)` refused records the
+    // writer and the worker accept; a record with no resolvable workspace is
+    // still unresolved.
+    expect(loader).toMatch(/resolveEvidenceWorkspaceIds\(evidenceRows, prisma\)/);
+    expect(loader).toMatch(/workspaceResolved:\s*workspaceId != null/);
+    expect(loader).not.toMatch(/workspaceResolved:\s*Boolean\(ev\.teamId\)/);
     // …and the DECISION comes from the one shared rule, not from an inline
     // comparison repeated per output.
     expect(loader).toMatch(/resolveEvidenceOutputActions\(facts\)/);

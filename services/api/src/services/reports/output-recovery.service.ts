@@ -35,7 +35,7 @@ import {
   type PersistedReportRequestState,
 } from "@proovra/shared";
 
-import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+import { resolveEvidenceWorkspaceIds } from "@proovra/shared-runtime";
 
 import { prisma } from "../../db.js";
 import {
@@ -208,7 +208,11 @@ export async function loadEvidenceOutputFacts(input: {
   if (evidenceRows.length === 0) return out;
   const foundIds = evidenceRows.map((e) => e.id);
 
-  const teamIds = [...new Set(evidenceRows.map((e) => e.teamId).filter((t): t is string => !!t))];
+  // ET-REC-03 — the record's workspace by THE writer's rule (team, or the
+  // owner's personal workspace for a team_id-NULL Personal record), so the
+  // projection, the actions and the writer agree on which records can issue.
+  const workspaceIdBy = await resolveEvidenceWorkspaceIds(evidenceRows, prisma);
+  const teamIds = [...new Set([...workspaceIdBy.values()].filter((t): t is string => !!t))];
   const [reports, packagesAny, reportRequests, anyRequests, teams] = await Promise.all([
     prisma.report.findMany({
       where: { evidenceId: { in: foundIds } },
@@ -274,7 +278,8 @@ export async function loadEvidenceOutputFacts(input: {
       const latestPackage = latestPackageBy.get(ev.id) ?? null;
       const reportRequest = (reportRequestBy.get(ev.id) as RequestRow | undefined) ?? null;
       const packageRequest = (anyRequestBy.get(ev.id) as RequestRow | undefined) ?? null;
-      const team = ev.teamId ? teamBy.get(ev.teamId) ?? null : null;
+      const workspaceId = workspaceIdBy.get(ev.id) ?? null;
+      const team = workspaceId ? teamBy.get(workspaceId) ?? null : null;
       const org = team?.organizationId ? orgBy.get(team.organizationId) ?? null : null;
 
       const [eligibility, legalHold, callerMayGenerate] = await Promise.all([
@@ -327,7 +332,7 @@ export async function loadEvidenceOutputFacts(input: {
           legalHold,
           workspaceSuspended: org != null && org.status !== "ACTIVE",
           workspaceClosed: team?.closedAtUtc != null,
-          workspaceResolved: Boolean(ev.teamId),
+          workspaceResolved: workspaceId != null,
         },
         callerMayGenerate,
         newVersionFitsStorage: newVersionEstimate?.fitsStorage ?? null,
@@ -524,20 +529,9 @@ export async function requestOutputRecovery(input: {
      * resolver's own predicates.
      */
     const facts = loaded.facts;
-    /*
-     * The record's workspace as the WRITER resolves it: its team, or — for a
-     * Personal record stored with team_id NULL — its owner's personal
-     * workspace. The projection's "has a team" fact would refuse exactly the
-     * LEGACY_UNSCOPED records this operator path exists to repair, while the
-     * writer scopes them. Closed / suspended / lifecycle restrictions still
-     * apply unchanged; a record with no resolvable workspace is still refused.
-     */
-    const workspaceResolved =
-      facts.restrictions.workspaceResolved ||
-      (await resolveEvidenceWorkspaceId(
-        { teamId: loaded.teamId, ownerUserId: loaded.ownerUserId },
-        prisma,
-      )) != null;
+    // The facts resolve the workspace by the writer's rule (ET-REC-03), so
+    // this path no longer compensates for a projection that disagreed.
+    const workspaceResolved = facts.restrictions.workspaceResolved;
     const refusal: OutputActionUnavailableReason | null =
       facts.record === "INTEGRITY_FAILED"
         ? "INTEGRITY_FAILED"
