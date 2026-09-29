@@ -3060,8 +3060,9 @@ export async function processGenerateReport(job: Job<unknown>) {
   }
 
   const command = resolution.command;
+  let run: ReportRunResult;
   try {
-    await runReportGeneration(job, command, requestId);
+    run = await runReportGeneration(job, command, requestId);
   } catch (error) {
     // Terminal vs retryable is decided by the SAME predicate the queue uses, so
     // the durable row and the queue cannot disagree about whether the intent is
@@ -3081,18 +3082,22 @@ export async function processGenerateReport(job: Job<unknown>) {
     throw error;
   }
 
-  // The artifact the run actually produced, recorded on the request so a
-  // replay can return it instead of generating a second one.
-  const latest = await prisma.report.findFirst({
-    where: { evidenceId: command.evidenceId },
-    orderBy: { version: "desc" },
-    select: { id: true },
-  });
+  // The artifact the run actually produced or targeted (ET-RPT-07), recorded
+  // on the request so a replay returns it instead of generating a second one.
+  // A pair already complete names the version it targeted; a run that lost to
+  // another issuance produced nothing and records no report.
+  const produced =
+    run.reportVersion !== null
+      ? await prisma.report.findUnique({
+          where: { evidenceId_version: { evidenceId: command.evidenceId, version: run.reportVersion } },
+          select: { id: true },
+        })
+      : null;
   await markRequestTerminal({
     requestId: command.requestId,
     state: "SUCCEEDED",
-    terminalReasonCode: "generated",
-    resultReportId: latest?.id ?? null,
+    terminalReasonCode: run.outcome,
+    resultReportId: produced?.id ?? null,
   });
 }
 
@@ -3305,11 +3310,25 @@ async function loadCommittedReportForPackage(params: {
   };
 }
 
+/**
+ * ET-RPT-07 — what a run produced or targeted, so the request records THAT
+ * report, never "the newest one": a package-only recovery for v1 (while v2
+ * exists), a pair already complete, or a run that lost the race to another
+ * issuance each named the newest report as their result.
+ */
+export type ReportRunResult =
+  | { outcome: "generated"; reportVersion: number }
+  | { outcome: "package_built"; reportVersion: number }
+  /** Nothing to do: the pair at this version already existed. */
+  | { outcome: "pair_complete"; reportVersion: number }
+  /** Another issuance committed first; this run produced nothing. */
+  | { outcome: "already_issued"; reportVersion: null };
+
 async function runReportGeneration(
   job: Job<unknown>,
   command: ResolvedReportCommand,
   requestId: string,
-) {
+): Promise<ReportRunResult> {
   // Phase O1.5C — emit bounded report.generate + render.html span at
   // entry. The inner render.pdf / upload / publish spans are emitted
   // at their actual call sites below. NEVER report contents / PDF
@@ -3469,7 +3488,7 @@ async function runReportGeneration(
           { ...ctx, reportVersion: packageTargetVersion, status: "pair_complete" },
           "Report and its verification package already exist for this version; nothing to do",
         );
-        return;
+        return { outcome: "pair_complete", reportVersion: packageTargetVersion };
       }
       logger.warn(
         { ...ctx, reportVersion: packageTargetVersion, status: "package_recovery" },
@@ -5278,6 +5297,10 @@ trustDecisionSnapshot:
         true,
       );
     }
+    if (finalized.skipped) return { outcome: "already_issued", reportVersion: null };
+    return runMode === "PACKAGE_FOR_VERSION"
+      ? { outcome: "package_built", reportVersion: packageTargetVersion! }
+      : { outcome: "generated", reportVersion: prepared.version };
   } catch (error) {
     /*
      * `REPORT_ALREADY_GENERATED` IS NO LONGER SWALLOWED AS SUCCESS.

@@ -492,6 +492,15 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(after.reports.map((r) => r.version)).toEqual([1]);
     expect(after.packages.map((p) => p.version)).toEqual([1]);
     expect(seam.packageBuildCalls).toBe(calls);
+    // ET-RPT-07 — a pair already complete is recorded as exactly that, naming v1.
+    const done = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id },
+      select: { terminalReasonCode: true, resultReportId: true },
+    });
+    expect(done.terminalReasonCode).toBe("pair_complete");
+    expect(done.resultReportId).toBe(
+      (await prisma.report.findUniqueOrThrow({ where: { evidenceId_version: { evidenceId, version: 1 } }, select: { id: true } })).id,
+    );
   });
 
   it("a request that exhausts its retry budget is retired AND opens the deduplicated REPORT incident (D3)", async () => {
@@ -957,6 +966,16 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(after.reports.map((x) => x.version), "no report is minted to repair a package").toEqual([1, 2]);
     expect(after.packages.map((p) => [p.version, p.reportVersion])).toEqual([[1, 1], [2, 2]]);
     const v1 = after.reports.find((x) => x.version === 1)!;
+    // ET-RPT-07 — the request records the report it TARGETED (v1), not the newest (v2).
+    const done = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: idOf(r) },
+      select: { state: true, terminalReasonCode: true, resultReportId: true },
+    });
+    const v1Row = await prisma.report.findUniqueOrThrow({
+      where: { evidenceId_version: { evidenceId, version: 1 } },
+      select: { id: true },
+    });
+    expect(done).toEqual({ state: "SUCCEEDED", terminalReasonCode: "package_built", resultReportId: v1Row.id });
     expect(sha256Hex(packageReportBytes(after.packages[0]!, 1))).toBe(v1.pdfSha256);
 
     // A package assembled after its report says so in words (2026-09-29).
