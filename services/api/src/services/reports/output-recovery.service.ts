@@ -23,6 +23,7 @@ import * as prismaPkg from "@prisma/client";
 import {
   NEW_VERSION_ACTION,
   resolveEvidenceOutputActions,
+  outputBlockingRestriction,
   type EvidenceOutputActions,
   type EvidenceOutputFacts,
   type GenerationIntent,
@@ -84,6 +85,8 @@ type RequestRow = {
   createdAtUtc: Date;
   completedAtUtc: Date | null;
   reportVersion: number | null;
+  /** A forced request mints a new report version (NEW_VERSION). */
+  forceRegenerate: boolean;
 };
 
 type ArtifactRow = {
@@ -139,6 +142,7 @@ const REQUEST_SELECT = {
   createdAtUtc: true,
   completedAtUtc: true,
   reportVersion: true,
+  forceRegenerate: true,
 } as const;
 
 function toRequestFact(
@@ -411,6 +415,12 @@ export type OutputRecoveryResult =
       kind: "declined";
       outcome: GenerationRequestOutcome;
       reason: OutputActionUnavailableReason | null;
+      /**
+       * (2026-09-29) Recovering this would have ISSUED A NEW REPORT VERSION.
+       * Recovery never does; an updated report is only the explicit,
+       * reasoned "Issue updated report" action on the record.
+       */
+      requiresExplicitNewVersion?: boolean;
     }
   | { kind: "idempotency_key_required" }
   | { kind: "not_found" };
@@ -458,6 +468,13 @@ export async function requestOutputRecovery(input: {
    * Never mints a report; refused when that report does not exist.
    */
   packageForReportVersion?: number | null;
+  /**
+   * WHICH OUTPUT'S CONTROL WAS USED (2026-09-29). A Retry on the package
+   * retries the package, even when the report also has a failed request
+   * beside it (e.g. a failed updated report). Absent on older clients, which
+   * keep the previous choice.
+   */
+  targetOutput?: "report" | "verificationPackage" | null;
 }): Promise<OutputRecoveryResult & { loaded?: LoadedOutputFacts }> {
   const loaded = (
     await loadEvidenceOutputFacts({
@@ -495,8 +512,33 @@ export async function requestOutputRecovery(input: {
   // ---- The package for ONE named report version (2026-09-29) --------------
   if (input.packageForReportVersion != null) {
     const version = input.packageForReportVersion;
-    if (!loaded.facts.callerMayGenerate) {
-      return { kind: "declined", outcome: "NOT_RECOVERABLE", reason: actions.verificationPackage.reason, loaded };
+    /*
+     * THE SAME RULES AS THE CUSTOMER PATH (2026-09-29). This branch targets a
+     * version the latest-pair decision does not describe, so it never passed
+     * through the resolver's gate: a platform operator could build a package
+     * for a trashed, destroyed, pending-destruction or archived record, in a
+     * closed or suspended workspace, or for a record whose package governance
+     * refused or whose plan does not include one. Each is refused here by the
+     * resolver's own predicates.
+     */
+    const facts = loaded.facts;
+    const refusal: OutputActionUnavailableReason | null =
+      facts.record === "INTEGRITY_FAILED"
+        ? "INTEGRITY_FAILED"
+        : facts.record === "NOT_FINALIZED"
+          ? "NOT_FINALIZED"
+          : (outputBlockingRestriction(facts.restrictions) ??
+            (!facts.callerMayGenerate
+              ? "PERMISSION_DENIED"
+              : facts.packageBlockedByGovernance
+                ? "BLOCKED_BY_POLICY"
+                : facts.packageEligibility === "UNRESOLVED"
+                  ? "ENTITLEMENT_UNAVAILABLE"
+                  : facts.packageEligibility !== "ELIGIBLE"
+                    ? "NOT_INCLUDED"
+                    : null));
+    if (refusal) {
+      return { kind: "declined", outcome: "NOT_RECOVERABLE", reason: refusal, loaded };
     }
     const [report, pkg] = await Promise.all([
       prisma.report.count({ where: { evidenceId: input.evidenceId, version } }),
@@ -561,13 +603,32 @@ export async function requestOutputRecovery(input: {
       );
     }
     if (escalated(actions.report)) {
-      const existingReport = latestVersion != null;
+      /*
+       * AN OPERATOR RETRY NEVER ISSUES A NEW REPORT VERSION (2026-09-29).
+       *
+       * With a report already issued, the escalated REPORT request is an
+       * attempt to go beyond it, and superseding it used to mint version N+1
+       * — forced, with a constant reason, and with none of the controls the
+       * explicit action applies (caller key, stated reason, rate and
+       * concurrency caps, storage fit). An updated report is only ever the
+       * explicit "Issue updated report" action, with its reason. Here the
+       * operator is told so; nothing is created.
+       */
+      if (latestVersion != null) {
+        return {
+          kind: "declined",
+          outcome: "NOT_RECOVERABLE",
+          reason: null,
+          requiresExplicitNewVersion: true,
+          loaded,
+        };
+      }
       return fromRequested(
-        existingReport ? "NEW_VERSION" : "FULL_GENERATION",
+        "FULL_GENERATION",
         await requestReportGeneration({
           ...base,
-          forceRegenerate: existingReport,
-          intent: existingReport ? "NEW_VERSION" : "GENERATE",
+          forceRegenerate: false,
+          intent: "GENERATE",
           supersedeTechnicalTerminal: true,
         }),
       );
@@ -584,13 +645,21 @@ export async function requestOutputRecovery(input: {
   const pkg = actions.verificationPackage;
   const rep = actions.report;
   const chosen =
-    input.intent === "RETRY" && rep.action === "RETRY"
-      ? ({ output: "report", decision: rep } as const)
-      : pkg.action !== "NONE"
+    input.targetOutput === "verificationPackage"
+      ? pkg.action !== "NONE"
         ? ({ output: "package", decision: pkg } as const)
-        : rep.action !== "NONE"
+        : null
+      : input.targetOutput === "report"
+        ? rep.action !== "NONE"
           ? ({ output: "report", decision: rep } as const)
-          : null;
+          : null
+        : input.intent === "RETRY" && rep.action === "RETRY"
+          ? ({ output: "report", decision: rep } as const)
+          : pkg.action !== "NONE"
+            ? ({ output: "package", decision: pkg } as const)
+            : rep.action !== "NONE"
+              ? ({ output: "report", decision: rep } as const)
+              : null;
 
   if (!chosen) {
     if (rep.reason === "IN_PROGRESS" || pkg.reason === "IN_PROGRESS") {
@@ -616,9 +685,32 @@ export async function requestOutputRecovery(input: {
     };
   }
 
+  /*
+   * A RETRY RE-RUNS ITS OWN FAILED REQUEST — NEVER ANOTHER KIND (2026-09-29).
+   *
+   * `packageRequest` is the latest request of ANY type, so a package Retry
+   * used to re-enqueue whatever that was: a forced NEW_VERSION request (which
+   * then minted report N+1 to "retry a package"), or a package request for an
+   * OLDER report version. A package Retry now re-runs a row only when it is a
+   * non-forced request producing the package for the LATEST report; otherwise
+   * a fresh package request for that exact version is made below. A report
+   * Retry re-runs the latest REPORT request itself — including an explicit
+   * updated-report request, which is that request's own retry.
+   */
   const retryRow =
     chosen.output === "report" ? loaded.reportRequest : loaded.packageRequest;
-  if (chosen.decision.action === "RETRY" && retryRow?.state === "FAILED_RETRYABLE") {
+  const retryRowIsThisOutput =
+    retryRow != null &&
+    (chosen.output === "report"
+      ? retryRow.artifactType === "REPORT"
+      : !retryRow.forceRegenerate &&
+        (retryRow.reportVersion === latestVersion ||
+          (retryRow.artifactType === "REPORT" && retryRow.reportVersion == null)));
+  if (
+    chosen.decision.action === "RETRY" &&
+    retryRowIsThisOutput &&
+    retryRow?.state === "FAILED_RETRYABLE"
+  ) {
     const retried = await reenqueueReportGenerationRequest(retryRow.id);
     return {
       kind: "accepted",

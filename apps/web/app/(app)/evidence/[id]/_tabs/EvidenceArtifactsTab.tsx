@@ -96,7 +96,7 @@ function OutputActionButton({
     <button
       type="button"
       className="app-secondary-action"
-      onClick={() => void ctx.generateOutputs(action)}
+      onClick={() => void ctx.generateOutputs(action, kind)}
       disabled={ctx.generateOutputsBusy}
       data-evidence-action="generate-outputs"
       data-evidence-output={kind}

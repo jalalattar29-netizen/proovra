@@ -10669,8 +10669,12 @@ if (
         intent?: unknown;
         clientRequestKey?: unknown;
         reason?: unknown;
+        output?: unknown;
       };
       const intent = normalizeGenerationIntent(body.intent);
+      // The output whose control was used; anything else is ignored.
+      const targetOutput =
+        body.output === "report" || body.output === "verificationPackage" ? body.output : null;
       /*
        * AN UPDATED REPORT CARRIES A REASON (2026-09-29).
        *
@@ -10854,6 +10858,7 @@ if (
           intent,
           clientRequestKey,
           purpose: isNewVersion ? "updated_report" : "operator_regenerate",
+          targetOutput,
           regenerateReason: isNewVersion ? updatedReportReason : "recovery_requested",
         });
       } catch (err: unknown) {

@@ -132,7 +132,10 @@ export type EvidenceDetailCtx = {
    * server's `outputs.*.action`. The server re-derives what runs: a report
    * whose package is missing gets only the package, from the stored report.
    */
-  generateOutputs: (intent?: "GENERATE" | "RETRY" | "RECOVER") => Promise<void> | void;
+  generateOutputs: (
+    intent?: "GENERATE" | "RETRY" | "RECOVER",
+    output?: "report" | "verificationPackage",
+  ) => Promise<void> | void;
   /**
    * The separate, confirmed "create a new version". "unanswered" means the
    * request may have landed, so the caller retries with the SAME key.

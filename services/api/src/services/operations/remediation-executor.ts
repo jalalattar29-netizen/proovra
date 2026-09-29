@@ -302,6 +302,13 @@ async function recoverArtifacts(
   if (result.kind === "idempotency_key_required") return outcome("REFUSED");
   if (result.kind === "declined") {
     if (result.outcome === "NOTHING_TO_RECOVER") return outcome("ALREADY_SATISFIED");
+    if (result.requiresExplicitNewVersion) {
+      return {
+        result: "NOT_ELIGIBLE",
+        message:
+          "This record already has an issued report, and the failed request was an attempt to issue a newer one. Recovery never issues a new report version; an updated report is requested with “Issue updated report” on the record, with a stated reason.",
+      };
+    }
     if (result.reason === "ESCALATED_TO_OPERATOR" && !opts.supersede) {
       return {
         result: "NOT_ELIGIBLE",

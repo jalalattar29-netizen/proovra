@@ -524,14 +524,14 @@ export default function EvidenceDetailScreen() {
    * report. Re-read either way — a declined request means this screen's
    * action was stale.
    */
-  const requestGeneration = useCallback(async (intent: OutputRequestIntent) => {
+  const requestGeneration = useCallback(async (intent: OutputRequestIntent, output?: "report" | "verificationPackage") => {
     if (!id) return;
     setGenerating(true);
     setGenerationNote(null);
     try {
       // READ THE OUTCOME, NOT THE BOOLEAN.
       const read = readGenerationOutcome(
-        await apiFetch(buildRegeneratePath(String(id)), { method: "POST", body: buildOutputRequestBody(intent) }),
+        await apiFetch(buildRegeneratePath(String(id)), { method: "POST", body: buildOutputRequestBody(intent, output) }),
       );
       setGenerationNote(read.message);
     } catch (err) {
@@ -938,7 +938,7 @@ export default function EvidenceDetailScreen() {
           variant="secondary"
           loading={generating}
           disabled={generating}
-          onPress={() => void requestGeneration(intent)}
+          onPress={() => void requestGeneration(intent, kind)}
         />
       </View>
     );

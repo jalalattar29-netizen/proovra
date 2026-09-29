@@ -906,8 +906,13 @@ export function asOutputRequestIntent(action: string | null | undefined): Output
 }
 
 /** Body for one output's action. The server re-derives what runs. */
-export function buildOutputRequestBody(intent: OutputRequestIntent): string {
-  return JSON.stringify({ intent });
+export function buildOutputRequestBody(
+  intent: OutputRequestIntent,
+  output?: "report" | "verificationPackage",
+): string {
+  // The output whose control was used (2026-09-29): a Retry on the package
+  // retries the package. Older APIs ignore the field.
+  return JSON.stringify(output ? { intent, output } : { intent });
 }
 
 /**

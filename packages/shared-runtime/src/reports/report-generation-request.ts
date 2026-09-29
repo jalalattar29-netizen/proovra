@@ -272,10 +272,37 @@ export async function createReportGenerationRequest(
     select: { version: true },
   });
 
+  /*
+   * THE PACKAGE KEY NAMES THE REPORT VERSION IT PACKAGES (2026-09-29).
+   *
+   * A package request is for exactly one report version. Its key used to be
+   * anchored on the LATEST report, so recovering package v2 while v3 was the
+   * latest computed `VERIFICATION_PACKAGE:<id>:v3` — colliding with (and
+   * collapsing onto) any request for package v3, possibly returning a row that
+   * targets a different version or answering "already terminal" for work
+   * that never ran. A report request still advances past the latest version.
+   */
+  const targetReportVersion =
+    artifactType === "VERIFICATION_PACKAGE"
+      ? (input.reportVersion ?? latestReport?.version ?? null)
+      : null;
+  if (artifactType === "VERIFICATION_PACKAGE" && input.reportVersion != null) {
+    const target = await prisma.report.findFirst({
+      where: { evidenceId, version: input.reportVersion },
+      select: { version: true },
+    });
+    // A package for a report that does not exist cannot be built; refusing
+    // here is cheaper than a terminal REPORT_VERSION_NOT_FOUND in the worker.
+    if (!target) return { created: false, reason: "report_version_not_found" };
+  }
+
   const baseKey = buildReportGenerationIdempotencyKey({
     artifactType,
     evidenceId,
-    baselineVersion: latestReport?.version ?? 0,
+    baselineVersion:
+      artifactType === "VERIFICATION_PACKAGE" && targetReportVersion != null
+        ? targetReportVersion
+        : (latestReport?.version ?? 0),
     forceRegenerate,
   });
 
@@ -441,10 +468,7 @@ export async function createReportGenerationRequest(
         expectedPolicyVersion: policy?.version ?? 0,
         idempotencyKey,
         state: "QUEUED",
-        reportVersion:
-          artifactType === "VERIFICATION_PACKAGE"
-            ? (input.reportVersion ?? latestReport?.version ?? null)
-            : null,
+        reportVersion: targetReportVersion,
         intent: input.intent?.trim().slice(0, 24) || null,
         clientRequestKey,
       },

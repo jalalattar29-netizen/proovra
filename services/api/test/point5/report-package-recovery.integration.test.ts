@@ -51,6 +51,12 @@ const seam = vi.hoisted(() => ({
   renderCount: 0,
   /** When set and resolving true, the next evidence-original read fails once. */
   evidenceReadGate: null as null | (() => Promise<boolean>),
+  /**
+   * Runs at the HEAD that verifies a just-published package (after the PUT,
+   * before the DB commit) — the window a concurrent commit or a moved report
+   * baseline lands in.
+   */
+  packageVerifyHook: null as null | ((key: string) => Promise<void>),
 }));
 
 vi.mock("../../../worker/src/verification-package.js", async (importOriginal) => {
@@ -137,10 +143,15 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
     s3: publicationS3Double(storage, {
       // "Uploaded, then the read-back failed": the bytes are stored, the report
       // is not yet proven, so nothing may commit.
-      onHead: (key) => {
+      onHead: async (key) => {
         if (key.startsWith("reports/") && seam.reportHeadFailures > 0) {
           seam.reportHeadFailures -= 1;
           throw new Error("ACC_REPORT_HEAD_FAILED");
+        }
+        if (key.startsWith("verification/") && seam.packageVerifyHook) {
+          const hook = seam.packageVerifyHook;
+          seam.packageVerifyHook = null;
+          await hook(key);
         }
       },
     }),
@@ -262,6 +273,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     seam.reportHeadFailures = 0;
     seam.evidenceReadFailures = 0;
     seam.evidenceReadGate = null;
+    seam.packageVerifyHook = null;
   });
 
   /** A fresh SIGNED record in workspace A with its original in storage. */
@@ -858,5 +870,218 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     const result = check(tampered);
     expect(result.ok).toBe(false);
     expect(result.failures.map((f) => f.check)).toContain("ENTRIES_MATCH_INDEX");
+  });
+
+  // -------------------------------------------------------------------------
+  // 2026-09-29 — EXACT TARGETING, BASELINES AND THE UNREADABLE ORIGINAL
+  // -------------------------------------------------------------------------
+
+  /** Report v1 with NO package, then a forced v2 WITH its package. */
+  async function historicalGap() {
+    const ev = await signedEvidence();
+    const first = await request(ev);
+    seam.packageBuildFailures = 1;
+    await run(first, 0);
+    await prisma.reportGenerationRequest.update({
+      where: { id: first },
+      data: { state: "FAILED_TERMINAL", terminalReasonCode: "retry_budget_exhausted", completedAtUtc: new Date() },
+    });
+    const second = await request({ ...ev, forceRegenerate: true });
+    expect(await run(second, 0)).toBeNull();
+    const s0 = await state(ev.evidenceId);
+    expect(s0.reports.map((r) => r.version)).toEqual([1, 2]);
+    expect(s0.packages.map((p) => p.version)).toEqual([2]);
+    return ev;
+  }
+
+  const recovery = () => import("../../src/services/reports/output-recovery.service.js");
+  const operatorRecover = async (evidenceId: string, over: Record<string, unknown> = {}) => {
+    const { requestOutputRecovery } = await recovery();
+    return requestOutputRecovery({
+      evidenceId,
+      actorUserId: harness.fixtures.teamA.ownerUserId,
+      purpose: "operator_regenerate",
+      regenerateReason: "integration",
+      platformOperator: true,
+      ...over,
+    } as never);
+  };
+  const idOf = (r: unknown) => (r as { requestId: string }).requestId;
+
+  it("EXACT VERSION: package v1 is recovered for report v1 while v2 is latest — own key, own version, no new report", async () => {
+    const { evidenceId } = await historicalGap();
+    const r = await operatorRecover(evidenceId, { packageForReportVersion: 1 });
+    expect(r.kind).toBe("accepted");
+    const row = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: idOf(r) },
+      select: { idempotencyKey: true, reportVersion: true, artifactType: true, forceRegenerate: true },
+    });
+    expect(row).toMatchObject({ artifactType: "VERIFICATION_PACKAGE", reportVersion: 1, forceRegenerate: false });
+    expect(row.idempotencyKey).toBe(`VERIFICATION_PACKAGE:${evidenceId}:v1`);
+
+    expect(await run(idOf(r), 0)).toBeNull();
+    const after = await state(evidenceId);
+    expect(after.reports.map((x) => x.version), "no report is minted to repair a package").toEqual([1, 2]);
+    expect(after.packages.map((p) => [p.version, p.reportVersion])).toEqual([[1, 1], [2, 2]]);
+    const v1 = after.reports.find((x) => x.version === 1)!;
+    expect(sha256Hex(packageReportBytes(after.packages[0]!, 1))).toBe(v1.pdfSha256);
+  });
+
+  it("EXACT VERSION: a package for a report version that does not exist is refused, not queued", async () => {
+    const { evidenceId } = await historicalGap();
+    const r = await operatorRecover(evidenceId, { packageForReportVersion: 9 });
+    expect(r).toMatchObject({ kind: "declined", reason: "CONSISTENCY_REVIEW_REQUIRED" });
+  });
+
+  it.each([
+    ["PENDING_DESTRUCTION", "PENDING_DESTRUCTION"],
+    ["TRASHED", "EVIDENCE_TRASHED"],
+    ["ARCHIVED", "EVIDENCE_ARCHIVED"],
+  ] as const)("EXACT VERSION: an operator cannot build a package for a %s record", async (lifecycleState, reason) => {
+    const { evidenceId } = await historicalGap();
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { lifecycleState } as never });
+    const before = await prisma.reportGenerationRequest.count({ where: { evidenceId } });
+    const r = await operatorRecover(evidenceId, { packageForReportVersion: 1 });
+    expect(r).toMatchObject({ kind: "declined", reason });
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId } })).toBe(before);
+    await prisma.evidence.update({ where: { id: evidenceId }, data: { lifecycleState: "ACTIVE" } as never });
+  });
+
+  it("EXACT VERSION: two concurrent recoveries of one version produce ONE request", async () => {
+    const { evidenceId } = await historicalGap();
+    const [a, b] = await Promise.all([
+      operatorRecover(evidenceId, { packageForReportVersion: 1 }),
+      operatorRecover(evidenceId, { packageForReportVersion: 1 }),
+    ]);
+    expect(a.kind).toBe("accepted");
+    expect(b.kind).toBe("accepted");
+    expect(idOf(a)).toBe(idOf(b));
+    expect(
+      await prisma.reportGenerationRequest.count({
+        where: { evidenceId, artifactType: "VERIFICATION_PACKAGE", reportVersion: 1 },
+      }),
+    ).toBe(1);
+  });
+
+  it("OPERATOR SUPERSEDE never issues a new report version beside an issued one", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    expect(await run(await request({ evidenceId, teamId }), 0)).toBeNull();
+    await new Promise((r) => setTimeout(r, 5));
+    // An exhausted attempt to go BEYOND report v1 (a failed updated report).
+    const failed = await request({ evidenceId, teamId, forceRegenerate: true });
+    await prisma.reportGenerationRequest.update({
+      where: { id: failed },
+      data: { state: "FAILED_TERMINAL", terminalReasonCode: "retry_budget_exhausted", completedAtUtc: new Date() },
+    });
+    const before = await prisma.reportGenerationRequest.count({ where: { evidenceId } });
+    const r = await operatorRecover(evidenceId, { operatorSupersede: true, regenerateReason: "operations_supersede" });
+    expect(r).toMatchObject({ kind: "declined", requiresExplicitNewVersion: true });
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId } })).toBe(before);
+    expect((await state(evidenceId)).reports.map((x) => x.version)).toEqual([1]);
+  });
+
+  it("RETRY of a missing package never resumes a pending NEW_VERSION request beside it", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    const first = await request({ evidenceId, teamId });
+    seam.packageBuildFailures = 1;
+    await run(first, 0);
+    await prisma.reportGenerationRequest.update({
+      where: { id: first },
+      data: { state: "FAILED_TERMINAL", terminalReasonCode: "retry_budget_exhausted", completedAtUtc: new Date() },
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    // The LATEST request of any type: a failed-retryable forced request.
+    const forced = await request({ evidenceId, teamId, forceRegenerate: true });
+    await prisma.reportGenerationRequest.update({
+      where: { id: forced },
+      data: { state: "FAILED_RETRYABLE", terminalReasonCode: "ACC", attemptCount: 1 },
+    });
+    // The package control's Retry — the report's failed updated-report request is beside it.
+    const r = await operatorRecover(evidenceId, { intent: "RETRY", targetOutput: "verificationPackage" });
+    expect(r.kind).toBe("accepted");
+    expect(idOf(r)).not.toBe(forced);
+    const made = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: idOf(r) },
+      select: { artifactType: true, reportVersion: true, forceRegenerate: true },
+    });
+    expect(made).toEqual({ artifactType: "VERIFICATION_PACKAGE", reportVersion: 1, forceRegenerate: false });
+    const forcedAfter = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: forced }, select: { state: true } });
+    expect(forcedAfter.state, "the forced request was not touched").toBe("FAILED_RETRYABLE");
+  });
+
+  it("PUBLISH → CONCURRENT COMMIT: the run does not fail or attach a second package", async () => {
+    const { evidenceId } = await historicalGap();
+    const r = await operatorRecover(evidenceId, { packageForReportVersion: 1 });
+    const id = idOf(r);
+    const concurrentKey = `verification/${evidenceId}/v1/concurrent.zip`;
+    seam.packageVerifyHook = async () => {
+      const report = await prisma.report.findUniqueOrThrow({
+        where: { evidenceId_version: { evidenceId, version: 1 } },
+        select: { pdfSha256: true } as never,
+      }) as unknown as { pdfSha256: string | null };
+      await prisma.verificationPackage.create({
+        data: {
+          evidenceId,
+          version: 1,
+          storageBucket: process.env.S3_BUCKET!,
+          storageKey: concurrentKey,
+          generatedAtUtc: new Date(),
+          packageType: "full_evidence_package",
+          reportVersion: 1,
+          reportSha256: report.pdfSha256,
+        } as never,
+      });
+    };
+    expect(await run(id, 0)).toBeNull();
+    const after = await state(evidenceId, id);
+    expect(after.packages.filter((p) => p.version === 1).map((p) => p.storageKey)).toEqual([concurrentKey]);
+    expect(after.req!.state).toBe("SUCCEEDED");
+  });
+
+  it("STALE BASELINE: a report digest that moved before commit is refused, never attached", async () => {
+    const { evidenceId } = await historicalGap();
+    const r = await operatorRecover(evidenceId, { packageForReportVersion: 1 });
+    const id = idOf(r);
+    seam.packageVerifyHook = async () => {
+      await prisma.report.update({
+        where: { evidenceId_version: { evidenceId, version: 1 } },
+        data: { pdfSha256: "0".repeat(64) } as never,
+      });
+    };
+    expect(await run(id, 0)).toBeTruthy();
+    const after = await state(evidenceId, id);
+    expect(after.packages.map((p) => p.version)).toEqual([2]);
+    expect(after.req!.state).toBe("FAILED_TERMINAL");
+  });
+
+  it("UNREADABLE ORIGINAL: recovery stops on the first 404, names it, builds nothing, offers no Recover", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    const first = await request({ evidenceId, teamId });
+    seam.packageBuildFailures = 1;
+    await run(first, 0);
+    const ev = await prisma.evidence.findUniqueOrThrow({
+      where: { id: evidenceId },
+      select: { storageBucket: true, storageKey: true },
+    });
+    storage.objects.delete(storage.at(ev.storageBucket!, ev.storageKey!));
+    const err = await run(first, 1);
+    expect((err as { code?: string }).code).toBe("EVIDENCE_ORIGINAL_NOT_FOUND");
+    const after = await state(evidenceId, first);
+    expect(after.req).toMatchObject({ state: "FAILED_TERMINAL", terminalReasonCode: "EVIDENCE_ORIGINAL_NOT_FOUND" });
+    expect(after.reports.map((x) => x.version)).toEqual([1]);
+    expect(after.packages).toEqual([]);
+    const evAfter = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } });
+    expect(evAfter.status, "a 404 is not an integrity failure").not.toBe("FAILED_HASH_MISMATCH");
+
+    const { loadEvidenceOutputFacts } = await recovery();
+    const loaded = (await loadEvidenceOutputFacts({ evidenceIds: [evidenceId], callerIsPlatformOperator: true })).get(evidenceId)!;
+    expect(loaded.actions.verificationPackage.action).toBe("NONE");
+    const { outputNoteCopy } = await import("@proovra/shared");
+    const note = outputNoteCopy({
+      actionUnavailableReason: loaded.actions.verificationPackage.reason,
+      terminalReasonCode: loaded.packageRequest?.terminalReasonCode ?? null,
+    });
+    expect(note).toMatch(/cannot currently be read from storage/);
+    expect(note).not.toMatch(/retries were exhausted/);
   });
 });

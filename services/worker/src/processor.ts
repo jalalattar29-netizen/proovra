@@ -1839,6 +1839,20 @@ const { EvidenceStatus } = prismaPkg;
  * always did, and is now simply what happens.
  */
 /**
+ * The report a package request was verified against is no longer the report
+ * row for that version (or its recorded digest changed) at commit time.
+ */
+export const PACKAGE_REPORT_BASELINE_CHANGED = "PACKAGE_REPORT_BASELINE_CHANGED";
+
+/** A concurrent run committed the package for this report version first. */
+export class PackageAlreadyCommittedError extends Error {
+  constructor(readonly reportVersion: number) {
+    super("VERIFICATION_PACKAGE_ALREADY_COMMITTED");
+    this.name = "PackageAlreadyCommittedError";
+  }
+}
+
+/**
  * The object store answered "not found" (S3 HEAD answers a bare `NotFound`
  * with no body; GET answers `NoSuchKey`). A 404 on a HEAD without a VersionId
  * also covers a missing bucket and a current delete marker over a retained
@@ -4729,8 +4743,9 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
 
     if (!finalized.skipped && finalizedVerificationStaged) {
       const staged = finalizedVerificationStaged;
-      // Set only once the package row is committed; the catch below uses it to
-      // tell "published but not recorded" (reconcilable) from "not published".
+      // Set once the object is PUBLISHED (before the row is committed); the
+      // catch below uses it to tell "published but not recorded" (an
+      // immutable orphan) from "not published".
       let publishedPackage: PublishedArtifact | null = null;
             try {
         /*
@@ -4759,6 +4774,17 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           });
         } catch (gateError) {
           throw toPackageAllowanceRefusal(gateError);
+        }
+
+        // A concurrent run may already have committed this exact package:
+        // nothing is published a second time for it.
+        if (
+          await prisma.verificationPackage.findFirst({
+            where: { evidenceId: prepared.evidenceId, version: prepared.version },
+            select: { id: true },
+          })
+        ) {
+          throw new PackageAlreadyCommittedError(prepared.version);
         }
 
         publishedPackage = await publishImmutableArtifact({
@@ -4792,6 +4818,43 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         const verificationHead = publishedPackage;
 
         await prisma.$transaction(async (tx) => {
+          /*
+           * THE BASELINE, RE-CHECKED WHERE IT IS COMMITTED (2026-09-29).
+           *
+           * Under the record's advisory lock: the report this package embeds
+           * must still be the report row for this version with the digest the
+           * run verified, and no package may exist for it yet. A request whose
+           * baseline moved is refused explicitly (never attached to another
+           * PDF); a concurrent run that committed first wins, and this run's
+           * published object stays an unreferenced immutable orphan.
+           */
+          await tx.$executeRaw`
+            SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
+          `;
+          const baseline = await tx.report.findUnique({
+            where: {
+              evidenceId_version: { evidenceId: prepared.evidenceId, version: prepared.version },
+            },
+            select: { pdfSha256: true },
+          });
+          if (!baseline) {
+            throw createWorkerError(PACKAGE_REPORT_BASELINE_CHANGED, false);
+          }
+          if (
+            baseline.pdfSha256 &&
+            baseline.pdfSha256.toLowerCase() !== finalized.finalizedReportSha256.toLowerCase()
+          ) {
+            throw createWorkerError(PACKAGE_REPORT_BASELINE_CHANGED, false);
+          }
+          if (
+            await tx.verificationPackage.findFirst({
+              where: { evidenceId: prepared.evidenceId, version: prepared.version },
+              select: { id: true },
+            })
+          ) {
+            throw new PackageAlreadyCommittedError(prepared.version);
+          }
+
           await tx.verificationPackage.create({
             data: {
               evidenceId: prepared.evidenceId,
@@ -4978,7 +5041,18 @@ trustDecisionSnapshot:
         // orphan inventory, and the retry publishes under a fresh key.
         await cleanupStagedTemp(staged).catch(() => {});
 
-        if (verificationError instanceof PackageAllowanceRefusal) {
+        if (verificationError instanceof PackageAlreadyCommittedError) {
+          // Not a failure: the pair is complete. Any object this run published
+          // is an unreferenced immutable orphan for the orphan inventory.
+          logger.info(
+            {
+              ...withJobContext({ requestId, jobId: job.id, evidenceId, status: "package_already_committed" }),
+              reportVersion: prepared.version,
+              orphanKeyPublished: publishedPackage !== null,
+            },
+            "Verification package for this report version was committed by a concurrent run",
+          );
+        } else if (verificationError instanceof PackageAllowanceRefusal) {
           // A commercial or storage-allowance answer, not a pipeline fault.
           packageAllowanceRefusal = verificationError;
         } else {
@@ -5039,9 +5113,12 @@ trustDecisionSnapshot:
         packageTechnicalFailure = {
           phase: "store",
           message: toBoundedReasonCode(verificationError),
-          // A deterministic storage refusal cannot succeed on retry; it is
-          // terminal at once instead of burning the whole retry budget.
-          retriable: !(verificationError instanceof StoragePublicationRejectedError),
+          // A deterministic storage refusal, or a report baseline that moved,
+          // cannot succeed on retry; it is terminal at once instead of
+          // burning the whole retry budget.
+          retriable:
+            !(verificationError instanceof StoragePublicationRejectedError) &&
+            (verificationError as { code?: unknown })?.code !== PACKAGE_REPORT_BASELINE_CHANGED,
           storageCode:
             verificationError instanceof StoragePublicationRejectedError
               ? verificationError.storageCode

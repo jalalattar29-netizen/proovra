@@ -65,7 +65,10 @@ export type EvidenceArtifactActions = {
   downloadVerificationPackage: () => Promise<void>;
   downloadReportVersion: (version: number) => Promise<void>;
   downloadVerificationPackageVersion: (version: number) => Promise<void>;
-  generateOutputs: (intent?: OutputRequestIntent) => Promise<void>;
+  generateOutputs: (
+    intent?: OutputRequestIntent,
+    output?: "report" | "verificationPackage",
+  ) => Promise<void>;
   /** "answered": the server decided (keep no key); "unanswered": reuse the key on retry. */
   createNewVersion: (clientRequestKey: string, reason: string) => Promise<"answered" | "unanswered">;
   generateOutputsBusy: boolean;
@@ -307,7 +310,10 @@ const refreshQuietly = async () => {
  * RECOVER), for the audit trail. The server re-derives what runs from the
  * record's facts: a report without its package gets ONLY the package.
  */
-const generateOutputs = async (intent?: OutputRequestIntent) => {
+const generateOutputs = async (
+  intent?: OutputRequestIntent,
+  output?: "report" | "verificationPackage",
+) => {
   if (!evidenceId || generateOutputsBusy) return;
   setGenerateOutputsBusy(true);
   try {
@@ -327,7 +333,9 @@ const generateOutputs = async (intent?: OutputRequestIntent) => {
     const read = readGenerationOutcome(
       (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
         method: "POST",
-        body: JSON.stringify(intent ? { intent } : {}),
+        // The output whose control was used travels too, so a Retry on the
+        // package retries the package (2026-09-29).
+        body: JSON.stringify(intent ? { intent, ...(output ? { output } : {}) } : {}),
       })) as GenerationResponse,
     );
     addToast(read.message, read.tone);

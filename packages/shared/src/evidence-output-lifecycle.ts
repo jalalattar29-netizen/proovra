@@ -1047,7 +1047,17 @@ const REPORT_INTEGRITY_CODES: ReadonlySet<string> = new Set([
   "REPORT_MISSING_FOR_REPORTED_EVIDENCE",
 ]);
 
-/** The restriction that withdraws every action, if any. */
+/**
+ * The restriction that withdraws every action, if any.
+ *
+ * Exported (2026-09-29) so an exact-version operator repair — which targets a
+ * version the latest-pair decision does not describe, and so never passes
+ * through `gate` — is refused by the SAME rule rather than a copy of it.
+ */
+export function outputBlockingRestriction(r: OutputRestrictions): OutputActionUnavailableReason | null {
+  return blockingRestriction(r);
+}
+
 function blockingRestriction(
   r: OutputRestrictions,
 ): OutputActionUnavailableReason | null {

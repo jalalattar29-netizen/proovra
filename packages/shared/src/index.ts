@@ -319,6 +319,7 @@ export {
   NEW_VERSION_ACTION,
   OUTPUT_OPERATIONS,
   resolveEvidenceOutputActions,
+  outputBlockingRestriction,
 } from "./evidence-output-lifecycle.js";
 // The words for those actions — one table for web, PWA and native.
 export {

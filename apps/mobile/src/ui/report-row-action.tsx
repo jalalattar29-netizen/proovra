@@ -28,7 +28,7 @@ export function ReportRowAction({ row, onRequested }: { row: ArtifactRow; onRequ
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const trigger = async (intent: ReportOutputAction) => {
+  const trigger = async (intent: ReportOutputAction, output: "report" | "verificationPackage") => {
     if (busy) return;
     setBusy(true);
     setError(null);
@@ -36,7 +36,7 @@ export function ReportRowAction({ row, onRequested }: { row: ArtifactRow; onRequ
     try {
       setNotice(
         readGenerationOutcome(
-          await apiFetch(buildRegeneratePath(row.evidenceId), { method: "POST", body: buildOutputRequestBody(intent) }),
+          await apiFetch(buildRegeneratePath(row.evidenceId), { method: "POST", body: buildOutputRequestBody(intent, output) }),
         ).message,
       );
     } catch (err) {
@@ -78,7 +78,7 @@ export function ReportRowAction({ row, onRequested }: { row: ArtifactRow; onRequ
               variant="secondary"
               fullWidth={false}
               disabled={busy}
-              onPress={() => void trigger(action)}
+              onPress={() => void trigger(action, output)}
             />
           );
         })}

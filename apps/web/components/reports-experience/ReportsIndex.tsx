@@ -1233,6 +1233,7 @@ function ArtifactRowActions({
   const requestOutput = async (
     e: React.MouseEvent,
     intent: "GENERATE" | "RETRY" | "RECOVER",
+    output: OutputKind,
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1243,7 +1244,7 @@ function ArtifactRowActions({
     try {
       const resp = (await apiFetch(
         `/v1/evidence/${row.evidenceId}/reports/regenerate`,
-        { method: "POST", body: JSON.stringify({ intent }) },
+        { method: "POST", body: JSON.stringify({ intent, output }) },
       )) as GenerationResponse;
       setRegenNotice(readGenerationOutcome(resp).message);
     } catch (err) {
@@ -1466,7 +1467,7 @@ function ArtifactRowActions({
           data-reports-generate-verb={action}
           data-reports-regenerate-trigger-report-state={row.report.state}
           data-reports-regenerate-trigger-package-state={row.package.state}
-          onClick={(e) => void requestOutput(e, action)}
+          onClick={(e) => void requestOutput(e, action, kind)}
           disabled={busy !== null}
         >
           {/* The COMPACT label: always a shortening of the full one, never a
