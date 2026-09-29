@@ -20,6 +20,7 @@
 
 "use client";
 
+import { custodyEventLabel } from "@proovra/shared";
 import { useMemo } from "react";
 import { Eye, History, type LucideIcon } from "lucide-react";
 import type { EvidenceDetailCtx } from "./_lib";
@@ -151,7 +152,7 @@ function EventTimelineCard({
                   <li key={row.type} className="evidence-detail-chrono-row">
                     <span className="evidence-detail-chrono-row__rail" aria-hidden="true" />
                     <span className="evidence-detail-chrono-row__label">
-                      {row.type.replace(/_/g, " ")}
+                      {custodyEventLabel(row.type)}
                       <span className="evidence-detail-chrono-row__count">
                         {" "}
                         &times; {row.count}
@@ -205,11 +206,34 @@ function EventTimelineCard({
   );
 }
 
+/**
+ * ET-CUS-13 — a long chain is DISPLAYED as its latest events; say so, with
+ * the whole-chain counts, rather than presenting a slice as the record.
+ */
+export function custodyTruncationNote(lifecycle: {
+  forensicEvents: unknown[];
+  accessEvents: unknown[];
+  forensicEventCount: number;
+  accessEventCount: number;
+  truncated?: boolean;
+}): string | null {
+  if (!lifecycle.truncated) return null;
+  const shown = lifecycle.forensicEvents.length + lifecycle.accessEvents.length;
+  const total = lifecycle.forensicEventCount + lifecycle.accessEventCount;
+  return `Showing the latest ${shown} of ${total} recorded custody events (${lifecycle.forensicEventCount} forensic, ${lifecycle.accessEventCount} access). The chain-integrity check covers all ${total}.`;
+}
+
 export function EvidenceCustodyTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const { workspace, evidenceId, canSeeReviewerOps } = ctx;
+  const truncationNote = custodyTruncationNote(workspace.custodyLifecycle);
 
   return (
     <>
+      {truncationNote ? (
+        <p className="app-status-text" data-testid="custody-truncation-note">
+          {truncationNote}
+        </p>
+      ) : null}
       <EventTimelineCard
         title="Forensic Custody"
         description="Integrity-relevant lifecycle chronology — grouped by day"

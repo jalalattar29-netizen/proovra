@@ -629,6 +629,9 @@ export type VerifyResponse = {
     accessEventCount?: number | null;
     forensicEvents?: VerifyTimelineEvent[] | null;
     accessEvents?: VerifyTimelineEvent[] | null;
+    /** ET-CUS-13: the lists are the LATEST events; counts are whole-chain. */
+    truncated?: boolean | null;
+    displayLimit?: number | null;
     chronologyNote?: string | null;
   } | null;
   technicalMaterials?: VerifyTechnicalMaterials | null;

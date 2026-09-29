@@ -30,6 +30,7 @@ import {
 
 import { prisma as defaultPrisma } from "../db.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
+import { swallowCustodyAppendError } from "./custody-events-observability.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import {
   LegalHoldError,
@@ -1255,14 +1256,13 @@ export async function applyRetentionPolicyOnCreate(input: {
     /* identity propagation must never break retention application */
   }
 
-  // No new custody event type for retention application — we reuse
-  // the existing chain via a dedicated payload tag. The chain hashes
-  // the payload, so reviewers can still inspect "retention applied by
-  // policy" in the timeline.
-  try {
+  // ET-CUS-13 (2026-09-29): its own type. It was recorded as a SECOND
+  // EVIDENCE_CREATED, so every timeline showed the record created twice.
+  // A failed append is observable (ET-CUS-11), not swallowed.
+  {
     await appendCustodyEvent({
       evidenceId: input.evidenceId,
-      eventType: prismaPkg.CustodyEventType.EVIDENCE_CREATED,
+      eventType: prismaPkg.CustodyEventType.RETENTION_POLICY_APPLIED,
       payload: {
         retentionPolicyApplied: true,
         retentionUntilUtc: resolved.retentionUntilUtc.toISOString(),
@@ -1273,9 +1273,13 @@ export async function applyRetentionPolicyOnCreate(input: {
         templateVersion: templateProvenance.templateVersion,
         templateDbId: templateProvenance.templateDbId,
       },
-    });
-  } catch {
-    /* observability-only */
+    }).catch((err) =>
+      swallowCustodyAppendError(err, {
+        surface: "governance.applyRetentionPolicy",
+        evidenceId: input.evidenceId,
+        custodyEventType: "RETENTION_POLICY_APPLIED",
+      }),
+    );
   }
 
   return { applied: true, retentionUntilUtc: resolved.retentionUntilUtc };
@@ -1292,19 +1296,22 @@ export async function emitPolicyBlockedEvent(input: {
   reason: string;
   actorUserId?: string | null;
 }): Promise<void> {
-  try {
-    await appendCustodyEvent({
+  // The refusal stands either way; a failed append is observable (ET-CUS-11).
+  await appendCustodyEvent({
+    evidenceId: input.evidenceId,
+    eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
+    payload: {
+      action: input.action,
+      reason: input.reason,
+      actorUserId: input.actorUserId ?? null,
+    },
+  }).catch((err) =>
+    swallowCustodyAppendError(err, {
+      surface: "governance.emitPolicyBlockedEvent",
       evidenceId: input.evidenceId,
-      eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,
-      payload: {
-        action: input.action,
-        reason: input.reason,
-        actorUserId: input.actorUserId ?? null,
-      },
-    });
-  } catch {
-    /* observability-only — never block the operator's response */
-  }
+      custodyEventType: "EXPORT_BLOCKED_BY_POLICY",
+    }),
+  );
   // Phase 10 — surface the blocked attempt to integration subscribers.
   // Look up the evidence's workspace; never emit when unknown.
   try {

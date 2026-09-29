@@ -3221,6 +3221,8 @@ enum CustodyEventType {
   // ET-CUS-12: a material redaction step (payload.code) and a review decision.
   REDACTION_RECORDED
   REVIEW_DECISION_RECORDED
+  // ET-CUS-13: a retention policy was applied (was a second EVIDENCE_CREATED).
+  RETENTION_POLICY_APPLIED
 }
 
 enum AuthProvider {

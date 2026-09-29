@@ -3272,6 +3272,14 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='CustodyEventType' AND e.enumlabel IN ('REDACTION_RECORDED','REVIEW_DECISION_RECORDED')\"",
       "evidence": "CUSTODY REDACTION AND REVIEW (2026-09-29, ET-CUS-12). Adds enum values REDACTION_RECORDED and REVIEW_DECISION_RECORDED to CustodyEventType (ADD VALUE IF NOT EXISTS). No row rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW. Rolling-deploy caveat: drain older API instances before the new image records either event (older Prisma clients cannot read the new values)."
+    },
+    "20280808000000_custody_retention_policy_applied": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='CustodyEventType' AND e.enumlabel='RETENTION_POLICY_APPLIED'\"",
+      "evidence": "CUSTODY RETENTION POLICY APPLIED (2026-09-29, ET-CUS-13). Adds enum value RETENTION_POLICY_APPLIED to CustodyEventType (ADD VALUE IF NOT EXISTS). No row rewritten (custody is append-only; historic duplicate EVIDENCE_CREATED rows remain and are labelled from their payload). EXPAND / SAFE_TO_APPLY_NOW. Drain older API instances first (older Prisma clients cannot read the new value)."
     }
   }
 }

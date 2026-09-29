@@ -1,3 +1,4 @@
+import { custodyEventLabel } from "@proovra/shared";
 import { OTS_ANCHOR_CLAIM_LABELS, resolveOtsAnchorClaim } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
@@ -300,83 +301,12 @@ export const INTAKE_IDENTITY_SNAPSHOT_SUMMARY =
 export const CAPTURE_IDENTITY_SNAPSHOT_SUMMARY =
   "Authenticated workspace user identity was recorded at submission. Submitted by an authenticated workspace user via an OAuth-backed account.";
 
-export function mapCustodyEventLabel(eventType: string | null | undefined): string {
-  switch (safe(eventType, "").toUpperCase()) {
-    case "EVIDENCE_CREATED":
-      return "Evidence record created";
-    case "IDENTITY_SNAPSHOT_RECORDED":
-      return "Identity snapshot recorded at intake";
-    case "REPORT_IDENTITY_CONTEXT_RECORDED":
-      return "Identity context recorded at report generation";
-    case "UPLOAD_STARTED":
-      // Legacy event for backward compatibility. New records use
-      // UPLOAD_AUTHORIZED at intake (presign issuance).
-      return "Upload authorization recorded (legacy label)";
-    case "UPLOAD_AUTHORIZED":
-      return "Upload authorization recorded";
-    case "UPLOAD_COMPLETED":
-      return "Upload completion confirmed";
-    case "SIGNATURE_APPLIED":
-      return "Digital signature applied";
-    case "TIMESTAMP_APPLIED":
-      return "Trusted timestamp token recorded";
-    case "TIMESTAMP_FAILED":
-      return "Trusted timestamp not obtained";
-    case "REPORT_GENERATED":
-      return "Report generated";
-    case "REVIEW_READY":
-      return "Review-ready state recorded";
-    case "VERIFICATION_PACKAGE_GENERATED":
-      return "Verification package generated";
-    case "CERTIFICATION_REQUESTED":
-      return "Certification requested";
-    case "CERTIFICATION_ATTESTED":
-      return "Certification attested";
-    case "CERTIFICATION_REVOKED":
-      return "Certification revoked";
-    case "EVIDENCE_PURGED":
-      return "Evidence purged";
-    case "OTS_APPLIED":
-      return "OpenTimestamps update recorded";
-    case "CHAIN_TRANSFER_CUSTODY_EXTENDED":
-      return "Chain-of-custody transfer recorded";
-    case "EVIDENCE_UNLOCKED":
-      return "Evidence record unlocked";
-    case "RETENTION_AUTO_EXTENDED":
-      return "Retention period extended by policy";
-    case "REDACTION_RECORDED":
-      return "Redaction step recorded";
-    case "REVIEW_DECISION_RECORDED":
-      return "Review decision recorded";
-    case "OTS_FAILED":
-      return "OpenTimestamps provider returned failure";
-    case "OTS_ATTEMPT_ERROR":
-      return "OpenTimestamps attempt errored";
-    case "TECHNICAL_VERIFICATION_CHECKED":
-      return "Technical verification checked";
-    case "VERIFY_VIEWED":
-      return "Verification page viewed";
-    case "EVIDENCE_VIEWED":
-      return "Evidence viewed";
-    case "REPORT_DOWNLOADED":
-      return "Report downloaded";
-    case "VERIFICATION_PACKAGE_DOWNLOADED":
-      return "Verification package downloaded";
-    case "EVIDENCE_LOCKED":
-      return "Object Lock retention applied to storage";
-    case "STORAGE_PROTECTION_UNAVAILABLE":
-      return "Storage protection unavailable (Object Lock not applied)";
-    case "EVIDENCE_ARCHIVED":
-      return "Evidence archived";
-    case "EVIDENCE_RESTORED":
-      return "Evidence restored";
-    case "ANCHOR_PUBLISHED":
-      return "External anchor published";
-    case "ANCHOR_FAILED":
-      return "External anchor failed";
-    default:
-      return normalizeEnumText(eventType);
-  }
+/**
+ * ET-CUS-13: the report names custody events through THE shared label
+ * (@proovra/shared custody-labels); this name is kept for its callers.
+ */
+export function mapCustodyEventLabel(eventType: string | null | undefined, payload?: unknown): string {
+  return custodyEventLabel(eventType, payload);
 }
 
 export function mapTimestampStatusPublicLabel(

@@ -44,6 +44,22 @@ export function silentCustodyCatches(files: Array<{ path: string; source: string
       }
       i = j;
     }
+    // ET-CUS-13: the same silence spelled as try { appendCustodyEvent(...) } catch {}.
+    const tryRe = /\btry\s*\{/g;
+    let m: RegExpExecArray | null;
+    while ((m = tryRe.exec(s)) !== null) {
+      let depth = 0;
+      let k = m.index + m[0].length - 1;
+      for (; k < s.length; k++) {
+        if (s[k] === "{") depth++;
+        else if (s[k] === "}" && --depth === 0) break;
+      }
+      const tryBody = s.slice(m.index, k + 1);
+      const after = s.slice(k + 1, k + 120);
+      if (/appendCustodyEvent\(/.test(tryBody) && /^\s*catch\s*(\(\s*\w*\s*\))?\s*\{\s*\}/.test(after)) {
+        hits.push(`${f.path}:${s.slice(0, m.index).split("\n").length}`);
+      }
+    }
   }
   return hits;
 }
@@ -66,7 +82,9 @@ describe("custody appends never fail silently", () => {
         { path: "c.ts", source: "appendCustodyEvent({}).catch(() => {});" },
         { path: "d.ts", source: "await appendCustodyEvent({}).catch(noteCustodyFailure);" },
         { path: "e.ts", source: "await appendCustodyEvent({}).catch((err) => swallowCustodyAppendError(err, {}));" },
+        { path: "f.ts", source: "try {\n  await appendCustodyEvent({});\n} catch {\n  /* quiet */\n}" },
+        { path: "g.ts", source: "try {\n  await appendCustodyEvent({});\n} catch (err) {\n  noteCustodyFailure(err);\n}" },
       ]),
-    ).toEqual(["a.ts:1", "b.ts:1", "c.ts:1"]);
+    ).toEqual(["a.ts:1", "b.ts:1", "c.ts:1", "f.ts:1"]);
   });
 });

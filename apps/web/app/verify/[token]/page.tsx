@@ -2880,6 +2880,8 @@ export default function VerifyPage() {
   const [refreshingAnchoring, setRefreshingAnchoring] = useState(false);
   const [custodyDisplayCounts, setCustodyDisplayCounts] =
     useState<VerifyResponse["custodyDisplayCounts"]>(null);
+  // ET-CUS-13: the returned timeline is the LATEST events of a longer chain.
+  const [custodyTruncatedNote, setCustodyTruncatedNote] = useState<string | null>(null);
   const [limitations, setLimitations] = useState<VerifyLimitations | null>(null);
   const [evidenceContentSummary, setEvidenceContentSummary] =
     useState<VerifyEvidenceContentSummary>(null);
@@ -3309,6 +3311,11 @@ setPreviewPolicy(content.previewPolicy);
     setContentExposureDecision(data.contentExposureDecision ?? null);
 setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null);
     setCustodyDisplayCounts(data.custodyDisplayCounts ?? null);
+    setCustodyTruncatedNote(
+      data.custodyLifecycle?.truncated
+        ? `Showing the latest recorded events of each kind (up to ${data.custodyLifecycle.displayLimit ?? 500}); this chain holds ${(data.custodyLifecycle.forensicEventCount ?? 0) + (data.custodyLifecycle.accessEventCount ?? 0)} events, and the chain-integrity check covers all of them.`
+        : null,
+    );
     return otsDetails;
   };
   const applyVerifyResponseRef = useRef(applyVerifyResponse);
@@ -6819,7 +6826,7 @@ These materials support the Trust Decision shown above. The Trust Decision is th
     forensicMode={forensicMode}
     subtitle="Complete recorded custody chronology, including integrity-relevant lifecycle events and later access activity when returned by the verification response. Event hashes are shown in full for chain-continuity review."
     note={
-      [liveCustodyCountsNote, custodyTimestampOrderNote]
+      [custodyTruncatedNote, liveCustodyCountsNote, custodyTimestampOrderNote]
         .filter(Boolean)
         .join(" ")
     }

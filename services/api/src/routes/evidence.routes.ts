@@ -849,12 +849,35 @@ function isVerificationPackageMetadata(
 }
 
 type PublicCustodyLifecycle = {
+  /** Counts over the WHOLE chain (ET-CUS-13), never the displayed slice. */
   forensicEventCount: number;
   accessEventCount: number;
+  /** The LATEST events of each class, at most CUSTODY_TIMELINE_DISPLAY_LIMIT. */
   forensicEvents: PublicVerifyTimelineEvent[];
   accessEvents: PublicVerifyTimelineEvent[];
+  /** True when either list above is a slice of a longer class. */
+  truncated: boolean;
+  displayLimit: number;
   chronologyNote: string;
 };
+
+/**
+ * CUSTODY TIMELINE DISPLAY (ET-CUS-13, 2026-09-29).
+ *
+ * The review and public-verify handlers read the chain with `take: 500`,
+ * oldest first — so a long-lived record showed its first 500 events and never
+ * its latest ones, and every count (forensic, access, "since the report") was
+ * a count of that slice. The handlers now read the whole chain once (the
+ * integrity verdict needs it anyway), count over all of it, and DISPLAY the
+ * latest events of each class, saying when the list is a slice.
+ */
+const CUSTODY_TIMELINE_DISPLAY_LIMIT = 500;
+
+function latestForDisplay<T>(events: readonly T[]): T[] {
+  return events.length > CUSTODY_TIMELINE_DISPLAY_LIMIT
+    ? events.slice(events.length - CUSTODY_TIMELINE_DISPLAY_LIMIT)
+    : [...events];
+}
 
 async function requireAuthAndLegal(req: FastifyRequest, reply: FastifyReply) {
   await requireAuth(req, reply);
@@ -4420,14 +4443,22 @@ async function getAnchorStatus(
 }
 
 function buildPublicCustodyLifecycle(params: {
+  /** Already sliced by latestForDisplay. */
   forensicEvents: PublicVerifyTimelineEvent[];
   accessEvents: PublicVerifyTimelineEvent[];
+  /** Whole-chain counts. */
+  forensicEventCount: number;
+  accessEventCount: number;
 }): PublicCustodyLifecycle {
   return {
-    forensicEventCount: params.forensicEvents.length,
-    accessEventCount: params.accessEvents.length,
+    forensicEventCount: params.forensicEventCount,
+    accessEventCount: params.accessEventCount,
     forensicEvents: params.forensicEvents,
     accessEvents: params.accessEvents,
+    truncated:
+      params.forensicEvents.length < params.forensicEventCount ||
+      params.accessEvents.length < params.accessEventCount,
+    displayLimit: CUSTODY_TIMELINE_DISPLAY_LIMIT,
     chronologyNote:
       "Forensic events describe integrity-relevant lifecycle actions. Access events describe later viewing, download, or verification access activity.",
   };
@@ -8891,7 +8922,6 @@ return {
           prisma.custodyEvent.findMany({
             where: { evidenceId: id },
             orderBy: { sequence: "asc" },
-            take: 500,
             select: {
               sequence: true,
               atUtc: true,
@@ -9278,20 +9308,9 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               evidence.fingerprintHash.toLowerCase()
             : null;
 
-        // The whole chain for the verdict (2026-09-29, audit M6): the list above
-        // is capped at 500 for display.
-        const chainRecords = await prisma.custodyEvent.findMany({
-          where: { evidenceId: id },
-          orderBy: { sequence: "asc" },
-          select: {
-            sequence: true,
-            atUtc: true,
-            eventType: true,
-            payload: true,
-            prevEventHash: true,
-            eventHash: true,
-          },
-        });
+        // The whole chain for the verdict (audit M6). `allCustodyEvents` IS the
+        // whole chain since ET-CUS-13; only the displayed timeline is sliced.
+        const chainRecords = allCustodyEvents;
         const custodyChain = evaluateCustodyChain({
           evidenceId: id,
           records: chainRecords.map((ev) => ({
@@ -9378,15 +9397,17 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
           structure: content.summary.structure,
         } as const;
 
-        const mappedForensicEvents = forensicCustodyEvents.map((event) =>
+        const mappedForensicEvents = latestForDisplay(forensicCustodyEvents).map((event) =>
           mapPublicCustodyEvent(event, custodyDisplayContext)
         );
-        const mappedAccessEvents = accessCustodyEvents.map((event) =>
+        const mappedAccessEvents = latestForDisplay(accessCustodyEvents).map((event) =>
           mapPublicCustodyEvent(event, custodyDisplayContext)
         );
         const custodyLifecycle = buildPublicCustodyLifecycle({
           forensicEvents: mappedForensicEvents,
           accessEvents: mappedAccessEvents,
+          forensicEventCount: forensicCustodyEvents.length,
+          accessEventCount: accessCustodyEvents.length,
         });
 
         const reportGeneratedAtUtc =
@@ -12719,7 +12740,6 @@ action: "evidence.certification_requested",
     const allCustodyEvents = await prisma.custodyEvent.findMany({
       where: { evidenceId: id },
       orderBy: { sequence: "asc" },
-      take: 500,
       select: {
         sequence: true,
         atUtc: true,
@@ -13004,24 +13024,12 @@ const effectiveOtsStatus = resolveEffectiveOtsStatus({
         : null;
 
     /*
-     * THE WHOLE CHAIN, NOT ITS FIRST 500 LINKS (2026-09-29, audit M6).
-     * `allCustodyEvents` is capped at 500 for the timeline this page shows;
-     * the integrity verdict walked that same slice, so a chain longer than
-     * 500 events was reported valid without its later links being checked.
-     * The verdict now walks every event.
+     * THE WHOLE CHAIN, NOT ITS FIRST 500 LINKS (audit M6; ET-CUS-13).
+     * `allCustodyEvents` is the whole chain: the verdict walks every event
+     * and every count is over all of them. Only the displayed timeline is
+     * sliced, to the LATEST events (latestForDisplay).
      */
-    const chainRecords = await prisma.custodyEvent.findMany({
-      where: { evidenceId: id },
-      orderBy: { sequence: "asc" },
-      select: {
-        sequence: true,
-        atUtc: true,
-        eventType: true,
-        payload: true,
-        prevEventHash: true,
-        eventHash: true,
-      },
-    });
+    const chainRecords = allCustodyEvents;
     const custodyChain = evaluateCustodyChain({
       evidenceId: id,
       records: chainRecords.map((ev) => ({
@@ -13310,10 +13318,10 @@ const overallIntegrity =
       structure: content.summary.structure,
     } as const;
 
-    const mappedForensicEvents = forensicCustodyEvents.map((event) =>
+    const mappedForensicEvents = latestForDisplay(forensicCustodyEvents).map((event) =>
       mapPublicCustodyEvent(event, custodyDisplayContext)
     );
-    const mappedAccessEvents = accessCustodyEvents.map((event) =>
+    const mappedAccessEvents = latestForDisplay(accessCustodyEvents).map((event) =>
       mapPublicCustodyEvent(event, custodyDisplayContext)
     );
 
@@ -13444,6 +13452,8 @@ verificationPackageVersion:
 const custodyLifecycle = buildPublicCustodyLifecycle({
   forensicEvents: mappedForensicEvents,
   accessEvents: mappedAccessEvents,
+  forensicEventCount: forensicCustodyEvents.length,
+  accessEventCount: accessCustodyEvents.length,
 });
 
 const reportGeneratedAtUtc =

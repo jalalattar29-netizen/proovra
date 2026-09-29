@@ -1,0 +1,8 @@
+ET-CUS-13 red baseline — custody-timeline-latest.integration.test.ts against HEAD evidence.routes.ts (take:500 oldest-first)
+   × custody timeline shows the latest events of a long chain (live PostgreSQL 16) > 512 events: the latest are shown, counts cover all, the slice is declared 2873ms
+     → expected 499 to be 510 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed (1)
+
+ET-CUS-13 red baseline — custody-append-no-silent-catch.test.ts (widened to try/catch-empty) against the unfixed tree:
+  expected [] got ["services/api/src/services/external-intake-orchestration.service.ts:422"]

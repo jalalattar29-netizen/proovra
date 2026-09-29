@@ -312,6 +312,9 @@ export type ReviewWorkspaceResponse = {
     accessEventCount: number;
     forensicEvents: TimelineEvent[];
     accessEvents: TimelineEvent[];
+    /** ET-CUS-13: the lists are the LATEST events; counts are whole-chain. */
+    truncated?: boolean;
+    displayLimit?: number;
     chronologyNote: string;
   };
   custodyDisplayCounts: {

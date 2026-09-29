@@ -59,6 +59,7 @@ import { presignPutObject } from "../storage.js";
 import { createEvidence } from "./evidence.service.js";
 import { completeEvidence } from "./evidence-complete.service.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
+import { swallowCustodyAppendError } from "./custody-events-observability.js";
 import { transitionIntakeSession } from "./workflow-intake-session.service.js";
 import { linkResponseFromIntakeSession } from "./evidence-request.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
@@ -419,31 +420,34 @@ export async function createOrLoadExternalEvidence(
   // events, so reviewers see the full lineage. Only fired on FIRST creation
   // — re-entry through this function returns the existing Evidence above
   // and never reaches this point.
-  try {
+  // Custody emission must not abort the upload-presign flow, but a failed
+  // append is observable (ET-CUS-11/13): logged, counted and reported. The
+  // chain is forward-only, so an operator can append a remediation event.
+  const intakeCustodyFailure = (custodyEventType: string) => (err: unknown) =>
+    swallowCustodyAppendError(err, {
+      surface: "externalIntake.createEvidenceForSession",
+      evidenceId: evidence.id,
+      custodyEventType,
+    });
+  await appendCustodyEvent({
+    evidenceId: evidence.id,
+    eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_LINK_USED,
+    payload: {
+      intakeLinkId: pair.link.id,
+      intakeSessionId: pair.session.id,
+      intakeMode: pair.link.intakeMode,
+    },
+  }).catch(intakeCustodyFailure("EXTERNAL_INTAKE_LINK_USED"));
+  if (pair.session.consentAcceptedAtUtc) {
     await appendCustodyEvent({
       evidenceId: evidence.id,
-      eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_LINK_USED,
+      eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_CONSENT_ACCEPTED,
       payload: {
         intakeLinkId: pair.link.id,
         intakeSessionId: pair.session.id,
-        intakeMode: pair.link.intakeMode,
+        consentPolicyVersion: pair.link.consentPolicyVersion,
       },
-    });
-    if (pair.session.consentAcceptedAtUtc) {
-      await appendCustodyEvent({
-        evidenceId: evidence.id,
-        eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_CONSENT_ACCEPTED,
-        payload: {
-          intakeLinkId: pair.link.id,
-          intakeSessionId: pair.session.id,
-          consentPolicyVersion: pair.link.consentPolicyVersion,
-        },
-      });
-    }
-  } catch {
-    // Custody-event emission must not abort the upload-presign flow.
-    // The chain hashing is forward-only so a later operator can append
-    // a remediation event. We rely on the existing logger upstream.
+    }).catch(intakeCustodyFailure("EXTERNAL_INTAKE_CONSENT_ACCEPTED"));
   }
 
   return updatedEvidence;

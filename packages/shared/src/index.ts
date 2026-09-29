@@ -2491,3 +2491,6 @@ export * from "./package-seal.js";
 export * from "./basic-verification.js";
 
 export * from "./tsa-validation-state.js";
+
+// ET-CUS-13 — THE one custody event label (report, web and mobile timelines).
+export * from "./custody-labels.js";
