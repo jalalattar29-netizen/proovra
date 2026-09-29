@@ -1,0 +1,5 @@
+ET-RPT-09 red baseline — services/worker/test/report-anchoring-conclusion.test.ts against HEAD truth-model.ts
+   × executive conclusion vs the OTS chain check (ET-RPT-09) > anchored but not chain-checked: no 'finalized' claim, says anchored-not-verified 3ms
+     → expected 'The preserved evidence record reached…' not to match /finalized/i
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 1 passed (2)

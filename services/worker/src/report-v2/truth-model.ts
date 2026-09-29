@@ -110,9 +110,29 @@ export function normalizeStorageTone(
   return "neutral";
 }
 
+/**
+ * ET-RPT-09 — the conclusion's anchoring claim follows the check. An
+ * OpenTimestamps proof upgraded to a Bitcoin attestation but not verified
+ * against the chain (ANCHORED_NOT_CHECKED) scores as anchored; the same PDF's
+ * OTS callout says "chain not checked", so the conclusion may not call its
+ * publication materials "finalized".
+ */
+function anchoringNotChainChecked(decision: ReportTrustDecision): boolean {
+  return (decision.signals ?? []).some(
+    (s) => s.key === "bitcoin_anchoring" && s.summary === OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED,
+  );
+}
+
 export function buildExecutiveConclusion(
   decision: ReportTrustDecision
 ): CalloutModel {
+  if (decision.presentationState === "VERIFIED_FINALIZED" && anchoringNotChainChecked(decision)) {
+    return {
+      title: "Executive conclusion",
+      body: "The preserved evidence record reached a verified recorded-integrity state at report generation time. Its OpenTimestamps proof is anchored to a Bitcoin block, but that attestation was not checked against the Bitcoin chain for this report, so the anchoring is stated as anchored, not as independently verified. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation.",
+      tone: "success",
+    };
+  }
   return {
     title:
       decision.presentationState === "VERIFIED_FINALIZED"
