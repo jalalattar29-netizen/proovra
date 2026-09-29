@@ -32,13 +32,27 @@ vi.mock("../src/db.js", () => ({
       findMany: async () => DB.strandedRows,
       updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         const st = DB.derivative?.state;
-        const wantIn = (args.where.state as { in?: string[] } | string) ?? null;
-        const ok =
-          typeof wantIn === "string"
-            ? st === wantIn
-            : Array.isArray((wantIn as { in?: string[] })?.in)
-              ? ((wantIn as { in: string[] }).in as string[]).includes(st as string)
-              : false;
+        // Evaluates the predicate shapes the writer uses, including the ET-Q-04
+        // claim: OR [QUEUED, RENDERING with renderStartedAt older than the lease].
+        const matches = (where: Record<string, unknown>): boolean => {
+          if (Array.isArray(where.OR)) {
+            return (where.OR as Array<Record<string, unknown>>).some(matches);
+          }
+          const wantIn = (where.state as { in?: string[] } | string) ?? null;
+          const stateOk =
+            typeof wantIn === "string"
+              ? st === wantIn
+              : Array.isArray((wantIn as { in?: string[] })?.in)
+                ? ((wantIn as { in: string[] }).in as string[]).includes(st as string)
+                : false;
+          const lease = where.renderStartedAt as { lt?: Date } | undefined;
+          if (lease?.lt) {
+            const at = DB.derivative?.renderStartedAt as Date | null | undefined;
+            return stateOk && at instanceof Date && at < lease.lt;
+          }
+          return stateOk;
+        };
+        const ok = matches(args.where);
         if (ok && DB.derivative) {
           Object.assign(DB.derivative, args.data);
           DB.updates.push(args.data);
