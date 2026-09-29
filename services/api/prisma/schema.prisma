@@ -14601,3 +14601,16 @@ model SignerControlState {
   @@index([status], map: "signer_control_state_status_idx")
   @@map("signer_control_state")
 }
+
+/// ET-Q-05 (2026-09-29) — where a bounded worker sweep resumes. A sweep that
+/// re-reads the same oldest N rows every tick never reaches row N+1 while the
+/// first N stay ineligible; a keyset cursor moves it past them and wraps to
+/// the start when it reaches the end. One row per sweep key.
+model WorkerSweepCursor {
+  key       String    @id @db.VarChar(64)
+  cursorAt  DateTime? @map("cursor_at") @db.Timestamptz(6)
+  cursorId  String?   @map("cursor_id") @db.Uuid
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("worker_sweep_cursors")
+}

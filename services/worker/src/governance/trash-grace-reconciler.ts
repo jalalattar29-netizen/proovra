@@ -177,6 +177,30 @@ const CANDIDATE_SELECT = {
   caseLinks: { select: { caseId: true } },
 } as const;
 
+export const TRASH_GRACE_CURSOR_KEY = "trash_grace";
+
+/** The cursor, or null (start from the oldest) — fail-open on a missing table. */
+async function readSweepCursor(key: string): Promise<{ at: Date; id: string } | null> {
+  try {
+    const row = await prisma.workerSweepCursor.findUnique({ where: { key }, select: { cursorAt: true, cursorId: true } });
+    return row?.cursorAt && row.cursorId ? { at: row.cursorAt, id: row.cursorId } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSweepCursor(key: string, value: { at: Date; id: string } | null): Promise<void> {
+  try {
+    await prisma.workerSweepCursor.upsert({
+      where: { key },
+      create: { key, cursorAt: value?.at ?? null, cursorId: value?.id ?? null },
+      update: { cursorAt: value?.at ?? null, cursorId: value?.id ?? null },
+    });
+  } catch {
+    /* a cursor that cannot be written restarts from the oldest next tick */
+  }
+}
+
 export async function runTrashGraceReconciliation(
   options: TrashGraceReconciliationOptions = {},
 ): Promise<TrashGraceReconciliationResult> {
@@ -193,16 +217,40 @@ export async function runTrashGraceReconciliation(
   // tombstone (which still carries `deleted_at` from its time in the trash)
   // cannot appear here — which is how the old purge job kept re-examining
   // records it had already finished with.
+  // ET-Q-05 — a keyset cursor over (deleteScheduledForUtc, id), so a tick
+  // continues past the rows the previous tick examined instead of re-reading
+  // the same oldest batch forever once those rows are blocked. It wraps to the
+  // start when a tick reaches the end. A team-scoped (manual) run and a dry
+  // run neither read nor move the shared cursor.
+  const useCursor = !options.teamId && !dryRun;
+  const cursor = useCursor ? await readSweepCursor(TRASH_GRACE_CURSOR_KEY) : null;
   const rows = await prisma.evidence.findMany({
     where: {
       lifecycleState: "TRASHED",
       deleteScheduledForUtc: { lte: now },
       ...(options.teamId ? { teamId: options.teamId } : {}),
+      ...(cursor
+        ? {
+            OR: [
+              { deleteScheduledForUtc: { gt: cursor.at } },
+              { deleteScheduledForUtc: cursor.at, id: { gt: cursor.id } },
+            ],
+          }
+        : {}),
     },
-    orderBy: { deleteScheduledForUtc: "asc" },
+    orderBy: [{ deleteScheduledForUtc: "asc" }, { id: "asc" }],
     take: batchSize,
     select: CANDIDATE_SELECT,
   });
+  if (useCursor) {
+    const last = rows[rows.length - 1];
+    await writeSweepCursor(
+      TRASH_GRACE_CURSOR_KEY,
+      rows.length === batchSize && last?.deleteScheduledForUtc
+        ? { at: last.deleteScheduledForUtc, id: last.id }
+        : null, // reached the end: the next tick starts again from the oldest
+    );
+  }
 
   const candidates: TrashGraceCandidate[] = [];
   let enqueued = 0;
@@ -263,8 +311,9 @@ export async function runTrashGraceReconciliation(
         // the reconciler nominates and the executor decides, again, against a
         // freshly re-read row.
         const { enqueueEvidencePurgeJob } = await import("../queue.js");
-        await enqueueEvidencePurgeJob(row.id, now.toISOString());
-        enqueued += 1;
+        // ET-Q-05 — count what the queue actually accepted.
+        const outcome = await enqueueEvidencePurgeJob(row.id, now.toISOString());
+        if (outcome.enqueued) enqueued += 1;
         disposition = "ELIGIBLE_ENQUEUED";
       }
     } else if (verdict.blockReason === "DESTRUCTION_APPROVAL_REQUIRED") {

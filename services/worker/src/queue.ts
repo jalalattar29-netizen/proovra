@@ -236,6 +236,8 @@ async function enqueueWork(
     delayMs?: number;
     removeOnComplete?: number | boolean;
     removeOnFail?: number | boolean;
+    /** A running job scheduling its OWN follow-up (see enqueueOtsUpgradeJob). */
+    selfJobId?: string | number | null;
   } = {},
 ): Promise<WorkEnqueueResult> {
   const outcome = await enqueueCanonicalJob({
@@ -247,6 +249,7 @@ async function enqueueWork(
     removeOnComplete: options.removeOnComplete,
     removeOnFail: options.removeOnFail,
     traceparent: currentTraceparent(),
+    selfJobId: options.selfJobId,
   });
   return outcome.enqueued
     ? { enqueued: true, jobId: outcome.jobId }
@@ -538,7 +541,15 @@ export async function isOtsUpgradeScheduled(evidenceId: string): Promise<boolean
 export async function enqueueEvidencePurgeJob(
   evidenceId: string,
   runAtUtc: string | Date,
-  options: { correlationId?: string } = {},
+  options: {
+    correlationId?: string;
+    /**
+     * ET-Q-05 — set by the purge job rescheduling ITSELF after a BLOCKED
+     * outcome. Without it the enqueue collapsed onto the running job and
+     * scheduled nothing.
+     */
+    selfJobId?: string | number | null;
+  } = {},
 ): Promise<WorkEnqueueResult & { delay: number }> {
   const when =
     runAtUtc instanceof Date ? runAtUtc.getTime() : new Date(runAtUtc).getTime();
@@ -550,7 +561,7 @@ export async function enqueueEvidencePurgeJob(
     evidencePurgeQueue,
     JOB_NAMES.PURGE_DELETED_EVIDENCE,
     evidenceId,
-    { traceId: options.correlationId ?? "", delayMs: delay },
+    { traceId: options.correlationId ?? "", delayMs: delay, selfJobId: options.selfJobId },
   );
   return { ...outcome, delay };
 }

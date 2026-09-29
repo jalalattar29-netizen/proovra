@@ -1369,6 +1369,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280807000000_custody_redaction_and_review",
       // Custody retention policy applied (2026-09-29, ET-CUS-13): enum value. EXPAND.
       "20280808000000_custody_retention_policy_applied",
+      // Worker sweep cursors (2026-09-29, ET-Q-05): one new table. EXPAND.
+      "20280809000000_worker_sweep_cursors",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

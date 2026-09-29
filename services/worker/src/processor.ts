@@ -5795,10 +5795,21 @@ export async function processPurgeDeletedEvidence(job: Job<unknown>) {
         evidence.deleteScheduledForUtc.getTime() > Date.now()
           ? evidence.deleteScheduledForUtc
           : new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await enqueueEvidencePurgeJob(evidence.id, recheckAt.toISOString());
+      // ET-Q-05 — schedule a REAL follow-up (selfJobId), and log what the
+      // queue answered instead of claiming a reschedule that collapsed.
+      const rescheduled = await enqueueEvidencePurgeJob(evidence.id, recheckAt.toISOString(), {
+        selfJobId: job.id ?? null,
+      });
       logger.info(
-        { ...ctx, blockReason: result.reason, rescheduledFor: recheckAt.toISOString() },
-        "PurgeDeletedEvidenceJob rescheduled: destruction is not yet permitted",
+        {
+          ...ctx,
+          blockReason: result.reason,
+          rescheduledFor: recheckAt.toISOString(),
+          rescheduleEnqueued: rescheduled.enqueued,
+        },
+        rescheduled.enqueued
+          ? "PurgeDeletedEvidenceJob rescheduled: destruction is not yet permitted"
+          : "PurgeDeletedEvidenceJob NOT rescheduled: the trash-grace reconciler re-nominates it",
       );
       return;
     }

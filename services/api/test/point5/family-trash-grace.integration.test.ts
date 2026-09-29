@@ -383,6 +383,52 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
   // The production safety gate
   // =========================================================================
 
+  it("ET-Q-05: blocked rows at the head of the queue do not starve an eligible record behind them", async () => {
+    await prisma.workerSweepCursor.deleteMany({});
+    // Three records blocked by application retention, with the OLDEST deadlines
+    // in the database, and one eligible record just behind them.
+    const blocked: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      blocked.push(
+        (
+          await expiredTrash("own", {
+            deleteScheduledForUtc: new Date(Date.now() - (6000 - i) * DAY),
+            retentionUntilUtc: new Date(Date.now() + 365 * DAY),
+          })
+        ).id,
+      );
+    }
+    const eligible = (await expiredTrash("own", { deleteScheduledForUtc: new Date(Date.now() - 5990 * DAY) })).id;
+    try {
+
+    const first = await reconciler.runTrashGraceReconciliation({ batchSize: 3, trigger: "q05-1" });
+    expect(first.candidates.map((c) => c.evidenceId)).toEqual(blocked);
+    expect(first.candidates.every((c) => c.disposition === "BLOCKED" || c.disposition.startsWith("BLOCKED"))).toBe(true);
+
+    const second = await reconciler.runTrashGraceReconciliation({ batchSize: 3, trigger: "q05-2" });
+    const ids = second.candidates.map((c) => c.evidenceId);
+    expect(ids, "the next tick continues past the blocked rows").toContain(eligible);
+    expect(ids).not.toContain(blocked[0]);
+    // A dry run neither reads nor moves the shared cursor.
+    const dry = await reconciler.runTrashGraceReconciliation({ batchSize: 3, dryRun: true, trigger: "q05-dry" });
+    expect(dry.candidates.map((c) => c.evidenceId).slice(0, 3)).toEqual(blocked);
+    } finally {
+      // These rows carry the OLDEST deadlines in the database by design; left
+      // behind they would head every later unscoped sweep, including a rerun
+      // of this case.
+      await prisma.evidence.deleteMany({ where: { id: { in: [...blocked, eligible] } } });
+      await prisma.workerSweepCursor.deleteMany({});
+    }
+  });
+
+  it("ET-Q-05: the purge job's BLOCKED reschedule schedules a real follow-up, not a collapse onto itself", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../../../worker/src/processor.ts", import.meta.url), "utf8");
+    expect(src).toMatch(/enqueueEvidencePurgeJob\(evidence\.id, recheckAt\.toISOString\(\), \{\s*selfJobId: job\.id \?\? null,\s*\}\)/);
+    const q = readFileSync(new URL("../../../worker/src/queue.ts", import.meta.url), "utf8");
+    expect(q).toMatch(/delayMs: delay, selfJobId: options\.selfJobId/);
+  });
+
   it("trashgrace: automatic destruction is OFF by default — eligible candidates are observed, not enqueued", async () => {
     const previous = process.env.AUTOMATIC_EVIDENCE_DESTRUCTION_ENABLED;
     delete process.env.AUTOMATIC_EVIDENCE_DESTRUCTION_ENABLED;
@@ -408,6 +454,9 @@ describe("POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16)", (
         select: { id: true },
       });
 
+      // The unscoped sweep resumes from a persisted cursor (ET-Q-05); start
+      // this case from the oldest so it does not depend on earlier runs.
+      await prisma.workerSweepCursor.deleteMany({});
       const report = await reconciler.runTrashGraceReconciliation({
         trigger: "point5-proof-flag",
       });
