@@ -17,6 +17,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { ORIGINAL_NOT_READABLE_TERMINAL_CODE } from "@proovra/shared";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/db.js", () => ({ prisma: {} }));
@@ -37,6 +38,10 @@ function s3Error(name: string, status: number, extra: Record<string, unknown> = 
 }
 
 describe("original-object 404 classification", () => {
+  it("the worker code is the one every surface's copy keys on", () => {
+    expect(EVIDENCE_ORIGINAL_NOT_FOUND).toBe(ORIGINAL_NOT_READABLE_TERMINAL_CODE);
+  });
+
   it.each([
     ["HEAD NotFound (the production shape)", s3Error("NotFound", 404)],
     ["GET NoSuchKey", s3Error("NoSuchKey", 404)],
@@ -52,8 +57,12 @@ describe("original-object 404 classification", () => {
     expect(message.startsWith(`${EVIDENCE_ORIGINAL_NOT_FOUND}:`)).toBe(true);
     expect(message).toContain("original part 3");
     // Honest about what a key-level 404 does and does not establish.
-    expect(message).toMatch(/delete marker or absent/);
-    expect(message).toMatch(/no report or package was built from other bytes/);
+    expect(message).toMatch(/does not establish loss/);
+    expect(message).toMatch(/a delete marker, a wrong key or bucket, or a missing object are all possible/);
+    expect(message).toMatch(/No report or package was built from other bytes/);
+    expect(message).toMatch(/its hash and its signature are unchanged/);
+    // The incident bridge keeps the first 380 characters as its summary.
+    expect(message.length).toBeLessThanOrEqual(380);
   });
 
   it.each([

@@ -13,7 +13,7 @@ import { Image, Linking, Pressable, StyleSheet, View } from "react-native";
 
 import { formatUserDateTime } from "../lib/date";
 import type { RiskSignal } from "../product/evidence-detail";
-import { outputUnavailableReasonCopy } from "@proovra/shared";
+import { outputNoteCopy } from "@proovra/shared";
 import {
   ARCHIVE_AS_ALTERNATIVE_COPY,
   CUSTODY_TIMELINE_COPY,
@@ -513,7 +513,7 @@ export function PackageRecoveryPanel({
 }) {
   const copy = packagePanelCopy(report, pkg);
   if (!copy) return null;
-  const note = outputUnavailableReasonCopy(pkg.actionUnavailableReason as never);
+  const note = outputNoteCopy(pkg);
   return (
     <Alert
       testID={copy.inFlight ? "package-recovery-in-flight" : "package-recovery"}

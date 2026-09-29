@@ -112,6 +112,8 @@ export type ArtifactOutputProjection = {
   /** The server operation the offered verb performs. */
   operation?: OutputOperation | null;
   terminalReasonClass: OutputTerminalReasonClass | null;
+  /** Bounded worker code when TERMINAL_FAILURE (absent from older APIs). */
+  terminalReasonCode?: string | null;
   /** An artifact exists and may be opened, whatever the current request says. */
   downloadable: boolean;
 };

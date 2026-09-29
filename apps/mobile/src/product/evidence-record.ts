@@ -9,7 +9,7 @@
  */
 
 
-import { outputUnavailableReasonCopy } from "@proovra/shared";
+import { outputNoteCopy } from "@proovra/shared";
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -381,6 +381,8 @@ export interface OutputView {
   /** The server's verb: GENERATE | RETRY | RECOVER | NONE. Absent reads as NONE. */
   action: string;
   terminalReasonClass: string | null;
+  /** Bounded worker code when TERMINAL_FAILURE; never a message. */
+  terminalReasonCode: string | null;
   notApplicableReason: string | null;
   actionUnavailableReason: string | null;
   attemptCount: number | null;
@@ -425,6 +427,7 @@ function outputView(raw: unknown): OutputView {
     state: st && (OUTPUT_STATES as readonly string[]).includes(st) ? (st as OutputState) : null,
     action: s(x["action"]) ?? "NONE",
     terminalReasonClass: s(x["terminalReasonClass"]),
+    terminalReasonCode: s(x["terminalReasonCode"]),
     notApplicableReason: s(x["notApplicableReason"]),
     actionUnavailableReason: s(x["actionUnavailableReason"]),
     attemptCount: n(x["attemptCount"]),
@@ -611,14 +614,14 @@ export function outputPanelCopy(out: OutputView): { title: string; body: string;
       // the more specific sentence; the class copy is the fallback.
       return {
         title: "Report generation stopped",
-        body: outputUnavailableReasonCopy(out.actionUnavailableReason as never) ?? terminalFailureCopy(out.terminalReasonClass),
+        body: outputNoteCopy(out) ?? terminalFailureCopy(out.terminalReasonClass),
         tone: "warn",
       };
     case "BLOCKED":
       return {
         title: "Report generation is blocked",
         body:
-          outputUnavailableReasonCopy(out.actionUnavailableReason as never) ??
+          outputNoteCopy(out) ??
           "A governance or lifecycle decision is currently preventing generation for this record. It becomes possible again when that decision changes; the evidence record and its integrity state are unaffected.",
         tone: "warn",
       };
@@ -634,7 +637,7 @@ export function outputPanelCopy(out: OutputView): { title: string; body: string;
  */
 export function outputPanelNote(out: OutputView): string | null {
   if (out.state === "TERMINAL_FAILURE" || out.state === "BLOCKED") return null;
-  return outputUnavailableReasonCopy(out.actionUnavailableReason as never);
+  return outputNoteCopy(out);
 }
 
 /**
@@ -647,7 +650,7 @@ export function packagePanelCopy(
   pkg: OutputView,
 ): { title: string; body: string | null; tone: "warn" | "info"; inFlight: boolean; olderVersion: number | null } | null {
   if (report.state !== "READY") return null;
-  const note = outputUnavailableReasonCopy(pkg.actionUnavailableReason as never);
+  const note = outputNoteCopy(pkg);
   const inFlight = pkg.state === "QUEUED" || pkg.state === "GENERATING";
   if (!inFlight && pkg.action === "NONE" && note === null) return null;
   const forVersion = report.version != null ? ` for report version ${report.version}` : "";

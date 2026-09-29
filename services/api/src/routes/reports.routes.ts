@@ -144,6 +144,8 @@ type UserReportOutputProjection = {
   /** P2-1 — why the verb was withdrawn on a state that would carry one. */
   actionUnavailableReason: OutputActionUnavailableReason | null;
   terminalReasonClass: OutputTerminalReasonClass | null;
+  /** Bounded worker code when TERMINAL_FAILURE; never a message. */
+  terminalReasonCode: string | null;
   downloadable: boolean;
 };
 
@@ -480,6 +482,8 @@ export default async function registerReportsRoutes(
           generation === "TERMINAL_FAILURE"
             ? classifyTerminalReason(request?.terminalReasonCode ?? null)
             : null;
+        const terminalReasonCode =
+          generation === "TERMINAL_FAILURE" ? (request?.terminalReasonCode ?? null) : null;
         return {
           reportLifecycle,
           packageLifecycle,
@@ -495,6 +499,7 @@ export default async function registerReportsRoutes(
                 : "PERMISSION_DENIED",
               operation: loaded?.actions.report.operation ?? null,
               terminalReasonClass,
+              terminalReasonCode,
               downloadable: report !== null,
             },
             verificationPackage: {
@@ -507,6 +512,7 @@ export default async function registerReportsRoutes(
                 : "PERMISSION_DENIED",
               operation: loaded?.actions.verificationPackage.operation ?? null,
               terminalReasonClass,
+              terminalReasonCode,
               downloadable: pkg !== null,
               latestAvailableVersion: loaded?.latestPackage?.version ?? pkg?.version ?? null,
             },

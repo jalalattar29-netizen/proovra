@@ -30,8 +30,9 @@ import {
 } from "../../lib/evidence/generation-labels";
 import {
   outputActionLabel,
-  outputUnavailableReasonCopy,
-  outputUnavailableReasonShort,
+  outputNoteCopy,
+  outputNoteShort,
+  outputTerminalReasonCopy,
   type OutputKind,
 } from "@proovra/shared";
 import {
@@ -1322,9 +1323,15 @@ function ArtifactRowActions({
    * integrity review, a legal hold. Short here; the full sentence is the
    * tooltip, and Evidence Detail (one click away) states it in full.
    */
-  const withheld = (["report", "verificationPackage"] as const)
-    .map((kind) => row.outputs?.[kind].actionUnavailableReason ?? null)
-    .find((reason) => outputUnavailableReasonShort(reason) !== null) ?? null;
+  const withheldOutput =
+    (["report", "verificationPackage"] as const)
+      .map((kind) => row.outputs?.[kind] ?? null)
+      .find((output) => output !== null && outputNoteShort(output) !== null) ?? null;
+  const withheld = withheldOutput
+    ? outputTerminalReasonCopy(withheldOutput.terminalReasonCode)
+      ? (withheldOutput.terminalReasonCode ?? null)
+      : (withheldOutput.actionUnavailableReason ?? null)
+    : null;
 
   return (
     <div
@@ -1443,10 +1450,10 @@ function ArtifactRowActions({
           className="app-status-badge"
           data-tone="slate"
           data-reports-action-withheld={withheld}
-          title={outputUnavailableReasonCopy(withheld) ?? undefined}
+          title={withheldOutput ? (outputNoteCopy(withheldOutput) ?? undefined) : undefined}
           style={{ opacity: 0.7 }}
         >
-          {outputUnavailableReasonShort(withheld)}
+          {withheldOutput ? outputNoteShort(withheldOutput) : null}
         </span>
       ) : null}
       {outputVerbs.map(({ kind, action }) => (

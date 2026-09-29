@@ -891,6 +891,8 @@ export {
   makeClientRequestKey,
   newVersionConsequence,
   outputActionLabel,
+  outputNoteCopy,
+  outputNoteShort,
   outputUnavailableReasonCopy,
   outputUnavailableReasonShort,
 } from "@proovra/shared";

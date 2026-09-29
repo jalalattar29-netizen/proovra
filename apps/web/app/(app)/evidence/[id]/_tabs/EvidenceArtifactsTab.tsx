@@ -33,7 +33,7 @@ import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
 import {
   NEW_VERSION_ACTION,
   outputActionLabel,
-  outputUnavailableReasonCopy,
+  outputNoteCopy,
   type OutputTerminalReasonClass,
 } from "@proovra/shared";
 import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
@@ -116,7 +116,7 @@ function OutputUnavailableNote({
   kind: OutputKind;
   output: EvidenceOutputProjection;
 }) {
-  const copy = outputUnavailableReasonCopy(output.actionUnavailableReason);
+  const copy = outputNoteCopy(output);
   if (!copy) return null;
   return (
     <p
@@ -148,7 +148,7 @@ function ArtifactLifecyclePanel({
   ctx: EvidenceDetailCtx;
   output: EvidenceOutputProjection;
 }) {
-  const reasonCopy = outputUnavailableReasonCopy(output.actionUnavailableReason);
+  const reasonCopy = outputNoteCopy(output);
   const action = (
     <>
       {/* A confirmed generation incident is said HERE, beside the control
@@ -441,7 +441,7 @@ function PackageRecoveryPanel({
   pkg: EvidenceOutputProjection;
 }) {
   if (report.state !== "READY") return null;
-  const reasonCopy = outputUnavailableReasonCopy(pkg.actionUnavailableReason);
+  const reasonCopy = outputNoteCopy(pkg);
   const inFlight = pkg.state === "QUEUED" || pkg.state === "GENERATING";
   if (!inFlight && pkg.action === "NONE" && reasonCopy === null) return null;
 

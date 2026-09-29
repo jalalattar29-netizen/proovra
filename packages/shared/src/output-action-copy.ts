@@ -210,6 +210,66 @@ export function newVersionConsequence(input: {
 }
 
 /**
+ * The worker's terminal code for "the signed original was not readable at its
+ * recorded storage location" (a store 404). Mirrors the worker constant; the
+ * worker cannot import this package's copy, and the code is the contract.
+ */
+export const ORIGINAL_NOT_READABLE_TERMINAL_CODE = "EVIDENCE_ORIGINAL_NOT_FOUND";
+
+/**
+ * THE WORDS FOR A TERMINAL REASON THAT NEEDS ITS OWN SENTENCE (2026-09-29).
+ *
+ * Copy only — it decides nothing, and it does not change the action or the
+ * reason the lifecycle resolved. A surface that holds the bounded terminal
+ * code shows this INSTEAD of the reason copy, because the reason for this
+ * code (operator escalation) comes with "Automatic retries were exhausted",
+ * which is false here: the worker stops on the first confirmed 404.
+ *
+ * It must never read as destruction or as a failed hash or signature: a 404
+ * at the recorded key means only that the bytes cannot currently be read
+ * there (a delete marker, a wrong key or bucket, or a missing object are all
+ * possible). It names nothing about storage — no key, no file name.
+ */
+export function outputTerminalReasonCopy(
+  terminalReasonCode: string | null | undefined,
+): { short: string; copy: string } | null {
+  if ((terminalReasonCode ?? "").trim().toUpperCase() !== ORIGINAL_NOT_READABLE_TERMINAL_CODE) {
+    return null;
+  }
+  return {
+    short: "Original unreadable — under operator review",
+    copy:
+      "The signed original cannot currently be read from storage. No report or package was built from replacement bytes. This has been sent for operator review; the record's fingerprint, signature and custody history are unchanged.",
+  };
+}
+
+/**
+ * The sentence (and short badge) a surface shows beside an output that offers
+ * no action: the terminal-code copy when it has one, else the reason copy.
+ * Every web, PWA and native site that used `outputUnavailableReasonCopy` /
+ * `…Short` directly reads this instead, so the two cannot disagree.
+ */
+export function outputNoteCopy(output: {
+  actionUnavailableReason?: OutputActionUnavailableReason | string | null;
+  terminalReasonCode?: string | null;
+}): string | null {
+  return (
+    outputTerminalReasonCopy(output.terminalReasonCode)?.copy ??
+    outputUnavailableReasonCopy(output.actionUnavailableReason as OutputActionUnavailableReason | null)
+  );
+}
+
+export function outputNoteShort(output: {
+  actionUnavailableReason?: OutputActionUnavailableReason | string | null;
+  terminalReasonCode?: string | null;
+}): string | null {
+  return (
+    outputTerminalReasonCopy(output.terminalReasonCode)?.short ??
+    outputUnavailableReasonShort(output.actionUnavailableReason as OutputActionUnavailableReason | null)
+  );
+}
+
+/**
  * A caller idempotency key for one explicit request. Kept for the life of
  * one confirmation, so a retry after a lost response reuses it and the server
  * returns the first request instead of creating a second version.

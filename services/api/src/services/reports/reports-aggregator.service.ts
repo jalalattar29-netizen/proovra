@@ -164,6 +164,13 @@ export type ArtifactRow = {
       /** P2-1 — why the verb was withdrawn on a state that would carry one. */
       actionUnavailableReason: OutputActionUnavailableReason | null;
       terminalReasonClass: OutputTerminalReasonClass | null;
+      /**
+       * The bounded terminal code (a worker code from a closed set, never a
+       * message), when the output is TERMINAL_FAILURE. Lets a surface name a
+       * reason whose class alone would read wrong — see
+       * `outputTerminalReasonCopy`.
+       */
+      terminalReasonCode: string | null;
       /** An artifact exists and may be opened, whatever the current request says. */
       downloadable: boolean;
       /** The server operation the offered action performs. */
@@ -174,6 +181,7 @@ export type ArtifactRow = {
       action: OutputAction;
       actionUnavailableReason: OutputActionUnavailableReason | null;
       terminalReasonClass: OutputTerminalReasonClass | null;
+      terminalReasonCode: string | null;
       /** A package PAIRED with the latest report exists. */
       downloadable: boolean;
       operation: OutputOperation | null;
@@ -891,6 +899,14 @@ export async function listWorkspaceArtifacts(input: {
           packageCanonicalState === "TERMINAL_FAILURE"
             ? classifyTerminalReason(loaded?.packageRequest?.terminalReasonCode ?? null)
             : null;
+        const reportTerminalReasonCode =
+          generation === "TERMINAL_FAILURE"
+            ? ((loaded ? loaded.reportRequest : request)?.terminalReasonCode ?? null)
+            : null;
+        const packageTerminalReasonCode =
+          packageCanonicalState === "TERMINAL_FAILURE"
+            ? (loaded?.packageRequest?.terminalReasonCode ?? null)
+            : null;
         const noAction = {
           action: "NONE" as OutputAction,
           actionUnavailableReason: "PERMISSION_DENIED" as OutputActionUnavailableReason,
@@ -945,6 +961,7 @@ export async function listWorkspaceArtifacts(input: {
                   }
                 : noAction),
               terminalReasonClass,
+              terminalReasonCode: reportTerminalReasonCode,
               downloadable: report !== null,
             },
             verificationPackage: {
@@ -960,6 +977,7 @@ export async function listWorkspaceArtifacts(input: {
                   }
                 : noAction),
               terminalReasonClass: packageTerminalReasonClass,
+              terminalReasonCode: packageTerminalReasonCode,
               downloadable: pkg !== null,
               latestAvailableVersion: loaded?.latestPackage?.version ?? pkg?.version ?? null,
             },

@@ -15,7 +15,7 @@ import {
   buildOutputRequestBody,
   buildRegeneratePath,
   outputActionLabel,
-  outputUnavailableReasonShort,
+  outputNoteShort,
   readGenerationOutcome,
 } from "../product/evidence-detail";
 import type { ArtifactRow, ReportOutputAction } from "../product/reports";
@@ -56,7 +56,12 @@ export function ReportRowAction({ row, onRequested }: { row: ArtifactRow; onRequ
     }
   };
 
-  const withheld = outputUnavailableReasonShort(row.actionWithheldReason as never);
+  // `actionWithheldReason` holds a terminal code or a reason; the note helper
+  // recognises either.
+  const withheld = outputNoteShort({
+    terminalReasonCode: row.actionWithheldReason,
+    actionUnavailableReason: row.actionWithheldReason,
+  });
   const offersNewVersion = row.newVersion?.action === "CREATE_NEW_VERSION";
   if (row.outputActions.length === 0 && !withheld && !offersNewVersion) return null;
   return (

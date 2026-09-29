@@ -1878,8 +1878,9 @@ export function originalNotFoundError(component: string): WorkerError {
   const err = createWorkerError(EVIDENCE_ORIGINAL_NOT_FOUND, false);
   err.message =
     `${EVIDENCE_ORIGINAL_NOT_FOUND}: object storage answered "not found" for ${component} ` +
-    "at its recorded location. It may be hidden by a delete marker or absent; " +
-    "no report or package was built from other bytes, and the evidence record is unchanged.";
+    "at its recorded location. This does not establish loss: a delete marker, a wrong key or " +
+    "bucket, or a missing object are all possible. No report or package was built from other " +
+    "bytes; the record, its hash and its signature are unchanged.";
   return err;
 }
 

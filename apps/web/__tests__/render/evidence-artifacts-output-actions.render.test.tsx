@@ -42,6 +42,7 @@ type Out = {
   version?: number | null;
   latestAvailableVersion?: number | null;
   attemptCount?: number | null;
+  terminalReasonCode?: string | null;
 };
 
 const output = (o: Out) => ({
@@ -195,6 +196,29 @@ describe("Evidence Artifacts — per-output actions", () => {
     expect(
       panel?.querySelector("[data-evidence-action-unavailable='ESCALATED_TO_OPERATOR']")?.textContent,
     ).toMatch(/reported to your workspace operators/);
+  });
+
+  it("an UNREADABLE ORIGINAL stops recovery with its own operator-visible sentence — never 'retries were exhausted'", () => {
+    const { container } = mount(
+      workspace({
+        report: NOT_REQUIRED,
+        pkg: {
+          state: "TERMINAL_FAILURE",
+          action: "NONE",
+          actionUnavailableReason: "ESCALATED_TO_OPERATOR",
+          terminalReasonCode: "EVIDENCE_ORIGINAL_NOT_FOUND",
+        },
+      }),
+    );
+    const panel = container.querySelector("[data-evidence-section='package-recovery']");
+    expect(panel?.querySelector("[data-evidence-action='generate-outputs']")).toBeNull();
+    const text = panel?.textContent ?? "";
+    expect(text).toContain("The signed original cannot currently be read from storage.");
+    expect(text).toContain("No report or package was built from replacement bytes.");
+    expect(text).toContain("sent for operator review");
+    expect(text).not.toMatch(/retries were exhausted/i);
+    expect(container.textContent).not.toMatch(/destroyed|tamper|integrity check failed/i);
+    expect(container.textContent).not.toMatch(/Recover|Retry/);
   });
 
   it("a package recovery in flight says the report is not changed", () => {

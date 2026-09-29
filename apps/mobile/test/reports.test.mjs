@@ -239,3 +239,26 @@ test("the package state is read where the aggregator sends it: package.state", (
   });
   assert.equal(page.items[0].packageState, "BLOCKED", "package ready/blocked could never show");
 });
+
+test("an unreadable original is named on the row, never as exhausted retries (2026-09-29)", () => {
+  const out = R.readRowOutputs({
+    report: { state: "READY", action: "NONE", actionUnavailableReason: "NOT_REQUIRED" },
+    verificationPackage: {
+      state: "TERMINAL_FAILURE",
+      action: "NONE",
+      actionUnavailableReason: "ESCALATED_TO_OPERATOR",
+      terminalReasonCode: "EVIDENCE_ORIGINAL_NOT_FOUND",
+    },
+    newVersion: { action: "NONE", reason: "PAIR_INCOMPLETE" },
+  });
+  assert.deepEqual(out.outputActions, [], "no routine Recover/Retry for an unreadable original");
+  assert.equal(out.actionWithheldReason, "EVIDENCE_ORIGINAL_NOT_FOUND");
+});
+
+test("an ordinary escalation keeps its reason on the row", () => {
+  const out = R.readRowOutputs({
+    report: { state: "READY", action: "NONE", actionUnavailableReason: "NOT_REQUIRED" },
+    verificationPackage: { state: "TERMINAL_FAILURE", action: "NONE", actionUnavailableReason: "ESCALATED_TO_OPERATOR", terminalReasonCode: "retry_budget_exhausted" },
+  });
+  assert.equal(out.actionWithheldReason, "ESCALATED_TO_OPERATOR");
+});

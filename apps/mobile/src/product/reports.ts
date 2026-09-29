@@ -22,7 +22,7 @@
  * Pure: no React, no react-native, no fetch.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
-import { outputUnavailableReasonShort } from "@proovra/shared";
+import { outputNoteShort, outputTerminalReasonCopy } from "@proovra/shared";
 import type { NewVersionOfferView } from "./evidence-record";
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -155,11 +155,24 @@ export function readRowOutputs(outputsRaw: unknown): Pick<
     const action = asAction(obj(out[output]).action);
     if (action) outputActions.push({ output, action });
   }
-  const reasons = [str(obj(out.report).actionUnavailableReason), str(obj(out.verificationPackage).actionUnavailableReason)];
+  // The first output with something to say; a terminal code with its own
+  // sentence (e.g. the original is unreadable) outranks its reason's copy.
+  const withheldOutput = [obj(out.report), obj(out.verificationPackage)]
+    .map((x) => ({
+      actionUnavailableReason: str(x.actionUnavailableReason),
+      terminalReasonCode: str(x.terminalReasonCode),
+    }))
+    .find((x) => outputNoteShort(x) !== null);
   const pollRaw = out.pollIntervalMs;
   return {
     outputActions,
-    actionWithheldReason: reasons.find((r) => outputUnavailableReasonShort(r as never) !== null) ?? null,
+    // The terminal code only when it has its own sentence; otherwise the
+    // reason, whose copy the row badge reads.
+    actionWithheldReason: withheldOutput
+      ? outputTerminalReasonCopy(withheldOutput.terminalReasonCode)
+        ? withheldOutput.terminalReasonCode
+        : withheldOutput.actionUnavailableReason
+      : null,
     // A row carries the decision only; the versions and the estimate are read
     // from the record's own status when the confirmation opens.
     newVersion: str(obj(out.newVersion).action)
