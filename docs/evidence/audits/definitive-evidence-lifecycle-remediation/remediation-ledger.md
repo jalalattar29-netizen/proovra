@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 30 |
+| FIXED_IN_THIS_TASK | 38 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 1 |
-| STILL_PRESENT | 122 |
+| STILL_PRESENT | 114 |
 
-Open by severity: P0 0 · P1 6 · P2 70 · P3 47
+Open by severity: P0 0 · P1 0 · P2 69 · P3 46
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -24,9 +24,9 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 | ET-SEC-10 | P0 | FIXED_IN_THIS_TASK | mapIntegrityHeadline: a live failure dominates and Verified requires overallIntegrity === true; both verify routes use the live trust decision when live core checks fail | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-10] |
 | ET-UPL-01 | P0 | FIXED_IN_THIS_TASK | services/api/src/services/evidence/evidence-part-writer.service.ts (writeEvidencePart / lockEvidenceForByteWrite / assertEvidenceAcceptsByteWrites) under the finalize evidence lock | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-UPL-01]; services/api/test/evidence-part-writer.integration.test.ts; services/api/test/evidence-part-writer-authority.test.ts (structural guard: exactly one writer) |
 | ET-COM-01 | P1 | FIXED_IN_THIS_TASK | stripe.provider observeSubscription stamps the provider read time; decideSubscriptionStatusWrite and isNotStale treat a future stamp as absent | 46310f906a | services/api/test/billing-subscription-status.test.ts [ET-COM-01]; services/api/test/billing-stripe-observation-ordering.test.ts |
-| ET-DC-01 | P1 | STILL_PRESENT |  |  |  |
-| ET-DC-02 | P1 | STILL_PRESENT |  |  |  |
-| ET-DC-03 | P1 | STILL_PRESENT |  |  |  |
+| ET-DC-01 | P1 | FIXED_IN_THIS_TASK | the shared evidence advisory lock (hashtext(evidenceId)): discard takes session lock then evidence lock before reading/writing; finalize claim requires deletedAt IS NULL; completion answers bound only for a session BOUND to the record | 4623ceb657 | direct-capture-discard-race (3/3 repeated runs); uc0-acquisition-capture, uc0-discard-lifecycle, uc1-web-capture |
+| ET-DC-02 | P1 | FIXED_IN_THIS_TASK | packages/shared evidence-acquisition DESCRIPTORS: no statement asserts an ordering; limitation CAPTURE_CLIENT_ATTESTED states the timing is client-reported | 5cf6512501 | packages/shared/tests/evidence-acquisition.test.mjs [ET-DC-02] |
+| ET-DC-03 | P1 | FIXED_IN_THIS_TASK | owner decision 4: resolveEvidenceAcquisition.provenanceTier (SERVER_OBSERVED_CAPTURE \| CLIENT_ATTESTED_CAPTURE \| IMPORTED_EXISTING_MEDIA); every direct channel is CLIENT_ATTESTED (no positive attestation verdict exists); carried on public Verify and the package | 5cf6512501 | packages/shared/tests/evidence-acquisition.test.mjs [ET-DC-03]; uc0/uc1 integration suites |
 | ET-INT-01 | P1 | FIXED_IN_THIS_TASK | SUBMITTED only via /submit (submitExternalIntake -> completeEvidence); /transition is a typed 410 compatibility tombstone | bb658920ff | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-01] |
 | ET-INT-02 | P1 | FIXED_IN_THIS_TASK | writeEvidencePart RETURN_EXISTING for a same-file retry of an unfinished index; submit maps missing objects to PART_NOT_UPLOADED; the intake page retries at the same index | bb658920ff, 3cb681ab88 | services/api/test/intake-part-retry.integration.test.ts |
 | ET-INT-03 | P1 | FIXED_IN_THIS_TASK | countedEvidenceRecordWhere (services/evidence/evidence-record-counting.ts): established records + reservations younger than 24h, used by admission, settlement and all billing meters | bb658920ff, 7c5c69713c | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] |
@@ -34,13 +34,13 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 | ET-INT-05 | P1 | FIXED_IN_THIS_TASK | writeEvidencePart with an INTAKE_SESSION principal (the same evidence lock finalize holds) | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-05: the intake principal is refused once the record is signed] |
 | ET-OTS-01 | P1 | FIXED_IN_THIS_TASK | enqueueCanonicalJob (packages/shared/src/queue-integrity/enqueue.ts) with selfJobId at every processor call site | 304d5c2c2a | services/worker/test/ots-followup-selfjobid.test.ts; services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-01 contract] |
 | ET-OTS-02 | P1 | FIXED_IN_THIS_TASK | enqueueCanonicalJob treats the derived id (selfFollowUpJobId) like the base id: joins it only while live, releases it otherwise | 304d5c2c2a | services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-02: 8 of 8 hops]; phase-12-point5-queue-integrity-gate.test.ts ET-OTS-02 unit cases |
-| ET-PKG-01 | P1 | STILL_PRESENT |  |  |  |
-| ET-PKG-02 | P1 | STILL_PRESENT |  |  |  |
+| ET-PKG-01 | P1 | FIXED_IN_THIS_TASK | report-v2/normalizers packageCustodyEntry: payload verbatim + presentationPayload beside it; README states the canonical-JSON SHA-256 recomputation | 2f5c18a5f3 | services/worker/test/package-custody-recompute.test.ts (independent README-formula recomputation of every exported event); custody-capture-presentation.test.ts |
+| ET-PKG-02 | P1 | FIXED_IN_THIS_TASK | verification_packages.seal_signing_key_sha256 + seal_sha256 written from the seal the worker signed; Basic Verify package.sealKeyFingerprint + package.packageSha256; README step 2c | 9ae43300d1 | services/api/test/public-verify-package-seal-identity.integration.test.ts; apps/web render test [ET-PKG-02]; services/worker/test/package-readme-seal-instructions.test.ts |
 | ET-SEC-03 | P1 | FIXED_IN_THIS_TASK | resolveEvidenceRecordAccess / evaluateMemberAccess (access-policy): read gate delegates with evidence.read; the byte-release gate asks for the exact download capability | 0699e33419 | services/api/test/stale-authority.integration.test.ts [ET-SEC-03 x2]; artifact-action-contract.integration.test.ts (suspended organization -> 404) |
 | ET-SEC-04 | P1 | FIXED_IN_THIS_TASK | resolveCaseRecordAccess (case-permission.service): current workspace authority first; case owner / CaseAccess only narrow it; personal-scope cases owner-only | 0699e33419 | services/api/test/stale-authority.integration.test.ts [ET-SEC-04]; byte-release-authority.integration.test.ts (CaseAccess on a personal record grants nothing); phase-32-8-d-cases-reports.test.ts |
 | ET-SEC-05 | P1 | FIXED_IN_THIS_TASK | canonical engine first; creator / OWNER / ADMIN only after current authority passes | 0699e33419 | services/api/test/stale-authority.integration.test.ts [ET-SEC-05] |
 | ET-SEC-06 | P1 | FIXED_IN_THIS_TASK | applyEvidenceLifecycleAction write step under the evidence lock refuses a decided claim (DESTRUCTION_IN_PROGRESS) | 8babf130d1 | services/api/test/legal-hold-destruction-serialization.integration.test.ts [ET-SEC-06: restore is refused while the executor holds a decided claim] |
-| ET-SEC-07 | P1 | STILL_PRESENT |  |  |  |
+| ET-SEC-07 | P1 | FIXED_IN_THIS_TASK | relationship-summary.service sameRelationshipWorkspace (same Team, or same owner for a personal record): enforced in createEvidenceRelationship, applied as a scope filter in listEvidenceRelationships | 86ce81e64b | services/api/test/evidence-relationship-scope.integration.test.ts; bounded-domain-errors / runtime-proof relationship suites |
 | ET-TSA-01 | P1 | FIXED_IN_THIS_TASK | services/api/src/services/timestamp/validate-tsa-token.ts validateTsaToken (openssl ts -verify -queryfile -CAfile <env anchor> -attime genTime + accepted policy); presentedTsaStatus (packages/shared) is the one read-side reading | d263f4f61f | services/api/test/tsa-token-validation.test.ts (13 cases); services/api/test/tsa-finalize-persistence.integration.test.ts (trusted STAMPED+validated, forged FAILED); services/api/test/public-verify-tsa-missing-imprint.integration.test.ts (validated -> verified, legacy -> TOKEN_RECORDED_NOT_VALIDATED); packages/shared/tests/verification-claim-consistency.test.mjs |
 | ET-TSA-03 | P1 | FIXED_IN_THIS_TASK | TimestampResult.messageImprint = parsed token imprint; requestDigestHex = digest sent; compareTimestampDigest only answers for a presented (validated) STAMPED | d263f4f61f | services/api/test/tsa-token-validation.test.ts; services/api/test/tsa-finalize-persistence.integration.test.ts [token imprint beside request digest]; services/api/test/public-verify-tsa-missing-imprint.integration.test.ts [legacy token: timestampDigestMatches null]; phase-ia-digest-policy.test.ts [ET-TSA-03] |
 | ET-ACQ-01 | P2 | STILL_PRESENT |  |  |  |
@@ -77,7 +77,7 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 | ET-INT-14 | P2 | FIXED_IN_THIS_TASK | writeEvidencePart refuses a soft-deleted record as not found | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-14: a soft-deleted in-progress record is not found, never reused] |
 | ET-OTS-03 | P2 | FIXED_IN_THIS_TASK | runOtsInitializationReconciler second scan (pendingWithoutProgressWhere + isOtsUpgradeScheduled over both ladder ids): re-schedule once, never a parallel ladder | 304d5c2c2a, 7c5c69713c | services/worker/test/ots-pending-recovery.integration.test.ts (live PostgreSQL + loopback Redis) |
 | ET-OTS-04 | P2 | STILL_PRESENT |  |  |  |
-| ET-PKG-03 | P2 | STILL_PRESENT |  |  |  |
+| ET-PKG-03 | P2 | FIXED_IN_THIS_TASK | verification-package buildReadme: sealed packages verified by the seal (a-e) incl. key fingerprint vs Public Verify; unsealed packages state what the manifest signature cannot show | 9ae43300d1 | services/worker/test/package-readme-seal-instructions.test.ts |
 | ET-PKG-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-05 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-06 | P2 | STILL_PRESENT |  |  |  |
@@ -135,7 +135,7 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 | ET-OTS-07 | P3 | STILL_PRESENT |  |  |  |
 | ET-PKG-09 | P3 | STILL_PRESENT |  |  |  |
 | ET-PKG-11 | P3 | STILL_PRESENT |  |  |  |
-| ET-PKG-12 | P3 | STILL_PRESENT |  |  |  |
+| ET-PKG-12 | P3 | FIXED_IN_THIS_TASK | BasicVerification.report.sha256 (the latest report's pdfSha256) | 9ae43300d1 | public-verify-package-seal-identity.integration.test.ts [report.sha256] |
 | ET-PKG-13 | P3 | STILL_PRESENT |  |  |  |
 | ET-PKG-14 | P3 | STILL_PRESENT |  |  |  |
 | ET-PKG-15 | P3 | STILL_PRESENT |  |  |  |
@@ -276,6 +276,50 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 - **productFiles:** `services/api/src/services/billing/reconciliation/reconciliation.service.ts`, `services/api/src/services/billing/reconciliation/stripe.provider.ts`, `services/api/src/services/billing/subscription-status.ts`
 - **commits:** 46310f906a fix(commercial): provider ordering uses read time; future stamps never block events
 
+## ET-DC-01 — Discard racing direct-capture completion signs a soft-deleted record, writes DELETED-then-SIGNED custody, and answers bound:true
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Discard serialized only on the capture-session lock while finalization held the evidence lock; the finalize claim lacked deletedAt, and a lost bind claim still answered bound:true.
+- **canonicalAuthority:** the shared evidence advisory lock (hashtext(evidenceId)): discard takes session lock then evidence lock before reading/writing; finalize claim requires deletedAt IS NULL; completion answers bound only for a session BOUND to the record
+- **redTest:** services/api/test/direct-capture-discard-race.integration.test.ts (gated object read holds finalization; red: discard answered 500 DATABASE_ERROR — evidence/dc01-red-baseline.txt)
+- **greenTest:** direct-capture-discard-race (3/3 repeated runs); uc0-acquisition-capture, uc0-discard-lifecycle, uc1-web-capture
+- **concurrencyTest:** direct-capture-discard-race: discard issued while finalization holds the evidence lock mid-hash
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/evidence-complete.service.ts`
+- **commits:** 4623ceb657 fix(capture): discard is serialized with finalization of the reserved record (ET-DC-01)
+
+## ET-DC-02 — Acquisition statement says the capture session was 'started before the capture'; UC-1 and UC-2 open it after the capture and the server never checks
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Acquisition statements asserted the session was 'started before the capture'; UC-1 and UC-2 open it after the capture and the server never checks.
+- **canonicalAuthority:** packages/shared evidence-acquisition DESCRIPTORS: no statement asserts an ordering; limitation CAPTURE_CLIENT_ATTESTED states the timing is client-reported
+- **redTest:** evidence/dc02-dc03-red-baseline.txt (prior resolver asserted the ordering for three modes)
+- **greenTest:** packages/shared/tests/evidence-acquisition.test.mjs [ET-DC-02]
+- **migrationImpact:** none
+- **compatibilityImpact:** statement and label text for direct-capture modes changed on every surface that renders the acquisition projection
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/(app)/evidence/[id]/review-workspace-types.ts`, `packages/shared-runtime/src/capture-trust/public-acquisition.ts`, `packages/shared/src/evidence-acquisition.ts`, `services/worker/src/verification-package.ts`
+- **commits:** 5cf6512501 fix(acquisition): provenance tiers; direct capture is client-attested, never an ordering claim (ET-DC-02, ET-DC-03)
+
+## ET-DC-03 — 'Direct capture' provenance (e.g. 'PROOVRA's own adapter produced the bytes') is selected by the caller's mode string with no client proof
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Direct-capture provenance ('PROOVRA captured ... directly') followed the caller's mode string with no client proof.
+- **canonicalAuthority:** owner decision 4: resolveEvidenceAcquisition.provenanceTier (SERVER_OBSERVED_CAPTURE \| CLIENT_ATTESTED_CAPTURE \| IMPORTED_EXISTING_MEDIA); every direct channel is CLIENT_ATTESTED (no positive attestation verdict exists); carried on public Verify and the package
+- **redTest:** evidence/dc02-dc03-red-baseline.txt (no tier; statements asserted PROOVRA captured the bytes)
+- **greenTest:** packages/shared/tests/evidence-acquisition.test.mjs [ET-DC-03]; uc0/uc1 integration suites
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **remainingExternalProof:** SERVER_OBSERVED_CAPTURE becomes reachable only with a real platform attestation provider (Play Integrity / App Attest), not available locally
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/(app)/evidence/[id]/review-workspace-types.ts`, `packages/shared-runtime/src/capture-trust/public-acquisition.ts`, `packages/shared/src/evidence-acquisition.ts`, `services/worker/src/verification-package.ts`
+- **commits:** 5cf6512501 fix(acquisition): provenance tiers; direct capture is client-attested, never an ordering claim (ET-DC-02, ET-DC-03)
+
 ## ET-INT-01 — Public /transition lets a token holder mark an intake session SUBMITTED without finalizing: link use is consumed, one-time link expires, Evidence stays CREATED
 
 - **severity:** P1
@@ -378,6 +422,35 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 - **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
 - **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered
 
+## ET-PKG-01 — Package custody.json payloads are rewritten after hashing, so the included hash chain cannot be recomputed (reads as tampered)
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The processor replaced each custody payload with its presentation copy before export, so custody.json could not recompute; the README gave no formula.
+- **canonicalAuthority:** report-v2/normalizers packageCustodyEntry: payload verbatim + presentationPayload beside it; README states the canonical-JSON SHA-256 recomputation
+- **obsoleteRemoved:** payload: normalizeCustodyEventPayloadForPresentation(...) in the package custody export
+- **redTest:** services/worker/test/package-custody-recompute.test.ts [contrast: the prior export does not recompute] (evidence/pkg01-red-baseline.txt)
+- **greenTest:** services/worker/test/package-custody-recompute.test.ts (independent README-formula recomputation of every exported event); custody-capture-presentation.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** custody.json/forensic-custody.json payloads now show stored values (e.g. MULTIPART_PACKAGE); the relabelled copy is in presentationPayload
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/verification-package.ts`
+- **commits:** 2f5c18a5f3 fix(package): custody.json carries each payload as hashed; README states the formula (ET-PKG-01)
+
+## ET-PKG-02 — Package seal/manifest signing key is only self-asserted inside the ZIP; PROOVRA publishes no fingerprint, yet UI and seal docs claim a bound, checkable seal
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The seal key travelled only inside the ZIP and PROOVRA published no fingerprint, while Verify called the package sealed.
+- **canonicalAuthority:** verification_packages.seal_signing_key_sha256 + seal_sha256 written from the seal the worker signed; Basic Verify package.sealKeyFingerprint + package.packageSha256; README step 2c
+- **redTest:** public-verify-package-seal-identity.integration.test.ts (columns and fields did not exist on the prior tree; the page asserted 'sealed' unconditionally)
+- **greenTest:** services/api/test/public-verify-package-seal-identity.integration.test.ts; apps/web render test [ET-PKG-02]; services/worker/test/package-readme-seal-instructions.test.ts
+- **migrationImpact:** additive 20280803000000_verification_package_seal_identity (2 nullable verification_packages columns; EXPAND, SAFE_TO_APPLY_NOW; registered in curation, deployment plan, drift allowlist, inventory)
+- **compatibilityImpact:** packages issued before the migration show 'no key recorded' instead of a bare 'sealed'
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
+- **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
+
 ## ET-SEC-03 — Legacy read gate and the byte-release gate's membership lookup ignore access expiry and organization lifecycle: expired members and members of SUSPENDED/ARCHIVED organizations can read, write collaboration content and download originals/reports/packages
 
 - **severity:** P1
@@ -438,6 +511,22 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
+
+## ET-SEC-07 — Evidence relationships link records across workspaces; target metadata leaks to the source workspace's readers
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The relationship route accepted any target the caller could read, so a user in two workspaces linked them and every source-workspace reader saw the target's title, status and case.
+- **canonicalAuthority:** relationship-summary.service sameRelationshipWorkspace (same Team, or same owner for a personal record): enforced in createEvidenceRelationship, applied as a scope filter in listEvidenceRelationships
+- **obsoleteRemoved:** teamId: evidence.teamId ?? target.teamId fallback on the route
+- **redTest:** services/api/test/evidence-relationship-scope.integration.test.ts (red: cross-workspace link 201 and target title listed; evidence/sec07-red-baseline.txt)
+- **greenTest:** services/api/test/evidence-relationship-scope.integration.test.ts; bounded-domain-errors / runtime-proof relationship suites
+- **negativeAuthTests:** dual-workspace member refused with anti-enumeration 404; pre-existing cross-workspace row hidden from the source workspace
+- **migrationImpact:** none
+- **compatibilityImpact:** existing cross-workspace relationship rows remain stored but are no longer listed
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence-review/relationship-summary.service.ts`
+- **commits:** 86ce81e64b fix(evidence): relationships never cross a workspace boundary (ET-SEC-07)
 
 ## ET-TSA-01 — RFC3161 responses are accepted as STAMPED without signature, certificate-chain, trust-anchor, nonce or policy validation
 
@@ -512,6 +601,19 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 - **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
 - **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered; 7c5c69713c fix(anchoring): OTS recovery measures "no progress" from the last write, not creation
 
+## ET-PKG-03 — README HOW TO VERIFY ignores the format-5 seal and points recipients at the manifest signature that does not cover the report or checksum index
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** HOW TO VERIFY ignored the format-5 seal, step 6 was vague, the OTS hint named no digest, and the certification template claimed platform-independent verification.
+- **canonicalAuthority:** verification-package buildReadme: sealed packages verified by the seal (a-e) incl. key fingerprint vs Public Verify; unsealed packages state what the manifest signature cannot show
+- **greenTest:** services/worker/test/package-readme-seal-instructions.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
+- **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
+
 ## ET-SEC-12 — Archive/trash/restore/unarchive are check-then-write: read + hold evaluation outside the transaction, write by id only, no lock
 
 - **severity:** P2
@@ -580,6 +682,19 @@ Open by severity: P0 0 · P1 6 · P2 70 · P3 47
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
 - **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
+
+## ET-PKG-12 — BASIC verify says a report copy "can be checked" via its recorded digest, but no digest is returned
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Basic Verify said a report copy 'can be checked' via its recorded digest but returned only a boolean.
+- **canonicalAuthority:** BasicVerification.report.sha256 (the latest report's pdfSha256)
+- **greenTest:** public-verify-package-seal-identity.integration.test.ts [report.sha256]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
+- **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
 
 ## ET-TSA-07 — TSA failure classifier substring-matches the full execFile error (argv incl. URL and user:password, digest, temp path); real timeouts are never classified as timeouts
 

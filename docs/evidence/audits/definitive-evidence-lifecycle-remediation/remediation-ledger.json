@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 30,
+    "FIXED_IN_THIS_TASK": 38,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 1,
-    "STILL_PRESENT": 122,
+    "STILL_PRESENT": 114,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -17,21 +17,14 @@
     "conservationHolds": true,
     "openBySeverity": {
       "P0": 0,
-      "P1": 6,
-      "P2": 70,
-      "P3": 47
+      "P1": 0,
+      "P2": 69,
+      "P3": 46
     }
   },
   "openIds": {
     "P0": [],
-    "P1": [
-      "ET-DC-01",
-      "ET-DC-02",
-      "ET-DC-03",
-      "ET-PKG-01",
-      "ET-PKG-02",
-      "ET-SEC-07"
-    ],
+    "P1": [],
     "P2": [
       "ET-ACQ-01",
       "ET-ACQ-02",
@@ -65,7 +58,6 @@
       "ET-INT-12",
       "ET-INT-13",
       "ET-OTS-04",
-      "ET-PKG-03",
       "ET-PKG-04",
       "ET-PKG-05",
       "ET-PKG-06",
@@ -120,7 +112,6 @@
       "ET-OTS-07",
       "ET-PKG-09",
       "ET-PKG-11",
-      "ET-PKG-12",
       "ET-PKG-13",
       "ET-PKG-14",
       "ET-PKG-15",
@@ -586,20 +577,25 @@
         "services/api/src/services/evidence-complete.service.ts:1098",
         "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:844"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Two different advisory-lock keys guard the same record; the finalize claim predicate omits deletedAt.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Discard serialized only on the capture-session lock while finalization held the evidence lock; the finalize claim lacked deletedAt, and a lost bind claim still answered bound:true.",
+      "canonicalAuthority": "the shared evidence advisory lock (hashtext(evidenceId)): discard takes session lock then evidence lock before reading/writing; finalize claim requires deletedAt IS NULL; completion answers bound only for a session BOUND to the record",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/evidence-complete.service.ts"
+      ],
+      "redTest": "services/api/test/direct-capture-discard-race.integration.test.ts (gated object read holds finalization; red: discard answered 500 DATABASE_ERROR — evidence/dc01-red-baseline.txt)",
+      "greenTest": "direct-capture-discard-race (3/3 repeated runs); uc0-acquisition-capture, uc0-discard-lifecycle, uc1-web-capture",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "direct-capture-discard-race: discard issued while finalization holds the evidence lock mid-hash",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "4623ceb657 fix(capture): discard is serialized with finalization of the reserved record (ET-DC-01)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-02",
@@ -611,20 +607,27 @@
         "apps/extension/src/background.ts:48",
         "apps/mobile/src/screen-capture.ts:126"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Statement written for the mobile path and reused for modes that do not satisfy it.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Acquisition statements asserted the session was 'started before the capture'; UC-1 and UC-2 open it after the capture and the server never checks.",
+      "canonicalAuthority": "packages/shared evidence-acquisition DESCRIPTORS: no statement asserts an ordering; limitation CAPTURE_CLIENT_ATTESTED states the timing is client-reported",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/(app)/evidence/[id]/review-workspace-types.ts",
+        "packages/shared-runtime/src/capture-trust/public-acquisition.ts",
+        "packages/shared/src/evidence-acquisition.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "redTest": "evidence/dc02-dc03-red-baseline.txt (prior resolver asserted the ordering for three modes)",
+      "greenTest": "packages/shared/tests/evidence-acquisition.test.mjs [ET-DC-02]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "statement and label text for direct-capture modes changed on every surface that renders the acquisition projection",
+      "commits": [
+        "5cf6512501 fix(acquisition): provenance tiers; direct capture is client-attested, never an ordering claim (ET-DC-02, ET-DC-03)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-03",
@@ -635,20 +638,27 @@
         "services/api/src/routes/capture-trust.routes.ts:157",
         "packages/shared/src/evidence-acquisition.ts:253"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Mode is a caller-supplied enum; no binding between token audience/device and mode.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Direct-capture provenance ('PROOVRA captured ... directly') followed the caller's mode string with no client proof.",
+      "canonicalAuthority": "owner decision 4: resolveEvidenceAcquisition.provenanceTier (SERVER_OBSERVED_CAPTURE | CLIENT_ATTESTED_CAPTURE | IMPORTED_EXISTING_MEDIA); every direct channel is CLIENT_ATTESTED (no positive attestation verdict exists); carried on public Verify and the package",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/(app)/evidence/[id]/review-workspace-types.ts",
+        "packages/shared-runtime/src/capture-trust/public-acquisition.ts",
+        "packages/shared/src/evidence-acquisition.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "redTest": "evidence/dc02-dc03-red-baseline.txt (no tier; statements asserted PROOVRA captured the bytes)",
+      "greenTest": "packages/shared/tests/evidence-acquisition.test.mjs [ET-DC-03]; uc0/uc1 integration suites",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
-      "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "commits": [
+        "5cf6512501 fix(acquisition): provenance tiers; direct capture is client-attested, never an ordering claim (ET-DC-02, ET-DC-03)"
+      ],
+      "remainingExternalProof": "SERVER_OBSERVED_CAPTURE becomes reachable only with a real platform attestation provider (Play Integrity / App Attest), not available locally",
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-INT-01",
@@ -949,20 +959,26 @@
         "packages/shared/src/custody-hash.ts:55",
         "services/worker/src/verification-package.ts:2062"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Role-safe relabelling applied to the forensic export instead of only to display surfaces.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The processor replaced each custody payload with its presentation copy before export, so custody.json could not recompute; the README gave no formula.",
+      "canonicalAuthority": "report-v2/normalizers packageCustodyEntry: payload verbatim + presentationPayload beside it; README states the canonical-JSON SHA-256 recomputation",
+      "obsoleteRemoved": "payload: normalizeCustodyEventPayloadForPresentation(...) in the package custody export",
+      "productFiles": [
+        "services/worker/src/processor.ts",
+        "services/worker/src/report-v2/normalizers.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "redTest": "services/worker/test/package-custody-recompute.test.ts [contrast: the prior export does not recompute] (evidence/pkg01-red-baseline.txt)",
+      "greenTest": "services/worker/test/package-custody-recompute.test.ts (independent README-formula recomputation of every exported event); custody-capture-presentation.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "custody.json/forensic-custody.json payloads now show stored values (e.g. MULTIPART_PACKAGE); the relabelled copy is in presentationPayload",
+      "commits": [
+        "2f5c18a5f3 fix(package): custody.json carries each payload as hashed; README states the formula (ET-PKG-01)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-02",
@@ -976,20 +992,32 @@
         "apps/web/app/verify/[token]/BasicVerificationView.tsx:152",
         "services/api/src/routes/evidence.routes.ts:13707"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Seal designed with an external trust-anchor step that was never implemented on Public Verify.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The seal key travelled only inside the ZIP and PROOVRA published no fingerprint, while Verify called the package sealed.",
+      "canonicalAuthority": "verification_packages.seal_signing_key_sha256 + seal_sha256 written from the seal the worker signed; Basic Verify package.sealKeyFingerprint + package.packageSha256; README step 2c",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/mobile/src/ui/basic-verification-view.tsx",
+        "apps/web/app/verify/[token]/BasicVerificationView.tsx",
+        "packages/shared/src/basic-verification.ts",
+        "packages/shared/src/package-seal.ts",
+        "services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/worker/src/processor.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "redTest": "public-verify-package-seal-identity.integration.test.ts (columns and fields did not exist on the prior tree; the page asserted 'sealed' unconditionally)",
+      "greenTest": "services/api/test/public-verify-package-seal-identity.integration.test.ts; apps/web render test [ET-PKG-02]; services/worker/test/package-readme-seal-instructions.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "migrationImpact": "additive 20280803000000_verification_package_seal_identity (2 nullable verification_packages columns; EXPAND, SAFE_TO_APPLY_NOW; registered in curation, deployment plan, drift allowlist, inventory)",
+      "compatibilityImpact": "packages issued before the migration show 'no key recorded' instead of a bare 'sealed'",
+      "commits": [
+        "9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-03",
@@ -1163,20 +1191,25 @@
         "services/api/src/routes/evidence.routes.ts:8405",
         "services/api/src/routes/evidence.routes.ts:8413"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The relationship route authorizes source and target independently and never applies the evaluateCrossTeamAttach equality used for case links; the listing does not re-authorize the target per viewer.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
-      "negativeAuthTests": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The relationship route accepted any target the caller could read, so a user in two workspaces linked them and every source-workspace reader saw the target's title, status and case.",
+      "canonicalAuthority": "relationship-summary.service sameRelationshipWorkspace (same Team, or same owner for a personal record): enforced in createEvidenceRelationship, applied as a scope filter in listEvidenceRelationships",
+      "obsoleteRemoved": "teamId: evidence.teamId ?? target.teamId fallback on the route",
+      "productFiles": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-review/relationship-summary.service.ts"
+      ],
+      "redTest": "services/api/test/evidence-relationship-scope.integration.test.ts (red: cross-workspace link 201 and target title listed; evidence/sec07-red-baseline.txt)",
+      "greenTest": "services/api/test/evidence-relationship-scope.integration.test.ts; bounded-domain-errors / runtime-proof relationship suites",
+      "negativeAuthTests": "dual-workspace member refused with anti-enumeration 404; pre-existing cross-workspace row hidden from the source workspace",
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "existing cross-workspace relationship rows remain stored but are no longer listed",
+      "commits": [
+        "86ce81e64b fix(evidence): relationships never cross a workspace boundary (ET-SEC-07)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-TSA-01",
@@ -2204,20 +2237,32 @@
         "services/worker/src/verification-package.ts:2318",
         "services/worker/src/verification-package.ts:887"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Format 5 added without updating buildReadme.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "HOW TO VERIFY ignored the format-5 seal, step 6 was vague, the OTS hint named no digest, and the certification template claimed platform-independent verification.",
+      "canonicalAuthority": "verification-package buildReadme: sealed packages verified by the seal (a-e) incl. key fingerprint vs Public Verify; unsealed packages state what the manifest signature cannot show",
       "obsoleteRemoved": null,
-      "productFiles": [],
+      "productFiles": [
+        "apps/mobile/src/ui/basic-verification-view.tsx",
+        "apps/web/app/verify/[token]/BasicVerificationView.tsx",
+        "packages/shared/src/basic-verification.ts",
+        "packages/shared/src/package-seal.ts",
+        "services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/worker/src/processor.ts",
+        "services/worker/src/verification-package.ts"
+      ],
       "redTest": null,
-      "greenTest": null,
+      "greenTest": "services/worker/test/package-readme-seal-instructions.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-04",
@@ -3822,20 +3867,32 @@
         "apps/web/app/verify/[token]/BasicVerificationView.tsx:142",
         "packages/shared/src/basic-verification.ts:231"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Data minimization over-applied vs copy.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Basic Verify said a report copy 'can be checked' via its recorded digest but returned only a boolean.",
+      "canonicalAuthority": "BasicVerification.report.sha256 (the latest report's pdfSha256)",
       "obsoleteRemoved": null,
-      "productFiles": [],
+      "productFiles": [
+        "apps/mobile/src/ui/basic-verification-view.tsx",
+        "apps/web/app/verify/[token]/BasicVerificationView.tsx",
+        "packages/shared/src/basic-verification.ts",
+        "packages/shared/src/package-seal.ts",
+        "services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql",
+        "services/api/prisma/schema.prisma",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/worker/src/processor.ts",
+        "services/worker/src/verification-package.ts"
+      ],
       "redTest": null,
-      "greenTest": null,
+      "greenTest": "public-verify-package-seal-identity.integration.test.ts [report.sha256]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-13",
