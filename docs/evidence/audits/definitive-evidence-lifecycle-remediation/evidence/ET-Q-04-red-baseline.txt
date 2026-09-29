@@ -1,0 +1,7 @@
+ET-Q-04 red baseline — point5/family-redaction.integration.test.ts (ET-Q-04 cases) against HEAD redaction-derivative-writer.ts + processor
+   × POINT 5 FAMILY — redaction (live PostgreSQL 16) > ET-Q-04: a RENDERING claim past its lease is recovered by the reconciler and taken over by the claim 30ms
+     → expected [ …(7) ] to include '6b6df606-df38-4465-9bd5-0af372dd45ec'
+   × POINT 5 FAMILY — redaction (live PostgreSQL 16) > ET-Q-04: a transient failure gives the claim back so the retry can render 21ms
+     → writer.releaseDerivativeClaim is not a function
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 12 passed (14)

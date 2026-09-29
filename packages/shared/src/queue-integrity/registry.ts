@@ -174,7 +174,9 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
       from: "QUEUED",
       to: "RENDERING",
       mechanism: "conditional_update_many",
-      leaseField: "renderStartedAtUtc",
+      // RedactionDerivative.renderStartedAt — the column the claim writes and the
+      // lease (ET-Q-04) reads; renderStartedAtUtc is a legacy column nothing writes.
+      leaseField: "renderStartedAt",
       leaseMs: 20 * 60 * 1000,
     },
     terminalWriter: "services/worker/src/redaction/redaction-derivative-writer.ts",
@@ -782,7 +784,9 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
       from: "QUEUED",
       to: "QUEUED",
       mechanism: "conditional_update_many",
-      leaseField: "renderStartedAtUtc",
+      // RedactionDerivative.renderStartedAt — the column the claim writes and the
+      // lease (ET-Q-04) reads; renderStartedAtUtc is a legacy column nothing writes.
+      leaseField: "renderStartedAt",
       leaseMs: 20 * 60 * 1000,
     },
     terminalWriter: "services/worker/src/redaction/redaction-derivative-writer.ts",

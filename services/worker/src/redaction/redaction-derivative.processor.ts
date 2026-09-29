@@ -35,6 +35,8 @@ import { logger } from "../logger.js";
 import { getObjectRange, putObjectBuffer } from "../storage.js";
 import {
   claimDerivativeForRender,
+  REDACTION_RENDER_LEASE_MS,
+  releaseDerivativeClaim,
   markDerivativeFailedWorker,
   markDerivativeReadyWorker,
 } from "./redaction-derivative-writer.js";
@@ -258,6 +260,9 @@ export async function processRedactionDerivativeJob(
     // Transient storage/connectivity problems → throw for BullMQ retry;
     // everything else fails closed against the row.
     if (/ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|5\d\d|SlowDown|InternalError/i.test(msg)) {
+      // ET-Q-04 — give the claim back first, or the retry finds RENDERING,
+      // loses the claim and completes as a no-op, stranding the row.
+      await releaseDerivativeClaim(derivativeId);
       throw err;
     }
     await fail("renderer_failed", msg.slice(0, 300));
@@ -382,8 +387,16 @@ export async function reconcileStrandedRedactionDerivatives(input: {
   enqueue: (payload: RedactionDerivativeJobPayload) => Promise<{ enqueued: boolean }>;
 }): Promise<{ scanned: number; reenqueued: number }> {
   const cutoff = new Date(Date.now() - (input.olderThanMs ?? 5 * 60_000));
+  // ET-Q-04 — stranded QUEUED rows AND RENDERING rows whose lease expired
+  // (a crashed holder); the claim takes the latter over.
+  const leaseExpired = new Date(Date.now() - REDACTION_RENDER_LEASE_MS);
   const stranded = await prisma.redactionDerivative.findMany({
-    where: { state: "QUEUED", updatedAt: { lt: cutoff } },
+    where: {
+      OR: [
+        { state: "QUEUED", updatedAt: { lt: cutoff } },
+        { state: "RENDERING", renderStartedAt: { lt: leaseExpired } },
+      ],
+    },
     select: { id: true },
     take: Math.min(input.batchSize ?? 100, 500),
     orderBy: { updatedAt: "asc" },

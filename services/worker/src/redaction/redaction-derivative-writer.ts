@@ -19,7 +19,20 @@
  *   - Every transition appends a redaction activity row (operator timeline).
  */
 
+import { getWorkEntryOrThrow, JOB_NAMES } from "@proovra/shared";
+
 import { prisma } from "../db.js";
+
+/**
+ * ET-Q-04 — THE RENDER LEASE the registry declares (20 minutes), now enforced.
+ *
+ * A RENDERING row whose worker crashed, or whose transient failure rethrew for
+ * a BullMQ retry, used to stay RENDERING forever: the retry's claim required
+ * QUEUED, the reconciler scanned QUEUED, the API re-request resets only
+ * FAILED/PENDING, and versionId is unique so no new derivative could be made.
+ */
+export const REDACTION_RENDER_LEASE_MS =
+  getWorkEntryOrThrow(JOB_NAMES.RENDER_REDACTION_DERIVATIVE).claim?.leaseMs ?? 20 * 60 * 1000;
 
 export async function claimDerivativeForRender(
   derivativeId: string,
@@ -32,15 +45,36 @@ export async function claimDerivativeForRender(
     select: { id: true, teamId: true, versionId: true, state: true },
   });
   if (!row) return { claimed: false, reason: "not_found" };
+  // QUEUED, or a RENDERING claim whose lease expired (its holder is gone).
+  const now = new Date();
   const res = await prisma.redactionDerivative.updateMany({
-    where: { id: derivativeId, state: "QUEUED" },
-    data: { state: "RENDERING", renderStartedAt: new Date() },
+    where: {
+      id: derivativeId,
+      OR: [
+        { state: "QUEUED" },
+        { state: "RENDERING", renderStartedAt: { lt: new Date(now.getTime() - REDACTION_RENDER_LEASE_MS) } },
+      ],
+    },
+    data: { state: "RENDERING", renderStartedAt: now },
   });
   if (res.count !== 1) return { claimed: false, reason: "not_queued" };
   await emitActivity(row.teamId, row.versionId, "DERIVATIVE_RENDER_STARTED", {
     derivativeId,
   });
   return { claimed: true, teamId: row.teamId, versionId: row.versionId };
+}
+
+/**
+ * ET-Q-04 — give a claim back after a TRANSIENT failure, so the BullMQ retry
+ * (which follows within seconds, long before the lease) can claim it again.
+ * Conditional on still holding RENDERING; never touches READY/FAILED.
+ */
+export async function releaseDerivativeClaim(derivativeId: string): Promise<boolean> {
+  const res = await prisma.redactionDerivative.updateMany({
+    where: { id: derivativeId, state: "RENDERING" },
+    data: { state: "QUEUED", renderStartedAt: null },
+  });
+  return res.count === 1;
 }
 
 export async function markDerivativeReadyWorker(input: {

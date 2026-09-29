@@ -187,7 +187,7 @@ describe("POINT 5 FAMILY — redaction (live PostgreSQL 16)", () => {
     async claimFreshly(rowId) {
       await prisma.redactionDerivative.update({
         where: { id: rowId },
-        data: { state: "RENDERING", renderStartedAtUtc: new Date() },
+        data: { state: "RENDERING", renderStartedAt: new Date() },
       });
     },
     async countInWorkspace(teamId) {
@@ -372,7 +372,7 @@ describe("POINT 5 FAMILY — redaction (live PostgreSQL 16)", () => {
     // worker that is already making progress.
     await prisma.redactionDerivative.update({
       where: { id: stranded },
-      data: { state: "RENDERING", renderStartedAtUtc: new Date() },
+      data: { state: "RENDERING", renderStartedAt: new Date() },
     });
     const secondPass: string[] = [];
     await processor.reconcileStrandedRedactionDerivatives({
@@ -390,6 +390,58 @@ describe("POINT 5 FAMILY — redaction (live PostgreSQL 16)", () => {
       "redaction.recon.idempotency.duplicate_is_noop",
       "redaction.recon.claim.active_not_stolen",
     );
+  });
+
+  // ===========================================================================
+  // ET-Q-04 — the 20-minute render lease is enforced
+  // ===========================================================================
+
+  it("ET-Q-04: a RENDERING claim past its lease is recovered by the reconciler and taken over by the claim", async () => {
+    const writer = await import("../../../worker/src/redaction/redaction-derivative-writer.js");
+    const stale = await seedDerivative({
+      teamId: own.teamId,
+      fixture: own,
+      state: "RENDERING",
+      // Past the registry's 20-minute render lease.
+      overrides: { renderStartedAt: new Date(Date.now() - 21 * 60_000) },
+    });
+    const fresh = await seedDerivative({
+      teamId: own.teamId,
+      fixture: own,
+      state: "RENDERING",
+      overrides: { renderStartedAt: new Date() },
+    });
+    const listed: string[] = [];
+    await processor.reconcileStrandedRedactionDerivatives({
+      olderThanMs: 5 * 60_000,
+      batchSize: 500,
+      enqueue: async (p) => {
+        listed.push(p.derivativeId);
+        return { enqueued: true };
+      },
+    });
+    expect(listed).toContain(stale);
+    expect(listed, "a live claim is not stolen").not.toContain(fresh);
+    expect(await writer.claimDerivativeForRender(stale)).toMatchObject({ claimed: true });
+    expect(await writer.claimDerivativeForRender(fresh)).toEqual({ claimed: false, reason: "not_queued" });
+  });
+
+  it("ET-Q-04: a transient failure gives the claim back so the retry can render", async () => {
+    const writer = await import("../../../worker/src/redaction/redaction-derivative-writer.js");
+    const id = await seedDerivative({ teamId: own.teamId, fixture: own, state: "QUEUED" });
+    expect(await writer.claimDerivativeForRender(id)).toMatchObject({ claimed: true });
+    expect(await writer.releaseDerivativeClaim(id)).toBe(true);
+    const row = await prisma.redactionDerivative.findUniqueOrThrow({ where: { id }, select: { state: true } });
+    expect(row.state).toBe("QUEUED");
+    // …and the retry claims it again.
+    expect(await writer.claimDerivativeForRender(id)).toMatchObject({ claimed: true });
+    // A terminal row is never released.
+    const done = await seedDerivative({ teamId: own.teamId, fixture: own, state: "READY" });
+    expect(await writer.releaseDerivativeClaim(done)).toBe(false);
+    // The processor's transient branch releases before rethrowing.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../../../worker/src/redaction/redaction-derivative.processor.ts", import.meta.url), "utf8");
+    expect(src).toMatch(/await releaseDerivativeClaim\(derivativeId\);\s*throw err;/);
   });
 
   it("the reconciler never reopens a terminal derivative", async () => {
