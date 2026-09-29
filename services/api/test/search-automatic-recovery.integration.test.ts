@@ -39,6 +39,8 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { quiesceSearchDriftOutside } from "./support/search-drift-isolation.js";
+
 import type { IntegrationHarness } from "./integration-harness.js";
 
 describe("Search automatic recovery (live PostgreSQL 16)", () => {
@@ -110,6 +112,9 @@ describe("Search automatic recovery (live PostgreSQL 16)", () => {
   });
 
   beforeEach(async () => {
+    // The tick is global; earlier suites' drifting workspaces are not this
+    // suite's population (see support/search-drift-isolation.ts).
+    await quiesceSearchDriftOutside(prisma as never, [A.teamId, B.teamId]);
     await prisma.governanceReconciliationRun.deleteMany({ where: { kind: KIND } });
     // Every case decides for itself what the queue holds. A job left behind by
     // a previous case would be evidence this one never produced.

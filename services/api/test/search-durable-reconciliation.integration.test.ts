@@ -31,6 +31,8 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { quiesceSearchDriftOutside } from "./support/search-drift-isolation.js";
+
 import type { IntegrationHarness } from "./integration-harness.js";
 
 /** How long a RUNNING row may hold the slot before it is treated as crashed. */
@@ -77,6 +79,9 @@ describe("Search durable reconciliation (live PostgreSQL 16)", () => {
   });
 
   beforeEach(async () => {
+    // The tick is global; earlier suites' drifting workspaces are not this
+    // suite's population (see support/search-drift-isolation.ts).
+    await quiesceSearchDriftOutside(prisma as never, [A.teamId, B.teamId]);
     // Every case starts from no run history for either workspace, so a
     // "latest run" assertion can never be satisfied by a previous case's row.
     await prisma.governanceReconciliationRun.deleteMany({
