@@ -239,14 +239,17 @@ export async function runIntelligenceRunReconciler(
     // still queued collapses onto it rather than being scheduled twice.
     const embedFloor = new Date(Date.now() - EMBED_OWED_MIN_AGE_MS);
     const embedCeiling = new Date(Date.now() - EMBED_OWED_MAX_AGE_MS);
-    const owed = await prisma.evidenceSemanticChunk.findMany({
-      where: {
-        embedding: null,
-        createdAt: { lte: embedFloor, gte: embedCeiling },
-      },
-      select: { id: true },
-      orderBy: { createdAt: "asc" },
-      take: batchSize,
+    // ET-Q-10 — "owed" is the column mi-embed WRITES: `embedding_vector`
+    // (pgvector, invisible to Prisma's typed client, hence raw SQL). The legacy
+    // `embedding` bytes column is written by nothing, so every chunk in the
+    // window read as owed forever. And only a workspace whose AI policy allows
+    // embeddings owes one: mi-embed drains a disallowed workspace's job without
+    // embedding, so selecting its chunks re-enqueued them every tick and
+    // crowded genuinely owed chunks out of the batch.
+    const owed = await selectChunksOwingEmbedding({
+      floor: embedFloor,
+      ceiling: embedCeiling,
+      limit: batchSize,
     });
     result.embedChunksOwed = owed.length;
 
@@ -288,6 +291,40 @@ export async function runIntelligenceRunReconciler(
 
   result.durationMs = Date.now() - startedAt;
   return result;
+}
+
+/**
+ * ET-Q-10 — chunks that genuinely owe an embedding: no `embedding_vector`,
+ * inside the age window, in a workspace whose AI policy allows embeddings.
+ * Oldest first. An environment without the pgvector column (not migrated)
+ * owes nothing this reconciler can deliver, and answers empty.
+ */
+export async function selectChunksOwingEmbedding(input: {
+  floor: Date;
+  ceiling: Date;
+  limit: number;
+}): Promise<Array<{ id: string }>> {
+  try {
+    return await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT c.id::text AS id
+        FROM evidence_semantic_chunks c
+        JOIN workspace_ai_policies p ON p.team_id = c.team_id
+       WHERE c.embedding_vector IS NULL
+         AND c.created_at <= ${input.floor}
+         AND c.created_at >= ${input.ceiling}
+         AND p.ai_enabled
+         AND p.semantic_search_enabled
+         AND p.embeddings_allowed
+       ORDER BY c.created_at ASC
+       LIMIT ${input.limit}
+    `;
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+      "worker.intelligence_run.embed_owed_unavailable",
+    );
+    return [];
+  }
 }
 
 /**
