@@ -23,6 +23,9 @@ import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { caseVisibleToWhere } from "../services/cases/case-visibility.js";
+import { enforceSensitiveAction } from "../services/governance.service.js";
+import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
@@ -119,10 +122,20 @@ async function requireCaseActor(
   req: FastifyRequest,
   reply: FastifyReply,
   caseId: string,
-): Promise<{ userId: string; teamId: string; exposePii: boolean } | null> {
+): Promise<{ userId: string; teamId: string; exposePii: boolean; role: string | null } | null> {
   const userId = getAuthUserId(req);
-  const c = await prisma.case.findUnique({
-    where: { id: caseId },
+  /*
+   * THE RESTRICTED-CASE RULE APPLIES HERE TOO (2026-09-29, audit H1).
+   *
+   * Every SIU route — including the export, which bundles each record's report
+   * and verification package (and so its original bytes) — authorized any
+   * ACTIVE workspace member with identity.member.read, ignoring the case's
+   * access list. A case with an access list is now visible only to its owner
+   * and the people on the list, by the same predicate Reports and exchange
+   * use; any other caller gets the same 404 as a missing case.
+   */
+  const c = await prisma.case.findFirst({
+    where: { id: caseId, ...caseVisibleToWhere(userId) },
     select: { id: true, teamId: true, ownerUserId: true },
   });
   if (!c) {
@@ -140,7 +153,7 @@ async function requireCaseActor(
   }
   const member = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId: c.teamId, userId } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, role: true },
   });
   if (!member) {
     reply.code(404).send({ error: { code: "not_found" } });
@@ -169,7 +182,7 @@ async function requireCaseActor(
   // fields by default. Future phases can wire this to a dedicated
   // capability.
   const exposePii = c.ownerUserId === userId;
-  return { userId, teamId: c.teamId, exposePii };
+  return { userId, teamId: c.teamId, exposePii, role: member.role ? String(member.role) : null };
 }
 
 export async function siuRoutes(app: FastifyInstance) {
@@ -644,6 +657,46 @@ export async function siuRoutes(app: FastifyInstance) {
             code: "siu_export_warning_reason_required",
             preflight,
           },
+        });
+      }
+      /*
+       * THE PACKAGE-DOWNLOAD POLICY APPLIES TO A PACKAGE IN A BUNDLE
+       * (2026-09-29, audit H1). The bundle carries each record's verification
+       * package; a record whose package the workspace governance refuses to
+       * release on its own download route must not leave inside a bundle.
+       * Any refusal withholds the whole export, with a count — never a
+       * bundle that silently drops or includes it.
+       */
+      const scope = await workspaceEvidenceWhere(ctx.teamId, prisma);
+      const caseEvidence = await prisma.evidence.findMany({
+        where: { caseLinks: { some: { caseId: params.id } }, AND: [scope], deletedAt: null },
+        select: { id: true, teamId: true, retentionUntilUtc: true },
+      });
+      let withheld = 0;
+      for (const ev of caseEvidence) {
+        const decision = await enforceSensitiveAction("download_package", {
+          teamId: ev.teamId,
+          role: ctx.role as never,
+          evidence: { id: ev.id, teamId: ev.teamId, retentionUntilUtc: ev.retentionUntilUtc ?? null },
+          consultTemplatePolicy: true,
+        });
+        if (!decision.allowed) withheld++;
+      }
+      if (withheld > 0) {
+        await emitTenantAudit({
+          action: "siu_export_blocked",
+          outcome: "denied",
+          severity: "warning",
+          sourceApp: "API",
+          actorUserId: ctx.userId,
+          workspaceId: ctx.teamId,
+          resourceType: "case",
+          resourceId: params.id,
+          correlationId: req.id ?? null,
+          metadata: { teamId: ctx.teamId, withheldByPolicy: withheld },
+        }).catch(() => {});
+        return reply.code(403).send({
+          error: { code: "siu_export_blocked_by_policy", withheldRecords: withheld },
         });
       }
       const profile = await loadSiuProfile({

@@ -134,6 +134,10 @@ async function buildSiuExportBundleInner(
     where: {
       caseLinks: { some: { caseId: input.caseId } },
       AND: [scope],
+      // (2026-09-29, audit H1) Never a trashed, destruction-bound or
+      // destroyed record's report and package in an export bundle.
+      deletedAt: null,
+      lifecycleState: { notIn: ["TRASHED", "PENDING_DESTRUCTION", "DESTROYED"] },
     },
     select: {
       id: true,
