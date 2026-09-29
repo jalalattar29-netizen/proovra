@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1308
-ROUTE_ATTRIBUTED_REACHABLE                  1170
+TerminalWriters                             1305
+ROUTE_ATTRIBUTED_REACHABLE                  1167
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -522,3 +522,17 @@ git index            UNTOUCHED — 127 staged entries, exactly as found
 node scripts/point7-run.mjs
 node services/api/scripts/audit/index.mjs --closure-check
 ```
+
+### 2026-09-29 — EVIDENCE-LIFECYCLE REMEDIATION B1: ONE EvidencePart WRITER (writers 1308 -> 1306)
+
+- ET-UPL-01: the three `evidencePart.create` call sites (parts route, external
+  intake, upload-session bridge) collapse into
+  `services/evidence/evidence-part-writer.service.ts` (`writeEvidencePart`).
+- TerminalWriters 1308 -> 1306, ROUTE_ATTRIBUTED_REACHABLE 1170 -> 1168: two
+  route-reachable direct writers are gone; the canonical writer is reached
+  through the same routes.
+
+### 2026-09-29 — EVIDENCE-LIFECYCLE REMEDIATION P0: DETACH NEVER CHANGES OWNERSHIP (writers 1306 -> 1305)
+
+- ET-SEC-02: the case-detach "return to the personal pool" `evidence.update({ teamId: null })`
+  is deleted (Invariant C). TerminalWriters 1306 -> 1305, ROUTE_ATTRIBUTED_REACHABLE 1168 -> 1167.

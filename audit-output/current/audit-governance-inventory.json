@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 388,
+    "AuditFilesInventoried": 389,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 236
+    "ProductBehaviorTestsInventoried": 237
   },
   "reportRoles": {
     "counts": {
@@ -158,7 +158,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 236,
+    "PRODUCT_BEHAVIOR_TEST": 237,
     "CONTINUATION_CHECKPOINT": 1,
     "DOMAIN_AUTHORITY": 70,
     "GENERATED_CURRENT_ARTIFACT": 3,
@@ -3529,6 +3529,21 @@
     },
     {
       "path": "services/api/test/docker-apk-install-authority.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/evidence-part-writer-authority.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
