@@ -57,6 +57,12 @@ const seam = vi.hoisted(() => ({
    * baseline lands in.
    */
   packageVerifyHook: null as null | ((key: string) => Promise<void>),
+  /**
+   * ET-SM-02 — runs once at the HEAD that verifies a just-published REPORT
+   * (after the PUT, before the commit transaction): the window in which a
+   * concurrent integrity rejection, trash or destruction lands.
+   */
+  reportPublishedHook: null as null | ((key: string) => Promise<void>),
 }));
 
 vi.mock("../../../worker/src/verification-package.js", async (importOriginal) => {
@@ -147,6 +153,11 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
         if (key.startsWith("reports/") && seam.reportHeadFailures > 0) {
           seam.reportHeadFailures -= 1;
           throw new Error("ACC_REPORT_HEAD_FAILED");
+        }
+        if (key.startsWith("reports/") && seam.reportPublishedHook) {
+          const hook = seam.reportPublishedHook;
+          seam.reportPublishedHook = null;
+          await hook(key);
         }
         if (key.startsWith("verification/") && seam.packageVerifyHook) {
           const hook = seam.packageVerifyHook;
@@ -274,6 +285,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     seam.evidenceReadFailures = 0;
     seam.evidenceReadGate = null;
     seam.packageVerifyHook = null;
+    seam.reportPublishedHook = null;
   });
 
   /** A fresh SIGNED record in workspace A with its original in storage. */
@@ -404,6 +416,36 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   // -------------------------------------------------------------------------
   // AUDIT-A
   // -------------------------------------------------------------------------
+  it("ET-SM-02: an integrity rejection that lands while the PDF renders is never overwritten by REPORTED", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    const id = await request({ evidenceId, teamId });
+    seam.reportPublishedHook = async () => {
+      await prisma.evidence.update({ where: { id: evidenceId }, data: { status: "FAILED_HASH_MISMATCH" } as never });
+    };
+    expect(await run(id, 0), "the commit must refuse").toBeTruthy();
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } });
+    expect(ev.status).toBe("FAILED_HASH_MISMATCH");
+    const after = await state(evidenceId, id);
+    expect(after.reports, "no report row commits").toEqual([]);
+    expect(after.req!.state).toBe("FAILED_TERMINAL");
+    expect(after.req!.terminalReasonCode).toBe("REPORT_EVIDENCE_STATE_CHANGED");
+  });
+
+  it("ET-SM-02: a record trashed while the PDF renders gets no report", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    const id = await request({ evidenceId, teamId });
+    seam.reportPublishedHook = async () => {
+      await prisma.evidence.update({
+        where: { id: evidenceId },
+        data: { lifecycleState: "TRASHED", deletedAt: new Date() } as never,
+      });
+    };
+    expect(await run(id, 0)).toBeTruthy();
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } });
+    expect(ev.status).toBe("SIGNED");
+    expect((await state(evidenceId, id)).reports).toEqual([]);
+  });
+
   it("AUDIT-A: the retry after a package failure builds the package for the SAME report version", async () => {
     const { evidenceId, teamId } = await signedEvidence();
     const tsaBefore = await tsaColumns(evidenceId);

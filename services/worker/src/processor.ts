@@ -3316,6 +3316,26 @@ async function loadCommittedReportForPackage(params: {
  * exists), a pair already complete, or a run that lost the race to another
  * issuance each named the newest report as their result.
  */
+/**
+ * ET-SM-02 — the states a record may be in for a report to COMMIT: signed or
+ * already reported, not trashed, not destroyed or pending destruction.
+ */
+const REPORTABLE_AT_COMMIT_WHERE: Prisma.EvidenceWhereInput = {
+  status: { in: [EvidenceStatus.SIGNED, EvidenceStatus.REPORTED] },
+  deletedAt: null,
+  lifecycleState: { notIn: ["DESTROYED", "PENDING_DESTRUCTION", "TRASHED"] },
+};
+
+function isReportableAtCommit(e: { status: string; deletedAt: Date | null; lifecycleState: string | null }): boolean {
+  return (
+    (e.status === EvidenceStatus.SIGNED || e.status === EvidenceStatus.REPORTED) &&
+    e.deletedAt === null &&
+    e.lifecycleState !== "DESTROYED" &&
+    e.lifecycleState !== "PENDING_DESTRUCTION" &&
+    e.lifecycleState !== "TRASHED"
+  );
+}
+
 export type ReportRunResult =
   | { outcome: "generated"; reportVersion: number }
   | { outcome: "package_built"; reportVersion: number }
@@ -3994,6 +4014,21 @@ async function runReportGeneration(
               throw createWorkerError("REPORT_RESERVATION_LOST_RETRY", true);
             }
 
+            // ET-SM-02 — the record may have moved while the PDF rendered and
+            // published outside any lock (seconds to minutes): an integrity
+            // rejection (FAILED_HASH_MISMATCH), trash, or destruction. Status
+            // was validated only at reservation, and the commit then wrote
+            // REPORTED unconditionally over whatever the record had become.
+            // Re-read under the lock; refuse (terminal) unless it is still
+            // reportable. The published object stays an unreferenced orphan.
+            const live = await tx.evidence.findUnique({
+              where: { id: prepared.evidenceId },
+              select: { status: true, deletedAt: true, lifecycleState: true },
+            });
+            if (!live || !isReportableAtCommit(live)) {
+              throw createWorkerError("REPORT_EVIDENCE_STATE_CHANGED", false);
+            }
+
             // Phase C #5 — distinct event type for the worker-time identity
             // re-snapshot (REPORT_IDENTITY_CONTEXT_RECORDED, not the intake-time
             // IDENTITY_SNAPSHOT_RECORDED).
@@ -4049,8 +4084,8 @@ async function runReportGeneration(
               } as Prisma.InputJsonValue,
             });
 
-            await tx.evidence.update({
-              where: { id: prepared.evidenceId },
+            const committed = await tx.evidence.updateMany({
+              where: { id: prepared.evidenceId, ...REPORTABLE_AT_COMMIT_WHERE },
               data: {
                 status: EvidenceStatus.REPORTED,
                 verificationStatus: effectiveVerificationStatus,
@@ -4082,6 +4117,9 @@ async function runReportGeneration(
                   effectiveIdentitySnapshot.reviewerSummaryVersion,
               },
             });
+            if (committed.count !== 1) {
+              throw createWorkerError("REPORT_EVIDENCE_STATE_CHANGED", false);
+            }
 
             await appendCustodyEventTx(tx, {
               evidenceId: prepared.evidenceId,
