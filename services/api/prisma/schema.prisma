@@ -253,6 +253,14 @@ model Evidence {
   template        EvidenceWorkflowTemplate? @relation("EvidenceTemplate", fields: [templateDbId], references: [id], onDelete: SetNull)
 
   tsaFailureReason  String?   @map("tsa_failure_reason")
+  /// ET-TSA-01: set only when the token was validated (signature, chain to the
+  /// environment's trust anchor, signer validity at genTime, imprint, nonce,
+  /// policy). A STAMPED row without it is "recorded, not validated".
+  tsaValidatedAtUtc   DateTime? @map("tsa_validated_at_utc") @db.Timestamptz(6)
+  tsaSignerCertSha256 String?   @map("tsa_signer_cert_sha256") @db.VarChar(64)
+  tsaPolicyOid        String?   @map("tsa_policy_oid") @db.VarChar(80)
+  /// ET-TSA-06: bounded failure code (provider vs rejection vs invalid token).
+  tsaFailureCode      String?   @map("tsa_failure_code") @db.VarChar(64)
   tsaGenTimeUtc     DateTime? @map("tsa_gen_time_utc") @db.Timestamptz(6)
   tsaHashAlgorithm  String?   @map("tsa_hash_algorithm") @db.VarChar(32)
   tsaMessageImprint String?   @map("tsa_message_imprint") @db.VarChar(128)

@@ -87,4 +87,21 @@ describe("Basic Verify — honest 'not checked'", () => {
     );
     expect(container.textContent).toMatch(/imprint matches the recorded digest/);
   });
+
+  it("ET-TSA-01: a validated token says PROOVRA validated it; a legacy token says it was not validated", () => {
+    const validated = render(
+      <BasicVerificationView data={data({ timestamp: { state: "verified", basis: "TOKEN_VALIDATED", tokenTimeUtc: AT } })} />,
+    );
+    expect(validated.container.textContent).toMatch(/PROOVRA validated the authority's signature and certificate chain/);
+    cleanup();
+    const legacy = render(
+      <BasicVerificationView
+        data={data({ timestamp: { state: "not_checked", basis: "TOKEN_RECORDED_NOT_VALIDATED", tokenTimeUtc: AT } })}
+      />,
+    );
+    const text = legacy.container.textContent ?? "";
+    expect(text).toMatch(/has not been validated since/);
+    expect(text).not.toMatch(/imprint matches the recorded digest/);
+    expect(text).not.toMatch(/validated the authority's signature/);
+  });
 });

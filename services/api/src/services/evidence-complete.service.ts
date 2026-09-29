@@ -1055,11 +1055,10 @@ const captureMethod =
         //                         (i.e. what the request asked the TSA to
         //                         certify). ALWAYS persisted when a TSA
         //                         request was made — STAMPED or FAILED.
-        //                         On STAMPED, this equals the imprint the
-        //                         response certifies (we verified
-        //                         imprintMatchesRequest before persisting).
-        //                         On FAILED, this records what we asked
-        //                         for, so triage knows the digest target.
+        //   tsaMessageImprint   = the imprint READ FROM THE TOKEN (ET-TSA-03,
+        //                         2026-09-29). It used to be the digest we
+        //                         sent, so every read-side "imprint matches"
+        //                         check compared a value with itself.
         //
         //   tsaInputKind        = the shape label for that request digest
         //                         (FILE_SHA256 or CANONICAL_PACKAGE_SHA256).
@@ -1071,11 +1070,16 @@ const captureMethod =
         // TSA never ran — that intent is preserved: on rows with no
         // tsaResult (TSA disabled / not configured) both columns remain
         // null, because there was no request to record.
-        tsaInputDigestHex: tsaResult ? tsaResult.messageImprint : null,
+        tsaInputDigestHex: tsaResult ? tsaResult.requestDigestHex : null,
         tsaInputKind: tsaResult ? tsaInputKind : null,
         tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
         tsaStatus: tsaResult?.status ?? null,
         tsaFailureReason: tsaResult?.failureReason ?? null,
+        // ET-TSA-01 / ET-TSA-06: validation facts and the bounded failure code.
+        tsaFailureCode: tsaResult?.failureCode ?? null,
+        tsaValidatedAtUtc: tsaResult?.validatedAtUtc ?? null,
+        tsaSignerCertSha256: tsaResult?.signerCertSha256 ?? null,
+        tsaPolicyOid: tsaResult?.policyOid ?? null,
       } satisfies prismaPkg.Prisma.EvidenceUpdateManyMutationInput;
 
       /*
@@ -1177,7 +1181,7 @@ const captureMethod =
           // Phase IA-digest-policy-hard-invariant — always record what we
           // sent + its label, regardless of STAMPED/FAILED outcome. The
           // chain stays self-describing for triage.
-          tsaInputDigestHex: tsaResult ? tsaResult.messageImprint : null,
+          tsaInputDigestHex: tsaResult ? tsaResult.requestDigestHex : null,
           tsaInputKind: tsaResult ? tsaInputKind : null,
           tsaHashAlgorithm: tsaResult?.hashAlgorithm ?? null,
           tsaStatus: tsaResult?.status ?? null,
@@ -1199,11 +1203,14 @@ const captureMethod =
             tsaSerialNumber: tsaResult.serialNumber,
             tsaGenTimeUtc: tsaResult.genTimeUtc?.toISOString() ?? null,
             tsaMessageImprint: tsaResult.messageImprint,
-            tsaInputDigestHex: tsaResult.messageImprint,
+            tsaInputDigestHex: tsaResult.requestDigestHex,
             tsaInputKind,
             tsaHashAlgorithm: tsaResult.hashAlgorithm,
             tsaStatus: tsaResult.status,
             tsaFailureReason: tsaResult.failureReason,
+            // ET-TSA-01/06: the validation fact and the bounded failure code.
+            tsaFailureCode: tsaResult.failureCode,
+            tsaValidatedAtUtc: tsaResult.validatedAtUtc?.toISOString() ?? null,
             // Phase IA-digest-policy-hard-invariant — surface soft
             // parser issues for STAMPED rows so operators can see "the
             // timestamp landed but our parser missed the serial" without

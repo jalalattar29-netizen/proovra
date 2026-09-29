@@ -17,6 +17,7 @@ import {
   compareTimestampDigest,
   otsClaimBadge,
   parseOtsAnchorClaim,
+  presentedTsaStatus,
   resolveOtsAnchorClaim,
 } from "../dist/index.js";
 
@@ -61,9 +62,41 @@ test("D10 → Basic Verify: an unknown imprint reads not_checked with its own ba
   assert.equal(unknown.timestamp.basis, "TOKEN_RECORDED_IMPRINT_NOT_COMPARED");
   assert.equal(unknown.original.state, "verified", "the original's own checks stand independently");
   const matches = buildBasicVerification({ ...base, tsaImprintMatches: true });
-  assert.equal(matches.timestamp.basis, "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED");
+  // ET-TSA-01: presented STAMPED means the token was VALIDATED at issuance.
+  assert.equal(matches.timestamp.state, "verified");
+  assert.equal(matches.timestamp.basis, "TOKEN_VALIDATED");
   const mismatch = buildBasicVerification({ ...base, tsaImprintMatches: false });
   assert.equal(mismatch.timestamp.state, "failed");
+});
+
+test("ET-TSA-01: a kept token that was never validated is not_checked, never verified", () => {
+  assert.equal(presentedTsaStatus({ tsaStatus: "STAMPED", tsaValidatedAtUtc: null }), "RECORDED_NOT_VALIDATED");
+  assert.equal(presentedTsaStatus({ tsaStatus: "STAMPED", tsaValidatedAtUtc: AT }), "STAMPED");
+  assert.equal(presentedTsaStatus({ tsaStatus: "FAILED", tsaValidatedAtUtc: null }), "FAILED");
+  assert.equal(presentedTsaStatus({ tsaStatus: null }), null);
+  const legacy = buildBasicVerification({
+    now: new Date("2026-09-29T00:00:00Z"),
+    integrity: { fingerprintMatches: true, signatureValid: true, custodyChainValid: true },
+    fileSha256: D,
+    fingerprintHash: D,
+    capturedAtUtc: null,
+    signedAtUtc: AT,
+    tsaStatus: "RECORDED_NOT_VALIDATED",
+    tsaImprintMatches: null,
+    tsaGenTimeUtc: AT,
+    otsStatus: null,
+    otsAnchoredAtUtc: null,
+    otsBitcoinTxid: null,
+    latestReport: null,
+    pairedPackage: null,
+  });
+  assert.equal(legacy.timestamp.state, "not_checked");
+  assert.equal(legacy.timestamp.basis, "TOKEN_RECORDED_NOT_VALIDATED");
+  // The comparison is never positive for an unvalidated token.
+  assert.equal(
+    compareTimestampDigest({ tsaStatus: "RECORDED_NOT_VALIDATED", tsaMessageImprint: D, tsaInputDigestHex: D, fileSha256: D }),
+    null,
+  );
 });
 
 test("D8: one badge per claim — green only when the chain was checked", () => {

@@ -41,7 +41,7 @@ describe("public Verify — TSA imprint comparison (live PostgreSQL 16, real HTT
     await harness?.cleanup();
   });
 
-  async function signedRecord(tsa: { tsaMessageImprint: string | null }) {
+  async function signedRecord(tsa: { tsaMessageImprint: string | null; validated?: boolean }) {
     const { teamId } = harness.fixtures.teamA;
     const team = await prisma.team.findUniqueOrThrow({
       where: { id: teamId },
@@ -78,6 +78,8 @@ describe("public Verify — TSA imprint comparison (live PostgreSQL 16, real HTT
         tsaGenTimeUtc: new Date(),
         tsaInputDigestHex: fileSha256,
         tsaMessageImprint: tsa.tsaMessageImprint === "SAME" ? fileSha256 : tsa.tsaMessageImprint,
+        // ET-TSA-01: fixtures are VALIDATED tokens unless a case says otherwise.
+        tsaValidatedAtUtc: tsa.validated === false ? null : new Date(),
       } as never,
     });
     return { id: row.id, fileSha256 };
@@ -111,13 +113,26 @@ describe("public Verify — TSA imprint comparison (live PostgreSQL 16, real HTT
     expect(JSON.stringify(body)).not.toMatch(/digest mismatch was detected/i);
   });
 
-  it("a matching imprint reads not_checked on the imprint-matches basis", async () => {
+  it("ET-TSA-01: a VALIDATED token whose imprint matches reads verified on the token-validated basis", async () => {
     const { id } = await signedRecord({ tsaMessageImprint: "SAME" });
     const body = await verify(id);
     expect(body.basicVerification.timestamp).toMatchObject({
-      state: "not_checked",
-      basis: "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED",
+      state: "verified",
+      basis: "TOKEN_VALIDATED",
     });
+  });
+
+  it("ET-TSA-01: a legacy STAMPED token that was never validated is recorded-not-validated, never a trusted timestamp", async () => {
+    const { id } = await signedRecord({ tsaMessageImprint: "SAME", validated: false });
+    const body = await verify(id);
+    expect(body.basicVerification.timestamp).toMatchObject({
+      state: "not_checked",
+      basis: "TOKEN_RECORDED_NOT_VALIDATED",
+    });
+    // ET-TSA-03: no "imprint matches" claim is made for an unvalidated token.
+    if (body.integrityProof) expect(body.integrityProof.timestampDigestMatches ?? null).toBeNull();
+    expect(JSON.stringify(body)).not.toContain('"STAMPED"');
+    expect(JSON.stringify(body)).toContain("RECORDED_NOT_VALIDATED");
   });
 
   it("a REAL imprint mismatch still fails", async () => {

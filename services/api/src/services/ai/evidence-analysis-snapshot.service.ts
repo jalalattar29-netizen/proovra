@@ -24,7 +24,7 @@ import {
   type EvidenceAnalysisContext,
   type EvidenceAnalysisFacts,
 } from "@proovra/shared-runtime";
-import { resolveEvidenceAcquisition } from "@proovra/shared";
+import { presentedTsaStatus, resolveEvidenceAcquisition } from "@proovra/shared";
 
 import { prisma } from "../../db.js";
 
@@ -52,6 +52,7 @@ export const EVIDENCE_ANALYSIS_SELECT = {
   acquisitionMode: true,
   acquisitionModeSource: true,
   tsaStatus: true,
+  tsaValidatedAtUtc: true,
   otsStatus: true,
   createdAt: true,
   lifecycleState: true,
@@ -133,7 +134,8 @@ export function evidenceAnalysisFacts(row: EvidenceAnalysisRow): EvidenceAnalysi
       acquisitionMode: row.acquisitionMode,
       acquisitionModeSource: row.acquisitionModeSource,
     }).label,
-    tsaStatus: row.tsaStatus,
+    // ET-TSA-01: the AI is never told an unvalidated token is STAMPED.
+    tsaStatus: presentedTsaStatus(row),
     otsStatus: row.otsStatus,
     createdAtUtc: row.createdAt,
     partCount: row._count.parts,

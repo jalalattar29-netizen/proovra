@@ -1,0 +1,208 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mD:/pv-evidence-remediation/services/api[39m
+
+ [31m❯[39m test/tsa-token-validation.test.ts [2m([22m[2m12 tests[22m[2m | [22m[31m11 failed[39m[2m)[22m[33m 3292[2mms[22m[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma token from the trusted authority is STAMPED and VALIDATED, with the token's own imprint[39m[32m 102[2mms[22m[39m
+[31m     → expected undefined to be an instance of Date[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma FORGED self-signed token is FAILED (untrusted chain), token kept for triage[39m[32m 101[2mms[22m[39m
+[31m     → expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma token signed by an EXPIRED signer certificate is FAILED[39m[32m 80[2mms[22m[39m
+[31m     → expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma genuine token for a DIFFERENT digest is FAILED as an imprint mismatch, with the token's imprint recorded[39m[32m 97[2mms[22m[39m
+[31m     → expected '5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5…' to be 'ababababababababababababababababababa…' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma genuine token answering a DIFFERENT nonce (replay) is FAILED[39m[32m 139[2mms[22m[39m
+[31m     → expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma token whose signature bytes were altered is FAILED[39m[32m 85[2mms[22m[39m
+[31m     → expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22mET-TSA-02: a GRANTED status with NO token is FAILED, never STAMPED[39m[32m 58[2mms[22m[39m
+[31m     → expected 'tsa_provider_http_error' to be 'tsa_token_missing' // Object.is equality[39m
+   [32m✓[39m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma rejection is FAILED as not granted (distinct from provider unavailability)[32m 59[2mms[22m[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22ma policy outside TSA_ACCEPTED_POLICY_OIDS is FAILED[39m[32m 98[2mms[22m[39m
+[31m     → expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22mfails CLOSED when no trust anchor is configured (token kept so it can be validated later)[39m[32m 79[2mms[22m[39m
+[31m     → expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22mowner decision 5: a TEST trust anchor is refused in Production[39m[32m 79[2mms[22m[39m
+[31m     → expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+[31m   [31m×[31m TSA token validation (locally minted authority, loopback HTTP)[2m > [22mET-TSA-07: an unreachable provider is classified without echoing credentials[39m[33m 2084[2mms[22m[39m
+[31m     → expected 'tsa_unknown_error' to be 'tsa_provider_unreachable' // Object.is equality[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 11 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22ma token from the trusted authority is STAMPED and VALIDATED, with the token's own imprint
+[31m[1mAssertionError[22m: expected undefined to be an instance of Date[39m
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m83:30[22m[39m
+    [90m 81| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"STAMPED"[39m)[33m;[39m
+    [90m 82| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m 83| [39m    [34mexpect[39m(r[33m.[39mvalidatedAtUtc)[33m.[39m[34mtoBeInstanceOf[39m([33mDate[39m)[33m;[39m
+    [90m   | [39m                             [31m^[39m
+    [90m 84| [39m    [34mexpect[39m(r[33m.[39msignerCertSha256)[33m.[39m[34mtoMatch[39m([36m/^[0-9a-f]{64}$/[39m)[33m;[39m
+    [90m 85| [39m    [34mexpect[39m(r[33m.[39mpolicyOid)[33m.[39m[34mtoBe[39m([33mLOCAL_TSA_DEFAULT_POLICY[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22ma FORGED self-signed token is FAILED (untrusted chain), token kept for triage
+[31m[1mAssertionError[22m: expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+
+Expected: [32m"[7mFAIL[27mED"[39m
+Received: [31m"[7mSTAMP[27mED"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m96:22[22m[39m
+    [90m 94| [39m    tsa[33m.[39mmode [33m=[39m [32m"forged"[39m[33m;[39m
+    [90m 95| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m 96| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m 97| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_token_untrusted"[39m)[33m;[39m
+    [90m 98| [39m    [34mexpect[39m(r[33m.[39mvalidatedAtUtc)[33m.[39m[34mtoBeNull[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22ma token signed by an EXPIRED signer certificate is FAILED
+[31m[1mAssertionError[22m: expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+
+Expected: [32m"[7mFAIL[27mED"[39m
+Received: [31m"[7mSTAMP[27mED"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m106:22[22m[39m
+    [90m104| [39m    tsa[33m.[39mmode [33m=[39m [32m"expired_signer"[39m[33m;[39m
+    [90m105| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m106| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m107| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_token_untrusted"[39m)[33m;[39m
+    [90m108| [39m  }[33m,[39m [34m30_000[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22ma genuine token for a DIFFERENT digest is FAILED as an imprint mismatch, with the token's imprint recorded
+[31m[1mAssertionError[22m: expected '5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5…' to be 'ababababababababababababababababababa…' // Object.is equality[39m
+
+Expected: [32m"abababababababababababababababababababababababababababababababab"[39m
+Received: [31m"5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m116:30[22m[39m
+    [90m114| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m115| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_message_imprint_mismatch"[39m)[33m;[39m
+    [90m116| [39m    [34mexpect[39m(r[33m.[39mmessageImprint)[33m.[39m[34mtoBe[39m([32m"ab"[39m[33m.[39m[34mrepeat[39m([34m32[39m))[33m;[39m
+    [90m   | [39m                             [31m^[39m
+    [90m117| [39m    [34mexpect[39m(r[33m.[39mrequestDigestHex)[33m.[39m[34mtoBe[39m([33mDIGEST[39m)[33m;[39m
+    [90m118| [39m  }[33m,[39m [34m30_000[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22ma genuine token answering a DIFFERENT nonce (replay) is FAILED
+[31m[1mAssertionError[22m: expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+
+Expected: [32m"[7mFAIL[27mED"[39m
+Received: [31m"[7mSTAMP[27mED"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m124:22[22m[39m
+    [90m122| [39m    tsa[33m.[39mmode [33m=[39m [32m"wrong_nonce"[39m[33m;[39m
+    [90m123| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m124| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m125| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_nonce_mismatch"[39m)[33m;[39m
+    [90m126| [39m  }[33m,[39m [34m30_000[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22ma token whose signature bytes were altered is FAILED
+[31m[1mAssertionError[22m: expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+
+Expected: [32m"[7mFAIL[27mED"[39m
+Received: [31m"[7mSTAMP[27mED"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m132:22[22m[39m
+    [90m130| [39m    tsa[33m.[39mmode [33m=[39m [32m"corrupted"[39m[33m;[39m
+    [90m131| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m132| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m133| [39m    expect(["tsa_token_signature_invalid", "tsa_response_parse_failed"…
+    [90m134| [39m  }[33m,[39m [34m30_000[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22mET-TSA-02: a GRANTED status with NO token is FAILED, never STAMPED
+[31m[1mAssertionError[22m: expected 'tsa_provider_http_error' to be 'tsa_token_missing' // Object.is equality[39m
+
+Expected: [32m"tsa_[7mtoken_missing[27m"[39m
+Received: [31m"tsa_[7mprovider_http_error[27m"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m141:27[22m[39m
+    [90m139| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m140| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m141| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_token_missing"[39m)[33m;[39m
+    [90m   | [39m                          [31m^[39m
+    [90m142| [39m  }[33m,[39m [34m30_000[39m)[33m;[39m
+    [90m143| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22ma policy outside TSA_ACCEPTED_POLICY_OIDS is FAILED
+[31m[1mAssertionError[22m: expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+
+Expected: [32m"[7mFAIL[27mED"[39m
+Received: [31m"[7mSTAMP[27mED"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m155:22[22m[39m
+    [90m153| [39m    [34mconfigure[39m({ [33mTSA_ACCEPTED_POLICY_OIDS[39m[33m:[39m [33mLOCAL_TSA_OTHER_POLICY[39m })[33m;[39m
+    [90m154| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m155| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m156| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_policy_not_accepted"[39m)[33m;[39m
+    [90m157| [39m    configure({ TSA_ACCEPTED_POLICY_OIDS: `${LOCAL_TSA_OTHER_POLICY}, …
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22mfails CLOSED when no trust anchor is configured (token kept so it can be validated later)
+[31m[1mAssertionError[22m: expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+
+Expected: [32m"[7mFAIL[27mED"[39m
+Received: [31m"[7mSTAMP[27mED"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m164:22[22m[39m
+    [90m162| [39m    [34mconfigure[39m({ [33mTSA_TRUST_BUNDLE_PATH[39m[33m:[39m undefined })[33m;[39m
+    [90m163| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m164| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m165| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_trust_anchor_not_configured"[39m)[33m;[39m
+    [90m166| [39m    [34mexpect[39m(r[33m.[39mtokenBase64[33m.[39mlength)[33m.[39m[34mtoBeGreaterThan[39m([34m100[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22mowner decision 5: a TEST trust anchor is refused in Production
+[31m[1mAssertionError[22m: expected 'STAMPED' to be 'FAILED' // Object.is equality[39m
+
+Expected: [32m"[7mFAIL[27mED"[39m
+Received: [31m"[7mSTAMP[27mED"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m172:22[22m[39m
+    [90m170| [39m    [34mconfigure[39m({ [33mNODE_ENV[39m[33m:[39m [32m"production"[39m })[33m;[39m
+    [90m171| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m172| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m173| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_trust_anchor_refused"[39m)[33m;[39m
+    [90m174| [39m  }[33m,[39m [34m30_000[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/tsa-token-validation.test.ts[2m > [22mTSA token validation (locally minted authority, loopback HTTP)[2m > [22mET-TSA-07: an unreachable provider is classified without echoing credentials
+[31m[1mAssertionError[22m: expected 'tsa_unknown_error' to be 'tsa_provider_unreachable' // Object.is equality[39m
+
+Expected: [32m"tsa_[7mprovider_unreachable[27m"[39m
+Received: [31m"tsa_[7munknown_error[27m"[39m
+
+[36m [2m❯[22m test/tsa-token-validation.test.ts:[2m180:27[22m[39m
+    [90m178| [39m    [35mconst[39m r [33m=[39m [35mawait[39m [34mstamp[39m()[33m;[39m
+    [90m179| [39m    [34mexpect[39m(r[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"FAILED"[39m)[33m;[39m
+    [90m180| [39m    [34mexpect[39m(r[33m.[39mfailureCode)[33m.[39m[34mtoBe[39m([32m"tsa_provider_unreachable"[39m)[33m;[39m
+    [90m   | [39m                          [31m^[39m
+    [90m181| [39m    expect(JSON.stringify(r)).not.toContain("local-secret-never-in-arg…
+    [90m182| [39m  }[33m,[39m [34m30_000[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m11 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 17:47:13
+[2m   Duration [22m 4.00s[2m (transform 61ms, setup 38ms, collect 464ms, tests 3.29s, environment 0ms, prepare 67ms)[22m
+

@@ -115,6 +115,11 @@ export function timestampTone(
     return { label: "PENDING", tone: "warning" };
   }
 
+  // ET-TSA-01: a kept token that was never validated.
+  if (s === "RECORDED_NOT_VALIDATED") {
+    return { label: "RECORDED, NOT VALIDATED", tone: "warning" };
+  }
+
   if (s === "FAILED") {
     return { label: "FAILED", tone: "warning" };
   }

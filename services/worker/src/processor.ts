@@ -76,6 +76,7 @@ import {
   resolveEvidenceAcquisition,
   compareTimestampDigest,
   isCompleteOtsAnchor,
+  presentedTsaStatus,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import {
@@ -1989,6 +1990,7 @@ async function prepareReportArtifacts(
       tsaHashAlgorithm: true,
       tsaStatus: true,
       tsaFailureReason: true,
+      tsaValidatedAtUtc: true,
       otsProofBase64: true,
       otsHash: true,
       otsStatus: true,
@@ -2827,7 +2829,9 @@ evidenceStructure:
     tsaInputDigestHex: evidence.tsaInputDigestHex ?? null,
     tsaInputKind: evidence.tsaInputKind ?? null,
     tsaHashAlgorithm: evidence.tsaHashAlgorithm ?? null,
-    tsaStatus: evidence.tsaStatus ?? null,
+    // ET-TSA-01: an unvalidated STAMPED token is RECORDED_NOT_VALIDATED here,
+    // so the report and the package never call it a trusted timestamp.
+    tsaStatus: presentedTsaStatus(evidence),
     tsaFailureReason: evidence.tsaFailureReason ?? null,
 
     // The record's own OTS state, as stored by the one lifecycle that writes
@@ -4424,7 +4428,10 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           },
           fingerprint: prepared.fingerprintCanonicalJson,
 signature: evidence.signatureBase64!,
-          timestampToken: evidence.tsaTokenBase64 ?? null,
+          // ET-TSA-04: only a VALIDATED token ships as timestamp.tsr; a failed
+          // or unvalidated reply is described in the README, never included.
+          timestampToken:
+            presentedTsaStatus(evidence) === "STAMPED" ? evidence.tsaTokenBase64 ?? null : null,
 publicKey: finalized.finalizedReportEvidencePayload.publicKeyPem as string,
           // Presentation copy for custody.json / forensic-custody.json: the
           // raw structure enum (MULTIPART_PACKAGE) in the captureMethodSnapshot

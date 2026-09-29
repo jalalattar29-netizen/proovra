@@ -23,6 +23,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { presentedTsaStatus, TSA_RECORDED_NOT_VALIDATED } from "@proovra/shared";
 // COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
 // product decision out of the operational "stuck" counters.
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
@@ -31,8 +32,10 @@ export type TrustSummary = {
   /** Total non-deleted evidence in the workspace. */
   totalEvidence: number;
   tsa: {
-    /** tsaStatus IN ('OK','STAMPED') — a working trusted timestamp. */
+    /** STAMPED and VALIDATED (ET-TSA-01) — a working trusted timestamp. */
     stamped: number;
+    /** STAMPED before token validation existed: a token is kept, never validated. */
+    recordedNotValidated: number;
     pending: number;
     failed: number;
     /** No TSA attempted / unavailable. */
@@ -109,8 +112,11 @@ export type TrustSummary = {
 };
 
 /** Map a raw Evidence.tsaStatus string to a coarse bucket. */
-function tsaBucket(raw: string | null): "stamped" | "pending" | "failed" | "none" {
+function tsaBucket(
+  raw: string | null,
+): "stamped" | "recordedNotValidated" | "pending" | "failed" | "none" {
   const v = (raw ?? "").toUpperCase();
+  if (v === TSA_RECORDED_NOT_VALIDATED) return "recordedNotValidated";
   if (v === "OK" || v === "STAMPED" || v === "GRANTED") return "stamped";
   if (v === "PENDING" || v === "QUEUED") return "pending";
   if (v === "FAILED" || v === "REJECTED" || v === "ERROR") return "failed";
@@ -172,8 +178,9 @@ export async function buildTrustSummary(input: {
     submissionsAwaitingReview,
     submissionsNeedingMoreInfo,
   ] = await Promise.all([
+      // ET-TSA-01: grouped by status AND whether the token was validated.
       prisma.evidence.groupBy({
-        by: ["tsaStatus"],
+        by: ["tsaStatus", "tsaValidatedAtUtc"],
         where: baseWhere,
         _count: { _all: true },
       }),
@@ -260,9 +267,10 @@ export async function buildTrustSummary(input: {
       }),
     ]);
 
-  const tsa = { stamped: 0, pending: 0, failed: 0, none: 0 };
+  const tsa = { stamped: 0, recordedNotValidated: 0, pending: 0, failed: 0, none: 0 };
   for (const g of tsaGroups) {
-    tsa[tsaBucket(g.tsaStatus)] += g._count._all;
+    const bucket = tsaBucket(presentedTsaStatus(g));
+    tsa[bucket] += g._count._all;
   }
 
   const ots = { anchored: 0, pending: 0, failed: 0, none: 0 };

@@ -49,7 +49,7 @@ function mapTimestampTone(status: string | null | undefined): Tone {
   if (["STAMPED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(value)) {
     return "success";
   }
-  if (["PENDING", "UNAVAILABLE"].includes(value)) {
+  if (["PENDING", "UNAVAILABLE", "RECORDED_NOT_VALIDATED"].includes(value)) {
     return "warning";
   }
   if (value === "FAILED") {
@@ -478,14 +478,14 @@ timestampReferenceNote:
     ((evidence as ReportEvidence).tsaTokenBase64 ? true : false)) &&
   !externalMode
     ? usesCanonicalTimestampDigest
-      ? `Full RFC 3161 token remains available through the verification package and technical verification endpoint. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material.`
-      : "Full RFC 3161 token remains available through the verification package and technical verification endpoint."
+      ? `The RFC 3161 token is included in the verification package as timestamp.tsr when PROOVRA validated it. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material.`
+      : "The RFC 3161 token is included in the verification package as timestamp.tsr when PROOVRA validated it."
     : usesCanonicalTimestampDigest
       ? "RFC 3161 token bytes are intentionally excluded from the PDF body. This value may differ from the original file SHA-256 when the timestamp is applied to canonical evidence or fingerprint material."
       : "RFC 3161 token bytes are intentionally excluded from the PDF body.",
         signatureReferenceNote:
       evidence.signatureBase64 && !externalMode
-        ? "Full signature and public-key materials remain available through the verification package and technical verification endpoint."
+        ? "Full signature and public-key materials are included in the verification package."
         : "Signature blobs are intentionally excluded from the PDF body.",
     anchoringReferenceNote:
       evidence.otsProofBase64 || anchorSummary?.transactionId

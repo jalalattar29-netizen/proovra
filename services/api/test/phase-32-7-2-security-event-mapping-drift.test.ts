@@ -1353,6 +1353,9 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // Evidence original version id (2026-09-29, D14): nullable storage_version_id
       // on evidence and evidence_parts. EXPAND.
       "20280801000000_evidence_original_version_id",
+      // Evidence TSA validation (2026-09-29, ET-TSA-01/06): four nullable evidence
+      // columns recording token validation and the bounded failure code. EXPAND.
+      "20280802000000_evidence_tsa_validation",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

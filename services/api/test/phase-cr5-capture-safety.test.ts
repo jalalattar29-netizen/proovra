@@ -329,7 +329,8 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23490;
 // Rebaselined 2026-09-29 (LIFECYCLE STABILIZATION): 55,620 -> 59,356 — duplicate
 // completion idempotency (D11), publication approval at the finalize claim
 // (D3), signed original VersionId recorded (D14).
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 59356;
+// Rebaselined 2026-09-29 (EVIDENCE-LIFECYCLE REMEDIATION, TSA batch): 59,356 -> 59,826 — finalize persists the token-read imprint beside the request digest (ET-TSA-03) and the validation facts + bounded failure code (ET-TSA-01/06).
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 59826;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

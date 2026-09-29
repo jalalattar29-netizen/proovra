@@ -12,9 +12,15 @@ import {
 } from "../observability/otel.js";
 import {
   parseTsaReply,
+  tsaFailureCodeToReason,
   type TsaReplyFailureCode,
   type TsaReplyWarningCode,
 } from "./timestamp/parse-tsa-reply.js";
+import {
+  validateTsaToken,
+  writeCurlCredentialConfig,
+  type TsaValidationFailureCode,
+} from "./timestamp/validate-tsa-token.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,13 +46,15 @@ function timeoutMs(): number {
 }
 
 /**
- * Phase IA-TSA-falseFailed — bounded subprocess-error classifier.
+ * Bounded provider-failure codes (ET-TSA-06/07).
  *
- * Maps an exception thrown by the openssl/curl subprocess chain into one
- * of a fixed set of operator-readable strings. The persisted
- * `tsaFailureReason` text is operator-facing; the classifier name
- * (returned as `code` for log + custody-event context) is the bounded
- * machine-readable label.
+ * Classification reads STRUCTURED facts of the failed subprocess — whether
+ * execFile killed it on the deadline, curl's exit code, the HTTP status curl
+ * reports — and never substring-matches the whole error message. That message
+ * embeds argv (the URL, the digest, temp paths); it used to embed the TSA
+ * credentials too, and a digest containing "429" or "403" was classified as a
+ * quota or access failure. Credentials now travel in a 0600 curl config file,
+ * never in argv.
  */
 export type TsaProviderFailureCode =
   | "tsa_provider_quota_exceeded"
@@ -57,74 +65,41 @@ export type TsaProviderFailureCode =
   | "tsa_provider_http_error"
   | "tsa_unknown_error";
 
-function classifyTsaSubprocessError(error: unknown): {
+export type TimestampFailureCode =
+  | TsaReplyFailureCode
+  | TsaProviderFailureCode
+  | TsaValidationFailureCode
+  | "tsa_token_missing";
+
+const PROVIDER_REASONS: Record<TsaProviderFailureCode, string> = {
+  tsa_provider_quota_exceeded: "Trusted timestamp could not be obtained because the provider quota was exceeded.",
+  tsa_provider_access_restricted: "Trusted timestamp could not be obtained due to provider access restrictions.",
+  tsa_provider_auth_failed: "Trusted timestamp request was not authorized by the provider.",
+  tsa_provider_timeout: "Trusted timestamp request timed out while contacting the provider.",
+  tsa_provider_unreachable: "Trusted timestamp request failed because the timestamp provider could not be reached.",
+  tsa_provider_http_error: "Trusted timestamp provider returned an HTTP error during the request.",
+  tsa_unknown_error: "Trusted timestamp could not be obtained due to a timestamp provider error.",
+};
+
+/** curl exit codes that mean "never reached a server". */
+const CURL_UNREACHABLE = new Set([5, 6, 7, 35, 52, 56]);
+
+export function classifyTsaSubprocessError(error: unknown): {
   code: TsaProviderFailureCode;
   reason: string;
 } {
-  const message =
-    error instanceof Error
-      ? error.message.toLowerCase()
-      : String(error ?? "").toLowerCase();
-
-  if (message.includes("quota") || message.includes("rate limit") || message.includes("rate-limit") || message.includes("429")) {
-    return {
-      code: "tsa_provider_quota_exceeded",
-      reason:
-        "Trusted timestamp could not be obtained because the provider quota was exceeded.",
-    };
+  const e = (error ?? {}) as { killed?: boolean; signal?: string | null; code?: unknown; stderr?: unknown };
+  const out = (code: TsaProviderFailureCode) => ({ code, reason: PROVIDER_REASONS[code] });
+  if (e.killed === true || e.code === 28 || e.code === "ETIMEDOUT") return out("tsa_provider_timeout");
+  if (typeof e.code === "number" && CURL_UNREACHABLE.has(e.code)) return out("tsa_provider_unreachable");
+  if (e.code === 22) {
+    const status = /returned error:\s*(\d{3})/i.exec(String(e.stderr ?? ""))?.[1];
+    if (status === "429") return out("tsa_provider_quota_exceeded");
+    if (status === "403") return out("tsa_provider_access_restricted");
+    if (status === "401") return out("tsa_provider_auth_failed");
+    return out("tsa_provider_http_error");
   }
-  if (message.includes("403") || message.includes("forbidden")) {
-    return {
-      code: "tsa_provider_access_restricted",
-      reason:
-        "Trusted timestamp could not be obtained due to provider access restrictions.",
-    };
-  }
-  if (message.includes("401") || message.includes("unauthorized")) {
-    return {
-      code: "tsa_provider_auth_failed",
-      reason: "Trusted timestamp request was not authorized by the provider.",
-    };
-  }
-  if (message.includes("timeout") || message.includes("timed out")) {
-    return {
-      code: "tsa_provider_timeout",
-      reason:
-        "Trusted timestamp request timed out while contacting the provider.",
-    };
-  }
-  if (
-    message.includes("econnrefused") ||
-    message.includes("enotfound") ||
-    message.includes("network") ||
-    message.includes("connection")
-  ) {
-    return {
-      code: "tsa_provider_unreachable",
-      reason:
-        "Trusted timestamp request failed because the timestamp provider could not be reached.",
-    };
-  }
-  if (
-    // curl with --fail prints `curl: (22) The requested URL returned error: 500`
-    // and similar. Bucket every HTTP-shaped exit code into one bounded label.
-    /\b(?:5\d\d|4\d\d)\b/.test(message) ||
-    message.includes("http error") ||
-    message.includes("curl: (22)") ||
-    message.includes("curl: (52)") || // empty reply from server
-    message.includes("curl: (56)") // recv failure
-  ) {
-    return {
-      code: "tsa_provider_http_error",
-      reason:
-        "Trusted timestamp provider returned an HTTP error during the request.",
-    };
-  }
-  return {
-    code: "tsa_unknown_error",
-    reason:
-      "Trusted timestamp could not be obtained due to a timestamp provider error.",
-  };
+  return out("tsa_unknown_error");
 }
 
 export type TimestampResult = {
@@ -141,7 +116,14 @@ export type TimestampResult = {
    * (HTTP error, timeout, auth) still write "".
    */
   tokenBase64: string;
-  messageImprint: string;
+  /**
+   * ET-TSA-03: the imprint READ FROM THE TOKEN (null when the reply carried
+   * none). Never the digest we sent — that is `requestDigestHex` — so a
+   * read-side comparison of the two compares two different sources.
+   */
+  messageImprint: string | null;
+  /** The digest this platform sent to the authority. */
+  requestDigestHex: string;
   hashAlgorithm: string;
   status: "STAMPED" | "FAILED";
   failureReason: string | null;
@@ -151,7 +133,15 @@ export type TimestampResult = {
    * operator-readable `failureReason` string above; downstream log /
    * custody event payloads also include `failureCode` for triage.
    */
-  failureCode: TsaReplyFailureCode | TsaProviderFailureCode | null;
+  failureCode: TimestampFailureCode | null;
+  /**
+   * ET-TSA-01: set only when validate-tsa-token.ts validated the token
+   * (signature, chain to the configured anchor, signer validity at genTime,
+   * imprint, nonce, policy). `status === "STAMPED"` implies it is set.
+   */
+  validatedAtUtc: Date | null;
+  signerCertSha256: string | null;
+  policyOid: string | null;
   /**
    * Phase IA-digest-policy-hard-invariant — bounded soft-issue warnings
    * surfaced on STAMPED rows whose response was granted + imprint
@@ -215,141 +205,136 @@ async function createEvidenceTimestampInner(params: {
   const workDir = await mkWorkDir();
   const requestFile = path.join(workDir, "request.tsq");
   const responseFile = path.join(workDir, "response.tsr");
+  const curlConfig = path.join(workDir, "curl.cfg");
+
+  const base = {
+    provider,
+    url: tsaUrl,
+    requestDigestHex: digestHex,
+    hashAlgorithm,
+  };
+  const failed = (
+    code: TimestampFailureCode,
+    reason: string,
+    extra: Partial<TimestampResult> = {},
+  ): TimestampResult => ({
+    ...base,
+    serialNumber: null,
+    genTimeUtc: null,
+    tokenBase64: "",
+    messageImprint: null,
+    status: "FAILED",
+    failureReason: reason,
+    failureCode: code,
+    warnings: [],
+    validatedAtUtc: null,
+    signerCertSha256: null,
+    policyOid: null,
+    ...extra,
+  });
 
   try {
-    await execFileAsync(
-      "openssl",
-      [
-        "ts",
-        "-query",
-        "-digest",
-        digestHex,
-        `-${hashAlgorithm}`,
-        "-cert",
-        "-out",
-        requestFile,
-      ],
-      { timeout: timeoutMs() }
-    );
+    // 1. Transport. A failure here never reached a token.
+    try {
+      await execFileAsync(
+        "openssl",
+        ["ts", "-query", "-digest", digestHex, `-${hashAlgorithm}`, "-cert", "-out", requestFile],
+        { timeout: timeoutMs() },
+      );
+      await writeCurlCredentialConfig(curlConfig, tsaUsername, tsaPassword);
+      await execFileAsync(
+        "curl",
+        [
+          "-sS",
+          "--fail",
+          "-K",
+          curlConfig,
+          "-H",
+          "Content-Type: application/timestamp-query",
+          "--data-binary",
+          `@${requestFile}`,
+          "-o",
+          responseFile,
+          tsaUrl,
+        ],
+        { timeout: timeoutMs() },
+      );
+    } catch (error) {
+      const classified = classifyTsaSubprocessError(error);
+      return failed(classified.code, classified.reason);
+    }
 
-    await execFileAsync(
-      "curl",
-      [
-        "-sS",
-        "--fail",
-        "-u",
-        `${tsaUsername}:${tsaPassword}`,
-        "-H",
-        "Content-Type: application/timestamp-query",
-        "--data-binary",
-        `@${requestFile}`,
-        "-o",
-        responseFile,
-        tsaUrl,
-      ],
-      { timeout: timeoutMs() }
-    );
+    // The reply bytes are KEPT on every later failure, so a token can be
+    // triaged — and validated later once an anchor is configured — without
+    // re-contacting the authority (which the no-retry invariant forbids).
+    const tokenBase64 = (await fs.readFile(responseFile)).toString("base64");
 
-    const { stdout } = await execFileAsync(
-      "openssl",
-      ["ts", "-reply", "-in", responseFile, "-text"],
-      { timeout: timeoutMs() }
-    );
+    // 2. Read the reply. A granted status without a token (ET-TSA-02) makes
+    //    openssl refuse the structure outright.
+    let stdout: string;
+    try {
+      ({ stdout } = await execFileAsync(
+        "openssl",
+        ["ts", "-reply", "-in", responseFile, "-text"],
+        { timeout: timeoutMs() },
+      ));
+    } catch (error) {
+      const stderr = String((error as { stderr?: unknown }).stderr ?? "").toLowerCase();
+      return stderr.includes("token not present")
+        ? failed("tsa_token_missing", "Trusted timestamp provider granted the request but returned no timestamp token.", { tokenBase64 })
+        : failed("tsa_response_parse_failed", tsaFailureCodeToReason("tsa_response_parse_failed"), { tokenBase64 });
+    }
 
-// Phase IA-TSA-falseFailed — delegate parsing to the bounded parser.
-// The parser handles Granted. / Granted / GrantedWithMods, the double-
-// space day formatting (Jun  9), and the multi-line message-imprint
-// dump. It returns a structured result; we then DECIDE persistence
-// based on the bounded failure code and PRESERVE the token bytes on
-// parser-side failures so the offline repair tool can reuse them.
-const parsed = await withProovraSpan(
-  PROOVRA_SPAN_NAMES.TSA_TIMESTAMP_VERIFY,
-  {
-    "proovra.operation": "tsa_timestamp_verify",
-    "proovra.provider": provider,
-  },
-  async () => {
-    const result = parseTsaReply(stdout, digestHex);
+    const parsed = await withProovraSpan(
+      PROOVRA_SPAN_NAMES.TSA_TIMESTAMP_VERIFY,
+      { "proovra.operation": "tsa_timestamp_verify", "proovra.provider": provider },
+      async () => parseTsaReply(stdout, digestHex),
+    );
+    const fromReply = {
+      tokenBase64,
+      serialNumber: parsed.serialNumber,
+      genTimeUtc: parsed.genTimeUtc,
+      messageImprint: parsed.messageImprintHex,
+      policyOid: parsed.policyOid,
+    };
+    if (!parsed.granted) {
+      return failed(
+        parsed.failureCode ?? "tsa_response_parse_failed",
+        parsed.failureReason ?? tsaFailureCodeToReason("tsa_response_parse_failed"),
+        fromReply,
+      );
+    }
+
+    // 3. Validate the token. Only this makes it a timestamp.
+    const validation = await validateTsaToken({
+      responseFile,
+      queryFile: requestFile,
+      workDir,
+      genTimeUtc: parsed.genTimeUtc,
+      policyOid: parsed.policyOid,
+    });
     await withProovraSpan(
       PROOVRA_SPAN_NAMES.INTEGRITY_TIMESTAMP_VERIFY,
       {
         "proovra.operation": "integrity_timestamp_verify",
-        "proovra.outcome": result.granted ? "granted" : "rejected",
+        "proovra.outcome": validation.ok ? "validated" : validation.code,
       },
       () => undefined,
     );
-    return result;
-  },
-);
+    if (!validation.ok) return failed(validation.code, validation.reason, fromReply);
 
-    // The response file was written by curl on a 2xx; read it eagerly
-    // so we can preserve the token bytes even on parser-side failures
-    // (so the repair tool can re-parse later without re-hitting the
-    // provider). If the file is missing we treat that as a hard
-    // subprocess failure handled by the catch block below.
-    const tokenBuffer = await fs.readFile(responseFile);
-    const tokenBase64 = tokenBuffer.toString("base64");
-
-    if (parsed.granted) {
-      // Phase IA-digest-policy-hard-invariant — STAMPED is the only
-      // correct outcome here, regardless of soft parser warnings
-      // (missing serial / missing genTime / missing imprint dump).
-      // The token bytes + the verified imprint == request digest are
-      // the authoritative trust chain. Warnings are surfaced for
-      // operator visibility and the repair tool's queue.
-      return {
-        provider,
-        url: tsaUrl,
-        serialNumber: parsed.serialNumber,
-        genTimeUtc: parsed.genTimeUtc,
-        tokenBase64,
-        messageImprint: digestHex,
-        hashAlgorithm,
-        status: "STAMPED",
-        failureReason: null,
-        failureCode: null,
-        warnings: parsed.warnings,
-      };
-    }
-
-    // Parser-side failure paths (the response shape was understandable
-    // but did not pass our validation — non-granted status, or the
-    // imprint disagrees with the digest we sent). Token bytes ARE
-    // preserved so the offline repair tool can re-parse with a future
-    // fix without calling the provider again. Failure code surfaces in
-    // `tsaFailureReason` for operator triage.
     return {
-      provider,
-      url: tsaUrl,
-      serialNumber: parsed.serialNumber,
-      genTimeUtc: parsed.genTimeUtc,
-      tokenBase64,
-      messageImprint: digestHex,
-      hashAlgorithm,
-      status: "FAILED",
-      failureReason: parsed.failureReason,
-      failureCode: parsed.failureCode,
-      warnings: [],
-    };
-  } catch (error) {
-    // Subprocess / network / unrecoverable parser-not-reached failure.
-    // Token bytes are NOT available here — we never reached the
-    // tokenBuffer read OR the read itself failed.
-    const classified = classifyTsaSubprocessError(error);
-    return {
-      provider,
-      url: tsaUrl,
-      serialNumber: null,
-      genTimeUtc: null,
-      tokenBase64: "",
-      messageImprint: digestHex,
-      hashAlgorithm,
-      status: "FAILED",
-      failureReason: classified.reason,
-      failureCode: classified.code,
-      warnings: [],
+      ...base,
+      ...fromReply,
+      status: "STAMPED",
+      failureReason: null,
+      failureCode: null,
+      warnings: parsed.warnings,
+      validatedAtUtc: validation.validatedAtUtc,
+      signerCertSha256: validation.signerCertSha256,
+      policyOid: validation.policyOid,
     };
   } finally {
-    await cleanup([requestFile, responseFile, workDir]);
+    await cleanup([workDir]);
   }
 }

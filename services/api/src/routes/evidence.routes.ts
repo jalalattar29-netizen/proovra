@@ -76,6 +76,10 @@ import {
   // Decision B — the basic public verification projection.
   buildBasicVerification,
   compareTimestampDigest,
+  // ET-TSA-01 — the one reading of a stored timestamp status.
+  presentedTsaStatus,
+  TSA_RECORDED_NOT_VALIDATED,
+  TSA_RECORDED_NOT_VALIDATED_LABEL,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -979,6 +983,8 @@ const SAFE_EVIDENCE_SELECT = {
   tsaInputKind: true,
   tsaHashAlgorithm: true,
   tsaFailureReason: true,
+  tsaValidatedAtUtc: true,
+  tsaFailureCode: true,
 
   otsProofBase64: true,
   otsHash: true,
@@ -1784,7 +1790,9 @@ function mapTimestampStatusLabel(status: string | null | undefined): string {
     case "GRANTED":
     case "SUCCEEDED":
     case "VERIFIED":
-      return "Trusted timestamp recorded";
+      return "Trusted timestamp validated";
+    case TSA_RECORDED_NOT_VALIDATED:
+      return `Timestamp token ${TSA_RECORDED_NOT_VALIDATED_LABEL.toLowerCase()}`;
     case "PENDING":
       return "Timestamp pending";
     case "FAILED":
@@ -2115,7 +2123,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     title: resolveEvidenceTitle(e.title),
     ownerUserId: e.ownerUserId,
     originalFileName: e.originalFileName ?? null,
-        tsaStatus: e.tsaStatus ?? null,
+    tsaStatus: presentedTsaStatus(e),
     tsaProvider: e.tsaProvider ?? null,
     tsaSerialNumber: e.tsaSerialNumber ?? null,
     tsaGenTimeUtc: e.tsaGenTimeUtc ? e.tsaGenTimeUtc.toISOString() : null,
@@ -9167,7 +9175,10 @@ return {
           signatureValid = false;
         }
 
-        const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
+        // ET-TSA-01: a STAMPED row whose token was never validated is presented as
+        // RECORDED_NOT_VALIDATED — never as a trusted timestamp.
+        const presentedTsa = presentedTsaStatus(evidence);
+        const normalizedTsaStatus = String(presentedTsa ?? "")
           .trim()
           .toUpperCase();
         const timestampStatusIsPositive =
@@ -9177,7 +9188,7 @@ return {
           normalizedTsaStatus === "SUCCEEDED";
 // The ONE comparison (2026-09-29): a missing imprint is unknown, not a mismatch.
 const timestampDigestMatches: boolean | null = compareTimestampDigest({
-  tsaStatus: evidence.tsaStatus,
+  tsaStatus: presentedTsa,
   tsaMessageImprint: evidence.tsaMessageImprint,
   tsaInputDigestHex: evidence.tsaInputDigestHex,
   fileSha256: evidence.fileSha256,
@@ -9239,7 +9250,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             signatureBase64: evidence.signatureBase64 ?? null,
             signingKeyId: evidence.signingKeyId ?? null,
             publicKeyPem: signingKey?.publicKeyPem ?? null,
-            tsaStatus: evidence.tsaStatus ?? null,
+            tsaStatus: presentedTsa ?? null,
             tsaFailureReason: evidence.tsaFailureReason ?? null,
             otsStatus: effectiveOtsStatus,
             otsHash: evidence.otsHash ?? null,
@@ -9586,7 +9597,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                 keyVersion: evidence.signingKeyVersion ?? null,
               },
               tsa: {
-                status: evidence.tsaStatus ?? null,
+                status: presentedTsa ?? null,
                 provider: evidence.tsaProvider ?? null,
                 timestampAvailable: timestampStatusIsPositive,
                 digestMatchesTimestampInput: timestampDigestMatches,
@@ -12345,6 +12356,8 @@ action: "evidence.certification_requested",
         tsaHashAlgorithm: true,
         tsaStatus: true,
         tsaFailureReason: true,
+        tsaValidatedAtUtc: true,
+        tsaFailureCode: true,
         otsProofBase64: true,
         otsHash: true,
         otsStatus: true,
@@ -12891,7 +12904,10 @@ displayFileName: evidence.displayFileName ?? null,
       signatureValid = false;
     }
 
-const normalizedTsaStatus = String(evidence.tsaStatus ?? "")
+// ET-TSA-01: a STAMPED row whose token was never validated is presented as
+// RECORDED_NOT_VALIDATED — never as a trusted timestamp.
+const presentedTsa = presentedTsaStatus(evidence);
+const normalizedTsaStatus = String(presentedTsa ?? "")
   .trim()
   .toUpperCase();
 
@@ -12904,7 +12920,7 @@ const timestampStatusIsPositive =
 // The ONE comparison (2026-09-29): a missing imprint is unknown, not a
 // mismatch, so it no longer fails overallIntegrity or reads as tampering.
 const timestampDigestMatches: boolean | null = compareTimestampDigest({
-  tsaStatus: evidence.tsaStatus,
+  tsaStatus: presentedTsa,
   tsaMessageImprint: evidence.tsaMessageImprint,
   tsaInputDigestHex: evidence.tsaInputDigestHex,
   fileSha256: evidence.fileSha256,
@@ -12978,7 +12994,7 @@ const liveTrustDecision = buildEvidenceTrustDecision({
     signatureBase64: evidence.signatureBase64 ?? null,
     signingKeyId: evidence.signingKeyId ?? null,
     publicKeyPem: signingKey.publicKeyPem ?? null,
-    tsaStatus: evidence.tsaStatus ?? null,
+    tsaStatus: presentedTsa ?? null,
     tsaFailureReason: evidence.tsaFailureReason ?? null,
     otsStatus: effectiveOtsStatus,
     otsHash: evidence.otsHash ?? null,
@@ -13316,7 +13332,7 @@ verificationPackageVersion:
       latestReport,
       itemCount,
       storageProtection,
-      timestampStatus: evidence.tsaStatus,
+      timestampStatus: presentedTsa,
       timestampDigestMatches,
       otsStatus: effectiveOtsStatus,
       overallIntegrity,
@@ -13619,7 +13635,7 @@ const basicVerification = buildBasicVerification({
   fingerprintHash: evidence.fingerprintHash ?? null,
   capturedAtUtc: evidence.capturedAtUtc ?? null,
   signedAtUtc: evidence.signedAtUtc ?? null,
-  tsaStatus: evidence.tsaStatus ?? null,
+  tsaStatus: presentedTsa ?? null,
   tsaImprintMatches: timestampDigestMatches ?? null,
   tsaGenTimeUtc: evidence.tsaGenTimeUtc ?? null,
   otsStatus: effectiveOtsStatus ?? null,
@@ -13750,7 +13766,7 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
   storageAndTimestamping: {
     storage: storageProtection,
     tsa: {
-      status: evidence.tsaStatus,
+      status: presentedTsa,
       provider: evidence.tsaProvider,
       url: evidence.tsaUrl,
       serialNumber: evidence.tsaSerialNumber,

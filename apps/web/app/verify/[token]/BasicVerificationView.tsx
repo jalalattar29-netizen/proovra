@@ -80,7 +80,11 @@ export default function BasicVerificationView({ data }: { data: BasicVerificatio
         : "The integrity checks could not all be performed.";
   // (2026-09-29) Each "not checked" names the check that was not performed.
   const tsaDetail =
-    data.timestamp.state === "not_checked"
+    data.timestamp.state === "verified"
+      ? `A trusted timestamp was issued (${fmt(data.timestamp.tokenTimeUtc)}). PROOVRA validated the authority's signature and certificate chain when it was issued, and the token certifies the recorded digest.`
+      : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_RECORDED_NOT_VALIDATED"
+        ? `A timestamp token was recorded (${fmt(data.timestamp.tokenTimeUtc)}) before PROOVRA validated timestamp tokens, and it has not been validated since. It is not presented as a trusted timestamp.`
+        : data.timestamp.state === "not_checked"
       ? data.timestamp.basis === "TOKEN_RECORDED_IMPRINT_NOT_COMPARED"
         ? `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}). Its imprint was not stored with this record, so it could not be compared here — this is not a mismatch. The authority's signature on the token is not validated by this page.`
         : `A timestamp token was issued (${fmt(data.timestamp.tokenTimeUtc)}) and its imprint matches the recorded digest. The authority's signature on the token is not validated by this page.`

@@ -27,7 +27,12 @@ import { prisma } from "../../db.js";
 // evaluator runs over the persisted digest columns and reports bounded
 // violations; the snapshot flips matches → false ONLY when a real
 // digest disagreement is observed.
-import { compareTimestampDigest, evaluateDigestPolicy } from "@proovra/shared";
+import {
+  compareTimestampDigest,
+  evaluateDigestPolicy,
+  presentedTsaStatus,
+  TSA_RECORDED_NOT_VALIDATED,
+} from "@proovra/shared";
 import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
@@ -48,6 +53,8 @@ export type IntegritySnapshotInput = {
   // digest. The canonical digest columns are now passed explicitly so
   // the evaluator can actually run.
   tsaStatus: string | null;
+  /** ET-TSA-01: null on a STAMPED row = the token was never validated. */
+  tsaValidatedAtUtc: Date | null;
   tsaTokenBase64: string | null;
   tsaGenTimeUtc: Date | null;
   tsaMessageImprint: string | null;
@@ -67,11 +74,12 @@ const INTEGRITY_SOURCE_VERSION = "v2-2026-06";
 
 /**
  * Phase 32.8C+++++ — TSA issuer parsing. Returns parsed identity fields
- * if a parser is wired; UNAVAILABLE otherwise. The default API-side
- * parser is intentionally a no-op stub: a real ASN.1 TSA token parser
- * lives in the worker package and runs asynchronously. The dashboard
- * NEVER fabricates parsed fields — when the parser is missing the
- * status is the bounded string "UNAVAILABLE".
+ * if a parser is wired; UNAVAILABLE otherwise. No TSA issuer parser is
+ * wired anywhere in the platform (the worker has none either), so this
+ * returns UNAVAILABLE. Token VALIDATION is a separate authority
+ * (services/timestamp/validate-tsa-token.ts) and its signer fingerprint is
+ * stored on the evidence row as tsaSignerCertSha256. The dashboard NEVER
+ * fabricates parsed fields.
  */
 export function deriveTsaIssuerProjection(input: {
   tsaTokenBase64: string | null;
@@ -166,7 +174,10 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
   //     get a definitive signal from this writer.
   let tsaStatus: string;
   let timestampDigestMatches: boolean | null;
-  const rawTsa = (input.tsaStatus ?? "").toUpperCase();
+  // ET-TSA-01: the presented status — an unvalidated STAMPED row is
+  // RECORDED_NOT_VALIDATED, never OK.
+  const presentedTsa = presentedTsaStatus(input);
+  const rawTsa = (presentedTsa ?? "").toUpperCase();
   const tsaDigestPolicyViolated =
     policyCodes.has("tsa_message_imprint_disagrees_with_input_digest") ||
     policyCodes.has("tsa_kind_label_disagrees_with_digest_source");
@@ -182,12 +193,16 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
     timestampDigestMatches = tsaDigestPolicyViolated
       ? false
       : compareTimestampDigest({
-          tsaStatus: input.tsaStatus,
+          tsaStatus: presentedTsa,
           tsaMessageImprint: input.tsaMessageImprint,
           tsaInputDigestHex: input.tsaInputDigestHex,
           fileSha256: input.fileSha256,
         });
     if (tsaDigestPolicyViolated) reasonCodes.push("TSA_DIGEST_POLICY_VIOLATED");
+  } else if (rawTsa === TSA_RECORDED_NOT_VALIDATED) {
+    tsaStatus = TSA_RECORDED_NOT_VALIDATED;
+    timestampDigestMatches = null;
+    reasonCodes.push("TSA_NOT_VALIDATED");
   } else if (rawTsa === "FAILED") {
     tsaStatus = "FAILED";
     timestampDigestMatches = null;
@@ -449,6 +464,7 @@ export async function backfillIntegritySnapshots(input: {
         // token presence + ots status, which let the writer claim a
         // false-positive timestampDigestMatches=true.
         tsaStatus: true,
+        tsaValidatedAtUtc: true,
         tsaTokenBase64: true,
         tsaGenTimeUtc: true,
         tsaMessageImprint: true,
@@ -470,6 +486,7 @@ export async function backfillIntegritySnapshots(input: {
             ? String(e.verificationStatus)
             : null,
           tsaStatus: e.tsaStatus ?? null,
+          tsaValidatedAtUtc: e.tsaValidatedAtUtc ?? null,
           tsaTokenBase64: e.tsaTokenBase64 ?? null,
           tsaGenTimeUtc: e.tsaGenTimeUtc ?? null,
           tsaMessageImprint: e.tsaMessageImprint ?? null,

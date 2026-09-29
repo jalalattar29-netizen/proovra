@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 286,
-    "classifiedMigrations": 286,
+    "filesystemMigrations": 287,
+    "classifiedMigrations": 287,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 286,
+    "productionSnapshotUnknown": 287,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 286,
-    "classifiedMigrations": 286,
+    "filesystemMigrations": 287,
+    "classifiedMigrations": 287,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 286,
+    "productionSnapshotUnknown": 287,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 64,
+      "EXPAND": 65,
       "BACKFILL": 21,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 75,
+      "SAFE_TO_APPLY_NOW": 76,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 1
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 286
+    "ProductionMigrationStateUnknown": 287
   },
   "gateFailures": [],
   "migrations": [
@@ -22145,8 +22145,74 @@
       "evidence": "EVIDENCE ORIGINAL VERSION ID (2026-09-29, audit D14). Adds nullable evidence.storage_version_id and evidence_parts.storage_version_id VARCHAR(1024): the S3 VersionId of each original as it was hashed and signed at finalization, so re-hash and download read the signed version rather than whatever a later PUT left latest at the key. No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns; code built after it writes them at finalization, so apply before deploying the API and worker. Historic rows keep NULL and readers fall back to the key."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280802000000_evidence_tsa_validation",
       "order": 285,
+      "sqlPresent": true,
+      "byteLength": 956,
+      "checksumSha256": "586b6a9d81c403143aafacba020b2a4420090213add3946e0b3ac68b5c85ff92",
+      "checksumSha256Raw": "586b6a9d81c403143aafacba020b2a4420090213add3946e0b3ac68b5c85ff92",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:4 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence"
+        ],
+        "addedColumns": [
+          "tsa_failure_code",
+          "tsa_policy_oid",
+          "tsa_signer_cert_sha256",
+          "tsa_validated_at_utc"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name IN ('tsa_validated_at_utc','tsa_signer_cert_sha256','tsa_policy_oid','tsa_failure_code')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "EVIDENCE TSA VALIDATION (2026-09-29, ET-TSA-01/06). Adds nullable evidence.tsa_validated_at_utc TIMESTAMPTZ, tsa_signer_cert_sha256 VARCHAR(64), tsa_policy_oid VARCHAR(80), tsa_failure_code VARCHAR(64): a timestamp is STAMPED only after its RFC 3161 token is validated against the environment's trust anchor, and a failure keeps its bounded code. No enum, constraint or existing column changed; nothing rewritten or backfilled. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns; code built after it writes them at finalization and reads them on every evidence read, so apply before deploying the API and worker. Historic STAMPED rows keep NULL and read as recorded-not-validated."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 286,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

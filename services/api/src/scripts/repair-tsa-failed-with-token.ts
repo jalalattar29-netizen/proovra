@@ -1,37 +1,22 @@
 /**
- * Phase IA-TSA-falseFailed — repair script for evidence rows that have
- * a valid Granted TSA token persisted but were incorrectly marked
- * `tsaStatus='FAILED'` by the legacy parser.
+ * VALIDATION OF KEPT TIMESTAMP TOKENS (ET-TSA-09, 2026-09-29).
  *
- * Target shape (operator-confirmed in production):
- *   tsa_status = 'FAILED'
- *   tsa_token_base64 IS NOT NULL AND length(tsa_token_base64) > 0
- *   tsa_message_imprint IS NOT NULL
- *   (tsa_serial_number IS NULL OR tsa_gen_time_utc IS NULL)
+ * Candidates: evidence with a kept RFC 3161 reply that is either
+ *   * tsa_status = 'FAILED' (e.g. no trust anchor was configured when it
+ *     arrived, or the legacy parser mis-read it), or
+ *   * tsa_status = 'STAMPED' with tsa_validated_at_utc NULL — written before
+ *     token validation existed, presented as "recorded, not validated".
  *
- * Repair steps for each candidate row:
- *   1. Decode `tsa_token_base64` to a temp file.
- *   2. Run `openssl ts -reply -in <file> -text` — this is exactly the
- *      same subprocess the live finalize path runs, so we exercise the
- *      identical parser. The provider is NEVER re-contacted.
- *   3. Pass the stdout to `parseTsaReply(stdout, tsa_message_imprint)`.
- *   4. On `granted === true` AND `serialNumber` AND `genTimeUtc` AND
- *      `imprintMatchesRequest !== false` — update the row through
- *      Prisma in a transaction:
- *        * tsa_status         → 'STAMPED'
- *        * tsa_serial_number  → parsed serial
- *        * tsa_gen_time_utc   → parsed Date
- *        * tsa_input_digest_hex → message imprint (when missing — this
- *                                 is the field that the truthful
- *                                 semantics block writes only on
- *                                 success; we now have that success)
- *        * tsa_failure_reason → null
- *      + append a `TIMESTAMP_APPLIED` custody event marked
- *      `repair_source: 'tsa_replay_from_token'` for forensic traceability
- *      No report is re-issued (2026-09-29): issued reports keep what they
- *      said; the corrected state is shown by Verify and the record.
- *   5. On any failure code from the parser — KEEP the row FAILED, log
- *      the bounded reason. The script never writes a fake success.
+ * Each row goes through evaluateKeptTsaToken — the SAME parser and the SAME
+ * validator (validate-tsa-token.ts) as issuance, against the digest the record
+ * sent and at the token's own genTime. Only a positive answer (granted, token
+ * present, imprint equal, serial AND genTime parsed, signature and chain to
+ * the configured anchor valid) records STAMPED + tsa_validated_at_utc. A
+ * negative answer changes nothing: a legacy STAMPED row stays "recorded, not
+ * validated", a FAILED row stays FAILED.
+ * The script never writes a fake success.
+ *
+ * The provider is NEVER re-contacted: only the kept reply bytes are read.
  *
  * Safety design:
  *   * Dry-run by default. Writes ONLY when `--apply` is passed.
@@ -40,8 +25,7 @@
  *   * Never re-contacts the TSA provider.
  *   * Never writes a custody event without a corresponding `tsaStatus`
  *     update — both happen in the SAME transaction.
- *   * Never overwrites a row's existing `tsa_input_digest_hex` if it's
- *     already non-null (preserves forensic history).
+ *   * Never overwrites a row's existing `tsa_input_digest_hex`.
  *
  * Usage:
  *   node dist/scripts/repair-tsa-failed-with-token.js                  # dry-run all
@@ -52,20 +36,13 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { promisify } from "node:util";
 
 import * as prismaPkg from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../db.js";
 import { appendCustodyEventTx } from "../services/custody-events.service.js";
-import { parseTsaReply } from "../services/timestamp/parse-tsa-reply.js";
-
-const execFileAsync = promisify(execFile);
+import { evaluateKeptTsaToken } from "../services/timestamp/kept-token-validation.js";
 
 type Args = {
   apply: boolean;
@@ -118,18 +95,6 @@ type Summary = {
   enqueuedJobs: number;
 };
 
-async function mkWorkDir(): Promise<string> {
-  return fs.mkdtemp(path.join(os.tmpdir(), "tsa-repair-"));
-}
-
-async function cleanup(p: string): Promise<void> {
-  try {
-    await fs.rm(p, { force: true, recursive: true });
-  } catch {
-    /* ignore */
-  }
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   /**
@@ -164,12 +129,12 @@ async function main(): Promise<void> {
     `[repair-tsa] start mode=${args.apply ? "APPLY" : "DRY-RUN"} limit=${args.limit} evidenceId=${args.evidenceId ?? "(all)"}`,
   );
 
+  // Candidates (ET-TSA-09): a kept token on a FAILED row, and a legacy STAMPED
+  // row whose token was never validated. The provider is never contacted.
   const where: Prisma.EvidenceWhereInput = {
-    tsaStatus: "FAILED",
-    tsaTokenBase64: { not: null },
-    tsaMessageImprint: { not: null },
-    OR: [{ tsaSerialNumber: null }, { tsaGenTimeUtc: null }],
     deletedAt: null,
+    tsaTokenBase64: { not: null },
+    OR: [{ tsaStatus: "FAILED" }, { tsaStatus: "STAMPED", tsaValidatedAtUtc: null }],
   };
   if (args.evidenceId) where.id = args.evidenceId;
 
@@ -177,12 +142,11 @@ async function main(): Promise<void> {
     where,
     select: {
       id: true,
-      teamId: true,
+      tsaStatus: true,
       tsaProvider: true,
       tsaUrl: true,
       tsaHashAlgorithm: true,
       tsaTokenBase64: true,
-      tsaMessageImprint: true,
       tsaInputDigestHex: true,
       tsaInputKind: true,
       fileSha256: true,
@@ -200,96 +164,47 @@ async function main(): Promise<void> {
   for (const row of rows) {
     summary.scanned += 1;
     const idShort = row.id.slice(0, 8);
-
-    if (!row.tsaTokenBase64 || row.tsaTokenBase64.length === 0) {
+    if (!row.tsaTokenBase64) {
       summary.skippedNoToken += 1;
-      console.log(
-        `[repair-tsa] skip ${idShort} reason=no-token (column is empty string)`,
-      );
       continue;
     }
 
-    const expectedImprint = row.tsaMessageImprint?.trim().toLowerCase() ?? null;
-
-    // Re-parse the persisted token offline. NEVER call the provider.
-    let stdout = "";
-    let openssl_failed = false;
-    const workDir = await mkWorkDir();
-    const tokenFile = path.join(workDir, "token.tsr");
-    try {
-      await fs.writeFile(
-        tokenFile,
-        Buffer.from(row.tsaTokenBase64, "base64"),
-      );
-      const result = await execFileAsync(
-        "openssl",
-        ["ts", "-reply", "-in", tokenFile, "-text"],
-        { timeout: 15000 },
-      );
-      stdout = result.stdout?.toString() ?? "";
-    } catch (err) {
-      openssl_failed = true;
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(
-        `[repair-tsa] openssl-failed ${idShort} ${message.slice(0, 200)}`,
-      );
-    } finally {
-      await cleanup(workDir);
-    }
-
-    if (openssl_failed || stdout.length === 0) {
-      summary.parseErrors += 1;
+    const decision = await evaluateKeptTsaToken(row);
+    if (!decision.ok) {
       summary.keptFailed += 1;
+      if (decision.code === "tsa_message_imprint_mismatch") summary.imprintMismatches += 1;
+      if (decision.code === "tsa_response_parse_failed") summary.parseErrors += 1;
+      console.log(`[repair-tsa] NOT-VALIDATED ${idShort} status=${row.tsaStatus} code=${decision.code}`);
       continue;
     }
 
-    const parsed = parseTsaReply(stdout, expectedImprint);
-
-    if (!parsed.granted) {
-      summary.keptFailed += 1;
-      if (parsed.failureCode === "tsa_message_imprint_mismatch") {
-        summary.imprintMismatches += 1;
-      } else if (parsed.failureCode === "tsa_response_parse_failed") {
-        summary.parseErrors += 1;
-      }
-      console.log(
-        `[repair-tsa] KEEP-FAILED ${idShort} code=${parsed.failureCode ?? "(none)"} reason="${(parsed.failureReason ?? "").slice(0, 120)}"`,
-      );
-      continue;
-    }
-
-    // At this point the token is provably a valid Granted RFC 3161
-    // response for the message imprint we sent.
     summary.repairableDryRun += 1;
     console.log(
-      `[repair-tsa] REPAIRABLE ${idShort} serial=${parsed.serialNumber ?? "?"} ` +
-        `genTime=${parsed.genTimeUtc?.toISOString() ?? "?"} ` +
-        `imprintMatch=${parsed.imprintMatchesRequest ?? "n/a"}`,
+      `[repair-tsa] VALIDATED ${idShort} status=${row.tsaStatus} serial=${decision.serialNumber} genTime=${decision.genTimeUtc.toISOString()}`,
     );
-
     if (!args.apply) {
-      console.log(`[repair-tsa]   (dry-run) would update + enqueue regen`);
+      console.log(`[repair-tsa]   (dry-run) would record the validation`);
       continue;
     }
 
-    // -------- APPLY path: transactional update + custody event. --------
+    const wasFailed = row.tsaStatus === "FAILED";
     try {
       await prisma.$transaction(async (tx) => {
-        // Compare-and-set: only a row that is STILL FAILED is repaired. A row
-        // another run (or anything else) changed since selection is left alone.
+        // Compare-and-set on the state that was evaluated.
         const claimed = await tx.evidence.updateMany({
-          where: { id: row.id, tsaStatus: "FAILED" },
+          where: { id: row.id, tsaStatus: row.tsaStatus, tsaValidatedAtUtc: null },
           data: {
             tsaStatus: "STAMPED",
-            tsaSerialNumber: parsed.serialNumber,
-            tsaGenTimeUtc: parsed.genTimeUtc,
-            // Preserve any pre-existing tsa_input_digest_hex. When it's
-            // null (which it always will be on a FAILED row per the
-            // truthful-semantics policy), set it to the message imprint
-            // — the digest the provider actually attested.
-            tsaInputDigestHex:
-              row.tsaInputDigestHex ?? expectedImprint ?? null,
+            tsaSerialNumber: decision.serialNumber,
+            tsaGenTimeUtc: decision.genTimeUtc,
+            // ET-TSA-03: the imprint read from the token; the request digest stays.
+            tsaMessageImprint: decision.messageImprint,
+            tsaInputDigestHex: row.tsaInputDigestHex ?? decision.messageImprint,
             tsaFailureReason: null,
+            tsaFailureCode: null,
+            tsaValidatedAtUtc: decision.validatedAtUtc,
+            tsaSignerCertSha256: decision.signerCertSha256,
+            tsaPolicyOid: decision.policyOid,
             // The execution that touched this record. Read by the integrity
             // condition writer, which passes it to `deriveParentCorrelation`
             // as a PERSISTED correlation id — never inferred from the reason,
@@ -297,51 +212,43 @@ async function main(): Promise<void> {
             integrityCorrelationId: repairExecutionId,
           },
         });
-        if (claimed.count !== 1) {
-          throw new Error("TSA_REPAIR_ROW_CHANGED_SINCE_SELECTION");
+        if (claimed.count !== 1) throw new Error("TSA_REPAIR_ROW_CHANGED_SINCE_SELECTION");
+        // A FAILED row that becomes STAMPED gets its TIMESTAMP_APPLIED event. A
+        // legacy STAMPED row already has one; only its validation is recorded.
+        if (wasFailed) {
+          await appendCustodyEventTx(tx, {
+            evidenceId: row.id,
+            eventType: prismaPkg.CustodyEventType.TIMESTAMP_APPLIED,
+            atUtc: new Date(),
+            payload: {
+              tsaProvider: row.tsaProvider,
+              tsaUrl: row.tsaUrl,
+              tsaSerialNumber: decision.serialNumber,
+              tsaGenTimeUtc: decision.genTimeUtc.toISOString(),
+              tsaMessageImprint: decision.messageImprint,
+              tsaInputKind: row.tsaInputKind,
+              tsaHashAlgorithm: row.tsaHashAlgorithm,
+              tsaStatus: "STAMPED",
+              tsaFailureReason: null,
+              tsaValidatedAtUtc: decision.validatedAtUtc.toISOString(),
+              // Repair-script forensic marker: distinguishes this from a
+              // finalize-time TIMESTAMP_APPLIED.
+              repair_source: "tsa_kept_token_validated",
+            },
+          });
         }
-        await appendCustodyEventTx(tx, {
-          evidenceId: row.id,
-          eventType: prismaPkg.CustodyEventType.TIMESTAMP_APPLIED,
-          atUtc: new Date(),
-          payload: {
-            tsaProvider: row.tsaProvider,
-            tsaUrl: row.tsaUrl,
-            tsaSerialNumber: parsed.serialNumber,
-            tsaGenTimeUtc: parsed.genTimeUtc?.toISOString() ?? null,
-            tsaMessageImprint: parsed.messageImprintHex,
-            tsaInputKind: row.tsaInputKind,
-            tsaHashAlgorithm: row.tsaHashAlgorithm,
-            tsaStatus: "STAMPED",
-            tsaFailureReason: null,
-            // Repair-script forensic marker. Operators inspecting the
-            // chain can distinguish a normal finalize-time TIMESTAMP_APPLIED
-            // from one written by the repair tool.
-            repair_source: "tsa_replay_from_token",
-            statusKind: parsed.statusKind,
-          },
-        });
       });
       summary.repairedApply += 1;
-      console.log(`[repair-tsa]   → updated row + appended custody event`);
+      console.log(`[repair-tsa]   → recorded validation${wasFailed ? " + custody event" : ""}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[repair-tsa]   transaction failed for ${idShort}: ${message.slice(0, 200)}`,
-      );
+      console.error(`[repair-tsa]   transaction failed for ${idShort}: ${message.slice(0, 200)}`);
       summary.keptFailed += 1;
-      continue;
     }
-
     /*
-     * NO REPORT IS RE-ISSUED (2026-09-29).
-     *
-     * This used to force a new report version for every repaired row. The
-     * repair corrects how the ORIGINAL finalize-time token is read; it is
-     * recorded above as a custody event with its own time. Issued reports keep
-     * what they said when they were issued, Public Verify shows the corrected
-     * timestamp state from now on, and an updated report documenting it is an
-     * explicit, authorized user action ("Issue updated report").
+     * NO REPORT IS RE-ISSUED (2026-09-29). Issued reports keep what they said
+     * when they were issued; Public Verify shows the validated state from now
+     * on, and an updated report is an explicit, authorized user action.
      */
   }
 

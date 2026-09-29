@@ -358,6 +358,9 @@ export function mapTimestampStatusPublicLabel(
     case "VERIFIED":
     case "SUCCEEDED":
       return "Trusted timestamp token recorded";
+    case "RECORDED_NOT_VALIDATED":
+      // ET-TSA-01: a token kept from before validation existed; never validated.
+      return "Trusted timestamp recorded, not validated";
     case "PENDING":
       return "Trusted timestamp pending";
     case "UNAVAILABLE":

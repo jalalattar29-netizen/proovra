@@ -385,6 +385,8 @@ export function verifyTimestampTone(status?: string | null): { label: string; to
   const s = (status ?? "").toUpperCase();
   if (s === "STAMPED" || s === "GRANTED" || s === "VERIFIED" || s === "SUCCEEDED") return { label: s, tone: "success" };
   if (s === "PENDING") return { label: "PENDING", tone: "warning" };
+  // ET-TSA-01: a kept token that was never validated.
+  if (s === "RECORDED_NOT_VALIDATED") return { label: "RECORDED, NOT VALIDATED", tone: "warning" };
   if (s === "FAILED") return { label: "FAILED", tone: "warning" };
   if (s) return { label: s, tone: "warning" };
   return { label: "Unavailable", tone: "neutral" };

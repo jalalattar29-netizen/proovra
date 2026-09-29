@@ -95,7 +95,7 @@ describe("Phase IA-forward-path-TSA — finalize callsite contract", () => {
     // FAILED — we record what we asked it to certify, so triage can
     // see the digest target.
     expect(EVIDENCE_COMPLETE).toMatch(
-      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.messageImprint\s*:\s*null/,
+      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.requestDigestHex\s*:\s*null/,
     );
   });
 
@@ -144,29 +144,30 @@ describe("Phase IA-forward-path-TSA — service uses the bounded parser", () => 
     );
   });
 
-  it("returns status: \"STAMPED\" on parsed.granted", () => {
-    expect(SERVICE).toMatch(/if \(parsed\.granted\)[\s\S]{0,1500}status:\s*"STAMPED"/);
+  it("returns status: \"STAMPED\" only on a granted reply whose token VALIDATED (ET-TSA-01)", () => {
+    expect(SERVICE).toMatch(/if \(!parsed\.granted\) \{[\s\S]{0,300}return failed\(/);
+    expect(SERVICE).toMatch(/const validation = await validateTsaToken\([\s\S]{0,800}if \(!validation\.ok\) return failed\([\s\S]{0,300}status: "STAMPED"/);
   });
 
   it("returns status: \"FAILED\" + preserved tokenBase64 + bounded code on parser-side fail", () => {
-    // The `return { … }` under the "Parser-side failure paths" comment —
-    // not a window that runs on into the subprocess catch block below it.
-    expect(SERVICE).toContain("Parser-side failure paths");
-    const block = enclosingSource(SERVICE, "failureCode: parsed.failureCode", "statement", {
+    const block = enclosingSource(SERVICE, "parsed.failureCode ?? \"tsa_response_parse_failed\"", "statement", {
       unique: true,
       fileName: "timestamp.service.ts",
     });
-    expect(block).toMatch(/status:\s*"FAILED"/);
-    expect(block).toMatch(/tokenBase64,/);
-    expect(block).toMatch(/failureCode:\s*parsed\.failureCode/);
+    expect(block).toMatch(/return failed\(/);
+    expect(block).toMatch(/fromReply/);
+    expect(SERVICE).toMatch(/const fromReply = \{\s*tokenBase64,/);
   });
 
   it("subprocess error path writes empty token + bounded provider code", () => {
-    // The catch block that opens with the "Subprocess / network" comment.
-    const block = enclosingSource(SERVICE, "Subprocess / network", "block", {
+    const block = enclosingSource(SERVICE, "const classified = classifyTsaSubprocessError(error);", "block", {
       unique: true,
       fileName: "timestamp.service.ts",
     });
+    expect(block).toMatch(/return failed\(classified\.code, classified\.reason\);/);
+    // failed() writes an empty token unless the reply bytes are passed in.
+    expect(SERVICE).toMatch(/tokenBase64: "",\s*messageImprint: null,/);
+  });
     expect(block).toMatch(/tokenBase64:\s*""/);
     expect(block).toMatch(/failureCode:\s*classified\.code/);
   });

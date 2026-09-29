@@ -251,19 +251,19 @@ describe("Phase IA-digest-policy-hard-invariant — service STAMPED branch contr
 
   it("STAMPED return propagates parsed.warnings", () => {
     expect(SERVICE).toMatch(
-      /if \(parsed\.granted\)\s*\{[\s\S]{0,1000}status:\s*"STAMPED"[\s\S]{0,400}warnings:\s*parsed\.warnings/,
+      /if \(!validation\.ok\) return failed\([\s\S]{0,200}status:\s*"STAMPED"[\s\S]{0,400}warnings:\s*parsed\.warnings/,
     );
   });
 
   it("STAMPED return writes whatever serial/genTime the parser produced (may be null)", () => {
     expect(SERVICE).toMatch(
-      /if \(parsed\.granted\)\s*\{[\s\S]{0,1000}serialNumber:\s*parsed\.serialNumber[\s\S]{0,200}genTimeUtc:\s*parsed\.genTimeUtc/,
+      /const fromReply = \{[\s\S]{0,100}serialNumber:\s*parsed\.serialNumber[\s\S]{0,200}genTimeUtc:\s*parsed\.genTimeUtc[\s\S]{0,2000}status:\s*"STAMPED"/,
     );
   });
 
   it("STAMPED return sets failureReason: null and failureCode: null", () => {
     expect(SERVICE).toMatch(
-      /if \(parsed\.granted\)\s*\{[\s\S]{0,1000}status:\s*"STAMPED"[\s\S]{0,200}failureReason:\s*null[\s\S]{0,100}failureCode:\s*null/,
+      /if \(!validation\.ok\) return failed\([\s\S]{0,200}status:\s*"STAMPED"[\s\S]{0,200}failureReason:\s*null[\s\S]{0,100}failureCode:\s*null/,
     );
   });
 });
@@ -284,7 +284,7 @@ describe("Phase IA-digest-policy-hard-invariant — persistence ALWAYS records r
     // gate `tsaResult?.status === "STAMPED"` made FAILED rows lose the
     // request-digest context, which complicated triage.
     expect(EVIDENCE_COMPLETE).toMatch(
-      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.messageImprint\s*:\s*null/,
+      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.requestDigestHex\s*:\s*null/,
     );
     // The OLD gated pattern MUST NOT be present in the finalize block.
     expect(EVIDENCE_COMPLETE).not.toMatch(
@@ -311,7 +311,7 @@ describe("Phase IA-digest-policy-hard-invariant — persistence ALWAYS records r
       fileName: "evidence-complete.service.ts",
     });
     expect(block).toMatch(
-      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.messageImprint\s*:\s*null/,
+      /tsaInputDigestHex:\s*tsaResult\s*\?\s*tsaResult\.requestDigestHex\s*:\s*null/,
     );
     expect(block).toMatch(/tsaInputKind:\s*tsaResult\s*\?\s*tsaInputKind\s*:\s*null/);
   });

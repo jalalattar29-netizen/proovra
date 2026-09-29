@@ -270,7 +270,7 @@ export type IntegrityClass =
   | "ots_initialization_stalled";
 
 const TSA_UNSAFE_REASON =
-  "A timestamp proves a record existed at a moment. Re-contacting the authority now would mint a token whose genTime is later than the evidence it certifies, and presenting that as the record's timestamp would assert something untrue. The provider is therefore never re-contacted for finalized evidence: `tsaStatus` is written once, inside the finalize claim, and there is no TSA queue or job in the canonical registry to re-run.";
+  "A timestamp proves a record existed at a moment. Re-contacting the authority now would mint a token whose genTime is later than the evidence it certifies, and presenting that as the record's timestamp would assert something untrue. The provider is therefore never re-contacted for finalized evidence: `tsaStatus` is written inside the finalize claim, and there is no TSA queue or job in the canonical registry to re-run. The one later writer is the operator validation CLI (repair-tsa-failed-with-token), which never contacts the provider: it only validates the token already kept, with the same validator as issuance.";
 
 const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
   Object.freeze({

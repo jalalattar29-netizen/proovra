@@ -51,7 +51,8 @@ export function normalizeTimestampTone(
   if (["GRANTED", "STAMPED", "VERIFIED", "SUCCEEDED"].includes(s)) {
     return "success";
   }
-  if (["PENDING", "UNAVAILABLE"].includes(s)) return "warning";
+  // ET-TSA-01: a kept, never-validated token is a caution, not a failure.
+  if (["PENDING", "UNAVAILABLE", "RECORDED_NOT_VALIDATED"].includes(s)) return "warning";
   if (s) return "danger";
   return "neutral";
 }

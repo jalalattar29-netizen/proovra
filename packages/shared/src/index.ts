@@ -2488,3 +2488,5 @@ export * from "./package-seal.js";
 
 /* Decision B: the basic public verification projection, independent of the owner's subscription. */
 export * from "./basic-verification.js";
+
+export * from "./tsa-validation-state.js";

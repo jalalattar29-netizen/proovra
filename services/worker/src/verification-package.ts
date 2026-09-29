@@ -1804,7 +1804,7 @@ function buildPackageManifest(params: {
     fileSha256Label:
       params.metadata.fileSha256Label ??
       (isMultipartPackage
-        ? "Synthetic composite SHA-256 of per-part SHA-256s. The reproducible canonical multipart digest is multipartManifestSha256."
+        ? "Composite SHA-256: the per-part lowercase hex SHA-256 digests in partIndex order, joined with a single '|' character, then SHA-256'd. This is the digest the RFC 3161 timestamp certifies. multipartManifestSha256 is a different digest over the same per-part hashes (joined with LF)."
         : "SHA-256 of the original file"),
     multipartManifestSha256:
       params.metadata.multipartManifestSha256 ??
@@ -1936,11 +1936,15 @@ The OpenTimestamps and RFC 3161 materials in this package (anchor.json, opentime
 
   const timestampReadmeLine = params.hasTimestampToken
     ? `timestamp.tsr
-Included in this package as RFC 3161 DER-encoded timestamp data. Example: openssl ts -reply -in timestamp.tsr -text`
+Included in this package as RFC 3161 DER-encoded timestamp data. PROOVRA validated this token when it was issued: its signature, its signer's certificate chain to the trust anchor configured for the issuing timestamp authority, the signer's validity at the stamped time, and that it certifies the digest PROOVRA sent. Validate it yourself with: openssl ts -verify -in timestamp.tsr -digest <fileSha256 from package-manifest.json> -CAfile <the issuing authority's root certificate>. The certified digest is fileSha256. For a single file that is the SHA-256 of the file. For a multipart record it is the SHA-256 of the per-part lowercase hex SHA-256 digests in partIndex order joined with a single '|' character — which is NOT multipartManifestSha256 (those digests joined with LF).`
     : `timestamp.tsr
 Not included in this package. RFC3161 timestamp status: ${
         timestampStatus || "NOT_RECORDED"
-      }. Integrity verification still relies on hashes, digital signature, preserved originals, custody continuity, and any available anchoring material.`;
+      }.${
+        timestampStatus === "FAILED" || timestampStatus === "RECORDED_NOT_VALIDATED"
+          ? " A reply was received from the timestamp authority but PROOVRA did not validate it, so it is not presented as a trusted timestamp and is not included."
+          : ""
+      } Integrity verification still relies on hashes, digital signature, preserved originals, custody continuity, and any available anchoring material.`;
 
   const anchorReadmeLine = params.anchorIncluded
     ? `anchor.json

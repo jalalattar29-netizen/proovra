@@ -32,6 +32,7 @@ import {
   type EvidenceOutputState,
   type OutputGenerationState,
   type PersistedReportRequestState,
+  presentedTsaStatus,
 } from "@proovra/shared";
 import { resolveEvidenceOutputEligibilityByRecord } from "../billing/evidence-output-eligibility.service.js";
 import { resolveOutputRecordApplicability } from "../evidence-artifact-status.service.js";
@@ -736,6 +737,7 @@ async function runEvidenceBoard(
         acquisitionMode: true,
         acquisitionModeSource: true,
         tsaStatus: true,
+        tsaValidatedAtUtc: true,
         otsStatus: true,
         latestReportVersion: true,
         teamId: true,
@@ -897,7 +899,7 @@ async function runEvidenceBoard(
               e.verificationStatus === null ? null : String(e.verificationStatus),
             acquisitionMode: e.acquisitionMode ?? null,
             acquisitionModeSource: e.acquisitionModeSource ?? null,
-            tsaStatus: e.tsaStatus,
+            tsaStatus: presentedTsaStatus(e),
             otsStatus: e.otsStatus,
             createdAt: e.createdAt,
             lifecycleState:

@@ -58,6 +58,12 @@ Time stamp: Jun  9 09:50:34 2026 GMT
 const PROD_DIGEST =
   "1cb2724aeb57206ab6ad795a2fdb0e97eb1349a8d7b1a0adeb090e76e6d2ddb9";
 
+/** The imprint dump every granted reply must carry (ET-TSA-02). */
+const MSG = `Message data:
+    0000 - 1c b2 72 4a eb 57 20 6a-b6 ad 79 5a 2f db 0e 97
+    0010 - eb 13 49 a8 d7 b1 a0 ad-eb 09 0e 76 e6 d2 dd b9
+`;
+
 // ============================================================================
 // Parser — happy path + production fixture
 // ============================================================================
@@ -99,14 +105,14 @@ describe("parseTsaReply — production fixture (evidence 77406c16-…)", () => {
 
 describe("parseTsaReply — status variant handling", () => {
   it("`Status: Granted` (no period) → granted", () => {
-    const reply = `Status: Granted\nSerial number: 0x1\nTime stamp: Jan  1 00:00:00 2026 GMT\n`;
+    const reply = `Status: Granted\n${MSG}Serial number: 0x1\nTime stamp: Jan  1 00:00:00 2026 GMT\n`;
     const out = parseTsaReply(reply);
     expect(out.granted).toBe(true);
     expect(out.statusKind).toBe("granted");
   });
 
   it("`Status: GrantedWithMods.` → granted_with_mods", () => {
-    const reply = `Status: GrantedWithMods.\nSerial number: 0x1\nTime stamp: Jan  1 00:00:00 2026 GMT\n`;
+    const reply = `Status: GrantedWithMods.\n${MSG}Serial number: 0x1\nTime stamp: Jan  1 00:00:00 2026 GMT\n`;
     const out = parseTsaReply(reply);
     expect(out.granted).toBe(true);
     expect(out.statusKind).toBe("granted_with_mods");
@@ -149,7 +155,7 @@ describe("parseTsaReply — validation guards", () => {
     // invariant a Granted token whose imprint matches the request
     // MUST NOT be FAILED just because an optional column failed to
     // parse — the token bytes are authoritative.
-    const reply = `Status: Granted.\nTime stamp: Jan  1 00:00:00 2026 GMT\n`;
+    const reply = `Status: Granted.\n${MSG}Time stamp: Jan  1 00:00:00 2026 GMT\n`;
     const out = parseTsaReply(reply);
     expect(out.granted).toBe(true);
     expect(out.failureCode).toBeNull();
@@ -158,12 +164,23 @@ describe("parseTsaReply — validation guards", () => {
   });
 
   it("Granted but missing genTime → STAMPED + tsa_generation_time_unparsed warning", () => {
-    const reply = `Status: Granted.\nSerial number: 0xABC\n`;
+    const reply = `Status: Granted.\n${MSG}Serial number: 0xABC\n`;
     const out = parseTsaReply(reply);
     expect(out.granted).toBe(true);
     expect(out.failureCode).toBeNull();
     expect(out.genTimeUtc).toBeNull();
     expect(out.warnings).toContain("tsa_generation_time_unparsed");
+  });
+
+  it("ET-TSA-02: a granted reply with NO readable imprint is NOT granted (parse failure), never STAMPED", () => {
+    const out = parseTsaReply(`Status: Granted.\nSerial number: 0x1\nTime stamp: Jan  1 00:00:00 2026 GMT\n`, PROD_DIGEST);
+    expect(out.granted).toBe(false);
+    expect(out.failureCode).toBe("tsa_response_parse_failed");
+    expect(out.warnings).toContain("tsa_message_imprint_not_present_in_reply");
+  });
+
+  it("extracts the policy OID the token was issued under", () => {
+    expect(parseTsaReply(PROD_REPLY_GRANTED, PROD_DIGEST).policyOid).toBe("1.2.40.0.36.1.1.8.1");
   });
 
   it("message imprint mismatch → tsa_message_imprint_mismatch (NEVER granted)", () => {
@@ -197,33 +214,41 @@ describe("Phase IA-TSA-falseFailed — timestamp.service.ts refactor invariants"
     );
   });
 
-  it("TimestampResult carries the bounded failureCode field", () => {
+  it("TimestampResult carries the bounded failureCode field (parser | provider | validation | token missing)", () => {
+    expect(SERVICE).toMatch(/failureCode:\s*TimestampFailureCode\s*\|\s*null/);
     expect(SERVICE).toMatch(
-      /failureCode:\s*TsaReplyFailureCode\s*\|\s*TsaProviderFailureCode\s*\|\s*null/,
+      /export type TimestampFailureCode =\s*\|\s*TsaReplyFailureCode\s*\|\s*TsaProviderFailureCode\s*\|\s*TsaValidationFailureCode\s*\|\s*"tsa_token_missing";/,
     );
   });
 
-  it("preserves token bytes on parser-side failures (never overwrites with empty string in that branch)", () => {
-    // The success-or-parser-failed branch reads tokenBuffer and uses
-    // it in BOTH the granted return AND the parser-side FAILED return.
-    expect(SERVICE).toMatch(
-      /const tokenBuffer\s*=\s*await fs\.readFile\(responseFile\);[\s\S]{0,200}const tokenBase64\s*=\s*tokenBuffer\.toString\("base64"\);/,
-    );
-    // The parser-side FAILED branch persists tokenBase64 (NOT "").
-    // The parser-side FAILED return: from its comment to the end of the try
-    // block that holds it.
-    const block = betweenMarkers(SERVICE, "Parser-side failure paths", "} catch (error) {");
-    expect(block).toMatch(/tokenBase64,/);
-    expect(block).toMatch(/status:\s*"FAILED"/);
-    expect(block).toMatch(/failureCode:\s*parsed\.failureCode/);
+  it("ET-TSA-01: STAMPED is returned only after validateTsaToken accepts the token", () => {
+    const block = betweenMarkers(SERVICE, "3. Validate the token", "} finally {");
+    expect(block).toMatch(/const validation = await validateTsaToken\(/);
+    expect(block).toMatch(/if \(!validation\.ok\) return failed\(validation\.code, validation\.reason, fromReply\);[\s\S]*status: "STAMPED"/);
+    expect((SERVICE.match(/status: "STAMPED",/g) ?? []).length).toBe(1);
   });
 
-  it("subprocess-failure branch (network/timeout/HTTP) writes tokenBase64: \"\" + bounded provider code", () => {
+  it("preserves token bytes on every failure after the reply arrived (parser, token-missing, validation)", () => {
+    expect(SERVICE).toMatch(/const tokenBase64 = \(await fs\.readFile\(responseFile\)\)\.toString\("base64"\);/);
+    const block = betweenMarkers(SERVICE, "The reply bytes are KEPT", "} finally {");
+    expect(block).toMatch(/failed\("tsa_token_missing",[\s\S]{0,200}\{ tokenBase64 \}\)/);
+    expect(block).toMatch(/const fromReply = \{\s*tokenBase64,/);
+    expect(block).toMatch(/parsed\.failureCode \?\? "tsa_response_parse_failed",[\s\S]{0,200}fromReply,/);
+  });
+
+  it("transport-failure branch (network/timeout/HTTP) writes no token + a bounded provider code", () => {
     expect(SERVICE).toMatch(/classifyTsaSubprocessError/);
-    // The subprocess-failure catch clause: from its comment to its finally.
-    const block = betweenMarkers(SERVICE, "Subprocess / network", "} finally {");
-    expect(block).toMatch(/tokenBase64:\s*""/);
-    expect(block).toMatch(/failureCode:\s*classified\.code/);
+    const block = betweenMarkers(SERVICE, "1. Transport.", "The reply bytes are KEPT");
+    expect(block).toMatch(/return failed\(classified\.code, classified\.reason\);/);
+    // failed() defaults the token to "" unless the caller supplies the reply.
+    expect(SERVICE).toMatch(/tokenBase64: "",\s*messageImprint: null,/);
+  });
+
+  it("ET-TSA-07: credentials travel in a curl config file, never in argv", () => {
+    expect(SERVICE).toMatch(/writeCurlCredentialConfig\(curlConfig, tsaUsername, tsaPassword\)/);
+    expect(SERVICE).toMatch(/"-K",\s*curlConfig,/);
+    expect(SERVICE).not.toMatch(/"-u"/);
+    expect(SERVICE).not.toContain("${tsaUsername}:${tsaPassword}");
   });
 
   it("classifyTsaSubprocessError covers the seven bounded provider codes", () => {
@@ -256,24 +281,29 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
     expect(SCRIPT).toMatch(/if \(!args\.apply\)/);
   });
 
-  it("uses the SAME parser the runtime service uses", () => {
+  const KEPT = readSource("../src/services/timestamp/kept-token-validation.ts");
+
+  it("ET-TSA-09: uses the SAME parser AND the SAME validator as issuance", () => {
     expect(SCRIPT).toMatch(
-      /import\s*\{\s*parseTsaReply\s*\}\s*from\s*["']\.\.\/services\/timestamp\/parse-tsa-reply\.js["']/,
+      /import\s*\{\s*evaluateKeptTsaToken\s*\}\s*from\s*["']\.\.\/services\/timestamp\/kept-token-validation\.js["']/,
     );
+    expect(KEPT).toContain('import { parseTsaReply } from "./parse-tsa-reply.js";');
+    expect(KEPT).toContain('import { validateTsaToken } from "./validate-tsa-token.js";');
   });
 
-  it("re-parses the persisted token offline via `openssl ts -reply` (NEVER re-contacts the provider)", () => {
-    expect(SCRIPT).toMatch(/"openssl"[\s\S]{0,200}"ts",[\s\S]{0,100}"-reply"/);
-    // Repair MUST NOT shell out to curl — that would mean re-contacting
-    // the provider.
+  it("re-parses the kept token offline via `openssl ts -reply` (NEVER re-contacts the provider)", () => {
+    expect(KEPT).toContain('"openssl", ["ts", "-reply", "-in", responseFile, "-text"]');
+    // Neither may shell out to curl — that would mean re-contacting the provider.
     expect(SCRIPT).not.toMatch(/"curl"/);
+    expect(KEPT).not.toMatch(/"curl"/);
   });
 
-  it("requires GRANTED + serial + genTime + imprint match before any write", () => {
-    expect(SCRIPT).toMatch(/if \(!parsed\.granted\)/);
-    expect(SCRIPT).toMatch(/parsed\.serialNumber/);
-    expect(SCRIPT).toMatch(/parsed\.genTimeUtc/);
-    expect(SCRIPT).toMatch(/parsed\.imprintMatchesRequest/);
+  it("ET-TSA-09: requires GRANTED + serial + genTime + imprint + a validated token before any write", () => {
+    expect(KEPT).toContain("if (!parsed.granted)");
+    expect(KEPT).toContain("if (!parsed.serialNumber || !parsed.genTimeUtc || !parsed.messageImprintHex)");
+    expect(KEPT).toContain("const validation = await validateTsaToken(");
+    expect(KEPT).toContain("if (!validation.ok) return refuse(");
+    expect(SCRIPT).toContain("if (!decision.ok) {");
   });
 
   it("the update + custody event happen in a single Prisma transaction", () => {
@@ -289,7 +319,7 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
   });
 
   it("custody event payload includes the repair_source forensic marker", () => {
-    expect(SCRIPT).toMatch(/repair_source:\s*"tsa_replay_from_token"/);
+    expect(SCRIPT).toMatch(/repair_source:\s*"tsa_kept_token_validated"/);
   });
 
   it("re-issues NO report — the repair is a custody fact, not a new version (Decision C, 2026-09-29)", () => {
@@ -301,8 +331,8 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
     expect(SCRIPT).toMatch(/NO REPORT IS RE-ISSUED/);
   });
 
-  it("the correction is compare-and-set: it only flips a row that is still FAILED", () => {
-    expect(SCRIPT).toMatch(/tx\.evidence\.updateMany\(\{[\s\S]{0,300}tsaStatus:\s*"FAILED"/);
+  it("the correction is compare-and-set on the evaluated, still-unvalidated state", () => {
+    expect(SCRIPT).toContain("where: { id: row.id, tsaStatus: row.tsaStatus, tsaValidatedAtUtc: null }");
   });
 
   it("does NOT call prisma update / delete outside the transaction", () => {
@@ -316,13 +346,9 @@ describe("Phase IA-TSA-falseFailed — repair-tsa-failed-with-token safety contr
     expect(SCRIPT).toMatch(/n\s*<=\s*0\s*\|\|\s*n\s*>\s*1000/);
   });
 
-  it("scopes the query to the false-FAILED shape exactly", () => {
-    expect(SCRIPT).toMatch(/tsaStatus:\s*"FAILED"/);
+  it("scopes the query to kept tokens on FAILED rows and unvalidated STAMPED rows exactly", () => {
     expect(SCRIPT).toMatch(/tsaTokenBase64:\s*\{\s*not:\s*null\s*\}/);
-    expect(SCRIPT).toMatch(/tsaMessageImprint:\s*\{\s*not:\s*null\s*\}/);
-    expect(SCRIPT).toMatch(
-      /OR:\s*\[\s*\{\s*tsaSerialNumber:\s*null\s*\},\s*\{\s*tsaGenTimeUtc:\s*null\s*\}\s*\]/,
-    );
+    expect(SCRIPT).toContain('OR: [{ tsaStatus: "FAILED" }, { tsaStatus: "STAMPED", tsaValidatedAtUtc: null }]');
   });
 
   it("disconnects Prisma on both success and fatal paths", () => {

@@ -54,10 +54,16 @@ export type BasicVerification = {
   timestamp: {
     state: ComponentVerificationState;
     /**
-     * "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED": a token was issued and
-     * its message imprint equals the recorded digest; this service does not
-     * validate the authority's signature or certificate chain, so the state is
-     * not_checked rather than verified.
+     * (ET-TSA-01) "TOKEN_VALIDATED": PROOVRA validated the token when it was
+     * issued — signature, certificate chain to the configured trust anchor,
+     * signer validity at genTime, imprint and nonce — and the imprint read
+     * from the token equals the recorded digest. State: verified.
+     *
+     * (ET-TSA-01) "TOKEN_RECORDED_NOT_VALIDATED": a token was kept from before
+     * validation existed and has not been validated since. State: not_checked.
+     *
+     * "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED": legacy basis, no longer
+     * produced (kept in the union for readers of older payloads).
      */
     /**
      * (2026-09-29) "TOKEN_RECORDED_IMPRINT_NOT_COMPARED": a token was issued, but
@@ -65,6 +71,8 @@ export type BasicVerification = {
      * mismatch.
      */
     basis:
+      | "TOKEN_VALIDATED"
+      | "TOKEN_RECORDED_NOT_VALIDATED"
       | "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED"
       | "TOKEN_RECORDED_IMPRINT_NOT_COMPARED"
       | null;
@@ -146,20 +154,32 @@ export function buildBasicVerification(input: {
     (c) => c === true,
   );
 
+  // `tsaStatus` is the PRESENTED status (presentedTsaStatus): STAMPED means
+  // the token was validated; RECORDED_NOT_VALIDATED is a kept legacy token.
   const tsa = String(input.tsaStatus ?? "").toUpperCase();
+  const tsaPositive = tsa === "STAMPED" || tsa === "GRANTED" || tsa === "VERIFIED" || tsa === "SUCCEEDED";
   const timestampState: ComponentVerificationState =
     tsa === "FAILED"
       ? "failed"
-      : // Every positive status the digest comparison accepts (2026-09-29):
-        // VERIFIED / SUCCEEDED read "not issued" while compareTimestampDigest
-        // treated them as issued.
-        tsa === "STAMPED" || tsa === "GRANTED" || tsa === "VERIFIED" || tsa === "SUCCEEDED"
+      : tsaPositive
         ? input.tsaImprintMatches === false
           ? "failed"
-          : "not_checked"
-        : tsa === "PENDING"
-          ? "pending"
-          : "not_issued";
+          : tsa === "STAMPED" && input.tsaImprintMatches === true
+            ? "verified"
+            : "not_checked"
+        : tsa === "RECORDED_NOT_VALIDATED"
+          ? "not_checked"
+          : tsa === "PENDING"
+            ? "pending"
+            : "not_issued";
+  const timestampBasis: BasicVerification["timestamp"]["basis"] =
+    timestampState === "verified"
+      ? "TOKEN_VALIDATED"
+      : timestampState !== "not_checked"
+        ? null
+        : tsa === "RECORDED_NOT_VALIDATED"
+          ? "TOKEN_RECORDED_NOT_VALIDATED"
+          : "TOKEN_RECORDED_IMPRINT_NOT_COMPARED";
 
   // The shared OTS claim (2026-09-29): a status or a txid is never enough for
   // "verified" — only an anchor verified against the Bitcoin chain is.
@@ -203,13 +223,9 @@ export function buildBasicVerification(input: {
     },
     timestamp: {
       state: timestampState,
-      basis:
-        timestampState !== "not_checked"
-          ? null
-          : input.tsaImprintMatches === true
-            ? "IMPRINT_MATCHES_TOKEN_SIGNATURE_NOT_VERIFIED"
-            : "TOKEN_RECORDED_IMPRINT_NOT_COMPARED",
-      tokenTimeUtc: timestampState === "not_checked" ? iso(input.tsaGenTimeUtc) : null,
+      basis: timestampBasis,
+      tokenTimeUtc:
+        timestampState === "not_checked" || timestampState === "verified" ? iso(input.tsaGenTimeUtc) : null,
     },
     anchoring: {
       state: anchoringState,

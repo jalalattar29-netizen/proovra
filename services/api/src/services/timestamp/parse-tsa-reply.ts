@@ -87,6 +87,8 @@ export type TsaReplyParseResult = {
    * TSR. Lowercased. Null if the dump wasn't present or didn't parse.
    */
   messageImprintHex: string | null;
+  /** TSTInfo policy as openssl prints it (dotted OID for unregistered policies). */
+  policyOid: string | null;
   /**
    * `imprintMatchesRequest` is true when both `messageImprintHex` and the
    * supplied `expectedDigestHex` parsed and matched. False when they
@@ -252,6 +254,11 @@ function parseMessageImprint(text: string): string | null {
   return hex.length > 0 ? hex : null;
 }
 
+function parsePolicyOid(text: string): string | null {
+  const m = /(?:^|\n)\s*Policy OID:\s*(\S+)/i.exec(text);
+  return m ? m[1]!.slice(0, 80) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Public entry
 // ---------------------------------------------------------------------------
@@ -269,6 +276,7 @@ export function parseTsaReply(
       serialNumber: null,
       genTimeUtc: null,
       messageImprintHex: null,
+      policyOid: null,
       imprintMatchesRequest: null,
       failureCode: "tsa_response_parse_failed",
       failureReason: tsaFailureCodeToReason("tsa_response_parse_failed"),
@@ -280,6 +288,7 @@ export function parseTsaReply(
   const serialNumber = parseSerialNumber(stdout);
   const genTimeUtc = parseGenTime(stdout);
   const messageImprintHex = parseMessageImprint(stdout);
+  const policyOid = parsePolicyOid(stdout);
 
   const expected =
     typeof expectedDigestHex === "string"
@@ -319,6 +328,7 @@ export function parseTsaReply(
       serialNumber,
       genTimeUtc,
       messageImprintHex,
+      policyOid,
       imprintMatchesRequest,
       failureCode: "tsa_response_not_granted",
       failureReason: tsaFailureCodeToReason("tsa_response_not_granted"),
@@ -337,6 +347,7 @@ export function parseTsaReply(
       serialNumber,
       genTimeUtc,
       messageImprintHex,
+      policyOid,
       imprintMatchesRequest,
       failureCode: "tsa_message_imprint_mismatch",
       failureReason: tsaFailureCodeToReason("tsa_message_imprint_mismatch"),
@@ -344,15 +355,33 @@ export function parseTsaReply(
     };
   }
 
-  // Granted + imprint matches (or no expected supplied). Collect
-  // bounded warnings for any soft parser misses. STAMPED persistence
-  // proceeds regardless.
+  // ET-TSA-02 (2026-09-29): a granted reply whose imprint cannot be read is
+  // NOT a timestamp of anything we can name. It used to be STAMPED with a
+  // warning — which let a record claim an RFC 3161 timestamp that no imprint
+  // comparison ever touched. It now fails as unparseable; the token bytes are
+  // still kept by the caller.
+  if (messageImprintHex === null) {
+    return {
+      granted: false,
+      statusKind: status.kind,
+      statusText: status.raw,
+      serialNumber,
+      genTimeUtc,
+      messageImprintHex,
+      policyOid,
+      imprintMatchesRequest,
+      failureCode: "tsa_response_parse_failed",
+      failureReason: tsaFailureCodeToReason("tsa_response_parse_failed"),
+      warnings: ["tsa_message_imprint_not_present_in_reply"],
+    };
+  }
+
+  // Granted + imprint matches (or no expected supplied). Collect bounded
+  // warnings for soft parser misses. The reply is still only a CLAIM here:
+  // validate-tsa-token.ts decides whether the token is trusted.
   const warnings: TsaReplyWarningCode[] = [];
   if (serialNumber === null) warnings.push("tsa_serial_number_unparsed");
   if (genTimeUtc === null) warnings.push("tsa_generation_time_unparsed");
-  if (messageImprintHex === null) {
-    warnings.push("tsa_message_imprint_not_present_in_reply");
-  }
 
   return {
     granted: true,
@@ -361,6 +390,7 @@ export function parseTsaReply(
     serialNumber,
     genTimeUtc,
     messageImprintHex,
+    policyOid,
     imprintMatchesRequest,
     failureCode: null,
     failureReason: null,
