@@ -6,45 +6,45 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 10 |
+| FIXED_IN_THIS_TASK | 21 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
-| PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 143 |
+| PARTIALLY_FIXED | 1 |
+| STILL_PRESENT | 131 |
 
-Open by severity: P0 0 · P1 18 · P2 75 · P3 50
+Open by severity: P0 0 · P1 8 · P2 74 · P3 50
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
-| ET-CUS-01 | P0 | FIXED_IN_THIS_TASK | summarizePublicPayload is an allow-list: legal-hold events carry a bounded statement; unmapped types print no payload text | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-CUS-01] (title, internal note, actor id and hold id all absent) |
+| ET-CUS-01 | P0 | FIXED_IN_THIS_TASK | summarizePublicPayload is an allow-list: legal-hold events carry a bounded statement; unmapped types print no payload text | 6699902371, 8babf130d1, 0699e33419 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-CUS-01] (title, internal note, actor id and hold id all absent) |
 | ET-SEC-01 | P0 | FIXED_IN_THIS_TASK | executeEvidenceDestruction: claim + reload + union hold re-read (fail closed) + eligibility in ONE transaction under the evidence lock; EVIDENCE-scope placeCanonicalLegalHold takes the same lock and refuses destruction_committed; evaluateEffectiveLegalHold now lives once in packages/shared-runtime | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-01]; services/api/test/legal-hold-destruction-serialization.integration.test.ts; phase-12b-legal-hold-convergence.test.ts ET-SEC-01 cases |
 | ET-SEC-02 | P0 | FIXED_IN_THIS_TASK | case-evidence-link.service.ts detachEvidenceFromCase — Invariant C: case linkage never changes ownership | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-02]; phase-12b-case-evidence-authority.test.ts detach matrix; runtime-proof-cases-review-a.integration.test.ts (expectation corrected from teamId null to the workspace) |
 | ET-SEC-09 | P0 | FIXED_IN_THIS_TASK | attachEvidenceToCase proves tenancy itself: same workspace; with no workspace, the case owner must own the evidence; the actor must pass resolveEvidenceRecordAccess(evidence.update_metadata) | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-09]; phase-12b-case-evidence-authority.test.ts [ET-SEC-09 / ET-SEC-16] cases |
 | ET-SEC-10 | P0 | FIXED_IN_THIS_TASK | mapIntegrityHeadline: a live failure dominates and Verified requires overallIntegrity === true; both verify routes use the live trust decision when live core checks fail | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-10] |
 | ET-UPL-01 | P0 | FIXED_IN_THIS_TASK | services/api/src/services/evidence/evidence-part-writer.service.ts (writeEvidencePart / lockEvidenceForByteWrite / assertEvidenceAcceptsByteWrites) under the finalize evidence lock | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-UPL-01]; services/api/test/evidence-part-writer.integration.test.ts; services/api/test/evidence-part-writer-authority.test.ts (structural guard: exactly one writer) |
-| ET-COM-01 | P1 | STILL_PRESENT |  |  |  |
+| ET-COM-01 | P1 | FIXED_IN_THIS_TASK | stripe.provider observeSubscription stamps the provider read time; decideSubscriptionStatusWrite and isNotStale treat a future stamp as absent | 46310f906a | services/api/test/billing-subscription-status.test.ts [ET-COM-01]; services/api/test/billing-stripe-observation-ordering.test.ts |
 | ET-DC-01 | P1 | STILL_PRESENT |  |  |  |
 | ET-DC-02 | P1 | STILL_PRESENT |  |  |  |
 | ET-DC-03 | P1 | STILL_PRESENT |  |  |  |
-| ET-INT-01 | P1 | STILL_PRESENT |  |  |  |
-| ET-INT-02 | P1 | STILL_PRESENT |  |  |  |
-| ET-INT-03 | P1 | STILL_PRESENT |  |  |  |
-| ET-INT-04 | P1 | STILL_PRESENT |  |  |  |
+| ET-INT-01 | P1 | FIXED_IN_THIS_TASK | SUBMITTED only via /submit (submitExternalIntake -> completeEvidence); /transition is a typed 410 compatibility tombstone | bb658920ff | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-01] |
+| ET-INT-02 | P1 | FIXED_IN_THIS_TASK | writeEvidencePart RETURN_EXISTING for a same-file retry of an unfinished index; submit maps missing objects to PART_NOT_UPLOADED; the intake page retries at the same index | bb658920ff, 3cb681ab88 | services/api/test/intake-part-retry.integration.test.ts |
+| ET-INT-03 | P1 | FIXED_IN_THIS_TASK | countedEvidenceRecordWhere (services/evidence/evidence-record-counting.ts): established records + reservations younger than 24h, used by admission, settlement and all billing meters | bb658920ff, 7c5c69713c | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] |
+| ET-INT-04 | P1 | FIXED_IN_THIS_TASK | resolveEvidenceRequestIdForIntakeLink (request pointer, else the append-only NEEDS_MORE_INFO event naming the follow-up link) | bb658920ff | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-04] |
 | ET-INT-05 | P1 | FIXED_IN_THIS_TASK | writeEvidencePart with an INTAKE_SESSION principal (the same evidence lock finalize holds) | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-05: the intake principal is refused once the record is signed] |
-| ET-OTS-01 | P1 | STILL_PRESENT |  |  |  |
-| ET-OTS-02 | P1 | STILL_PRESENT |  |  |  |
+| ET-OTS-01 | P1 | FIXED_IN_THIS_TASK | enqueueCanonicalJob (packages/shared/src/queue-integrity/enqueue.ts) with selfJobId at every processor call site | 304d5c2c2a | services/worker/test/ots-followup-selfjobid.test.ts; services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-01 contract] |
+| ET-OTS-02 | P1 | FIXED_IN_THIS_TASK | enqueueCanonicalJob treats the derived id (selfFollowUpJobId) like the base id: joins it only while live, releases it otherwise | 304d5c2c2a | services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-02: 8 of 8 hops]; phase-12-point5-queue-integrity-gate.test.ts ET-OTS-02 unit cases |
 | ET-PKG-01 | P1 | STILL_PRESENT |  |  |  |
 | ET-PKG-02 | P1 | STILL_PRESENT |  |  |  |
-| ET-SEC-03 | P1 | STILL_PRESENT |  |  |  |
-| ET-SEC-04 | P1 | STILL_PRESENT |  |  |  |
-| ET-SEC-05 | P1 | STILL_PRESENT |  |  |  |
+| ET-SEC-03 | P1 | FIXED_IN_THIS_TASK | resolveEvidenceRecordAccess / evaluateMemberAccess (access-policy): read gate delegates with evidence.read; the byte-release gate asks for the exact download capability | 0699e33419 | services/api/test/stale-authority.integration.test.ts [ET-SEC-03 x2]; artifact-action-contract.integration.test.ts (suspended organization -> 404) |
+| ET-SEC-04 | P1 | FIXED_IN_THIS_TASK | resolveCaseRecordAccess (case-permission.service): current workspace authority first; case owner / CaseAccess only narrow it; personal-scope cases owner-only | 0699e33419 | services/api/test/stale-authority.integration.test.ts [ET-SEC-04]; byte-release-authority.integration.test.ts (CaseAccess on a personal record grants nothing); phase-32-8-d-cases-reports.test.ts |
+| ET-SEC-05 | P1 | FIXED_IN_THIS_TASK | canonical engine first; creator / OWNER / ADMIN only after current authority passes | 0699e33419 | services/api/test/stale-authority.integration.test.ts [ET-SEC-05] |
 | ET-SEC-06 | P1 | FIXED_IN_THIS_TASK | applyEvidenceLifecycleAction write step under the evidence lock refuses a decided claim (DESTRUCTION_IN_PROGRESS) | 8babf130d1 | services/api/test/legal-hold-destruction-serialization.integration.test.ts [ET-SEC-06: restore is refused while the executor holds a decided claim] |
 | ET-SEC-07 | P1 | STILL_PRESENT |  |  |  |
 | ET-TSA-01 | P1 | STILL_PRESENT |  |  |  |
 | ET-TSA-03 | P1 | STILL_PRESENT |  |  |  |
 | ET-ACQ-01 | P2 | STILL_PRESENT |  |  |  |
-| ET-ACQ-02 | P2 | STILL_PRESENT |  |  |  |
+| ET-ACQ-02 | P2 | PARTIALLY_FIXED | counting: countedEvidenceRecordWhere (done); reaping of expired reservations and their objects: not yet implemented | bb658920ff | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] (counting only) |
 | ET-ACQ-03 | P2 | STILL_PRESENT |  |  |  |
 | ET-ACQ-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-COM-02 | P2 | STILL_PRESENT |  |  |  |
@@ -75,7 +75,7 @@ Open by severity: P0 0 · P1 18 · P2 75 · P3 50
 | ET-INT-12 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-13 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-14 | P2 | FIXED_IN_THIS_TASK | writeEvidencePart refuses a soft-deleted record as not found | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-14: a soft-deleted in-progress record is not found, never reused] |
-| ET-OTS-03 | P2 | STILL_PRESENT |  |  |  |
+| ET-OTS-03 | P2 | FIXED_IN_THIS_TASK | runOtsInitializationReconciler second scan (pendingWithoutProgressWhere + isOtsUpgradeScheduled over both ladder ids): re-schedule once, never a parallel ladder | 304d5c2c2a, 7c5c69713c | services/worker/test/ots-pending-recovery.integration.test.ts (live PostgreSQL + loopback Redis) |
 | ET-OTS-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-03 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-04 | P2 | STILL_PRESENT |  |  |  |
@@ -144,7 +144,7 @@ Open by severity: P0 0 · P1 18 · P2 75 · P3 50
 | ET-Q-08 | P3 | STILL_PRESENT |  |  |  |
 | ET-Q-09 | P3 | STILL_PRESENT |  |  |  |
 | ET-Q-10 | P3 | STILL_PRESENT |  |  |  |
-| ET-REC-01 | P3 | STILL_PRESENT |  |  |  |
+| ET-REC-01 | P3 | STILL_PRESENT |  | 304d5c2c2a |  |
 | ET-REC-05 | P3 | STILL_PRESENT |  |  |  |
 | ET-REC-06 | P3 | STILL_PRESENT |  |  |  |
 | ET-REC-07 | P3 | STILL_PRESENT |  |  |  |
@@ -182,8 +182,8 @@ Open by severity: P0 0 · P1 18 · P2 75 · P3 50
 - **migrationImpact:** none
 - **compatibilityImpact:** public payloadSummary is null for event types without a public label
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
-- **commits:** 6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger; 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
+- **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/cases/case-permission.service.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
+- **commits:** 6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger; 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth; 0699e33419 fix(auth): current authority beats historical identity on every read and byte release
 
 ## ET-SEC-01 — Destruction executor decides eligibility from a legal-hold boolean computed BEFORE its claim; a hold placed mid-execution does not stop byte deletion + certificate
 
@@ -262,6 +262,77 @@ Open by severity: P0 0 · P1 18 · P2 75 · P3 50
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger; 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
 
+## ET-COM-01 — Billing reconciliation stamps a Stripe subscription's ordering clock with its FUTURE current_period_end, after which cancellation/past-due webhooks are refused as 'older' and the account can stay PRO indefinitely
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The Stripe reconciliation stamped providerStateAtUtc with the future current_period_end, so every later webhook compared as older and was refused.
+- **canonicalAuthority:** stripe.provider observeSubscription stamps the provider read time; decideSubscriptionStatusWrite and isNotStale treat a future stamp as absent
+- **redTest:** services/api/test/billing-subscription-status.test.ts [ET-COM-01] on a40ca76f: apply:false (evidence/com01-red-baseline.txt)
+- **greenTest:** services/api/test/billing-subscription-status.test.ts [ET-COM-01]; services/api/test/billing-stripe-observation-ordering.test.ts
+- **migrationImpact:** none: poisoned rows (future stamps) are treated as having no ordering information and heal on their next applied fact
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/billing/reconciliation/reconciliation.service.ts`, `services/api/src/services/billing/reconciliation/stripe.provider.ts`, `services/api/src/services/billing/subscription-status.ts`
+- **commits:** 46310f906a fix(commercial): provider ordering uses read time; future stamps never block events
+
+## ET-INT-01 — Public /transition lets a token holder mark an intake session SUBMITTED without finalizing: link use is consumed, one-time link expires, Evidence stays CREATED
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The public /transition route allowed SUBMITTED, which consumed and expired one-time links without finalizing.
+- **canonicalAuthority:** SUBMITTED only via /submit (submitExternalIntake -> completeEvidence); /transition is a typed 410 compatibility tombstone
+- **obsoleteRemoved:** the /transition handler body, its TransitionBody schema and its catch-all
+- **redTest:** audit runtime proof RT-INTAKE on a40ca76f (200, link EXPIRED, session SUBMITTED with no evidence)
+- **greenTest:** services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-01]
+- **migrationImpact:** none
+- **compatibilityImpact:** POST .../transition answers 410 INTAKE_SESSION_TRANSITION_RETIRED (no first-party caller existed)
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`
+- **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire
+
+## ET-INT-02 — A failed part PUT permanently blocks the intake session and the contributor is told the workspace refused
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The part row is reserved before the PUT, a retry of the index was refused, and completion's missing-object 404 was classified as a workspace refusal.
+- **canonicalAuthority:** writeEvidencePart RETURN_EXISTING for a same-file retry of an unfinished index; submit maps missing objects to PART_NOT_UPLOADED; the intake page retries at the same index
+- **redTest:** no baseline red recorded; defect source-proven in the audit
+- **greenTest:** services/api/test/intake-part-retry.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** new public code PART_NOT_UPLOADED (409); the intake page shows 'Retry upload'
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/scripts/capability-authority/manifests/dynamic-resolutions.json`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`
+- **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire; 3cb681ab88 chore(audit): regenerate architecture facts after the intake and authority batches
+
+## ET-INT-03 — Any intake link holder can exhaust the workspace's evidence-record allowance with never-submitted records
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Every allowance count included CREATED/UPLOADING rows of any age, and nothing released them.
+- **canonicalAuthority:** countedEvidenceRecordWhere (services/evidence/evidence-record-counting.ts): established records + reservations younger than 24h, used by admission, settlement and all billing meters
+- **redTest:** audit runtime proof RT-INTAKE on a40ca76f (anonymous never-submitted session -> owner refused 409)
+- **greenTest:** services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02]
+- **migrationImpact:** none
+- **compatibilityImpact:** billing meters stop counting abandoned drafts older than 24h
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`, `services/worker/src/ots-initialization-reconciler.ts`
+- **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire; 7c5c69713c fix(anchoring): OTS recovery measures "no progress" from the last write, not creation
+
+## ET-INT-04 — 'Request more' follow-up submissions never reach the evidence request
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Follow-up links were recorded only on an event payload; the linker and the external view resolved requests by the request pointer alone.
+- **canonicalAuthority:** resolveEvidenceRequestIdForIntakeLink (request pointer, else the append-only NEEDS_MORE_INFO event naming the follow-up link)
+- **redTest:** no baseline red recorded; defect source-proven in the audit
+- **greenTest:** services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-04]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`
+- **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire
+
 ## ET-INT-05 — Parts can be added to an intake record while it is being signed or after it is signed; the worker then includes them
 
 - **severity:** P1
@@ -278,6 +349,82 @@ Open by severity: P0 0 · P1 18 · P2 75 · P3 50
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
 
+## ET-OTS-01 — After initialization the upgrade follow-up collapses onto the running job itself, so no newly stamped proof is ever upgraded
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The init branch enqueued its follow-up without selfJobId from inside the job whose id is the canonical ots-upgrade-<id>, so the enqueue collapsed onto the running job.
+- **canonicalAuthority:** enqueueCanonicalJob (packages/shared/src/queue-integrity/enqueue.ts) with selfJobId at every processor call site
+- **redTest:** services/worker/test/ots-followup-selfjobid.test.ts on a40ca76f (evidence/ots-red-baseline.txt: the init call lacked selfJobId)
+- **greenTest:** services/worker/test/ots-followup-selfjobid.test.ts; services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-01 contract]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
+- **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered
+
+## ET-OTS-02 — Self follow-up job id `-next-` is deterministic and collides with its own retained completed job, so the ladder dies silently on the third hop
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The derived follow-up id recurred every other hop; BullMQ silently ignored an add whose id belonged to a retained completed job, so the ladder died on hop 3 while reporting enqueued.
+- **canonicalAuthority:** enqueueCanonicalJob treats the derived id (selfFollowUpJobId) like the base id: joins it only while live, releases it otherwise
+- **redTest:** services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-02] on a40ca76f: 'expected 3 to be 8' (evidence/ots-red-baseline.txt)
+- **greenTest:** services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-02: 8 of 8 hops]; phase-12-point5-queue-integrity-gate.test.ts ET-OTS-02 unit cases
+- **concurrencyTest:** services/api/test/ots-upgrade-ladder.integration.test.ts (real BullMQ, one worker, self-rescheduling ladder)
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
+- **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered
+
+## ET-SEC-03 — Legacy read gate and the byte-release gate's membership lookup ignore access expiry and organization lifecycle: expired members and members of SUSPENDED/ARCHIVED organizations can read, write collaboration content and download originals/reports/packages
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The legacy read gate and the byte-release gate's role lookup checked TeamMember.status === ACTIVE only, ignoring access expiry and organization lifecycle.
+- **canonicalAuthority:** resolveEvidenceRecordAccess / evaluateMemberAccess (access-policy): read gate delegates with evidence.read; the byte-release gate asks for the exact download capability
+- **obsoleteRemoved:** the hand-rolled ACTIVE-status membership reads in getEvidenceWithReadAccess
+- **redTest:** services/api/test/stale-authority.integration.test.ts [ET-SEC-03 expired member; suspended organization] (red on a40ca76f: 'expected 200 to be 404' (evidence/stale-authority-red-baseline.txt))
+- **greenTest:** services/api/test/stale-authority.integration.test.ts [ET-SEC-03 x2]; artifact-action-contract.integration.test.ts (suspended organization -> 404)
+- **negativeAuthTests:** expired member read + download refused; suspended-organization member refused
+- **migrationImpact:** none
+- **compatibilityImpact:** members of a suspended organization get the anti-enumeration 404 on record reads (canonical engine denies every permission while the organization is not ACTIVE)
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/cases/case-permission.service.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`
+- **commits:** 0699e33419 fix(auth): current authority beats historical identity on every read and byte release
+
+## ET-SEC-04 — Stale standing authority: CaseAccess grants and case ownership survive suspension/revocation and are honored without membership re-proof (legacy read gate, case-workspace requireCaseAccess, bulk case status, attach/detach)
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** CaseAccess grants and case ownership were honoured without membership re-proof in the legacy read gate and requireCaseAccess.
+- **canonicalAuthority:** resolveCaseRecordAccess (case-permission.service): current workspace authority first; case owner / CaseAccess only narrow it; personal-scope cases owner-only
+- **obsoleteRemoved:** requireCaseAccess's own owner / CaseAccess / ACTIVE-status branches; the case-derived branches of the legacy read gate
+- **redTest:** services/api/test/stale-authority.integration.test.ts [ET-SEC-04] (red on a40ca76f: 'expected 200 to be 404' (evidence/stale-authority-red-baseline.txt))
+- **greenTest:** services/api/test/stale-authority.integration.test.ts [ET-SEC-04]; byte-release-authority.integration.test.ts (CaseAccess on a personal record grants nothing); phase-32-8-d-cases-reports.test.ts
+- **negativeAuthTests:** CaseAccess outsider refused on case and record; a current member on the access list keeps access
+- **migrationImpact:** none
+- **compatibilityImpact:** a CaseAccess row no longer lets a non-member read a record (including personal records shared through a personal case)
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/cases/case-permission.service.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`
+- **commits:** 0699e33419 fix(auth): current authority beats historical identity on every read and byte release
+
+## ET-SEC-05 — Creator identity alone grants read, write and moderation on workspace-bound evidence after the creator leaves the workspace (contradicts canonical 'creator grants nothing')
+
+- **severity:** P1
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Creator identity short-circuited read and moderation checks after the creator left the workspace.
+- **canonicalAuthority:** canonical engine first; creator / OWNER / ADMIN only after current authority passes
+- **redTest:** services/api/test/stale-authority.integration.test.ts [ET-SEC-05] (red on a40ca76f: 'expected 200 to be 404' (evidence/stale-authority-red-baseline.txt))
+- **greenTest:** services/api/test/stale-authority.integration.test.ts [ET-SEC-05]
+- **negativeAuthTests:** revoked former creator refused
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/cases/case-permission.service.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`
+- **commits:** 0699e33419 fix(auth): current authority beats historical identity on every read and byte release
+
 ## ET-SEC-06 — Restore-from-trash 'succeeds' (200 + EVIDENCE_RESTORED custody) while the destruction executor holds its claim; executor then tombstones the restored record
 
 - **severity:** P1
@@ -292,6 +439,19 @@ Open by severity: P0 0 · P1 18 · P2 75 · P3 50
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
 
+## ET-ACQ-02 — Interrupted web captures leave Evidence in UPLOADING permanently; these rows count against record caps and are never reaped
+
+- **severity:** P2
+- **disposition:** PARTIALLY_FIXED
+- **rootCause:** Interrupted captures leave CREATED/UPLOADING rows forever; they counted against caps and are never reaped.
+- **canonicalAuthority:** counting: countedEvidenceRecordWhere (done); reaping of expired reservations and their objects: not yet implemented
+- **greenTest:** services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] (counting only)
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** OPEN — reaper for expired reservations and orphan objects still required
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`
+- **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire
+
 ## ET-INT-14 — Soft-deleted in-progress intake Evidence is reused for new parts
 
 - **severity:** P2
@@ -304,6 +464,21 @@ Open by severity: P0 0 · P1 18 · P2 75 · P3 50
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
 - **commits:** 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
+
+## ET-OTS-03 — No automatic or operator recovery exists for a PENDING (or FAILED) row whose job is gone; pending_aged guidance falsely says the ladder is still running
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Only never-attempted (NULL status) rows were reconciled; a PENDING proof whose ladder was lost stayed PENDING forever.
+- **canonicalAuthority:** runOtsInitializationReconciler second scan (pendingWithoutProgressWhere + isOtsUpgradeScheduled over both ladder ids): re-schedule once, never a parallel ladder
+- **redTest:** no baseline red: the scan did not exist; defect source-proven in the audit
+- **greenTest:** services/worker/test/ots-pending-recovery.integration.test.ts (live PostgreSQL + loopback Redis)
+- **concurrencyTest:** same test: a second sweep leaves exactly one scheduled job
+- **migrationImpact:** none
+- **compatibilityImpact:** reconciler result gains pendingScanned / pendingAlreadyScheduled / pendingRescheduled; aged-pending guidance names the recovery sweep
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
+- **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered; 7c5c69713c fix(anchoring): OTS recovery measures "no progress" from the last write, not creation
 
 ## ET-SEC-12 — Archive/trash/restore/unarchive are check-then-write: read + hold evaluation outside the transaction, write by id only, no lock
 

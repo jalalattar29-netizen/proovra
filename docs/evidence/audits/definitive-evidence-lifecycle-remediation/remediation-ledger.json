@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 10,
+    "FIXED_IN_THIS_TASK": 21,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
-    "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 143,
+    "PARTIALLY_FIXED": 1,
+    "STILL_PRESENT": 131,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -17,29 +17,19 @@
     "conservationHolds": true,
     "openBySeverity": {
       "P0": 0,
-      "P1": 18,
-      "P2": 75,
+      "P1": 8,
+      "P2": 74,
       "P3": 50
     }
   },
   "openIds": {
     "P0": [],
     "P1": [
-      "ET-COM-01",
       "ET-DC-01",
       "ET-DC-02",
       "ET-DC-03",
-      "ET-INT-01",
-      "ET-INT-02",
-      "ET-INT-03",
-      "ET-INT-04",
-      "ET-OTS-01",
-      "ET-OTS-02",
       "ET-PKG-01",
       "ET-PKG-02",
-      "ET-SEC-03",
-      "ET-SEC-04",
-      "ET-SEC-05",
       "ET-SEC-07",
       "ET-TSA-01",
       "ET-TSA-03"
@@ -76,7 +66,6 @@
       "ET-INT-11",
       "ET-INT-12",
       "ET-INT-13",
-      "ET-OTS-03",
       "ET-OTS-04",
       "ET-PKG-03",
       "ET-PKG-04",
@@ -201,12 +190,15 @@
         "packages/shared-runtime/src/index.ts",
         "packages/shared-runtime/src/ops/metrics.service.ts",
         "packages/shared/src/evidence-retention-lifecycle.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
         "services/api/src/routes/cases.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/routes/integrations-uploads.routes.ts",
         "services/api/src/routes/upload-sessions.routes.ts",
         "services/api/src/services/cases/case-evidence-link.service.ts",
         "services/api/src/services/cases/case-lifecycle.service.ts",
+        "services/api/src/services/cases/case-permission.service.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts",
         "services/api/src/services/evidence/evidence-delete-eligibility.service.ts",
         "services/api/src/services/evidence/evidence-lifecycle.service.ts",
         "services/api/src/services/evidence/evidence-part-writer.service.ts",
@@ -236,7 +228,8 @@
       "compatibilityImpact": "public payloadSummary is null for event types without a public label",
       "commits": [
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
-        "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
+        "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth",
+        "0699e33419 fix(auth): current authority beats historical identity on every read and byte release"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -571,20 +564,26 @@
         "services/api/src/services/billing/subscription-status.ts:93",
         "packages/shared-runtime/src/billing/commercial-lifecycle.ts:95"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Two incompatible clocks (event creation time vs period end) share one monotonic ordering column.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The Stripe reconciliation stamped providerStateAtUtc with the future current_period_end, so every later webhook compared as older and was refused.",
+      "canonicalAuthority": "stripe.provider observeSubscription stamps the provider read time; decideSubscriptionStatusWrite and isNotStale treat a future stamp as absent",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/billing/reconciliation/reconciliation.service.ts",
+        "services/api/src/services/billing/reconciliation/stripe.provider.ts",
+        "services/api/src/services/billing/subscription-status.ts"
+      ],
+      "redTest": "services/api/test/billing-subscription-status.test.ts [ET-COM-01] on a40ca76f: apply:false (evidence/com01-red-baseline.txt)",
+      "greenTest": "services/api/test/billing-subscription-status.test.ts [ET-COM-01]; services/api/test/billing-stripe-observation-ordering.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
-      "migrationImpact": "none",
+      "migrationImpact": "none: poisoned rows (future stamps) are treated as having no ordering information and heal on their next applied fact",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "46310f906a fix(commercial): provider ordering uses read time; future stamps never block events"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-01",
@@ -670,20 +669,33 @@
         "services/api/src/services/workflow-intake-session.service.ts:546",
         "packages/shared/src/workflow-intake-link.ts:99"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "SUBMITTED is allowed over the public route; transitionIntakeSession increments usedCount and expires one-time links but never calls completeEvidence, emits no EXTERNAL_INTAKE_SUBMITTED and links no request response. The web page never calls /transition.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The public /transition route allowed SUBMITTED, which consumed and expired one-time links without finalizing.",
+      "canonicalAuthority": "SUBMITTED only via /submit (submitExternalIntake -> completeEvidence); /transition is a typed 410 compatibility tombstone",
+      "obsoleteRemoved": "the /transition handler body, its TransitionBody schema and its catch-all",
+      "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "services/api/scripts/capability-authority/manifests/route-dispositions.json",
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/evidence-request.service.ts",
+        "services/api/src/services/evidence/evidence-record-counting.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/workspace-usage.service.ts"
+      ],
+      "redTest": "audit runtime proof RT-INTAKE on a40ca76f (200, link EXPIRED, session SUBMITTED with no evidence)",
+      "greenTest": "services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-01]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "POST .../transition answers 410 INTAKE_SESSION_TRANSITION_RETIRED (no first-party caller existed)",
+      "commits": [
+        "bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-INT-02",
@@ -696,20 +708,35 @@
         "services/api/src/errors.ts:387",
         "services/api/src/routes/external-intake.routes.ts:1340"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "A part row whose object was never written makes every submit 404 at completion, which is classified as an expected denial and rendered as a workspace refusal plus a tenant audit 'evidence.create denied'. Re-posting the index returns PART_INDEX_TAKEN.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The part row is reserved before the PUT, a retry of the index was refused, and completion's missing-object 404 was classified as a workspace refusal.",
+      "canonicalAuthority": "writeEvidencePart RETURN_EXISTING for a same-file retry of an unfinished index; submit maps missing objects to PART_NOT_UPLOADED; the intake page retries at the same index",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "services/api/scripts/capability-authority/manifests/dynamic-resolutions.json",
+        "services/api/scripts/capability-authority/manifests/route-dispositions.json",
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/evidence-request.service.ts",
+        "services/api/src/services/evidence/evidence-record-counting.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/workspace-usage.service.ts"
+      ],
+      "redTest": "no baseline red recorded; defect source-proven in the audit",
+      "greenTest": "services/api/test/intake-part-retry.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "new public code PART_NOT_UPLOADED (409); the intake page shows 'Retry upload'",
+      "commits": [
+        "bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire",
+        "3cb681ab88 chore(audit): regenerate architecture facts after the intake and authority batches"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-INT-03",
@@ -722,20 +749,35 @@
         "services/api/src/services/billing-enforcement.service.ts:225",
         "services/worker/src/orphan-scan.ts:107"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Each GET opens a new session; the first part creates a durable Evidence row that counts against the rolling cap regardless of status; nothing reaps it. About 3 requests per row within the per-token rate limit.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Every allowance count included CREATED/UPLOADING rows of any age, and nothing released them.",
+      "canonicalAuthority": "countedEvidenceRecordWhere (services/evidence/evidence-record-counting.ts): established records + reservations younger than 24h, used by admission, settlement and all billing meters",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "services/api/scripts/capability-authority/manifests/route-dispositions.json",
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/evidence-request.service.ts",
+        "services/api/src/services/evidence/evidence-record-counting.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/workspace-usage.service.ts",
+        "services/worker/src/ots-initialization-reconciler.ts"
+      ],
+      "redTest": "audit runtime proof RT-INTAKE on a40ca76f (anonymous never-submitted session -> owner refused 409)",
+      "greenTest": "services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "billing meters stop counting abandoned drafts older than 24h",
+      "commits": [
+        "bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire",
+        "7c5c69713c fix(anchoring): OTS recovery measures \"no progress\" from the last write, not creation"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-INT-04",
@@ -746,20 +788,33 @@
         "services/api/src/services/evidence-request.service.ts:1223",
         "services/api/src/services/evidence-request.service.ts:869"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The follow-up link is never written to evidenceRequest.intakeLinkId, so linkResponseFromIntakeSession finds no request.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Follow-up links were recorded only on an event payload; the linker and the external view resolved requests by the request pointer alone.",
+      "canonicalAuthority": "resolveEvidenceRequestIdForIntakeLink (request pointer, else the append-only NEEDS_MORE_INFO event naming the follow-up link)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "services/api/scripts/capability-authority/manifests/route-dispositions.json",
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/evidence-request.service.ts",
+        "services/api/src/services/evidence/evidence-record-counting.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/workspace-usage.service.ts"
+      ],
+      "redTest": "no baseline red recorded; defect source-proven in the audit",
+      "greenTest": "services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-04]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-INT-05",
@@ -833,20 +888,29 @@
         "packages/shared/src/queue-integrity/enqueue.ts:161",
         "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The selfJobId escape hatch added for the production 'stuck PENDING' incident was applied only to the upgrade branch, not to the init branch that runs under the same canonical id.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The init branch enqueued its follow-up without selfJobId from inside the job whose id is the canonical ots-upgrade-<id>, so the enqueue collapsed onto the running job.",
+      "canonicalAuthority": "enqueueCanonicalJob (packages/shared/src/queue-integrity/enqueue.ts) with selfJobId at every processor call site",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/ops/metrics.service.ts",
+        "packages/shared/src/queue-integrity/enqueue.ts",
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+        "services/worker/src/ots-initialization-reconciler.ts",
+        "services/worker/src/ots-upgrade.processor.ts",
+        "services/worker/src/queue.ts"
+      ],
+      "redTest": "services/worker/test/ots-followup-selfjobid.test.ts on a40ca76f (evidence/ots-red-baseline.txt: the init call lacked selfJobId)",
+      "greenTest": "services/worker/test/ots-followup-selfjobid.test.ts; services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-01 contract]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-OTS-02",
@@ -859,20 +923,29 @@
         "packages/shared/src/queue-integrity/enqueue.ts:72",
         "services/worker/src/ots-upgrade.processor.ts:703"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The discriminated id contains no nonce and the self-reference branch bypasses the spent-job release that the normal branch performs.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The derived follow-up id recurred every other hop; BullMQ silently ignored an add whose id belonged to a retained completed job, so the ladder died on hop 3 while reporting enqueued.",
+      "canonicalAuthority": "enqueueCanonicalJob treats the derived id (selfFollowUpJobId) like the base id: joins it only while live, releases it otherwise",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/ops/metrics.service.ts",
+        "packages/shared/src/queue-integrity/enqueue.ts",
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+        "services/worker/src/ots-initialization-reconciler.ts",
+        "services/worker/src/ots-upgrade.processor.ts",
+        "services/worker/src/queue.ts"
+      ],
+      "redTest": "services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-02] on a40ca76f: 'expected 3 to be 8' (evidence/ots-red-baseline.txt)",
+      "greenTest": "services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-02: 8 of 8 hops]; phase-12-point5-queue-integrity-gate.test.ts ET-OTS-02 unit cases",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/ots-upgrade-ladder.integration.test.ts (real BullMQ, one worker, self-rescheduling ladder)",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-01",
@@ -939,20 +1012,27 @@
         "services/api/src/services/identity/access-policy.service.ts:234",
         "services/api/src/routes/evidence.routes.ts:2993"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Two read gates: canonical getEvidenceWithRecordAccess vs legacy getEvidenceWithReadAccess; download gate re-implements membership lookup.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
-      "negativeAuthTests": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The legacy read gate and the byte-release gate's role lookup checked TeamMember.status === ACTIVE only, ignoring access expiry and organization lifecycle.",
+      "canonicalAuthority": "resolveEvidenceRecordAccess / evaluateMemberAccess (access-policy): read gate delegates with evidence.read; the byte-release gate asks for the exact download capability",
+      "obsoleteRemoved": "the hand-rolled ACTIVE-status membership reads in getEvidenceWithReadAccess",
+      "productFiles": [
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/cases/case-permission.service.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts"
+      ],
+      "redTest": "services/api/test/stale-authority.integration.test.ts [ET-SEC-03 expired member; suspended organization] (red on a40ca76f: 'expected 200 to be 404' (evidence/stale-authority-red-baseline.txt))",
+      "greenTest": "services/api/test/stale-authority.integration.test.ts [ET-SEC-03 x2]; artifact-action-contract.integration.test.ts (suspended organization -> 404)",
+      "negativeAuthTests": "expired member read + download refused; suspended-organization member refused",
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "members of a suspended organization get the anti-enumeration 404 on record reads (canonical engine denies every permission while the organization is not ACTIVE)",
+      "commits": [
+        "0699e33419 fix(auth): current authority beats historical identity on every read and byte release"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-04",
@@ -966,20 +1046,27 @@
         "services/api/src/routes/case-workspace.routes.ts:164",
         "services/api/src/routes/cases.routes.ts:2221"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Case-level grants treated as independent authority.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
-      "negativeAuthTests": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "CaseAccess grants and case ownership were honoured without membership re-proof in the legacy read gate and requireCaseAccess.",
+      "canonicalAuthority": "resolveCaseRecordAccess (case-permission.service): current workspace authority first; case owner / CaseAccess only narrow it; personal-scope cases owner-only",
+      "obsoleteRemoved": "requireCaseAccess's own owner / CaseAccess / ACTIVE-status branches; the case-derived branches of the legacy read gate",
+      "productFiles": [
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/cases/case-permission.service.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts"
+      ],
+      "redTest": "services/api/test/stale-authority.integration.test.ts [ET-SEC-04] (red on a40ca76f: 'expected 200 to be 404' (evidence/stale-authority-red-baseline.txt))",
+      "greenTest": "services/api/test/stale-authority.integration.test.ts [ET-SEC-04]; byte-release-authority.integration.test.ts (CaseAccess on a personal record grants nothing); phase-32-8-d-cases-reports.test.ts",
+      "negativeAuthTests": "CaseAccess outsider refused on case and record; a current member on the access list keeps access",
       "concurrencyTest": null,
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "a CaseAccess row no longer lets a non-member read a record (including personal records shared through a personal case)",
+      "commits": [
+        "0699e33419 fix(auth): current authority beats historical identity on every read and byte release"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-05",
@@ -991,20 +1078,27 @@
         "services/api/src/routes/evidence.routes.ts:3157",
         "services/api/src/services/evidence/evidence-record-access.service.ts:79"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The legacy gate predates the Phase-1 canonical rule and keeps a creator shortcut; the routes were never migrated to getEvidenceWithRecordAccess.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Creator identity short-circuited read and moderation checks after the creator left the workspace.",
+      "canonicalAuthority": "canonical engine first; creator / OWNER / ADMIN only after current authority passes",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
-      "negativeAuthTests": null,
+      "productFiles": [
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/cases/case-permission.service.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts"
+      ],
+      "redTest": "services/api/test/stale-authority.integration.test.ts [ET-SEC-05] (red on a40ca76f: 'expected 200 to be 404' (evidence/stale-authority-red-baseline.txt))",
+      "greenTest": "services/api/test/stale-authority.integration.test.ts [ET-SEC-05]",
+      "negativeAuthTests": "revoked former creator refused",
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "0699e33419 fix(auth): current authority beats historical identity on every read and byte release"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-06",
@@ -1182,20 +1276,33 @@
         "services/api/src/services/billing-enforcement.service.ts:460",
         "services/worker/src/orphan-scan.ts:107"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The row is reserved before upload, the cap predicate ignores status, and nothing reaps stale rows.",
-      "canonicalAuthority": null,
+      "disposition": "PARTIALLY_FIXED",
+      "rootCause": "Interrupted captures leave CREATED/UPLOADING rows forever; they counted against caps and are never reaped.",
+      "canonicalAuthority": "counting: countedEvidenceRecordWhere (done); reaping of expired reservations and their objects: not yet implemented",
       "obsoleteRemoved": null,
-      "productFiles": [],
+      "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "services/api/scripts/capability-authority/manifests/route-dispositions.json",
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/billing/billing-account-projection.service.ts",
+        "services/api/src/services/evidence-request.service.ts",
+        "services/api/src/services/evidence/evidence-record-counting.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/workspace-usage.service.ts"
+      ],
       "redTest": null,
-      "greenTest": null,
+      "greenTest": "services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] (counting only)",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "OPEN — reaper for expired reservations and orphan objects still required"
     },
     {
       "id": "ET-ACQ-03",
@@ -1981,20 +2088,30 @@
         "services/api/src/services/operations/evidence-integrity-conditions.service.ts:847",
         "services/worker/src/ots-upgrade.processor.ts:548"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Recovery modelled only the finalize->enqueue handoff; the ladder was assumed self-sustaining.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Only never-attempted (NULL status) rows were reconciled; a PENDING proof whose ladder was lost stayed PENDING forever.",
+      "canonicalAuthority": "runOtsInitializationReconciler second scan (pendingWithoutProgressWhere + isOtsUpgradeScheduled over both ladder ids): re-schedule once, never a parallel ladder",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "packages/shared-runtime/src/ops/metrics.service.ts",
+        "packages/shared/src/queue-integrity/enqueue.ts",
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+        "services/worker/src/ots-initialization-reconciler.ts",
+        "services/worker/src/ots-upgrade.processor.ts",
+        "services/worker/src/queue.ts"
+      ],
+      "redTest": "no baseline red: the scan did not exist; defect source-proven in the audit",
+      "greenTest": "services/worker/test/ots-pending-recovery.integration.test.ts (live PostgreSQL + loopback Redis)",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "same test: a second sweep leaves exactly one scheduled job",
       "migrationImpact": "none",
-      "compatibilityImpact": "none",
-      "commits": [],
+      "compatibilityImpact": "reconciler result gains pendingScanned / pendingAlreadyScheduled / pendingRescheduled; aged-pending guidance names the recovery sweep",
+      "commits": [
+        "304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered",
+        "7c5c69713c fix(anchoring): OTS recovery measures \"no progress\" from the last write, not creation"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-OTS-04",
@@ -3758,14 +3875,23 @@
       "rootCause": "Adapter reads only `enqueued`, not `collapsed`.",
       "canonicalAuthority": null,
       "obsoleteRemoved": null,
-      "productFiles": [],
+      "productFiles": [
+        "packages/shared-runtime/src/ops/metrics.service.ts",
+        "packages/shared/src/queue-integrity/enqueue.ts",
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+        "services/worker/src/ots-initialization-reconciler.ts",
+        "services/worker/src/ots-upgrade.processor.ts",
+        "services/worker/src/queue.ts"
+      ],
       "redTest": null,
       "greenTest": null,
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered"
+      ],
       "remainingExternalProof": null,
       "finalResult": "OPEN"
     },
