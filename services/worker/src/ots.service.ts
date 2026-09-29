@@ -460,8 +460,9 @@ export async function verifyOtsProof(
   const hashHex = clean(input.hashHex);
   // The hash is REQUIRED for the `-d` flag form. If we don't have one,
   // we cannot verify without the original file (which the worker
-  // doesn't keep). Surface this as ERROR so the caller falls back to
-  // the legacy heuristic rather than silently claiming anchored.
+  // doesn't keep). Surface this as ERROR: the caller then relies on the
+  // offline `ots info` reading, and never on command text (the text-only
+  // "legacy heuristic" was removed 2026-09-29).
   if (!hashHex || !/^[a-f0-9]{64}$/i.test(hashHex)) {
     return {
       status: "ERROR",
@@ -530,8 +531,8 @@ export async function verifyOtsProof(
       };
     }
     // Defensive: a non-success, non-incomplete, non-binary-missing
-    // command-error is reported as ERROR so the caller can fall back
-    // to the legacy heuristic.
+    // command-error is reported as ERROR; the caller then relies on the
+    // offline `ots info` reading (no text-only heuristic exists any more).
     if (commandErrored) {
       return {
         status: "ERROR",

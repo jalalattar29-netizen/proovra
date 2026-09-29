@@ -392,20 +392,27 @@ describe("Phase IA-OTS-hybrid-fix — Scenario 7: visible-card short labels", ()
     expect(detail).toBe("OTS proof present; Bitcoin anchoring pending.");
   });
 
-  it("the truth-model OTS callout uses SHORT status words ('Anchored' / 'Pending' / 'Failed' / 'Unavailable')", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { fileURLToPath } = await import("node:url");
-    const tm = readFileSync(
-      fileURLToPath(
-        new URL("../src/report-v2/truth-model.ts", import.meta.url),
-      ),
-      "utf8",
-    );
-    // Each short word appears as a title literal in the callout.
-    expect(tm).toMatch(/\?\s*"Anchored"/);
-    expect(tm).toMatch(/\?\s*"Pending"/);
-    expect(tm).toMatch(/\?\s*"Failed"/);
-    expect(tm).toMatch(/:\s*"Unavailable"/);
+  it("the truth-model OTS callout uses SHORT status words, from the ONE claim (2026-09-29)", async () => {
+    const { buildOtsCallout } = await import("../src/report-v2/truth-model.js");
+    const TX = "c".repeat(64);
+    const at = "2026-09-01T00:00:00.000Z";
+    const callout = (otsState: Record<string, unknown>) =>
+      buildOtsCallout({ otsState } as never, null);
+    const verified = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "BITCOIN_VERIFIED", otsBitcoinTxid: TX });
+    const unchecked = callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "PROOF_STRUCTURE", otsBitcoinTxid: null });
+    const pending = callout({ otsStatus: "PENDING" });
+    const failed = callout({ otsStatus: "FAILED" });
+    const none = callout({});
+    expect(verified).toMatchObject({ title: "Anchored and verified", tone: "success" });
+    // An anchor with no txid is anchored-not-checked: never "Pending", never green.
+    expect(unchecked.title).toBe("Anchored — chain not checked");
+    expect(unchecked.tone).toBe("neutral");
+    expect(pending.title).toBe("Pending");
+    expect(failed.title).toBe("Failed");
+    expect(none.title).toBe("Unavailable");
+    // A chain check without its txid is not "verified".
+    expect(callout({ otsStatus: "ANCHORED", otsAnchoredAtUtc: at, otsAnchorCheck: "BITCOIN_VERIFIED", otsBitcoinTxid: null }).tone).not.toBe("success");
+    for (const c of [verified, unchecked, pending, failed, none]) expect(c.title.length).toBeLessThanOrEqual(30);
   });
 
   it("the long technical sentence does NOT appear in the truth-model OTS callout (cards)", async () => {

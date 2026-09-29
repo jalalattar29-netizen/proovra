@@ -1,3 +1,4 @@
+import { resolveOtsAnchorClaim } from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
@@ -197,47 +198,60 @@ export function buildTimestampCallout(
   };
 }
 
+/**
+ * THE PDF'S OTS CALLOUT FROM THE ONE CLAIM (2026-09-29, audit D7/D8).
+ *
+ * The callout keyed its tone on a valid txid, so an anchor recorded without one
+ * read "Pending" beside rows that said "anchored; not checked", and a
+ * historical anchor with a txid read "supports independent Bitcoin anchoring"
+ * with no word that the chain was not checked. It now states exactly the
+ * shared claim: verified (chain-checked, with its txid), anchored but not
+ * checked, pending, failed, or none.
+ */
 export function buildOtsCallout(
   canonicalMaterials: CanonicalEvidenceMaterials,
   failureReason: string | null | undefined
 ): CalloutModel {
-  const effectiveStatus =
-    canonicalMaterials.otsState.effectiveStatus ??
-    canonicalMaterials.otsState.otsStatus;
-  const tone = normalizeBitcoinAnchorTone({
-    status: effectiveStatus,
-    bitcoinTxid: canonicalMaterials.otsState.otsBitcoinTxid,
+  const ots = canonicalMaterials.otsState;
+  const claim = resolveOtsAnchorClaim({
+    status: ots.effectiveStatus ?? ots.otsStatus,
+    anchoredAtUtc: ots.otsAnchoredAtUtc ?? null,
+    anchorCheck: ots.otsAnchorCheck ?? null,
+    bitcoinTxid: ots.otsBitcoinTxid ?? null,
   });
-  const baseStatusTone = normalizeOtsTone(
-    canonicalMaterials.otsState.otsStatus
-  );
-
-  return {
-    title:
-      tone === "success"
-        ? "Anchored"
-        : tone === "warning"
-          ? "Pending"
-          : tone === "danger"
-            ? "Failed"
-            : "Unavailable",
-    body:
-      tone === "success"
-        ? "An OpenTimestamps proof is recorded with a Bitcoin transaction reference. This supports independent Bitcoin anchoring evidence."
-        : tone === "warning"
-          ? baseStatusTone === "success"
-            ? "An OpenTimestamps proof is recorded, but the Bitcoin transaction reference is not yet attached. Bitcoin anchoring will be confirmed after a separate upgrade pass."
-            : "OpenTimestamps proof material is present, but Bitcoin anchoring has not finalized yet."
-          : tone === "danger"
-            ? `OpenTimestamps processing reported a failure state.${safe(
-                failureReason,
-                ""
-              )
-                ? ` ${safe(failureReason)}`
-                : ""}`.trim()
-            : "No Bitcoin anchoring record was included.",
-    tone,
-  };
+  switch (claim) {
+    case "VERIFIED":
+      return {
+        title: "Anchored and verified",
+        body: "The OpenTimestamps proof's Bitcoin attestation was checked against the Bitcoin chain, and its Bitcoin transaction reference is recorded.",
+        tone: "success",
+      };
+    case "ANCHORED_NOT_CHECKED":
+      return {
+        title: "Anchored — chain not checked",
+        body: "An OpenTimestamps proof anchored to a Bitcoin block is recorded. The attestation was not checked against the Bitcoin chain when this report was issued; it can be verified independently with the proof (ots verify).",
+        // Not green (the chain was not checked) and not a warning.
+        tone: "neutral",
+      };
+    case "PENDING":
+      return {
+        title: "Pending",
+        body: "OpenTimestamps proof material is present, but Bitcoin anchoring had not completed when this report was issued.",
+        tone: "warning",
+      };
+    case "FAILED":
+      return {
+        title: "Failed",
+        body: `OpenTimestamps processing reported a failure state.${safe(failureReason, "") ? ` ${safe(failureReason)}` : ""}`.trim(),
+        tone: "danger",
+      };
+    default:
+      return {
+        title: "Unavailable",
+        body: "No Bitcoin anchoring record was included.",
+        tone: "neutral",
+      };
+  }
 }
 
 export function buildReviewSequence(

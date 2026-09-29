@@ -150,7 +150,10 @@ export function buildBasicVerification(input: {
   const timestampState: ComponentVerificationState =
     tsa === "FAILED"
       ? "failed"
-      : tsa === "STAMPED" || tsa === "GRANTED"
+      : // Every positive status the digest comparison accepts (2026-09-29):
+        // VERIFIED / SUCCEEDED read "not issued" while compareTimestampDigest
+        // treated them as issued.
+        tsa === "STAMPED" || tsa === "GRANTED" || tsa === "VERIFIED" || tsa === "SUCCEEDED"
         ? input.tsaImprintMatches === false
           ? "failed"
           : "not_checked"
