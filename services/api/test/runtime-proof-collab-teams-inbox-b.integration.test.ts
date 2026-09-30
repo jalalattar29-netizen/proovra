@@ -645,9 +645,11 @@ describe("K5-B — external review, exchange, organizations (live PostgreSQL 16)
       const res = await call({ method: "POST", url, token: a.ownerToken, headers: { [STEP]: challengeId } });
       expect(res.statusCode, res.body).toBe(200);
       const out = res.json() as { signedUrl: string; expiresAtUtc: string };
+      expect(out.signedUrl).toContain(pkg.id);
+      // ET-SEC-19 — the signed URL is a bearer credential: it is returned to
+      // the caller once and never stored; only its expiry is recorded.
       const row = await prisma.evidenceExchangePackage.findUniqueOrThrow({ where: { id: pkg.id } });
-      expect(row.signedUrl).toBe(out.signedUrl);
-      expect(row.signedUrl).toContain(pkg.id);
+      expect(row.signedUrl).toBeNull();
       expect(row.signedUrlExpiresAtUtc?.toISOString()).toBe(out.expiresAtUtc);
     });
 

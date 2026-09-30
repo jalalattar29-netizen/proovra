@@ -15,9 +15,9 @@
         "nocfg.transcript.terminal_failed_not_completed",
         "nocfg.transcript.wrong_tenant_concealed"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:08:43.744Z"
+      "recordedAtUtc": "2026-09-30T05:55:47.018Z"
     },
     "test/point5/family-retention-destruction.integration.test.ts": {
       "sha256": "8b4085b7415a610102c84a7db2d859ae0f8dc524ed44f39254f5b70f0003467a",
@@ -70,9 +70,9 @@
         "retention.tenant.workspace_reloaded",
         "retention.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:09:29.968Z"
+      "recordedAtUtc": "2026-09-30T05:42:50.224Z"
     },
     "test/point5/family-reconciliation.integration.test.ts": {
       "sha256": "c770be9eafbc4634a567029c10fa83660c3644bc0f2db455911aa8375c68aa5b",
@@ -166,9 +166,9 @@
         "searchrecon.tenant.workspace_reloaded",
         "searchrecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:08:51.601Z"
+      "recordedAtUtc": "2026-09-30T05:42:21.010Z"
     },
     "test/point5/family-notifications.integration.test.ts": {
       "sha256": "9255eeb48bf6ecf9944df566eb875353c94ec09f6e66e948b15de20a66b13329",
@@ -200,9 +200,9 @@
         "digest.tenant.workspace_reloaded",
         "digest.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:15:23.018Z"
+      "recordedAtUtc": "2026-09-30T05:47:47.233Z"
     },
     "test/point5/family-evidence-finalization.integration.test.ts": {
       "sha256": "b3b624def3c0857ecad373e386974c85a814db67f2ab669b59bb5b708259c3a2",
@@ -217,9 +217,9 @@
         "ots.tenant.workspace_reloaded",
         "ots.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:21:24.204Z"
+      "recordedAtUtc": "2026-09-30T05:53:15.815Z"
     },
     "test/point5/family-intelligence-operations.integration.test.ts": {
       "sha256": "c56eb0f611351e221093013dd0d91c54a2f580163442bab4a6fc17b4b2ea091e",
@@ -258,12 +258,12 @@
         "mirun.tenant.workspace_reloaded",
         "mirun.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:17:02.661Z"
+      "recordedAtUtc": "2026-09-30T05:49:52.162Z"
     },
     "test/point5/family-exchange-package.integration.test.ts": {
-      "sha256": "822ca15e9fab4d8e0993698b7aaf19d058ba8444f8061d3165d561516b56e4f4",
+      "sha256": "070ce52afd80c7f0fd87f5fed0999cf475aaf62c90e9ad7de0f5111acc091bc0",
       "cases": [
         "exchange.claim.active_not_stolen",
         "exchange.claim.one_winner",
@@ -273,9 +273,9 @@
         "exchange.tenant.workspace_reloaded",
         "exchange.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:19:13.004Z"
+      "recordedAtUtc": "2026-09-30T05:33:59.347Z"
     },
     "test/point5/family-invite-delivery.integration.test.ts": {
       "sha256": "9cc25039419442543b2affa41aee317bfad284806033db8075d4fb6f247f61da",
@@ -298,9 +298,9 @@
         "invite.terminal.stale_cannot_overwrite",
         "invite.token.never_leaves_persistence"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:20:16.592Z"
+      "recordedAtUtc": "2026-09-30T05:52:55.648Z"
     },
     "test/point5/family-redaction.integration.test.ts": {
       "sha256": "ae7d62f4e672177949c5fb86b163a91de10f8ff111417cdedac0615bfc8c137c",
@@ -324,12 +324,12 @@
         "redaction.tenant.workspace_reloaded",
         "redaction.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:20:43.779Z"
+      "recordedAtUtc": "2026-09-30T05:52:39.115Z"
     },
     "test/phase-12-point5-report-authority.integration.test.ts": {
-      "sha256": "d288b78d8cc581773f2e93948925cab8611aaa6849d0d87bcc09c1d6c575b75a",
+      "sha256": "a4d45eacf68f768db422678de9c8adc3a0c463a782c46dea48e11db15d9ba0a7",
       "cases": [
         "report.claim.active_not_stolen",
         "report.claim.one_winner",
@@ -339,9 +339,9 @@
         "report.tenant.workspace_reloaded",
         "report.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:21:01.665Z"
+      "recordedAtUtc": "2026-09-30T05:34:07.395Z"
     },
     "test/point5/intelligence-run-claim.integration.test.ts": {
       "sha256": "8ccb54947b56a74b1ae5d80ee366b5d384b551ad91b417fec8d4d6c667f10f6f",
@@ -357,9 +357,9 @@
         "mirecon.tenant.workspace_reloaded",
         "mirecon.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:22:04.226Z"
+      "recordedAtUtc": "2026-09-30T05:54:36.168Z"
     },
     "test/point5/family-webhooks-providers.integration.test.ts": {
       "sha256": "acf904184bea316df9858dbaa06963362bf66cd23f9f092fca08f1ee19fdb898",
@@ -375,9 +375,9 @@
         "webhook.tenant.workspace_reloaded",
         "webhook.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:23:57.091Z"
+      "recordedAtUtc": "2026-09-30T05:55:11.843Z"
     },
     "test/phase-12-arch-005-automation-runtime.integration.test.ts": {
       "sha256": "795d8bd661bceef24fc223b53ed9a2b3e658ca993ec810b5f7afdeaaef9930e6",
@@ -393,9 +393,9 @@
         "auto.tenant.workspace_reloaded",
         "auto.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:05:47.406Z"
+      "recordedAtUtc": "2026-09-30T05:39:05.906Z"
     },
     "test/point5/family-trash-grace.integration.test.ts": {
       "sha256": "3a5ad92ea8afbec674f3c0b2aab438725223f4b6c4aa059dd65a24685015e36d",
@@ -409,9 +409,9 @@
         "trashgrace.tenant.workspace_reloaded",
         "trashgrace.terminal.stale_cannot_overwrite"
       ],
-      "runId": "a6ef0551-d49f-49c6-985b-fdec24416c28",
+      "runId": "218b7bbe-f317-466f-979b-657b9b6b5563",
       "binding": "657d77bb2125b4712cafbd41f6fd8f403dedb458064ff9c1a87bc09d9e2e1b25",
-      "recordedAtUtc": "2026-09-29T22:20:48.490Z"
+      "recordedAtUtc": "2026-09-30T05:52:26.795Z"
     }
   }
 }
