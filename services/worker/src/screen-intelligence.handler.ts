@@ -26,6 +26,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import type { OcrExtractResult } from "@proovra/shared";
+import { captureSessionAcquisitionComplete } from "@proovra/shared";
 
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
@@ -147,9 +148,11 @@ export async function processReconstructScreenJob(
   try {
     const session = await prisma.captureSession.findFirst({
       where: { finalizedEvidenceId: evidenceId },
-      select: { status: true },
+      select: { status: true, endReason: true },
     });
-    if (session && session.status === "INTERRUPTED") acquisitionComplete = false;
+    // ET-DC-09 — a SEALED continuous session is BOUND whatever its manifest
+    // said; its completeness is recorded on the end reason at seal.
+    acquisitionComplete = captureSessionAcquisitionComplete(session);
   } catch {
     /* absence ⇒ treat as complete (non-direct-capture evidence) */
   }

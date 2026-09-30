@@ -63,7 +63,46 @@ export const SCREEN_CONTINUOUS_MANIFEST_BOUNDS = {
   maxNoteLen: 300,
   maxLimitations: 64,
   maxSizeBytes: 512 * 1024, // serialized manifest ceiling
+  /**
+   * ET-DC-09 — continuity tolerances. A rolling recorder restarts its encoder
+   * between segments (and on rotation), so consecutive segments may be a
+   * little apart; more than `maxGapMs` apart is a gap, which only an
+   * INTERRUPTED session may carry. `timingSlackMs` absorbs clock rounding
+   * between the recorder and the wall clock; `clockSkewMs` bounds how far the
+   * device clock may disagree with the server's session window.
+   */
+  maxGapMs: 3000,
+  maxOverlapMs: 1000,
+  timingSlackMs: 5000,
+  clockSkewMs: 5 * 60 * 1000,
 } as const;
+
+/** ET-DC-09 — the terminations that END a complete session (the recorder's own rule). */
+export const SCREEN_CONTINUOUS_COMPLETE_TERMINATIONS = ["USER_STOPPED", "BOUNDS_REACHED"] as const;
+
+/**
+ * ET-DC-09 — how a sealed continuous session's completeness travels downstream.
+ * The sealed session's status is BOUND whatever the manifest said, so the
+ * completeness is recorded on the session's end reason at seal.
+ */
+export const CONTINUOUS_INCOMPLETE_END_REASON = "CONTINUOUS_INTERRUPTED_SESSION";
+export const CONTINUOUS_COMPLETE_END_REASON = "CONTINUOUS_COMPLETE_SESSION";
+export function continuousEndReasonFor(completeness: ScreenContinuousSessionCompleteness): string {
+  return completeness === "COMPLETE_SESSION" ? CONTINUOUS_COMPLETE_END_REASON : CONTINUOUS_INCOMPLETE_END_REASON;
+}
+
+/**
+ * ET-DC-09 — THE reading of a capture session's acquisition completeness, for
+ * everything downstream of the seal: an INTERRUPTED session, or a sealed one
+ * whose manifest said it was interrupted, is not a complete acquisition. No
+ * session (not a direct capture) reads as complete.
+ */
+export function captureSessionAcquisitionComplete(
+  session: { status: string; endReason: string | null } | null | undefined,
+): boolean {
+  if (!session) return true;
+  return session.status !== "INTERRUPTED" && session.endReason !== CONTINUOUS_INCOMPLETE_END_REASON;
+}
 
 /**
  * THE canonical continuous-capture resource bounds (technical safety limits — NOT
@@ -199,7 +238,13 @@ function isNonNegInt(v: unknown): v is number {
  */
 export function validateScreenContinuousManifest(
   input: unknown,
-  opts: { expectedSessionId?: string } = {},
+  opts: {
+    expectedSessionId?: string;
+    /** ET-DC-09 — the platform the server-issued session's mode implies. */
+    expectedPlatform?: "android" | "ios";
+    /** ET-DC-09 — the server's session window: opened at, and "now" at seal. */
+    sessionWindow?: { openedAtMs: number; nowMs: number };
+  } = {},
 ): ScreenContinuousManifestValidation {
   const B = SCREEN_CONTINUOUS_MANIFEST_BOUNDS;
   let serialized: string;
@@ -321,6 +366,49 @@ export function validateScreenContinuousManifest(
   // geometry but was not flagged would misrepresent a continuous session.
   if (orientations.size > 1 && !(m.limitations as string[]).includes("ORIENTATION_CHANGED_DURING_CAPTURE")) {
     return { ok: false, error: "orientation transition across segments is not recorded in limitations" };
+  }
+
+  // ---- ET-DC-09 — continuity is checked, not taken on the client's word ----
+  // Everything below compares the manifest's own statements with each other
+  // and with the server's facts; nothing here trusts the completeness label.
+  if (opts.expectedPlatform && device.platform !== opts.expectedPlatform) {
+    return { ok: false, error: "device.platform does not match the session's capture mode" };
+  }
+  const startMs = Date.parse(m.captureStartedAtUtc as string);
+  const endMs = Date.parse(m.captureEndedAtUtc as string);
+  if (endMs < startMs) return { ok: false, error: "captureEndedAtUtc precedes captureStartedAtUtc" };
+  if (opts.sessionWindow) {
+    const { openedAtMs, nowMs } = opts.sessionWindow;
+    if (startMs < openedAtMs - B.clockSkewMs || endMs > nowMs + B.clockSkewMs) {
+      return { ok: false, error: "the capture window lies outside the server session" };
+    }
+  }
+  const ordered = (m.segments as ScreenContinuousSegmentDescriptor[]).slice().sort((a, b) => a.sequence - b.sequence);
+  let gapFound = false;
+  for (let i = 1; i < ordered.length; i += 1) {
+    const prev = ordered[i - 1]!;
+    const cur = ordered[i]!;
+    const between = cur.startedAtOffsetMs - (prev.startedAtOffsetMs + prev.durationMs);
+    if (between < -B.maxOverlapMs) return { ok: false, error: "segments overlap" };
+    if (between > B.maxGapMs) gapFound = true;
+  }
+  if (m.sessionCompleteness === "COMPLETE_SESSION") {
+    // A COMPLETE session ended cleanly, holds no gap, and every segment lies
+    // inside its own stated window. (An INTERRUPTED session is an honest
+    // downgrade: its window may be unknown — the iOS fallback records none.)
+    if (!(SCREEN_CONTINUOUS_COMPLETE_TERMINATIONS as ReadonlyArray<unknown>).includes(m.terminationReason)) {
+      return { ok: false, error: "a complete session cannot have ended by interruption" };
+    }
+    if (gapFound) return { ok: false, error: "a gap between segments is not declared (session is not complete)" };
+    const windowMs = endMs - startMs;
+    if ((m.totalDurationMs as number) > windowMs + B.timingSlackMs) {
+      return { ok: false, error: "totalDurationMs exceeds the capture window" };
+    }
+    for (const s of ordered) {
+      if (s.startedAtOffsetMs + s.durationMs > windowMs + B.timingSlackMs) {
+        return { ok: false, error: "a segment lies outside the capture window" };
+      }
+    }
   }
   return { ok: true, manifest: input as ScreenContinuousManifest };
 }

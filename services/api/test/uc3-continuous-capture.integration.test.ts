@@ -166,6 +166,14 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       reverseUpload?: boolean;
       tamperStoredBytes?: boolean;
       orientationTransition?: boolean;
+      /** ET-DC-09 — misstate segment 0's size in the manifest. */
+      misstateSize?: boolean;
+      /** ET-DC-09 — an honestly INTERRUPTED session. */
+      interrupted?: boolean;
+      /** ET-DC-09 — claim a platform the session's mode does not imply. */
+      platform?: "android" | "ios";
+      /** ET-DC-09 — a window that is not this session's. */
+      staleWindow?: boolean;
     } = {},
   ) {
     const token = owner().ownerToken;
@@ -223,7 +231,7 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
         sequence: opts.badSequence && i >= 1 ? i + 1 : opts.duplicateSequence && i === 1 ? 0 : i,
         expectedSha256:
           opts.tamperManifestDigest && i === 0 ? "f".repeat(64) : declared.sha256,
-        sizeBytes: declared.sizeBytes,
+        sizeBytes: opts.misstateSize && i === 0 ? declared.sizeBytes + 1 : declared.sizeBytes,
         mediaType: "video/mp4",
         startedAtOffsetMs: i * 1000,
         durationMs: 1000,
@@ -233,13 +241,16 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       });
     }
 
+    const captureStartMs = opts.staleWindow ? Date.parse("2026-09-17T10:00:00.000Z") : Date.now();
     const manifest = {
       schemaVersion: SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION,
       captureSessionId: opts.badSessionInManifest ? "00000000-0000-4000-8000-000000000000" : sessionId,
-      captureStartedAtUtc: "2026-09-17T10:00:00.000Z",
-      captureEndedAtUtc: "2026-09-17T10:00:03.000Z",
+      // ET-DC-09 — the window is checked against the server session, so it is
+      // the one this session actually spans (it opened moments ago).
+      captureStartedAtUtc: new Date(captureStartMs).toISOString(),
+      captureEndedAtUtc: new Date(captureStartMs + segCount * 1000).toISOString(),
       device: {
-        platform: "android",
+        platform: opts.platform ?? "android",
         osVersion: "14",
         model: "Pixel 7",
         appVersion: "1.0.0",
@@ -251,9 +262,12 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       osConsentGranted: true,
       totalDurationMs: segCount * 1000,
       segments,
-      sessionCompleteness: "COMPLETE_SESSION",
-      terminationReason: "USER_STOPPED",
-      limitations: opts.orientationTransition ? ["ORIENTATION_CHANGED_DURING_CAPTURE"] : [],
+      sessionCompleteness: opts.interrupted ? "INTERRUPTED_SESSION" : "COMPLETE_SESSION",
+      terminationReason: opts.interrupted ? "INTERRUPTED" : "USER_STOPPED",
+      limitations: [
+        ...(opts.orientationTransition ? ["ORIENTATION_CHANGED_DURING_CAPTURE"] : []),
+        ...(opts.interrupted ? ["CAPTURE_INTERRUPTED"] : []),
+      ],
       notes: [],
     };
     const manifestJson = JSON.stringify(manifest);
@@ -304,6 +318,46 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
     const again = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
     expect(again.statusCode, again.body).toBe(200);
     expect(again.json().result.alreadyBound).toBe(true);
+  });
+
+  // ---- ET-DC-09 — continuity is checked against the server's facts ----------
+  const completeContinuous = (token: string, sessionId: string, manifestJson: string) =>
+    call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+
+  it("ET-DC-09: a segment whose stated size is not the stored size is refused, and nothing is sealed", async () => {
+    const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 2, misstateSize: true });
+    const done = await completeContinuous(token, sessionId, manifestJson);
+    expect(done.statusCode, done.body).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } })).status).not.toBe("SIGNED");
+  });
+
+  it("ET-DC-09: the manifest's platform must be the one the session's mode implies", async () => {
+    const { token, sessionId, manifestJson } = await stageContinuous({ segments: 2, platform: "ios" });
+    const done = await completeContinuous(token, sessionId, manifestJson);
+    expect(done.statusCode, done.body).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+  });
+
+  it("ET-DC-09: a capture window that is not this session's is refused", async () => {
+    const { token, sessionId, manifestJson } = await stageContinuous({ segments: 2, staleWindow: true });
+    const done = await completeContinuous(token, sessionId, manifestJson);
+    expect(done.statusCode, done.body).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+  });
+
+  it("ET-DC-09: an INTERRUPTED session seals, and its completeness travels with the sealed session", async () => {
+    const complete = await stageContinuous({ segments: 2 });
+    expect((await completeContinuous(complete.token, complete.sessionId, complete.manifestJson)).statusCode).toBe(200);
+    const interrupted = await stageContinuous({ segments: 2, interrupted: true });
+    const done = await completeContinuous(interrupted.token, interrupted.sessionId, interrupted.manifestJson);
+    expect(done.statusCode, done.body).toBe(200);
+
+    const endReason = async (id: string) =>
+      (await prisma.captureSession.findUniqueOrThrow({ where: { id }, select: { status: true, endReason: true } }));
+    expect(await endReason(complete.sessionId)).toMatchObject({ endReason: "CONTINUOUS_COMPLETE_SESSION" });
+    // The session is BOUND either way; the end reason is what says it was not complete.
+    expect(await endReason(interrupted.sessionId)).toMatchObject({ endReason: "CONTINUOUS_INTERRUPTED_SESSION" });
   });
 
   it("refuses a manifest that omits a declared segment", async () => {

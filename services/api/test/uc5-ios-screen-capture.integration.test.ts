@@ -242,11 +242,14 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
       });
     }
 
+    const captureStartMs = Date.now();
     const manifest = {
       schemaVersion: SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION,
       captureSessionId: opts.badSessionInManifest ? "00000000-0000-4000-8000-000000000000" : sessionId,
-      captureStartedAtUtc: "2026-09-17T10:00:00.000Z",
-      captureEndedAtUtc: "2026-09-17T10:00:03.000Z",
+      // ET-DC-09 — the window is checked against the server session, so it is
+      // the one this session actually spans (it opened moments ago).
+      captureStartedAtUtc: new Date(captureStartMs).toISOString(),
+      captureEndedAtUtc: new Date(captureStartMs + segCount * 1000).toISOString(),
       device: {
         platform: "ios",
         osVersion: "18.0",

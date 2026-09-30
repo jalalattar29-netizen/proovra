@@ -191,7 +191,14 @@ test("ORIENTATION TRANSITION: multiple transitions still validate with the flag"
   ];
   assert.equal(
     validateScreenContinuousManifest(
-      goodManifest({ segments: segs, limitations: ["ORIENTATION_CHANGED_DURING_CAPTURE"] }),
+      // Three 6 s segments span 18 s (ET-DC-09: a complete session's segments
+      // lie inside its stated window).
+      goodManifest({
+        segments: segs,
+        limitations: ["ORIENTATION_CHANGED_DURING_CAPTURE"],
+        captureEndedAtUtc: "2026-09-17T10:00:18.000Z",
+        totalDurationMs: 18000,
+      }),
     ).ok,
     true,
   );
@@ -207,4 +214,79 @@ test("accepts INTERRUPTED_SESSION; rejects unknown completeness / termination / 
   assert.equal(validateScreenContinuousManifest(goodManifest({ sessionCompleteness: "NONSENSE" })).ok, false);
   assert.equal(validateScreenContinuousManifest(goodManifest({ terminationReason: "NONSENSE" })).ok, false);
   assert.equal(validateScreenContinuousManifest(goodManifest({ limitations: ["NONSENSE"] })).ok, false);
+});
+
+// ---- ET-DC-09 — continuity is checked, not taken on the client's word -------
+const invalid = (m, opts) => {
+  const v = validateScreenContinuousManifest(m, opts);
+  assert.equal(v.ok, false, "must be refused");
+  return v.error;
+};
+
+test("ET-DC-09: a COMPLETE session with an undeclared gap between segments is refused", () => {
+  const m = goodManifest({
+    captureEndedAtUtc: "2026-09-17T10:00:30.000Z",
+    totalDurationMs: 30000,
+    segments: [
+      segment({ partIndex: 0, sequence: 0, startedAtOffsetMs: 0 }),
+      segment({ partIndex: 1, sequence: 1, startedAtOffsetMs: 20000, expectedSha256: "b".repeat(64) }),
+    ],
+  });
+  assert.match(invalid(m), /gap/);
+  // The same recording, honestly labelled INTERRUPTED, is accepted.
+  assert.equal(
+    validateScreenContinuousManifest({ ...m, sessionCompleteness: "INTERRUPTED_SESSION", terminationReason: "INTERRUPTED" }).ok,
+    true,
+  );
+});
+
+test("ET-DC-09: a COMPLETE session cannot have ended by interruption", () => {
+  assert.match(invalid(goodManifest({ terminationReason: "PERMISSION_REVOKED" })), /interruption/);
+});
+
+test("ET-DC-09: segments outside the stated window, and a duration longer than it, are refused", () => {
+  assert.match(invalid(goodManifest({ totalDurationMs: 60000 })), /totalDurationMs/);
+  assert.match(invalid(goodManifest({ captureEndedAtUtc: "2026-09-17T10:00:03.000Z", totalDurationMs: 3000 })), /outside the capture window/);
+  assert.match(invalid(goodManifest({ captureEndedAtUtc: "2026-09-17T09:59:00.000Z" })), /precedes/);
+});
+
+test("ET-DC-09: overlapping segments are refused", () => {
+  const m = goodManifest({
+    segments: [
+      segment({ partIndex: 0, sequence: 0, startedAtOffsetMs: 0 }),
+      segment({ partIndex: 1, sequence: 1, startedAtOffsetMs: 3000, expectedSha256: "b".repeat(64) }),
+    ],
+  });
+  assert.match(invalid(m), /overlap/);
+});
+
+test("ET-DC-09: the platform must match the session's mode, and the window the server session", () => {
+  assert.match(invalid(goodManifest(), { expectedPlatform: "ios" }), /platform/);
+  const opened = Date.parse("2026-09-17T11:00:00.000Z");
+  assert.match(invalid(goodManifest(), { sessionWindow: { openedAtMs: opened, nowMs: opened + 60_000 } }), /outside the server session/);
+  const ok = validateScreenContinuousManifest(goodManifest(), {
+    expectedPlatform: "android",
+    sessionWindow: { openedAtMs: Date.parse("2026-09-17T09:59:50.000Z"), nowMs: Date.parse("2026-09-17T10:01:00.000Z") },
+  });
+  assert.equal(ok.ok, true);
+});
+
+test("ET-DC-09: the iOS interrupted fallback (no window recorded) is still accepted as INTERRUPTED", () => {
+  const m = goodManifest({
+    device: { ...goodManifest().device, platform: "ios" },
+    captureStartedAtUtc: "2026-09-17T10:00:12.000Z",
+    captureEndedAtUtc: "2026-09-17T10:00:12.000Z",
+    totalDurationMs: 0,
+    sessionCompleteness: "INTERRUPTED_SESSION",
+    terminationReason: "INTERRUPTED",
+  });
+  assert.equal(validateScreenContinuousManifest(m, { expectedPlatform: "ios" }).ok, true);
+});
+
+test("ET-DC-09: a sealed session's completeness is read from its end reason, not its status alone", async () => {
+  const { captureSessionAcquisitionComplete, continuousEndReasonFor } = await import("../dist/screen-continuous-manifest.js");
+  assert.equal(captureSessionAcquisitionComplete(null), true);
+  assert.equal(captureSessionAcquisitionComplete({ status: "INTERRUPTED", endReason: null }), false);
+  assert.equal(captureSessionAcquisitionComplete({ status: "BOUND", endReason: continuousEndReasonFor("INTERRUPTED_SESSION") }), false);
+  assert.equal(captureSessionAcquisitionComplete({ status: "BOUND", endReason: continuousEndReasonFor("COMPLETE_SESSION") }), true);
 });

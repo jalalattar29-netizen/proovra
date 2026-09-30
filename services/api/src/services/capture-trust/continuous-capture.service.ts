@@ -32,11 +32,13 @@
 
 import type { PrismaClient } from "@prisma/client";
 import {
+  continuousEndReasonFor,
   validateScreenContinuousManifest,
   type ScreenContinuousManifest,
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { headObject } from "../../storage.js";
 import {
   completeDirectCapture,
   DirectCaptureError,
@@ -86,7 +88,14 @@ export async function completeContinuousCaptureSession(
   } catch {
     throw new DirectCaptureError("CONTINUOUS_MANIFEST_INVALID");
   }
-  const validation = validateScreenContinuousManifest(parsed, { expectedSessionId: session.id });
+  // ET-DC-09 — the manifest is checked against the server's facts too: the
+  // platform the session's mode implies and the session's own window.
+  const nowMs = (input.now ?? new Date()).getTime();
+  const validation = validateScreenContinuousManifest(parsed, {
+    expectedSessionId: session.id,
+    expectedPlatform: session.acquisitionMode === "DIRECT_SCREEN_CAPTURE_IOS" ? "ios" : "android",
+    ...(session.startedAtUtc ? { sessionWindow: { openedAtMs: session.startedAtUtc.getTime(), nowMs } } : {}),
+  });
   if (!validation.ok) {
     throw new DirectCaptureError("CONTINUOUS_MANIFEST_INVALID");
   }
@@ -129,6 +138,29 @@ export async function completeContinuousCaptureSession(
     }
   }
 
+  // 3b. ET-DC-09 — each segment's stated size is the size of what was stored.
+  //     (Its digest is checked against the declaration at seal; its size was
+  //     taken on the client's word.)
+  if (session.finalizedEvidenceId) {
+    const parts = await db.evidencePart.findMany({
+      where: { evidenceId: session.finalizedEvidenceId, partIndex: { in: [...manifestByIndex.keys()] } },
+      select: { partIndex: true, storageBucket: true, storageKey: true },
+    });
+    const sizeByIndex = new Map(manifest.segments.map((s) => [s.partIndex, s.sizeBytes]));
+    for (const p of parts) {
+      if (!p.storageBucket || !p.storageKey) continue;
+      let stored: number | null = null;
+      try {
+        stored = (await headObject({ bucket: p.storageBucket, key: p.storageKey })).sizeBytes ?? null;
+      } catch {
+        stored = null; // an absent object is refused by the seal itself
+      }
+      if (stored !== null && stored !== sizeByIndex.get(p.partIndex)) {
+        throw new DirectCaptureError("CONTINUOUS_MANIFEST_ARTIFACT_MISMATCH");
+      }
+    }
+  }
+
   // 4. Seal through the canonical direct-capture completion FIRST — ONE Evidence
   //    for the whole continuous session.
   const result = await completeDirectCapture({
@@ -142,6 +174,14 @@ export async function completeContinuousCaptureSession(
   await db.evidencePart.updateMany({
     where: { evidenceId: result.evidenceId, partIndex: manifestPartIndex },
     data: { artifactClass: "CAPTURE_MANIFEST" },
+  });
+
+  // 6. ET-DC-09 — the completeness travels with the sealed session. Its status
+  //    is BOUND whatever the manifest said, and the derived-intelligence worker
+  //    read only the status, so an interrupted session read as complete.
+  await db.captureSession.update({
+    where: { id: session.id },
+    data: { endReason: continuousEndReasonFor(manifest.sessionCompleteness) },
   });
 
   return { ...result, manifestPartIndex };
