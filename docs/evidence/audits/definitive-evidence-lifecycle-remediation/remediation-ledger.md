@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 102 |
+| FIXED_IN_THIS_TASK | 110 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 51 |
+| STILL_PRESENT | 43 |
 
-Open by severity: P0 0 · P1 0 · P2 35 · P3 16
+Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -76,7 +76,7 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 | ET-INT-13 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-14 | P2 | FIXED_IN_THIS_TASK | writeEvidencePart refuses a soft-deleted record as not found | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-14: a soft-deleted in-progress record is not found, never reused] |
 | ET-OTS-03 | P2 | FIXED_IN_THIS_TASK | runOtsInitializationReconciler second scan (pendingWithoutProgressWhere + isOtsUpgradeScheduled over both ladder ids): re-schedule once, never a parallel ladder | 304d5c2c2a, 7c5c69713c | services/worker/test/ots-pending-recovery.integration.test.ts (live PostgreSQL + loopback Redis) |
-| ET-OTS-04 | P2 | STILL_PRESENT |  |  |  |
+| ET-OTS-04 | P2 | FIXED_IN_THIS_TASK | worker ots.service throws OtsStampCallFailed into the initializer's retry budget; shared boundedOtsFailureCode / OTS_FAILURE_CODE_LABELS is the only failure value any reader shows | 84c612665b | services/worker/test/ots-initialization-truth.test.ts; services/api/test/ots-failure-reason-bounded.integration.test.ts |
 | ET-PKG-03 | P2 | FIXED_IN_THIS_TASK | verification-package buildReadme: sealed packages verified by the seal (a-e) incl. key fingerprint vs Public Verify; unsealed packages state what the manifest signature cannot show | 9ae43300d1, 4a4affa6b7 | services/worker/test/package-readme-seal-instructions.test.ts |
 | ET-PKG-04 | P2 | FIXED_IN_THIS_TASK | verification-package buildPackageManifest contents — every flag that can be true maps to an appended entry (exhaustive test) | 4a4affa6b7 | services/worker/test/package-manifest-contents-truth.test.ts |
 | ET-PKG-05 | P2 | STILL_PRESENT |  |  |  |
@@ -100,16 +100,16 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 | ET-SEC-15 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-16 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-17 | P2 | FIXED_IN_THIS_TASK | legal-hold.service evaluateCaseDeletionHold (clear \| held \| unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17]; services/api/test/legal-hold-tenant-spread-guard.test.ts |
-| ET-SEC-18 | P2 | FIXED_IN_THIS_TASK | middleware/authorize evaluateAuthorize / authorizeOrFail (evidence.read, antiEnumeration) for both lists; owner arm bounded to legacy NULL-team rows | 8d781d8043 | services/api/test/reports-list-authorization.integration.test.ts; services/api/test/phase-ia-self-serve-regression-fix.test.ts; services/api/test/phase-32-8-d-cases-reports.test.ts |
-| ET-SEC-19 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-18 | P2 | FIXED_IN_THIS_TASK | middleware/authorize evaluateAuthorize / authorizeOrFail (evidence.read, antiEnumeration) for both lists; owner arm bounded to legacy NULL-team rows | 8d781d8043, d5dacdf2db, 34571506e1 | services/api/test/reports-list-authorization.integration.test.ts; services/api/test/phase-ia-self-serve-regression-fix.test.ts; services/api/test/phase-32-8-d-cases-reports.test.ts |
+| ET-SEC-19 | P2 | FIXED_IN_THIS_TASK | evidence-exchange.service generateSignedUrl returns the URL to its minter only; the row keeps only signedUrlExpiresAtUtc; the list projection carries no URL | 8b8bef5de8 | services/api/test/exchange-signed-url-not-listed.integration.test.ts |
 | ET-SEC-20 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-21 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-22 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-23 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-24 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-25 | P2 | FIXED_IN_THIS_TASK | access-policy.service workspaceLifecycleDenial (shared by evaluateAccess and requireApiKey via loadWorkspaceLifecycleState; fail closed 503) | d3f31f99a8 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-SEC-25: SUSPENDED org key -> 403 ORGANIZATION_NOT_ACTIVE, nothing written] |
+| ET-SEC-25 | P2 | FIXED_IN_THIS_TASK | access-policy.service workspaceLifecycleDenial (shared by evaluateAccess and requireApiKey via loadWorkspaceLifecycleState; fail closed 503) | d3f31f99a8, 34571506e1 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-SEC-25: SUSPENDED org key -> 403 ORGANIZATION_NOT_ACTIVE, nothing written] |
 | ET-SEC-26 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-27 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-27 | P2 | FIXED_IN_THIS_TASK | exchange-package-builder: claim token = started_at_utc; attempt-scoped object key; READY only while attemptStillOwnsBuild (FOR UPDATE); UPLOADED / FAILED / DRAFT-revert fenced by the attempt | f78d0daee7 | services/api/test/point5/family-exchange-package.integration.test.ts [ET-SEC-27] |
 | ET-SM-02 | P2 | FIXED_IN_THIS_TASK | services/worker/src/processor.ts REPORTABLE_AT_COMMIT_WHERE / isReportableAtCommit (conditional commit; REPORT_EVIDENCE_STATE_CHANGED otherwise) | e16588fb76 | services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: integrity rejection and trash during render] |
 | ET-SM-03 | P2 | FIXED_IN_THIS_TASK | storage.ts versioned applyObjectRetention / applyDefaultObjectRetention / headObject / copyObjectStorageClass(sourceVersionId); evidence-complete RetentionTarget.versionId; buildPublicEvidenceContent pins sealedVersionId | 49e9a5f3eb | services/api/test/storage-sealed-version.test.ts |
 | ET-SM-07 | P2 | STILL_PRESENT |  |  |  |
@@ -130,8 +130,8 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 | ET-DC-10 | P3 | STILL_PRESENT |  |  |  |
 | ET-DC-11 | P3 | STILL_PRESENT |  |  |  |
 | ET-INT-15 | P3 | STILL_PRESENT |  |  |  |
-| ET-OTS-05 | P3 | STILL_PRESENT |  |  |  |
-| ET-OTS-06 | P3 | STILL_PRESENT |  |  |  |
+| ET-OTS-05 | P3 | FIXED_IN_THIS_TASK | createOpenTimestamp always returns PENDING; the upgrade ladder's classifier alone establishes an anchor | 84c612665b | services/worker/test/ots-initialization-truth.test.ts; services/worker/test/ots-upgrade-output.test.ts |
+| ET-OTS-06 | P3 | FIXED_IN_THIS_TASK | ots-upgrade.processor: hash-matching attested proof -> ANCHOR_PROVEN PROOF_STRUCTURE; getOtsProofInfo.deterministic + OTS_UNREADABLE_PROOF_STRIKES (3, counted from custody OTS_ATTEMPT_ERROR) -> MALFORMED_PROOF | 424e934ea9 | services/worker/test/ots-upgrade-processor.behaviour.test.ts |
 | ET-OTS-07 | P3 | FIXED_IN_THIS_TASK | verification-package decideOtsPackageArtifact verificationHint: `ots verify -d <hash in this file>` (the companion hash is the SHA-256 of the stamped bytes) | 4a4affa6b7 | services/worker/test/package-readme-seal-instructions.test.ts [the OTS hint names the digest] |
 | ET-PKG-09 | P3 | FIXED_IN_THIS_TASK | public verify: maskIp network prefix, no user agent; debounce = one conditional updateMany whose winner alone emits VERIFY_VIEWED | dc6ce7dbc7 | services/api/test/public-verify-view-privacy-and-debounce.integration.test.ts |
 | ET-PKG-11 | P3 | FIXED_IN_THIS_TASK | verification-package-historical-material: publicMaterialRef always null; publicKeySpkiSha256 (publicFingerprintOfPem); per-purpose extraction (PACKAGE_SIGNING_PUBLIC_KEY_PATH for verification_package) | f462ebee10 | services/worker/test/historical-verification-material.test.ts |
@@ -157,9 +157,9 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 | ET-RPT-06 | P3 | FIXED_IN_THIS_TASK | readGenerationOutcome tone → app-status-text data-tone (GENERATION_OUTCOME_STATUS_TONE) | 717dad0252, 4421a752c9 | apps/web/__tests__/reports-lifecycle-deep-link.test.ts |
 | ET-RPT-07 | P3 | FIXED_IN_THIS_TASK | worker runReportGeneration → ReportRunResult (generated / package_built / pair_complete / already_issued) → resultReportId = that (evidence, version) row | df2a28cef1, 4421a752c9, 04e49d1345 | services/api/test/point5/report-package-recovery.integration.test.ts |
 | ET-RPT-09 | P3 | FIXED_IN_THIS_TASK | truth-model buildExecutiveConclusion reads the bitcoin_anchoring signal's ANCHORED_NOT_CHECKED claim (OTS_ANCHOR_CLAIM_LABELS); scoring unchanged | 4d105329a6 | services/worker/test/report-anchoring-conclusion.test.ts |
-| ET-SEC-28 | P3 | STILL_PRESENT |  |  |  |
-| ET-SEC-29 | P3 | STILL_PRESENT |  |  |  |
-| ET-SEC-30 | P3 | STILL_PRESENT |  |  |  |
+| ET-SEC-28 | P3 | FIXED_IN_THIS_TASK | billing-enforcement lockEvidenceCapacitySubject taken before assertWorkspaceAllowsStorageGrowth inside the finalize transaction | 13385d3d7d | services/api/test/storage-capacity-concurrent-finalize.integration.test.ts |
+| ET-SEC-29 | P3 | FIXED_IN_THIS_TASK | worker processor package commit: conditional updateMany (NULL or <= this version) | 0827d8b73b | services/api/test/point5/report-package-recovery.integration.test.ts [pointer stays 2] |
+| ET-SEC-30 | P3 | FIXED_IN_THIS_TASK | report-generation-authority: ResolvedReportCommand.claimedAtUtc is the fence; markRequestRetryable/markRequestTerminal(fence) and claimFenceWhere for the in-run stage writes (ReportClaimLost rolls back) | 0827d8b73b | services/api/test/phase-12-point5-report-authority.integration.test.ts [21b] |
 | ET-SEC-31 | P3 | STILL_PRESENT |  |  |  |
 | ET-SEC-32 | P3 | FIXED_IN_THIS_TASK | evidence.routes annotationPartBelongsToEvidence — the one part-ownership check for annotation create and edit | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32] |
 | ET-SEC-33 | P3 | STILL_PRESENT |  |  |  |
@@ -791,6 +791,20 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 - **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/queue-integrity/enqueue.ts`, `services/api/src/services/operations/evidence-integrity-conditions.service.ts`, `services/worker/src/ots-initialization-reconciler.ts`, `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/queue.ts`
 - **commits:** 304d5c2c2a fix(anchoring): OTS upgrade ladder never stalls; lost ladders are recovered; 7c5c69713c fix(anchoring): OTS recovery measures "no progress" from the last write, not creation
 
+## ET-OTS-04 — A calendar/network failure during `ots stamp` is persisted as per-record FAILED (no proof), never retried automatically, and its raw error text is shown publicly
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** createOpenTimestamp returned every `ots stamp` error as a per-record FAILED with the raw command text (server paths) as its reason; nothing retried it and every reader showed the text.
+- **canonicalAuthority:** worker ots.service throws OtsStampCallFailed into the initializer's retry budget; shared boundedOtsFailureCode / OTS_FAILURE_CODE_LABELS is the only failure value any reader shows
+- **redTest:** services/worker/test/ots-initialization-truth.test.ts; services/api/test/ots-failure-reason-bounded.integration.test.ts (evidence/ET-OTS-04-05-red-baseline.txt)
+- **greenTest:** services/worker/test/ots-initialization-truth.test.ts; services/api/test/ots-failure-reason-bounded.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/verify/[token]/page.tsx`, `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/me-inbox.routes.ts`, `services/worker/src/ots-upgrade-output.ts`, `services/worker/src/ots.service.ts`, `services/worker/src/report-v2/truth-model.ts`
+- **commits:** 84c612665b fix(ots): a stamp-call failure is thrown into the retry budget, initialization never claims ANCHORED, and no reader shows stored failure text (ET-OTS-04, ET-OTS-05)
+
 ## ET-PKG-03 — README HOW TO VERIFY ignores the format-5 seal and points recipients at the manifest signature that does not cover the report or checksum index
 
 - **severity:** P2
@@ -1033,7 +1047,21 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/reports.routes.ts`
-- **commits:** 8d781d8043 fix(reports): both reports lists admit a workspace only through the authorization decision; no filter-dropping fallback (ET-SEC-18)
+- **commits:** 8d781d8043 fix(reports): both reports lists admit a workspace only through the authorization decision; no filter-dropping fallback (ET-SEC-18); d5dacdf2db test(reports): the commercial-subject wiring pin follows ET-SEC-18 — one evidence select, the fallback is gone; 34571506e1 test: org-lifecycle and home-reports source pins follow ET-SEC-25 (one shared lifecycle rule) and ET-SEC-18 (named legacy owner arm)
+
+## ET-SEC-19 — Exchange package signed URL (issued behind generate_package + step-up) is persisted and returned to any evidence.read member by list
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The exchange-package signed URL (minted behind generate_package + step-up) was stored on the row and serialized by the evidence.read list projection.
+- **canonicalAuthority:** evidence-exchange.service generateSignedUrl returns the URL to its minter only; the row keeps only signedUrlExpiresAtUtc; the list projection carries no URL
+- **redTest:** services/api/test/exchange-signed-url-not-listed.integration.test.ts (evidence/ET-SEC-19-red-baseline.txt)
+- **greenTest:** services/api/test/exchange-signed-url-not-listed.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/exchange/evidence-exchange.service.ts`
+- **commits:** 8b8bef5de8 fix(exchange): a signed package URL is handed to its minter only — never stored, never listed (ET-SEC-19)
 
 ## ET-SEC-25 — API-key upload path bypasses organization-lifecycle denial enforced on the user upload path
 
@@ -1047,7 +1075,22 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/middleware/integrations-auth.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/services/identity/access-policy.service.ts`
-- **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)
+- **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25); 34571506e1 test: org-lifecycle and home-reports source pins follow ET-SEC-25 (one shared lifecycle rule) and ET-SEC-18 (named legacy owner arm)
+
+## ET-SEC-27 — Exchange-package build race after 30-min lease expiry: late builder overwrites fixed object key after the winner committed READY with its sha; failure path unconditionally marks build FAILED
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The exchange builder uploaded to a fixed key before its conditional READY transition and its FAILED write was unfenced, so a late builder could overwrite a committed object or fail the live build.
+- **canonicalAuthority:** exchange-package-builder: claim token = started_at_utc; attempt-scoped object key; READY only while attemptStillOwnsBuild (FOR UPDATE); UPLOADED / FAILED / DRAFT-revert fenced by the attempt
+- **redTest:** services/api/test/point5/family-exchange-package.integration.test.ts [ET-SEC-27] (evidence/ET-SEC-27-red-baseline.txt)
+- **greenTest:** services/api/test/point5/family-exchange-package.integration.test.ts [ET-SEC-27]
+- **concurrencyTest:** services/api/test/point5/family-exchange-package.integration.test.ts [lease re-claimed mid-build]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/exchange-package-builder.ts`
+- **commits:** f78d0daee7 fix(exchange): a build attempt writes only under its own claim, to its own object key (ET-SEC-27)
 
 ## ET-SM-02 — Report commit (phase C) writes status=REPORTED with WHERE id only, so it can overwrite FAILED_HASH_MISMATCH and commit a Report on a trashed/destroyed record
 
@@ -1204,6 +1247,35 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/scripts/capability-authority/tenant-binding.mjs`, `services/api/src/routes/admin-security.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/audit/tenant-audit.service.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/platform-audit-log.service.ts`
 - **commits:** d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14); fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated; 98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07)
+
+## ET-OTS-05 — Initializer still promotes to ANCHORED from `ots upgrade` text alone (heuristic removed elsewhere); such an anchor is never re-checked when a txid is present
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Initialization promoted `ots upgrade` text ('timestamp complete' / 'bitcoin transaction') to ANCHORED with no hash or attestation check, and a txid parsed by the generic fallback kept the ladder from re-checking it.
+- **canonicalAuthority:** createOpenTimestamp always returns PENDING; the upgrade ladder's classifier alone establishes an anchor
+- **obsoleteRemoved:** shouldTreatOtsAsAnchored (the last text-only promotion) and isPendingLikeUpgradeMessage
+- **redTest:** services/worker/test/ots-initialization-truth.test.ts (evidence/ET-OTS-04-05-red-baseline.txt)
+- **greenTest:** services/worker/test/ots-initialization-truth.test.ts; services/worker/test/ots-upgrade-output.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/verify/[token]/page.tsx`, `packages/shared/src/index.ts`, `packages/shared/src/ots.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/me-inbox.routes.ts`, `services/worker/src/ots-upgrade-output.ts`, `services/worker/src/ots.service.ts`, `services/worker/src/report-v2/truth-model.ts`
+- **commits:** 84c612665b fix(ots): a stamp-call failure is thrown into the retry budget, initialization never claims ANCHORED, and no reader shows stored failure text (ET-OTS-04, ET-OTS-05)
+
+## ET-OTS-06 — A header-valid but unparseable proof (or block attestation without readable txid) is treated as transient forever and never reaches a terminal state
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Deterministic proof-read failures were routed to TRANSIENT_ERROR forever, and an attested proof with no readable txid was neither recorded nor withdrawn.
+- **canonicalAuthority:** ots-upgrade.processor: hash-matching attested proof -> ANCHOR_PROVEN PROOF_STRUCTURE; getOtsProofInfo.deterministic + OTS_UNREADABLE_PROOF_STRIKES (3, counted from custody OTS_ATTEMPT_ERROR) -> MALFORMED_PROOF
+- **redTest:** services/worker/test/ots-upgrade-processor.behaviour.test.ts (evidence/ET-OTS-06-red-baseline.txt)
+- **greenTest:** services/worker/test/ots-upgrade-processor.behaviour.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/ots-upgrade.processor.ts`, `services/worker/src/ots.service.ts`
+- **commits:** 424e934ea9 fix(ots): an attested proof without a readable txid is anchored by proof structure; a deterministically unreadable proof reaches MALFORMED_PROOF (ET-OTS-06)
 
 ## ET-OTS-07 — Package verification hint `ots verify opentimestamps-proof.ots` cannot succeed; the stamped file is fingerprint.json
 
@@ -1544,6 +1616,50 @@ Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/worker/src/report-v2/truth-model.ts`
 - **commits:** 4d105329a6 fix(report): the executive conclusion does not call an unchecked OTS anchor "finalized" (ET-RPT-09)
+
+## ET-SEC-28 — Storage capacity check runs outside the capacity advisory lock; two finalizes in one workspace can both pass
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The completion's storage check ran before the per-workspace capacity lock, so two concurrent finalizes of different records could both pass.
+- **canonicalAuthority:** billing-enforcement lockEvidenceCapacitySubject taken before assertWorkspaceAllowsStorageGrowth inside the finalize transaction
+- **redTest:** services/api/test/storage-capacity-concurrent-finalize.integration.test.ts (evidence/ET-SEC-28-red-baseline.txt)
+- **greenTest:** services/api/test/storage-capacity-concurrent-finalize.integration.test.ts
+- **concurrencyTest:** services/api/test/storage-capacity-concurrent-finalize.integration.test.ts [two concurrent finalizes -> exactly one 409]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/evidence-complete.service.ts`
+- **commits:** 13385d3d7d fix(billing): the completion's storage check runs under the workspace capacity lock (ET-SEC-28)
+
+## ET-SEC-29 — Package commit sets evidence verificationPackageVersion without monotonic guard; package-only recovery of an older version regresses the pointer
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The package commit set evidence.verificationPackageVersion unconditionally, so an older package-only recovery moved the pointer backwards.
+- **canonicalAuthority:** worker processor package commit: conditional updateMany (NULL or <= this version)
+- **redTest:** services/api/test/point5/report-package-recovery.integration.test.ts [EXACT VERSION v1 while v2] (evidence/ET-SEC-29-30-red-baseline.txt)
+- **greenTest:** services/api/test/point5/report-package-recovery.integration.test.ts [pointer stays 2]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`
+- **commits:** 0827d8b73b fix(reports): the package pointer only advances; a report run's writes are fenced by its own claim (ET-SEC-29, ET-SEC-30)
+
+## ET-SEC-30 — Report request lease has no fencing token; a late worker's markRequestRetryable/terminal write overwrites the re-claimer's PROCESSING row
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The report request lease had no fencing token, so a late worker's retryable/terminal write overwrote the re-claimer's PROCESSING row.
+- **canonicalAuthority:** report-generation-authority: ResolvedReportCommand.claimedAtUtc is the fence; markRequestRetryable/markRequestTerminal(fence) and claimFenceWhere for the in-run stage writes (ReportClaimLost rolls back)
+- **redTest:** services/api/test/phase-12-point5-report-authority.integration.test.ts [21b] (evidence/ET-SEC-29-30-red-baseline.txt)
+- **greenTest:** services/api/test/phase-12-point5-report-authority.integration.test.ts [21b]
+- **concurrencyTest:** services/api/test/phase-12-point5-report-authority.integration.test.ts [late worker after re-claim writes nothing]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`
+- **commits:** 0827d8b73b fix(reports): the package pointer only advances; a report run's writes are fenced by its own claim (ET-SEC-29, ET-SEC-30)
 
 ## ET-SEC-32 — Annotation PATCH accepts any evidencePartId (no ownership check, unlike POST)
 

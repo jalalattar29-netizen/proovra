@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "d23ae19e73d809817e78aa818fd6cfa9d40a3f95f18de958c4e841c510c76fda",
   "routeInventoryHash": "07c14ba7f8b2fa505b7eb84811af0026423b8c0d089fabbede70c4b05df07a6b",
-  "consumerInventoryHash": "17d8f9c38666745d296e62b0f8fa02fddcc698a7c6ea2731423d3497f7991496",
+  "consumerInventoryHash": "da0c749e49e9bb12361d15895c7d7e428c760249340876ae817fef78173ee863",
   "dispositionsHash": "ae8f9e22c12e1abc72e4490a582946a00b2b2bc4924be586e216d65b48633607",
   "totals": {
     "RegisteredRoutes": 1170,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
-    "TerminalWriters": 1309,
-    "ReachableSensitiveMutations": 1303,
-    "ClassifiedSensitiveMutations": 1303,
+    "TerminalWriters": 1310,
+    "ReachableSensitiveMutations": 1304,
+    "ClassifiedSensitiveMutations": 1304,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 6,
@@ -77,7 +77,7 @@
       "WORKSPACE": 66,
       "WORKSPACE_MEMBERSHIP_INVITATION": 52,
       "CASE": 80,
-      "EVIDENCE_CUSTODY_FINALIZATION": 296,
+      "EVIDENCE_CUSTODY_FINALIZATION": 297,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 78,
       "BILLING_SUBSCRIPTION_SEAT": 86,
@@ -104,7 +104,7 @@
       "JOB_ATTRIBUTED_REACHABLE": 121,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
-      "STARTUP_OR_SCHEDULED": 16,
+      "STARTUP_OR_SCHEDULED": 17,
       "MIGRATION_ONLY": 0,
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9211,
-      "UNRESOLVED_IDENTIFIER": 1221
+      "METHOD_ON_VALUE": 9208,
+      "UNRESOLVED_IDENTIFIER": 1222
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -19678,8 +19678,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13271",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13271",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13272",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13272",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19777,8 +19777,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@13259",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13259",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@13260",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13260",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20272,8 +20272,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13277",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13277",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13278",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13278",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20913,8 +20913,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4174",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4174",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4180",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4180",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -20946,8 +20946,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4322",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4322",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#collaborationTeamNotification.updateMany@4328",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4328",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -20986,8 +20986,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@4179",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4179",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.createMany@4185",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4185",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -21019,8 +21019,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@4192",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4192",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.updateMany@4198",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4198",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -21052,8 +21052,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4327",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4327",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#inboxItemState.upsert@4333",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4333",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -21092,8 +21092,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1295",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1295",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.createMany@1300",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1300",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -21127,8 +21127,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1328",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1328",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1333",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1333",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -21162,8 +21162,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1351",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1351",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@1356",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:1356",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "syncInboxSnapshots",
       "kind": "DATABASE",
@@ -21197,8 +21197,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4197",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4197",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4203",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4203",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "meInboxRoutes",
       "kind": "DATABASE",
@@ -21230,8 +21230,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4348",
-      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4348",
+      "writerId": "services/api/src/routes/me-inbox.routes.ts#operationsInboxSnapshot.updateMany@4354",
+      "terminalLocation": "services/api/src/routes/me-inbox.routes.ts:4354",
       "file": "services/api/src/routes/me-inbox.routes.ts",
       "enclosingDeclaration": "applyStateMutation",
       "kind": "DATABASE",
@@ -30620,8 +30620,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@1139",
-      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:1139",
+      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@1147",
+      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:1147",
       "file": "services/api/src/services/billing-enforcement.service.ts",
       "enclosingDeclaration": "recordWorkspaceAiOperation",
       "kind": "DATABASE",
@@ -39586,8 +39586,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1310",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1310",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1315",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1315",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -39626,8 +39626,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1121",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1121",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1126",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1126",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -39666,8 +39666,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1336",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1336",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1341",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1341",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -39706,8 +39706,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@891",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:891",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@892",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:892",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -41002,8 +41002,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@279",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:279",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@284",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:284",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "generateSignedUrl",
       "kind": "DATABASE",
@@ -41035,8 +41035,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@334",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:334",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.update@339",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:339",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDelivery",
       "kind": "DATABASE",
@@ -41102,8 +41102,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.updateMany@515",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:515",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackage.updateMany@520",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:520",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "revokePackage",
       "kind": "DATABASE",
@@ -41135,8 +41135,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.create@322",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:322",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.create@327",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:327",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDelivery",
       "kind": "DATABASE",
@@ -41168,8 +41168,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.update@466",
-      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:466",
+      "writerId": "services/api/src/services/exchange/evidence-exchange.service.ts#evidenceExchangePackageDelivery.update@471",
+      "terminalLocation": "services/api/src/services/exchange/evidence-exchange.service.ts:471",
       "file": "services/api/src/services/exchange/evidence-exchange.service.ts",
       "enclosingDeclaration": "recordPackageDownload",
       "kind": "DATABASE",
@@ -85051,41 +85051,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.updateMany@1033",
-      "terminalLocation": "services/worker/src/exchange-package-builder.ts:1033",
-      "file": "services/worker/src/exchange-package-builder.ts",
-      "enclosingDeclaration": "buildExchangePackage",
-      "kind": "DATABASE",
-      "target": "evidenceExchangePackage",
-      "mutationKind": "updateMany",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": false,
-      "entryRoutes": [],
-      "entryJobs": [],
-      "entryModules": [],
-      "entrySchedules": [
-        "BOOT services/worker/src/index.ts:1546#pollExchangePackageBuilds",
-        "BOOT services/worker/src/index.ts:1555#pollExchangePackageBuilds",
-        "SCHEDULE services/worker/src/index.ts:1545#startExchangePackageBuilderScheduler"
-      ],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "conditional_state_claim+unique_constraint",
-        "retrySemantics": "ARTIFACT",
-        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
-        "canonicalOrLegacy": "CANONICAL"
-      }
-    },
-    {
-      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.updateMany@978",
-      "terminalLocation": "services/worker/src/exchange-package-builder.ts:978",
+      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.updateMany@1015",
+      "terminalLocation": "services/worker/src/exchange-package-builder.ts:1015",
       "file": "services/worker/src/exchange-package-builder.ts",
       "enclosingDeclaration": "buildExchangePackage",
       "kind": "DATABASE",
@@ -85110,6 +85077,72 @@
         "organizationLifecycleRequirement": "NOT_APPLICABLE",
         "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "conditional_state_claim+unique_constraint",
+        "retrySemantics": "ARTIFACT",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
+      "writerId": "services/worker/src/exchange-package-builder.ts#evidenceExchangePackage.updateMany@1077",
+      "terminalLocation": "services/worker/src/exchange-package-builder.ts:1077",
+      "file": "services/worker/src/exchange-package-builder.ts",
+      "enclosingDeclaration": "buildExchangePackage",
+      "kind": "DATABASE",
+      "target": "evidenceExchangePackage",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1546#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1555#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1545#startExchangePackageBuilderScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "conditional_state_claim+unique_constraint",
+        "retrySemantics": "ARTIFACT",
+        "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
+        "canonicalOrLegacy": "CANONICAL"
+      }
+    },
+    {
+      "writerId": "services/worker/src/exchange-package-builder.ts#OBJECT_STORAGE.deleteObject@1033",
+      "terminalLocation": "services/worker/src/exchange-package-builder.ts:1033",
+      "file": "services/worker/src/exchange-package-builder.ts",
+      "enclosingDeclaration": "buildExchangePackage",
+      "kind": "EXTERNAL",
+      "target": "OBJECT_STORAGE",
+      "mutationKind": "deleteObject",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1546#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1555#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1545#startExchangePackageBuilderScheduler"
+      ],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "AFTER_COMMIT_OR_OUTBOX",
         "idempotencyAuthority": "conditional_state_claim+unique_constraint",
         "retrySemantics": "ARTIFACT",
         "payloadVersionAuthority": "schemaVersion=CANONICAL_PAYLOAD_SCHEMA_VERSION",
@@ -87272,8 +87305,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4760",
-      "terminalLocation": "services/worker/src/processor.ts:4760",
+      "writerId": "services/worker/src/processor.ts#evidence.update@4771",
+      "terminalLocation": "services/worker/src/processor.ts:4771",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -87303,39 +87336,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4969",
-      "terminalLocation": "services/worker/src/processor.ts:4969",
-      "file": "services/worker/src/processor.ts",
-      "enclosingDeclaration": "runReportGeneration",
-      "kind": "DATABASE",
-      "target": "evidence",
-      "mutationKind": "update",
-      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
-      "insideTransaction": true,
-      "entryRoutes": [],
-      "entryJobs": [
-        "SWEEP services/worker/src/processor.ts#processGenerateReport"
-      ],
-      "entryModules": [],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "NON_REQUEST",
-        "authorizationBeforeMutation": "NOT_APPLICABLE",
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "NON_REQUEST",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "NOT_APPLICABLE",
-        "transactionAuthority": "INSIDE_TRANSACTION",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4090",
-      "terminalLocation": "services/worker/src/processor.ts:4090",
+      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4099",
+      "terminalLocation": "services/worker/src/processor.ts:4099",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -87365,8 +87367,39 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@4137",
-      "terminalLocation": "services/worker/src/processor.ts:4137",
+      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4985",
+      "terminalLocation": "services/worker/src/processor.ts:4985",
+      "file": "services/worker/src/processor.ts",
+      "enclosingDeclaration": "runReportGeneration",
+      "kind": "DATABASE",
+      "target": "evidence",
+      "mutationKind": "updateMany",
+      "primaryFamily": "EVIDENCE_CUSTODY_FINALIZATION",
+      "insideTransaction": true,
+      "entryRoutes": [],
+      "entryJobs": [
+        "SWEEP services/worker/src/processor.ts#processGenerateReport"
+      ],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/worker/src/processor.ts#report.create@4146",
+      "terminalLocation": "services/worker/src/processor.ts:4146",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -87396,8 +87429,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.updateMany@4994",
-      "terminalLocation": "services/worker/src/processor.ts:4994",
+      "writerId": "services/worker/src/processor.ts#report.updateMany@5016",
+      "terminalLocation": "services/worker/src/processor.ts:5016",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -87427,13 +87460,13 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.update@3710",
-      "terminalLocation": "services/worker/src/processor.ts:3710",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@3718",
+      "terminalLocation": "services/worker/src/processor.ts:3718",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
       "target": "reportGenerationRequest",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "REPORT_EXPORT_REDACTION",
       "insideTransaction": true,
       "entryRoutes": [],
@@ -87458,13 +87491,13 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.update@4300",
-      "terminalLocation": "services/worker/src/processor.ts:4300",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4310",
+      "terminalLocation": "services/worker/src/processor.ts:4310",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
       "target": "reportGenerationRequest",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "REPORT_EXPORT_REDACTION",
       "insideTransaction": true,
       "entryRoutes": [],
@@ -87489,13 +87522,13 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.update@5020",
-      "terminalLocation": "services/worker/src/processor.ts:5020",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@5042",
+      "terminalLocation": "services/worker/src/processor.ts:5042",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
       "target": "reportGenerationRequest",
-      "mutationKind": "update",
+      "mutationKind": "updateMany",
       "primaryFamily": "REPORT_EXPORT_REDACTION",
       "insideTransaction": true,
       "entryRoutes": [],
@@ -87520,8 +87553,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4935",
-      "terminalLocation": "services/worker/src/processor.ts:4935",
+      "writerId": "services/worker/src/processor.ts#verificationPackage.create@4946",
+      "terminalLocation": "services/worker/src/processor.ts:4946",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -87793,8 +87826,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@290",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:290",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@298",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:298",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "resolveAndClaimReportRequest",
       "kind": "DATABASE",
@@ -87824,8 +87857,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@346",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:346",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@361",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:361",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestTerminal",
       "kind": "DATABASE",
@@ -87860,8 +87893,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@375",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:375",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@394",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:394",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "markRequestRetryable",
       "kind": "DATABASE",
@@ -87891,8 +87924,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@509",
-      "terminalLocation": "services/worker/src/report-generation-authority.ts:509",
+      "writerId": "services/worker/src/report-generation-authority.ts#reportGenerationRequest.updateMany@547",
+      "terminalLocation": "services/worker/src/report-generation-authority.ts:547",
       "file": "services/worker/src/report-generation-authority.ts",
       "enclosingDeclaration": "reconcileStrandedReportRequests",
       "kind": "DATABASE",
@@ -88290,6 +88323,9 @@
       ],
       "entryModules": [],
       "entrySchedules": [
+        "BOOT services/worker/src/index.ts:1546#pollExchangePackageBuilds",
+        "BOOT services/worker/src/index.ts:1555#pollExchangePackageBuilds",
+        "SCHEDULE services/worker/src/index.ts:1545#startExchangePackageBuilderScheduler",
         "SCHEDULE services/worker/src/index.ts:658#startCaptureDraftReaperScheduler"
       ],
       "invariants": {
@@ -91855,7 +91891,7 @@
         },
         {
           "file": "apps/web/app/verify/[token]/page.tsx",
-          "line": 3346,
+          "line": 3354,
           "caller": "fetchVerify",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -91865,7 +91901,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/verify.tsx:115 (VerifyScreen, MOBILE); apps/web/app/verify/[token]/page.tsx:3346 (fetchVerify, WEB)",
+      "dispositionEvidence": "apps/mobile/app/verify.tsx:115 (VerifyScreen, MOBILE); apps/web/app/verify/[token]/page.tsx:3354 (fetchVerify, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -112816,7 +112852,7 @@
       "method": "GET",
       "path": "/v1/me/inbox",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3317",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3323",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -112961,7 +112997,7 @@
       "method": "GET",
       "path": "/v1/me/inbox/summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3989",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:3995",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155405,7 +155441,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4504",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4510",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155467,7 +155503,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/dismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4521",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4527",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155521,7 +155557,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4408",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4414",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155591,7 +155627,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/remind",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4506",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4512",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155645,7 +155681,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/snooze",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4523",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4529",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155690,7 +155726,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4505",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4511",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155752,7 +155788,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/undismiss",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4522",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4528",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155797,7 +155833,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/items/:itemKey/unread",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4420",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4426",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -155859,7 +155895,7 @@
       "method": "POST",
       "path": "/v1/me/inbox/mark-all-read",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4119",
+      "registrationEvidence": "services/api/src/routes/me-inbox.routes.ts:4125",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"

@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 102,
+    "FIXED_IN_THIS_TASK": 110,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 51,
+    "STILL_PRESENT": 43,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,8 +18,8 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 35,
-      "P3": 16
+      "P2": 32,
+      "P3": 11
     }
   },
   "openIds": {
@@ -43,7 +43,6 @@
       "ET-INT-11",
       "ET-INT-12",
       "ET-INT-13",
-      "ET-OTS-04",
       "ET-PKG-05",
       "ET-PKG-06",
       "ET-PKG-07",
@@ -51,14 +50,12 @@
       "ET-SEC-14",
       "ET-SEC-15",
       "ET-SEC-16",
-      "ET-SEC-19",
       "ET-SEC-20",
       "ET-SEC-21",
       "ET-SEC-22",
       "ET-SEC-23",
       "ET-SEC-24",
       "ET-SEC-26",
-      "ET-SEC-27",
       "ET-SM-07",
       "ET-UPL-04"
     ],
@@ -70,12 +67,7 @@
       "ET-DC-10",
       "ET-DC-11",
       "ET-INT-15",
-      "ET-OTS-05",
-      "ET-OTS-06",
       "ET-Q-07",
-      "ET-SEC-28",
-      "ET-SEC-29",
-      "ET-SEC-30",
       "ET-SEC-31",
       "ET-SEC-33",
       "ET-SEC-35"
@@ -2302,20 +2294,31 @@
         "services/api/src/routes/evidence.routes.ts:13893",
         "services/worker/src/report-v2/truth-model.ts:245"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The failure-vocabulary split described in ots-lifecycle.ts:495-535 is implemented on the wrong side of the try in ots.service.ts.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "createOpenTimestamp returned every `ots stamp` error as a per-record FAILED with the raw command text (server paths) as its reason; nothing retried it and every reader showed the text.",
+      "canonicalAuthority": "worker ots.service throws OtsStampCallFailed into the initializer's retry budget; shared boundedOtsFailureCode / OTS_FAILURE_CODE_LABELS is the only failure value any reader shows",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/verify/[token]/page.tsx",
+        "packages/shared/src/index.ts",
+        "packages/shared/src/ots.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/routes/me-inbox.routes.ts",
+        "services/worker/src/ots-upgrade-output.ts",
+        "services/worker/src/ots.service.ts",
+        "services/worker/src/report-v2/truth-model.ts"
+      ],
+      "redTest": "services/worker/test/ots-initialization-truth.test.ts; services/api/test/ots-failure-reason-bounded.integration.test.ts (evidence/ET-OTS-04-05-red-baseline.txt)",
+      "greenTest": "services/worker/test/ots-initialization-truth.test.ts; services/api/test/ots-failure-reason-bounded.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "84c612665b fix(ots): a stamp-call failure is thrown into the retry budget, initialization never claims ANCHORED, and no reader shows stored failure text (ET-OTS-04, ET-OTS-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-03",
@@ -3105,7 +3108,9 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "8d781d8043 fix(reports): both reports lists admit a workspace only through the authorization decision; no filter-dropping fallback (ET-SEC-18)"
+        "8d781d8043 fix(reports): both reports lists admit a workspace only through the authorization decision; no filter-dropping fallback (ET-SEC-18)",
+        "d5dacdf2db test(reports): the commercial-subject wiring pin follows ET-SEC-18 — one evidence select, the fallback is gone",
+        "34571506e1 test: org-lifecycle and home-reports source pins follow ET-SEC-25 (one shared lifecycle rule) and ET-SEC-18 (named legacy owner arm)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3119,20 +3124,24 @@
         "services/api/src/services/exchange/evidence-exchange.service.ts:277",
         "services/api/src/services/exchange/evidence-exchange.service.ts:593"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The bearer URL is stored as a column and serialized by the list projection instead of being minted on demand behind the privileged action.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The exchange-package signed URL (minted behind generate_package + step-up) was stored on the row and serialized by the evidence.read list projection.",
+      "canonicalAuthority": "evidence-exchange.service generateSignedUrl returns the URL to its minter only; the row keeps only signedUrlExpiresAtUtc; the list projection carries no URL",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/exchange/evidence-exchange.service.ts"
+      ],
+      "redTest": "services/api/test/exchange-signed-url-not-listed.integration.test.ts (evidence/ET-SEC-19-red-baseline.txt)",
+      "greenTest": "services/api/test/exchange-signed-url-not-listed.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "8b8bef5de8 fix(exchange): a signed package URL is handed to its minter only — never stored, never listed (ET-SEC-19)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-20",
@@ -3284,7 +3293,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)"
+        "d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)",
+        "34571506e1 test: org-lifecycle and home-reports source pins follow ET-SEC-25 (one shared lifecycle rule) and ET-SEC-18 (named legacy owner arm)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3322,20 +3332,24 @@
         "services/worker/src/exchange-package-builder.ts:944",
         "services/worker/src/exchange-package-builder.ts:237"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The object upload happens before the conditional READY transition at a fixed key, and the FAILED write is not fenced by the attempt.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The exchange builder uploaded to a fixed key before its conditional READY transition and its FAILED write was unfenced, so a late builder could overwrite a committed object or fail the live build.",
+      "canonicalAuthority": "exchange-package-builder: claim token = started_at_utc; attempt-scoped object key; READY only while attemptStillOwnsBuild (FOR UPDATE); UPLOADED / FAILED / DRAFT-revert fenced by the attempt",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/exchange-package-builder.ts"
+      ],
+      "redTest": "services/api/test/point5/family-exchange-package.integration.test.ts [ET-SEC-27] (evidence/ET-SEC-27-red-baseline.txt)",
+      "greenTest": "services/api/test/point5/family-exchange-package.integration.test.ts [ET-SEC-27]",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/point5/family-exchange-package.integration.test.ts [lease re-claimed mid-build]",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "f78d0daee7 fix(exchange): a build attempt writes only under its own claim, to its own object key (ET-SEC-27)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SM-02",
@@ -4054,20 +4068,31 @@
         "services/worker/src/ots-lifecycle.ts:339",
         "services/worker/src/ots-upgrade.processor.ts:399"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The 2026-09-29 removal of the text-only promotion covered classifyOtsResult but not createOpenTimestamp.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Initialization promoted `ots upgrade` text ('timestamp complete' / 'bitcoin transaction') to ANCHORED with no hash or attestation check, and a txid parsed by the generic fallback kept the ladder from re-checking it.",
+      "canonicalAuthority": "createOpenTimestamp always returns PENDING; the upgrade ladder's classifier alone establishes an anchor",
+      "obsoleteRemoved": "shouldTreatOtsAsAnchored (the last text-only promotion) and isPendingLikeUpgradeMessage",
+      "productFiles": [
+        "apps/web/app/verify/[token]/page.tsx",
+        "packages/shared/src/index.ts",
+        "packages/shared/src/ots.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/routes/me-inbox.routes.ts",
+        "services/worker/src/ots-upgrade-output.ts",
+        "services/worker/src/ots.service.ts",
+        "services/worker/src/report-v2/truth-model.ts"
+      ],
+      "redTest": "services/worker/test/ots-initialization-truth.test.ts (evidence/ET-OTS-04-05-red-baseline.txt)",
+      "greenTest": "services/worker/test/ots-initialization-truth.test.ts; services/worker/test/ots-upgrade-output.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "84c612665b fix(ots): a stamp-call failure is thrown into the retry budget, initialization never claims ANCHORED, and no reader shows stored failure text (ET-OTS-04, ET-OTS-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-OTS-06",
@@ -4078,20 +4103,25 @@
         "services/worker/src/ots-upgrade.processor.ts:532",
         "services/worker/src/ots-upgrade.processor.ts:249"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "No distinction between network-transient and deterministic proof-read failures.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Deterministic proof-read failures were routed to TRANSIENT_ERROR forever, and an attested proof with no readable txid was neither recorded nor withdrawn.",
+      "canonicalAuthority": "ots-upgrade.processor: hash-matching attested proof -> ANCHOR_PROVEN PROOF_STRUCTURE; getOtsProofInfo.deterministic + OTS_UNREADABLE_PROOF_STRIKES (3, counted from custody OTS_ATTEMPT_ERROR) -> MALFORMED_PROOF",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/ots-upgrade.processor.ts",
+        "services/worker/src/ots.service.ts"
+      ],
+      "redTest": "services/worker/test/ots-upgrade-processor.behaviour.test.ts (evidence/ET-OTS-06-red-baseline.txt)",
+      "greenTest": "services/worker/test/ots-upgrade-processor.behaviour.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "424e934ea9 fix(ots): an attested proof without a readable txid is anchored by proof structure; a deterministically unreadable proof reaches MALFORMED_PROOF (ET-OTS-06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-OTS-07",
@@ -4911,20 +4941,25 @@
         "services/api/src/services/evidence-complete.service.ts:994",
         "services/api/src/services/workspace-usage.service.ts:527"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The storage check and plan read happen before the per-workspace capacity lock; the per-evidence advisory lock does not serialize different records.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The completion's storage check ran before the per-workspace capacity lock, so two concurrent finalizes of different records could both pass.",
+      "canonicalAuthority": "billing-enforcement lockEvidenceCapacitySubject taken before assertWorkspaceAllowsStorageGrowth inside the finalize transaction",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/evidence-complete.service.ts"
+      ],
+      "redTest": "services/api/test/storage-capacity-concurrent-finalize.integration.test.ts (evidence/ET-SEC-28-red-baseline.txt)",
+      "greenTest": "services/api/test/storage-capacity-concurrent-finalize.integration.test.ts",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/storage-capacity-concurrent-finalize.integration.test.ts [two concurrent finalizes -> exactly one 409]",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "13385d3d7d fix(billing): the completion's storage check runs under the workspace capacity lock (ET-SEC-28)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-29",
@@ -4934,20 +4969,25 @@
       "citations": [
         "services/worker/src/processor.ts:4879"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The pointer update is unconditional instead of monotonic.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The package commit set evidence.verificationPackageVersion unconditionally, so an older package-only recovery moved the pointer backwards.",
+      "canonicalAuthority": "worker processor package commit: conditional updateMany (NULL or <= this version)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/processor.ts",
+        "services/worker/src/report-generation-authority.ts"
+      ],
+      "redTest": "services/api/test/point5/report-package-recovery.integration.test.ts [EXACT VERSION v1 while v2] (evidence/ET-SEC-29-30-red-baseline.txt)",
+      "greenTest": "services/api/test/point5/report-package-recovery.integration.test.ts [pointer stays 2]",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "0827d8b73b fix(reports): the package pointer only advances; a report run's writes are fenced by its own claim (ET-SEC-29, ET-SEC-30)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-30",
@@ -4957,20 +4997,25 @@
       "citations": [
         "services/worker/src/report-generation-authority.ts:374"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The claim has no fencing token; late writes match on state alone.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The report request lease had no fencing token, so a late worker's retryable/terminal write overwrote the re-claimer's PROCESSING row.",
+      "canonicalAuthority": "report-generation-authority: ResolvedReportCommand.claimedAtUtc is the fence; markRequestRetryable/markRequestTerminal(fence) and claimFenceWhere for the in-run stage writes (ReportClaimLost rolls back)",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/worker/src/processor.ts",
+        "services/worker/src/report-generation-authority.ts"
+      ],
+      "redTest": "services/api/test/phase-12-point5-report-authority.integration.test.ts [21b] (evidence/ET-SEC-29-30-red-baseline.txt)",
+      "greenTest": "services/api/test/phase-12-point5-report-authority.integration.test.ts [21b]",
       "negativeAuthTests": null,
-      "concurrencyTest": null,
+      "concurrencyTest": "services/api/test/phase-12-point5-report-authority.integration.test.ts [late worker after re-claim writes nothing]",
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "0827d8b73b fix(reports): the package pointer only advances; a report run's writes are fenced by its own claim (ET-SEC-29, ET-SEC-30)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-31",

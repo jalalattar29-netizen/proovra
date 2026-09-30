@@ -48,12 +48,12 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1309
+TerminalWriters                             1310
 ROUTE_ATTRIBUTED_REACHABLE                  1169
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
-STARTUP_OR_SCHEDULED                          16
+STARTUP_OR_SCHEDULED                          17
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
@@ -609,3 +609,16 @@ node services/api/scripts/audit/index.mjs --closure-check
   JOB_ATTRIBUTED_REACHABLE and STARTUP_OR_SCHEDULED unchanged.
 - B11's other fixes change reads, gates, projections and package content; no
   other bucket moves.
+
+### 2026-09-30 — EVIDENCE-LIFECYCLE REMEDIATION B12: OTS / CONCURRENCY (writers 1309 -> 1310)
+
+- ET-SEC-27: the exchange-package builder deletes its own attempt-scoped object
+  when it lost the build (`OBJECT_STORAGE deleteObject`, +1). It is reached
+  from the 10-second exchange-build poller: STARTUP_OR_SCHEDULED 16 -> 17.
+- ET-SEC-29 / ET-SEC-30: the report run's `evidence.update` and three
+  `reportGenerationRequest.update` writes became conditional `updateMany`
+  calls (the pointer only advances; stage writes are fenced by the claim) —
+  swaps, no count change.
+- TerminalWriters 1309 -> 1310. ROUTE_ATTRIBUTED_REACHABLE and
+  JOB_ATTRIBUTED_REACHABLE unchanged.
+- The OTS fixes change worker classification and reader projections only.
