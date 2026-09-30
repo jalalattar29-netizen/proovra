@@ -835,8 +835,22 @@ jobs:
 
           echo "--- public verification"
           token=""
-          req 200 GET "/public/verify/$id"
+          # ET-PKG-07 — a record is private by default and its id is not a
+          # public link: asked for by id, it must answer 404.
+          req 404 GET "/public/verify/$id"
+          # A public link is an opaque share token stored only as its SHA-256.
+          # The product route that creates one publishes the record and needs a
+          # step-up proof this throwaway account does not hold, so the runner —
+          # which owns this disposable database — publishes the record and
+          # stores the token's hash exactly as the share authority does.
+          share="pvs_$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("base64url"))')"
+          share_hash=$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update(process.argv[1], "utf8").digest("hex"))' "$share")
+          sql "UPDATE evidence SET public_verify_state = 'PUBLISHED' WHERE id = '$id'"
+          sql "INSERT INTO verification_share_tokens (evidence_id, team_id, token_hash, purpose, projection, audience) SELECT id, team_id, '$share_hash', 'OWNER_SHARE', 'STANDARD', 'ci smoke' FROM evidence WHERE id = '$id'"
+          req 200 GET "/public/verify/$share"
           test "$(field 'versioning.latestReportVersion')" = "1"
+          # Published or not, the id still opens nothing.
+          req 404 GET "/public/verify/$id"
           echo "smoke OK — evidence $id signed, report v1 produced and verifiable"
 
       - name: Logs on failure
