@@ -1,0 +1,11 @@
+OK   oauth token (authorize + PKCE exchange) (94ms) "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMzY3ZGI0Ni03MWU5LTRhNjEtOTU2Zi1mNGI4YWM2MzY4ODIiLCJwcm92aWRlciI6IkVNQUlMIiwiZW1haWwiOiJ1Y2Etb3duZXJBLTE3OTA4MDI3Mjk2NDVAdGVzdC5wcm9vdnJhLmxvY2FsIiwiYXV0aE1ldGhvZCI6IlNPQ0lBTF9PQVVUSCIsImF1dGhBdCI6MTc5MDgwMjc0MCwic2NvcGUiOiJjYXB0dXJlLmRpcmVjdCIsImlhdC
+OK   extension service worker registered (46ms) "chrome-extension://olppppfmhlgnoiijmndmfchjophggnid/background.js"
+OK   extension id (0ms) "olppppfmhlgnoiijmndmfchjophggnid"
+OK   token stored in chrome.storage.session (as the spec does) (88ms) true
+OK   navigate to fixture page (21ms) 200
+OK   tabs.query active tab (from service worker) (4ms) {"tabId":2075092293,"windowId":2075092291}
+OK   open the real popup page (19ms) true
+OK   popup UI state (workspace select + capture buttons) (3ms) {"workspaceOptions":["No workspace available"],"buttons":[{"text":"Sign in","disabled":false},{"text":"Capture visible area","disabled":true},{"text":"Capture full page","disabled":true},{"text":"Sign out","disabled":false}],"status":""}
+OK   PRESERVE from the extension page (product path, VIEWPORT) (3ms) {"ok":false,"denial":null,"error":"Cannot access contents of the page. Extension manifest must request permission to access the respective host."}
+OK   PRESERVE from the extension page (product path, FULL_PAGE on the long fixture) (3ms) {"ok":false,"denial":null,"error":"Cannot access contents of the page. Extension manifest must request permission to access the respective host."}
+FAIL PRESERVE sent by the service worker to itself (spec path) (2ms) worker.evaluate: Error: Could not establish connection. Receiving end does not exist.

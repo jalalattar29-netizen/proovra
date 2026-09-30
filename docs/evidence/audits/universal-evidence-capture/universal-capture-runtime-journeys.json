@@ -1,0 +1,651 @@
+{
+  "schema": "PROOVRA_UNIVERSAL_CAPTURE_RUNTIME_JOURNEYS_V1",
+  "baselineSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
+  "required": [
+    {
+      "id": "R01",
+      "title": "Web/PWA file upload → finalize → report → package → Public Verify",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-raw.json#J01-web-upload-to-public-verify",
+        "runtime/journeys-raw.json#J02-package-independent-recompute",
+        "runtime/probes/package-recompute.json"
+      ],
+      "note": "Independent node:crypto recompute of the downloaded package 14/14 (ZIP digest, Ed25519 seal + key fingerprint, checksum index, report digest, fingerprint, evidence signature, original vs SIGNED digest, custody chain replay, 2 negative controls). J01 22/22 checks: server-hashed SIGNED record, report+package READY from the real worker, share link minted through TOTP step-up, token hashed at rest, revoke/rotate/guess all 404, audit trail complete (admin_audit_logs)."
+    },
+    {
+      "id": "R02",
+      "title": "Web/PWA screen capture → outputs",
+      "status": "FAIL",
+      "evidence": [
+        "sources/ARCH.json#facts.absentChannels"
+      ],
+      "note": "Channel does not exist: 0 getDisplayMedia call sites in apps/web."
+    },
+    {
+      "id": "R03",
+      "title": "Intake-link submission → outputs",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-phase2-raw.json#J08-intake-link-to-public-verify"
+      ],
+      "note": "J08-intake-link-to-public-verify: PASS (10/10)"
+    },
+    {
+      "id": "R04",
+      "title": "Evidence Request submission → outputs",
+      "status": "BLOCKED",
+      "evidence": [
+        "sources/ARCH.json#facts.surfaces.evidence-requests"
+      ],
+      "note": "Evidence Requests deliver through intake links (no separate byte path); the request send/delivery step needs the communications provider, which is disabled on the disposable stack. The byte path is R03."
+    },
+    {
+      "id": "R05",
+      "title": "Browser extension capture → outputs",
+      "status": "FAIL",
+      "evidence": [
+        "runtime/uc1-acceptance.log",
+        "runtime/uc1-acceptance-audit-copy.log",
+        "runtime/extension-acceptance-result.json"
+      ],
+      "note": "Extension capture cannot be completed by a user or by the shipped acceptance spec. (1) Shipped harness: AUTH fails INVALID_CLIENT_OR_REDIRECT in both projects (UC-TQ-007). (2) With the operator allow-list supplied after the fixture scan, AUTH passes but the first spec test hung until its 11.2-min backstop without reaching CAPTURE; the run was stopped. (3) Step probe on the same stack: real OAuth/PKCE token OK, service worker registers, but the real popup lists only No workspace available with both Capture buttons disabled (UC-EXT-001); PRESERVE from the extension page without a user gesture is refused (activeTab not granted); the spec capture path (service worker messaging itself) fails Receiving end does not exist (UC-TQ-008). Gesture-driven capture in real Chrome/Edge is therefore unproven (EP-04/EP-05/EP-13)."
+    },
+    {
+      "id": "R06",
+      "title": "Android flow (strongest available environment)",
+      "status": "BLOCKED",
+      "evidence": [
+        "runtime/api-integration-capture.json",
+        "runtime/mobile-export.log",
+        "runtime/prebuild/app-AndroidManifest.xml"
+      ],
+      "note": "No JDK/SDK/device. Strongest available: server seal (uc2/uc3 integration) + Hermes bundle + prebuild manifest; see R08/J09 for the API-driven continuous journey."
+    },
+    {
+      "id": "R07",
+      "title": "iOS flow (strongest available environment)",
+      "status": "FAIL",
+      "evidence": [
+        "runtime/probes/continuous-ios.json#iosDeviceShape"
+      ],
+      "note": "Strongest available environment = the real server with the device block the Swift code writes: refused 422."
+    },
+    {
+      "id": "R08",
+      "title": "Continuous/streaming capture with interruption and resume",
+      "status": "FAIL",
+      "evidence": [
+        "runtime/probes/continuous-ios.json#missingTail",
+        "runtime/probes/continuous-ios.json#partIndexCap",
+        "runtime/journeys-phase2-raw.json#J09-continuous-direct-capture-to-public-verify"
+      ],
+      "note": "A lost tail seals as COMPLETE_SESSION; >200 segments refused; no resume after app restart (UC-AND-004)."
+    },
+    {
+      "id": "R09a",
+      "title": "Video → keyframes",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-phase2-raw.json#J10-uc4-derived-review"
+      ],
+      "note": "J10-uc4-derived-review: PASS (2/2)"
+    },
+    {
+      "id": "R09b",
+      "title": "Video → OCR",
+      "status": "BLOCKED",
+      "evidence": [
+        "runtime/journeys-phase2-raw.json#J10-uc4-derived-review"
+      ],
+      "note": "Not exercised: workspace AI policy ocrAllowed defaults OFF (projection ocrEnabled:false, coverage PARTIAL) and no Tesseract binary exists on this host; the worker Docker image carries it. Real Tesseract extraction is also unasserted in CI (UC-TQ-003)."
+    },
+    {
+      "id": "R10",
+      "title": "Conversation capture / reconstruction",
+      "status": "FAIL",
+      "evidence": [
+        "sources/DER.json#facts.uc4"
+      ],
+      "note": "No conversation-capture channel exists; reconstruction is OCR over screen keyframes whose dedup cannot merge real chat screens (UC-DER-004)."
+    },
+    {
+      "id": "R11",
+      "title": "Add capture to existing Case",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-raw.json#J03-case-attach-and-tenancy"
+      ],
+      "note": "Post-hoc link only (no channel accepts a case at capture time). 18/18 incl. cross-tenant, unknown-id, viewer negatives; unlink keeps evidence and workspace."
+    },
+    {
+      "id": "R12",
+      "title": "Create new Evidence from capture",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-raw.json#J01-web-upload-to-public-verify"
+      ],
+      "note": ""
+    },
+    {
+      "id": "R13",
+      "title": "Failure and recovery journey",
+      "status": "BLOCKED",
+      "evidence": [
+        "runtime/api-integration-capture.json"
+      ],
+      "note": "Not induced end-to-end with the worker in the loop. Integration-level only: report-generation-supersession-recovery, package-recovery-backfill, reports-blocked-update-failed (real PG, storage/signer doubled). Healthy record regenerate → NOTHING_TO_RECOVER (J06)."
+    },
+    {
+      "id": "R14a",
+      "title": "Trash / restore",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-raw.json#J04-trash-restore"
+      ],
+      "note": "Soft trash keeps the row (deleted_at set), hides it from the library, restore brings it back live; viewer cannot trash."
+    },
+    {
+      "id": "R14b",
+      "title": "Permanent destruction",
+      "status": "BLOCKED",
+      "evidence": [
+        "runtime/journeys-phase2-raw.json#J11-destroy-and-free-slot",
+        "runtime/api-integration-capture.json"
+      ],
+      "note": "Not executed end to end: destruction runs only by executing an approved destruction review (Enterprise feature). J11: FREE record PENDING_DESTRUCTION → 402 ENTERPRISE_FEATURE_REQUIRED, DESTROYED → 409 LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW, row unchanged, FREE slot still held. Integration-level: evidence-destruction-storage, legal-hold-destruction-serialization, defects-destruction-refusals (real PG)."
+    },
+    {
+      "id": "R15a",
+      "title": "FREE allowance: three records, fourth refused, trash keeps the slot",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-raw.json#J05-free-allowance"
+      ],
+      "note": "Product-provisioned FREE personal workspace; 4th → 409 FREE_LIMIT_REACHED; after trash still 409."
+    },
+    {
+      "id": "R15b",
+      "title": "Credit purchase / upgrade / downgrade / webhook replay",
+      "status": "BLOCKED",
+      "evidence": [
+        "runtime/api-integration-capture.json"
+      ],
+      "note": "Needs Stripe/PayPal sandbox (EP-10/EP-11). Integration-level: stripe-credit-refund-reversal, billing-paypal-integrity, admin-evidence-credit-grant, trash-keeps-allowance-slot passed on real PG."
+    },
+    {
+      "id": "R16",
+      "title": "Share-link create / revoke / replace",
+      "status": "PASS",
+      "evidence": [
+        "runtime/journeys-raw.json#J01-web-upload-to-public-verify"
+      ],
+      "note": ""
+    },
+    {
+      "id": "R17",
+      "title": "Integrity mismatch and stale-status journey",
+      "status": "FAIL",
+      "evidence": [
+        "runtime/journeys-raw.json#J06-integrity-tamper"
+      ],
+      "note": "After byte substitution Public Verify still states original 'verified' and stored bytes 'verified_current' (UC-TRUST-008)."
+    }
+  ],
+  "counts": {
+    "PASS": 8,
+    "FAIL": 6,
+    "BLOCKED": 6
+  },
+  "executedRuns": [
+    {
+      "id": "J01-web-upload-to-public-verify",
+      "title": "Web/PWA upload → finalize → report → package → share link → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 22,
+      "checksTotal": 22,
+      "failedChecks": [],
+      "requests": 22,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J02-package-independent-recompute",
+      "title": "Download verification package and recompute its checksum index outside the application",
+      "verdict": "PASS",
+      "checksPassed": 2,
+      "checksTotal": 2,
+      "failedChecks": [],
+      "requests": 2,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J03-case-attach-and-tenancy",
+      "title": "Create case, attach evidence, read back; cross-tenant + viewer negatives",
+      "verdict": "PASS",
+      "checksPassed": 18,
+      "checksTotal": 18,
+      "failedChecks": [],
+      "requests": 21,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J04-trash-restore",
+      "title": "Trash → restore keeps the record and its outputs",
+      "verdict": "PASS",
+      "checksPassed": 6,
+      "checksTotal": 6,
+      "failedChecks": [],
+      "requests": 9,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J05-free-allowance",
+      "title": "FREE personal workspace: three records, fourth refused, trash keeps the slot",
+      "verdict": "PASS",
+      "checksPassed": 3,
+      "checksTotal": 3,
+      "failedChecks": [],
+      "requests": 15,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J06-integrity-tamper",
+      "title": "Tamper stored original bytes; the product must not keep saying verified",
+      "verdict": "PASS",
+      "checksPassed": 6,
+      "checksTotal": 6,
+      "failedChecks": [],
+      "requests": 13,
+      "leadGradedVerdict": "FAIL",
+      "leadNote": "The driver's final check matched only 'verdict'/'headline' keys and passed vacuously; the captured Public Verify answer after byte substitution reads basicVerification.original.state='verified' and storedBytes.state='verified_current'. Graded by the lead as FAIL (UC-TRUST-008, journey R17)."
+    },
+    {
+      "id": "J07-upload-session-member-injection",
+      "title": "Same-workspace MEMBER drives the OWNER's resumable upload session (UC-SEC-001)",
+      "verdict": "FAIL",
+      "checksPassed": 2,
+      "checksTotal": 3,
+      "failedChecks": [
+        {
+          "name": "a member who is not the session owner cannot presign into it",
+          "detail": "200"
+        }
+      ],
+      "requests": 8,
+      "leadGradedVerdict": "FAIL",
+      "leadNote": null
+    },
+    {
+      "id": "J08-intake-link-to-public-verify",
+      "title": "Intake link: anonymous contributor submits → evidence in the org workspace → report → package → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 10,
+      "checksTotal": 10,
+      "failedChecks": [],
+      "requests": 14,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J09-continuous-direct-capture-to-public-verify",
+      "title": "Android continuous direct capture (API-driven, real MinIO + worker) → seal → report → package → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 10,
+      "checksTotal": 10,
+      "failedChecks": [],
+      "requests": 19,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J10-uc4-derived-review",
+      "title": "UC-4: Generate Derived Review on the continuous capture and observe the worker run",
+      "verdict": "PASS",
+      "checksPassed": 2,
+      "checksTotal": 2,
+      "failedChecks": [],
+      "requests": 3,
+      "leadGradedVerdict": "PASS",
+      "leadNote": null
+    },
+    {
+      "id": "J11-destroy-and-free-slot",
+      "title": "FREE record: trash → governed destruction transitions → does the slot release?",
+      "verdict": "PASS",
+      "checksPassed": 2,
+      "checksTotal": 2,
+      "failedChecks": [],
+      "requests": 16,
+      "leadGradedVerdict": "BLOCKED",
+      "leadNote": "Its only check is 'governed, non-5xx response'; no destruction was executed (402 ENTERPRISE_FEATURE_REQUIRED, 409 LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW). Graded as BLOCKED for destruction (journey R14b)."
+    }
+  ],
+  "probes": {
+    "continuousIos": {
+      "iosDeviceShape": {
+        "status": 422,
+        "body": {
+          "denial": "CONTINUOUS_MANIFEST_INVALID"
+        },
+        "evidenceStatus": "UPLOADING"
+      },
+      "partIndexCap": {
+        "openStatus": 201,
+        "part199": 201,
+        "part200": 400,
+        "part200Body": "{\"error\":{\"code\":\"INVALID_INPUT\",\"message\":\"Invalid input: partIndex — Too big: expected number to be <=199\",\"fields\":[{\"path\":\"partIndex\",\"code\":\"too_big\",\"message\":\"Too big: expected number to be <=199\"}],\"requestId\":\"c2cbfaa3-0b39-4147-8358-d2009ba3961b\"}}",
+        "declaration200": 400,
+        "declaration200Body": "{\"error\":{\"code\":\"INVALID_INPUT\",\"message\":\"Invalid input: partIndex — Too big: expected number to be <=199\",\"fields\":[{\"path\":\"partIndex\",\"code\":\"too_big\",\"message\":\"Too big: expected number to be <=199\"}],\"requestId\":\"e731ecd0-1d8a-410c-88fe-050fd4cd3aa1\"}}"
+      },
+      "missingTail": {
+        "status": 200,
+        "body": "{\"result\":{\"evidenceId\":\"c3b67ff1-5309-4016-a6df-eac48982f709\",\"status\":\"SIGNED\",\"fileSha256\":\"5a29e70273e665b5b181cb419c4e271ecd752bd26085f6bded4c3506c35a6373\",\"bound\":true,\"alreadyBound\":false,\"digestsConfirmed\":4,\"manifestPartIndex\":3}}",
+        "evidenceStatus": "SIGNED",
+        "parts": 4,
+        "manifestTotalDurationMs": 4000,
+        "sumOfSegmentDurationsMs": 3000,
+        "sessionCompleteness": "COMPLETE_SESSION"
+      }
+    },
+    "platformContext": {
+      "status": 200,
+      "topKeys": [
+        "authoritySchemaVersion",
+        "capabilitySchemaVersion",
+        "navigationSchemaVersion",
+        "generatedAt",
+        "user",
+        "platform",
+        "workspace",
+        "flags",
+        "persona",
+        "capabilities",
+        "planFeatures",
+        "enterprise",
+        "operationalEligibility",
+        "navigation",
+        "availableWorkspaces",
+        "account",
+        "canonical",
+        "personalSpace",
+        "organizations",
+        "activeSpace",
+        "contextOptions",
+        "duplicatePersonalCandidates",
+        "diagnostics",
+        "recoveryActions",
+        "supportAccess",
+        "personalSpaceAllowed"
+      ],
+      "hasWorkspaces": false,
+      "hasTeams": false,
+      "availableWorkspacesCount": 2
+    },
+    "uploadSessionMemberVitest": {
+      "createEvidence": 201,
+      "createSession": {
+        "status": 201,
+        "body": "{\"session\":{\"id\":\"5d66d360-0f04-44b7-a693-8290787f6ca6\",\"evidenceId\":\"d1c47811-aadb-4931-b8e3-94e3eee8acc4\",\"state\":\"INITIATED\",\"expectedPartCount\":1,\"expectedTotalBytes\":null,\"expectedSha256\":null,\"safeNote\":null,\"idempotencyKey\":\"uca:d1c47811-aadb-4931-b8e3-94e3eee8acc4:0\",\"expiresAtUtc\":\"2026-09-30T21:43:57.695Z\",\"completedAtUtc\":null,\"abortedAtUtc\":null,\"abortReason\":null,\"createdAtUtc\":\"2026-09-30T20:42:45.078Z\",\"updatedAtUtc\":\"2026-09-30T20:42:45.078Z\"},\"reused\":false}"
+      },
+      "initiate": {
+        "status": 503,
+        "body": "{\"error\":{\"code\":\"upload_session_denied\",\"reason\":\"storage_unavailable\"}}"
+      },
+      "memberPresign": {
+        "status": 409,
+        "keys": [
+          "error"
+        ]
+      }
+    },
+    "extensionSteps": {
+      "browser": "playwright chromium (bundled)",
+      "steps": [
+        {
+          "name": "oauth token (authorize + PKCE exchange)",
+          "ok": true,
+          "ms": 94,
+          "value": "<jwt-redacted>"
+        },
+        {
+          "name": "extension service worker registered",
+          "ok": true,
+          "ms": 46,
+          "value": "chrome-extension://olppppfmhlgnoiijmndmfchjophggnid/background.js"
+        },
+        {
+          "name": "extension id",
+          "ok": true,
+          "ms": 0,
+          "value": "olppppfmhlgnoiijmndmfchjophggnid"
+        },
+        {
+          "name": "token stored in chrome.storage.session (as the spec does)",
+          "ok": true,
+          "ms": 88,
+          "value": true
+        },
+        {
+          "name": "navigate to fixture page",
+          "ok": true,
+          "ms": 21,
+          "value": 200
+        },
+        {
+          "name": "tabs.query active tab (from service worker)",
+          "ok": true,
+          "ms": 4,
+          "value": {
+            "tabId": 2075092293,
+            "windowId": 2075092291
+          }
+        },
+        {
+          "name": "open the real popup page",
+          "ok": true,
+          "ms": 19,
+          "value": true
+        },
+        {
+          "name": "popup UI state (workspace select + capture buttons)",
+          "ok": true,
+          "ms": 3,
+          "value": {
+            "workspaceOptions": [
+              "No workspace available"
+            ],
+            "buttons": [
+              {
+                "text": "Sign in",
+                "disabled": false
+              },
+              {
+                "text": "Capture visible area",
+                "disabled": true
+              },
+              {
+                "text": "Capture full page",
+                "disabled": true
+              },
+              {
+                "text": "Sign out",
+                "disabled": false
+              }
+            ],
+            "status": ""
+          }
+        },
+        {
+          "name": "PRESERVE from the extension page (product path, VIEWPORT)",
+          "ok": true,
+          "ms": 3,
+          "value": {
+            "ok": false,
+            "denial": null,
+            "error": "Cannot access contents of the page. Extension manifest must request permission to access the respective host."
+          }
+        },
+        {
+          "name": "PRESERVE from the extension page (product path, FULL_PAGE on the long fixture)",
+          "ok": true,
+          "ms": 3,
+          "value": {
+            "ok": false,
+            "denial": null,
+            "error": "Cannot access contents of the page. Extension manifest must request permission to access the respective host."
+          }
+        },
+        {
+          "name": "PRESERVE sent by the service worker to itself (spec path)",
+          "ok": false,
+          "ms": 2,
+          "error": "worker.evaluate: Error: Could not establish connection. Receiving end does not exist."
+        }
+      ]
+    },
+    "reportPrintedVerifyLink": {
+      "evidenceId": "367df4a7-1aff-4286-a4f0-bebad7f5a935",
+      "publicVerifyState": "NOT_PUBLISHED",
+      "reportPrintsVerifyLink": true,
+      "publicVerifyStatusForPrintedLink": 404,
+      "publicVerifyBody": {
+        "message": "Evidence not found"
+      },
+      "ownerLinksPanel": {
+        "publicVerifyState": "NOT_PUBLISHED",
+        "links": [
+          {
+            "id": "c4e97f6f-9bcc-4d56-8a38-754624a2e627",
+            "purpose": "REPORT",
+            "projection": "STANDARD",
+            "audience": "Report version 1",
+            "reportVersion": 1,
+            "state": "ACTIVE",
+            "createdAtUtc": "2026-09-30T21:28:33.185Z",
+            "createdByUserId": null,
+            "expiresAtUtc": null,
+            "revokedAtUtc": null,
+            "revokedByUserId": null,
+            "revocationReason": null,
+            "rotatedFromId": null,
+            "maxUses": null,
+            "useCount": 0,
+            "lastUsedAtUtc": null
+          }
+        ],
+        "legacy": null,
+        "shareable": true
+      }
+    },
+    "packageIndependentRecompute": {
+      "tool": "node:crypto only (independent of product code)",
+      "evidenceId": "7ccb5a00-7c68-40da-8ccc-d178a44593c3",
+      "packageSha256": "f6fec271b09a4ac92e2f11d4a67d68f01ba29cdf0b69c732cc258879cc9d478d",
+      "entries": 43,
+      "passed": 14,
+      "total": 14,
+      "checks": [
+        {
+          "name": "0. sha256(zip) equals Public Verify package.packageSha256",
+          "ok": true,
+          "detail": "f6fec271b09a4ac92e2f11d4a67d68f01ba29cdf0b69c732cc258879cc9d478d"
+        },
+        {
+          "name": "1a. sha256(package-seal.json) equals seal signature's sealSha256",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "1b. seal signature verifies (Ed25519 over sealSha256)",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "1c. seal key SPKI fingerprint equals the signature file and Public Verify",
+          "ok": true,
+          "detail": "8eab16d0cd2d5648ff598ed60351bdb1514eab65cbd87d9e207ad2c2f3d41e98"
+        },
+        {
+          "name": "2a. sha256(package-checksums.json) equals seal.checksumsSha256",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "2b. every indexed file present with matching size and SHA-256",
+          "ok": true,
+          "detail": []
+        },
+        {
+          "name": "2c. no ZIP entry outside the index (except the three seal files)",
+          "ok": true,
+          "detail": []
+        },
+        {
+          "name": "2d. report bytes equal seal.reportSha256",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "3. sha256(fingerprint.json) equals seal.fingerprintHash and Public Verify",
+          "ok": true,
+          "detail": "3dd326220c9e986656f85b4b294914831b87fa73d7ddab17429e60f2d1d23eb1"
+        },
+        {
+          "name": "4. evidence signature verifies over the fingerprint hash",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "5. original bytes hash to the SIGNED fingerprint's file digest and to Public Verify",
+          "ok": true,
+          "detail": {
+            "originalName": "digital-evidence-record-2026-09-30t20-46z.png",
+            "origSha": "469bf3ed3f5fa672e6ea7ab591fbb42f303c728aab69efc3d174625e37d678ba",
+            "signedSha": "469bf3ed3f5fa672e6ea7ab591fbb42f303c728aab69efc3d174625e37d678ba"
+          }
+        },
+        {
+          "name": "6. custody hash chain replays from genesis",
+          "ok": true,
+          "detail": {
+            "events": 13,
+            "firstBad": null
+          }
+        },
+        {
+          "name": "N1. a single flipped byte in the original no longer matches the signed digest",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "N2. a one-bit change to the seal signature fails verification",
+          "ok": true,
+          "detail": null
+        }
+      ]
+    }
+  },
+  "testRuns": {
+    "apiIntegration": {
+      "files": 64,
+      "suites": 176,
+      "tests": 463,
+      "passed": 463,
+      "failed": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "files": 91,
+      "suites": 367,
+      "tests": 1156,
+      "passed": 1152,
+      "failed": 0,
+      "skipped": 4
+    }
+  }
+}

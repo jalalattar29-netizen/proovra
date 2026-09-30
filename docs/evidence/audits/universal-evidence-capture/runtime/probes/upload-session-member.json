@@ -1,0 +1,17 @@
+{
+  "createEvidence": 201,
+  "createSession": {
+    "status": 201,
+    "body": "{\"session\":{\"id\":\"5d66d360-0f04-44b7-a693-8290787f6ca6\",\"evidenceId\":\"d1c47811-aadb-4931-b8e3-94e3eee8acc4\",\"state\":\"INITIATED\",\"expectedPartCount\":1,\"expectedTotalBytes\":null,\"expectedSha256\":null,\"safeNote\":null,\"idempotencyKey\":\"uca:d1c47811-aadb-4931-b8e3-94e3eee8acc4:0\",\"expiresAtUtc\":\"2026-09-30T21:43:57.695Z\",\"completedAtUtc\":null,\"abortedAtUtc\":null,\"abortReason\":null,\"createdAtUtc\":\"2026-09-30T20:42:45.078Z\",\"updatedAtUtc\":\"2026-09-30T20:42:45.078Z\"},\"reused\":false}"
+  },
+  "initiate": {
+    "status": 503,
+    "body": "{\"error\":{\"code\":\"upload_session_denied\",\"reason\":\"storage_unavailable\"}}"
+  },
+  "memberPresign": {
+    "status": 409,
+    "keys": [
+      "error"
+    ]
+  }
+}

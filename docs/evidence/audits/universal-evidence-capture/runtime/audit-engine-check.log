@@ -1,0 +1,115 @@
+
+=== RUN ===
+{
+  "sourceRevision": "47034f45403e87089b29571e3e702311c9d1a2a4",
+  "generatedAtUtc": "2026-09-30T21:26:47.214Z",
+  "workingTreeChangeSet": {
+    "baselineKind": "GIT_COMMIT",
+    "baselineRef": "47034f45403e87089b29571e3e702311c9d1a2a4",
+    "changedPaths": 1,
+    "added": 1,
+    "modified": 0,
+    "deleted": 0,
+    "attributedToPhase0": 0,
+    "productionRuntimeFilesModifiedByPhase0": 0,
+    "productBehaviorTestsRemoved": 0,
+    "historicalMigrationsModifiedByPhase0": 0,
+    "selfGeneratedPathsHeldOut": 5
+  }
+}
+
+=== ENGINE CHECK ===
+{
+  "engineHash": "0a8a2df7f764f3e841e07a7886294eed12830f60964ca82b6779695e50fa5920",
+  "routes": 1176,
+  "instrumentIntegrity": {
+    "DynamicUnresolvedRouteRegistrations": 0,
+    "DynamicUnresolvedConsumers": 0,
+    "UnreviewedOriginConsumers": 0,
+    "AmbiguousConsumerSites": 0,
+    "UnmatchedConsumerCalls": 0,
+    "ClassificationConflicts": 0,
+    "WrongOriginConsumers": 0,
+    "AuthorizationUnresolved": 0,
+    "TenantBindingUnresolved": 0,
+    "OrganizationAuthorizationUnresolved": 0,
+    "OrganizationRoutesMissingRequiredAuthorization": 0,
+    "TenantUnboundInsertRoutes": 0,
+    "UnclassifiedMutationWriters": 0,
+    "MutationReachabilityUnresolved": 0,
+    "QueueRegistryProblems": 0
+  },
+  "conservation": {
+    "capabilityPrimarySetsPartitionRoutes": true,
+    "consumerBucketsPartitionRoutes": true,
+    "capabilityProjectionMatchesRouteCount": true,
+    "classificationCountsSumToRoutes": true,
+    "ledgerRowsConserve": true,
+    "ledgerActionableConserves": true
+  },
+  "auditGovernance": {
+    "AuditFilesInventoried": 418,
+    "AuditFilesUnclassified": 0,
+    "AuditArtifactProducersUnknown": 0,
+    "AuditArtifactConsumersUnknown": 0,
+    "AuditDependencyCycles": 0,
+    "ArtifactsWithMultipleProducers": 0,
+    "GeneratorsReadingOwnOutputsAsFacts": 0,
+    "GatesReadingHistoricalReports": 0,
+    "HistoricalReportsUsedAsAuthority": 0,
+    "HistoricalReportsAmbiguousStatus": 0,
+    "DuplicateAuditAuthorityClaims": 0,
+    "IndependentRouteInventories": 0,
+    "IndependentConsumerInventories": 0,
+    "CanonicalAuditEntryPoints": 1,
+    "CanonicalRouteAuthorities": 1,
+    "CanonicalConsumerAuthorities": 1,
+    "CanonicalCapabilityMaps": 1,
+    "CanonicalLedgerSources": 1,
+    "CanonicalCurrentReports": 1,
+    "LedgerGenerators": 1,
+    "GeneratedLedgerRenderings": 2,
+    "ObsoleteAuditScripts": 0,
+    "RetiredPathsResurrected": 0,
+    "DiagnosticsReadAsAuthority": 0,
+    "HistoricalDiagnosticCreditedAsAuthority": 0,
+    "RecoveryManifestInsideRepository": 0,
+    "TemporaryGitAuditState": 0,
+    "UniqueAuthoritativeAuditEvidenceLost": 0,
+    "RetiredNonAuthoritativeDiagnosticArtifacts": 1,
+    "ReplacementHistoricalDiagnostics": 1,
+    "UniqueAuditEvidenceLost": 0,
+    "DeletedDiagnosticCurrentConsumers": 0,
+    "DeletedDiagnosticDecisionConsumers": 0,
+    "DeletedArtifactConsumersUnresolved": 0,
+    "ReportRelatedEntries": 27,
+    "ReportDocuments": 26,
+    "HistoryTreeMarkers": 1,
+    "NonAuditProductReportTemplates": 0,
+    "CurrentGeneratedReports": 1,
+    "HistoricalReports": 23,
+    "DomainReportTemplates": 2,
+    "MisclassifiedReportDocuments": 0,
+    "ReportRoleOverlap": 0,
+    "ReportRoleMissing": 0,
+    "ReportRoleConservationFailures": 0,
+    "AmbiguousReportRoles": 0,
+    "Phase0ChangedPathsFromManualDeclaration": 0,
+    "UndeclaredPhase0ChangedPaths": 0,
+    "Phase0ChangedPathClassificationMissing": 0,
+    "ManualPhase0ChangeInventories": 0,
+    "ProductionRuntimeFilesModifiedByPhase0": 0,
+    "ProductBehaviorTestsRemoved": 0,
+    "HistoricalMigrationsModifiedByPhase0": 0,
+    "ProductBehaviorTestsInventoried": 263
+  },
+  "proofFreshness": {
+    "domainProofsRead": 10,
+    "bound": 10,
+    "stale": 0,
+    "staleDomains": []
+  }
+}
+
+AuditEngineIntegrity = PASS
+ProductClosure = CLOSED (reported, not asserted here)

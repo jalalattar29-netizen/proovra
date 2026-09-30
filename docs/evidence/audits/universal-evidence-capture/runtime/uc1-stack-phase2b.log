@@ -1,0 +1,1650 @@
+[36m[uc1-acceptance][0m report PDF renderer: C:\Program Files\Google\Chrome\Application\chrome.exe
+[36m[uc1-acceptance][0m environment is safe:
+  variables   101 (allowlist only; nothing inherited but an OS baseline)
+  integrations 16 disabled
+  database    postgresql://proovra:uc1_disposable@127.0.0.1:56421/uc1_acceptance_test
+  redis       redis://127.0.0.1:56422/0
+  scanned     no non-local endpoint, forbidden host or credential shape
+[36m[uc1-acceptance][0m starting disposable Postgres 16 (pgvector) + Redis + MinIO (object storage) …
+[36m[uc1-acceptance][0m waiting for Postgres to accept connections …
+(node:34064) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[36m[uc1-acceptance][0m waiting for MinIO to become ready …
+created bucket 'uc1-acceptance'
+[36m[uc1-acceptance][0m migrate: node services/api/scripts/safe-migrate.mjs deploy
+
+───────────────────────────────────────────────────────────────
+  PROOVRA migration safety wrapper (Phase 2.5C)
+───────────────────────────────────────────────────────────────
+  subcommand   : prisma migrate deploy
+  protocol     : postgresql:
+  host         : 127.0.0.1
+  port         : 56421
+  database     : uc1_acceptance_test
+  classification: LOCAL
+  --allow-remote flag : no
+  MIGRATE_ALLOW_REMOTE: (unset)
+───────────────────────────────────────────────────────────────
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+Datasource "db": PostgreSQL database "uc1_acceptance_test", schema "public" at "127.0.0.1:56421"
+
+306 migrations found in prisma/migrations
+
+Applying migration `20260131235343_init`
+Applying migration `20260201013040_align_schema`
+Applying migration `20260201013225_custody_event_index`
+Applying migration `20260201033040_fix_evidence_file_sha256_index`
+Applying migration `20260201120000_phase9_hardening`
+Applying migration `20260201120000_update_evidence_signingkey`
+Applying migration `20260201124500_add_document_evidence_type`
+Applying migration `20260201132000_add_evidence_locked_event`
+Applying migration `20260201133000_fix_evidence_file_sha256_index_v2`
+Applying migration `20260204190000_add_auth_billing`
+Applying migration `20260205090000_phase2_invites_claim`
+Applying migration `20260205093000_evidence_parts`
+Applying migration `20260205100000_b2b_org_locking`
+Applying migration `20260215095541_email_password_auth`
+Applying migration `20260312170000_add_evidence_tsa_fields`
+Applying migration `20260321000000_expand_user_country_field`
+Applying migration `20260321110000_add_evidence_archive_field`
+Applying migration `20260324120000_add_team_activity`
+Applying migration `20260404180000_admin_audit_log`
+Applying migration `20260404193000_add_analytics_tables`
+Applying migration `20260404200000_admin_audit_is_public`
+Applying migration `20260404213000_analytics_admin_audit_hardening`
+Applying migration `20260407_add_legal_acceptance_and_cookie_consent`
+Applying migration `20260417000000_create_verification_source_enum`
+Applying migration `20260418_report_snapshot_fields`
+Applying migration `20260430_add_tsa_input_digest_fields`
+Applying migration `20260504150000_add_evidence_internal_notes`
+Applying migration `20260504170000_add_capture_plan_and_part_metadata`
+Applying migration `20260508133000_add_evidence_operations_workspace_features`
+Applying migration `20260508153000_add_evidence_review_workflow_relationships_audit`
+Applying migration `20260510120000_add_capture_sessions`
+Applying migration `20260510160000_phase_a_b_forensic_hardening`
+Applying migration `20260510200000_phase_c_hardening`
+Applying migration `20260516120000_add_workflow_template_foundation`
+Applying migration `20260516180000_add_workflow_intake_links_phase4`
+Applying migration `20260516220000_add_evidence_requests_phase7`
+Applying migration `20260517020000_add_notification_deliveries_phase8`
+Applying migration `20260517060000_add_notification_template_context`
+Applying migration `20260517100000_add_governance_phase9`
+Applying migration `20260517140000_add_integrations_phase10`
+Applying migration `20260518100000_add_integrations_phase10_5`
+Applying migration `20260519100000_add_security_hardening_phase11`
+Applying migration `20260520100000_add_reliability_phase12`
+Applying migration `20260521100000_add_review_operations_phase13`
+Applying migration `20260522100000_add_review_sla_defaults_phase13_5`
+Applying migration `20260523100000_add_governance_platform_phase14`
+Applying migration `20260524100000_add_intelligence_phase15`
+Applying migration `20260525100000_add_collaboration_phase16`
+Applying migration `20260526100000_add_identity_phase17`
+Applying migration `20260527100000_add_communications_phase18`
+Applying migration `20260528100000_add_identity_security_phase19`
+Applying migration `20260529100000_add_operational_incidents_phase21`
+Applying migration `20260530100000_add_workflow_engine_phase22`
+Applying migration `20260531100000_add_search_discovery_phase24`
+Applying migration `20260601100000_add_reviewer_operations_phase25`
+Applying migration `20260602100000_phase25_5_reviewer_ops_hardening`
+Applying migration `20260603100000_phase26_identity_governance`
+Applying migration `20260604100000_phase26_5_identity_hardening`
+Applying migration `20260605100000_phase26_75_identity_runtime`
+Applying migration `20260606100000_phase27_retention_lifecycle`
+Applying migration `20260606120000_phase12_perceptual_foundation`
+Applying migration `20260613100000_phase27_5_governance_operationalization`
+Applying migration `20260620100000_phase24_31_consolidated_drift_patches`
+Applying migration `20260620200000_reviewer_ops_naming_drift_repair`
+Applying migration `20260620300000_team_billing_naming_drift_repair`
+Applying migration `20260625100000_phase328cpppp_dashboard_intelligence_closure`
+Applying migration `20260626100000_phase328cppppp_structural_intelligence_closure`
+Applying migration `20260627100000_phase328c_control_plane_closure`
+Applying migration `20260628100000_phase328c_workflow_causality`
+Applying migration `20260629100000_phase328c_enterprise_gap_closure`
+Applying migration `20260630100000_phase328d_matter_workspace`
+Applying migration `20260720100000_personal_workspace_bootstrap`
+Applying migration `20260720200000_dashboard_projections`
+Applying migration `20260721000000_workspace_persona_profile`
+Applying migration `20260722000000_r8_1_mfa_activation`
+Applying migration `20260722110000_enterprise_provisioning_idempotency`
+Applying migration `20260724000000_r8_1_3_mfa_pending_challenges`
+Applying migration `20260725000000_r8_1_4_mfa_recovery_requests`
+Applying migration `20260726000000_r8_1_5_recovery_email_preflight`
+Applying migration `20260727000000_r8_1_6_recovery_digest_logs`
+Applying migration `20260728000000_r8_1_7_digest_preferences`
+Applying migration `20260801000000_phase_e3_automation_foundation`
+Applying migration `20260802000000_phase_e3_2_webhook_delivery`
+Applying migration `20260803000000_phase_e3_3_async_delivery_runtime`
+Applying migration `20260804000000_phase_e10_1_stripe_webhook_idempotency`
+Applying migration `20260925000000_phase0_schema_catchup`
+Applying migration `20260926000000_p2_7x_stage1_org_model_additive`
+Applying migration `20260927000000_p2_7x_stage6_invite_token_hash`
+Applying migration `20260928000000_p2_7x_stage6_teams_org_not_null`
+Applying migration `20260929000000_phase_b2_workflow_review_decisions`
+Applying migration `20260930000000_phase_a0_integrity_hard_gate`
+Applying migration `20261001000000_phase_a1_evidence_org_tenancy`
+Applying migration `20261002000000_phase_a2_pdf_artifact_status`
+Applying migration `20261003000000_phase_g3_1_notification_preferences`
+Applying migration `20261004000000_phase_m3_1_siu_durability`
+Applying migration `20261005000000_phase_m3_2_siu_governance_export`
+Applying migration `20261006000000_phase_o_final_production_column_repair`
+Applying migration `20261007000000_phase_o_live_schema_compatibility_repair`
+Applying migration `20261008000000_phase_o_workflow_join_table_final_repair`
+Applying migration `20261009000000_drop_reviewer_queue_projection`
+Applying migration `20261015000000_phase_2b_closure_invitation_delivery_sso`
+Applying migration `20261101000000_phase_3a_redaction_platform`
+Applying migration `20261201000000_phase_3a_elite_closure_policy_video`
+Applying migration `20261215000000_phase_3b_intelligence_platform`
+Applying migration `20261216000000_phase_3b_enterprise_closure`
+Applying migration `20261220000000_phase_4a_trust_and_governance`
+Applying migration `20261225000000_phase_4a_enterprise_closure`
+Applying migration `20261230000000_phase_4b_packaging_and_lifecycle`
+Applying migration `20261231000000_phase_4b_final_closure`
+Applying migration `20270101000000_phase_r3_model_catchup`
+Applying migration `20270102000000_phase_r7_schema_catchup`
+Applying migration `20270103000000_phase_r7_trust_schema_fix`
+Applying migration `20270104000000_phase_r7_redaction_schema_fix`
+Applying migration `20270105000000_phase_r7_reviewer_workspace_schema_fix`
+Applying migration `20270106000000_phase_r7_governance_schema_fix`
+Applying migration `20270107000000_phase_r7_capture_trust_schema_fix`
+Applying migration `20270108000000_phase_r7_intelligence_schema_fix`
+Applying migration `20270109000000_phase_r7_redaction_policy_unique`
+Applying migration `20270201000000_phase_5_collaboration_teams`
+Applying migration `20270301000000_phase_7_collaboration_completion`
+Applying migration `20270401000000_phase_10_paypal_webhook_idempotency`
+Applying migration `20270501000000_phase_10_paypal_webhook_payload_hash`
+Applying migration `20270601000000_phase13_intelligence_chain`
+Applying migration `20270701000000_phase15_semantic_search`
+Applying migration `20270801000000_phase16_semantic_usage`
+Applying migration `20270802000000_phase_sentry_batch_schema_drift_repair`
+Applying migration `20270803000000_phase_governance_additive_repair`
+Applying migration `20270804000000_phase1_production_drift_stabilization`
+Applying migration `20270805000000_phase2_drift_repair_trust_status`
+Applying migration `20270806000000_phase2_drift_repair_governance`
+Applying migration `20270807000000_phase2_drift_repair_redaction`
+Applying migration `20270808000000_phase2_drift_repair_lifecycle_webhooks`
+Applying migration `20270809000000_phase_2_1_final_drift_closure`
+Applying migration `20270810000000_wave1_graph_taxonomy_renames`
+Applying migration `20270811000000_wave2_duplicate_decisions`
+Applying migration `20270812000000_wave3_custody_event_type_widening`
+Applying migration `20270813000000_phase2_api_key_dual_active_rotation`
+Applying migration `20270814000000_phase4_webhook_dual_signing_rotation`
+Applying migration `20270815000000_phase_closure_webhook_delivery_duration`
+Applying migration `20270816000000_phase_t_template_identity_columns`
+Applying migration `20270817000000_phase_t_coding_schema_uuid_default_repair`
+Applying migration `20270818000000_phase_t_coding_values_updated_at_default`
+Applying migration `20270818010000_phase_t_coding_values_id_default`
+Applying migration `20270818020000_phase_t_reviewer_disagreements_defaults`
+Applying migration `20270818030000_phase_t_trust_center_drift_repair`
+Applying migration `20270819000000_phase_t_trust_center_versions_published_at_repair`
+Applying migration `20270819010000_phase_t_subprocessor_versions_runtime_repair`
+Applying migration `20270820000000_add_inbox_item_state`
+Applying migration `20270821000000_phase_search_evidence_search_documents_legacy_drop_not_null`
+Applying migration `20270822000000_intake_link_sender_identity`
+Applying migration `20270823000000_communication_message_idem_key_split`
+Applying migration `20270824000000_intake_link_archive`
+Applying migration `20270825000000_intake_link_location_collection`
+Applying migration `20270826000000_pricing_hardening_enterprise_plan_record_caps`
+Applying migration `20270827000000_contact_sales_lead_capture`
+Applying migration `20270828000000_email_verification_tokens`
+Applying migration `20270829000000_evr_p4_canonical_verification_record`
+Applying migration `20270829000000_phase_2a_live_missing_columns_catchup`
+Applying migration `20270830000000_evr_p10_tsa_retry_tracking`
+Applying migration `20270901000000_verification_package_validation_findings`
+Applying migration `20270902000000_verification_package_hash`
+Applying migration `20270903000000_verification_package_validation_status`
+Applying migration `20270904000000_report_claims_package_verified`
+Applying migration `20270905000000_contributor_identity_snapshot`
+Applying migration `20270906000000_phase_2b_1_timestamp_repairs`
+Applying migration `20270906010000_phase_2b_2_integer_widening`
+Applying migration `20270906020000_phase_2b_3_string_type_alignment`
+Applying migration `20270906030000_phase_2b_4_nullability_hardening`
+Applying migration `20270906040000_phase_2b_5_enum_alignment`
+Applying migration `20270906050000_phase_2b_6_uuid_and_identifier_alignment`
+Applying migration `20270906060000_phase_2b_7_json_semantic_repairs`
+Applying migration `20270906070000_phase_2c_d_provider_confidence_nullable_relaxation`
+Applying migration `20270907000000_technical_metadata_capture_environment`
+Applying migration `20270908000000_drop_evidence_anchor_publication_columns`
+Applying migration `20270909000000_org_pending_enterprise_seats`
+Applying migration `20270910000000_phase_3_enterprise_identity_domains_and_sp_signing`
+Applying migration `20270911000000_workspace_ai_policy`
+Applying migration `20270912000000_ai_copilot_runs`
+Applying migration `20270913000000_ai_usage_ledger`
+Applying migration `20270914000000_reviewer_criteria_catalog`
+Applying migration `20270915000000_mi_provider_local_value_rename`
+Applying migration `20270916000000_operations_center_history_and_schedule`
+Applying migration `20270917000000_org_notification_policy_and_resolution_provenance`
+Applying migration `20270918000000_user_identity_links`
+Applying migration `20270919000000_account_data_export_requests`
+Applying migration `20270920000000_account_closure_requests`
+Applying migration `20270920000000_workspace_kind_discriminator`
+Applying migration `20270920100000_org_invite_workspace_assignments`
+Applying migration `20270920200000_membership_grant_provenance`
+Applying migration `20270920250000_membership_grant_legacy_backfill`
+Applying migration `20270920300000_enterprise_contract_state`
+Applying migration `20270921000000_organization_closure_requests`
+Applying migration `20270922000000_workspace_closure_requests`
+Applying migration `20270923000000_notification_schedule_timezone_inherit`
+Applying migration `20270923500000_persona_profiles_removal_precondition`
+Applying migration `20270924000000_drop_workspace_persona_profiles`
+Applying migration `20270925000000_user_identity_mode`
+Applying migration `20271001000000_org_security_policy_phase10`
+Applying migration `20271002000000_managed_identity_ownership`
+Applying migration `20271003000000_managed_identity_ownership_backfill`
+Applying migration `20271004000000_authenticated_session_org_context`
+Applying migration `20271005000000_org_security_policy_org_scoped`
+Applying migration `20271006000000_org_security_policy_lifecycle`
+Applying migration `20271101000000_audit_tenant_columns`
+Applying migration `20271102000000_uuid_id_default_repair`
+Applying migration `20271103000000_case_evidence_link_canonical`
+Applying migration `20271104000000_case_evidence_link_integrity`
+Applying migration `20271105000000_evidence_case_id_removal`
+Applying migration `20271106000000_legal_hold_canonical`
+Applying migration `20271107000000_legal_hold_backfill`
+Applying migration `20271108000000_legal_hold_legacy_removal`
+Applying migration `20271109000000_workspace_governance_policy_version`
+Applying migration `20271110000000_exchange_download_authorization_semantics`
+Applying migration `20271111000000_step_up_session_organization_binding`
+Applying migration `20271112000000_point4_write_unblock_repair`
+Applying migration `20271113000000_point5_report_generation_authority`
+Applying migration `20271114000000_point5_media_intelligence_kind_catalog`
+Applying migration `20271115000000_point5_atomic_sweep_claims`
+Applying migration `20271117000000_point4_schema_authority_contract`
+Applying migration `20271118000000_legal_hold_strict_scope_target`
+Applying migration `20271119000000_search_document_embedding_after_extension`
+Applying migration `20271120000000_external_review_invitation_authority_expand`
+Applying migration `20271121000000_external_review_invitation_authority_backfill`
+Applying migration `20271122000000_external_review_invitation_authority_contract`
+Applying migration `20271123000000_workspace_kind_authority_expand`
+Applying migration `20271124000000_workspace_kind_authority_backfill`
+Applying migration `20271125000000_workspace_kind_authority_contract`
+Applying migration `20271126000000_org_membership_lifecycle_expand`
+Applying migration `20271127000000_org_membership_lifecycle_backfill`
+Applying migration `20271128000000_org_membership_lifecycle_contract`
+Applying migration `20271129000000_automation_runtime_durability_expand`
+Applying migration `20271130000000_automation_runtime_durability_backfill`
+Applying migration `20271131000000_automation_runtime_durability_contract`
+Applying migration `20271201000000_new058_verified_contact_factors`
+Applying migration `20271215000000_search_index_reconciliation_kind`
+Applying migration `20271216000000_evidence_integrity_incident_category`
+Applying migration `20271217000000_evidence_integrity_correlation`
+Applying migration `20271218000000_bulk_assign_incidents`
+Applying migration `20271219000000_incident_sla_history`
+Applying migration `20271220000000_evidence_lifecycle_trashed_state`
+Applying migration `20271220000001_evidence_lifecycle_state_backfill`
+Applying migration `20271222000000_workspace_operations_reconciliation_kind`
+Applying migration `20271223000000_operational_incident_scope`
+Applying migration `20271224000000_operational_incident_naming_convergence`
+Applying migration `20271225000000_operational_incident_metric_snapshot`
+Applying migration `20271226000000_operational_incident_source_identity`
+Applying migration `20271227000000_billing_commercial_correctness`
+Applying migration `20271228000000_billing_provider_state_ordering`
+Applying migration `20271229000000_billing_dependent_cancellation_obligation`
+Applying migration `20271230000000_workspace_lifecycle_authority`
+Applying migration `20271231000000_billing_scheduled_plan_change`
+Applying migration `20280101000000_billing_payment_terminal_states`
+Applying migration `20280102000000_billing_payment_abandoned`
+Applying migration `20280104000000_operational_incident_platform_uniqueness`
+Applying migration `20280110000000_signer_control_state`
+Applying migration `20280115000000_worker_lease_and_heartbeat_retention`
+Applying migration `20280120000000_break_glass_single_active_grant`
+Applying migration `20280125000000_intake_customer_id`
+Applying migration `20280210000000_intake_identity_search`
+Applying migration `20280215000000_admin_audit_identity_contract`
+Applying migration `20280301000000_evidence_credit_admin_grant`
+Applying migration `20280401000000_search_projection_version`
+Applying migration `20280501000000_workspace_invite_lifecycle_hardening`
+Applying migration `20280502000000_workspace_invite_raw_token_drop`
+Applying migration `20280503000000_collaboration_scale_indexes`
+Applying migration `20280510000000_enterprise_contract_collaboration_limits`
+Applying migration `20280511000000_collaboration_activity_keyset_index`
+Applying migration `20280512000000_enterprise_contract_legal_hold`
+Applying migration `20280601000000_uc0_acquisition_provenance_foundation`
+Applying migration `20280602000000_derived_asset_variant_contract`
+Applying migration `20280610000000_uc1_direct_web_capture_acquisition_mode`
+Applying migration `20280620000000_uc1_extension_oauth_codes`
+Applying migration `20280630000000_uc2_screen_capture_acquisition_mode`
+Applying migration `20280640000000_uc3_continuous_screen_capture_acquisition_mode`
+Applying migration `20280650000000_uc4_screen_intelligence`
+Applying migration `20280660000000_uc5_ios_screen_capture_acquisition_mode`
+Applying migration `20280670000000_bd2_durable_batch_analysis_jobs`
+Applying migration `20280680000000_artifact_recovery_progress`
+Applying migration `20280690000000_billing_storage_attempt_abandoned`
+Applying migration `20280700000000_billing_checkout_attempts`
+Applying migration `20280710000000_billing_stripe_attempts_billed_currency`
+Applying migration `20280720000000_billing_paypal_integrity`
+Applying migration `20280730000000_evidence_output_lifecycle`
+Applying migration `20280731000000_evidence_ots_anchor_check`
+Applying migration `20280801000000_evidence_original_version_id`
+Applying migration `20280802000000_evidence_tsa_validation`
+Applying migration `20280803000000_verification_package_seal_identity`
+Applying migration `20280804000000_custody_chain_transfer_event`
+Applying migration `20280805000000_custody_append_only`
+Applying migration `20280806000000_custody_unlock_and_retention_extension`
+Applying migration `20280807000000_custody_redaction_and_review`
+Applying migration `20280808000000_custody_retention_policy_applied`
+Applying migration `20280809000000_worker_sweep_cursors`
+Applying migration `20280810000000_upload_part_state_hashed`
+Applying migration `20280811000000_verification_views_anonymize`
+Applying migration `20280812000000_evidence_completion_fanout_marker`
+Applying migration `20280812000001_evidence_completion_fanout_backfill`
+Applying migration `20280813000000_capture_trust_event_chain_unique`
+Applying migration `20280814000000_evidence_output_earned_fact`
+Applying migration `20280815000000_integrity_recheck_reconciliation_kinds`
+Applying migration `20280815000001_evidence_integrity_checks`
+Applying migration `20280816000000_verification_share_tokens`
+Applying migration `20280816000001_verification_share_legacy_grace`
+Applying migration `20280816000002_evidence_unpublished_by_default`
+Applying migration `20280817000000_governance_policy_audit_nullable_policy`
+Applying migration `email_password_auth`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20260131235343_init/
+    └─ migration.sql
+  └─ 20260201013040_align_schema/
+    └─ migration.sql
+  └─ 20260201013225_custody_event_index/
+    └─ migration.sql
+  └─ 20260201033040_fix_evidence_file_sha256_index/
+    └─ migration.sql
+  └─ 20260201120000_phase9_hardening/
+    └─ migration.sql
+  └─ 20260201120000_update_evidence_signingkey/
+    └─ migration.sql
+  └─ 20260201124500_add_document_evidence_type/
+    └─ migration.sql
+  └─ 20260201132000_add_evidence_locked_event/
+    └─ migration.sql
+  └─ 20260201133000_fix_evidence_file_sha256_index_v2/
+    └─ migration.sql
+  └─ 20260204190000_add_auth_billing/
+    └─ migration.sql
+  └─ 20260205090000_phase2_invites_claim/
+    └─ migration.sql
+  └─ 20260205093000_evidence_parts/
+    └─ migration.sql
+  └─ 20260205100000_b2b_org_locking/
+    └─ migration.sql
+  └─ 20260215095541_email_password_auth/
+    └─ migration.sql
+  └─ 20260312170000_add_evidence_tsa_fields/
+    └─ migration.sql
+  └─ 20260321000000_expand_user_country_field/
+    └─ migration.sql
+  └─ 20260321110000_add_evidence_archive_field/
+    └─ migration.sql
+  └─ 20260324120000_add_team_activity/
+    └─ migration.sql
+  └─ 20260404180000_admin_audit_log/
+    └─ migration.sql
+  └─ 20260404193000_add_analytics_tables/
+    └─ migration.sql
+  └─ 20260404200000_admin_audit_is_public/
+    └─ migration.sql
+  └─ 20260404213000_analytics_admin_audit_hardening/
+    └─ migration.sql
+  └─ 20260407_add_legal_acceptance_and_cookie_consent/
+    └─ migration.sql
+  └─ 20260417000000_create_verification_source_enum/
+    └─ migration.sql
+  └─ 20260418_report_snapshot_fields/
+    └─ migration.sql
+  └─ 20260430_add_tsa_input_digest_fields/
+    └─ migration.sql
+  └─ 20260504150000_add_evidence_internal_notes/
+    └─ migration.sql
+  └─ 20260504170000_add_capture_plan_and_part_metadata/
+    └─ migration.sql
+  └─ 20260508133000_add_evidence_operations_workspace_features/
+    └─ migration.sql
+  └─ 20260508153000_add_evidence_review_workflow_relationships_audit/
+    └─ migration.sql
+  └─ 20260510120000_add_capture_sessions/
+    └─ migration.sql
+  └─ 20260510160000_phase_a_b_forensic_hardening/
+    └─ migration.sql
+  └─ 20260510200000_phase_c_hardening/
+    └─ migration.sql
+  └─ 20260516120000_add_workflow_template_foundation/
+    └─ migration.sql
+  └─ 20260516180000_add_workflow_intake_links_phase4/
+    └─ migration.sql
+  └─ 20260516220000_add_evidence_requests_phase7/
+    └─ migration.sql
+  └─ 20260517020000_add_notification_deliveries_phase8/
+    └─ migration.sql
+  └─ 20260517060000_add_notification_template_context/
+    └─ migration.sql
+  └─ 20260517100000_add_governance_phase9/
+    └─ migration.sql
+  └─ 20260517140000_add_integrations_phase10/
+    └─ migration.sql
+  └─ 20260518100000_add_integrations_phase10_5/
+    └─ migration.sql
+  └─ 20260519100000_add_security_hardening_phase11/
+    └─ migration.sql
+  └─ 20260520100000_add_reliability_phase12/
+    └─ migration.sql
+  └─ 20260521100000_add_review_operations_phase13/
+    └─ migration.sql
+  └─ 20260522100000_add_review_sla_defaults_phase13_5/
+    └─ migration.sql
+  └─ 20260523100000_add_governance_platform_phase14/
+    └─ migration.sql
+  └─ 20260524100000_add_intelligence_phase15/
+    └─ migration.sql
+  └─ 20260525100000_add_collaboration_phase16/
+    └─ migration.sql
+  └─ 20260526100000_add_identity_phase17/
+    └─ migration.sql
+  └─ 20260527100000_add_communications_phase18/
+    └─ migration.sql
+  └─ 20260528100000_add_identity_security_phase19/
+    └─ migration.sql
+  └─ 20260529100000_add_operational_incidents_phase21/
+    └─ migration.sql
+  └─ 20260530100000_add_workflow_engine_phase22/
+    └─ migration.sql
+  └─ 20260531100000_add_search_discovery_phase24/
+    └─ migration.sql
+  └─ 20260601100000_add_reviewer_operations_phase25/
+    └─ migration.sql
+  └─ 20260602100000_phase25_5_reviewer_ops_hardening/
+    └─ migration.sql
+  └─ 20260603100000_phase26_identity_governance/
+    └─ migration.sql
+  └─ 20260604100000_phase26_5_identity_hardening/
+    └─ migration.sql
+  └─ 20260605100000_phase26_75_identity_runtime/
+    └─ migration.sql
+  └─ 20260606100000_phase27_retention_lifecycle/
+    └─ migration.sql
+  └─ 20260606120000_phase12_perceptual_foundation/
+    └─ migration.sql
+  └─ 20260613100000_phase27_5_governance_operationalization/
+    └─ migration.sql
+  └─ 20260620100000_phase24_31_consolidated_drift_patches/
+    └─ migration.sql
+  └─ 20260620200000_reviewer_ops_naming_drift_repair/
+    └─ migration.sql
+  └─ 20260620300000_team_billing_naming_drift_repair/
+    └─ migration.sql
+  └─ 20260625100000_phase328cpppp_dashboard_intelligence_closure/
+    └─ migration.sql
+  └─ 20260626100000_phase328cppppp_structural_intelligence_closure/
+    └─ migration.sql
+  └─ 20260627100000_phase328c_control_plane_closure/
+    └─ migration.sql
+  └─ 20260628100000_phase328c_workflow_causality/
+    └─ migration.sql
+  └─ 20260629100000_phase328c_enterprise_gap_closure/
+    └─ migration.sql
+  └─ 20260630100000_phase328d_matter_workspace/
+    └─ migration.sql
+  └─ 20260720100000_personal_workspace_bootstrap/
+    └─ migration.sql
+  └─ 20260720200000_dashboard_projections/
+    └─ migration.sql
+  └─ 20260721000000_workspace_persona_profile/
+    └─ migration.sql
+  └─ 20260722000000_r8_1_mfa_activation/
+    └─ migration.sql
+  └─ 20260722110000_enterprise_provisioning_idempotency/
+    └─ migration.sql
+  └─ 20260724000000_r8_1_3_mfa_pending_challenges/
+    └─ migration.sql
+  └─ 20260725000000_r8_1_4_mfa_recovery_requests/
+    └─ migration.sql
+  └─ 20260726000000_r8_1_5_recovery_email_preflight/
+    └─ migration.sql
+  └─ 20260727000000_r8_1_6_recovery_digest_logs/
+    └─ migration.sql
+  └─ 20260728000000_r8_1_7_digest_preferences/
+    └─ migration.sql
+  └─ 20260801000000_phase_e3_automation_foundation/
+    └─ migration.sql
+  └─ 20260802000000_phase_e3_2_webhook_delivery/
+    └─ migration.sql
+  └─ 20260803000000_phase_e3_3_async_delivery_runtime/
+    └─ migration.sql
+  └─ 20260804000000_phase_e10_1_stripe_webhook_idempotency/
+    └─ migration.sql
+  └─ 20260925000000_phase0_schema_catchup/
+    └─ migration.sql
+  └─ 20260926000000_p2_7x_stage1_org_model_additive/
+    └─ migration.sql
+  └─ 20260927000000_p2_7x_stage6_invite_token_hash/
+    └─ migration.sql
+  └─ 20260928000000_p2_7x_stage6_teams_org_not_null/
+    └─ migration.sql
+  └─ 20260929000000_phase_b2_workflow_review_decisions/
+    └─ migration.sql
+  └─ 20260930000000_phase_a0_integrity_hard_gate/
+    └─ migration.sql
+  └─ 20261001000000_phase_a1_evidence_org_tenancy/
+    └─ migration.sql
+  └─ 20261002000000_phase_a2_pdf_artifact_status/
+    └─ migration.sql
+  └─ 20261003000000_phase_g3_1_notification_preferences/
+    └─ migration.sql
+  └─ 20261004000000_phase_m3_1_siu_durability/
+    └─ migration.sql
+  └─ 20261005000000_phase_m3_2_siu_governance_export/
+    └─ migration.sql
+  └─ 20261006000000_phase_o_final_production_column_repair/
+    └─ migration.sql
+  └─ 20261007000000_phase_o_live_schema_compatibility_repair/
+    └─ migration.sql
+  └─ 20261008000000_phase_o_workflow_join_table_final_repair/
+    └─ migration.sql
+  └─ 20261009000000_drop_reviewer_queue_projection/
+    └─ migration.sql
+  └─ 20261015000000_phase_2b_closure_invitation_delivery_sso/
+    └─ migration.sql
+  └─ 20261101000000_phase_3a_redaction_platform/
+    └─ migration.sql
+  └─ 20261201000000_phase_3a_elite_closure_policy_video/
+    └─ migration.sql
+  └─ 20261215000000_phase_3b_intelligence_platform/
+    └─ migration.sql
+  └─ 20261216000000_phase_3b_enterprise_closure/
+    └─ migration.sql
+  └─ 20261220000000_phase_4a_trust_and_governance/
+    └─ migration.sql
+  └─ 20261225000000_phase_4a_enterprise_closure/
+    └─ migration.sql
+  └─ 20261230000000_phase_4b_packaging_and_lifecycle/
+    └─ migration.sql
+  └─ 20261231000000_phase_4b_final_closure/
+    └─ migration.sql
+  └─ 20270101000000_phase_r3_model_catchup/
+    └─ migration.sql
+  └─ 20270102000000_phase_r7_schema_catchup/
+    └─ migration.sql
+  └─ 20270103000000_phase_r7_trust_schema_fix/
+    └─ migration.sql
+  └─ 20270104000000_phase_r7_redaction_schema_fix/
+    └─ migration.sql
+  └─ 20270105000000_phase_r7_reviewer_workspace_schema_fix/
+    └─ migration.sql
+  └─ 20270106000000_phase_r7_governance_schema_fix/
+    └─ migration.sql
+  └─ 20270107000000_phase_r7_capture_trust_schema_fix/
+    └─ migration.sql
+  └─ 20270108000000_phase_r7_intelligence_schema_fix/
+    └─ migration.sql
+  └─ 20270109000000_phase_r7_redaction_policy_unique/
+    └─ migration.sql
+  └─ 20270201000000_phase_5_collaboration_teams/
+    └─ migration.sql
+  └─ 20270301000000_phase_7_collaboration_completion/
+    └─ migration.sql
+  └─ 20270401000000_phase_10_paypal_webhook_idempotency/
+    └─ migration.sql
+  └─ 20270501000000_phase_10_paypal_webhook_payload_hash/
+    └─ migration.sql
+  └─ 20270601000000_phase13_intelligence_chain/
+    └─ migration.sql
+  └─ 20270701000000_phase15_semantic_search/
+    └─ migration.sql
+  └─ 20270801000000_phase16_semantic_usage/
+    └─ migration.sql
+  └─ 20270802000000_phase_sentry_batch_schema_drift_repair/
+    └─ migration.sql
+  └─ 20270803000000_phase_governance_additive_repair/
+    └─ migration.sql
+  └─ 20270804000000_phase1_production_drift_stabilization/
+    └─ migration.sql
+  └─ 20270805000000_phase2_drift_repair_trust_status/
+    └─ migration.sql
+  └─ 20270806000000_phase2_drift_repair_governance/
+    └─ migration.sql
+  └─ 20270807000000_phase2_drift_repair_redaction/
+    └─ migration.sql
+  └─ 20270808000000_phase2_drift_repair_lifecycle_webhooks/
+    └─ migration.sql
+  └─ 20270809000000_phase_2_1_final_drift_closure/
+    └─ migration.sql
+  └─ 20270810000000_wave1_graph_taxonomy_renames/
+    └─ migration.sql
+  └─ 20270811000000_wave2_duplicate_decisions/
+    └─ migration.sql
+  └─ 20270812000000_wave3_custody_event_type_widening/
+    └─ migration.sql
+  └─ 20270813000000_phase2_api_key_dual_active_rotation/
+    └─ migration.sql
+  └─ 20270814000000_phase4_webhook_dual_signing_rotation/
+    └─ migration.sql
+  └─ 20270815000000_phase_closure_webhook_delivery_duration/
+    └─ migration.sql
+  └─ 20270816000000_phase_t_template_identity_columns/
+    └─ migration.sql
+  └─ 20270817000000_phase_t_coding_schema_uuid_default_repair/
+    └─ migration.sql
+  └─ 20270818000000_phase_t_coding_values_updated_at_default/
+    └─ migration.sql
+  └─ 20270818010000_phase_t_coding_values_id_default/
+    └─ migration.sql
+  └─ 20270818020000_phase_t_reviewer_disagreements_defaults/
+    └─ migration.sql
+  └─ 20270818030000_phase_t_trust_center_drift_repair/
+    └─ migration.sql
+  └─ 20270819000000_phase_t_trust_center_versions_published_at_repair/
+    └─ migration.sql
+  └─ 20270819010000_phase_t_subprocessor_versions_runtime_repair/
+    └─ migration.sql
+  └─ 20270820000000_add_inbox_item_state/
+    └─ migration.sql
+  └─ 20270821000000_phase_search_evidence_search_documents_legacy_drop_not_null/
+    └─ migration.sql
+  └─ 20270822000000_intake_link_sender_identity/
+    └─ migration.sql
+  └─ 20270823000000_communication_message_idem_key_split/
+    └─ migration.sql
+  └─ 20270824000000_intake_link_archive/
+    └─ migration.sql
+  └─ 20270825000000_intake_link_location_collection/
+    └─ migration.sql
+  └─ 20270826000000_pricing_hardening_enterprise_plan_record_caps/
+    └─ migration.sql
+  └─ 20270827000000_contact_sales_lead_capture/
+    └─ migration.sql
+  └─ 20270828000000_email_verification_tokens/
+    └─ migration.sql
+  └─ 20270829000000_evr_p4_canonical_verification_record/
+    └─ migration.sql
+  └─ 20270829000000_phase_2a_live_missing_columns_catchup/
+    └─ migration.sql
+  └─ 20270830000000_evr_p10_tsa_retry_tracking/
+    └─ migration.sql
+  └─ 20270901000000_verification_package_validation_findings/
+    └─ migration.sql
+  └─ 20270902000000_verification_package_hash/
+    └─ migration.sql
+  └─ 20270903000000_verification_package_validation_status/
+    └─ migration.sql
+  └─ 20270904000000_report_claims_package_verified/
+    └─ migration.sql
+  └─ 20270905000000_contributor_identity_snapshot/
+    └─ migration.sql
+  └─ 20270906000000_phase_2b_1_timestamp_repairs/
+    └─ migration.sql
+  └─ 20270906010000_phase_2b_2_integer_widening/
+    └─ migration.sql
+  └─ 20270906020000_phase_2b_3_string_type_alignment/
+    └─ migration.sql
+  └─ 20270906030000_phase_2b_4_nullability_hardening/
+    └─ migration.sql
+  └─ 20270906040000_phase_2b_5_enum_alignment/
+    └─ migration.sql
+  └─ 20270906050000_phase_2b_6_uuid_and_identifier_alignment/
+    └─ migration.sql
+  └─ 20270906060000_phase_2b_7_json_semantic_repairs/
+    └─ migration.sql
+  └─ 20270906070000_phase_2c_d_provider_confidence_nullable_relaxation/
+    └─ migration.sql
+  └─ 20270907000000_technical_metadata_capture_environment/
+    └─ migration.sql
+  └─ 20270908000000_drop_evidence_anchor_publication_columns/
+    └─ migration.sql
+  └─ 20270909000000_org_pending_enterprise_seats/
+    └─ migration.sql
+  └─ 20270910000000_phase_3_enterprise_identity_domains_and_sp_signing/
+    └─ migration.sql
+  └─ 20270911000000_workspace_ai_policy/
+    └─ migration.sql
+  └─ 20270912000000_ai_copilot_runs/
+    └─ migration.sql
+  └─ 20270913000000_ai_usage_ledger/
+    └─ migration.sql
+  └─ 20270914000000_reviewer_criteria_catalog/
+    └─ migration.sql
+  └─ 20270915000000_mi_provider_local_value_rename/
+    └─ migration.sql
+  └─ 20270916000000_operations_center_history_and_schedule/
+    └─ migration.sql
+  └─ 20270917000000_org_notification_policy_and_resolution_provenance/
+    └─ migration.sql
+  └─ 20270918000000_user_identity_links/
+    └─ migration.sql
+  └─ 20270919000000_account_data_export_requests/
+    └─ migration.sql
+  └─ 20270920000000_account_closure_requests/
+    └─ migration.sql
+  └─ 20270920000000_workspace_kind_discriminator/
+    └─ migration.sql
+  └─ 20270920100000_org_invite_workspace_assignments/
+    └─ migration.sql
+  └─ 20270920200000_membership_grant_provenance/
+    └─ migration.sql
+  └─ 20270920250000_membership_grant_legacy_backfill/
+    └─ migration.sql
+  └─ 20270920300000_enterprise_contract_state/
+    └─ migration.sql
+  └─ 20270921000000_organization_closure_requests/
+    └─ migration.sql
+  └─ 20270922000000_workspace_closure_requests/
+    └─ migration.sql
+  └─ 20270923000000_notification_schedule_timezone_inherit/
+    └─ migration.sql
+  └─ 20270923500000_persona_profiles_removal_precondition/
+    └─ migration.sql
+  └─ 20270924000000_drop_workspace_persona_profiles/
+    └─ migration.sql
+  └─ 20270925000000_user_identity_mode/
+    └─ migration.sql
+  └─ 20271001000000_org_security_policy_phase10/
+    └─ migration.sql
+  └─ 20271002000000_managed_identity_ownership/
+    └─ migration.sql
+  └─ 20271003000000_managed_identity_ownership_backfill/
+    └─ migration.sql
+  └─ 20271004000000_authenticated_session_org_context/
+    └─ migration.sql
+  └─ 20271005000000_org_security_policy_org_scoped/
+    └─ migration.sql
+  └─ 20271006000000_org_security_policy_lifecycle/
+    └─ migration.sql
+  └─ 20271101000000_audit_tenant_columns/
+    └─ migration.sql
+  └─ 20271102000000_uuid_id_default_repair/
+    └─ migration.sql
+  └─ 20271103000000_case_evidence_link_canonical/
+    └─ migration.sql
+  └─ 20271104000000_case_evidence_link_integrity/
+    └─ migration.sql
+  └─ 20271105000000_evidence_case_id_removal/
+    └─ migration.sql
+  └─ 20271106000000_legal_hold_canonical/
+    └─ migration.sql
+  └─ 20271107000000_legal_hold_backfill/
+    └─ migration.sql
+  └─ 20271108000000_legal_hold_legacy_removal/
+    └─ migration.sql
+  └─ 20271109000000_workspace_governance_policy_version/
+    └─ migration.sql
+  └─ 20271110000000_exchange_download_authorization_semantics/
+    └─ migration.sql
+  └─ 20271111000000_step_up_session_organization_binding/
+    └─ migration.sql
+  └─ 20271112000000_point4_write_unblock_repair/
+    └─ migration.sql
+  └─ 20271113000000_point5_report_generation_authority/
+    └─ migration.sql
+  └─ 20271114000000_point5_media_intelligence_kind_catalog/
+    └─ migration.sql
+  └─ 20271115000000_point5_atomic_sweep_claims/
+    └─ migration.sql
+  └─ 20271117000000_point4_schema_authority_contract/
+    └─ migration.sql
+  └─ 20271118000000_legal_hold_strict_scope_target/
+    └─ migration.sql
+  └─ 20271119000000_search_document_embedding_after_extension/
+    └─ migration.sql
+  └─ 20271120000000_external_review_invitation_authority_expand/
+    └─ migration.sql
+  └─ 20271121000000_external_review_invitation_authority_backfill/
+    └─ migration.sql
+  └─ 20271122000000_external_review_invitation_authority_contract/
+    └─ migration.sql
+  └─ 20271123000000_workspace_kind_authority_expand/
+    └─ migration.sql
+  └─ 20271124000000_workspace_kind_authority_backfill/
+    └─ migration.sql
+  └─ 20271125000000_workspace_kind_authority_contract/
+    └─ migration.sql
+  └─ 20271126000000_org_membership_lifecycle_expand/
+    └─ migration.sql
+  └─ 20271127000000_org_membership_lifecycle_backfill/
+    └─ migration.sql
+  └─ 20271128000000_org_membership_lifecycle_contract/
+    └─ migration.sql
+  └─ 20271129000000_automation_runtime_durability_expand/
+    └─ migration.sql
+  └─ 20271130000000_automation_runtime_durability_backfill/
+    └─ migration.sql
+  └─ 20271131000000_automation_runtime_durability_contract/
+    └─ migration.sql
+  └─ 20271201000000_new058_verified_contact_factors/
+    └─ migration.sql
+  └─ 20271215000000_search_index_reconciliation_kind/
+    └─ migration.sql
+  └─ 20271216000000_evidence_integrity_incident_category/
+    └─ migration.sql
+  └─ 20271217000000_evidence_integrity_correlation/
+    └─ migration.sql
+  └─ 20271218000000_bulk_assign_incidents/
+    └─ migration.sql
+  └─ 20271219000000_incident_sla_history/
+    └─ migration.sql
+  └─ 20271220000000_evidence_lifecycle_trashed_state/
+    └─ migration.sql
+  └─ 20271220000001_evidence_lifecycle_state_backfill/
+    └─ migration.sql
+  └─ 20271222000000_workspace_operations_reconciliation_kind/
+    └─ migration.sql
+  └─ 20271223000000_operational_incident_scope/
+    └─ migration.sql
+  └─ 20271224000000_operational_incident_naming_convergence/
+    └─ migration.sql
+  └─ 20271225000000_operational_incident_metric_snapshot/
+    └─ migration.sql
+  └─ 20271226000000_operational_incident_source_identity/
+    └─ migration.sql
+  └─ 20271227000000_billing_commercial_correctness/
+    └─ migration.sql
+  └─ 20271228000000_billing_provider_state_ordering/
+    └─ migration.sql
+  └─ 20271229000000_billing_dependent_cancellation_obligation/
+    └─ migration.sql
+  └─ 20271230000000_workspace_lifecycle_authority/
+    └─ migration.sql
+  └─ 20271231000000_billing_scheduled_plan_change/
+    └─ migration.sql
+  └─ 20280101000000_billing_payment_terminal_states/
+    └─ migration.sql
+  └─ 20280102000000_billing_payment_abandoned/
+    └─ migration.sql
+  └─ 20280104000000_operational_incident_platform_uniqueness/
+    └─ migration.sql
+  └─ 20280110000000_signer_control_state/
+    └─ migration.sql
+  └─ 20280115000000_worker_lease_and_heartbeat_retention/
+    └─ migration.sql
+  └─ 20280120000000_break_glass_single_active_grant/
+    └─ migration.sql
+  └─ 20280125000000_intake_customer_id/
+    └─ migration.sql
+  └─ 20280210000000_intake_identity_search/
+    └─ migration.sql
+  └─ 20280215000000_admin_audit_identity_contract/
+    └─ migration.sql
+  └─ 20280301000000_evidence_credit_admin_grant/
+    └─ migration.sql
+  └─ 20280401000000_search_projection_version/
+    └─ migration.sql
+  └─ 20280501000000_workspace_invite_lifecycle_hardening/
+    └─ migration.sql
+  └─ 20280502000000_workspace_invite_raw_token_drop/
+    └─ migration.sql
+  └─ 20280503000000_collaboration_scale_indexes/
+    └─ migration.sql
+  └─ 20280510000000_enterprise_contract_collaboration_limits/
+    └─ migration.sql
+  └─ 20280511000000_collaboration_activity_keyset_index/
+    └─ migration.sql
+  └─ 20280512000000_enterprise_contract_legal_hold/
+    └─ migration.sql
+  └─ 20280601000000_uc0_acquisition_provenance_foundation/
+    └─ migration.sql
+  └─ 20280602000000_derived_asset_variant_contract/
+    └─ migration.sql
+  └─ 20280610000000_uc1_direct_web_capture_acquisition_mode/
+    └─ migration.sql
+  └─ 20280620000000_uc1_extension_oauth_codes/
+    └─ migration.sql
+  └─ 20280630000000_uc2_screen_capture_acquisition_mode/
+    └─ migration.sql
+  └─ 20280640000000_uc3_continuous_screen_capture_acquisition_mode/
+    └─ migration.sql
+  └─ 20280650000000_uc4_screen_intelligence/
+    └─ migration.sql
+  └─ 20280660000000_uc5_ios_screen_capture_acquisition_mode/
+    └─ migration.sql
+  └─ 20280670000000_bd2_durable_batch_analysis_jobs/
+    └─ migration.sql
+  └─ 20280680000000_artifact_recovery_progress/
+    └─ migration.sql
+  └─ 20280690000000_billing_storage_attempt_abandoned/
+    └─ migration.sql
+  └─ 20280700000000_billing_checkout_attempts/
+    └─ migration.sql
+  └─ 20280710000000_billing_stripe_attempts_billed_currency/
+    └─ migration.sql
+  └─ 20280720000000_billing_paypal_integrity/
+    └─ migration.sql
+  └─ 20280730000000_evidence_output_lifecycle/
+    └─ migration.sql
+  └─ 20280731000000_evidence_ots_anchor_check/
+    └─ migration.sql
+  └─ 20280801000000_evidence_original_version_id/
+    └─ migration.sql
+  └─ 20280802000000_evidence_tsa_validation/
+    └─ migration.sql
+  └─ 20280803000000_verification_package_seal_identity/
+    └─ migration.sql
+  └─ 20280804000000_custody_chain_transfer_event/
+    └─ migration.sql
+  └─ 20280805000000_custody_append_only/
+    └─ migration.sql
+  └─ 20280806000000_custody_unlock_and_retention_extension/
+    └─ migration.sql
+  └─ 20280807000000_custody_redaction_and_review/
+    └─ migration.sql
+  └─ 20280808000000_custody_retention_policy_applied/
+    └─ migration.sql
+  └─ 20280809000000_worker_sweep_cursors/
+    └─ migration.sql
+  └─ 20280810000000_upload_part_state_hashed/
+    └─ migration.sql
+  └─ 20280811000000_verification_views_anonymize/
+    └─ migration.sql
+  └─ 20280812000000_evidence_completion_fanout_marker/
+    └─ migration.sql
+  └─ 20280812000001_evidence_completion_fanout_backfill/
+    └─ migration.sql
+  └─ 20280813000000_capture_trust_event_chain_unique/
+    └─ migration.sql
+  └─ 20280814000000_evidence_output_earned_fact/
+    └─ migration.sql
+  └─ 20280815000000_integrity_recheck_reconciliation_kinds/
+    └─ migration.sql
+  └─ 20280815000001_evidence_integrity_checks/
+    └─ migration.sql
+  └─ 20280816000000_verification_share_tokens/
+    └─ migration.sql
+  └─ 20280816000001_verification_share_legacy_grace/
+    └─ migration.sql
+  └─ 20280816000002_evidence_unpublished_by_default/
+    └─ migration.sql
+  └─ 20280817000000_governance_policy_audit_nullable_policy/
+    └─ migration.sql
+  └─ email_password_auth/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+[36m[uc1-acceptance][0m seed:signing-key: pnpm --filter proovra-api exec tsx src/seed-signing-key.ts
+Evidence signing public key saved (local-pem (env:SIGNING_PUBLIC_KEY_PATH (resolved to D:\pv-uca\.local-fixture-keys\signing-public.pem))) {
+  id: 'ebb162ef-2c46-486a-bc48-fd4ad678cec0',
+  keyId: 'fixture-local-only-signing-key',
+  version: 1
+}
+Package signing public key saved (mirrors evidence key) {
+  id: '48135a73-92e0-4351-8fe9-69f6ef1a0676',
+  keyId: 'fixture-local-only-package-key',
+  version: 1
+}
+[36m[uc1-acceptance][0m build:shared: pnpm run build:shared
+
+> proovra@1.0.0 build:shared D:\pv-uca
+> pnpm run prisma:generate && pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-runtime build && pnpm --filter @proovra/ui build
+
+
+> proovra@1.0.0 prisma:generate D:\pv-uca
+> pnpm --filter proovra-api prisma:generate
+
+
+> proovra-api@1.0.0 prisma:generate D:\pv-uca\services\api
+> prisma generate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (v7.4.2) to .\..\..\node_modules\.pnpm\@prisma+client@7.4.2_prisma_6f217035126926a7c5f42222be767094\node_modules\@prisma\client in 2.27s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+
+> @proovra/shared@1.0.0 build D:\pv-uca\packages\shared
+> tsc -p tsconfig.build.json
+
+
+> @proovra/shared-evidence-presentation@1.0.0 build D:\pv-uca\packages\shared-evidence-presentation
+> tsc -p tsconfig.build.json
+
+
+> @proovra/shared-billing@1.0.0 build D:\pv-uca\packages\shared-billing
+> pnpm exec tsc -p tsconfig.json
+
+
+> @proovra/shared-runtime@1.0.0 prebuild D:\pv-uca\packages\shared-runtime
+> pnpm run build:deps
+
+
+> @proovra/shared-runtime@1.0.0 build:deps D:\pv-uca\packages\shared-runtime
+> pnpm -w run prisma:generate && pnpm --filter @proovra/shared build
+
+
+> proovra@1.0.0 prisma:generate D:\pv-uca
+> pnpm --filter proovra-api prisma:generate
+
+
+> proovra-api@1.0.0 prisma:generate D:\pv-uca\services\api
+> prisma generate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (v7.4.2) to .\..\..\node_modules\.pnpm\@prisma+client@7.4.2_prisma_6f217035126926a7c5f42222be767094\node_modules\@prisma\client in 2.36s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+
+> @proovra/shared@1.0.0 build D:\pv-uca\packages\shared
+> tsc -p tsconfig.build.json
+
+
+> @proovra/shared-runtime@1.0.0 build D:\pv-uca\packages\shared-runtime
+> pnpm exec tsc -p tsconfig.json
+
+
+> @proovra/ui@1.0.0 build D:\pv-uca\packages\ui
+> tsc -p tsconfig.build.json
+
+[36m[uc1-acceptance][0m build:extension: pnpm --filter @proovra/extension build
+
+> @proovra/extension@1.0.0 prebuild D:\pv-uca\apps\extension
+> pnpm run build:deps
+
+
+> @proovra/extension@1.0.0 build:deps D:\pv-uca\apps\extension
+> pnpm --filter @proovra/shared build
+
+
+> @proovra/shared@1.0.0 build D:\pv-uca\packages\shared
+> tsc -p tsconfig.build.json
+
+
+> @proovra/extension@1.0.0 build D:\pv-uca\apps\extension
+> node build.mjs
+
+extension built: 9 files in dist/
+[36m[uc1-acceptance][0m seeding acceptance user + paid workspace …
+[36m[uc1-acceptance][0m seeded team cade3fca-33ed-499a-9362-cbac45a43616 (user 0c88b8ba-b853-4afe-8c7a-cbe1f8d1b381).
+[36m[uc1-acceptance][0m starting api: pnpm --filter proovra-api dev
+[36m[uc1-acceptance][0m starting worker: pnpm --filter proovra-worker dev
+[36m[uc1-acceptance][0m starting web: pnpm --filter proovra-web exec next dev -p 3311
+[36m[uc1-acceptance][0m starting fixtures: node apps/extension/e2e/fixture-server.mjs
+[36m[uc1-acceptance][0m waiting for API at http://localhost:4000/healthz …
+[90m[fixtures][0m fixture server on http://127.0.0.1:4599
+[90m[api][0m 
+> proovra-api@1.0.0 dev D:\pv-uca\services\api
+> tsx watch src/index.ts
+
+[90m[worker][0m 
+> proovra-worker@1.0.0 dev D:\pv-uca\services\worker
+> tsx watch src/index.ts
+
+[90m[web][0m    ▲ Next.js 15.5.12
+[90m[web][0m    - Local:        http://localhost:3311
+   - Network:      http://192.168.178.52:3311
+
+[90m[web][0m  ✓ Starting...
+[90m[web][0m  ✓ Ready in 1568ms
+[90m[worker][0m {"level":"info","msg":"otel.bootstrap_started","serviceName":"proovra-worker","endpointConfigured":false,"protocol":"http/protobuf"}
+[90m[worker][0m {"level":"info","msg":"otel.bootstrap_disabled","reason":"OTEL_ENABLED not true","defaultServiceName":"proovra-worker"}
+[90m[worker][0m {"level":30,"time":1790803529079,"service":"worker","processor":"report","status":"registered","msg":"worker.processor_registered"}
+[90m[worker][0m {"level":30,"time":1790803529080,"service":"worker","processor":"ots-upgrade","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529080,"service":"worker","processor":"evidence-purge","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529080,"service":"worker","processor":"search-indexing","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529080,"service":"worker","processor":"media-intelligence","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529081,"service":"worker","processor":"derived-assets","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529081,"service":"worker","processor":"redaction-derivative","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529081,"service":"worker","processor":"graph-reconcile","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529081,"service":"worker","processor":"mi-embed","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529082,"service":"worker","processor":"graph-search-projection","status":"registered","msg":"worker.processor_registered"}
+{"level":30,"time":1790803529082,"service":"worker","mode":"disabled","msg":"aws_secrets.disabled"}
+{"level":30,"time":1790803529082,"service":"worker","requestId":"e97ca94e-f279-4d20-8cd8-f198a6aeb2dd","jobs":["GenerateReportJob","ots-upgrade","PurgeDeletedEvidenceJob"],"followUpEnabled":false,"followUpIntervalMs":3600000,"internalApiBase":"http://localhost:4000","msg":"worker.started"}
+{"level":30,"time":1790803529087,"service":"worker","provider":"local-pem","signingKeyId":"fixture-local-only-package-key","signingKeyVersion":"1","msg":"worker.package_signer.validated"}
+{"level":30,"time":1790803529194,"service":"worker","port":4001,"msg":"Worker health server listening"}
+{"level":30,"time":1790803529196,"service":"worker","phase":"startup.object_lock","mode":"disabled","msg":"object_lock.disabled"}
+{"level":30,"time":1790803529197,"service":"worker","intervalMs":3600000,"automaticDestructionEnabled":false,"msg":"trash_grace.reconciler.scheduler.started"}
+{"level":30,"time":1790803529197,"service":"worker","reconciler":"search-index","intervalMs":600000,"startupDelayMs":31948,"msg":"search_index.reconciler.scheduled"}
+{"level":30,"time":1790803529197,"service":"worker","workers":10,"msg":"worker.consumers_started"}
+{"level":30,"time":1790803529197,"service":"worker","requestId":"a7040548-0f24-4ff0-9c96-1e568ae2e784","msg":"followup.scheduler.disabled"}
+{"level":30,"time":1790803529197,"service":"worker","intervalMs":1800000,"msg":"capture.reaper.scheduler.started"}
+{"level":30,"time":1790803529197,"service":"worker","requestId":"8712d4af-84f1-4f26-9a56-2d8b1ebdb1a9","consumer":"capture-reaper","url":"http://localhost:4000/readyz","maxAttempts":12,"msg":"worker.api_readiness.probe_started"}
+{"level":30,"time":1790803529201,"service":"worker","intervalMs":900000,"msg":"evidence.integrity.recheck_scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":21600000,"msg":"orphan.scan.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":300000,"msg":"lifecycle.recovery.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":900000,"msg":"mfa.challenge_gc.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":21600000,"msg":"mfa.recovery_digest.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":900000,"msg":"governance.retention_reconciliation.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":300000,"msg":"governance.destruction_orchestrator.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","msg":"governance.immutable_storage_reconciliation.scheduler.disabled"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":3600000,"msg":"archive.auto_transition.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":5000,"msg":"webhook_dispatcher.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":10000,"msg":"exchange_package_builder.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":300000,"batchSize":200,"maxTeamsPerSweep":500,"msg":"reviewer_ops.reconciliation.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":300000,"batchSize":50,"msg":"org_invite_delivery.sweep.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":60000,"batchSize":25,"msg":"automation_dispatch.sweep.scheduler.started"}
+{"level":30,"time":1790803529203,"service":"worker","heartbeat":true,"workerId":"worker-main","emittedAtUtc":"2026-09-30T21:25:29.203Z","msg":"worker.heartbeat"}
+{"level":30,"time":1790803529203,"service":"worker","intervalMs":30000,"msg":"worker.heartbeat.scheduler.started"}
+{"level":30,"time":1790803529204,"service":"worker","intervalMs":60000,"msg":"worker.queue_health.sampler.started"}
+[90m[worker][0m {"level":30,"time":1790803529394,"service":"worker","ok":true,"source":"ffmpeg-static","ffmpegAvailable":true,"ffprobeAvailable":false,"ffprobePath":null,"msg":"worker.media_tooling.capability"}
+[90m[worker][0m {"level":30,"time":1790803529399,"service":"worker","requestId":"8712d4af-84f1-4f26-9a56-2d8b1ebdb1a9","consumer":"capture-reaper","attempt":1,"attemptLatencyMs":202,"probeError":"fetch failed","msg":"worker.api_readiness.probe_pending"}
+[90m[worker][0m {"level":30,"time":1790803529412,"service":"worker","event":"redis.connection.ready","at":"2026-09-30T21:25:29.412Z","msg":"redis.connection.ready"}
+[90m[api][0m {"level":"info","msg":"otel.bootstrap_started","serviceName":"proovra-api","endpointConfigured":false,"protocol":"http/protobuf"}
+[90m[api][0m {"level":"info","msg":"otel.bootstrap_disabled","reason":"OTEL_ENABLED not true","defaultServiceName":"proovra-api"}
+[90m[worker][0m {"level":30,"time":1790803529436,"service":"worker","queueHealthSample":true,"queues":[{"name":"report","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"report-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"ots-upgrade","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"evidence-purge","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"search-indexing","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"media-intelligence","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"media-intelligence-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"mi-derived-assets","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"redaction-derivative","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"mi-embed","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"graph-reconcile","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"},{"name":"graph-search-projection","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:25:29.203Z"}],"msg":"worker.queue_health.sampled"}
+[90m[worker][0m {"level":30,"time":1790803529890,"service":"worker","requestId":"8712d4af-84f1-4f26-9a56-2d8b1ebdb1a9","consumer":"capture-reaper","attempt":2,"attemptLatencyMs":2,"probeError":"fetch failed","msg":"worker.api_readiness.probe_pending"}
+[90m[api][0m {"level":"warn","event":"ai.provider.unavailable","reason":"PROVIDER_NOT_CONFIGURED","detail":"OPENAI_AI_ENABLED is not 'true' or no API key is available to this process."}
+[90m[api][0m {"level":"warn","event":"ai.provider.unavailable","reason":"PROVIDER_NOT_CONFIGURED","detail":"OPENAI_AI_ENABLED is not 'true' or no API key is available to this process."}
+[90m[api][0m {"level":30,"time":1790803530586,"service":"api","mode":"disabled","msg":"aws_secrets.disabled"}
+[90m[worker][0m {"level":30,"time":1790803530668,"service":"worker","requestId":"8712d4af-84f1-4f26-9a56-2d8b1ebdb1a9","consumer":"capture-reaper","attempt":3,"attemptLatencyMs":2,"probeError":"fetch failed","msg":"worker.api_readiness.probe_pending"}
+[90m[api][0m {"level":30,"time":1790803530586,"service":"api","snapshot":{"nodeEnv":"development","isProduction":false,"database":{"configured":true,"reason":null},"authJwt":{"configured":true,"reason":null},"communications":{"configured":false,"reason":"COMMUNICATIONS_ENABLED_off","twilio":{"configured":false,"reason":"missing:TWILIO_ACCOUNT_SID,TWILIO_API_KEY,TWILIO_API_SECRET"},"verify":{"configured":false,"reason":"TWILIO_VERIFY_SERVICE_SID_missing"},"recipientHashSecret":{"configured":true,"reason":null}},"identitySecurity":{"configured":false,"reason":"IDENTITY_SECURITY_ENABLED_off","hashSecret":{"configured":true,"reason":null}},"notifications":{"configured":false,"reason":"NOTIFICATIONS_ENABLED_off","resend":{"configured":false,"reason":"RESEND_API_KEY_missing"},"idempotencySecret":{"configured":false,"reason":"EMAIL_IDEMPOTENCY_SECRET_missing"}},"ai":{"configured":false,"reason":"OPENAI_AI_ENABLED_off"},"integrations":{"configured":false,"reason":"INTEGRATIONS_ENABLED_off"},"cronSecrets":{"notification":{"configured":false,"reason":"NOTIFICATION_CRON_SECRET_missing"},"integration":{"configured":false,"reason":"INTEGRATION_CRON_SECRET_missing"}}},"msg":"phase20.startup.config_snapshot"}
+{"level":30,"time":1790803530833,"service":"api","phase":"startup.object_lock","mode":"disabled","msg":"object_lock.disabled"}
+[90m[api][0m {"level":30,"time":1790803531134,"service":"api","ranAtUtc":"2026-09-30T21:25:31.134Z","durationMs":301,"checked":109,"msg":"runtime.schema_validation.healthy"}
+[90m[api][0m {"level":30,"time":1790803531138,"service":"api","intervalMs":900000,"startupDelayMs":52323,"msg":"operations_reconciler.scheduled"}
+{"level":30,"time":1790803531140,"service":"api","intervalMs":60000,"startupDelayMs":38288,"msg":"billing_addon_retry.scheduled"}
+{"level":30,"time":1790803531142,"service":"api","intervalMs":3600000,"startupDelayMs":167870,"msg":"billing_reconciler.scheduled"}
+{"level":30,"time":1790803531161,"service":"api","msg":"Server listening at http://127.0.0.1:4000"}
+{"level":30,"time":1790803531161,"service":"api","msg":"Server listening at http://192.168.178.52:4000"}
+{"level":30,"time":1790803531161,"service":"api","msg":"Server listening at http://192.168.0.1:4000"}
+{"level":30,"time":1790803531161,"service":"api","msg":"Server listening at http://172.28.224.1:4000"}
+[36m[uc1-acceptance][0m waiting for API (DB ready) at http://localhost:4000/readyz …
+[90m[api][0m {"level":30,"time":1790803531526,"service":"api","reqId":"b2b8992d-7f46-4602-879d-58b0d648ecad","requestId":"b2b8992d-7f46-4602-879d-58b0d648ecad","requestId":"b2b8992d-7f46-4602-879d-58b0d648ecad","statusCode":200,"method":"GET","url":"/healthz","durationMs":2,"msg":"request.completed"}
+[36m[uc1-acceptance][0m waiting for fixture server at http://127.0.0.1:4599 …
+[90m[api][0m {"level":30,"time":1790803531560,"service":"api","reqId":"9773e9d0-75c0-4449-8771-1ce554fe18e1","requestId":"9773e9d0-75c0-4449-8771-1ce554fe18e1","requestId":"9773e9d0-75c0-4449-8771-1ce554fe18e1","statusCode":200,"method":"GET","url":"/readyz","durationMs":32,"msg":"request.completed"}
+[36m[uc1-acceptance][0m running Playwright acceptance: chromium (grep: UCA_NO_MATCH)
+Error: No tests found
+
+[36m[uc1-acceptance][0m ──────────────── UC-1 ACCEPTANCE RESULT ────────────────
+[36m[uc1-acceptance][0m   chromium   FAIL
+[36m[uc1-acceptance][0m   UC-1 BROWSER ACCEPTANCE PENDING [FAIL]
+[36m[uc1-acceptance][0m --keep-up: leaving processes running. Ctrl-C to stop.
+[90m[api][0m {"level":30,"time":1790803532195,"service":"api","reqId":"058265dd-d81d-4ab7-b27b-3737814303d6","requestId":"058265dd-d81d-4ab7-b27b-3737814303d6","requestId":"058265dd-d81d-4ab7-b27b-3737814303d6","statusCode":200,"method":"GET","url":"/readyz","durationMs":3,"msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803532198,"service":"worker","requestId":"8712d4af-84f1-4f26-9a56-2d8b1ebdb1a9","consumer":"capture-reaper","attempt":4,"attemptLatencyMs":9,"totalLatencyMs":3001,"msg":"worker.api_readiness.probe_ready"}
+{"level":50,"time":1790803532204,"service":"worker","trigger":"startup","correlationId":"742ac33518ea8edfd5d4c080201c2833","msg":"reviewer_reconcile.REVIEWER_OPS_CRON_SECRET / INTEGRATION_CRON_SECRET not configured"}
+{"level":50,"time":1790803532204,"service":"worker","trigger":"startup","correlationId":"c56131fe7c1a7ef929efd282e9490b81","msg":"org_invite_delivery.INTEGRATION_CRON_SECRET not configured"}
+{"level":40,"time":1790803532204,"service":"worker","correlationId":"6e248084de4bc0b7d2262548d4414b81","hasBaseUrl":true,"hasSecret":false,"msg":"automation_dispatch_sweep.not_configured"}
+{"level":30,"time":1790803532225,"service":"worker","requestId":"24c4755b-ea23-43ca-9537-9732e970684b","trigger":"startup","scanned":0,"expired":0,"failed":0,"skipped":0,"msg":"capture.reaper.completed"}
+{"level":30,"time":1790803532234,"service":"worker","sessionsExpired":0,"reservationsReleased":0,"objectDeletesRequested":0,"objectDeletesFailed":0,"failed":0,"scanned":0,"failedIds":[],"trigger":"startup","msg":"capture.reaper.reservations_completed"}
+[90m[worker][0m {"level":30,"time":1790803559203,"service":"worker","heartbeat":true,"workerId":"worker-main","emittedAtUtc":"2026-09-30T21:25:59.203Z","msg":"worker.heartbeat"}
+[90m[worker][0m {"level":30,"time":1790803561169,"service":"worker","reconciler":"search-index","trigger":"startup","ok":true,"scanned":0,"missing":0,"stale":0,"removed":0,"reEnqueued":0,"collapsed":0,"failed":0,"workspacesReconciled":0,"workspacesLocked":0,"workspacesFailed":0,"graph":{"owed":0,"reEnqueued":0,"collapsed":0,"failed":0},"signalProjection":{"owed":0,"reEnqueued":0,"collapsed":0,"failed":0},"durationMs":16,"msg":"worker.search_index.reconciled"}
+[90m[api][0m [api:info] billing.dependent_cancellation.sweep_completed {
+  subjects: 0,
+  attempted: 0,
+  confirmed: 0,
+  failed: 0,
+  escalated: 0,
+  conditionsOpened: 0
+}
+[90m[api][0m {"level":30,"time":1790803574795,"service":"api","reqId":"cf16defc-5eee-470f-9521-7fc8688b9fba","requestId":"cf16defc-5eee-470f-9521-7fc8688b9fba","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"cf16defc-5eee-470f-9521-7fc8688b9fba","statusCode":201,"method":"POST","url":"/v1/workflow/intake-links","durationMs":130,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803574817,"service":"api","reqId":"756cb355-0101-4846-987e-70e94b1c49aa","requestId":"756cb355-0101-4846-987e-70e94b1c49aa","requestId":"756cb355-0101-4846-987e-70e94b1c49aa","statusCode":200,"method":"GET","url":"/v1/external-intake/<intake-token-redacted>","durationMs":16,"msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803574829,"service":"api","reqId":"ae472b4c-2ebb-4c6a-b79a-6a0b6a4cb88e","requestId":"ae472b4c-2ebb-4c6a-b79a-6a0b6a4cb88e","requestId":"ae472b4c-2ebb-4c6a-b79a-6a0b6a4cb88e","statusCode":200,"method":"POST","url":"/v1/external-intake/<intake-token-redacted>/sessions/c5d9859a-1647-4a26-89fc-311c5fd531d1/consent","durationMs":11,"msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803574976,"service":"api","reqId":"7ac1aba5-6e05-4cd0-a698-432a2913cff7","requestId":"7ac1aba5-6e05-4cd0-a698-432a2913cff7","requestId":"7ac1aba5-6e05-4cd0-a698-432a2913cff7","statusCode":201,"method":"POST","url":"/v1/external-intake/<intake-token-redacted>/sessions/c5d9859a-1647-4a26-89fc-311c5fd531d1/parts","durationMs":145,"msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803575149,"service":"worker","requestId":null,"jobId":"ots-upgrade-61589c54-0cbd-4325-9159-c0a2b83a0844","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","attempt":1,"durationMs":null,"status":"started","msg":"ots.upgrade.started"}
+[90m[worker][0m {"level":30,"time":1790803575169,"service":"worker","requestId":"82381bae-5824-42ee-a1d5-130112e731bc","jobId":"ots-upgrade-61589c54-0cbd-4325-9159-c0a2b83a0844","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","attempt":null,"durationMs":null,"status":null,"otsStatus":"DISABLED","msg":"ots.init.completed"}
+[90m[worker][0m {"level":30,"time":1790803575169,"service":"worker","requestId":null,"jobId":"ots-upgrade-61589c54-0cbd-4325-9159-c0a2b83a0844","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","attempt":null,"durationMs":20,"status":"initialized","msg":"ots.upgrade.completed"}
+[90m[worker][0m {"level":30,"time":1790803575171,"service":"worker","requestId":"0c0f482f-1c38-4cc8-9482-2ea29aae62c2","jobId":"ots-upgrade-61589c54-0cbd-4325-9159-c0a2b83a0844","evidenceId":null,"attempt":2,"durationMs":25,"status":"completed","commandId":"61589c54-0cbd-4325-9159-c0a2b83a0844","msg":"ots-upgrade.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803575171,"service":"worker","queueTelemetry":true,"queueName":"ots-upgrade","jobId":"ots-upgrade-61589c54-0cbd-4325-9159-c0a2b83a0844","attempt":2,"durationMs":25,"outcome":"completed","correlationId":"0c0f482f-1c38-4cc8-9482-2ea29aae62c2","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803575187,"service":"worker","requestId":"bf758ad9-93e3-4d58-a7fd-6c0123902f5d","jobId":"report-7b5759d9-e5aa-4c69-ab70-7b5a1c3b31ab","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","attempt":1,"durationMs":null,"status":"started","msg":"GenerateReportJob started"}
+[90m[worker][0m {"level":30,"time":1790803575191,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.61589c54-0cbd-4325-9159-c0a2b83a0844","kind":"evidence","sourceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","reason":"evidence_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803575222,"service":"worker","requestId":"3445d312-31c5-4d41-a5fa-f18672957f00","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"graph-reconcile","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","reason":"evidence_completed","msg":"graph_reconcile.received"}
+[90m[api][0m [api:warn] evidence_complete.graph_reconcile_not_queued {
+  evidenceId: '61589c54-0cbd-4325-9159-c0a2b83a0844',
+  teamId: '2e6138e1-1277-49db-8da0-9a1732ba7268',
+  reason: 'job_already_live',
+  jobId: 'graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268'
+}
+[90m[api][0m {"level":30,"time":1790803575249,"service":"api","reqId":"dd670912-6e70-46cf-8de2-68fa87099712","requestId":"dd670912-6e70-46cf-8de2-68fa87099712","requestId":"dd670912-6e70-46cf-8de2-68fa87099712","statusCode":200,"method":"POST","url":"/v1/external-intake/<intake-token-redacted>/sessions/c5d9859a-1647-4a26-89fc-311c5fd531d1/submit","durationMs":262,"msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803575256,"service":"worker","jobId":"mi-run-7f2d1312-38eb-4c6f-8bf1-04b4a3c7f53b","runId":"7f2d1312-38eb-4c6f-8bf1-04b4a3c7f53b","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"analyze_metadata","signalsEmitted":0,"msg":"media_intelligence.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803575257,"service":"worker","requestId":"a410cd75-4232-4ce3-98fa-4b9a89b149ae","jobId":"mi-run-7f2d1312-38eb-4c6f-8bf1-04b4a3c7f53b","evidenceId":null,"attempt":2,"durationMs":57,"status":"completed","commandId":"7f2d1312-38eb-4c6f-8bf1-04b4a3c7f53b","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803575257,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-7f2d1312-38eb-4c6f-8bf1-04b4a3c7f53b","attempt":2,"durationMs":57,"outcome":"completed","correlationId":"a410cd75-4232-4ce3-98fa-4b9a89b149ae","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803575263,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.61589c54-0cbd-4325-9159-c0a2b83a0844","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"evidence","sourceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":72,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803575263,"service":"worker","requestId":"f9072c41-b1f7-4d03-bb18-1059c544acf3","jobId":"search-index-evidence.61589c54-0cbd-4325-9159-c0a2b83a0844","evidenceId":null,"attempt":2,"durationMs":73,"status":"completed","commandId":"evidence:61589c54-0cbd-4325-9159-c0a2b83a0844","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803575263,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.61589c54-0cbd-4325-9159-c0a2b83a0844","attempt":2,"durationMs":73,"outcome":"completed","correlationId":"f9072c41-b1f7-4d03-bb18-1059c544acf3","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803575273,"service":"worker","jobId":"mi-run-750cd9b3-8b8a-46fd-8168-415c54fa7717","partId":"d5816309-4e3a-48cc-b603-8ed0bdf49aaf","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"media_intelligence.compute_perceptual_hashes.derive_failed"}
+[90m[worker][0m {"level":30,"time":1790803575274,"service":"worker","jobId":"mi-run-750cd9b3-8b8a-46fd-8168-415c54fa7717","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","evidencePartId":null,"partsProcessed":1,"succeeded":0,"msg":"media_intelligence.compute_perceptual_hashes.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803575277,"service":"worker","requestId":"cf05e263-9e6a-4d60-8a05-7c7097de513f","jobId":"mi-run-750cd9b3-8b8a-46fd-8168-415c54fa7717","evidenceId":null,"attempt":2,"durationMs":20,"status":"completed","commandId":"750cd9b3-8b8a-46fd-8168-415c54fa7717","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803575277,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-750cd9b3-8b8a-46fd-8168-415c54fa7717","attempt":2,"durationMs":20,"outcome":"completed","correlationId":"cf05e263-9e6a-4d60-8a05-7c7097de513f","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803575302,"service":"worker","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","ok":true,"nodesUpserted":1,"edgesUpserted":0,"edgesStaled":0,"nodesTombstoned":0,"failures":[],"msg":"graph_reconcile.completed"}
+[90m[worker][0m {"level":30,"time":1790803575302,"service":"worker","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph_reconcile.ocr_transcript_indexer_skipped_not_configured"}
+[90m[worker][0m {"level":30,"time":1790803575307,"service":"worker","requestId":"547c181f-f912-4c2b-abe4-760e01389e37","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":null,"attempt":2,"durationMs":100,"status":"completed","commandId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph-reconcile.job.completed"}
+{"level":30,"time":1790803575307,"service":"worker","queueTelemetry":true,"queueName":"graph-reconcile","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","attempt":2,"durationMs":100,"outcome":"completed","correlationId":"547c181f-f912-4c2b-abe4-760e01389e37","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803575307,"service":"worker","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"technical_metadata.image.sharp_metadata_failed"}
+[90m[worker][0m {"level":30,"time":1790803575312,"service":"worker","requestId":"34873c21-8e67-4681-afcd-1f08752d9643","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"graph-search-projection","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","reason":"graph_reconciled","msg":"graph_search_projection.received"}
+[90m[worker][0m {"level":30,"time":1790803575314,"service":"worker","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","ok":true,"enqueued":0,"msg":"graph_search_projection.completed"}
+[90m[worker][0m {"level":30,"time":1790803575315,"service":"worker","requestId":"1bc51216-5dc2-41bb-9f2a-f3116bf0affa","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":null,"attempt":2,"durationMs":6,"status":"completed","commandId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph-search-projection.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803575315,"service":"worker","queueTelemetry":true,"queueName":"graph-search-projection","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","attempt":2,"durationMs":6,"outcome":"completed","correlationId":"1bc51216-5dc2-41bb-9f2a-f3116bf0affa","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803575317,"service":"worker","jobId":"mi-run-7f69586f-c6ab-4225-b0b0-7ce49b24c3c6","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","partsProcessed":1,"succeeded":1,"msg":"technical_metadata.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803575321,"service":"worker","requestId":"aec26028-f1a5-4d7d-abc9-b409a8d4430a","jobId":"mi-run-7f69586f-c6ab-4225-b0b0-7ce49b24c3c6","evidenceId":null,"attempt":2,"durationMs":44,"status":"completed","commandId":"7f69586f-c6ab-4225-b0b0-7ce49b24c3c6","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803575321,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-7f69586f-c6ab-4225-b0b0-7ce49b24c3c6","attempt":2,"durationMs":44,"outcome":"completed","correlationId":"aec26028-f1a5-4d7d-abc9-b409a8d4430a","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m [report-v2] capture-context build {
+  evidenceId: '61589c54-0cbd-4325-9159-c0a2b83a0844',
+  hasCaptureContext: false,
+  lat: null,
+  lng: null,
+  accuracyMeters: null,
+  mapPreviewPrefix: null,
+  mapPreviewLength: 0,
+  usesSvgFallback: false,
+  usesPngPreview: false
+}
+[90m[api][0m {"level":30,"time":1790803575640,"service":"api","reqId":"142c1c5a-50aa-4a9c-88ba-063ab274226b","requestId":"142c1c5a-50aa-4a9c-88ba-063ab274226b","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","requestId":"142c1c5a-50aa-4a9c-88ba-063ab274226b","statusCode":200,"method":"GET","url":"/v1/evidence/61589c54-0cbd-4325-9159-c0a2b83a0844/artifacts/status","durationMs":40,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","msg":"request.completed"}
+[90m[worker][0m [report-v2] capture-context build {
+  evidenceId: '61589c54-0cbd-4325-9159-c0a2b83a0844',
+  hasCaptureContext: false,
+  lat: null,
+  lng: null,
+  accuracyMeters: null,
+  mapPreviewPrefix: null,
+  mapPreviewLength: 0,
+  usesSvgFallback: false,
+  usesPngPreview: false
+}
+[90m[worker][0m {"level":30,"time":1790803580017,"service":"worker","requestId":"bf758ad9-93e3-4d58-a7fd-6c0123902f5d","jobId":"report-7b5759d9-e5aa-4c69-ab70-7b5a1c3b31ab","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","attempt":1,"durationMs":4830,"status":"completed","forceRegenerate":false,"regenerateReason":null,"effectivePlan":"ENTERPRISE","msg":"GenerateReportJob completed"}
+[90m[worker][0m {"level":30,"time":1790803580024,"service":"worker","requestId":"328e75f2-e9cb-44fd-a431-e919c1b7fbaa","jobId":"report-7b5759d9-e5aa-4c69-ab70-7b5a1c3b31ab","evidenceId":null,"attempt":2,"durationMs":4850,"status":"completed","commandId":"7b5759d9-e5aa-4c69-ab70-7b5a1c3b31ab","msg":"report.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803580024,"service":"worker","queueTelemetry":true,"queueName":"report","jobId":"report-7b5759d9-e5aa-4c69-ab70-7b5a1c3b31ab","attempt":2,"durationMs":4850,"outcome":"completed","correlationId":"328e75f2-e9cb-44fd-a431-e919c1b7fbaa","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803580691,"service":"api","reqId":"2e82d2f7-c84a-4464-a2f1-af2b33076418","requestId":"2e82d2f7-c84a-4464-a2f1-af2b33076418","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","requestId":"2e82d2f7-c84a-4464-a2f1-af2b33076418","statusCode":200,"method":"GET","url":"/v1/evidence/61589c54-0cbd-4325-9159-c0a2b83a0844/artifacts/status","durationMs":39,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","msg":"request.completed"}
+[90m[api][0m {"level":40,"time":1790803580702,"service":"api","reqId":"0502795c-a9c4-4426-b0c5-90d37946da0a","requestId":"0502795c-a9c4-4426-b0c5-90d37946da0a","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"0502795c-a9c4-4426-b0c5-90d37946da0a","statusCode":401,"method":"POST","url":"/v1/evidence/61589c54-0cbd-4325-9159-c0a2b83a0844/verify-links","durationMs":9,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed.business_error"}
+[90m[api][0m {"level":30,"time":1790803580712,"service":"api","reqId":"4aefe6e6-e55f-4437-9e58-22a170883088","requestId":"4aefe6e6-e55f-4437-9e58-22a170883088","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"4aefe6e6-e55f-4437-9e58-22a170883088","statusCode":200,"method":"POST","url":"/v1/identity/mfa/enroll/start","durationMs":9,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803580968,"service":"api","reqId":"16c8d056-a477-40d4-8f98-c2b80fffe970","requestId":"16c8d056-a477-40d4-8f98-c2b80fffe970","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"16c8d056-a477-40d4-8f98-c2b80fffe970","statusCode":200,"method":"POST","url":"/v1/identity/mfa/enroll/verify","durationMs":255,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m [api:info] operations.reconcile.derived_intelligence {
+  workspaceId: 'cade3fca-33ed-499a-9362-cbac45a43616',
+  trigger: 'startup',
+  correlations: 0,
+  workflows: 0,
+  causality: 0,
+  healthSnapshot: true,
+  reviewerCapacity: true,
+  operationalGraph: true
+}
+[90m[api][0m [api:info] operations.reconcile.derived_intelligence {
+  workspaceId: '2e6138e1-1277-49db-8da0-9a1732ba7268',
+  trigger: 'startup',
+  correlations: 0,
+  workflows: 0,
+  causality: 0,
+  healthSnapshot: true,
+  reviewerCapacity: true,
+  operationalGraph: true
+}
+[90m[api][0m [api:info] operations.reconcile.derived_intelligence {
+  workspaceId: '9f9c957e-e378-4b6d-ac9b-eae9cecc7496',
+  trigger: 'startup',
+  correlations: 0,
+  workflows: 0,
+  causality: 0,
+  healthSnapshot: true,
+  reviewerCapacity: true,
+  operationalGraph: true
+}
+[90m[api][0m [api:info] operations.reconcile.derived_intelligence {
+  workspaceId: '5cf65b22-0a8f-424d-879f-25bd0b4772ed',
+  trigger: 'startup',
+  correlations: 0,
+  workflows: 0,
+  causality: 0,
+  healthSnapshot: true,
+  reviewerCapacity: true,
+  operationalGraph: true
+}
+[90m[worker][0m {"level":30,"time":1790803589206,"service":"worker","heartbeat":true,"workerId":"worker-main","emittedAtUtc":"2026-09-30T21:26:29.206Z","msg":"worker.heartbeat"}
+[90m[worker][0m {"level":40,"time":1790803589207,"service":"worker","correlationId":"26b73452dc6b389e457be8a30b9cdfa4","hasBaseUrl":true,"hasSecret":false,"msg":"automation_dispatch_sweep.not_configured"}
+{"level":30,"time":1790803589208,"service":"worker","queueHealthSample":true,"queues":[{"name":"report","waiting":0,"active":0,"delayed":0,"completed":1,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"report-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"ots-upgrade","waiting":0,"active":0,"delayed":0,"completed":1,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"evidence-purge","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"search-indexing","waiting":0,"active":0,"delayed":0,"completed":1,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"media-intelligence","waiting":0,"active":0,"delayed":0,"completed":3,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"media-intelligence-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"mi-derived-assets","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"redaction-derivative","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"mi-embed","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"graph-reconcile","waiting":0,"active":0,"delayed":0,"completed":1,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"},{"name":"graph-search-projection","waiting":0,"active":0,"delayed":0,"completed":1,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:26:29.205Z"}],"msg":"worker.queue_health.sampled"}
+[90m[api][0m [api:info] billing.dependent_cancellation.sweep_completed {
+  subjects: 0,
+  attempted: 0,
+  confirmed: 0,
+  failed: 0,
+  escalated: 0,
+  conditionsOpened: 0
+}
+[90m[api][0m {"level":30,"time":1790803612018,"service":"api","reqId":"365d8c6a-6a21-453f-8ca3-1767d0199a31","requestId":"365d8c6a-6a21-453f-8ca3-1767d0199a31","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"365d8c6a-6a21-453f-8ca3-1767d0199a31","statusCode":200,"method":"POST","url":"/v1/identity-security/step-up/start","durationMs":48,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612043,"service":"api","reqId":"703ebfa8-9fff-41d9-a504-b77cb52749bc","requestId":"703ebfa8-9fff-41d9-a504-b77cb52749bc","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"703ebfa8-9fff-41d9-a504-b77cb52749bc","statusCode":200,"method":"POST","url":"/v1/identity-security/step-up/check","durationMs":24,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612091,"service":"api","reqId":"b54655ac-73c3-4c1b-abbf-3261ec748369","requestId":"b54655ac-73c3-4c1b-abbf-3261ec748369","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"b54655ac-73c3-4c1b-abbf-3261ec748369","statusCode":201,"method":"POST","url":"/v1/evidence/61589c54-0cbd-4325-9159-c0a2b83a0844/verify-links","durationMs":46,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612136,"service":"api","reqId":"c5b6ca15-3331-4f77-98f8-ad37baf8b2a4","requestId":"c5b6ca15-3331-4f77-98f8-ad37baf8b2a4","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","reason":"default_redacted","redacted":["submittedByEmail","workspaceName","organizationName"],"msg":"public_verify.identity_redacted"}
+[90m[api][0m {"level":30,"time":1790803612199,"service":"api","reqId":"c5b6ca15-3331-4f77-98f8-ad37baf8b2a4","requestId":"c5b6ca15-3331-4f77-98f8-ad37baf8b2a4","evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","requestId":"c5b6ca15-3331-4f77-98f8-ad37baf8b2a4","statusCode":200,"method":"GET","url":"/public/verify/pvs_<redacted>","durationMs":106,"evidenceId":"61589c54-0cbd-4325-9159-c0a2b83a0844","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612220,"service":"api","reqId":"75a88103-5949-44de-b425-8ea7078ffc5c","requestId":"75a88103-5949-44de-b425-8ea7078ffc5c","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"75a88103-5949-44de-b425-8ea7078ffc5c","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions","durationMs":20,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612288,"service":"api","reqId":"e83828e8-c077-4a7a-b105-239a2692f083","requestId":"e83828e8-c077-4a7a-b105-239a2692f083","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"e83828e8-c077-4a7a-b105-239a2692f083","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions/21293fac-5f17-4275-a5f4-c5532e98cf40/evidence","durationMs":67,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612316,"service":"api","reqId":"b16c5678-1ce1-48df-974f-af0fde372088","requestId":"b16c5678-1ce1-48df-974f-af0fde372088","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"b16c5678-1ce1-48df-974f-af0fde372088","statusCode":201,"method":"POST","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/parts","durationMs":27,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612357,"service":"api","reqId":"b2855cbe-0217-44f8-a640-9f948652dd31","requestId":"b2855cbe-0217-44f8-a640-9f948652dd31","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"b2855cbe-0217-44f8-a640-9f948652dd31","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions/21293fac-5f17-4275-a5f4-c5532e98cf40/parts/0/declaration","durationMs":27,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612387,"service":"api","reqId":"7aeb3b49-1268-4e76-b69e-22f5a479df57","requestId":"7aeb3b49-1268-4e76-b69e-22f5a479df57","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"7aeb3b49-1268-4e76-b69e-22f5a479df57","statusCode":201,"method":"POST","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/parts","durationMs":29,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612418,"service":"api","reqId":"9edbacc7-2f34-466e-8b6e-49a148a6fa85","requestId":"9edbacc7-2f34-466e-8b6e-49a148a6fa85","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"9edbacc7-2f34-466e-8b6e-49a148a6fa85","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions/21293fac-5f17-4275-a5f4-c5532e98cf40/parts/1/declaration","durationMs":21,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612441,"service":"api","reqId":"0cc4e44c-8446-4463-9ee0-2eaebd9aacce","requestId":"0cc4e44c-8446-4463-9ee0-2eaebd9aacce","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"0cc4e44c-8446-4463-9ee0-2eaebd9aacce","statusCode":201,"method":"POST","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/parts","durationMs":23,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803612468,"service":"api","reqId":"10684ca7-8352-45ed-bb76-c44f0bd8ceff","requestId":"10684ca7-8352-45ed-bb76-c44f0bd8ceff","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"10684ca7-8352-45ed-bb76-c44f0bd8ceff","statusCode":201,"method":"POST","url":"/v1/capture/direct-sessions/21293fac-5f17-4275-a5f4-c5532e98cf40/parts/2/declaration","durationMs":19,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803612605,"service":"worker","requestId":null,"jobId":"ots-upgrade-22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":1,"durationMs":null,"status":"started","msg":"ots.upgrade.started"}
+[90m[worker][0m {"level":30,"time":1790803612618,"service":"worker","requestId":"8cf2ae61-8fd8-4e9e-b8a4-1da9ef3681e3","jobId":"ots-upgrade-22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":null,"durationMs":null,"status":null,"otsStatus":"DISABLED","msg":"ots.init.completed"}
+[90m[worker][0m {"level":30,"time":1790803612618,"service":"worker","requestId":null,"jobId":"ots-upgrade-22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":null,"durationMs":13,"status":"initialized","msg":"ots.upgrade.completed"}
+[90m[worker][0m {"level":30,"time":1790803612619,"service":"worker","requestId":"b347e20b-b1e9-4a2e-921d-3c42b633b6d4","jobId":"ots-upgrade-22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":null,"attempt":2,"durationMs":15,"status":"completed","commandId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"ots-upgrade.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803612619,"service":"worker","queueTelemetry":true,"queueName":"ots-upgrade","jobId":"ots-upgrade-22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":2,"durationMs":15,"outcome":"completed","correlationId":"b347e20b-b1e9-4a2e-921d-3c42b633b6d4","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803612633,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","reason":"evidence_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803612636,"service":"worker","requestId":"859f96f7-458b-4c59-b1ad-bf4af60870ef","jobId":"report-7c8b204e-7b9f-4d14-b418-e4193af170ff","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":1,"durationMs":null,"status":"started","msg":"GenerateReportJob started"}
+[90m[api][0m [api:warn] evidence_complete.graph_reconcile_not_queued {
+  evidenceId: '22926261-28f8-44a6-b9ed-44f77118c7ae',
+  teamId: '2e6138e1-1277-49db-8da0-9a1732ba7268',
+  reason: 'job_already_live',
+  jobId: 'graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268'
+}
+[90m[worker][0m {"level":30,"time":1790803612654,"service":"worker","requestId":"9de4e208-3cd8-4b1d-a680-2ce3b0b852bf","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"graph-reconcile","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","reason":"evidence_completed","msg":"graph_reconcile.received"}
+[90m[worker][0m {"level":30,"time":1790803612676,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":43,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803612677,"service":"worker","requestId":"391ac051-8c6c-4bcb-9980-d5ca0f6d8c7d","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":null,"attempt":2,"durationMs":44,"status":"completed","commandId":"evidence:22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803612677,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":2,"durationMs":44,"outcome":"completed","correlationId":"391ac051-8c6c-4bcb-9980-d5ca0f6d8c7d","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803612678,"service":"api","reqId":"d93694e7-2e10-41d1-87fa-8a1b1199f851","requestId":"d93694e7-2e10-41d1-87fa-8a1b1199f851","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"d93694e7-2e10-41d1-87fa-8a1b1199f851","statusCode":200,"method":"POST","url":"/v1/capture/direct-sessions/21293fac-5f17-4275-a5f4-c5532e98cf40/continuous-complete","durationMs":209,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803612690,"service":"worker","jobId":"mi-run-a850aa47-9ab1-483d-b582-7a9ec04dd687","runId":"a850aa47-9ab1-483d-b582-7a9ec04dd687","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"analyze_metadata","signalsEmitted":2,"msg":"media_intelligence.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803612692,"service":"worker","requestId":"70f485ff-5c61-41a5-ab9e-032669bd931e","jobId":"mi-run-a850aa47-9ab1-483d-b582-7a9ec04dd687","evidenceId":null,"attempt":2,"durationMs":53,"status":"completed","commandId":"a850aa47-9ab1-483d-b582-7a9ec04dd687","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803612692,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-a850aa47-9ab1-483d-b582-7a9ec04dd687","attempt":2,"durationMs":53,"outcome":"completed","correlationId":"70f485ff-5c61-41a5-ab9e-032669bd931e","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803612703,"service":"api","reqId":"2b721f23-96b6-47b1-846d-7066dd5cd883","requestId":"2b721f23-96b6-47b1-846d-7066dd5cd883","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"2b721f23-96b6-47b1-846d-7066dd5cd883","statusCode":200,"method":"GET","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/artifacts/status","durationMs":24,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803612723,"service":"worker","jobId":"mi-run-5c9b19a0-7c99-4760-a12a-dd4c0e3468cb","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","partsProcessed":3,"succeeded":3,"msg":"technical_metadata.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803612727,"service":"worker","requestId":"df2aaec6-8410-4613-afaf-38e6fcca541e","jobId":"mi-run-5c9b19a0-7c99-4760-a12a-dd4c0e3468cb","evidenceId":null,"attempt":2,"durationMs":36,"status":"completed","commandId":"5c9b19a0-7c99-4760-a12a-dd4c0e3468cb","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803612727,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-5c9b19a0-7c99-4760-a12a-dd4c0e3468cb","attempt":2,"durationMs":36,"outcome":"completed","correlationId":"df2aaec6-8410-4613-afaf-38e6fcca541e","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803612745,"service":"worker","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","ok":true,"nodesUpserted":6,"edgesUpserted":4,"edgesStaled":0,"nodesTombstoned":0,"failures":[],"msg":"graph_reconcile.completed"}
+[90m[worker][0m {"level":30,"time":1790803612746,"service":"worker","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph_reconcile.ocr_transcript_indexer_skipped_not_configured"}
+[90m[worker][0m {"level":30,"time":1790803612747,"service":"worker","requestId":"ffa26e55-99a2-49bc-86a9-3af65c9f9691","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":null,"attempt":2,"durationMs":105,"status":"completed","commandId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph-reconcile.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803612747,"service":"worker","queueTelemetry":true,"queueName":"graph-reconcile","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","attempt":2,"durationMs":105,"outcome":"completed","correlationId":"ffa26e55-99a2-49bc-86a9-3af65c9f9691","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803612753,"service":"worker","requestId":"f1c8ca74-de8c-4fc6-87d5-86773aae28e1","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"graph-search-projection","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","reason":"graph_reconciled","msg":"graph_search_projection.received"}
+[90m[worker][0m {"level":30,"time":1790803612758,"service":"worker","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","ok":true,"enqueued":1,"msg":"graph_search_projection.completed"}
+[90m[worker][0m {"level":30,"time":1790803612758,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","reason":"graph_search_projection_sync","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803612760,"service":"worker","requestId":"eaa8136e-6988-4baa-9269-2c86ee6f4a84","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":null,"attempt":2,"durationMs":9,"status":"completed","commandId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph-search-projection.job.completed"}
+{"level":30,"time":1790803612760,"service":"worker","queueTelemetry":true,"queueName":"graph-search-projection","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","attempt":2,"durationMs":9,"outcome":"completed","correlationId":"eaa8136e-6988-4baa-9269-2c86ee6f4a84","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803612774,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":16,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803612774,"service":"worker","requestId":"86d071e5-2e7f-4b69-813f-8751b93ad622","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":null,"attempt":2,"durationMs":17,"status":"completed","commandId":"evidence:22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803612774,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":2,"durationMs":17,"outcome":"completed","correlationId":"86d071e5-2e7f-4b69-813f-8751b93ad622","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m [report-v2] capture-context build {
+  evidenceId: '22926261-28f8-44a6-b9ed-44f77118c7ae',
+  hasCaptureContext: false,
+  lat: null,
+  lng: null,
+  accuracyMeters: null,
+  mapPreviewPrefix: null,
+  mapPreviewLength: 0,
+  usesSvgFallback: false,
+  usesPngPreview: false
+}
+[90m[worker][0m [report-v2] capture-context build {
+  evidenceId: '22926261-28f8-44a6-b9ed-44f77118c7ae',
+  hasCaptureContext: false,
+  lat: null,
+  lng: null,
+  accuracyMeters: null,
+  mapPreviewPrefix: null,
+  mapPreviewLength: 0,
+  usesSvgFallback: false,
+  usesPngPreview: false
+}
+[90m[api][0m {"level":30,"time":1790803617735,"service":"api","reqId":"e550b9a4-4b4d-4fdd-b1fc-d16f295a8cbf","requestId":"e550b9a4-4b4d-4fdd-b1fc-d16f295a8cbf","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"e550b9a4-4b4d-4fdd-b1fc-d16f295a8cbf","statusCode":200,"method":"GET","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/artifacts/status","durationMs":28,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803618283,"service":"worker","requestId":"859f96f7-458b-4c59-b1ad-bf4af60870ef","jobId":"report-7c8b204e-7b9f-4d14-b418-e4193af170ff","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":1,"durationMs":5647,"status":"completed","forceRegenerate":false,"regenerateReason":null,"effectivePlan":"ENTERPRISE","msg":"GenerateReportJob completed"}
+[90m[worker][0m {"level":50,"time":1790803618290,"service":"worker","requestId":"c7a99dfb-8a06-465e-9f9b-b238b78cb601","err":{"type":"Error","message":"Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToFinished","stack":"Error: Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToFinished\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToFinished (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:786:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:747:24)\n    at async Worker.handleCompleted (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1076:25)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1005:18)","code":-2},"jobKind":"report","msg":"report.worker.error"}
+[90m[worker][0m {"level":50,"time":1790803618298,"service":"worker","alert":true,"severity":"critical","requestId":"c7a99dfb-8a06-465e-9f9b-b238b78cb601","reason":"report_worker_runtime_error","err":{"type":"Error","message":"Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToFinished","stack":"Error: Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToFinished\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToFinished (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:786:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:747:24)\n    at async Worker.handleCompleted (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1076:25)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1005:18)","code":-2},"msg":"operational.alert"}
+[90m[worker][0m {"level":50,"time":1790803618300,"service":"worker","requestId":"e705f9ea-7167-4f23-92f2-5ea1c2c87db3","err":{"type":"Error","message":"Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToDelayed","stack":"Error: Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToDelayed\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToDelayed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1222:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:839:22)\n    at async Worker.handleFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1127:22)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1023:26)","code":-2},"jobKind":"report","msg":"report.worker.error"}
+[90m[worker][0m {"level":50,"time":1790803618300,"service":"worker","alert":true,"severity":"critical","requestId":"e705f9ea-7167-4f23-92f2-5ea1c2c87db3","reason":"report_worker_runtime_error","err":{"type":"Error","message":"Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToDelayed","stack":"Error: Missing lock for job report-7c8b204e-7b9f-4d14-b418-e4193af170ff. moveToDelayed\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToDelayed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1222:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:839:22)\n    at async Worker.handleFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1127:22)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1023:26)","code":-2},"msg":"operational.alert"}
+[90m[worker][0m {"level":30,"time":1790803619216,"service":"worker","heartbeat":true,"workerId":"worker-main","emittedAtUtc":"2026-09-30T21:26:59.216Z","msg":"worker.heartbeat"}
+[90m[api][0m {"level":30,"time":1790803622799,"service":"api","reqId":"fc2fc6f0-ef1c-442d-97b9-deb52022a0d1","requestId":"fc2fc6f0-ef1c-442d-97b9-deb52022a0d1","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"fc2fc6f0-ef1c-442d-97b9-deb52022a0d1","statusCode":200,"method":"GET","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/artifacts/status","durationMs":49,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803622847,"service":"api","reqId":"999e6eed-49a6-4045-85d4-6f35dc01a398","requestId":"999e6eed-49a6-4045-85d4-6f35dc01a398","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"999e6eed-49a6-4045-85d4-6f35dc01a398","statusCode":200,"method":"GET","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/report/latest","durationMs":47,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[api][0m {"level":40,"time":1790803622858,"service":"api","reqId":"0034b7b7-a9e4-4c48-bf2f-93967bba036a","requestId":"0034b7b7-a9e4-4c48-bf2f-93967bba036a","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"0034b7b7-a9e4-4c48-bf2f-93967bba036a","statusCode":401,"method":"POST","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/verify-links","durationMs":10,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed.business_error"}
+[90m[api][0m {"level":30,"time":1790803622874,"service":"api","reqId":"206b5846-f8fe-4488-b676-b12ebf8d3c89","requestId":"206b5846-f8fe-4488-b676-b12ebf8d3c89","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"206b5846-f8fe-4488-b676-b12ebf8d3c89","statusCode":200,"method":"POST","url":"/v1/identity-security/step-up/start","durationMs":16,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803622893,"service":"api","reqId":"abb14c1d-3917-4b50-a56b-b2dc692151cb","requestId":"abb14c1d-3917-4b50-a56b-b2dc692151cb","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"abb14c1d-3917-4b50-a56b-b2dc692151cb","statusCode":200,"method":"POST","url":"/v1/identity-security/step-up/check","durationMs":18,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803622930,"service":"api","reqId":"82d4c4da-6404-4ac0-8668-c70192fc908d","requestId":"82d4c4da-6404-4ac0-8668-c70192fc908d","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"82d4c4da-6404-4ac0-8668-c70192fc908d","statusCode":201,"method":"POST","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/verify-links","durationMs":36,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803622968,"service":"api","reqId":"f5c03194-0637-48b4-a279-e11a4270dead","requestId":"f5c03194-0637-48b4-a279-e11a4270dead","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","reason":"default_redacted","redacted":["submittedByEmail","workspaceName","organizationName"],"msg":"public_verify.identity_redacted"}
+[90m[api][0m {"level":30,"time":1790803623005,"service":"api","reqId":"f5c03194-0637-48b4-a279-e11a4270dead","requestId":"f5c03194-0637-48b4-a279-e11a4270dead","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"f5c03194-0637-48b4-a279-e11a4270dead","statusCode":200,"method":"GET","url":"/public/verify/pvs_<redacted>","durationMs":74,"evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803623788,"service":"api","reqId":"c39b500f-c4ab-4f3c-b2d2-75898387bc6c","requestId":"c39b500f-c4ab-4f3c-b2d2-75898387bc6c","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"c39b500f-c4ab-4f3c-b2d2-75898387bc6c","statusCode":202,"method":"POST","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/derived-review/generate","durationMs":17,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803624035,"service":"worker","requestId":"eedc9cfe-def4-4a52-875a-941858146814","jobId":"mi-run-36ce540e-bd7b-405c-966e-b72c2f5d98bd","runId":"36ce540e-bd7b-405c-966e-b72c2f5d98bd","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","coverage":"PARTIAL","ocrEnabled":false,"keyframeCount":4,"blockCount":0,"observationCount":0,"derivedBytes":15078,"msg":"screen_intelligence.completed"}
+[90m[worker][0m {"level":30,"time":1790803624036,"service":"worker","requestId":"8061b5c9-7477-4642-918c-2a47f8205871","jobId":"mi-run-36ce540e-bd7b-405c-966e-b72c2f5d98bd","evidenceId":null,"attempt":2,"durationMs":249,"status":"completed","commandId":"36ce540e-bd7b-405c-966e-b72c2f5d98bd","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803624036,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-36ce540e-bd7b-405c-966e-b72c2f5d98bd","attempt":2,"durationMs":249,"outcome":"completed","correlationId":"8061b5c9-7477-4642-918c-2a47f8205871","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803624038,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","reason":"screen_reconstruction_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803624051,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":13,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803624051,"service":"worker","requestId":"0d583eb7-6c5b-4ca7-b85a-40ff2d11ca02","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":null,"attempt":2,"durationMs":15,"status":"completed","commandId":"evidence:22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803624051,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":2,"durationMs":15,"outcome":"completed","correlationId":"0d583eb7-6c5b-4ca7-b85a-40ff2d11ca02","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803628839,"service":"api","reqId":"098ddb95-7952-4f92-b62e-5181acc88aa4","requestId":"098ddb95-7952-4f92-b62e-5181acc88aa4","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"098ddb95-7952-4f92-b62e-5181acc88aa4","statusCode":200,"method":"GET","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/derived-review?teamId=2e6138e1-1277-49db-8da0-9a1732ba7268","durationMs":38,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803629316,"service":"api","reqId":"04143750-93ce-4238-8e9b-d3beaed649fb","requestId":"04143750-93ce-4238-8e9b-d3beaed649fb","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"04143750-93ce-4238-8e9b-d3beaed649fb","statusCode":202,"method":"POST","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/derived-review/generate","durationMs":11,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803629318,"service":"worker","requestId":"f2219a73-4480-493b-9d03-a2206c70a509","jobId":"mi-run-36ce540e-bd7b-405c-966e-b72c2f5d98bd","runId":"36ce540e-bd7b-405c-966e-b72c2f5d98bd","status":"COMPLETED","msg":"media_intelligence.replay_noop"}
+[90m[worker][0m {"level":30,"time":1790803629318,"service":"worker","requestId":"47f58b85-0153-4152-a7cf-7727d04b9b1a","jobId":"mi-run-36ce540e-bd7b-405c-966e-b72c2f5d98bd","evidenceId":null,"attempt":2,"durationMs":2,"status":"completed","commandId":"36ce540e-bd7b-405c-966e-b72c2f5d98bd","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803629318,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-36ce540e-bd7b-405c-966e-b72c2f5d98bd","attempt":2,"durationMs":2,"outcome":"completed","correlationId":"47f58b85-0153-4152-a7cf-7727d04b9b1a","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803639671,"service":"api","reqId":"310d1075-d30e-4a79-9d14-579e94bcaa83","requestId":"310d1075-d30e-4a79-9d14-579e94bcaa83","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","requestId":"310d1075-d30e-4a79-9d14-579e94bcaa83","statusCode":201,"method":"POST","url":"/v1/evidence","durationMs":104,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803639698,"service":"api","reqId":"8da48df1-0656-4ad3-9f27-553cf0fb9d98","requestId":"8da48df1-0656-4ad3-9f27-553cf0fb9d98","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","requestId":"8da48df1-0656-4ad3-9f27-553cf0fb9d98","statusCode":201,"method":"POST","url":"/v1/evidence/68116a0b-ba54-423c-8b86-6c0f712633a1/parts","durationMs":27,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803639820,"service":"worker","requestId":null,"jobId":"ots-upgrade-68116a0b-ba54-423c-8b86-6c0f712633a1","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","attempt":1,"durationMs":null,"status":"started","msg":"ots.upgrade.started"}
+[90m[worker][0m {"level":30,"time":1790803639830,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.68116a0b-ba54-423c-8b86-6c0f712633a1","kind":"evidence","sourceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","reason":"evidence_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803639832,"service":"worker","requestId":"49f679c1-7a72-464f-9f94-8cddc9806c52","jobId":"ots-upgrade-68116a0b-ba54-423c-8b86-6c0f712633a1","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","attempt":null,"durationMs":null,"status":null,"otsStatus":"DISABLED","msg":"ots.init.completed"}
+[90m[worker][0m {"level":30,"time":1790803639832,"service":"worker","requestId":null,"jobId":"ots-upgrade-68116a0b-ba54-423c-8b86-6c0f712633a1","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","attempt":null,"durationMs":12,"status":"initialized","msg":"ots.upgrade.completed"}
+[90m[worker][0m {"level":30,"time":1790803639833,"service":"worker","requestId":"663934e4-5a1e-4abc-9212-94f16329e2a6","jobId":"ots-upgrade-68116a0b-ba54-423c-8b86-6c0f712633a1","evidenceId":null,"attempt":2,"durationMs":13,"status":"completed","commandId":"68116a0b-ba54-423c-8b86-6c0f712633a1","msg":"ots-upgrade.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803639833,"service":"worker","queueTelemetry":true,"queueName":"ots-upgrade","jobId":"ots-upgrade-68116a0b-ba54-423c-8b86-6c0f712633a1","attempt":2,"durationMs":13,"outcome":"completed","correlationId":"663934e4-5a1e-4abc-9212-94f16329e2a6","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803639850,"service":"worker","requestId":"a5f932b0-8244-436d-aff6-fa022700bfcd","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"graph-reconcile","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","reason":"evidence_completed","msg":"graph_reconcile.received"}
+[90m[worker][0m {"level":30,"time":1790803639859,"service":"worker","jobId":"mi-run-8ecff625-4704-47ed-863b-fc0029aff391","runId":"8ecff625-4704-47ed-863b-fc0029aff391","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"analyze_metadata","signalsEmitted":0,"msg":"media_intelligence.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803639860,"service":"worker","requestId":"b3287c80-4d59-47f5-8e78-678976e21774","jobId":"mi-run-8ecff625-4704-47ed-863b-fc0029aff391","evidenceId":null,"attempt":2,"durationMs":24,"status":"completed","commandId":"8ecff625-4704-47ed-863b-fc0029aff391","msg":"media-intelligence.job.completed"}
+[90m[api][0m [api:warn] evidence_complete.graph_reconcile_not_queued {
+  evidenceId: '68116a0b-ba54-423c-8b86-6c0f712633a1',
+  teamId: '5cf65b22-0a8f-424d-879f-25bd0b4772ed',
+  reason: 'job_already_live',
+  jobId: 'graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed'
+}
+[90m[worker][0m {"level":30,"time":1790803639860,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-8ecff625-4704-47ed-863b-fc0029aff391","attempt":2,"durationMs":24,"outcome":"completed","correlationId":"b3287c80-4d59-47f5-8e78-678976e21774","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803639862,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.68116a0b-ba54-423c-8b86-6c0f712633a1","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"evidence","sourceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":32,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803639862,"service":"worker","requestId":"135dffab-913c-4840-b849-6681a241c6c6","jobId":"search-index-evidence.68116a0b-ba54-423c-8b86-6c0f712633a1","evidenceId":null,"attempt":2,"durationMs":33,"status":"completed","commandId":"evidence:68116a0b-ba54-423c-8b86-6c0f712633a1","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803639862,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.68116a0b-ba54-423c-8b86-6c0f712633a1","attempt":2,"durationMs":33,"outcome":"completed","correlationId":"135dffab-913c-4840-b849-6681a241c6c6","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803639883,"service":"worker","jobId":"mi-run-a4a104d2-013e-4715-8be4-ac1425aa0e09","partId":"9bd44838-cd79-4fea-b93c-df3954724308","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"media_intelligence.compute_perceptual_hashes.derive_failed"}
+[90m[worker][0m {"level":30,"time":1790803639884,"service":"worker","jobId":"mi-run-a4a104d2-013e-4715-8be4-ac1425aa0e09","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","evidencePartId":null,"partsProcessed":1,"succeeded":0,"msg":"media_intelligence.compute_perceptual_hashes.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803639887,"service":"worker","requestId":"2568c014-9b58-4ac8-b22f-fe6d9d90910d","jobId":"mi-run-a4a104d2-013e-4715-8be4-ac1425aa0e09","evidenceId":null,"attempt":2,"durationMs":27,"status":"completed","commandId":"a4a104d2-013e-4715-8be4-ac1425aa0e09","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803639887,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-a4a104d2-013e-4715-8be4-ac1425aa0e09","attempt":2,"durationMs":27,"outcome":"completed","correlationId":"2568c014-9b58-4ac8-b22f-fe6d9d90910d","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803639896,"service":"worker","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","ok":true,"nodesUpserted":1,"edgesUpserted":0,"edgesStaled":0,"nodesTombstoned":0,"failures":[],"msg":"graph_reconcile.completed"}
+[90m[worker][0m {"level":30,"time":1790803639896,"service":"worker","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph_reconcile.ocr_transcript_indexer_skipped_not_configured"}
+[90m[worker][0m {"level":30,"time":1790803639897,"service":"worker","requestId":"9e772eea-25ad-488d-8911-0bd39168efab","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":null,"attempt":2,"durationMs":59,"status":"completed","commandId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph-reconcile.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803639897,"service":"worker","queueTelemetry":true,"queueName":"graph-reconcile","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","attempt":2,"durationMs":59,"outcome":"completed","correlationId":"9e772eea-25ad-488d-8911-0bd39168efab","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803639902,"service":"worker","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"technical_metadata.image.sharp_metadata_failed"}
+[90m[worker][0m {"level":30,"time":1790803639902,"service":"worker","requestId":"1cc2016e-5741-4d07-9ab4-ebc163f1dd80","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"graph-search-projection","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","reason":"graph_reconciled","msg":"graph_search_projection.received"}
+[90m[worker][0m {"level":30,"time":1790803639904,"service":"worker","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","ok":true,"enqueued":0,"msg":"graph_search_projection.completed"}
+[90m[worker][0m {"level":30,"time":1790803639905,"service":"worker","requestId":"3cf32083-d44f-47d6-bd29-3fd8c46700a8","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":null,"attempt":2,"durationMs":6,"status":"completed","commandId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph-search-projection.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803639905,"service":"worker","queueTelemetry":true,"queueName":"graph-search-projection","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","attempt":2,"durationMs":6,"outcome":"completed","correlationId":"3cf32083-d44f-47d6-bd29-3fd8c46700a8","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803639909,"service":"worker","jobId":"mi-run-91e0303a-e105-46bf-928e-a03f36a61e08","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","partsProcessed":1,"succeeded":1,"msg":"technical_metadata.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803639912,"service":"worker","requestId":"5b5cf5c0-2b92-4750-a9fd-570c20d6a6d3","jobId":"mi-run-91e0303a-e105-46bf-928e-a03f36a61e08","evidenceId":null,"attempt":2,"durationMs":25,"status":"completed","commandId":"91e0303a-e105-46bf-928e-a03f36a61e08","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803639912,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-91e0303a-e105-46bf-928e-a03f36a61e08","attempt":2,"durationMs":25,"outcome":"completed","correlationId":"5b5cf5c0-2b92-4750-a9fd-570c20d6a6d3","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803639926,"service":"api","reqId":"5655b127-8f17-44e4-b198-470c0342e743","requestId":"5655b127-8f17-44e4-b198-470c0342e743","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","requestId":"5655b127-8f17-44e4-b198-470c0342e743","statusCode":200,"method":"POST","url":"/v1/evidence/68116a0b-ba54-423c-8b86-6c0f712633a1/complete","durationMs":219,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803639989,"service":"api","reqId":"3c773a5d-3012-45c2-aff0-1fb5c480dd93","requestId":"3c773a5d-3012-45c2-aff0-1fb5c480dd93","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","requestId":"3c773a5d-3012-45c2-aff0-1fb5c480dd93","statusCode":201,"method":"POST","url":"/v1/evidence","durationMs":62,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803640020,"service":"api","reqId":"d76d8cf2-b9ce-480a-a5b9-fafcba320306","requestId":"d76d8cf2-b9ce-480a-a5b9-fafcba320306","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","requestId":"d76d8cf2-b9ce-480a-a5b9-fafcba320306","statusCode":201,"method":"POST","url":"/v1/evidence/456f461b-9f07-4122-b8e1-996c5db54346/parts","durationMs":30,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803640148,"service":"worker","requestId":null,"jobId":"ots-upgrade-456f461b-9f07-4122-b8e1-996c5db54346","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","attempt":1,"durationMs":null,"status":"started","msg":"ots.upgrade.started"}
+[90m[worker][0m {"level":30,"time":1790803640157,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346","kind":"evidence","sourceId":"456f461b-9f07-4122-b8e1-996c5db54346","reason":"evidence_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803640163,"service":"worker","requestId":"5e70ad78-9cc4-4c9b-bee5-00281c37721e","jobId":"ots-upgrade-456f461b-9f07-4122-b8e1-996c5db54346","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","attempt":null,"durationMs":null,"status":null,"otsStatus":"DISABLED","msg":"ots.init.completed"}
+[90m[worker][0m {"level":30,"time":1790803640163,"service":"worker","requestId":null,"jobId":"ots-upgrade-456f461b-9f07-4122-b8e1-996c5db54346","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","attempt":null,"durationMs":15,"status":"initialized","msg":"ots.upgrade.completed"}
+[90m[worker][0m {"level":30,"time":1790803640164,"service":"worker","requestId":"6c9ef45c-219b-4475-94d3-52b6bd2d7ae3","jobId":"ots-upgrade-456f461b-9f07-4122-b8e1-996c5db54346","evidenceId":null,"attempt":2,"durationMs":16,"status":"completed","commandId":"456f461b-9f07-4122-b8e1-996c5db54346","msg":"ots-upgrade.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640164,"service":"worker","queueTelemetry":true,"queueName":"ots-upgrade","jobId":"ots-upgrade-456f461b-9f07-4122-b8e1-996c5db54346","attempt":2,"durationMs":16,"outcome":"completed","correlationId":"6c9ef45c-219b-4475-94d3-52b6bd2d7ae3","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803640171,"service":"worker","requestId":"2f6185cf-4ad7-4d5a-9eac-43a6a7048adf","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"graph-reconcile","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","reason":"evidence_completed","msg":"graph_reconcile.received"}
+[90m[worker][0m {"level":30,"time":1790803640174,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"evidence","sourceId":"456f461b-9f07-4122-b8e1-996c5db54346","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":17,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":50,"time":1790803640175,"service":"worker","requestId":"d2aedc65-e999-4057-a005-618003cc4694","err":{"type":"Error","message":"Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToFinished","stack":"Error: Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToFinished\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToFinished (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:786:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:747:24)\n    at async Worker.handleCompleted (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1076:25)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1005:18)","code":-2},"jobKind":"search-indexing","msg":"search-indexing.worker.error"}
+[90m[worker][0m {"level":50,"time":1790803640175,"service":"worker","alert":true,"severity":"critical","requestId":"d2aedc65-e999-4057-a005-618003cc4694","reason":"search-indexing_worker_runtime_error","err":{"type":"Error","message":"Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToFinished","stack":"Error: Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToFinished\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToFinished (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:786:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:747:24)\n    at async Worker.handleCompleted (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1076:25)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1005:18)","code":-2},"msg":"operational.alert"}
+[90m[worker][0m {"level":50,"time":1790803640176,"service":"worker","requestId":"0e28481c-6324-48f1-bf06-74cade7e21c5","err":{"type":"Error","message":"Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToDelayed","stack":"Error: Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToDelayed\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToDelayed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1222:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:839:22)\n    at async Worker.handleFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1127:22)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1023:26)","code":-2},"jobKind":"search-indexing","msg":"search-indexing.worker.error"}
+[90m[worker][0m {"level":50,"time":1790803640176,"service":"worker","alert":true,"severity":"critical","requestId":"0e28481c-6324-48f1-bf06-74cade7e21c5","reason":"search-indexing_worker_runtime_error","err":{"type":"Error","message":"Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToDelayed","stack":"Error: Missing lock for job search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346. moveToDelayed\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToDelayed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1222:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:839:22)\n    at async Worker.handleFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1127:22)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1023:26)","code":-2},"msg":"operational.alert"}
+[90m[worker][0m {"level":30,"time":1790803640183,"service":"worker","jobId":"mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe","runId":"6c118ef1-a6f7-4311-96f3-0c6142913bbe","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"analyze_metadata","signalsEmitted":0,"msg":"media_intelligence.job_completed"}
+[90m[worker][0m {"level":50,"time":1790803640184,"service":"worker","requestId":"73c0f871-5b23-4a36-abb5-4224a2ada1a2","err":{"type":"Error","message":"Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToFinished","stack":"Error: Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToFinished\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToFinished (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:786:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:747:24)\n    at async Worker.handleCompleted (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1076:25)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1005:18)","code":-2},"jobKind":"media-intelligence","msg":"media-intelligence.worker.error"}
+[90m[worker][0m {"level":50,"time":1790803640184,"service":"worker","alert":true,"severity":"critical","requestId":"73c0f871-5b23-4a36-abb5-4224a2ada1a2","reason":"media-intelligence_worker_runtime_error","err":{"type":"Error","message":"Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToFinished","stack":"Error: Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToFinished\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToFinished (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:786:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:747:24)\n    at async Worker.handleCompleted (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1076:25)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1005:18)","code":-2},"msg":"operational.alert"}
+[90m[worker][0m {"level":50,"time":1790803640185,"service":"worker","requestId":"5e76604a-1c8a-4cf5-a245-a2c8d082a74a","err":{"type":"Error","message":"Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToDelayed","stack":"Error: Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToDelayed\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToDelayed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1222:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:839:22)\n    at async Worker.handleFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1127:22)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1023:26)","code":-2},"jobKind":"media-intelligence","msg":"media-intelligence.worker.error"}
+[90m[worker][0m {"level":50,"time":1790803640185,"service":"worker","alert":true,"severity":"critical","requestId":"5e76604a-1c8a-4cf5-a245-a2c8d082a74a","reason":"media-intelligence_worker_runtime_error","err":{"type":"Error","message":"Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToDelayed","stack":"Error: Missing lock for job mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe. moveToDelayed\n    at Scripts.finishedErrors (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1778:17)\n    at Scripts.moveToDelayed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\scripts.ts:1222:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\job.ts:839:22)\n    at async Worker.handleFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1127:22)\n    at async Worker.retryIfFailed (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1368:16)\n    at async <anonymous> (D:\\pv-uca\\node_modules\\.pnpm\\bullmq@5.70.1\\node_modules\\bullmq\\src\\classes\\worker.ts:1023:26)","code":-2},"msg":"operational.alert"}
+[90m[api][0m [api:warn] evidence_complete.graph_reconcile_not_queued {
+  evidenceId: '456f461b-9f07-4122-b8e1-996c5db54346',
+  teamId: '5cf65b22-0a8f-424d-879f-25bd0b4772ed',
+  reason: 'job_already_live',
+  jobId: 'graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed'
+}
+[90m[worker][0m {"level":40,"time":1790803640196,"service":"worker","jobId":"mi-run-c9929bd6-6ec2-4f9e-b305-75f2b1e6302b","partId":"0cc8ba7d-7071-41eb-b962-2ceba325b866","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"media_intelligence.compute_perceptual_hashes.derive_failed"}
+[90m[worker][0m {"level":30,"time":1790803640197,"service":"worker","jobId":"mi-run-c9929bd6-6ec2-4f9e-b305-75f2b1e6302b","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","evidencePartId":null,"partsProcessed":1,"succeeded":0,"msg":"media_intelligence.compute_perceptual_hashes.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803640201,"service":"worker","requestId":"ce250fba-4a57-49b2-8659-b2fd275e16fc","jobId":"mi-run-c9929bd6-6ec2-4f9e-b305-75f2b1e6302b","evidenceId":null,"attempt":2,"durationMs":15,"status":"completed","commandId":"c9929bd6-6ec2-4f9e-b305-75f2b1e6302b","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640201,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-c9929bd6-6ec2-4f9e-b305-75f2b1e6302b","attempt":2,"durationMs":15,"outcome":"completed","correlationId":"ce250fba-4a57-49b2-8659-b2fd275e16fc","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803640213,"service":"worker","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"technical_metadata.image.sharp_metadata_failed"}
+[90m[worker][0m {"level":30,"time":1790803640216,"service":"worker","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","ok":true,"nodesUpserted":3,"edgesUpserted":1,"edgesStaled":0,"nodesTombstoned":0,"failures":[],"msg":"graph_reconcile.completed"}
+[90m[worker][0m {"level":30,"time":1790803640216,"service":"worker","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph_reconcile.ocr_transcript_indexer_skipped_not_configured"}
+[90m[worker][0m {"level":30,"time":1790803640217,"service":"worker","requestId":"a2ae507e-ea27-49c2-9180-fd055ffe8978","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":null,"attempt":2,"durationMs":48,"status":"completed","commandId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph-reconcile.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640217,"service":"worker","queueTelemetry":true,"queueName":"graph-reconcile","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","attempt":2,"durationMs":48,"outcome":"completed","correlationId":"a2ae507e-ea27-49c2-9180-fd055ffe8978","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803640220,"service":"worker","jobId":"mi-run-7d429e56-c6cc-4b7c-906f-ca48947d77eb","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","partsProcessed":1,"succeeded":1,"msg":"technical_metadata.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803640222,"service":"worker","requestId":"b2ff7ed4-4408-44c8-87de-8a9b3ae86b4d","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"graph-search-projection","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","reason":"graph_reconciled","msg":"graph_search_projection.received"}
+[90m[worker][0m {"level":30,"time":1790803640224,"service":"worker","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","ok":true,"enqueued":0,"msg":"graph_search_projection.completed"}
+[90m[worker][0m {"level":30,"time":1790803640224,"service":"worker","requestId":"96db504f-5f80-46ac-b158-fa43c833aa76","jobId":"mi-run-7d429e56-c6cc-4b7c-906f-ca48947d77eb","evidenceId":null,"attempt":2,"durationMs":23,"status":"completed","commandId":"7d429e56-c6cc-4b7c-906f-ca48947d77eb","msg":"media-intelligence.job.completed"}
+{"level":30,"time":1790803640224,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-7d429e56-c6cc-4b7c-906f-ca48947d77eb","attempt":2,"durationMs":23,"outcome":"completed","correlationId":"96db504f-5f80-46ac-b158-fa43c833aa76","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803640225,"service":"worker","requestId":"19a496c4-f329-4b25-a74b-0adee1e8e829","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":null,"attempt":2,"durationMs":5,"status":"completed","commandId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph-search-projection.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640225,"service":"worker","queueTelemetry":true,"queueName":"graph-search-projection","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","attempt":2,"durationMs":5,"outcome":"completed","correlationId":"19a496c4-f329-4b25-a74b-0adee1e8e829","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803640246,"service":"api","reqId":"22560076-c09f-4970-9dcb-fba0854a0621","requestId":"22560076-c09f-4970-9dcb-fba0854a0621","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","requestId":"22560076-c09f-4970-9dcb-fba0854a0621","statusCode":200,"method":"POST","url":"/v1/evidence/456f461b-9f07-4122-b8e1-996c5db54346/complete","durationMs":217,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"456f461b-9f07-4122-b8e1-996c5db54346","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803640301,"service":"api","reqId":"66ca239e-7658-41b2-bacd-c61d4a64e679","requestId":"66ca239e-7658-41b2-bacd-c61d4a64e679","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","requestId":"66ca239e-7658-41b2-bacd-c61d4a64e679","statusCode":201,"method":"POST","url":"/v1/evidence","durationMs":54,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803640326,"service":"api","reqId":"202df1db-4297-41cc-a923-9854a6a54040","requestId":"202df1db-4297-41cc-a923-9854a6a54040","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","requestId":"202df1db-4297-41cc-a923-9854a6a54040","statusCode":201,"method":"POST","url":"/v1/evidence/6c5c8ff9-c738-4790-9800-75361acede33/parts","durationMs":24,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803640435,"service":"worker","requestId":null,"jobId":"ots-upgrade-6c5c8ff9-c738-4790-9800-75361acede33","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","attempt":1,"durationMs":null,"status":"started","msg":"ots.upgrade.started"}
+[90m[worker][0m {"level":30,"time":1790803640443,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.6c5c8ff9-c738-4790-9800-75361acede33","kind":"evidence","sourceId":"6c5c8ff9-c738-4790-9800-75361acede33","reason":"evidence_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803640448,"service":"worker","requestId":"1fb4d346-ad6a-474b-9b32-6386d920cf9d","jobId":"ots-upgrade-6c5c8ff9-c738-4790-9800-75361acede33","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","attempt":null,"durationMs":null,"status":null,"otsStatus":"DISABLED","msg":"ots.init.completed"}
+[90m[worker][0m {"level":30,"time":1790803640448,"service":"worker","requestId":null,"jobId":"ots-upgrade-6c5c8ff9-c738-4790-9800-75361acede33","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","attempt":null,"durationMs":13,"status":"initialized","msg":"ots.upgrade.completed"}
+[90m[worker][0m {"level":30,"time":1790803640449,"service":"worker","requestId":"2720fb48-8a06-4153-939b-e8178ac138ee","jobId":"ots-upgrade-6c5c8ff9-c738-4790-9800-75361acede33","evidenceId":null,"attempt":2,"durationMs":14,"status":"completed","commandId":"6c5c8ff9-c738-4790-9800-75361acede33","msg":"ots-upgrade.job.completed"}
+{"level":30,"time":1790803640449,"service":"worker","queueTelemetry":true,"queueName":"ots-upgrade","jobId":"ots-upgrade-6c5c8ff9-c738-4790-9800-75361acede33","attempt":2,"durationMs":14,"outcome":"completed","correlationId":"2720fb48-8a06-4153-939b-e8178ac138ee","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803640457,"service":"worker","requestId":"d24630bc-eb30-4312-a405-6b44d47b347a","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"graph-reconcile","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","reason":"evidence_completed","msg":"graph_reconcile.received"}
+[90m[worker][0m {"level":30,"time":1790803640461,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.6c5c8ff9-c738-4790-9800-75361acede33","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"evidence","sourceId":"6c5c8ff9-c738-4790-9800-75361acede33","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":18,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803640462,"service":"worker","requestId":"5b5f300e-b4b1-4801-a73d-cad1c9321271","jobId":"search-index-evidence.6c5c8ff9-c738-4790-9800-75361acede33","evidenceId":null,"attempt":2,"durationMs":19,"status":"completed","commandId":"evidence:6c5c8ff9-c738-4790-9800-75361acede33","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640462,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.6c5c8ff9-c738-4790-9800-75361acede33","attempt":2,"durationMs":19,"outcome":"completed","correlationId":"5b5f300e-b4b1-4801-a73d-cad1c9321271","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803640469,"service":"worker","jobId":"mi-run-0d389141-550c-472b-83e3-b4352149736f","runId":"0d389141-550c-472b-83e3-b4352149736f","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"analyze_metadata","signalsEmitted":0,"msg":"media_intelligence.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803640470,"service":"worker","requestId":"25039aea-65d3-4fa6-9006-4261ec022312","jobId":"mi-run-0d389141-550c-472b-83e3-b4352149736f","evidenceId":null,"attempt":2,"durationMs":22,"status":"completed","commandId":"0d389141-550c-472b-83e3-b4352149736f","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640470,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-0d389141-550c-472b-83e3-b4352149736f","attempt":2,"durationMs":22,"outcome":"completed","correlationId":"25039aea-65d3-4fa6-9006-4261ec022312","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m [api:warn] evidence_complete.graph_reconcile_not_queued {
+  evidenceId: '6c5c8ff9-c738-4790-9800-75361acede33',
+  teamId: '5cf65b22-0a8f-424d-879f-25bd0b4772ed',
+  reason: 'job_already_live',
+  jobId: 'graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed'
+}
+[90m[worker][0m {"level":40,"time":1790803640480,"service":"worker","jobId":"mi-run-2dacef34-5f90-4851-97cd-bbdc8310d228","partId":"40419b1b-3c08-4a28-9317-df78f7ddc8f2","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"media_intelligence.compute_perceptual_hashes.derive_failed"}
+[90m[worker][0m {"level":30,"time":1790803640480,"service":"worker","jobId":"mi-run-2dacef34-5f90-4851-97cd-bbdc8310d228","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","evidencePartId":null,"partsProcessed":1,"succeeded":0,"msg":"media_intelligence.compute_perceptual_hashes.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803640484,"service":"worker","requestId":"0642b4e4-ad38-4b0d-a15e-395be5ce0ac6","jobId":"mi-run-2dacef34-5f90-4851-97cd-bbdc8310d228","evidenceId":null,"attempt":2,"durationMs":14,"status":"completed","commandId":"2dacef34-5f90-4851-97cd-bbdc8310d228","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640484,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-2dacef34-5f90-4851-97cd-bbdc8310d228","attempt":2,"durationMs":14,"outcome":"completed","correlationId":"0642b4e4-ad38-4b0d-a15e-395be5ce0ac6","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803640496,"service":"worker","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"technical_metadata.image.sharp_metadata_failed"}
+[90m[worker][0m {"level":30,"time":1790803640504,"service":"worker","jobId":"mi-run-e27c8f68-8208-42bf-b59e-1309d722d9ca","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","partsProcessed":1,"succeeded":1,"msg":"technical_metadata.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803640507,"service":"worker","requestId":"2f1b66d6-bd2a-4920-bdf0-66a37c19ada2","jobId":"mi-run-e27c8f68-8208-42bf-b59e-1309d722d9ca","evidenceId":null,"attempt":2,"durationMs":23,"status":"completed","commandId":"e27c8f68-8208-42bf-b59e-1309d722d9ca","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640507,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-e27c8f68-8208-42bf-b59e-1309d722d9ca","attempt":2,"durationMs":23,"outcome":"completed","correlationId":"2f1b66d6-bd2a-4920-bdf0-66a37c19ada2","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803640513,"service":"worker","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","ok":true,"nodesUpserted":5,"edgesUpserted":2,"edgesStaled":0,"nodesTombstoned":0,"failures":[],"msg":"graph_reconcile.completed"}
+[90m[worker][0m {"level":30,"time":1790803640514,"service":"worker","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph_reconcile.ocr_transcript_indexer_skipped_not_configured"}
+[90m[worker][0m {"level":30,"time":1790803640515,"service":"worker","requestId":"298b7f20-b301-4515-b17e-950fecc1a496","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":null,"attempt":2,"durationMs":63,"status":"completed","commandId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph-reconcile.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640515,"service":"worker","queueTelemetry":true,"queueName":"graph-reconcile","jobId":"graph-reconcile-5cf65b22-0a8f-424d-879f-25bd0b4772ed","attempt":2,"durationMs":63,"outcome":"completed","correlationId":"298b7f20-b301-4515-b17e-950fecc1a496","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803640519,"service":"worker","requestId":"bb59adf2-4485-47cd-916f-ad3ac88436bd","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"graph-search-projection","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","reason":"graph_reconciled","msg":"graph_search_projection.received"}
+[90m[worker][0m {"level":30,"time":1790803640521,"service":"worker","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","ok":true,"enqueued":0,"msg":"graph_search_projection.completed"}
+[90m[worker][0m {"level":30,"time":1790803640521,"service":"worker","requestId":"9c51359c-7792-4bf9-a602-7006e56fd087","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","evidenceId":null,"attempt":2,"durationMs":5,"status":"completed","commandId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","msg":"graph-search-projection.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803640521,"service":"worker","queueTelemetry":true,"queueName":"graph-search-projection","jobId":"graph-search-projection-5cf65b22-0a8f-424d-879f-25bd0b4772ed","attempt":2,"durationMs":5,"outcome":"completed","correlationId":"9c51359c-7792-4bf9-a602-7006e56fd087","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803640532,"service":"api","reqId":"e96abf56-ec43-4510-b981-95d4b425f34e","requestId":"e96abf56-ec43-4510-b981-95d4b425f34e","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","requestId":"e96abf56-ec43-4510-b981-95d4b425f34e","statusCode":200,"method":"POST","url":"/v1/evidence/6c5c8ff9-c738-4790-9800-75361acede33/complete","durationMs":198,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"6c5c8ff9-c738-4790-9800-75361acede33","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803640571,"service":"api","reqId":"1b8ec68e-aca1-4012-95ec-0c2ae6196a33","requestId":"1b8ec68e-aca1-4012-95ec-0c2ae6196a33","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","requestId":"1b8ec68e-aca1-4012-95ec-0c2ae6196a33","statusCode":200,"method":"DELETE","url":"/v1/evidence/68116a0b-ba54-423c-8b86-6c0f712633a1","durationMs":38,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","evidenceId":"68116a0b-ba54-423c-8b86-6c0f712633a1","msg":"request.completed"}
+[90m[api][0m {"level":40,"time":1790803640589,"service":"api","reqId":"618c59f8-670e-40bf-af65-71e3fa67c196","requestId":"618c59f8-670e-40bf-af65-71e3fa67c196","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","requestId":"618c59f8-670e-40bf-af65-71e3fa67c196","statusCode":402,"method":"POST","url":"/v1/governance/lifecycle/evidence/68116a0b-ba54-423c-8b86-6c0f712633a1/transition","durationMs":16,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","msg":"request.completed.business_error"}
+[90m[api][0m {"level":40,"time":1790803640596,"service":"api","reqId":"da171125-5ab1-430b-93c4-0fd45f6ee199","requestId":"da171125-5ab1-430b-93c4-0fd45f6ee199","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","requestId":"da171125-5ab1-430b-93c4-0fd45f6ee199","statusCode":409,"method":"POST","url":"/v1/governance/lifecycle/evidence/68116a0b-ba54-423c-8b86-6c0f712633a1/transition","durationMs":6,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","msg":"request.completed.business_error"}
+[90m[api][0m {"level":40,"time":1790803640871,"service":"api","reqId":"8f763f3c-9120-4319-8163-b6784d028cc1","requestId":"8f763f3c-9120-4319-8163-b6784d028cc1","userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","requestId":"8f763f3c-9120-4319-8163-b6784d028cc1","statusCode":409,"method":"POST","url":"/v1/evidence","durationMs":24,"userId":"cd96563c-393a-4e65-b8b4-de2f1ff30be9","msg":"request.completed.business_error"}
+[90m[worker][0m {"level":30,"time":1790803649222,"service":"worker","heartbeat":true,"workerId":"worker-main","emittedAtUtc":"2026-09-30T21:27:29.222Z","msg":"worker.heartbeat"}
+[90m[worker][0m {"level":40,"time":1790803649223,"service":"worker","correlationId":"ae5fbb0a43c19fa6105d5b5854ee1dd8","hasBaseUrl":true,"hasSecret":false,"msg":"automation_dispatch_sweep.not_configured"}
+[90m[worker][0m {"level":30,"time":1790803649224,"service":"worker","queueHealthSample":true,"queues":[{"name":"report","waiting":0,"active":1,"delayed":0,"completed":1,"failed":0,"paused":0,"hasBacklog":true,"oldestPendingAgeSeconds":36,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"report-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"ots-upgrade","waiting":0,"active":0,"delayed":0,"completed":5,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"evidence-purge","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"search-indexing","waiting":0,"active":1,"delayed":0,"completed":4,"failed":0,"paused":0,"hasBacklog":true,"oldestPendingAgeSeconds":9,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"media-intelligence","waiting":0,"active":1,"delayed":0,"completed":14,"failed":0,"paused":0,"hasBacklog":true,"oldestPendingAgeSeconds":9,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"media-intelligence-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"mi-derived-assets","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"redaction-derivative","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"mi-embed","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"graph-reconcile","waiting":0,"active":0,"delayed":0,"completed":2,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"},{"name":"graph-search-projection","waiting":0,"active":0,"delayed":0,"completed":2,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:27:29.220Z"}],"msg":"worker.queue_health.sampled"}
+[90m[worker][0m {"level":30,"time":1790803649474,"service":"worker","requestId":"16a0d440-8a5f-4b61-bb2a-5b3113b00d26","jobId":"report-7c8b204e-7b9f-4d14-b418-e4193af170ff","reportRequestId":"7c8b204e-7b9f-4d14-b418-e4193af170ff","state":"SUCCEEDED","status":"replay_noop","msg":"GenerateReportJob replayed onto a terminal request; no artifact regenerated"}
+[90m[worker][0m {"level":30,"time":1790803649475,"service":"worker","requestId":"4a143d59-aa1f-4bdb-86a2-a7cbbc93b9e0","jobId":"report-7c8b204e-7b9f-4d14-b418-e4193af170ff","evidenceId":null,"attempt":2,"durationMs":3,"status":"completed","commandId":"7c8b204e-7b9f-4d14-b418-e4193af170ff","msg":"report.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803649475,"service":"worker","queueTelemetry":true,"queueName":"report","jobId":"report-7c8b204e-7b9f-4d14-b418-e4193af170ff","attempt":2,"durationMs":3,"outcome":"completed","correlationId":"4a143d59-aa1f-4bdb-86a2-a7cbbc93b9e0","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m [api:info] billing.dependent_cancellation.sweep_completed {
+  subjects: 0,
+  attempted: 0,
+  confirmed: 0,
+  failed: 0,
+  escalated: 0,
+  conditionsOpened: 0
+}
+[90m[api][0m {"level":30,"time":1790803676052,"service":"api","reqId":"7976e492-901e-4cd9-9f56-8b9405d80518","requestId":"7976e492-901e-4cd9-9f56-8b9405d80518","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","requestId":"7976e492-901e-4cd9-9f56-8b9405d80518","statusCode":200,"method":"GET","url":"/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/report/latest","durationMs":69,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803679228,"service":"worker","heartbeat":true,"workerId":"worker-main","emittedAtUtc":"2026-09-30T21:27:59.228Z","msg":"worker.heartbeat"}
+[90m[worker][0m {"level":30,"time":1790803679480,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346","kind":"evidence","sourceId":"456f461b-9f07-4122-b8e1-996c5db54346","reason":"evidence_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803679483,"service":"worker","requestId":"f049065c-e1f8-40eb-9e99-bb7c693de1e4","jobId":"mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe","runId":"6c118ef1-a6f7-4311-96f3-0c6142913bbe","status":"COMPLETED","msg":"media_intelligence.replay_noop"}
+[90m[worker][0m {"level":30,"time":1790803679483,"service":"worker","requestId":"4837f0e8-4e2d-4267-83ae-3df6cf060174","jobId":"mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe","evidenceId":null,"attempt":2,"durationMs":4,"status":"completed","commandId":"6c118ef1-a6f7-4311-96f3-0c6142913bbe","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803679483,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-6c118ef1-a6f7-4311-96f3-0c6142913bbe","attempt":2,"durationMs":4,"outcome":"completed","correlationId":"4837f0e8-4e2d-4267-83ae-3df6cf060174","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803679502,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346","teamId":"5cf65b22-0a8f-424d-879f-25bd0b4772ed","kind":"evidence","sourceId":"456f461b-9f07-4122-b8e1-996c5db54346","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":22,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803679502,"service":"worker","requestId":"1f08664b-d935-4961-a151-5ea6e574165f","jobId":"search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346","evidenceId":null,"attempt":2,"durationMs":23,"status":"completed","commandId":"evidence:456f461b-9f07-4122-b8e1-996c5db54346","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803679502,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.456f461b-9f07-4122-b8e1-996c5db54346","attempt":2,"durationMs":23,"outcome":"completed","correlationId":"1f08664b-d935-4961-a151-5ea6e574165f","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m [api:info] billing.reconciliation.sweep_completed { attempted: 0, updated: 0, failed: 0 }
+[90m[worker][0m {"level":30,"time":1790803709232,"service":"worker","heartbeat":true,"workerId":"worker-main","emittedAtUtc":"2026-09-30T21:28:29.232Z","msg":"worker.heartbeat"}
+[90m[worker][0m {"level":40,"time":1790803709232,"service":"worker","correlationId":"5cdc8146845eef41ee5a91daf466326a","hasBaseUrl":true,"hasSecret":false,"msg":"automation_dispatch_sweep.not_configured"}
+[90m[worker][0m {"level":30,"time":1790803709232,"service":"worker","queueHealthSample":true,"queues":[{"name":"report","waiting":0,"active":0,"delayed":0,"completed":2,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"report-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"ots-upgrade","waiting":0,"active":0,"delayed":0,"completed":5,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"evidence-purge","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"search-indexing","waiting":0,"active":0,"delayed":0,"completed":5,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"media-intelligence","waiting":0,"active":0,"delayed":0,"completed":15,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"media-intelligence-dlq","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"mi-derived-assets","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"redaction-derivative","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"mi-embed","waiting":0,"active":0,"delayed":0,"completed":0,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"graph-reconcile","waiting":0,"active":0,"delayed":0,"completed":2,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"},{"name":"graph-search-projection","waiting":0,"active":0,"delayed":0,"completed":2,"failed":0,"paused":0,"hasBacklog":false,"oldestPendingAgeSeconds":null,"sampledAtUtc":"2026-09-30T21:28:29.231Z"}],"msg":"worker.queue_health.sampled"}
+[90m[api][0m [api:info] billing.dependent_cancellation.sweep_completed {
+  subjects: 0,
+  attempted: 0,
+  confirmed: 0,
+  failed: 0,
+  escalated: 0,
+  conditionsOpened: 0
+}
+[90m[api][0m {"level":30,"time":1790803712947,"service":"api","reqId":"3b4f6743-4cc1-4fe1-887c-bca1f58afc56","requestId":"3b4f6743-4cc1-4fe1-887c-bca1f58afc56","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"3b4f6743-4cc1-4fe1-887c-bca1f58afc56","statusCode":201,"method":"POST","url":"/v1/evidence","durationMs":92,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803712976,"service":"api","reqId":"cad44480-1bc0-4bb3-93cd-115ff16d55af","requestId":"cad44480-1bc0-4bb3-93cd-115ff16d55af","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","requestId":"cad44480-1bc0-4bb3-93cd-115ff16d55af","statusCode":201,"method":"POST","url":"/v1/evidence/367df4a7-1aff-4286-a4f0-bebad7f5a935/parts","durationMs":23,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","msg":"request.completed"}
+[90m[worker][0m {"level":30,"time":1790803713086,"service":"worker","requestId":null,"jobId":"ots-upgrade-367df4a7-1aff-4286-a4f0-bebad7f5a935","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","attempt":1,"durationMs":null,"status":"started","msg":"ots.upgrade.started"}
+[90m[worker][0m {"level":30,"time":1790803713098,"service":"worker","requestId":"ddc658c5-7369-42db-9de9-719ee67b3bc3","jobId":"ots-upgrade-367df4a7-1aff-4286-a4f0-bebad7f5a935","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","attempt":null,"durationMs":null,"status":null,"otsStatus":"DISABLED","msg":"ots.init.completed"}
+[90m[worker][0m {"level":30,"time":1790803713098,"service":"worker","requestId":null,"jobId":"ots-upgrade-367df4a7-1aff-4286-a4f0-bebad7f5a935","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","attempt":null,"durationMs":12,"status":"initialized","msg":"ots.upgrade.completed"}
+[90m[worker][0m {"level":30,"time":1790803713099,"service":"worker","requestId":"f14ae23a-3945-4e3b-9cd5-dcd57e0744e4","jobId":"ots-upgrade-367df4a7-1aff-4286-a4f0-bebad7f5a935","evidenceId":null,"attempt":2,"durationMs":13,"status":"completed","commandId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","msg":"ots-upgrade.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803713099,"service":"worker","queueTelemetry":true,"queueName":"ots-upgrade","jobId":"ots-upgrade-367df4a7-1aff-4286-a4f0-bebad7f5a935","attempt":2,"durationMs":13,"outcome":"completed","correlationId":"f14ae23a-3945-4e3b-9cd5-dcd57e0744e4","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803713111,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.367df4a7-1aff-4286-a4f0-bebad7f5a935","kind":"evidence","sourceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","reason":"evidence_completed","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803713116,"service":"worker","requestId":"8fa63ce0-ebbb-4b05-8123-52d9e3fa15cb","jobId":"report-238ae5e1-4f73-474d-9646-41331981b0dc","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","attempt":1,"durationMs":null,"status":"started","msg":"GenerateReportJob started"}
+[90m[worker][0m {"level":30,"time":1790803713129,"service":"worker","requestId":"fde38308-49d8-4d4d-9d2e-7d0f5c8e6588","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"graph-reconcile","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","reason":"evidence_completed","msg":"graph_reconcile.received"}
+[90m[worker][0m {"level":30,"time":1790803713138,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.367df4a7-1aff-4286-a4f0-bebad7f5a935","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"evidence","sourceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":27,"msg":"worker.search.indexing.succeeded"}
+[90m[api][0m [api:warn] evidence_complete.graph_reconcile_not_queued {
+  evidenceId: '367df4a7-1aff-4286-a4f0-bebad7f5a935',
+  teamId: '2e6138e1-1277-49db-8da0-9a1732ba7268',
+  reason: 'job_already_live',
+  jobId: 'graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268'
+}
+[90m[worker][0m {"level":30,"time":1790803713141,"service":"worker","requestId":"8306c2ae-bf8b-4ebf-b743-067064112186","jobId":"search-index-evidence.367df4a7-1aff-4286-a4f0-bebad7f5a935","evidenceId":null,"attempt":2,"durationMs":28,"status":"completed","commandId":"evidence:367df4a7-1aff-4286-a4f0-bebad7f5a935","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803713141,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.367df4a7-1aff-4286-a4f0-bebad7f5a935","attempt":2,"durationMs":28,"outcome":"completed","correlationId":"8306c2ae-bf8b-4ebf-b743-067064112186","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803713147,"service":"worker","jobId":"mi-run-1cc62239-f561-47c4-a86f-c7ccaaddf7f4","runId":"1cc62239-f561-47c4-a86f-c7ccaaddf7f4","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"analyze_metadata","signalsEmitted":0,"msg":"media_intelligence.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803713148,"service":"worker","requestId":"bd533c45-6b43-4b5f-adca-cdc3436da4f1","jobId":"mi-run-1cc62239-f561-47c4-a86f-c7ccaaddf7f4","evidenceId":null,"attempt":2,"durationMs":32,"status":"completed","commandId":"1cc62239-f561-47c4-a86f-c7ccaaddf7f4","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803713148,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-1cc62239-f561-47c4-a86f-c7ccaaddf7f4","attempt":2,"durationMs":32,"outcome":"completed","correlationId":"bd533c45-6b43-4b5f-adca-cdc3436da4f1","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803713160,"service":"worker","jobId":"mi-run-76c90647-cf48-42b0-946e-46759c43de67","partId":"eb1f74bb-6810-449c-8bad-852eb366f361","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"media_intelligence.compute_perceptual_hashes.derive_failed"}
+[90m[worker][0m {"level":30,"time":1790803713161,"service":"worker","jobId":"mi-run-76c90647-cf48-42b0-946e-46759c43de67","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","evidencePartId":null,"partsProcessed":1,"succeeded":0,"msg":"media_intelligence.compute_perceptual_hashes.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803713164,"service":"worker","requestId":"059c4782-7d3c-483c-ba7a-5a92379eb171","jobId":"mi-run-76c90647-cf48-42b0-946e-46759c43de67","evidenceId":null,"attempt":2,"durationMs":17,"status":"completed","commandId":"76c90647-cf48-42b0-946e-46759c43de67","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803713164,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-76c90647-cf48-42b0-946e-46759c43de67","attempt":2,"durationMs":17,"outcome":"completed","correlationId":"059c4782-7d3c-483c-ba7a-5a92379eb171","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":40,"time":1790803713176,"service":"worker","err":"Input buffer has corrupt header: pngload_buffer: invalid IHDR chunk size","msg":"technical_metadata.image.sharp_metadata_failed"}
+[90m[worker][0m {"level":30,"time":1790803713183,"service":"worker","jobId":"mi-run-29676a69-2e7d-455e-bb16-0e955e943725","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","partsProcessed":1,"succeeded":1,"msg":"technical_metadata.job_completed"}
+[90m[worker][0m {"level":30,"time":1790803713187,"service":"worker","requestId":"2ad2f2f9-de19-43e8-9cc5-221e580a1e0b","jobId":"mi-run-29676a69-2e7d-455e-bb16-0e955e943725","evidenceId":null,"attempt":2,"durationMs":22,"status":"completed","commandId":"29676a69-2e7d-455e-bb16-0e955e943725","msg":"media-intelligence.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803713187,"service":"worker","queueTelemetry":true,"queueName":"media-intelligence","jobId":"mi-run-29676a69-2e7d-455e-bb16-0e955e943725","attempt":2,"durationMs":22,"outcome":"completed","correlationId":"2ad2f2f9-de19-43e8-9cc5-221e580a1e0b","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803713195,"service":"api","reqId":"2f2d3b23-1af1-4a7c-b18a-c77bf85400aa","requestId":"2f2d3b23-1af1-4a7c-b18a-c77bf85400aa","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","requestId":"2f2d3b23-1af1-4a7c-b18a-c77bf85400aa","statusCode":200,"method":"POST","url":"/v1/evidence/367df4a7-1aff-4286-a4f0-bebad7f5a935/complete","durationMs":210,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","msg":"request.completed"}
+[90m[worker][0m [report-v2] capture-context build {
+  evidenceId: '367df4a7-1aff-4286-a4f0-bebad7f5a935',
+  hasCaptureContext: false,
+  lat: null,
+  lng: null,
+  accuracyMeters: null,
+  mapPreviewPrefix: null,
+  mapPreviewLength: 0,
+  usesSvgFallback: false,
+  usesPngPreview: false
+}
+[90m[worker][0m {"level":30,"time":1790803713247,"service":"worker","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","ok":true,"nodesUpserted":10,"edgesUpserted":7,"edgesStaled":0,"nodesTombstoned":0,"failures":[],"msg":"graph_reconcile.completed"}
+[90m[worker][0m {"level":30,"time":1790803713247,"service":"worker","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph_reconcile.ocr_transcript_indexer_skipped_not_configured"}
+[90m[worker][0m {"level":30,"time":1790803713248,"service":"worker","requestId":"f38e2c2f-0fd5-4872-bc70-68c5743789e6","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":null,"attempt":2,"durationMs":129,"status":"completed","commandId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph-reconcile.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803713248,"service":"worker","queueTelemetry":true,"queueName":"graph-reconcile","jobId":"graph-reconcile-2e6138e1-1277-49db-8da0-9a1732ba7268","attempt":2,"durationMs":129,"outcome":"completed","correlationId":"f38e2c2f-0fd5-4872-bc70-68c5743789e6","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803713252,"service":"worker","requestId":"68f0734a-0025-46db-848b-cb7c7104b255","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"graph-search-projection","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","reason":"graph_reconciled","msg":"graph_search_projection.received"}
+[90m[worker][0m {"level":30,"time":1790803713256,"service":"worker","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","ok":true,"enqueued":1,"msg":"graph_search_projection.completed"}
+[90m[worker][0m {"level":30,"time":1790803713256,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","reason":"graph_search_projection_sync","attempt":1,"msg":"worker.search.indexing.started"}
+[90m[worker][0m {"level":30,"time":1790803713258,"service":"worker","requestId":"210964f1-129f-4256-b3dd-d790dd13418f","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","evidenceId":null,"attempt":2,"durationMs":6,"status":"completed","commandId":"2e6138e1-1277-49db-8da0-9a1732ba7268","msg":"graph-search-projection.job.completed"}
+{"level":30,"time":1790803713258,"service":"worker","queueTelemetry":true,"queueName":"graph-search-projection","jobId":"graph-search-projection-2e6138e1-1277-49db-8da0-9a1732ba7268","attempt":2,"durationMs":6,"outcome":"completed","correlationId":"210964f1-129f-4256-b3dd-d790dd13418f","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m {"level":30,"time":1790803713270,"service":"worker","searchIndexing":true,"jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","teamId":"2e6138e1-1277-49db-8da0-9a1732ba7268","kind":"evidence","sourceId":"22926261-28f8-44a6-b9ed-44f77118c7ae","outcome":"upsert","reason":null,"upserted":true,"deleted":false,"ocrIndexed":0,"transcriptIndexed":0,"semanticEmbedded":0,"durationMs":14,"msg":"worker.search.indexing.succeeded"}
+[90m[worker][0m {"level":30,"time":1790803713270,"service":"worker","requestId":"7165f749-16f8-4c48-8830-990dd946d8b7","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","evidenceId":null,"attempt":2,"durationMs":14,"status":"completed","commandId":"evidence:22926261-28f8-44a6-b9ed-44f77118c7ae","msg":"search-indexing.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803713270,"service":"worker","queueTelemetry":true,"queueName":"search-indexing","jobId":"search-index-evidence.22926261-28f8-44a6-b9ed-44f77118c7ae","attempt":2,"durationMs":14,"outcome":"completed","correlationId":"7165f749-16f8-4c48-8830-990dd946d8b7","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[worker][0m [report-v2] capture-context build {
+  evidenceId: '367df4a7-1aff-4286-a4f0-bebad7f5a935',
+  hasCaptureContext: false,
+  lat: null,
+  lng: null,
+  accuracyMeters: null,
+  mapPreviewPrefix: null,
+  mapPreviewLength: 0,
+  usesSvgFallback: false,
+  usesPngPreview: false
+}
+[90m[worker][0m {"level":30,"time":1790803717842,"service":"worker","requestId":"8fa63ce0-ebbb-4b05-8123-52d9e3fa15cb","jobId":"report-238ae5e1-4f73-474d-9646-41331981b0dc","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","attempt":1,"durationMs":4726,"status":"completed","forceRegenerate":false,"regenerateReason":null,"effectivePlan":"ENTERPRISE","msg":"GenerateReportJob completed"}
+[90m[worker][0m {"level":30,"time":1790803717848,"service":"worker","requestId":"e4c2e111-7df8-4799-9678-8259f9451970","jobId":"report-238ae5e1-4f73-474d-9646-41331981b0dc","evidenceId":null,"attempt":2,"durationMs":4745,"status":"completed","commandId":"238ae5e1-4f73-474d-9646-41331981b0dc","msg":"report.job.completed"}
+[90m[worker][0m {"level":30,"time":1790803717848,"service":"worker","queueTelemetry":true,"queueName":"report","jobId":"report-238ae5e1-4f73-474d-9646-41331981b0dc","attempt":2,"durationMs":4745,"outcome":"completed","correlationId":"e4c2e111-7df8-4799-9678-8259f9451970","errorMessage":null,"msg":"worker.job.outcome"}
+[90m[api][0m {"level":30,"time":1790803718255,"service":"api","reqId":"b5a74909-302b-48aa-be75-10394bf53383","requestId":"b5a74909-302b-48aa-be75-10394bf53383","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","requestId":"b5a74909-302b-48aa-be75-10394bf53383","statusCode":200,"method":"GET","url":"/v1/evidence/367df4a7-1aff-4286-a4f0-bebad7f5a935/report/latest","durationMs":44,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","msg":"request.completed"}
+[90m[api][0m {"level":40,"time":1790803718345,"service":"api","reqId":"0d363eec-2b40-4aa8-9b3a-f83310f9ce05","requestId":"0d363eec-2b40-4aa8-9b3a-f83310f9ce05","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","requestId":"0d363eec-2b40-4aa8-9b3a-f83310f9ce05","statusCode":404,"method":"GET","url":"/public/verify/pvs_<redacted>","durationMs":8,"evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","msg":"request.completed.business_error"}
+[90m[api][0m {"level":30,"time":1790803718357,"service":"api","reqId":"f416ec44-3c05-4dc6-8207-46954de6432b","requestId":"f416ec44-3c05-4dc6-8207-46954de6432b","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","requestId":"f416ec44-3c05-4dc6-8207-46954de6432b","statusCode":200,"method":"GET","url":"/v1/evidence/367df4a7-1aff-4286-a4f0-bebad7f5a935/verify-links","durationMs":11,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","msg":"request.completed"}
+[90m[api][0m {"level":30,"time":1790803718440,"service":"api","reqId":"3379c453-e36b-4a8a-b49e-d0587deb9905","requestId":"3379c453-e36b-4a8a-b49e-d0587deb9905","userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","requestId":"3379c453-e36b-4a8a-b49e-d0587deb9905","statusCode":200,"method":"GET","url":"/v1/evidence/367df4a7-1aff-4286-a4f0-bebad7f5a935","durationMs":82,"userId":"a09bbdce-6477-4898-a94a-55fe2281ab06","evidenceId":"367df4a7-1aff-4286-a4f0-bebad7f5a935","msg":"request.completed"}
+[90m[web][0m [?25h
+[36m[uc1-acceptance][0m web exited (0)
+[36m[uc1-acceptance][0m fixtures exited (1)
+                                                                                                                                                                                                               [90m[worker][0m 23:30:49 [tsx] change in ./..\..\packages\shared\dist\index.js Rerunning...
+[90m[worker][0m c[90m[api][0m 23:30:49 [tsx] change in ./..\..\packages\shared\dist\legal\corpus.generated.js Rerunning...
+[90m[api][0m c[90m[worker][0m 23:30:49 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
+[90m[api][0m 23:30:49 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
+c[90m[worker][0m c[90m[worker][0m 23:30:50 [tsx] change in ./..\..\packages\shared-billing\dist\index.js Rerunning...
+[90m[api][0m 23:30:50 [tsx] change in ./..\..\packages\shared-billing\dist\index.js Rerunning...
+c[90m[worker][0m c[90m[worker][0m 23:30:58 [tsx] change in ./..\..\packages\shared\dist\index.js Rerunning...
+[90m[api][0m 23:30:58 [tsx] change in ./..\..\packages\shared\dist\legal\corpus.generated.js Rerunning...
+c[90m[worker][0m c[90m[worker][0m 23:31:01 [tsx] change in ./..\..\packages\shared-runtime\dist\technical-metadata\index.js Rerunning...
+[90m[api][0m 23:31:01 [tsx] change in ./..\..\packages\shared-runtime\dist\technical-metadata\index.js Rerunning...
+c[90m[worker][0m c[90m[worker][0m 23:31:47 [tsx] change in ./..\..\packages\shared\dist\index.js Rerunning...
+[90m[worker][0m c[90m[api][0m 23:31:47 [tsx] change in ./..\..\packages\shared\dist\legal\corpus.generated.js Rerunning...
+[90m[api][0m c[90m[api][0m 23:31:48 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
+[90m[worker][0m 23:31:48 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
+c[90m[api][0m c[90m[worker][0m 23:31:49 [tsx] change in ./..\..\packages\shared-billing\dist\index.js Rerunning...
+[90m[api][0m 23:31:49 [tsx] change in ./..\..\packages\shared-billing\dist\index.js Rerunning...
+c[90m[worker][0m c[90m[worker][0m 23:31:56 [tsx] change in ./..\..\packages\shared\dist\index.js Rerunning...
+[90m[worker][0m c[90m[api][0m 23:31:56 [tsx] change in ./..\..\packages\shared\dist\legal.js Rerunning...
+[90m[api][0m c[90m[api][0m 23:31:59 [tsx] change in ./..\..\packages\shared-runtime\dist\technical-metadata\index.js Rerunning...
+c[90m[worker][0m 23:31:59 [tsx] change in ./..\..\packages\shared-runtime\dist\technical-metadata\index.js Rerunning...
+c[90m[api][0m 23:32:14 [tsx] change in ./..\..\packages\shared\dist\legal.js Rerunning...
+c[90m[worker][0m 23:32:14 [tsx] change in ./..\..\packages\shared\dist\index.js Rerunning...
+c[90m[worker][0m 23:32:15 [tsx] change in ./..\..\packages\shared-billing\dist\index.js Rerunning...
+c[90m[api][0m 23:32:15 [tsx] change in ./..\..\packages\shared-billing\dist\index.js Rerunning...
+c[90m[api][0m 23:32:16 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
+c[90m[worker][0m 23:32:16 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
+c

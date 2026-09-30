@@ -1,0 +1,1268 @@
+{
+  "schema": "PROOVRA_UNIVERSAL_CAPTURE_SURFACE_INVENTORY_V1",
+  "baselineSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
+  "surfaces": [
+    {
+      "id": "web-upload-file-picker",
+      "name": "Web capture page - file picker (files/folder)",
+      "platform": "web",
+      "userEntry": "apps/web/app/(app)/capture/page.tsx:571 and :591 (input type=file)",
+      "auth": "AUTH_JWT + legal acceptance on create (requireAuthAndLegal evidence.routes.ts:5429); requireAuth on parts/complete",
+      "workspaceResolution": "client sends teamId=activeSpaceId (useCaptureSessionOrchestration.ts:676); createEvidence resolves personal Team when omitted (evidence.service.ts:318-367)",
+      "gate": "assertInteractiveEvidenceCreateAllowed evidence.create (evidence.routes.ts:5510); plan/rate tier limits (:5433); assertWorkspaceAllowsEvidenceCreation/StorageGrowth (evidence.service.ts:381-385); finalization governance (evidence.routes.ts:10471)",
+      "endpoints": [
+        "POST /v1/evidence",
+        "POST /v1/evidence/:id/parts",
+        "PUT <presigned S3>",
+        "POST /v1/evidence/:id/complete",
+        "GET /v1/evidence/:id/artifacts/status"
+      ],
+      "routeFile": "services/api/src/routes/evidence.routes.ts:5429, :6049, :10376, :10875",
+      "serviceFn": "services/api/src/services/evidence.service.ts:235 createEvidence; services/api/src/services/evidence-complete.service.ts:576 completeEvidence",
+      "canonicalWriter": "evidence.service.ts:488 (Evidence); evidence-part-writer.service.ts:168 via evidence.routes.ts:6224 (EvidencePart)",
+      "dbTables": [
+        "evidence",
+        "evidence_parts",
+        "custody_events",
+        "upload_sessions",
+        "capture_sessions (draft FINALIZED binding)",
+        "automation_runs"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName} (evidence.routes.ts:6217); unused root evidence/{id}/original-{displayName} (evidence.service.ts:544)",
+      "queueJobs": [
+        "report/GenerateReportJob",
+        "ots-upgrade/UpgradeOts",
+        "search-indexing",
+        "media-intelligence",
+        "graph-reconcile"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136 (report) / :2154 (ots) / :2189 / :2211 / :2293",
+      "custodyWriter": "shared-runtime custody-chain.ts:45 via evidence.service.ts:581-640, evidence-complete.service.ts:1294-1350, evidence.routes.ts:10504 (EVIDENCE_COMPLETED)",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682 requestReportGeneration -> worker processor.ts:3089 -> verification-package.ts:2504",
+      "errorRetry": "client PUT retry with backoff (useCaptureSessionOrchestration.ts:~840-875); duplicate /complete returns alreadyFinalized; lifecycle-recovery/first-issuance reconcilers re-request reports",
+      "acquisitionMode": "PROOVRA_WEB_UPLOAD (evidence.routes.ts:5534)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "web-upload-drag-drop",
+      "name": "Web capture page - drag and drop",
+      "platform": "web",
+      "userEntry": "apps/web/app/(app)/capture/page.tsx:922 onDropFiles",
+      "auth": "same as web-upload-file-picker",
+      "workspaceResolution": "same",
+      "gate": "same",
+      "endpoints": [
+        "POST /v1/evidence",
+        "POST /v1/evidence/:id/parts",
+        "POST /v1/evidence/:id/complete"
+      ],
+      "routeFile": "services/api/src/routes/evidence.routes.ts:5429",
+      "serviceFn": "evidence.service.ts:235",
+      "canonicalWriter": "evidence.service.ts:488 / evidence-part-writer.service.ts:168",
+      "dbTables": [
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45",
+      "reportPackageConsumer": "same as file picker",
+      "errorRetry": "same",
+      "acquisitionMode": "PROOVRA_WEB_UPLOAD",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "web-camera-photo-video",
+      "name": "Web capture page - camera photo/video (getUserMedia + MediaRecorder)",
+      "platform": "web",
+      "userEntry": "apps/web/app/(app)/capture/page.tsx:920 onOpenCamera -> _hooks/useCaptureCamera.ts:164,328",
+      "auth": "same as web upload",
+      "workspaceResolution": "same",
+      "gate": "same",
+      "endpoints": [
+        "POST /v1/evidence",
+        "POST /v1/evidence/:id/parts",
+        "POST /v1/evidence/:id/complete"
+      ],
+      "routeFile": "services/api/src/routes/evidence.routes.ts:5429",
+      "serviceFn": "evidence.service.ts:235",
+      "canonicalWriter": "evidence.service.ts:488 / evidence-part-writer.service.ts:168",
+      "dbTables": [
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45",
+      "reportPackageConsumer": "same",
+      "errorRetry": "same",
+      "acquisitionMode": "PROOVRA_WEB_UPLOAD (browser capture is not distinguished from upload)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "web-mic-audio",
+      "name": "Web capture page - microphone audio",
+      "platform": "web",
+      "userEntry": "apps/web/app/(app)/capture/page.tsx:969 onClick=startAudioRecording -> _hooks/useCaptureAudioRecorder.ts:143",
+      "auth": "same as web upload",
+      "workspaceResolution": "same",
+      "gate": "same",
+      "endpoints": [
+        "POST /v1/evidence",
+        "POST /v1/evidence/:id/parts",
+        "POST /v1/evidence/:id/complete"
+      ],
+      "routeFile": "services/api/src/routes/evidence.routes.ts:5429",
+      "serviceFn": "evidence.service.ts:235",
+      "canonicalWriter": "evidence.service.ts:488 / evidence-part-writer.service.ts:168",
+      "dbTables": [
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45",
+      "reportPackageConsumer": "same",
+      "errorRetry": "same",
+      "acquisitionMode": "PROOVRA_WEB_UPLOAD",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "web-resumable-multipart",
+      "name": "Web capture page - large-file resumable multipart upload (flag NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED, default off)",
+      "platform": "web",
+      "userEntry": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:720-735 (fork inside finalize)",
+      "auth": "AUTH_JWT; authorizeOrFail evidence.create + personal guard (upload-sessions.routes.ts:333-345)",
+      "workspaceResolution": "teamId echoed by POST /v1/evidence",
+      "gate": "flag apps/web/lib/uploads/feature-flag.ts:106; owner byte-write authority upload-session.service.ts:393; finalize gate evaluateUploadSessionFinalizeGate (evidence-complete.service.ts:747)",
+      "endpoints": [
+        "POST /v1/uploads/sessions",
+        "POST /v1/uploads/sessions/:id/multipart/initiate",
+        "POST /v1/uploads/sessions/:id/parts/:n/presign",
+        "POST /v1/uploads/sessions/:id/parts/:n/uploaded",
+        "POST /v1/uploads/sessions/:id/multipart/complete",
+        "POST /v1/uploads/sessions/:id/complete",
+        "POST /v1/uploads/sessions/:id/abort",
+        "POST /v1/uploads/sessions/:id/multipart/abort",
+        "GET /v1/uploads/sessions/:id/status"
+      ],
+      "routeFile": "services/api/src/routes/upload-sessions.routes.ts:328,617,661,443,708,533,573,757,409",
+      "serviceFn": "services/api/src/services/uploads/upload-session.service.ts:331 createUploadSession, :1800 completeStorageMultipart, :815 completeUploadSession",
+      "canonicalWriter": "bridge writeEvidencePart upload-session.service.ts:2023 (EvidencePart); Evidence via POST /v1/evidence",
+      "dbTables": [
+        "evidence_upload_sessions",
+        "evidence_upload_session_parts",
+        "evidence_parts"
+      ],
+      "storageKeyPattern": "evidence/{evidenceId}/multipart/{sessionId}/object (services/api/src/services/uploads/storage-multipart.ts:92)",
+      "queueJobs": [
+        "none at upload; report/ots at complete"
+      ],
+      "workerConsumer": "reapStaleMultipartUploads upload-session.service.ts:2242 (sweep)",
+      "custodyWriter": "none during upload (by design); completeEvidence",
+      "reportPackageConsumer": "same as web upload",
+      "errorRetry": "apps/web/lib/uploads/multipart-uploader.ts retries per part; recovery apps/web/lib/uploads/recovery.ts:141",
+      "acquisitionMode": "PROOVRA_WEB_UPLOAD",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "web-capture-draft",
+      "name": "Web capture DRAFT session persistence (template/checklist state, not bytes)",
+      "platform": "web",
+      "userEntry": "apps/web/app/(app)/capture/_hooks/useCaptureDraftPersistence.ts:136,153",
+      "auth": "AUTH_JWT",
+      "workspaceResolution": "body teamId",
+      "gate": "capture.routes.ts handler checks",
+      "endpoints": [
+        "GET /v1/capture/sessions",
+        "POST /v1/capture/sessions",
+        "GET /v1/capture/sessions/:id",
+        "PATCH /v1/capture/sessions/:id",
+        "DELETE /v1/capture/sessions/:id",
+        "GET /v1/capture/intake-templates",
+        "GET /v1/capture/intake-templates/:id"
+      ],
+      "routeFile": "services/api/src/routes/capture.routes.ts:203,225,378,421,596,176,185",
+      "serviceFn": "inline in capture.routes.ts",
+      "canonicalWriter": "none (no Evidence); draft bound to Evidence at create time evidence.routes.ts:5722-5738 (status FINALIZED)",
+      "dbTables": [
+        "capture_sessions",
+        "capture_session_events"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "services/worker/src/capture-reaper.ts:75 reapExpiredCaptureDrafts",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "none",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "extension-direct-web-capture",
+      "name": "Browser extension Direct Web Capture (viewport/full page)",
+      "platform": "extension",
+      "userEntry": "apps/extension/src/popup.ts:174 (capture-viewport), :175 (capture-full) -> background.ts:38 runPreserve",
+      "auth": "extension OAuth PKCE token scope capture.direct (services/api/src/routes/extension-oauth.routes.ts:48,80; services/api/src/services/auth/extension-scope.ts:38-47)",
+      "workspaceResolution": "teamId from popup (platform context) sent at open (apps/extension/src/lib/api-client.ts:56-61); authorizeOrFail evidence.create (capture-trust.routes.ts:703)",
+      "gate": "authorizeOrFail + personal-space guard; extensionMayPresignPart (evidence.routes.ts:6081); createEvidence commercial gates; finalization governance (direct-capture-ingest.service.ts:800)",
+      "endpoints": [
+        "POST /v1/capture/direct-sessions",
+        "POST /v1/capture/direct-sessions/:id/evidence",
+        "POST /v1/evidence/:id/parts",
+        "PUT <presigned S3>",
+        "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+        "POST /v1/capture/direct-sessions/:id/web-complete"
+      ],
+      "routeFile": "services/api/src/routes/capture-trust.routes.ts:358,404,432,549; services/api/src/routes/evidence.routes.ts:6049",
+      "serviceFn": "direct-capture-ingest.service.ts:260 open, :401 reserve, :489 declare; web-capture.service.ts:49 completeWebCaptureSession -> direct-capture-ingest.service.ts:766 completeDirectCapture",
+      "canonicalWriter": "evidence.service.ts:488 via direct-capture-ingest.service.ts:431; evidence-part-writer.service.ts:168 via evidence.routes.ts:6224",
+      "dbTables": [
+        "capture_sessions",
+        "capture_trust_event_records",
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{role}-{i} ; manifest part capture-manifest.json",
+      "queueJobs": [
+        "report",
+        "ots-upgrade",
+        "search-indexing",
+        "media-intelligence",
+        "graph-reconcile"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136; capture-reaper.ts:244 for abandoned sessions",
+      "custodyWriter": "shared-runtime custody-chain.ts:45 (via createEvidence/completeEvidence) + CaptureTrustEventRecord trust-event.service.ts:67",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682; acquisition projected by worker report-technical-summary-bridge.ts:248",
+      "errorRetry": "none client-side; no /discard on failure (UC-ARCH-009); reaper releases on expiry",
+      "acquisitionMode": "DIRECT_WEB_CAPTURE_EXTENSION (client-selected at open, UC-ARCH-001)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "mobile-app-capture",
+      "name": "Mobile app capture - camera photo, video, audio, document/photo import (DocumentPicker)",
+      "platform": "android+ios",
+      "userEntry": "apps/mobile/app/(stack)/capture.tsx:1083 (DocumentPicker), :1127 (takePictureAsync), :1163 (video), :1213 (audio), :1869 Finish & Sign -> :1400 reserve, :1438 upload, :1492 completeAcquisition",
+      "auth": "AUTH_JWT (mobile) + legal acceptance at open/reserve",
+      "workspaceResolution": "teamId from active space when set (apps/mobile/src/direct-capture.ts:59-71); else server personal workspace (capture-trust.routes.ts:376-384)",
+      "gate": "authorizeOrFail evidence.create; createEvidence gates; finalization governance",
+      "endpoints": [
+        "POST /v1/capture/direct-sessions",
+        "POST /v1/capture/direct-sessions/:id/evidence",
+        "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+        "POST /v1/evidence/:id/parts",
+        "PUT <presigned S3>",
+        "POST /v1/capture/direct-sessions/:id/complete",
+        "POST /v1/capture/direct-sessions/:id/discard"
+      ],
+      "routeFile": "services/api/src/routes/capture-trust.routes.ts:358,404,432,494,525; evidence.routes.ts:6049",
+      "serviceFn": "direct-capture-ingest.service.ts:752 completeGenericDirectCapture -> :766",
+      "canonicalWriter": "evidence.service.ts:488 via direct-capture-ingest.service.ts:431; evidence-part-writer.service.ts:168",
+      "dbTables": [
+        "capture_sessions",
+        "capture_trust_event_records",
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136; capture-reaper.ts:244",
+      "custodyWriter": "shared-runtime custody-chain.ts:45 + trust-event.service.ts:67",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682",
+      "errorRetry": "sealDirectCapture discards on failure (apps/mobile/src/direct-capture.ts:266-292); recovered-session discard capture.tsx:1598",
+      "acquisitionMode": "PROOVRA_MOBILE_APP",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "android-screen-frames",
+      "name": "Android Direct Screen Capture (MediaProjection frames)",
+      "platform": "android",
+      "userEntry": "apps/mobile/app/(stack)/screen-capture.tsx:217 Start, :229 Capture Frame, :240 Add to capture session -> Finish & Sign on capture.tsx:1869",
+      "auth": "AUTH_JWT",
+      "workspaceResolution": "teamId passed (screen-capture.tsx:139 stageScreenCapture(result,{teamId})); screen is gated to Personal Space (screen-capture.tsx:190)",
+      "gate": "authorizeOrFail; completeScreenCaptureSession mode check (screen-capture.service.ts:60)",
+      "endpoints": [
+        "POST /v1/capture/direct-sessions",
+        "POST /v1/capture/direct-sessions/:id/evidence",
+        "POST /v1/evidence/:id/parts",
+        "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+        "POST /v1/capture/direct-sessions/:id/screen-complete",
+        "POST /v1/capture/direct-sessions/:id/discard"
+      ],
+      "routeFile": "services/api/src/routes/capture-trust.routes.ts:580",
+      "serviceFn": "screen-capture.service.ts:54 -> direct-capture-ingest.service.ts:766",
+      "canonicalWriter": "evidence.service.ts:488 / evidence-part-writer.service.ts:168",
+      "dbTables": [
+        "capture_sessions",
+        "capture_trust_event_records",
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45 + trust-event.service.ts:67",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682",
+      "errorRetry": "sealDirectCapture discard (apps/mobile/src/screen-capture.ts:142)",
+      "acquisitionMode": "DIRECT_SCREEN_CAPTURE_ANDROID (apps/mobile/src/screen-capture.ts:134)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "android-continuous",
+      "name": "Android continuous screen recording (segments)",
+      "platform": "android",
+      "userEntry": "apps/mobile/app/(stack)/continuous-capture.tsx:432 Start, :444 Stop & Review -> :319 sealDirectCapture(stageContinuousCapture) -> Finish & Sign capture.tsx:1869",
+      "auth": "AUTH_JWT",
+      "workspaceResolution": "teamId (continuous-capture.tsx:235)",
+      "gate": "authorizeOrFail; continuous-capture.service.ts:69-75 mode check",
+      "endpoints": [
+        "POST /v1/capture/direct-sessions",
+        "POST /v1/capture/direct-sessions/:id/evidence",
+        "POST /v1/evidence/:id/parts",
+        "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete",
+        "POST /v1/capture/direct-sessions/:id/discard"
+      ],
+      "routeFile": "services/api/src/routes/capture-trust.routes.ts:612",
+      "serviceFn": "continuous-capture.service.ts:62 -> direct-capture-ingest.service.ts:766",
+      "canonicalWriter": "evidence.service.ts:488 / evidence-part-writer.service.ts:168",
+      "dbTables": [
+        "capture_sessions",
+        "capture_trust_event_records",
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{segment}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade",
+        "media-intelligence"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45 + trust-event.service.ts:67",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682",
+      "errorRetry": "sealDirectCapture discard; session expiry slides (direct-capture-ingest.service.ts:173)",
+      "acquisitionMode": "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS (apps/mobile/src/continuous-capture.ts:188)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "ios-broadcast",
+      "name": "iOS system broadcast screen recording (ReplayKit Broadcast Upload Extension)",
+      "platform": "ios",
+      "userEntry": "apps/mobile/app/(stack)/continuous-capture.tsx:432 (Platform.OS ios) ; extension apps/mobile/plugins/broadcast-extension/SampleHandler.swift (no network; hands segments to app group via apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift)",
+      "auth": "AUTH_JWT (app process uploads)",
+      "workspaceResolution": "teamId (continuous-capture.tsx:235)",
+      "gate": "authorizeOrFail; continuous-capture.service.ts:69-75 (admits DIRECT_SCREEN_CAPTURE_IOS)",
+      "endpoints": [
+        "POST /v1/capture/direct-sessions",
+        "POST /v1/capture/direct-sessions/:id/evidence",
+        "POST /v1/evidence/:id/parts",
+        "POST /v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+        "POST /v1/capture/direct-sessions/:id/continuous-complete"
+      ],
+      "routeFile": "services/api/src/routes/capture-trust.routes.ts:612",
+      "serviceFn": "continuous-capture.service.ts:62 (shared with Android continuous; no iOS-specific completion)",
+      "canonicalWriter": "evidence.service.ts:488 / evidence-part-writer.service.ts:168",
+      "dbTables": [
+        "capture_sessions",
+        "capture_trust_event_records",
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{segment}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45 + trust-event.service.ts:67",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682",
+      "errorRetry": "sealDirectCapture discard",
+      "acquisitionMode": "DIRECT_SCREEN_CAPTURE_IOS (apps/mobile/src/continuous-capture.ts:188)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "public-intake-web",
+      "name": "Public secure intake link - web contributor page",
+      "platform": "web",
+      "userEntry": "apps/web/app/intake/[token]/page.tsx:1346 (file input), :1570 onSubmit",
+      "auth": "HMAC intake token (no user); per-session",
+      "workspaceResolution": "link.teamId; Evidence owned by link.createdByUserId (external-intake-orchestration.service.ts:321-323)",
+      "gate": "WORKFLOW_INTAKE_LINKS_ENABLED + token secret (server.ts:1379-1385 comment); link validity/expiry/max uses; reserveIntakeLinkUse; finalization governance (orchestration :1008)",
+      "endpoints": [
+        "GET /v1/external-intake/:token",
+        "POST /v1/external-intake/:token/sessions/:sid/identity",
+        "POST /v1/external-intake/:token/sessions/:sid/consent",
+        "POST /v1/external-intake/:token/sessions/:sid/parts",
+        "PATCH /v1/external-intake/:token/sessions/:sid/parts/:partId",
+        "POST /v1/external-intake/:token/sessions/:sid/submit"
+      ],
+      "routeFile": "services/api/src/routes/external-intake.routes.ts:817,881,924,972,1169,1229",
+      "serviceFn": "external-intake-orchestration.service.ts:292 createOrLoadExternalEvidence, :515 addExternalEvidencePart, :860 submitExternalIntake",
+      "canonicalWriter": "evidence.service.ts:488 via orchestration :321; evidence-part-writer.service.ts:168 via orchestration :569 (INTAKE_SESSION principal)",
+      "dbTables": [
+        "workflow_intake_sessions",
+        "workflow_intake_links",
+        "evidence",
+        "evidence_parts",
+        "custody_events",
+        "evidence_request_responses"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName} (orchestration :540)",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45 via createEvidence/completeEvidence",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682",
+      "errorRetry": "retry after signed completes missing steps (orchestration :1005-1006); part_not_uploaded mapping (:1033-1043)",
+      "acquisitionMode": "SECURE_INTAKE_LINK (orchestration :330)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "public-intake-mobile",
+      "name": "Public secure intake link - native app contributor screen",
+      "platform": "android+ios",
+      "userEntry": "apps/mobile/app/(stack)/intake/capture.tsx:137 (DocumentPicker), :382 Send; deep link apps/mobile/app.json:82-91 (/intake)",
+      "auth": "HMAC intake token",
+      "workspaceResolution": "link.teamId",
+      "gate": "same as public-intake-web",
+      "endpoints": [
+        "GET /v1/external-intake/:token",
+        "POST /v1/external-intake/:token/sessions/:sid/identity",
+        "POST /v1/external-intake/:token/sessions/:sid/consent",
+        "POST /v1/external-intake/:token/sessions/:sid/parts",
+        "PATCH /v1/external-intake/:token/sessions/:sid/parts/:partId",
+        "POST /v1/external-intake/:token/sessions/:sid/submit"
+      ],
+      "routeFile": "services/api/src/routes/external-intake.routes.ts:817-1229",
+      "serviceFn": "same as public-intake-web",
+      "canonicalWriter": "same as public-intake-web",
+      "dbTables": [
+        "workflow_intake_sessions",
+        "evidence",
+        "evidence_parts",
+        "custody_events"
+      ],
+      "storageKeyPattern": "evidence/{id}/parts/{NNN}-{fileName}",
+      "queueJobs": [
+        "report",
+        "ots-upgrade"
+      ],
+      "workerConsumer": "services/worker/src/index.ts:2136",
+      "custodyWriter": "shared-runtime custody-chain.ts:45",
+      "reportPackageConsumer": "evidence-complete.service.ts:1682",
+      "errorRetry": "same",
+      "acquisitionMode": "SECURE_INTAKE_LINK",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "intake-link-issue",
+      "name": "Intake link creation/send (workspace side)",
+      "platform": "web+android+ios+api",
+      "userEntry": "apps/web/app/(app)/intake-links/_components/wizard/CreateLinkWizard.tsx:302; apps/mobile/app/(stack)/intake-link-create.tsx",
+      "auth": "AUTH_JWT member; API key for /v1/integrations/api/intake-links",
+      "workspaceResolution": "body teamId / credential team",
+      "gate": "intake-link-mint-gate (services/api/src/services/intake/intake-link-mint-gate.js import at evidence-request.service.ts:52)",
+      "endpoints": [
+        "POST /v1/workflow/intake-links",
+        "POST /v1/workflow/intake-links/:id/send",
+        "POST /v1/workflow/intake-links/:id/revoke",
+        "POST /v1/workflow/intake-links/:id/archive",
+        "POST /v1/workflow/intake-links/:id/unarchive",
+        "POST /v1/integrations/api/intake-links"
+      ],
+      "routeFile": "services/api/src/routes/workflow-intake-links.routes.ts:339,1035,854,928,980; services/api/src/routes/integrations-api.routes.ts:234",
+      "serviceFn": "createWorkflowIntakeLink (services/api/src/services/workflow-intake-link.service.ts)",
+      "canonicalWriter": "none (no Evidence until contributor uploads)",
+      "dbTables": [
+        "workflow_intake_links"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [
+        "outbound message outbox"
+      ],
+      "workerConsumer": "n/a",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "none",
+      "errorRetry": "delivery retry",
+      "acquisitionMode": "n/a (issues SECURE_INTAKE_LINK channel)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "evidence-requests",
+      "name": "Evidence Requests (request/deliverable tracking over intake links)",
+      "platform": "web+android+ios+api",
+      "userEntry": "apps/web/app/(app)/evidence/[id]/components/EvidenceRequestPanel.tsx:562; apps/mobile/src/product/evidence-linked-requests.ts:68",
+      "auth": "AUTH_JWT member; API key /v1/integrations/api/evidence-requests",
+      "workspaceResolution": "body teamId",
+      "gate": "EVIDENCE_REQUESTS_ENABLED (evidence-request.service.ts:63) + intake mint gate",
+      "endpoints": [
+        "POST /v1/evidence-requests",
+        "POST /v1/evidence-requests/:id/send",
+        "POST /v1/evidence-requests/:id/cancel",
+        "POST /v1/evidence-requests/:id/close",
+        "POST /v1/evidence-requests/:id/needs-more-info",
+        "POST /v1/evidence-requests/:id/responses/:responseId/review",
+        "POST /v1/evidence-requests/:id/responses/:responseId/request-more",
+        "POST /v1/integrations/api/evidence-requests"
+      ],
+      "routeFile": "services/api/src/routes/evidence-requests.routes.ts:218-812; services/api/src/routes/integrations-api.routes.ts:337",
+      "serviceFn": "services/api/src/services/evidence-request.service.ts (linkResponseFromIntakeSession :973)",
+      "canonicalWriter": "none directly; bytes arrive via public intake (same writer as public-intake-web)",
+      "dbTables": [
+        "evidence_requests",
+        "evidence_request_deliverables",
+        "evidence_request_responses",
+        "evidence_request_events",
+        "workflow_intake_links"
+      ],
+      "storageKeyPattern": "as intake",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "as intake",
+      "reportPackageConsumer": "as intake",
+      "errorRetry": "delivery retry route :369",
+      "acquisitionMode": "SECURE_INTAKE_LINK (same concept as intake - NOT a distinct capture channel)",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "integration-api-upload",
+      "name": "API-key resumable upload into an existing record",
+      "platform": "api",
+      "userEntry": "none in repo (external machine clients)",
+      "auth": "Bearer API key scope integration.evidence.upload/read (integrations-uploads.routes.ts:313-314)",
+      "workspaceResolution": "credential teamId",
+      "gate": "gateEvidenceForUpload (team, archive, hold); owner byte-write authority with actor=credentialId (always refuses, UC-ARCH-004)",
+      "endpoints": [
+        "POST /v1/integrations/api/uploads/sessions",
+        "GET /v1/integrations/api/uploads/sessions/:sessionId",
+        "POST /v1/integrations/api/uploads/sessions/:sessionId/parts/:partIndex/uploaded",
+        "POST /v1/integrations/api/uploads/sessions/:sessionId/complete",
+        "POST /v1/integrations/api/uploads/sessions/:sessionId/abort",
+        "POST /v1/integrations/api/uploads/sessions/:sessionId/multipart/initiate",
+        "POST /v1/integrations/api/uploads/sessions/:sessionId/parts/:partIndex/presign",
+        "POST /v1/integrations/api/uploads/sessions/:sessionId/multipart/complete",
+        "POST /v1/integrations/api/uploads/sessions/:sessionId/multipart/abort"
+      ],
+      "routeFile": "services/api/src/routes/integrations-uploads.routes.ts:310,365,393,439,473,511,539,571,606",
+      "serviceFn": "upload-session.service.ts:331",
+      "canonicalWriter": "would be upload-session.service.ts:2023 bridge (unreachable)",
+      "dbTables": [
+        "evidence_upload_sessions"
+      ],
+      "storageKeyPattern": "evidence/{evidenceId}/multipart/{sessionId}/object",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "none (API key cannot call completeEvidence)",
+      "errorRetry": "idempotencyKey required",
+      "acquisitionMode": "none (cannot create Evidence)",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "id": "case-attach",
+      "name": "Attach existing Evidence to a case",
+      "platform": "web+android+ios",
+      "userEntry": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1477; apps/web/app/(app)/evidence/[id]/page.tsx:739; apps/mobile/src/product/evidence-detail.ts:235",
+      "auth": "AUTH_JWT + legal",
+      "workspaceResolution": "case team; authorizeCaseEvidenceLink",
+      "gate": "ET-SEC-16 case-link authority (cases.routes.ts:1350)",
+      "endpoints": [
+        "POST /v1/cases/:id/evidence",
+        "DELETE /v1/cases/:id/evidence/:evidenceId"
+      ],
+      "routeFile": "services/api/src/routes/cases.routes.ts:1324,1500",
+      "serviceFn": "services/api/src/services/cases/case-evidence-link.service.ts:104 attachEvidenceToCase",
+      "canonicalWriter": "CaseEvidenceLink (no Evidence write)",
+      "dbTables": [
+        "case_evidence_links"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "tenant audit in same tx",
+      "reportPackageConsumer": "case metadata in package (verification-package.ts:1378)",
+      "errorRetry": "idempotent",
+      "acquisitionMode": "n/a",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "case-evidence-links",
+      "name": "Matter workspace evidence links",
+      "platform": "web",
+      "userEntry": "apps/web/components/cases-experience/MatterWorkspace.tsx:542,608",
+      "auth": "AUTH_JWT",
+      "workspaceResolution": "requireCaseEvidenceLink",
+      "gate": "same authority",
+      "endpoints": [
+        "POST /v1/cases/:id/evidence-links",
+        "DELETE /v1/cases/:id/evidence-links/:linkId"
+      ],
+      "routeFile": "services/api/src/routes/case-workspace.routes.ts:1092,1154",
+      "serviceFn": "services/api/src/services/cases/case-lifecycle.service.ts:621 -> :647 attachEvidenceToCase",
+      "canonicalWriter": "CaseEvidenceLink via attachEvidenceToCase",
+      "dbTables": [
+        "case_evidence_links"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "tenant audit",
+      "reportPackageConsumer": "same",
+      "errorRetry": "idempotent",
+      "acquisitionMode": "n/a",
+      "disposition": "LIVE_DUPLICATE"
+    },
+    {
+      "id": "case-legacy-link-delete",
+      "name": "Legacy Evidence.caseId detach",
+      "platform": "api",
+      "userEntry": "none",
+      "auth": "AUTH_JWT",
+      "workspaceResolution": "requireCaseAccess",
+      "gate": "case access",
+      "endpoints": [
+        "DELETE /v1/cases/:id/legacy-evidence-link/:evidenceId"
+      ],
+      "routeFile": "services/api/src/routes/case-workspace.routes.ts:1122",
+      "serviceFn": "inline",
+      "canonicalWriter": "n/a",
+      "dbTables": [
+        "case_evidence_links"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "n/a",
+      "reportPackageConsumer": "n/a",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "id": "citizen-capture-sessions",
+      "name": "Citizen capture session open (retired)",
+      "platform": "api",
+      "userEntry": "none",
+      "auth": "none",
+      "workspaceResolution": "n/a",
+      "gate": "410 CITIZEN_CAPTURE_RETIRED",
+      "endpoints": [
+        "POST /v1/intake/citizen/sessions"
+      ],
+      "routeFile": "services/api/src/routes/citizen-capture.routes.ts:128",
+      "serviceFn": "none",
+      "canonicalWriter": "none",
+      "dbTables": [],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "none",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "id": "citizen-capture-upload",
+      "name": "Citizen capture upload (retired)",
+      "platform": "api",
+      "userEntry": "none",
+      "auth": "none",
+      "workspaceResolution": "n/a",
+      "gate": "410",
+      "endpoints": [
+        "POST /v1/intake/citizen/sessions/:id/capture"
+      ],
+      "routeFile": "services/api/src/routes/citizen-capture.routes.ts:140",
+      "serviceFn": "none",
+      "canonicalWriter": "none",
+      "dbTables": [],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "none",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "id": "mobile-ingest-legacy",
+      "name": "Receipt-only mobile ingest (retired)",
+      "platform": "api",
+      "userEntry": "none (apps/mobile/src/direct-capture.ts:5 comment only)",
+      "auth": "AUTH_JWT",
+      "workspaceResolution": "n/a",
+      "gate": "410 INGEST_RETIRED",
+      "endpoints": [
+        "POST /v1/capture/mobile/ingest"
+      ],
+      "routeFile": "services/api/src/routes/capture-trust.routes.ts:344",
+      "serviceFn": "none",
+      "canonicalWriter": "none",
+      "dbTables": [],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "none",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "id": "intake-session-transition",
+      "name": "Intake session client transition (retired, ET-INT-01)",
+      "platform": "api",
+      "userEntry": "none",
+      "auth": "intake token",
+      "workspaceResolution": "n/a",
+      "gate": "410",
+      "endpoints": [
+        "POST /v1/external-intake/:token/sessions/:sid/transition"
+      ],
+      "routeFile": "services/api/src/routes/external-intake.routes.ts:1435",
+      "serviceFn": "none",
+      "canonicalWriter": "none",
+      "dbTables": [],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "none",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "id": "capture-device-register",
+      "name": "Capture device registration / attestation / trust timeline",
+      "platform": "api",
+      "userEntry": "none (web Security Center only lists+revokes: apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx:118,172)",
+      "auth": "AUTH_JWT, team context",
+      "workspaceResolution": "resolveTeamIdOrDeny (personal denied)",
+      "gate": "team member",
+      "endpoints": [
+        "POST /v1/capture/devices",
+        "POST /v1/capture/direct-sessions/:id/attestation",
+        "GET /v1/capture/sessions/:id/trust-timeline"
+      ],
+      "routeFile": "services/api/src/routes/capture-trust.routes.ts:243,470,636",
+      "serviceFn": "device-identity.service.ts:99 registerDevice; direct-capture-ingest.service.ts:657 submitDirectCaptureAttestation; trust-event.service.ts:256",
+      "canonicalWriter": "n/a",
+      "dbTables": [
+        "devices",
+        "capture_device_attestations",
+        "capture_trust_event_records"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "trust events",
+      "reportPackageConsumer": "n/a",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "id": "upload-session-verified-and-read",
+      "name": "Upload session operator verify + single read",
+      "platform": "api",
+      "userEntry": "none",
+      "auth": "AUTH_JWT authorizeOrFail",
+      "workspaceResolution": "body/query teamId",
+      "gate": "authorizeOrFail",
+      "endpoints": [
+        "POST /v1/uploads/sessions/:sessionId/parts/:partIndex/verified",
+        "GET /v1/uploads/sessions/:sessionId"
+      ],
+      "routeFile": "services/api/src/routes/upload-sessions.routes.ts:506,375",
+      "serviceFn": "upload-session.service.ts:693 markPartVerified, :544 resumeUploadSession",
+      "canonicalWriter": "n/a",
+      "dbTables": [
+        "evidence_upload_session_parts"
+      ],
+      "storageKeyPattern": "n/a",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "none",
+      "reportPackageConsumer": "n/a",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "id": "legacy-guest-claim",
+      "name": "Legacy guest evidence claim on login/register",
+      "platform": "web",
+      "userEntry": "apps/web/app/login/page.tsx:411; apps/web/app/register/page.tsx:542; apps/web/app/auth/verify-email/page.tsx:131",
+      "auth": "AUTH_JWT + guest JWT signed with AUTH_JWT_SECRET",
+      "workspaceResolution": "n/a (ownership transfer)",
+      "gate": "guest token provider=GUEST",
+      "endpoints": [
+        "POST /v1/evidence/claim"
+      ],
+      "routeFile": "services/api/src/routes/evidence.routes.ts:6475",
+      "serviceFn": "inline",
+      "canonicalWriter": "Evidence ownership update (not creation)",
+      "dbTables": [
+        "evidence"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "see route",
+      "reportPackageConsumer": "n/a",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "id": "reliability-upload-ops",
+      "name": "Operator upload-session triage (observational UploadSession)",
+      "platform": "web",
+      "userEntry": "apps/web/app/(app)/operations/reliability/page.tsx:155,203,242",
+      "auth": "AUTH_JWT admin",
+      "workspaceResolution": "teamId query",
+      "gate": "OWNER/ADMIN (404 otherwise)",
+      "endpoints": [
+        "GET /v1/reliability/upload-sessions",
+        "POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+        "POST /v1/reliability/upload-sessions/:evidenceId/request-review"
+      ],
+      "routeFile": "services/api/src/routes/reliability.routes.ts:114,139,175",
+      "serviceFn": "services/api/src/services/reliability/upload-session.service.ts:58 ensureUploadSession (UploadSession model)",
+      "canonicalWriter": "UploadSession (observational duplicate of EvidenceUploadSession concept)",
+      "dbTables": [
+        "upload_sessions"
+      ],
+      "storageKeyPattern": "none",
+      "queueJobs": [],
+      "workerConsumer": "n/a",
+      "custodyWriter": "n/a",
+      "reportPackageConsumer": "n/a",
+      "errorRetry": "n/a",
+      "acquisitionMode": "n/a",
+      "disposition": "LIVE_DUPLICATE"
+    }
+  ],
+  "absentChannels": [
+    {
+      "channel": "web screen capture (getDisplayMedia)",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "0 getDisplayMedia hits in apps/web"
+    },
+    {
+      "channel": "mobile share-intent / iOS share extension",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "apps/mobile/app.json:82-120 VIEW only; only NSExtension = broadcast (plugins/broadcast-extension/Info.plist:21)"
+    },
+    {
+      "channel": "PWA share_target",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "apps/web/public/manifest.webmanifest has no share_target"
+    },
+    {
+      "channel": "API-key Evidence creation",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "no API-key route calls createEvidence; evidence.routes.ts:5601-5603 comment"
+    }
+  ],
+  "mutations": [
+    {
+      "method": "POST",
+      "path": "/v1/evidence",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:5429",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/parts",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6049",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/complete",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:10376",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/evidence/:id/label",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:5946",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/claim",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6475",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/lock",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6556",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/unlock",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6674",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/archive",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6888",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/unarchive",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6907",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/evidence/:id",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6932",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/restore",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:6951",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/bulk",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:7291",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/reports/regenerate",
+      "fileLine": "services/api/src/routes/evidence.routes.ts:10968",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/sessions",
+      "fileLine": "services/api/src/routes/capture.routes.ts:225",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/capture/sessions/:id",
+      "fileLine": "services/api/src/routes/capture.routes.ts:421",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/capture/sessions/:id",
+      "fileLine": "services/api/src/routes/capture.routes.ts:596",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/devices",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:243",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/devices/:id/revoke",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:311",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/mobile/ingest",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:344",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:358",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/evidence",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:404",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/parts/:partIndex/declaration",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:432",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/attestation",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:470",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/complete",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:494",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/discard",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:525",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/web-complete",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:549",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/screen-complete",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:580",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/capture/direct-sessions/:id/continuous-complete",
+      "fileLine": "services/api/src/routes/capture-trust.routes.ts:612",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/intake/citizen/sessions",
+      "fileLine": "services/api/src/routes/citizen-capture.routes.ts:128",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/intake/citizen/sessions/:id/capture",
+      "fileLine": "services/api/src/routes/citizen-capture.routes.ts:140",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:328",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/parts/:partIndex/uploaded",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:443",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/parts/:partIndex/verified",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:506",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/complete",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:533",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/abort",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:573",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/multipart/initiate",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:617",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/parts/:partIndex/presign",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:661",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/multipart/complete",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:708",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/uploads/sessions/:sessionId/multipart/abort",
+      "fileLine": "services/api/src/routes/upload-sessions.routes.ts:757",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/integrations/api/uploads/sessions (+8 sub-routes)",
+      "fileLine": "services/api/src/routes/integrations-uploads.routes.ts:310-606",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/identity",
+      "fileLine": "services/api/src/routes/external-intake.routes.ts:881",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/consent",
+      "fileLine": "services/api/src/routes/external-intake.routes.ts:924",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/parts",
+      "fileLine": "services/api/src/routes/external-intake.routes.ts:972",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
+      "fileLine": "services/api/src/routes/external-intake.routes.ts:1169",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/submit",
+      "fileLine": "services/api/src/routes/external-intake.routes.ts:1229",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/external-intake/:token/sessions/:sid/transition",
+      "fileLine": "services/api/src/routes/external-intake.routes.ts:1435",
+      "disposition": "RETIRED_410"
+    },
+    {
+      "method": "GET (creates a WorkflowIntakeSession)",
+      "path": "/v1/external-intake/:token",
+      "fileLine": "services/api/src/routes/external-intake.routes.ts:817",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workflow/intake-links",
+      "fileLine": "services/api/src/routes/workflow-intake-links.routes.ts:339",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/integrations/api/intake-links",
+      "fileLine": "services/api/src/routes/integrations-api.routes.ts:234",
+      "disposition": "LIVE_DUPLICATE"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence-requests",
+      "fileLine": "services/api/src/routes/evidence-requests.routes.ts:218",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/integrations/api/evidence-requests",
+      "fileLine": "services/api/src/routes/integrations-api.routes.ts:337",
+      "disposition": "LIVE_DUPLICATE"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/cases/:id/evidence",
+      "fileLine": "services/api/src/routes/cases.routes.ts:1324",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/cases/:id/evidence/:evidenceId",
+      "fileLine": "services/api/src/routes/cases.routes.ts:1500",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/cases/:id/evidence-links",
+      "fileLine": "services/api/src/routes/case-workspace.routes.ts:1092",
+      "disposition": "LIVE_DUPLICATE"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/cases/:id/evidence-links/:linkId",
+      "fileLine": "services/api/src/routes/case-workspace.routes.ts:1154",
+      "disposition": "LIVE_DUPLICATE"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/cases/:id/legacy-evidence-link/:evidenceId",
+      "fileLine": "services/api/src/routes/case-workspace.routes.ts:1122",
+      "disposition": "DEAD_NO_CALLER"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/governance/lifecycle/evidence/:id/transition",
+      "fileLine": "services/api/src/routes/governance-lifecycle.routes.ts:952",
+      "disposition": "LIVE_CANONICAL"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/reliability/upload-sessions/:evidenceId/mark-abandoned",
+      "fileLine": "services/api/src/routes/reliability.routes.ts:139",
+      "disposition": "LIVE_DUPLICATE"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/evidence/:id/verify-links",
+      "fileLine": "services/api/src/routes/verification-share.routes.ts:156",
+      "disposition": "LIVE_CANONICAL"
+    }
+  ],
+  "counts": {
+    "surfaces": 27,
+    "byDisposition": {
+      "CALLER_NO_ROUTE": 0,
+      "DEAD_NO_CALLER": 4,
+      "LIVE_CANONICAL": 17,
+      "LIVE_DUPLICATE": 2,
+      "RETIRED_410": 4,
+      "TEST_ONLY": 0
+    },
+    "mutations": 59
+  }
+}

@@ -1,0 +1,59 @@
+[33m› [1m[@sentry/react-native/expo][22m Missing config for [1morganization, project[22m. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/[0m
+Starting Metro Bundler
+Android Bundled 17729ms apps\mobile\index.js (1937 modules)
+iOS Bundled 23765ms apps\mobile\index.js (1938 modules)
+
+› Assets (61):
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\100Thin\NotoSansArabic_100Thin.ttf (194 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\200ExtraLight\NotoSansArabic_200ExtraLight.ttf (195 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\300Light\NotoSansArabic_300Light.ttf (195 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\400Regular\NotoSansArabic_400Regular.ttf (194 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\500Medium\NotoSansArabic_500Medium.ttf (194 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\600SemiBold\NotoSansArabic_600SemiBold.ttf (194 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\700Bold\NotoSansArabic_700Bold.ttf (194 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\800ExtraBold\NotoSansArabic_800ExtraBold.ttf (195 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+noto-sans-arabic@0.4.3\node_modules\@expo-google-fonts\noto-sans-arabic\900Black\NotoSansArabic_900Black.ttf (194 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\200ExtraLight_Italic\PlusJakartaSans_200ExtraLight_Italic.ttf (97.2 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\200ExtraLight\PlusJakartaSans_200ExtraLight.ttf (94.8 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\300Light_Italic\PlusJakartaSans_300Light_Italic.ttf (97.1 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\300Light\PlusJakartaSans_300Light.ttf (94.8 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\400Regular_Italic\PlusJakartaSans_400Regular_Italic.ttf (96.9 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\400Regular\PlusJakartaSans_400Regular.ttf (94.8 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\500Medium_Italic\PlusJakartaSans_500Medium_Italic.ttf (97.1 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\500Medium\PlusJakartaSans_500Medium.ttf (94.8 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\600SemiBold_Italic\PlusJakartaSans_600SemiBold_Italic.ttf (97.1 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\600SemiBold\PlusJakartaSans_600SemiBold.ttf (94.8 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\700Bold_Italic\PlusJakartaSans_700Bold_Italic.ttf (97 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\700Bold\PlusJakartaSans_700Bold.ttf (94.8 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\800ExtraBold_Italic\PlusJakartaSans_800ExtraBold_Italic.ttf (97 kB)
+..\..\node_modules\.pnpm\@expo-google-fonts+plus-jakarta-sans@0.4.2\node_modules\@expo-google-fonts\plus-jakarta-sans\800ExtraBold\PlusJakartaSans_800ExtraBold.ttf (94.8 kB)
+..\..\node_modules\.pnpm\@expo+vector-icons@14.0.4\node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\Feather.ttf (56.2 kB)
+..\..\node_modules\.pnpm\@expo+vector-icons@14.0.4\node_modules\@expo\vector-icons\build\vendor\react-native-vector-icons\Fonts\FontAwesome.ttf (166 kB)
+..\..\node_modules\.pnpm\@react-navigation+elements@_57c68a6893e55759d31e5a2fcce247fe\node_modules\@react-navigation\elements\lib\module\assets\back-icon-mask.png (653 B)
+..\..\node_modules\.pnpm\@react-navigation+elements@_57c68a6893e55759d31e5a2fcce247fe\node_modules\@react-navigation\elements\lib\module\assets\back-icon.png (8 variations | 359 B)
+..\..\node_modules\.pnpm\@react-navigation+elements@_57c68a6893e55759d31e5a2fcce247fe\node_modules\@react-navigation\elements\lib\module\assets\clear-icon.png (4 variations | 425 B)
+..\..\node_modules\.pnpm\@react-navigation+elements@_57c68a6893e55759d31e5a2fcce247fe\node_modules\@react-navigation\elements\lib\module\assets\close-icon.png (4 variations | 235 B)
+..\..\node_modules\.pnpm\@react-navigation+elements@_57c68a6893e55759d31e5a2fcce247fe\node_modules\@react-navigation\elements\lib\module\assets\search-icon.png (7 variations | 592 B)
+..\..\node_modules\.pnpm\expo-router@4.0.22_6d9ad0aa24abdca53b9fcb5ddf7a38ec\node_modules\expo-router\assets\error.png (469 B)
+..\..\node_modules\.pnpm\expo-router@4.0.22_6d9ad0aa24abdca53b9fcb5ddf7a38ec\node_modules\expo-router\assets\file.png (138 B)
+..\..\node_modules\.pnpm\expo-router@4.0.22_6d9ad0aa24abdca53b9fcb5ddf7a38ec\node_modules\expo-router\assets\forward.png (188 B)
+..\..\node_modules\.pnpm\expo-router@4.0.22_6d9ad0aa24abdca53b9fcb5ddf7a38ec\node_modules\expo-router\assets\pkg.png (364 B)
+..\..\node_modules\.pnpm\expo-router@4.0.22_6d9ad0aa24abdca53b9fcb5ddf7a38ec\node_modules\expo-router\assets\sitemap.png (465 B)
+..\..\node_modules\.pnpm\expo-router@4.0.22_6d9ad0aa24abdca53b9fcb5ddf7a38ec\node_modules\expo-router\assets\unmatched.png (4.75 kB)
+assets\brand-mark.png (109 kB)
+assets\brand\app-shell-bg.png (1.14 MB)
+assets\brand\auth-hero.png (1.74 MB)
+assets\brand\logo-dark.png (320 kB)
+assets\brand\proovra-mark.png (398 kB)
+assets\brand\sidebar-bg.png (1.12 MB)
+
+› android bundles (1):
+_expo/static/js/android/index-2b82902b9e2171da17b6ab7a73b73e19.hbc (8.17 MB)
+
+› ios bundles (1):
+_expo/static/js/ios/index-775ffc4d2441f837c3db1d9d1c31a8b4.hbc (8.15 MB)
+
+› Files (1):
+metadata.json (7.41 kB)
+
+Exported: C:/Users/j_att/AppData/Local/Temp/claude/D--digital-witness/625ce48f-97f7-4cdc-b677-1d02c4fcb185/scratchpad/expo-export
