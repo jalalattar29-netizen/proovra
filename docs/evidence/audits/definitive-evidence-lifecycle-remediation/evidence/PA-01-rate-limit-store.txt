@@ -1,0 +1,91 @@
+POST-AUDIT PA-01 — public-write rate limit: what the intermittent failure was, and the defect it led to (2026-09-30)
+
+1. THE OBSERVED FAILURE WAS THE FIXTURE, AND THE HYPOTHESIS WAS REFUTED BY INSTRUMENTATION
+
+Suite: services/api/test/phase13-public-write-bounds.integration.test.ts (three real API replicas, one Redis).
+Observed: limit 5, nine 201s and no 429; another case 36 accepted; later reruns green.
+Hypothesis under test: a Redis error/close puts a replica on its per-process memory fallback for 15 s,
+so one window is split across stores and replicas.
+
+Temporary diagnostics (since removed) recorded, for every limiter decision in every replica: hashed key,
+store used, replica port, count, limit, availability generation, fallback reason. Six looped runs, two of
+them failing:
+
+  redis_event:connect 18   redis_event:ready 18   decision:redis 1878
+  redis_unavailable 0      decision:memory_* 0
+
+Every one of 1,878 decisions was made by Redis. No replica ever left Redis. The hypothesis does not explain
+the failures.
+
+What the trace shows instead, in a failing case (key hashed, times relative to the case's start):
+
+    +7 ms  count 1  ttl -1
+   +17 ms  count 2  ttl 59990
+   +28 ms  count 1  ttl -1        <- the key is gone; no DEL was issued (full MONITOR trace: only the test's
+   +37 ms  count 2  ttl 59991        own SCAN/DEL between cases)
+   ...
+   +84 ms  count 6  ttl 131941    <- a TTL of 131 s on a key that is only ever given 60 s
+
+A TTL larger than the value it was set to, and a key that vanishes without a DEL, are both what a store sees
+when its clock moves. Measured directly (Redis TIME against the host clock, sampled every 20 ms for 40 s):
+
+  offset(redis - host) = -72 s, stepping to 0 and back every 5 s:
+  {"at":250,"from":-72043,"to":1} {"at":344,"from":0,"to":-72017} {"at":5259,"from":-72016,"to":0}
+  {"at":5415,"from":0,"to":-72052} {"at":10261,"from":-72003,"to":1} {"at":10356,"from":1,"to":-72015} ...
+
+  docker exec <container> date, minus host: er-redis -71.8 s, er-pg -71.8 s, er-minio -71.8 s, pv-olc-redis -71.8 s
+
+The Docker Desktop VM's clock (kernel 6.6.87.2-microsoft-standard-WSL2) is 72 s behind the host and is
+stepped forward to the right time and back again every five seconds. Each forward step is longer than the
+60 s window, so it expires every rate-limit bucket in Redis; a burst that straddles a step is counted in two
+windows. Classification of the observed failures: FIXTURE DEFECT (container host clock). Not reproducible
+where containers share a stable kernel clock (CI).
+
+The suite now samples the store's clock for its whole life; a case that fails while the clock stepped prints
+"FIXTURE, NOT PRODUCT" with the step sizes. A passing case is untouched. No retry, skip, sleep or timeout was added.
+The host clock itself was not changed by this work: it is a system setting on the owner's machine.
+
+2. THE HYPOTHESIS DESCRIBED A REAL, SEPARATE PRODUCT DEFECT
+
+Reading the limiter for the hypothesis showed it was true of the CODE, just not the cause of these failures:
+with Redis configured and unreachable, enforceRateLimit counted in the replica's own memory for a 15 s
+cooldown. For an unauthenticated write that is N allowances for N replicas, and a store that flaps splits
+one window between Redis and memory.
+
+Red — services/api/test/rate-limit-global-bound.test.ts against the code at 945e02d7
+(three module instances over one controllable fake Redis):
+
+   ✓ a global bound across three replicas > Redis available: exactly LIMIT are admitted in total, and the first refusal is request LIMIT + 1 15ms
+   × a global bound across three replicas > Redis unavailable before the first request: every replica refuses, and nothing is counted per process 7ms
+     → expected 9 to be +0 // Object.is equality
+   × a global bound across three replicas > Redis fails in the middle of a window: no replica opens a second, private allowance 4ms
+     → expected 12 to be +0 // Object.is equality
+   ✓ a global bound across three replicas > Redis recovers in the middle of a window: the count resumes where Redis left it, with no double counting 3ms
+   × a global bound across three replicas > a store that flaps cannot split one window between Redis and memory 3ms
+     → expected 19 to be less than or equal to 5
+   × a global bound across three replicas > a replica whose connection is healthy is not held back by another's cooldown 2ms
+     → expected undefined to be 'unavailable' // Object.is equality
+   × a global bound across three replicas > the distinct-client limit follows the same rule 3ms
+     → expected 3 to be +0 // Object.is equality
+   × what did NOT change > a process-scoped limit still degrades to the replica's own memory during an outage, and says so 2ms
+     → expected false to be true // Object.is equality
+   ✓ what did NOT change > with no Redis configured the one process IS the deployment: memory is the bound, exact at the boundary 2ms
+   ✓ what did NOT change > the window still ends: after it, the bound admits again 1ms
+   × every public write declares its bound global > the unauthenticated write surfaces, and the credential-guessing ones, pass bound: "global" 4ms
+     → expected [ …(18) ] to deeply equal []
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  7 failed | 4 passed (11)
+
+Fix: enforceRateLimit / enforceDistinctClientLimit take bound: "global" | "process". With Redis configured,
+a global bound is decided by Redis or refused (store: "unavailable", counted nowhere, Retry-After = end of
+cooldown); it is never continued in process memory. A replica whose connection is ready again decides
+immediately instead of waiting out the cooldown. "process" keeps the documented fallback for authenticated
+cost controls and reports store: "memory". 18 call sites are global: contact-sales, demo-requests,
+citizen-intake (ip, token), external-intake (ip, token), auth register / availability / login /
+password-reset / email-verify / resend, login MFA verify, workspace-invite lookup, password change
+(user, ip), contact-factor enrolment, portal MFA code. A source test holds that list.
+Operational signal: one throttled warning rate_limit.store_unavailable (reason from a closed set, counters;
+no key, address or identifier) and rateLimitStoreStats().
+
+Green after the change: 11 passed (11). The integration suite through the canonical runner: 25 passed (25),
+nine consecutive runs.

@@ -112,6 +112,7 @@ export async function identitySecurityContactFactorRoutes(app: FastifyInstance) 
        */
       await enforceRateLimit({
         key: `contact-factor-enroll:${userId}`,
+        bound: "global",
         max: 5,
         windowSec: 3600,
       });

@@ -1,9 +1,39 @@
 import IORedis from "ioredis";
 
-type RateLimitResult = {
+import { warn as logWarn } from "../utils/logger.js";
+
+/**
+ * WHO A LIMIT IS SHARED BY.
+ *
+ * `"global"` — the limit is only meaningful if every replica counts in the
+ * same bucket: an unauthenticated write that creates a row or sends a
+ * message, or an attempt at a credential. With Redis configured, such a limit
+ * is decided by Redis or the request is REFUSED. It is never counted in one
+ * replica's memory, because N replicas each counting from zero is N
+ * allowances, and a store that comes and goes would split one window between
+ * Redis and memory.
+ *
+ * `"process"` (the default) — a cost control on an authenticated caller. When
+ * Redis cannot answer, the replica counts in its own memory until Redis
+ * returns. That is a weaker bound during an outage, and the result says so
+ * (`store: "memory"`).
+ *
+ * With NO Redis configured there is one process and its memory is the whole
+ * deployment's store, so both behave the same.
+ */
+export type RateLimitBound = "global" | "process";
+
+export type RateLimitStore = "redis" | "memory" | "unavailable";
+
+export type RateLimitResult = {
   allowed: boolean;
   remaining: number;
   resetAtMs: number;
+  /**
+   * Which store decided. `"unavailable"` = a global bound could not be
+   * established, so the request was refused without being counted anywhere.
+   */
+  store: RateLimitStore;
 };
 
 type MemoryBucket = {
@@ -45,12 +75,73 @@ function shouldUseRedis(): boolean {
   return Date.now() >= redisUnavailableUntil;
 }
 
-function markRedisUnavailable() {
-  redisUnavailableUntil = Date.now() + readRedisCooldownMs();
+// ---------------------------------------------------------------------------
+// Store availability, as an operator can see it.
+//
+// Bounded: two counters and one reason from a closed set. One warning per
+// cooldown at most, carrying no key, no address and no identifier — only that
+// the shared store could not answer, why, and how many decisions it affected.
+// ---------------------------------------------------------------------------
+export type RateLimitStoreFailure = "connect_failed" | "connection_error" | "connection_closed" | "command_failed";
+
+const storeStats = {
+  unavailableTransitions: 0,
+  refusedForUnavailableStore: 0,
+  decidedInProcessMemory: 0,
+  lastFailure: null as RateLimitStoreFailure | null,
+  lastFailureAtMs: null as number | null,
+};
+let lastStoreWarningAtMs = 0;
+
+/** Read-only view for health surfaces and tests. */
+export function rateLimitStoreStats(): Readonly<typeof storeStats> & { redisConfigured: boolean; inCooldown: boolean } {
+  return { ...storeStats, redisConfigured: redisConfigured(), inCooldown: !shouldUseRedis() };
 }
 
-function getRedis(): IORedis | null {
-  if (!shouldUseRedis()) return null;
+function redisConfigured(): boolean {
+  return Boolean(process.env.REDIS_URL?.trim());
+}
+
+function markRedisUnavailable(reason: RateLimitStoreFailure) {
+  const now = Date.now();
+  if (shouldUseRedis()) storeStats.unavailableTransitions += 1;
+  storeStats.lastFailure = reason;
+  storeStats.lastFailureAtMs = now;
+  redisUnavailableUntil = now + readRedisCooldownMs();
+  if (now - lastStoreWarningAtMs >= readRedisCooldownMs()) {
+    lastStoreWarningAtMs = now;
+    logWarn("rate_limit.store_unavailable", {
+      reason,
+      cooldownMs: readRedisCooldownMs(),
+      unavailableTransitions: storeStats.unavailableTransitions,
+      refusedForUnavailableStore: storeStats.refusedForUnavailableStore,
+      decidedInProcessMemory: storeStats.decidedInProcessMemory,
+    });
+  }
+}
+
+/** A global bound with no trustworthy count: refused, counted nowhere. */
+function refuseForUnavailableStore(): RateLimitResult {
+  storeStats.refusedForUnavailableStore += 1;
+  const now = Date.now();
+  return {
+    allowed: false,
+    remaining: 0,
+    // When to come back: the end of the cooldown, not a full window.
+    resetAtMs: Math.max(redisUnavailableUntil, now + 1_000),
+    store: "unavailable",
+  };
+}
+
+/**
+ * The Redis client, or null when Redis is not configured or is cooling down.
+ *
+ * A GLOBAL bound asks for `ignoreCooldown`: a replica whose connection is
+ * already back must not keep refusing public writes for the rest of a cooldown
+ * that exists only to stop a dead connection being hammered.
+ */
+function getRedis(options: { ignoreCooldown?: boolean } = {}): IORedis | null {
+  if (!shouldUseRedis() && !(options.ignoreCooldown && redis?.status === "ready")) return null;
   if (redis) return redis;
 
   const url = process.env.REDIS_URL?.trim();
@@ -64,16 +155,16 @@ function getRedis(): IORedis | null {
     });
 
     redis.on("error", () => {
-      markRedisUnavailable();
+      markRedisUnavailable("connection_error");
     });
 
     redis.on("close", () => {
-      markRedisUnavailable();
+      markRedisUnavailable("connection_closed");
     });
 
     return redis;
   } catch {
-    markRedisUnavailable();
+    markRedisUnavailable("connect_failed");
     return null;
   }
 }
@@ -94,6 +185,7 @@ async function enforceMemoryRateLimit(params: {
       allowed: true,
       remaining: Math.max(0, params.max - 1),
       resetAtMs,
+      store: "memory",
     };
   }
 
@@ -102,6 +194,7 @@ async function enforceMemoryRateLimit(params: {
       allowed: false,
       remaining: 0,
       resetAtMs: existing.resetAtMs,
+      store: "memory",
     };
   }
 
@@ -111,6 +204,7 @@ async function enforceMemoryRateLimit(params: {
     allowed: true,
     remaining: Math.max(0, params.max - existing.count),
     resetAtMs: existing.resetAtMs,
+    store: "memory",
   };
 }
 
@@ -137,6 +231,7 @@ async function enforceRedisRateLimit(params: {
   max: number;
   windowSec: number;
   redisClient: IORedis;
+  bound: RateLimitBound;
 }): Promise<RateLimitResult> {
   const now = Date.now();
   const fallbackResetAtMs = buildWindowReset(now, params.windowSec);
@@ -174,9 +269,13 @@ async function enforceRedisRateLimit(params: {
       allowed,
       remaining: Math.max(0, params.max - current),
       resetAtMs,
+      store: "redis",
     };
   } catch {
-    markRedisUnavailable();
+    markRedisUnavailable("command_failed");
+    // A global bound is never continued in this replica's memory.
+    if (params.bound === "global") return refuseForUnavailableStore();
+    storeStats.decidedInProcessMemory += 1;
     return enforceMemoryRateLimit({
       key: params.key,
       max: params.max,
@@ -189,13 +288,22 @@ export async function enforceRateLimit(params: {
   key: string;
   max: number;
   windowSec: number;
+  /** See {@link RateLimitBound}. Default `"process"`. */
+  bound?: RateLimitBound;
 }): Promise<RateLimitResult> {
   const key = normalizeKey(params.key);
   const max = clampPositiveInt(params.max, 60);
   const windowSec = clampPositiveInt(params.windowSec, 60);
+  const bound: RateLimitBound = params.bound ?? "process";
 
-  const redisClient = getRedis();
+  const redisClient = getRedis({ ignoreCooldown: bound === "global" });
   if (!redisClient) {
+    // No Redis configured: this process is the deployment, and its memory is
+    // the one store there is — for either kind of bound.
+    if (!redisConfigured()) return enforceMemoryRateLimit({ key, max, windowSec });
+    // Redis is configured and cannot answer.
+    if (bound === "global") return refuseForUnavailableStore();
+    storeStats.decidedInProcessMemory += 1;
     return enforceMemoryRateLimit({ key, max, windowSec });
   }
 
@@ -204,6 +312,7 @@ export async function enforceRateLimit(params: {
     max,
     windowSec,
     redisClient,
+    bound,
   });
 }
 
@@ -246,13 +355,13 @@ function enforceMemoryDistinctClientLimit(params: {
     memoryMemberSets.set(params.key, set);
   }
   if (set.members.has(params.member)) {
-    return { allowed: true, remaining: Math.max(0, params.max - set.members.size), resetAtMs: set.resetAtMs };
+    return { allowed: true, remaining: Math.max(0, params.max - set.members.size), resetAtMs: set.resetAtMs, store: "memory" };
   }
   if (set.members.size >= params.max) {
-    return { allowed: false, remaining: 0, resetAtMs: set.resetAtMs };
+    return { allowed: false, remaining: 0, resetAtMs: set.resetAtMs, store: "memory" };
   }
   set.members.add(params.member);
-  return { allowed: true, remaining: Math.max(0, params.max - set.members.size), resetAtMs: set.resetAtMs };
+  return { allowed: true, remaining: Math.max(0, params.max - set.members.size), resetAtMs: set.resetAtMs, store: "memory" };
 }
 
 export async function enforceDistinctClientLimit(params: {
@@ -261,13 +370,19 @@ export async function enforceDistinctClientLimit(params: {
   member: string;
   max: number;
   windowSec: number;
+  /** See {@link RateLimitBound}. Default `"process"`. */
+  bound?: RateLimitBound;
 }): Promise<RateLimitResult> {
   const key = normalizeKey(params.key);
   const member = normalizeKey(params.member);
   const max = clampPositiveInt(params.max, 60);
   const windowSec = clampPositiveInt(params.windowSec, 60);
-  const redisClient = getRedis();
+  const bound: RateLimitBound = params.bound ?? "process";
+  const redisClient = getRedis({ ignoreCooldown: bound === "global" });
   if (!redisClient) {
+    if (!redisConfigured()) return enforceMemoryDistinctClientLimit({ key, member, max, windowSec });
+    if (bound === "global") return refuseForUnavailableStore();
+    storeStats.decidedInProcessMemory += 1;
     return enforceMemoryDistinctClientLimit({ key, member, max, windowSec });
   }
   const now = Date.now();
@@ -285,9 +400,11 @@ export async function enforceDistinctClientLimit(params: {
       String(windowSec * 1000),
     )) as [number, number, number];
     const resetAtMs = Number(ttl) > 0 ? now + Number(ttl) : buildWindowReset(now, windowSec);
-    return { allowed: Number(allowed) === 1, remaining: Math.max(0, max - Number(size)), resetAtMs };
+    return { allowed: Number(allowed) === 1, remaining: Math.max(0, max - Number(size)), resetAtMs, store: "redis" };
   } catch {
-    markRedisUnavailable();
+    markRedisUnavailable("command_failed");
+    if (bound === "global") return refuseForUnavailableStore();
+    storeStats.decidedInProcessMemory += 1;
     return enforceMemoryDistinctClientLimit({ key, member, max, windowSec });
   }
 }
@@ -350,7 +467,7 @@ export async function clearAllRateLimitBuckets(): Promise<{
     } catch {
       // Redis unavailable mid-clear → mark unhealthy + fall through.
       // The memory store has already been cleared above.
-      markRedisUnavailable();
+      markRedisUnavailable("command_failed");
     }
   }
 
@@ -418,7 +535,7 @@ export async function acquireLease(rawKey: string, ttlMs: number): Promise<Lease
       },
     };
   } catch {
-    markRedisUnavailable();
+    markRedisUnavailable("command_failed");
     return acquireMemoryLease(key, ttl);
   }
 }

@@ -330,6 +330,7 @@ export async function issuePortalMfaCode(input: {
 
   const budget = await enforceRateLimit({
     key: `portal:mfa-code:grant:${input.grantId}`,
+    bound: "global",
     max: PORTAL_MFA_ISSUE_LIMIT.max,
     windowSec: PORTAL_MFA_ISSUE_LIMIT.windowSec,
   });

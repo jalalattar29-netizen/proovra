@@ -79,6 +79,7 @@ export async function contactSalesRoutes(app: FastifyInstance) {
   app.post("/v1/contact-sales", async (req, reply) => {
     const rl = await enforceRateLimit({
       key: `contact-sales:ip:${trustedClientIpKey(req)}`,
+      bound: "global",
       max: CONTACT_SALES_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: 60,
     });

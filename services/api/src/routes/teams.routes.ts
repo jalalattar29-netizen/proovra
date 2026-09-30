@@ -2301,6 +2301,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const rl = await enforceRateLimit({
         key: `workspace-invite-lookup:${req.ip ?? "unknown"}`,
+        bound: "global",
         max: 30,
         windowSec: 60,
       });

@@ -270,11 +270,14 @@ const LOGIN_MFA_ATTEMPT_MAX = 5;
 // fallback in dev/test). This makes the per-userId MFA throttle safe across
 // multiple API instances — an in-memory Map per process would let an
 // attacker multiply the attempt budget by the instance count. The key is
-// scoped by user id only; it carries no secrets. Fail-safe is preserved:
-// enforceRateLimit degrades to its in-memory store if Redis is unreachable.
+// scoped by user id only; it carries no secrets. The bound is GLOBAL: with
+// Redis configured and unreachable the attempt is refused rather than counted
+// in this process, because a per-process count is the multiplied budget this
+// limit exists to prevent.
 async function loginMfaIsRateLimited(userId: string): Promise<boolean> {
   const result = await enforceRateLimit({
     key: `mfa-verify:${userId}`,
+    bound: "global",
     max: LOGIN_MFA_ATTEMPT_MAX,
     windowSec: Math.round(LOGIN_MFA_ATTEMPT_WINDOW_MS / 1000),
   });
@@ -852,6 +855,7 @@ export async function authRoutes(app: FastifyInstance) {
     // (registration is even more abuse-prone — it creates User rows).
     const rl = await enforceRateLimit({
       key: `auth:email-register:ip:${readClientIp(req)}`,
+      bound: "global",
       max: AUTH_REGISTER_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
@@ -964,6 +968,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get("/v1/auth/email/availability", async (req, reply) => {
     const rl = await enforceRateLimit({
       key: `auth:email-availability:ip:${readClientIp(req)}`,
+      bound: "global",
       max: AUTH_EMAIL_AVAILABILITY_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
@@ -994,6 +999,7 @@ export async function authRoutes(app: FastifyInstance) {
     // detail.
     const rl = await enforceRateLimit({
       key: `auth:email-login:ip:${readClientIp(req)}`,
+      bound: "global",
       max: AUTH_LOGIN_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
@@ -1130,6 +1136,7 @@ export async function authRoutes(app: FastifyInstance) {
     // request password resets more than a handful of times per minute.
     const rl = await enforceRateLimit({
       key: `auth:password-reset:ip:${readClientIp(req)}`,
+      bound: "global",
       max: AUTH_PASSWORD_RESET_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
@@ -1258,6 +1265,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/v1/auth/email/verify", async (req, reply) => {
     const rl = await enforceRateLimit({
       key: `auth:email-verify:ip:${readClientIp(req)}`,
+      bound: "global",
       max: AUTH_EMAIL_VERIFY_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });
@@ -1331,6 +1339,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/v1/auth/email/resend-verification", async (req, reply) => {
     const rl = await enforceRateLimit({
       key: `auth:email-resend:ip:${readClientIp(req)}`,
+      bound: "global",
       max: AUTH_EMAIL_RESEND_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: AUTH_RATE_LIMIT_WINDOW_SEC,
     });

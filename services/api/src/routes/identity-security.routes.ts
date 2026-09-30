@@ -930,6 +930,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       // force can't burn through ~scrypt evaluations.
       const userRl = await enforceRateLimit({
         key: `identity-security:password-change:user:${userId}`,
+        bound: "global",
         max: 5,
         windowSec: 60,
       });
@@ -948,6 +949,7 @@ export async function identitySecurityRoutes(app: FastifyInstance) {
       }
       const ipRl = await enforceRateLimit({
         key: `identity-security:password-change:ip:${ip ?? "unknown"}`,
+        bound: "global",
         max: 30,
         windowSec: 60,
       });

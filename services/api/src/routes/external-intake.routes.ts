@@ -177,6 +177,7 @@ async function applyRateLimits(
   const ip = clientIp(req);
   const ipResult = await enforceRateLimit({
     key: `external-intake:ip:${ip}`,
+    bound: "global",
     max: PUBLIC_INTAKE_RATE_LIMIT_PER_IP_PER_MIN,
     windowSec: 60,
   });
@@ -193,6 +194,7 @@ async function applyRateLimits(
   const tokenKey = tokenKeyMaterial.slice(0, 32);
   const tokenResult = await enforceRateLimit({
     key: `external-intake:token:${tokenKey}`,
+    bound: "global",
     max: PUBLIC_INTAKE_RATE_LIMIT_PER_TOKEN_PER_MIN,
     windowSec: 60,
   });

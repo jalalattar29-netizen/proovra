@@ -97,6 +97,7 @@ async function applyCitizenRateLimits(
 ): Promise<boolean> {
   const ipResult = await enforceRateLimit({
     key: `citizen-intake:ip:${clientIp(req)}`,
+    bound: "global",
     max: CITIZEN_INTAKE_RATE_LIMIT_PER_IP_PER_MIN,
     windowSec: 60,
   });
@@ -107,6 +108,7 @@ async function applyCitizenRateLimits(
 
   const tokenResult = await enforceRateLimit({
     key: `citizen-intake:token:${capabilityKey.slice(0, 32)}`,
+    bound: "global",
     max: CITIZEN_INTAKE_RATE_LIMIT_PER_TOKEN_PER_MIN,
     windowSec: 60,
   });

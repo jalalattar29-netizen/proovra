@@ -82,6 +82,9 @@ describe("FINAL-004 / PHASE1-002 / PHASE1-003 / PHASE1-005 — public writes are
   let redisUrl: string;
   let prisma: import("@prisma/client").PrismaClient;
   let redis: import("ioredis").default;
+  let clockRedis: import("ioredis").default;
+  let clockSampler: ReturnType<typeof setInterval> | null = null;
+  const storeClockSteps: Array<{ atMs: number; deltaMs: number }> = [];
 
   const replicas: Replica[] = [];
   const A = () => replicas[0] as Replica;
@@ -155,6 +158,36 @@ describe("FINAL-004 / PHASE1-002 / PHASE1-003 / PHASE1-005 — public writes are
     const { default: IORedis } = await import("ioredis");
     redis = new IORedis(redisUrl, { maxRetriesPerRequest: 2 });
 
+    // THE STORE'S CLOCK IS PART OF THE FIXTURE.
+    //
+    // Every bound here is a Redis key with a 60-second TTL, and Redis expires
+    // keys by ITS OWN clock. On 2026-09-30 this suite failed about one run in
+    // four — "9 requests accepted against a limit of 5" — with every decision
+    // made by Redis and no fallback taken. The Docker Desktop VM's clock was
+    // 72 s behind the host and was being stepped forward to the right time
+    // and back again every five seconds; each forward step expired every
+    // bucket in the store mid-burst. A limiter cannot be measured on a store
+    // whose clock jumps further than the window.
+    //
+    // So the offset between the store's clock and this process's is sampled
+    // for the life of the suite, and a case that FAILS while the store's clock
+    // stepped says so, instead of reporting a bypass that did not happen. A
+    // passing case is left alone, and nothing here retries or waits.
+    clockRedis = new IORedis(redisUrl, { maxRetriesPerRequest: 2 });
+    let lastOffsetMs: number | null = null;
+    clockSampler = setInterval(() => {
+      void clockRedis
+        .time()
+        .then(([sec, micro]) => {
+          const offsetMs = Number(sec) * 1000 + Number(micro) / 1000 - Date.now();
+          if (lastOffsetMs !== null && Math.abs(offsetMs - lastOffsetMs) >= 1_000) {
+            storeClockSteps.push({ atMs: Date.now(), deltaMs: Math.round(offsetMs - lastOffsetMs) });
+          }
+          lastOffsetMs = offsetMs;
+        })
+        .catch(() => undefined);
+    }, 20);
+
     replicas.push(
       await startReplica("A", 18181, { API_TRUST_PROXY_MODE: "off" }),
       await startReplica("B", 18182, { API_TRUST_PROXY_MODE: "off" }),
@@ -169,6 +202,8 @@ describe("FINAL-004 / PHASE1-002 / PHASE1-003 / PHASE1-005 — public writes are
   }, 900_000);
 
   afterAll(async () => {
+    if (clockSampler) clearInterval(clockSampler);
+    clockRedis?.disconnect();
     for (const r of replicas) r.proc.kill("SIGTERM");
     await prisma?.contactSalesRequest
       .deleteMany({ where: { organization: "Phase 13 Fixture Org" } })
@@ -204,7 +239,19 @@ describe("FINAL-004 / PHASE1-002 / PHASE1-003 / PHASE1-005 — public writes are
    * attributable to the case that produced it. Clearing Redis directly is the
    * honest reset here: it is the store the replicas actually share.
    */
-  beforeEach(async () => {
+  beforeEach(async (ctx) => {
+    const startedAtMs = Date.now();
+    ctx.onTestFailed(() => {
+      const during = storeClockSteps.filter((step) => step.atMs >= startedAtMs);
+      if (during.length === 0) return;
+      console.error(
+        `FIXTURE, NOT PRODUCT: the Redis server's clock stepped ${during
+          .map((step) => `${step.deltaMs > 0 ? "+" : ""}${step.deltaMs} ms`)
+          .join(", ")} while "${ctx.task.name}" ran. A forward step longer than the ` +
+          "60 s window expires every bucket, so this failure does not show the bound being bypassed. " +
+          "Fix the container host's clock (restart the Docker VM) and run again.",
+      );
+    });
     let cursor = "0";
     do {
       const [next, keys] = (await redis.scan(

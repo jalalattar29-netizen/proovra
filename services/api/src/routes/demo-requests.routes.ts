@@ -21,6 +21,7 @@ export async function demoRequestsRoutes(app: FastifyInstance) {
   app.post("/v1/demo-requests", async (req, reply) => {
     const rl = await enforceRateLimit({
       key: `demo-requests:ip:${trustedClientIpKey(req)}`,
+      bound: "global",
       max: DEMO_REQUEST_RATE_LIMIT_PER_IP_PER_MIN,
       windowSec: 60,
     });
