@@ -91,10 +91,6 @@ export function parseOtsUpgradeOutput(
   };
 }
 
-export function shouldTreatOtsAsAnchored(result: OtsUpgradeOutput): boolean {
-  return result.anchoredOutput && !result.pendingOutput;
-}
-
 // ===========================================================================
 // Phase IA-OTS-hybrid — definitive verify-output parsing + deterministic
 // state classifier.
@@ -112,9 +108,10 @@ export function shouldTreatOtsAsAnchored(result: OtsUpgradeOutput): boolean {
 // confirmed" markers; on hard failure it errors.
 //
 // The classifier below combines BOTH signals and returns one of four
-// deterministic kinds. The legacy `shouldTreatOtsAsAnchored` is kept
-// untouched for back-compat with existing tests + call sites; new
-// processor logic should consume `classifyOtsResult` instead.
+// deterministic kinds. The legacy `shouldTreatOtsAsAnchored` text-only
+// promotion is DELETED (ET-OTS-05): its last caller wrote ANCHORED at
+// initialization with no hash or attestation check. Anchoring is decided by
+// `classifyOtsResult` alone.
 // ===========================================================================
 
 export type OtsVerifyOutput = {

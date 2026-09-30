@@ -482,7 +482,7 @@ describe("readiness/G — OTS contract preservation", () => {
   });
 
   it("OTS upgrade output parser does not synthesize a txid from missing input", async () => {
-    const { parseOtsUpgradeOutput, shouldTreatOtsAsAnchored } = await import(
+    const { parseOtsUpgradeOutput } = await import(
       "../src/ots-upgrade-output.js"
     );
     const parsed = parseOtsUpgradeOutput(
@@ -490,7 +490,9 @@ describe("readiness/G — OTS contract preservation", () => {
       "",
     );
     expect(parsed.txid).toBeNull();
-    expect(shouldTreatOtsAsAnchored(parsed)).toBe(false);
+    // ET-OTS-05 — the text-only anchored heuristic is deleted; the parser
+    // itself reports no anchored output here.
+    expect(parsed.anchoredOutput).toBe(false);
   });
 
   it("OTS state writer never elevates status (ANCHORED without anchoredAtUtc stays PENDING-shaped)", async () => {

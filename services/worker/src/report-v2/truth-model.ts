@@ -1,4 +1,4 @@
-import { resolveOtsAnchorClaim } from "@proovra/shared";
+import { boundedOtsFailureCode, OTS_FAILURE_CODE_LABELS, resolveOtsAnchorClaim } from "@proovra/shared";
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
@@ -263,7 +263,12 @@ export function buildOtsCallout(
     case "FAILED":
       return {
         title: "Failed",
-        body: `OpenTimestamps processing reported a failure state.${safe(failureReason, "") ? ` ${safe(failureReason)}` : ""}`.trim(),
+        // ET-OTS-04 — the bounded label; stored text (raw `ots stamp` output
+        // with server paths on historical rows) never reaches a report.
+        body: (() => {
+          const code = boundedOtsFailureCode(failureReason);
+          return `OpenTimestamps processing reported a failure state.${code ? ` ${OTS_FAILURE_CODE_LABELS[code]}` : ""}`;
+        })(),
         tone: "danger",
       };
     default:

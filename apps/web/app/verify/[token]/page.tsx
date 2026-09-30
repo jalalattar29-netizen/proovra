@@ -24,6 +24,9 @@ import {
   isAccessCustodyEventType,
   maskPublicEmail,
   maskPublicEmailsInText,
+  OTS_FAILURE_CODE_LABELS,
+  OTS_FAILURE_CODES,
+  type OtsFailureCode,
 } from "@proovra/shared";
 import {
   PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE,
@@ -1078,6 +1081,11 @@ function normalizeOtsFailureMessage(raw?: string | null): string | null {
 
   const text = raw.trim();
   if (!text) return null;
+
+  // ET-OTS-04 — the API now sends a bounded code; show its one label.
+  if ((OTS_FAILURE_CODES as readonly string[]).includes(text)) {
+    return OTS_FAILURE_CODE_LABELS[text as OtsFailureCode];
+  }
 
   const lower = text.toLowerCase();
 

@@ -111,7 +111,12 @@ import {
   type ConditionAuthority,
 } from "../services/notifications/notification-classification.js";
 import { emitPlatformAudit } from "../services/audit/tenant-audit.service.js";
-import { formatTimestampForReportUtc } from "@proovra/shared";
+import {
+  boundedOtsFailureCode,
+  formatTimestampForReportUtc,
+  OTS_FAILURE_CODE_LABELS,
+  type OtsFailureCode,
+} from "@proovra/shared";
 import { evidenceScopeForMany } from "@proovra/shared-runtime";
 
 /**
@@ -2941,8 +2946,9 @@ export async function buildInboxAggregation(
         const teamName = ev.teamId
           ? teamNameById.get(ev.teamId) ?? "workspace"
           : "workspace";
-        const reasonCode = ev.otsFailureReason ?? "OTS_UNKNOWN_FAILURE";
-        const terminal = reasonCode.includes("OTS_GLOBAL_BUDGET_EXHAUSTED");
+        // ET-OTS-04 — the bounded code; historical rows carry raw command text.
+        const reasonCode = boundedOtsFailureCode(ev.otsFailureReason) ?? "OTS_PROCESSING_FAILED";
+        const terminal = reasonCode === "OTS_GLOBAL_BUDGET_EXHAUSTED";
         const evidenceLabel =
           ev.title ?? ev.originalFileName ?? ev.id.slice(0, 8);
         items.push({
@@ -4668,22 +4674,12 @@ function humanizeEscalationReason(reason: string): string {
 // 1-sentence operator explanation and pass through unknown codes
 // truncated. We never invent a failure mode the code didn't emit.
 // ---------------------------------------------------------------------------
-function humanizeOtsFailureReason(code: string): string {
-  // Known terminal code from the worker (`ots-upgrade.processor.ts`).
-  if (code.includes("OTS_GLOBAL_BUDGET_EXHAUSTED")) {
-    return "Global budget exhausted: the proof did not anchor on the public chain within the configured retry budget — no further attempts will be made.";
+function humanizeOtsFailureReason(code: OtsFailureCode): string {
+  // ET-OTS-04 — one label per bounded code; stored text never reaches a member.
+  if (code === "OTS_GLOBAL_BUDGET_EXHAUSTED") {
+    return `${OTS_FAILURE_CODE_LABELS[code]} No further attempts will be made.`;
   }
-  if (code.includes("OpenTimestamps binary is missing")) {
-    return "The OpenTimestamps binary is not installed in the worker environment — restart the OTS worker with the binary on PATH.";
-  }
-  if (/calendar/i.test(code)) {
-    return "An OTS calendar was unreachable. The retry budget is unchanged; an operator can re-trigger anchoring once the calendar is available.";
-  }
-  // Unknown free-form error — surface a truncated copy. Schema is
-  // unbounded; we cap at 240 chars so a single failure doesn't blow
-  // out the inbox row body.
-  const safe = code.length > 240 ? `${code.slice(0, 237)}...` : code;
-  return `Unrecoverable failure recorded: ${safe}`;
+  return OTS_FAILURE_CODE_LABELS[code];
 }
 
 function humanizeSecurityEventType(eventType: string): string {

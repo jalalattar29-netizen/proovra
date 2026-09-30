@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
-import {
-  parseOtsUpgradeOutput,
-  shouldTreatOtsAsAnchored,
-} from "../src/ots-upgrade-output.js";
+import * as upgradeOutput from "../src/ots-upgrade-output.js";
+
+const { parseOtsUpgradeOutput } = upgradeOutput;
 
 const TXID =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 describe("OTS upgrade output parsing", () => {
-  it("treats a detected bitcoin transaction as anchored when output is not pending", () => {
+  // ET-OTS-05 — the parser still reports what the text says; nothing
+  // promotes that text to ANCHORED any more (the heuristic is deleted).
+  it("the text-only anchored heuristic no longer exists", () => {
+    expect("shouldTreatOtsAsAnchored" in upgradeOutput).toBe(false);
+  });
+
+  it("reports anchored, non-pending output for a detected bitcoin transaction", () => {
     const parsed = parseOtsUpgradeOutput(
       "",
       `Calendar response received. Bitcoin transaction: ${TXID}`
@@ -16,7 +21,7 @@ describe("OTS upgrade output parsing", () => {
 
     expect(parsed.txid).toBe(TXID);
     expect(parsed.pendingOutput).toBe(false);
-    expect(shouldTreatOtsAsAnchored(parsed)).toBe(true);
+    expect(parsed.anchoredOutput).toBe(true);
   });
 
   it("keeps the result pending when the output still reports pending confirmations", () => {
@@ -27,7 +32,6 @@ describe("OTS upgrade output parsing", () => {
 
     expect(parsed.txid).toBe(TXID);
     expect(parsed.pendingOutput).toBe(true);
-    expect(shouldTreatOtsAsAnchored(parsed)).toBe(false);
   });
 
   it("extracts txid values from txid-labelled output", () => {
@@ -43,7 +47,8 @@ describe("OTS upgrade output parsing", () => {
     );
 
     expect(parsed.txid).toBe(TXID);
-    expect(shouldTreatOtsAsAnchored(parsed)).toBe(true);
+    expect(parsed.anchoredOutput).toBe(true);
+    expect(parsed.pendingOutput).toBe(false);
   });
 
   it("only accepts generic 64-hex values when bitcoin context is present", () => {

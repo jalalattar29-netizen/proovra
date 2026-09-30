@@ -80,6 +80,8 @@ import {
   presentedTsaStatus,
   TSA_RECORDED_NOT_VALIDATED,
   TSA_RECORDED_NOT_VALIDATED_LABEL,
+  boundedOtsFailureCode,
+  OTS_FAILURE_CODE_LABELS,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -1989,19 +1991,17 @@ function summarizePublicPayload(
 
     case prismaPkg.CustodyEventType.OTS_FAILED: {
       const otsStatus = normalizePublicPayloadValue(obj.otsStatus);
-      const reason =
+      // ET-OTS-04 — the bounded label, never the stored text (historical rows
+      // carry raw `ots stamp` command output with server paths).
+      const code = boundedOtsFailureCode(
         normalizePublicPayloadValue(obj.otsFailureReason) ??
-        normalizePublicPayloadValue(obj.failureReason);
-      const genericReason = normalizePublicPayloadValue(obj.failureReason);
+          normalizePublicPayloadValue(obj.failureReason),
+      );
 
       return [
                 "OpenTimestamps failed",
         otsStatus ? `Status: ${otsStatus}` : null,
-        reason
-          ? `Reason: ${reason}`
-          : genericReason
-            ? `Reason: ${genericReason}`
-            : null,
+        code ? `Reason: ${OTS_FAILURE_CODE_LABELS[code]}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -2197,7 +2197,7 @@ function toSafeEvidence(e: SelectedEvidence): SafeEvidence {
     otsUpgradedAtUtc: e.otsUpgradedAtUtc
       ? e.otsUpgradedAtUtc.toISOString()
       : null,
-    otsFailureReason: e.otsFailureReason ?? null,
+    otsFailureReason: boundedOtsFailureCode(e.otsFailureReason),
     otsAnchorCheck: e.otsAnchorCheck ?? null,
     displayFileName: e.displayFileName ?? null,
     organizationId: e.organizationId ?? null,
@@ -9381,7 +9381,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             otsAnchoredAtUtc:
               effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
             otsCalendar: evidence.otsCalendar ?? null,
-            otsFailureReason: evidence.otsFailureReason ?? null,
+            otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
             otsAnchorCheck: evidence.otsAnchorCheck ?? null,
             storageImmutable: storage?.immutable ?? null,
             storageObjectLockMode: storage?.mode ?? null,
@@ -9759,7 +9759,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                   null,
                 calendar: evidence.otsCalendar ?? null,
                 bitcoinTxid: evidence.otsBitcoinTxid ?? null,
-                failureReason: evidence.otsFailureReason ?? null,
+                failureReason: boundedOtsFailureCode(evidence.otsFailureReason),
                 pendingReason:
                   effectiveOtsStatus === "PENDING"
                     ? evidence.otsProofBase64
@@ -13116,7 +13116,8 @@ const liveTrustDecision = buildEvidenceTrustDecision({
     otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
     otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
     otsCalendar: evidence.otsCalendar ?? null,
-    otsFailureReason: evidence.otsFailureReason ?? null,
+    // ET-OTS-04 — a bounded code on the public payload, never stored text.
+    otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
     otsAnchorCheck: evidence.otsAnchorCheck ?? null,
     storageImmutable: storageProtection?.immutable ?? null,
     storageObjectLockMode: storageProtection?.mode ?? null,
@@ -13951,7 +13952,7 @@ timestampedDigestNote:
       upgradedAtUtc: evidence.otsUpgradedAtUtc
         ? evidence.otsUpgradedAtUtc.toISOString()
         : null,
-      failureReason: evidence.otsFailureReason ?? null,
+      failureReason: boundedOtsFailureCode(evidence.otsFailureReason),
       proofPresent: Boolean(evidence.otsProofBase64),
       hashMatchesFingerprintHash: otsHashMatches,
       anchorCheck: evidence.otsAnchorCheck ?? null,

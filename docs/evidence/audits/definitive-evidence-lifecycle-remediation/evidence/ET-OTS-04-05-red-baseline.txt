@@ -1,0 +1,30 @@
+ET-OTS-04 / ET-OTS-05 red (74e39a06)
+
+Worker — services/worker/test/ots-initialization-truth.test.ts against HEAD ots.service.ts + ots-upgrade-output.ts (only an empty OtsStampCallFailed class appended so the import resolves):
+   × OTS initialization (ET-OTS-04 / ET-OTS-05) > ET-OTS-04: a stamp-call timeout is THROWN (bounded code), never returned as a FAILED record 8ms
+     → expected { status: 'FAILED', …(7) } to be an instance of OtsStampCallFailed
+   × OTS initialization (ET-OTS-04 / ET-OTS-05) > ET-OTS-04: a missing binary is thrown as binary_missing 2ms
+     → expected undefined to be 'binary_missing' // Object.is equality
+   × OTS initialization (ET-OTS-04 / ET-OTS-05) > ET-OTS-05: 'timestamp complete' + a Bitcoin transaction at init is PENDING with no txid 3ms
+     → expected 'ANCHORED' to be 'PENDING' // Object.is equality
+   × OTS initialization (ET-OTS-04 / ET-OTS-05) > ET-OTS-04: a failed first upgrade after a successful stamp is PENDING, not FAILED 2ms
+     → expected 'FAILED' to be 'PENDING' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  4 failed (4)
+
+API — services/api/test/ots-failure-reason-bounded.integration.test.ts against HEAD evidence.routes.ts + me-inbox.routes.ts (live PG16):
+   ✓ OTS failure reason is bounded on every reader (live PostgreSQL 16) > the projection maps codes through and anything else to OTS_PROCESSING_FAILED 2ms
+   ✓ OTS failure reason is bounded on every reader (live PostgreSQL 16) > public Verify of a record carrying a raw historical reason returns the bounded code only 160ms
+   × OTS failure reason is bounded on every reader (live PostgreSQL 16) > the member review workspace carries the bounded code, not the stored command text 131ms
+     → expected '{"evidence":{"id":"58b89e1a-3da0-4a4f…' not to contain 'Command failed'
+   × OTS failure reason is bounded on every reader (live PostgreSQL 16) > no API reader returns otsFailureReason unprojected 5ms
+     → ../src/routes/evidence.routes.ts: expected 'import type { FastifyInstance, Fastif…' not to match /(otsFailureReason|failureReason):\s*(…/
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+//   * `submittedByEmail`         → ALWAYS null on /public/verify
+//   * `workspaceName`            → null unless explicit env opt-in
+//   * `organizationName`         → null unless explicit env opt-in
+//   * `submittedByAuthProvider`  → label-only (\"Google sign-in\"), no code
+//   * `organizationVerified`     → kept (boolean, no name)
+   * Active scope on BOTH platforms. That is how \"record audio → Discard → the
+      Tests  2 failed | 2 passed (4)
+(The review workspace served the stored 'Command failed: ots stamp -c … /tmp/ots-…/fingerprint-….json' text.)

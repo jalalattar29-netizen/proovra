@@ -542,6 +542,11 @@ export {
   type OtsPermanentProofFailure,
   isPermanentOtsProofFailureReason,
   parseOtsBudgetExhaustedFingerprint,
+  // ET-OTS-04 — the only OTS failure value any surface outside the worker shows.
+  OTS_FAILURE_CODES,
+  type OtsFailureCode,
+  boundedOtsFailureCode,
+  OTS_FAILURE_CODE_LABELS,
 } from "./ots.js";
 
 // -----------------------------------------------------------------------------

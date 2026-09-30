@@ -197,6 +197,36 @@ export function isPermanentOtsProofFailureReason(reason: string | null | undefin
 }
 
 /**
+ * ET-OTS-04 — the ONLY OTS failure value any surface outside the worker shows.
+ *
+ * A stamp-call failure used to be persisted as the raw error text
+ * ("Command failed: ots stamp -c <calendar> /tmp/ots-…/fingerprint-<id>.json …")
+ * and served on public Verify, the custody timeline and the report. The worker
+ * now writes only the bounded proof codes; rows written before keep their raw
+ * text, so every reader projects through this.
+ */
+export const OTS_FAILURE_CODES = [
+  ...OTS_PERMANENT_PROOF_FAILURES,
+  // Written by the upgrade ladder when the global retry budget runs out.
+  "OTS_GLOBAL_BUDGET_EXHAUSTED",
+  "OTS_PROCESSING_FAILED",
+] as const;
+export type OtsFailureCode = (typeof OTS_FAILURE_CODES)[number];
+
+export function boundedOtsFailureCode(raw: string | null | undefined): OtsFailureCode | null {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+  return (OTS_FAILURE_CODES as readonly string[]).includes(value) ? (value as OtsFailureCode) : "OTS_PROCESSING_FAILED";
+}
+
+export const OTS_FAILURE_CODE_LABELS: Readonly<Record<OtsFailureCode, string>> = {
+  PROOF_HASH_MISMATCH: "The timestamp proof does not commit to this record's fingerprint.",
+  MALFORMED_PROOF: "The timestamp proof could not be read.",
+  OTS_GLOBAL_BUDGET_EXHAUSTED: "The proof did not anchor on the public chain within the retry budget.",
+  OTS_PROCESSING_FAILED: "OpenTimestamps processing did not complete for this record.",
+};
+
+/**
  * The Worker's budget-exhausted bridge fingerprint, `OTS:<evidenceId>:GLOBAL_BUDGET_EXHAUSTED`
  * (ET-REC-02). Returns the evidence id, or null for any other shape.
  */

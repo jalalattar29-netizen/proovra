@@ -6,9 +6,7 @@ import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import {
   parseOtsInfoOutput,
-  parseOtsUpgradeOutput,
   parseOtsVerifyOutput,
-  shouldTreatOtsAsAnchored,
   type OtsInfoOutput,
   type OtsVerifyOutput,
 } from "./ots-upgrade-output.js";
@@ -128,20 +126,19 @@ function isBinaryMissingMessage(message: string): boolean {
   );
 }
 
-function isPendingLikeUpgradeMessage(message: string): boolean {
-  const m = message.toLowerCase();
-
-  return (
-    m.includes("pending confirmations") ||
-    m.includes("pending confirmation in bitcoin blockchain") ||
-    m.includes("still waiting") ||
-    m.includes("timestamp not complete") ||
-    m.includes("not complete") ||
-    m.includes("not yet anchored") ||
-    m.includes("waiting for") ||
-    m.includes("cannot be greater than available calendar") ||
-    m.includes("available calendar")
-  );
+/**
+ * ET-OTS-04 — the stamp call itself failed (no proof exists). Bounded code;
+ * the underlying error is the `cause` for logs only.
+ */
+export class OtsStampCallFailed extends Error {
+  constructor(
+    public readonly code: "binary_missing" | "stamp_call_failed",
+    cause: unknown,
+  ) {
+    super(`ots_${code}`);
+    this.name = "OtsStampCallFailed";
+    (this as { cause?: unknown }).cause = cause;
+  }
 }
 
 /**
@@ -211,167 +208,56 @@ const stampArgs = [
     const proofBuffer = await fs.readFile(proofFile);
     const proofBase64 = proofBuffer.toString("base64");
 
+    // ET-OTS-05 — INITIALIZATION NEVER WRITES ANCHORED. The first upgrade is
+    // attempted so the stored proof carries whatever the calendar already has,
+    // but the anchor is established only by the upgrade ladder's classifier
+    // (hash + block attestation checks). The text-only promotion removed from
+    // classifyOtsResult on 2026-09-29 survived here: "timestamp complete" in
+    // `ots upgrade` output wrote ANCHORED with no check, and a txid parsed by
+    // the generic 64-hex fallback kept the ladder from ever re-checking it.
+    //
+    // ET-OTS-04 — an upgrade failure here is not about the record: the stamp
+    // succeeded and the proof exists. It stays PENDING for the ladder.
+    let proofForRecord = proofBase64;
     let upgradedAtUtc: string | null = null;
-    let anchoredAtUtc: string | null = null;
-    let bitcoinTxid: string | null = null;
-
     try {
-      // Phase O1.5B — bounded OTS upgrade span. NEVER the proof bytes.
-      const { stdout, stderr } = await withProovraSpan(
+      await withProovraSpan(
         PROOVRA_SPAN_NAMES.OTS_UPGRADE,
         { "proovra.operation": "ots_upgrade" },
-        async () => {
-          const upgradeArgs = ["upgrade", proofFile];
-          return execFileAsync(bin, upgradeArgs, {
+        async () =>
+          execFileAsync(bin, ["upgrade", proofFile], {
             timeout: resolveOtsTimeoutMs(),
             cwd: workDir,
-          });
-        },
+          }),
       );
-
-      const parsedUpgrade = parseOtsUpgradeOutput(stdout, stderr);
       upgradedAtUtc = nowIso();
-      bitcoinTxid = parsedUpgrade.txid;
-
-      const upgradedBuffer = await fs.readFile(proofFile);
-      const upgradedProofBase64 = upgradedBuffer.toString("base64");
-
-      // Phase O1.5B — bounded OTS verify + integrity.public_anchor.verify.
-      // We treat `shouldTreatOtsAsAnchored` as the verify-step gate.
-      const anchored = await withProovraSpan(
-        PROOVRA_SPAN_NAMES.OTS_VERIFY,
-        {
-          "proovra.operation": "ots_verify",
-          "proovra.outcome": shouldTreatOtsAsAnchored(parsedUpgrade)
-            ? "anchored"
-            : "pending",
-        },
-        async () => {
-          const ok = shouldTreatOtsAsAnchored(parsedUpgrade);
-          await withProovraSpan(
-            PROOVRA_SPAN_NAMES.INTEGRITY_PUBLIC_ANCHOR_VERIFY,
-            {
-              "proovra.operation": "integrity_public_anchor_verify",
-              "proovra.outcome": ok ? "verified" : "pending",
-            },
-            () => undefined,
-          );
-          return ok;
-        },
-      );
-
-      // Legal boundary: an OTS proof can reach an anchored state before we have
-      // a defensible Bitcoin transaction id. We preserve the
-      // anchored proof state here, but downstream trust scoring only awards full
-      // public-anchoring credit when additional public anchor material exists.
-      if (anchored) {
-        anchoredAtUtc = upgradedAtUtc;
-
-        return {
-          status: "ANCHORED",
-          proofBase64: upgradedProofBase64,
-          hash: contentHash,
-          calendar,
-          bitcoinTxid,
-          anchoredAtUtc,
-          upgradedAtUtc,
-          failureReason: null,
-        };
-      }
-
-        return {
-          status: "PENDING",
-          proofBase64: upgradedProofBase64,
-          hash: contentHash,
-          calendar,
-          bitcoinTxid: null,
-          anchoredAtUtc: null,
-          upgradedAtUtc,
-          pendingDetail: "OTS proof created but not yet anchored on Bitcoin.",
-        };
-    } catch (upgradeError) {
-      const message = normalizeErrorMessage(upgradeError);
-
-      try {
-        const latestProofBuffer = await fs.readFile(proofFile);
-        const latestProofBase64 = latestProofBuffer.toString("base64");
-
-        if (isPendingLikeUpgradeMessage(message)) {
-          return {
-            status: "PENDING",
-            proofBase64: latestProofBase64,
-            hash: contentHash,
-            calendar,
-            bitcoinTxid: null,
-            anchoredAtUtc: null,
-            upgradedAtUtc: null,
-            pendingDetail: message,
-          };
-        }
-
-        return {
-          status: "FAILED",
-          proofBase64: latestProofBase64,
-          hash: contentHash,
-          calendar,
-          bitcoinTxid: null,
-          anchoredAtUtc: null,
-          upgradedAtUtc: null,
-          failureReason: message,
-        };
-      } catch {
-        if (isPendingLikeUpgradeMessage(message)) {
-          return {
-            status: "PENDING",
-            proofBase64,
-            hash: contentHash,
-            calendar,
-            bitcoinTxid: null,
-            anchoredAtUtc: null,
-            upgradedAtUtc: null,
-            pendingDetail: message,
-          };
-        }
-
-        return {
-          status: "FAILED",
-          proofBase64,
-          hash: contentHash,
-          calendar,
-          bitcoinTxid: null,
-          anchoredAtUtc: null,
-          upgradedAtUtc: null,
-          failureReason: message,
-        };
-      }
+    } catch {
+      /* the ladder retries the upgrade; nothing about the record failed */
     }
-  } catch (error) {
-    const message = normalizeErrorMessage(error);
-
-    if (isBinaryMissingMessage(message)) {
-      return {
-        status: "FAILED",
-        proofBase64: null,
-        hash: contentHash,
-        calendar,
-        bitcoinTxid: null,
-        anchoredAtUtc: null,
-        upgradedAtUtc: null,
-        failureReason:
-          "OpenTimestamps binary is missing in the worker environment.",
-      };
+    try {
+      proofForRecord = (await fs.readFile(proofFile)).toString("base64");
+    } catch {
+      /* keep the stamped proof */
     }
 
     return {
-      status: "FAILED",
-      proofBase64: null,
+      status: "PENDING",
+      proofBase64: proofForRecord,
       hash: contentHash,
       calendar,
       bitcoinTxid: null,
       anchoredAtUtc: null,
-      upgradedAtUtc: null,
-      failureReason: message,
+      upgradedAtUtc,
+      pendingDetail: "OTS proof created; Bitcoin anchoring is established by the upgrade ladder.",
     };
+  } catch (error) {
+    // ET-OTS-04 — A STAMP-CALL FAILURE IS THROWN, NEVER RECORDED. Timeouts,
+    // DNS, calendar 5xx and a missing binary say nothing about the record;
+    // returning FAILED persisted the raw command text (server paths included)
+    // as a per-record integrity failure that nothing retried. The initializer
+    // wraps the throw in OtsInitializationTransientError, so the retry budget
+    // runs and the row stays unset.
+    throw new OtsStampCallFailed(isBinaryMissingMessage(normalizeErrorMessage(error)) ? "binary_missing" : "stamp_call_failed", error);
   } finally {
     await cleanup([workDir]);
   }
@@ -442,7 +328,33 @@ export type VerifyOtsProofResult =
       error: string;
     };
 
+/**
+ * The ONE place a proof is checked against the chain (`ots verify -d <hash>`),
+ * so the verify spans are emitted here. ET-OTS-05 removed their only former
+ * emission site, which named an unchecked text match "verified".
+ */
 export async function verifyOtsProof(
+  input: VerifyOtsProofInput,
+): Promise<VerifyOtsProofResult> {
+  return withProovraSpan(
+    PROOVRA_SPAN_NAMES.OTS_VERIFY,
+    { "proovra.operation": "ots_verify" },
+    async () => {
+      const result = await verifyOtsProofInner(input);
+      await withProovraSpan(
+        PROOVRA_SPAN_NAMES.INTEGRITY_PUBLIC_ANCHOR_VERIFY,
+        {
+          "proovra.operation": "integrity_public_anchor_verify",
+          "proovra.outcome": result.status === "VERIFIED" ? "verified" : result.status.toLowerCase(),
+        },
+        () => undefined,
+      );
+      return result;
+    },
+  );
+}
+
+async function verifyOtsProofInner(
   input: VerifyOtsProofInput,
 ): Promise<VerifyOtsProofResult> {
   if (!enabled()) {

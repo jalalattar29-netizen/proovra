@@ -221,7 +221,7 @@ describe("classifyOtsResult — hybrid state safeguards", () => {
 // Sanity: existing parser semantics are preserved
 // =============================================================================
 
-describe("legacy parseOtsUpgradeOutput / shouldTreatOtsAsAnchored unchanged", () => {
+describe("legacy parseOtsUpgradeOutput unchanged", () => {
   it("legacy parser still extracts txid from `Bitcoin transaction:` line", () => {
     const out = parseOtsUpgradeOutput("", `Bitcoin transaction: ${TXID}`);
     expect(out.txid).toBe(TXID);
