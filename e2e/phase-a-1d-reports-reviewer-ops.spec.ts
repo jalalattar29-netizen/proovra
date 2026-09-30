@@ -150,7 +150,9 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
     // package"), with the intent the output offers. The single "Retry
     // generation" label named one verb for two outputs and is retired.
     expect(src).toContain('outputActionLabel(kind, action, "compact")');
-    expect(src).toContain("JSON.stringify({ intent })");
+    // 2026-09-29 — the request also names WHICH output it is for (report or
+    // package), so one row's retry can never be read as the other output's.
+    expect(src).toContain("JSON.stringify({ intent, output })");
     expect(src).not.toMatch(/"(Retry generation|Regenerate report & package)"/);
   });
 
@@ -195,7 +197,12 @@ test.describe("Phase A.1D — reports + reviewer operational maturity @critical"
     expect(executor).toMatch(
       /forceRegenerate: true,\s*intent: "NEW_VERSION",\s*clientRequestKey: key,/,
     );
-    expect(executor.match(/forceRegenerate: true/g)?.length).toBe(1);
+    // Exactly one call site forces a new version. The request row's Prisma
+    // select also names the column (`forceRegenerate: true,` then `} as const`);
+    // that is a projection, not a forcing call, and is the only occurrence
+    // excluded — any second forcing call site still fails this.
+    expect(executor.match(/forceRegenerate: true(?!,\s*\} as const)/g)?.length).toBe(1);
+    expect(executor.match(/forceRegenerate: true,\s*\} as const/g)?.length).toBe(1);
     // A GATE, AND A STRICTER ONE THAN THIS USED TO DEMAND.
     //
     // This required `getEvidenceWithOwnerAccess(userId, id)`. That helper was

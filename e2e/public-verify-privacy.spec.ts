@@ -86,22 +86,29 @@ test.describe("public verify privacy @critical", () => {
 
       const res = await request.get(`${API_BASE}/public/verify/${id}`);
       expect(res.status()).toBe(200);
-      const body = (await res.json()) as Record<string, unknown> & {
-        overview?: Record<string, unknown>;
-      };
+      const text = await res.text();
+      const body = JSON.parse(text) as Record<string, unknown>;
 
-      // Hardened: no PII or org-identity leakage by default.
-      const overview = body.overview ?? {};
-      expect(overview.submittedByEmail).toBeNull();
-      expect(overview.workspaceName).toBeNull();
-      expect(overview.organizationName).toBeNull();
-      // submittedByAuthProviderCode (raw enum) must not appear.
-      expect("submittedByAuthProviderCode" in overview).toBe(false);
-
-      // Submitter category label (e.g. "Guest session") is allowed —
-      // it tells viewers how trust was established without leaking
-      // identity. Validate it stays a label-only string.
-      expect(typeof overview.submittedByAuthProvider).toBe("string");
+      // A guest record is not entitled to issued outputs, so it answers the
+      // BASIC tier: the original-integrity result and nothing that describes
+      // who submitted it. The identity fields the RICH projection gates
+      // (overview.submittedByEmail / workspaceName / organizationName, and
+      // the raw submittedByAuthProviderCode) must not exist ANYWHERE in the
+      // answer — asserted on the serialized body, so no nesting can hide one.
+      expect(body.tier).toBe("BASIC");
+      expect("overview" in body).toBe(false);
+      for (const key of [
+        "submittedByEmail",
+        "submittedByUserId",
+        "ownerUserId",
+        "workspaceName",
+        "organizationName",
+        "submittedByAuthProviderCode",
+        "teamId",
+      ]) {
+        expect(text, `public verify must not carry ${key}`).not.toContain(`"${key}"`);
+      }
+      expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "tier"]);
     } finally {
       await disposeSession(session);
     }
@@ -114,19 +121,44 @@ test.describe("public verify privacy @critical", () => {
       const res = await request.get(`${API_BASE}/public/verify/${id}`);
       expect(res.ok()).toBe(true);
       const body = (await res.json()) as {
-        integrityProof?: { signatureValid?: boolean; canonicalHashMatches?: boolean };
-        trustDecision?: { verdict?: string; score?: number };
+        tier?: string;
+        basicVerification?: {
+          schema?: string;
+          original?: {
+            state?: string;
+            basis?: string | null;
+            checks?: {
+              fingerprintMatchesSignedHash?: boolean | null;
+              signatureValid?: boolean | null;
+              custodyChainValid?: boolean | null;
+            };
+            fileSha256?: string | null;
+          };
+        };
       };
 
-      // signatureValid is the cryptographic answer — it must exist
-      // and must be a boolean. Phase 0 + the seed step guarantee a
-      // signing-key row is present; a missing key would now return
-      // 503, not 200, so reaching this assertion implies a real
-      // verification ran.
-      expect(typeof body.integrityProof?.signatureValid).toBe("boolean");
-      expect(typeof body.integrityProof?.canonicalHashMatches).toBe("boolean");
-      expect(body.trustDecision?.verdict).toBeTruthy();
-      expect(typeof body.trustDecision?.score).toBe("number");
+      // The cryptographic answer must be present and must be an ANSWER.
+      // Phase 0 + the seed step guarantee a signing-key row is present; a
+      // missing key returns 503, not 200, so reaching these assertions means
+      // a real verification ran — and a record this stack just signed with
+      // its own key must verify.
+      expect(body.tier).toBe("BASIC");
+      const basic = body.basicVerification;
+      expect(basic?.schema).toBe("PROOVRA_BASIC_VERIFICATION");
+      const checks = basic?.original?.checks;
+      expect(checks?.signatureValid).toBe(true);
+      expect(checks?.fingerprintMatchesSignedHash).toBe(true);
+      expect(typeof checks?.custodyChainValid).toBe("boolean");
+      expect(basic?.original?.fileSha256).toMatch(/^[0-9a-f]{64}$/);
+      // The headline is honest: it is "verified" exactly when every check
+      // passed, and "failed" when any check failed.
+      const all = [checks?.fingerprintMatchesSignedHash, checks?.signatureValid, checks?.custodyChainValid];
+      expect(basic?.original?.state).toBe(
+        all.some((c) => c === false) ? "failed" : all.every((c) => c === true) ? "verified" : "not_checked",
+      );
+      expect(basic?.original?.basis).toBe(
+        all.every((c) => c === true) ? "SIGNATURE_AND_FINGERPRINT_AND_CUSTODY_CHAIN" : null,
+      );
     } finally {
       await disposeSession(session);
     }

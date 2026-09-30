@@ -223,11 +223,18 @@ test.describe("artifact recovery — the real stack", () => {
 
     await page.getByTestId("evidence-new-version").click();
     await page.locator('[data-evidence-output-row-action="create-new-version"]').click();
+    // An updated report is an explicit, reasoned issuance (2026-09-29): the
+    // confirmation says nothing needs recovering, names the version it
+    // issues alongside version 1, and requires a reason that the issued
+    // report records.
     const dialog = page.locator("[data-confirm-action-modal]");
-    await expect(dialog).toContainText("Create version 2?");
-    await expect(dialog).toContainText("Creates report version 2 and its verification package, alongside version 1.");
+    await expect(dialog).toContainText("Issue updated report (version 2)?");
+    await expect(dialog).toContainText("Nothing needs recovering");
+    await expect(dialog).toContainText("Issues report version 2, dated today, and its verification package, alongside version 1.");
     await expect(dialog).toContainText("Earlier versions are kept unchanged");
     await expect(dialog).toContainText("Estimated additional storage");
+    const reason = "document the anchor confirmed after the first report";
+    await dialog.locator("[data-new-version-reason]").fill(reason);
     await dialog.locator('[data-confirm-action-submit="true"]').click();
 
     await expect(page.locator('[data-evidence-section="reports-new-version-in-flight"]')).toContainText("Creating version 2", { timeout: 30_000 });
@@ -242,5 +249,12 @@ test.describe("artifact recovery — the real stack", () => {
     // Version 1 is kept and still downloadable.
     const v1 = await download(A.token, `/v1/evidence/${evidenceId}/reports/1`);
     expect(sha256Hex(v1)).toBe(sha256Hex(reportV1));
+    // Version 2 is recorded as an UPDATED_REPORT that follows version 1 and
+    // carries the reason the actor gave.
+    const v2 = sql(
+      "SELECT issue_kind, issue_reason, previous_report_version FROM reports WHERE evidence_id = $1 AND version = 2",
+      [evidenceId],
+    )[0]!;
+    expect(v2).toMatchObject({ issue_kind: "UPDATED_REPORT", issue_reason: reason, previous_report_version: 1 });
   });
 });
