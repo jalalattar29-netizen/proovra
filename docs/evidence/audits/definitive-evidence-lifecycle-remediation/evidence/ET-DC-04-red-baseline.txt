@@ -1,0 +1,9 @@
+ET-DC-04 red baseline — services/api/test/uc1-extension-oauth.integration.test.ts [ET-DC-04]
+Run against HEAD 9845beb2's extension-oauth.service.ts (unset allow-list accepted any chromiumapp.org id), live PostgreSQL 16, 2026-09-30T04:30Z.
+
+   ✓ UC-1 extension OAuth (PKCE) — live PostgreSQL 16 > the full journey: authorize (authenticated) -> code -> token -> a usable bearer 146ms
+   ✓ UC-1 extension OAuth (PKCE) — live PostgreSQL 16 > §4.1 — the capture-scoped token is refused on routes outside its allowlist 69ms
+   ✓ UC-1 extension OAuth (PKCE) — live PostgreSQL 16 > authorize requires authentication 2ms
+   × UC-1 extension OAuth (PKCE) — live PostgreSQL 16 > ET-DC-04: with no allow-list every redirect is refused; an unlisted extension id is refused 19ms
+     → unset allow-list refuses even the first-party id: expected 302 to be 400 // Object.is equality
+   ✓ UC-1 extension OAuth (PKCE) — live PostgreSQL 16 > refuses an arbitrary redirect and a non-S256 challenge method 10ms

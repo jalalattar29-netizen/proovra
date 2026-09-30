@@ -18,10 +18,18 @@ export const EXTENSION_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 export const EXTENSION_OAUTH_SCOPES = ["capture.direct", "offline"] as const;
 
 /**
- * The single first-party public client. A redirect URI is accepted when it is a
- * Chrome/Edge extension redirect (`https://<32-char-id>.chromiumapp.org/...`),
- * or is explicitly allowlisted via EXTENSION_OAUTH_REDIRECT_ALLOW (comma list)
- * for a pinned extension id. Never an arbitrary redirect.
+ * The single first-party public client. A redirect URI is accepted only when it
+ * is EXPLICITLY allowlisted via EXTENSION_OAUTH_REDIRECT_ALLOW (comma list) for
+ * the pinned PROOVRA extension id, and is itself a Chrome/Edge extension
+ * redirect (`https://<32-char-id>.chromiumapp.org/...`). Never an arbitrary
+ * redirect.
+ *
+ * ET-DC-04 — FAIL CLOSED. With the variable unset this accepted ANY
+ * chromiumapp.org extension id, and authorize issues a code from the ambient
+ * session and redirects at once: a third-party extension could silently obtain
+ * a capture.direct token. Unset (or holding no valid entry) now refuses every
+ * redirect — the state the release docs already describe ("fails closed
+ * server-side until registered").
  */
 export const EXTENSION_OAUTH_CLIENT_ID = "proovra-extension";
 const CHROMIUMAPP_REDIRECT = /^https:\/\/[a-p]{32}\.chromiumapp\.org\/[A-Za-z0-9._-]*$/;
@@ -32,9 +40,8 @@ export function isAllowedExtensionRedirect(clientId: string, redirectUri: string
   const explicit = (process.env.EXTENSION_OAUTH_REDIRECT_ALLOW ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean);
-  if (explicit.length > 0) return explicit.includes(redirectUri);
-  return CHROMIUMAPP_REDIRECT.test(redirectUri);
+    .filter((s) => CHROMIUMAPP_REDIRECT.test(s));
+  return explicit.includes(redirectUri);
 }
 
 function base64Url(buf: Buffer): string {

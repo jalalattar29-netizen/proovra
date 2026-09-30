@@ -27,13 +27,20 @@ describe("UC-1 extension OAuth (PKCE) — live PostgreSQL 16", () => {
   let harness: IntegrationHarness;
   let app: IntegrationHarness["app"];
 
+  // ET-DC-04 — the redirect allow-list FAILS CLOSED: this suite pins its
+  // extension's redirect exactly as a deployment must.
+  const allowBefore = process.env.EXTENSION_OAUTH_REDIRECT_ALLOW;
+
   beforeAll(async () => {
+    process.env.EXTENSION_OAUTH_REDIRECT_ALLOW = REDIRECT;
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
     app = harness.app;
   }, 600_000);
 
   afterAll(async () => {
+    if (allowBefore === undefined) delete process.env.EXTENSION_OAUTH_REDIRECT_ALLOW;
+    else process.env.EXTENSION_OAUTH_REDIRECT_ALLOW = allowBefore;
     await harness?.cleanup();
   });
 
@@ -165,6 +172,29 @@ describe("UC-1 extension OAuth (PKCE) — live PostgreSQL 16", () => {
       // no Authorization header
     });
     expect(res.statusCode).toBe(401);
+  });
+
+  it("ET-DC-04: with no allow-list every redirect is refused; an unlisted extension id is refused", async () => {
+    const { challenge } = pkce();
+    const ask = (redirect_uri: string) =>
+      authorize({ response_type: "code", client_id: CLIENT, redirect_uri, code_challenge: challenge, code_challenge_method: "S256", state: "s" });
+
+    const other = "https://cccccccccccccccccccccccccccccccc.chromiumapp.org/oauth";
+    expect((await ask(other)).statusCode, "an unlisted chromiumapp.org id").toBe(400);
+
+    delete process.env.EXTENSION_OAUTH_REDIRECT_ALLOW;
+    try {
+      expect((await ask(REDIRECT)).statusCode, "unset allow-list refuses even the first-party id").toBe(400);
+    } finally {
+      process.env.EXTENSION_OAUTH_REDIRECT_ALLOW = REDIRECT;
+    }
+    // A malformed entry grants nothing either.
+    process.env.EXTENSION_OAUTH_REDIRECT_ALLOW = "https://evil.example.com/steal";
+    try {
+      expect((await ask("https://evil.example.com/steal")).statusCode).toBe(400);
+    } finally {
+      process.env.EXTENSION_OAUTH_REDIRECT_ALLOW = REDIRECT;
+    }
   });
 
   it("refuses an arbitrary redirect and a non-S256 challenge method", async () => {
