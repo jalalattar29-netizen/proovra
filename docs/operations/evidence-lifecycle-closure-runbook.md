@@ -43,8 +43,9 @@ audience label. At most 25 active owner links per record.
 - **Old record-ID links** (`/verify/<record id>`) keep working for 180 days from
   the day migration 5 runs, only for records that were public on that day. The
   Verify page shows the end date. An owner can end one early (*End legacy
-  link*); `GET /v1/verify-links/legacy-inventory` lists a workspace's records
-  still reachable by id. After the period, or for any newer record, the id
+  link*); the same panel lists the workspace's records still reachable by id
+  (*Show records in this workspace still reachable by record ID*, read from
+  `GET /v1/verify-links/legacy-inventory`). After the period, or for any newer record, the id
   answers 404. Nothing is auto-published and no token is minted on anyone's
   behalf: links printed in old reports stop at the end of the period, and the
   owner issues a new link.

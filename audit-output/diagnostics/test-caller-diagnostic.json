@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "b2406769ab459f630efefcf7a0bfdf5dcee319a791008ebce99361afe536e314",
-  "capabilityRouteInventoryHash": "07c14ba7f8b2fa505b7eb84811af0026423b8c0d089fabbede70c4b05df07a6b",
+  "capabilityRouteInventoryHash": "7d2264964e7ff63c50b5eed892b56f19aca52267f40d9ed0c1fc9c98610e84db",
   "totals": {
-    "routes": 1170,
+    "routes": 1176,
     "routesWithAnyTestCaller": 41,
     "testOnlyRoutes": 3,
     "testCallSites": 71,
@@ -1351,6 +1351,12 @@
     },
     {
       "routeId": "GET /v1/evidence/:id/verification-packages/:version",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/evidence/:id/verify-links",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -3304,6 +3310,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/verify-links/legacy-inventory",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/workflow/intake-links",
       "testCallerCount": 0,
       "testOnly": false,
@@ -4788,6 +4800,30 @@
     },
     {
       "routeId": "POST /v1/evidence/:id/unlock",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/verify-links",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/verify-links/:linkId/revoke",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/verify-links/:linkId/rotate",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/evidence/:id/verify-links/legacy/revoke",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7121,5 +7157,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "8586bcfd61ffbc868490107261caaa36c5a1646bdddd08c00666fb5014c33827"
+  "contentHash": "a45a6f71941c641d29aefcb2e2e2217afb04c954fd16202989f9f21d8398b2d4"
 }

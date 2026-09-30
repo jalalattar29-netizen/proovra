@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 414,
+    "AuditFilesInventoried": 417,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 261
+    "ProductBehaviorTestsInventoried": 262
   },
   "reportRoles": {
     "counts": {
@@ -158,9 +158,9 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 261,
+    "PRODUCT_BEHAVIOR_TEST": 262,
     "CONTINUATION_CHECKPOINT": 1,
-    "DOMAIN_AUTHORITY": 71,
+    "DOMAIN_AUTHORITY": 73,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
@@ -2833,6 +2833,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/scripts/e2e-verify-link.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/scripts/full-migration-audit.mjs",
       "role": "DOMAIN_AUTHORITY",
       "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
@@ -3778,6 +3793,21 @@
       "imports": [
         "scripts/source-contract/index.mjs"
       ],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/helpers/verify-share.ts",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -6773,6 +6803,21 @@
     },
     {
       "path": "services/api/test/workspace-surface-audit.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/worker/test/et-q-07-derived-asset-reconciler.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

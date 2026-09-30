@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1169
-RegisteredRoutes                            1170
+ProductionRegisteredRoutes                  1175
+RegisteredRoutes                            1176
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,12 +48,12 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1313
-ROUTE_ATTRIBUTED_REACHABLE                  1174
-JOB_ATTRIBUTED_REACHABLE                     121
+TerminalWriters                             1323
+ROUTE_ATTRIBUTED_REACHABLE                  1182
+JOB_ATTRIBUTED_REACHABLE                     127
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
-STARTUP_OR_SCHEDULED                          15
+STARTUP_OR_SCHEDULED                          11
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
@@ -74,7 +74,7 @@ UnprocessedQueueFamilies                       0
 MutationClosurePass                         true
 
 PRODUCT (route disposition, from the generated map)
-ProductConsumedRoutes                        969
+ProductConsumedRoutes                        975
 NonProductDispositionedRoutes                200
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
@@ -665,3 +665,31 @@ node services/api/scripts/audit/index.mjs --closure-check
   change gates, projections, reads and one worker build check; no writer.
 - TerminalWriters 1314 -> 1313, ROUTE_ATTRIBUTED_REACHABLE 1173 -> 1174,
   STARTUP_OR_SCHEDULED 17 -> 15. JOB_ATTRIBUTED_REACHABLE unchanged.
+
+### 2026-09-30 — EVIDENCE-LIFECYCLE REMEDIATION B18: THE FIVE OWNER DECISIONS (routes 1170 -> 1176, writers 1313 -> 1323)
+
+- ET-PKG-07: six routes in `verification-share.routes.ts` (list, create,
+  revoke, rotate, end the legacy link, workspace legacy inventory), all
+  product-consumed by the web record page. Writers, all route-attributed:
+  `verificationShareToken.create` (+1) and two `verificationShareToken.updateMany`
+  (+2: use accounting, revoke) in `verification-share/authority.ts`;
+  `evidence.updateMany` (+1) in `verification-share.service.ts` (ending a
+  legacy link). `verificationShareToken` is classified
+  EXTERNAL_REVIEW_INTAKE_SHARE in the mutation-closure table.
+- ET-SM-07: `integrity-recheck/authority.ts` — `evidenceIntegrityCheck.create`
+  (+1, route) and three `evidence.updateMany` (+2 route: request a recheck,
+  record an observation; +1 job: the sweep's claim).
+- ET-COM-04: `evidence.updateMany` in `evidence-complete.service.ts` (+1,
+  route) — the earned-output fact written in the completion transaction.
+- ET-Q-07: the two raw graph writers in `graph/domain-sync.service.ts` are
+  gone with their queue (-2, job). The derived-asset reconciler that replaces
+  the claimed coverage adds three `evidencePartDerivedAsset.updateMany` in
+  `intelligence-run-reconciler.ts` (+3, job).
+- The capture reaper is now a REGISTERED sweep (`runCaptureReaperSweep`, a
+  recorded run), so its four writers are attributed to that sweep rather than
+  to a bare timer: STARTUP_OR_SCHEDULED -4, JOB_ATTRIBUTED_REACHABLE +4. No
+  writer was added or removed by that move.
+- ET-COM-02 changes predicates and projections only; no writer.
+- RegisteredRoutes 1170 -> 1176 (ProductionRegisteredRoutes 1169 -> 1175),
+  TerminalWriters 1313 -> 1323, ROUTE_ATTRIBUTED_REACHABLE 1174 -> 1182,
+  JOB_ATTRIBUTED_REACHABLE 121 -> 127, STARTUP_OR_SCHEDULED 15 -> 11.
