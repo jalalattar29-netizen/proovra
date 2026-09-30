@@ -454,6 +454,32 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "You can view this record, but generating or recovering its report and verification package needs a role with that permission. Ask a workspace admin.",
     severity: "warning",
   },
+  // ET-SEC-14 — a regeneration runs the workspace output policy of first
+  // issuance (review before report, report/package switches, template rules).
+  REPORT_BLOCKED_BY_POLICY: {
+    title: "Blocked by workspace policy",
+    message:
+      "This workspace's policy does not allow this record's report now (for example, it must be reviewed first). Nothing was requested. A workspace admin can review the policy.",
+    severity: "warning",
+  },
+  PACKAGE_BLOCKED_BY_POLICY: {
+    title: "Blocked by workspace policy",
+    message:
+      "This workspace's policy does not allow this record's verification package now (for example, it must be reviewed first). Nothing was requested. A workspace admin can review the policy.",
+    severity: "warning",
+  },
+  REPORT_BLOCKED_BY_TEMPLATE_POLICY: {
+    title: "Blocked by the workflow's export rules",
+    message:
+      "The workflow this record belongs to does not allow its report now. Nothing was requested. A workspace admin can review the workflow's rules.",
+    severity: "warning",
+  },
+  PACKAGE_BLOCKED_BY_TEMPLATE_POLICY: {
+    title: "Blocked by the workflow's export rules",
+    message:
+      "The workflow this record belongs to does not allow its verification package now. Nothing was requested. A workspace admin can review the workflow's rules.",
+    severity: "warning",
+  },
   IDEMPOTENCY_KEY_REQUIRED: {
     title: "Please try again",
     message: "The request could not be sent safely. Reload the page and try again; no new version was created.",

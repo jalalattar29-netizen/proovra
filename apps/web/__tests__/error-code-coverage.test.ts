@@ -273,6 +273,12 @@ test("the registry does not describe codes the API no longer emits", () => {
     // (2026-09-29) The package download's verification-policy refusal is
     // answered by THE shared byte-release gate every download route calls.
     ["VERIFICATION_POLICY_BLOCKED", "services/api/src/services/evidence/artifact-download-gate.service.ts"],
+    // ET-SEC-14 — the output policy's refusal codes, answered by the report
+    // regeneration route as `code: governance.code`.
+    ["REPORT_BLOCKED_BY_POLICY", "services/api/src/services/governance.service.ts"],
+    ["PACKAGE_BLOCKED_BY_POLICY", "services/api/src/services/governance.service.ts"],
+    ["REPORT_BLOCKED_BY_TEMPLATE_POLICY", "services/api/src/services/governance/template-export-policy.service.ts"],
+    ["PACKAGE_BLOCKED_BY_TEMPLATE_POLICY", "services/api/src/services/governance/template-export-policy.service.ts"],
   ] as const) {
     assert.ok(
       read(authority).includes('"' + c + '"'),

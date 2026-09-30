@@ -208,6 +208,11 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   RATE_LIMITED: { disposition: "customer", where: "global" },
   // Report / package generation and recovery (2026-09-26).
   GENERATION_NOT_PERMITTED: { disposition: "customer", where: "global" },
+  // ET-SEC-14 — the output policy refuses a regeneration as at first issuance.
+  REPORT_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
+  PACKAGE_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
+  REPORT_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },
+  PACKAGE_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },
   IDEMPOTENCY_KEY_REQUIRED: { disposition: "customer", where: "global" },
   IDEMPOTENCY_KEY_INVALID: { disposition: "customer", where: "global" },
   // An updated report records why it was issued (2026-09-29); the server's
