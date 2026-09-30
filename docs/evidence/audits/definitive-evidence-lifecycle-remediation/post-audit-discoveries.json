@@ -67,7 +67,8 @@
       "fix": "reportPanelStatesGenerationIncident decides which panel speaks; the package panel states it only when the report panel does not.",
       "proof": "5 new cases in apps/web/__tests__/render/evidence-artifacts-output-actions.render.test.tsx; evidence-detail-layout 108/108",
       "commits": [
-        "aaa3c2c3bc fix(web,e2e): the eight layout projects pass — four product defects fixed, drifted specs brought to the product's decisions (PA-04..PA-08)"
+        "aaa3c2c3bc fix(web,e2e): the eight layout projects pass — four product defects fixed, drifted specs brought to the product's decisions (PA-04..PA-08)",
+        "7e93790b6e fix(web): the package panel reads its workspace through the tab's one read (PA-04)"
       ]
     },
     {

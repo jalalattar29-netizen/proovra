@@ -21,7 +21,7 @@ conservation.
 | PA-01 | PRODUCT_DEFECT | FIXED | A public-write rate limit could be multiplied by the replica count when Redis was unreachable | 6966a260ca, 89b352a09b, 1f76aeae09 |
 | PA-02 | PRODUCT_DEFECT | FIXED | No graph node was ever tombstoned: every sweep compared a UUID with text inside a swallowing catch | 1f76aeae09, 024f5c78e1 |
 | PA-03 | PRODUCT_DEFECT | FIXED | Governance policy audit rows were lost, and a policy change could commit without its audit row | 1f76aeae09 |
-| PA-04 | PRODUCT_DEFECT | FIXED | One artifact-generation incident was stated twice on the Evidence Artifacts tab | aaa3c2c3bc |
+| PA-04 | PRODUCT_DEFECT | FIXED | One artifact-generation incident was stated twice on the Evidence Artifacts tab | aaa3c2c3bc, 7e93790b6e |
 | PA-05 | PRODUCT_DEFECT | FIXED | The Start subscription purchase action was outlined while the page's other purchases are filled | aaa3c2c3bc |
 | PA-06 | PRODUCT_DEFECT | FIXED | The intake-links table overflowed its frame by up to 75px between 1200 and 1273px | aaa3c2c3bc |
 | PA-07 | PRODUCT_DEFECT | FIXED | At a larger text scale the intake timeline date spilled out of its cell | aaa3c2c3bc |
@@ -66,7 +66,7 @@ conservation.
 - **rootCause:** The report panel and the package-recovery panel each rendered a RuntimeStatusBanner when both offered an action.
 - **fix:** reportPanelStatesGenerationIncident decides which panel speaks; the package panel states it only when the report panel does not.
 - **proof:** 5 new cases in apps/web/__tests__/render/evidence-artifacts-output-actions.render.test.tsx; evidence-detail-layout 108/108
-- **commits:** aaa3c2c3bc fix(web,e2e): the eight layout projects pass — four product defects fixed, drifted specs brought to the product's decisions (PA-04..PA-08)
+- **commits:** aaa3c2c3bc fix(web,e2e): the eight layout projects pass — four product defects fixed, drifted specs brought to the product's decisions (PA-04..PA-08); 7e93790b6e fix(web): the package panel reads its workspace through the tab's one read (PA-04)
 
 ## PA-05 — The Start subscription purchase action was outlined while the page's other purchases are filled
 
