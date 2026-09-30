@@ -220,7 +220,12 @@ export function BillingOverview({
           {actions.secondaryPlanAction && onStartSubscription ? (
             <button
               type="button"
-              className="app-secondary-action app-secondary-action--lg"
+              // A PURCHASE, so it carries the filled weight this page's other
+              // purchase entry points carry (Buy credits, storage). It was
+              // left outlined when those were given `--filled`, so the one
+              // action that starts a subscription read as the lighter of the
+              // two beside "View access details".
+              className="app-secondary-action app-secondary-action--lg app-secondary-action--filled"
               onClick={() =>
                 onStartSubscription(actions.secondaryPlanAction!.planKey)
               }

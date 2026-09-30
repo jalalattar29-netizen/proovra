@@ -337,6 +337,33 @@ test.describe("Evidence Detail — lifecycle states", () => {
     // Force the click past the disabled attribute: the guard in the handler is
     // what must refuse, not the browser's own pointer-event suppression.
     await wrapper.locator("button").click({ force: true }).catch(() => undefined);
-    await expect(page.locator("[role=dialog]")).toHaveCount(0);
+    // The trash confirmation did not open — by its own hook…
+    await expect(page.locator('[data-evidence-modal-action="confirm-trash"]')).toHaveCount(0);
+    // …and no dialog of any kind is open. This was `[role=dialog]` count 0,
+    // which counted elements in the DOM rather than open dialogs: since
+    // f1d4ba49 (2026-08-30) the cookie-preferences dialog is always BUILT
+    // (hidden) so that Settings can open it, and that hidden element is a
+    // `role="dialog"`. `getByRole` sees what assistive technology sees, so a
+    // hidden dialog is not one and an open one still fails this.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("an enabled trash control DOES open the confirmation — the control for the case above", async ({
+    page,
+  }) => {
+    // The same two assertions, on a record that may be trashed: they must both
+    // turn. Without this, "no dialog opened" above could be true of a page on
+    // which nothing can ever open one.
+    await openLifecycle(page, {
+      lifecycle: lifecycle({ canTrash: true, trashBlockReason: null }),
+      lockedAt: null,
+      archivedAt: null,
+      deletedAt: null,
+    });
+    const wrapper = page.locator("[data-evidence-trash-wrapper]");
+    await expect(wrapper).not.toHaveAttribute("data-evidence-trash-disabled", "true");
+    await wrapper.locator("button").click();
+    await expect(page.locator('[data-evidence-modal-action="confirm-trash"]')).toHaveCount(1);
+    await expect(page.getByRole("dialog")).toHaveCount(1);
   });
 });

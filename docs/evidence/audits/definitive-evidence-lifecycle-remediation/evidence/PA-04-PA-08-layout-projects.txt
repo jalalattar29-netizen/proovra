@@ -1,0 +1,88 @@
+POST-AUDIT PA-04 .. PA-08 — the eight Playwright layout projects   (2026-09-30)
+
+Every build and run: NEXT_PUBLIC_API_BASE=http://127.0.0.1:9, NEXT_TELEMETRY_DISABLED=1, production `next build`,
+API intercepted by each project's fixtures. No request left the machine.
+
+Before (first run of each project on this branch; operations and capture are the two CI already ran):
+
+  project                 tests  failed
+  evidence-detail-layout   107      3
+  search-layout            390      7
+  billing-layout            52      2
+  attention-layout         148     27
+  intake-links-layout      109     19
+  settings-layout           89     15
+  operations-layout        264      0
+  capture-layout            32      0
+                                   73 failed
+
+After (one full run of all eight, on one build):
+
+  evidence-detail-layout 108 passed · billing-layout 52 · intake-links-layout 112 · settings-layout 93 ·
+  capture-layout 32 · search-layout 390 · attention-layout 148 · operations-layout 264 — 1,199 passed, 0 failed.
+
+(The totals grew by 4 in settings, 3 in intake-links and 1 in evidence-detail: tests added where a rewritten
+assertion would otherwise have measured less than before.)
+
+ROOT CAUSES AND DISPOSITIONS
+
+PA-08  STALE FIXTURE — cookie consent. f1d4ba49 (2026-08-30) set `hideFromBots: false` on purpose: hiding the
+       consent UI from automation also removed the dialog Settings opens to change one's own consent. From then
+       the "Privacy Preferences" box sat over every page in the layout projects (none had a recorded decision),
+       took the pointer events meant for the controls under it, and added two role="dialog" elements.
+       Fix: playwright.config.ts gives every layout project a recorded-consent cookie (the record the library
+       writes; the same one e2e/settings-layout already used). Accounted for ~30 of the 73 (clicks that never
+       arrived in search, attention, intake-links, evidence-detail).
+
+PA-04  PRODUCT DEFECT — evidence-detail service-status (2 failures). One artifact-generation incident was stated
+       twice on the Artifacts tab when a new-version offer and a package recovery were both available: the
+       report panel and the package panel each rendered their own RuntimeStatusBanner. Fix: one function,
+       reportPanelStatesGenerationIncident, decides which panel speaks; the report panel owns it, the package
+       panel states it only when the report panel does not. Render tests: 5 new cases in
+       evidence-artifacts-output-actions.render.test.tsx.
+
+PA-05  PRODUCT DEFECT — billing (2 failures). "Start Team subscription", a purchase, was outlined while the page's
+       other purchase entry points (Buy credits, storage) carry `app-secondary-action--filled`; it read as the
+       lighter action beside "View access details". Fix: it carries `--filled` (dark ink, white label, dark hover).
+
+PA-06  PRODUCT DEFECT — intake-links table overflow at 1200–1279px. The cutover to cards moved to 1199px
+       (67368b23, 2026-09-05) but the short-label fold for the two nowrap columns stayed at max-width 1080px,
+       where no table renders any more: at 1200px the seven columns needed 1061px in a 988px frame (a 75px
+       sideways scroller), up to 1273px. Fix: the same fold, scoped to the table, for 1200–1279px.
+
+PA-07  PRODUCT DEFECT — intake-links timeline key at a larger text scale. `.ilk-timeline__key` was sized in rem
+       while the column's cap is in ch of the cell's own text, so a 20px root pushed the nowrap date 0.5–6px out
+       of its cell. Fix: 3.968em (the same 49.6px at the default root).
+
+STALE SPECS (the product's current behaviour is the recorded decision; each spec now asserts it exactly):
+  evidence-detail  lifecycle-states:322   `[role=dialog]` count 0 counted the always-built, hidden consent dialog
+                                          (f1d4ba49). Now: the trash dialog's own hook is absent AND no dialog is
+                                          open (getByRole). New control case: an enabled trash control opens it.
+  search           case-copilot:494       revision prefix ear1_ -> ear2_ (26ad3ddb, 2026-09-17, UC-0); now uses
+                                          the product predicate isEvidenceAnalysisRevision + the prefix constant.
+  search           status-text:334        RESOLVED ink --orange-ink -> --orange-500 (d7f4be33, 2026-09-02,
+                                          "ORANGE IS THE ONE EXCEPTION, and it is deliberate").
+  search           field-label ×3         collaboration-teams fixture answered `{}` for the entitlement projection
+                                          the page has read since WCR-06 (afc746aa, 2026-09-07); now contract-shaped.
+  attention        notifications ×2       metric tones unread=blue, critical=red, warning=purple (2866f107
+                                          2026-08-27, b83bf5e0 2026-09-03; pinned by analytics-and-semantic-metrics).
+  attention        operations ×6          the workbench opens grouped (36cc44c0e, 2026-08-26); the fixture now
+                                          answers /v1/ops/incident-groups and the spec presses "All conditions"
+                                          (the real control) before measuring rows — the fix operations-layout
+                                          already carried (e531c548).
+  intake-links     ×16                    cutover 900px -> 1199px, the medium fold retired, "Delivery & activity"
+                                          split into Delivery and Status, expiry key as a real <dt> (67368b23);
+                                          KPI tones total=accent, active=orange (791c602a). Active's number is
+                                          --orange-500 on white, 3.56:1: asserted as the exact ink, at >=24px
+                                          (26px/720), against the WCAG large-text 3:1 threshold — the documented
+                                          orange exception; the other six cards keep 4.5:1.
+  settings         ×6                     secondary actions are the canonical neutral `.app-secondary-action`
+                                          (553dc2e5, 2026-08-31); asserted exactly, plus "all five paint alike".
+  settings         ×9                     "Workspace -> AI & assistance" is offered to a personal space
+                                          (d684de7c) and to organization members and viewers read-only
+                                          (cb3f13ba, both 2026-09-04). Verified in the browser: members and
+                                          viewers get the read-only pane (no save control, no inputs, no non-GET
+                                          request); administration destinations stay hidden, now asserted as
+                                          exact rails.
+
+No skip, retry, longer timeout, waitForTimeout or tolerance was added by any of these changes.

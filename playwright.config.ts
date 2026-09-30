@@ -22,6 +22,62 @@ import { defineConfig, devices } from "@playwright/test";
 
 const WEB_BASE = process.env.WEB_BASE ?? "http://localhost:3000";
 
+/**
+ * THE LAYOUT PROJECTS' BROWSER HAS ALREADY ANSWERED THE CONSENT QUESTION.
+ *
+ * Every layout project drives a SIGNED-IN actor through an intercepted API.
+ * None of them provisioned a consent decision, so each navigation was a first
+ * visit — and since f1d4ba49 (2026-08-30) the consent library no longer hides
+ * from automation (`hideFromBots: false`, deliberately: hiding it also removed
+ * the dialog a person opens from Settings to change their own consent). From
+ * that commit on, the "Privacy Preferences" dialog sat over the bottom-right of
+ * every page in these projects, took the pointer events meant for the controls
+ * under it, and added two `role="dialog"` elements to pages asserting there
+ * were none. The specs written before it (search, notifications, evidence
+ * detail, billing) failed on clicks that never arrived. No workflow ran these
+ * projects, so nothing reported it.
+ *
+ * This states, once, the fact each of those fixtures implies: a returning user
+ * whose consent is recorded. It is the `cc_cookie` the library itself writes
+ * (necessary + preferences + analytics, revision 1) — the same record
+ * `e2e/settings-layout/_fixtures.ts` already installs for the same reason. It
+ * is a recorded DECISION, not a hidden overlay: the consent UI is still built,
+ * and Settings → Privacy & data → Manage cookie preferences still opens it.
+ *
+ * The specs that assert the banner's own behaviour (first visit, defaults to
+ * necessary-only) live in the `chromium` project and do not use this.
+ */
+const ANSWERED_CONSENT_COOKIE = encodeURIComponent(
+  JSON.stringify({
+    categories: ["necessary", "preferences", "analytics"],
+    revision: 1,
+    data: null,
+    consentTimestamp: "2026-08-29T19:14:00.000Z",
+    consentId: "layout-fixture-consent",
+    services: { necessary: [], preferences: [], analytics: [], marketing: [] },
+    languageCode: "en",
+    // v3 treats a record without these as invalid and re-shows the banner.
+    lastConsentTimestamp: "2026-08-29T19:14:00.000Z",
+    expirationTime: 4102444800000,
+  }),
+);
+const LAYOUT_STORAGE_STATE = {
+  cookies: [
+    {
+      name: "cc_cookie",
+      value: ANSWERED_CONSENT_COOKIE,
+      // Cookies are not port-scoped: one entry covers every layout server.
+      domain: "127.0.0.1",
+      path: "/",
+      expires: 4102444800,
+      httpOnly: false,
+      secure: false,
+      sameSite: "Lax" as const,
+    },
+  ],
+  origins: [],
+};
+
 /** The structural-layout project serves its own production build here. */
 const SEARCH_LAYOUT_PORT = 3011;
 const SEARCH_LAYOUT_BASE = `http://127.0.0.1:${SEARCH_LAYOUT_PORT}`;
@@ -197,6 +253,7 @@ export default defineConfig({
       testDir: "./e2e/search-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         // Its OWN origin: this project brings its own `next start` on 3011 and
         // must not inherit the Phase-1 stack's WEB_BASE, which points at a
         // server this project never starts.
@@ -222,6 +279,7 @@ export default defineConfig({
       testDir: "./e2e/intake-links-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         baseURL: INTAKE_LAYOUT_BASE,
       },
     },
@@ -238,6 +296,7 @@ export default defineConfig({
       testDir: "./e2e/evidence-detail-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         baseURL: EVIDENCE_LAYOUT_BASE,
       },
     },
@@ -261,6 +320,7 @@ export default defineConfig({
       testDir: "./e2e/attention-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         baseURL: ATTENTION_LAYOUT_BASE,
       },
     },
@@ -284,6 +344,7 @@ export default defineConfig({
       testDir: "./e2e/operations-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         baseURL: OPERATIONS_LAYOUT_BASE,
       },
     },
@@ -299,6 +360,7 @@ export default defineConfig({
       testDir: "./e2e/capture-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         baseURL: CAPTURE_LAYOUT_BASE,
       },
     },
@@ -316,6 +378,7 @@ export default defineConfig({
       testDir: "./e2e/billing-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         baseURL: BILLING_LAYOUT_BASE,
       },
     },
@@ -332,6 +395,7 @@ export default defineConfig({
       testDir: "./e2e/settings-layout",
       use: {
         ...devices["Desktop Chrome"],
+        storageState: LAYOUT_STORAGE_STATE,
         baseURL: SETTINGS_LAYOUT_BASE,
       },
     },

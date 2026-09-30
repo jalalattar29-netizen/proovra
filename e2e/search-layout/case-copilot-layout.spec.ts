@@ -13,7 +13,11 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { evaluateCopilotEvidenceEligibility } from "../../packages/shared/src/ai-copilot-selection";
+import {
+  EVIDENCE_ANALYSIS_REVISION_PREFIX,
+  evaluateCopilotEvidenceEligibility,
+  isEvidenceAnalysisRevision,
+} from "../../packages/shared/src/ai-copilot-selection";
 import { buildEvidenceAnalysisRevision } from "../../packages/shared-runtime/src/evidence-analysis-revision";
 
 import { DIRECTIONS, VIEWPORTS, envelopeFor, setDirection } from "./_fixtures";
@@ -495,8 +499,13 @@ test.describe("evidence selection is reachable", () => {
     const items = evidenceItems(14);
     // Every record carries a revision in the shipped format — not a
     // placeholder, and not the absence that made this suite unreachable.
+    // The format is the product's own predicate, not a literal copied here:
+    // this pinned `ear1_`, and the schema moved to `ear2_` on 2026-09-17
+    // (26ad3ddb, UC-0: the acquisition fact replaced `captureMethod` in the
+    // snapshot), so a correct fixture failed a stale regex.
     for (const e of items) {
-      expect(e.analysisRevision, e.id).toMatch(/^ear1_[A-Za-z0-9_-]{43}$/);
+      expect(isEvidenceAnalysisRevision(e.analysisRevision), `${e.id}: ${e.analysisRevision}`).toBe(true);
+      expect(e.analysisRevision.startsWith(EVIDENCE_ANALYSIS_REVISION_PREFIX), e.id).toBe(true);
     }
     // The revision is CONTEXT-BOUND: two records that differ only by identity
     // must not share one.

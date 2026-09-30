@@ -228,7 +228,11 @@ const REQUIRED_INK: Record<string, string> = {
   OPEN: "rgb(21, 128, 61)", // --success-standard #15803D
   INVESTIGATING: "rgb(109, 40, 217)", // --accent-600 #6D28D9
   ON_HOLD: "rgb(109, 40, 217)", // --accent-600 #6D28D9
-  RESOLVED: "rgb(194, 65, 12)", // --orange-ink #C2410C
+  // --orange-500 #EA580C. This pinned --orange-ink #C2410C; the status-text
+  // tier was moved to --orange-500 as a recorded visual-reference decision
+  // ("ORANGE IS THE ONE EXCEPTION, and it is deliberate", app-primitives.css,
+  // d7f4be33 2026-09-02): the darker ink read as brown.
+  RESOLVED: "rgb(234, 88, 12)",
   ARCHIVED: "rgb(220, 38, 38)", // --error #DC2626
   CLOSED: "rgb(15, 23, 42)", // --ink-primary #0F172A
 };

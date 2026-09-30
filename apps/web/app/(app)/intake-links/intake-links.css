@@ -19,7 +19,7 @@
  *   - no `!important`, no compatibility overrides, no `:where()` escape hatches
  *   - logical properties throughout so the surface mirrors correctly in RTL
  *   - nothing here scrolls the page sideways: wide content scrolls inside its
- *     own surface, and below 900px the table is replaced (not squeezed)
+ *     own surface, and below 1200px the table is replaced (not squeezed)
  * ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -233,6 +233,28 @@
   .ilk-fold[data-fold="short"] {    display: inline;
   }
   .ilk-when-wide {
+    display: none;
+  }
+}
+/* THE SAME FOLD, FOR THE NARROWEST TABLE.
+   When the cutover moved to 1199px the rule above stopped reaching the table
+   at all — below 1081px only the cards render — so from 1200px the table
+   carried the full "View submissions (n)" button and the labelled "Actions"
+   trigger: two nowrap columns asking for 185px + 131px. Measured in Chromium
+   against the production build with the layout suite's long-value fixture,
+   the seven columns then need 1061px while the records frame (viewport minus
+   the 212px shell) gives 988px at 1200 — a 75px sideways scroller inside the
+   surface, at every width up to 1273px. From 1280px the frame is 1068px and
+   the full labels fit.
+   With the short labels the same table measures 986px in the 988px frame at
+   1200px. Nothing is dropped: the button's accessible name stays the full
+   phrase and the trigger keeps its `aria-label`. Scoped to the table so the
+   cards, which have the room, keep their own 1080px rule. */
+@media (min-width: 1200px) and (max-width: 1279px) {
+  .ilk-table .ilk-fold[data-fold="short"] {
+    display: inline;
+  }
+  .ilk-table .ilk-when-wide {
     display: none;
   }
 }
@@ -674,7 +696,12 @@
 /* A fixed label column so both values start at the same inline offset. */
 .ilk-timeline__key {
   flex: 0 0 auto;
-  inline-size: 3.1rem;
+  /* `em`, NOT `rem`. The column's ceiling is 16ch of this cell's own text, so
+     a key sized from the ROOT font grew with a larger root (62px at a 20px
+     root) while the ceiling did not, and pushed the nowrap date 0.5–6px past
+     the cell's edge. 3.968em of this 12.5px text is the same 49.6px that
+     3.1rem was at the default root, so nothing moves at the default scale. */
+  inline-size: 3.968em;
   font-weight: 500;
   color: var(--ink-muted);
 }

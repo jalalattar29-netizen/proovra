@@ -437,7 +437,7 @@ export const VIEWPORTS = [
   { name: "1440", width: 1440, height: 900 },
   { name: "1280", width: 1280, height: 860 },
   { name: "1024", width: 1024, height: 800 },
-  /** The tablet breakpoint, where the table sheds its foldable columns. */
+  /** The tablet breakpoint — cards since the cutover moved to 1199px. */
   { name: "768", width: 768, height: 1024 },
   /** A large phone — cards, not a squeezed table. */
   { name: "430", width: 430, height: 932 },

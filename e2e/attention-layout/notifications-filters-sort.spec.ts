@@ -498,10 +498,16 @@ test("metric cards lead with All and resolve the canonical tones", async ({
   // TONES — each is the canonical token's value, and the number wears it.
   const expected: Record<string, string> = {
     all: "#0f172a", // --ink-primary   : the darkest neutral
-    unread: "#6d28d9", // --accent-600 : brand purple
-    critical: "#2563eb", // --info     : canonical blue
+    // The three below were unread = purple, critical = blue, warning = red.
+    // The mapping was corrected to the canonical semantics — unread is a
+    // state (informational blue), critical is danger (red), warning is the
+    // brand purple — in 2866f107 (2026-08-27) and b83bf5e0 (2026-09-03); the
+    // rationale is recorded above the rules in notifications.css and the
+    // declarations are pinned by analytics-and-semantic-metrics.test.ts.
+    unread: "#2563eb", // --info       : canonical informational blue
+    critical: "#dc2626", // --error    : canonical danger red
     high: "#ea580c", // --orange-500   : standard orange
-    warning: "#dc2626", // --error    : canonical red
+    warning: "#6d28d9", // --accent-600: brand purple
     info: "#475569", // --ink-secondary: neutral informational
   };
   const rgb: Record<string, string> = {

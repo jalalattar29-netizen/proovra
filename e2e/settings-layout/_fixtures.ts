@@ -125,6 +125,27 @@ function settingsEnvelope(actor: SettingsActor): Record<string, unknown> {
     ...base,
     capabilities: caps,
     activeSpace: { type: "PERSONAL", id: "user-1", displayName: "Personal Space" },
+    // The canonical context, stated for the SAME space as `activeSpace`.
+    //
+    // The base envelope is a team admin's, and its `contextOptions
+    // .activeContext` names an ORGANIZATION workspace called "Meridian Legal".
+    // Left inherited, this personal actor's envelope contradicted itself — and
+    // the AI & assistance pane, which a personal space has been offered since
+    // d684de7c (2026-09-04), renders `WorkspaceContextBanner` straight from
+    // this field: "AI settings for Meridian Legal · Organization workspace",
+    // above "…available in your Personal Space". The server projects both
+    // fields from one resolution, so they cannot disagree in the product; the
+    // fixture must not make them.
+    contextOptions: {
+      ...((base.contextOptions as Record<string, unknown>) ?? {}),
+      organizations: [],
+      activeContext: {
+        workspaceId: "user-1",
+        kind: "PERSONAL",
+        organizationId: null,
+        displayName: "Personal Space",
+      },
+    },
     organizations: [],
     // Personal mode is an ACTIVE workspace whose scope is PERSONAL, which is
     // what `useTeamWorkspaceGate` reads: scope !== "TEAM" resolves to

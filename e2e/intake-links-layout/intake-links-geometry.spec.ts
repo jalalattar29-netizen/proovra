@@ -29,6 +29,25 @@ const CONTEXTS: IntakeContext[] = ["personal", "organization", "enterprise"];
 
 const ROOT = '[data-testid="intake-links-page"]';
 
+/**
+ * The widest viewport that still renders the CARDS; one pixel above it the
+ * table renders. `@media (max-width: 1199px)` in `intake-links.css`, set by
+ * 67368b23 (2026-09-05) when the table was regrouped into seven columns. It
+ * was 900px before that commit.
+ */
+const TABLE_CUTOVER = 1199;
+
+/** The seven grouped columns 67368b23 introduced, in order. */
+const COLUMNS = [
+  "request",
+  "identity",
+  "delivery",
+  "status",
+  "timeline",
+  "submissions",
+  "actions",
+] as const;
+
 // ---------------------------------------------------------------------------
 // Measurement primitives — all computed in the page, by the real engine
 // ---------------------------------------------------------------------------
@@ -145,7 +164,9 @@ async function fragmentedRuns(page: Page): Promise<string[]> {
 
     for (const el of Array.from(
       showing.querySelectorAll<HTMLElement>(
-        "[data-intake-links-row-delivery], .ilk-status__value, .ilk-expiry, .ilk-relative",
+        // `.ilk-status__value` was retired by 67368b23; the delivery and
+        // activity values it selected are both `.ilk-state-text` now.
+        "[data-intake-links-row-delivery], .ilk-state-text, .ilk-expiry, .ilk-relative",
       ),
     )) {
       const cs = getComputedStyle(el);
@@ -241,7 +262,12 @@ for (const context of CONTEXTS) {
           expect(r.table).toBe(!r.cards);
           // The table renders only where seven columns still fit; below that the
           // cards take over rather than the table scrolling inside its frame.
-          expect(r.table).toBe(vp.width > 900);
+          //
+          // The cutover was 900px. 67368b23 (2026-09-05, "simplify link results
+          // hierarchy") regrouped the table into seven wider columns and moved
+          // it to 1199px on purpose — "the table hands over to the cards at
+          // 1199px" — so 1024px is now a card width.
+          expect(r.table).toBe(vp.width > TABLE_CUTOVER);
         });
       }
     }
@@ -323,83 +349,257 @@ test.describe("one row model, two renderers", () => {
     expect(narrow).toEqual(wide);
   });
 
-  test("nothing is dropped at the medium fold — it is restated", async ({
+  /*
+   * WHAT THIS TEST USED TO SAY, AND WHY IT CHANGED.
+   *
+   * It was "nothing is dropped at the medium fold — it is restated": at 1024px
+   * the ten-column table hid its Channel and Latest columns and restated them
+   * through `[data-fold="channel"]` inside a surviving cell, while Lifecycle
+   * kept a column of its own.
+   *
+   * 67368b23 (2026-09-05, "simplify link results hierarchy") retired that
+   * mechanism on purpose: "The old surface answered the same shortfall by
+   * HIDING two columns below 1500px — worse, since a hidden column is a fact
+   * the operator cannot see". There are seven grouped columns now, NONE is
+   * hidden at any table width, the channel lives in the Delivery cell and the
+   * latest-activity date in the Timeline cell, and 1024px renders the cards.
+   *
+   * The guarantee is the same one — no fact is lost at the narrowest layout —
+   * and it is asserted directly, at the narrowest TABLE and on the card that
+   * replaced the medium table.
+   */
+  test("nothing is dropped at the narrowest table, and nothing is restated", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 1024, height: 800 });
+    await page.setViewportSize({ width: TABLE_CUTOVER + 1, height: 800 });
     await openIntakeLinks(page, "organization");
-    const folded = await page.evaluate(() => {
-      const row = document.querySelector(
-        '.ilk-records--wide [data-intake-links-row-id="r-archived-submitted"]',
+    const table = await page.evaluate((columns) => {
+      const wide = document.querySelector(".ilk-records--wide") as HTMLElement;
+      const row = wide.querySelector(
+        '[data-intake-links-row-id="r-archived-submitted"]',
       ) as HTMLElement;
-      const visible = (el: Element | null) =>
-        Boolean(el) && getComputedStyle(el as HTMLElement).display !== "none";
-      const status = row.querySelector(".ilk-status") as HTMLElement;
+      const painted = (el: Element | null) => {
+        if (!el) return false;
+        const r = (el as HTMLElement).getBoundingClientRect();
+        return (
+          getComputedStyle(el as HTMLElement).display !== "none" &&
+          r.width > 0 &&
+          r.height > 0
+        );
+      };
+      const life = row.querySelector(
+        "[data-intake-links-row-link-state]",
+      ) as HTMLElement;
+      const delivery = row.querySelector('td[data-col="delivery"]') as HTMLElement;
+      const status = row.querySelector('td[data-col="status"]') as HTMLElement;
+      const timeline = row.querySelector('td[data-col="timeline"]') as HTMLElement;
       return {
-        channelColumn: visible(row.querySelector('td[data-col="channel"]')),
-        latestColumn: visible(row.querySelector('td[data-col="latest"]')),
-        lifecycleColumn: visible(row.querySelector('td[data-col="lifecycle"]')),
-        channelFold: visible(row.querySelector('[data-fold="channel"]')),
-        // The retired fold. Its absence is the assertion.
-        lifecycleFold: Boolean(row.querySelector('[data-fold="lifecycle"]')),
-        lifecycleInStatusCell: Boolean(
-          status.querySelector("[data-intake-links-row-link-state]"),
+        tableShowing: getComputedStyle(wide).display !== "none",
+        columnOrder: Array.from(row.querySelectorAll("td")).map((td) =>
+          td.getAttribute("data-col"),
         ),
-        statusKeys: Array.from(status.querySelectorAll(".ilk-status__key")).map(
-          (k) => k.textContent?.trim(),
+        paintedColumns: columns.filter((c) =>
+          painted(row.querySelector(`td[data-col="${c}"]`)),
         ),
+        headings: Array.from(wide.querySelectorAll("thead th")).filter((th) =>
+          painted(th),
+        ).length,
+        // The retired columns and the retired restatements. Absence is the
+        // assertion: nothing is hidden, so nothing needs restating.
+        retired: row.querySelectorAll(
+          'td[data-col="channel"], td[data-col="latest"], td[data-col="lifecycle"], td[data-col="expires"], [data-fold="channel"], [data-fold="lifecycle"], [data-fold="latest"]',
+        ).length,
+        channelLabel: painted(delivery.querySelector(".ilk-delivery__channel-label"))
+          ? delivery
+              .querySelector(".ilk-delivery__channel-label")
+              ?.textContent?.trim()
+          : null,
+        latest: painted(timeline.querySelector(".ilk-relative"))
+          ? (timeline.querySelector(".ilk-relative")?.textContent?.trim() ?? "")
+          : "",
+        timelineKeys: Array.from(
+          timeline.querySelectorAll(".ilk-timeline__key"),
+        ).map((k) => k.textContent?.trim()),
+        lifecycleColumn: life.closest("td")?.getAttribute("data-col"),
+        lifecyclePainted: painted(life),
+        lifecycleText: life.textContent?.trim(),
         lifecycleCount: row.querySelectorAll("[data-intake-links-row-link-state]")
           .length,
-        text: row.textContent ?? "",
+        lifecycleInDelivery: delivery.querySelectorAll(
+          "[data-intake-links-row-link-state]",
+        ).length,
+        deliveryCount: row.querySelectorAll("[data-intake-links-row-delivery]")
+          .length,
+        activityCount: row.querySelectorAll(
+          "[data-intake-links-row-session-state]",
+        ).length,
+        deliveryNames: Array.from(
+          delivery.querySelectorAll(".app-visually-hidden"),
+        ).map((n) => n.textContent),
+        statusNames: Array.from(
+          status.querySelectorAll(".app-visually-hidden"),
+        ).map((n) => n.textContent),
+      };
+    }, COLUMNS as unknown as string[]);
+
+    // Seven columns, in order, every one of them painted — none folds away.
+    expect(table.tableShowing).toBe(true);
+    expect(table.columnOrder).toEqual([...COLUMNS]);
+    expect(table.paintedColumns).toEqual([...COLUMNS]);
+    expect(table.headings).toBe(COLUMNS.length);
+    expect(table.retired).toBe(0);
+
+    // The two facts that used to fold are stated in the open, where they now
+    // live: the channel in Delivery, the latest activity in Timeline.
+    expect(table.channelLabel).toBe("SMS");
+    expect(table.latest.length).toBeGreaterThan(0);
+    expect(table.timelineKeys).toEqual(["Latest", "Expires"]);
+
+    // Lifecycle is stated once — in the Status column, which 67368b23 made its
+    // one home ("a filled badge over quiet toned text") — and never restated
+    // in Delivery. Each of the other two axes is stated once as well.
+    expect(table.lifecycleColumn).toBe("status");
+    expect(table.lifecyclePainted).toBe(true);
+    expect(table.lifecycleText).toBe("Archived");
+    expect(table.lifecycleCount).toBe(1);
+    expect(table.lifecycleInDelivery).toBe(0);
+    expect(table.deliveryCount).toBe(1);
+    expect(table.activityCount).toBe(1);
+    // The visible "Delivery" / "Activity" keys became the column heading and
+    // an assistive name on each subordinate value (same commit: "the
+    // subordinate lines are named for assistive technology").
+    expect(table.deliveryNames).toEqual(["Delivery status: "]);
+    expect(table.statusNames).toEqual(["Contributor activity: "]);
+
+    // 1024px — the width this test measured the medium table at — is the card
+    // now, and the card drops nothing either.
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await openIntakeLinks(page, "organization");
+    const card = await page.evaluate(() => {
+      const narrow = document.querySelector(".ilk-records--narrow") as HTMLElement;
+      const el = narrow.querySelector(
+        '[data-intake-links-card-id="r-archived-submitted"]',
+      ) as HTMLElement;
+      const painted = (node: Element | null) => {
+        if (!node) return false;
+        const r = (node as HTMLElement).getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      return {
+        cardsShowing: getComputedStyle(narrow).display !== "none",
+        channelLabel: painted(el.querySelector(".ilk-delivery__channel-label"))
+          ? el.querySelector(".ilk-delivery__channel-label")?.textContent?.trim()
+          : null,
+        latestPainted: painted(el.querySelector(".ilk-relative")),
+        expiryPainted: painted(
+          el.querySelector("[data-intake-links-row-expiry-date]"),
+        ),
+        lifecycleText: el
+          .querySelector("[data-intake-links-row-link-state]")
+          ?.textContent?.trim(),
+        lifecycleCount: el.querySelectorAll("[data-intake-links-row-link-state]")
+          .length,
+        deliveryCount: el.querySelectorAll("[data-intake-links-row-delivery]")
+          .length,
+        activityCount: el.querySelectorAll(
+          "[data-intake-links-row-session-state]",
+        ).length,
+        folds: el.querySelectorAll(
+          '[data-fold="channel"], [data-fold="lifecycle"], [data-fold="latest"]',
+        ).length,
       };
     });
-    // The two columns that genuinely fold do fold…
-    expect(folded.channelColumn).toBe(false);
-    expect(folded.latestColumn).toBe(false);
-    expect(folded.channelFold).toBe(true);
-    expect(folded.text).toContain("SMS");
-
-    // …and lifecycle keeps its own labelled column instead. It is stated once,
-    // in its own region, and it never reappears inside Delivery & activity.
-    expect(folded.lifecycleColumn).toBe(true);
-    expect(folded.lifecycleFold).toBe(false);
-    expect(folded.lifecycleInStatusCell).toBe(false);
-    expect(folded.lifecycleCount).toBe(1);
-    expect(folded.statusKeys).toEqual(["Delivery", "Activity"]);
-    expect(folded.text).toContain("Archived");
+    expect(card.cardsShowing).toBe(true);
+    expect(card.channelLabel).toBe("SMS");
+    expect(card.latestPainted).toBe(true);
+    expect(card.expiryPainted).toBe(true);
+    expect(card.lifecycleText).toBe("Archived");
+    expect(card.lifecycleCount).toBe(1);
+    expect(card.deliveryCount).toBe(1);
+    expect(card.activityCount).toBe(1);
+    expect(card.folds).toBe(0);
   });
 
-  test("Delivery & activity carries only those two, at every width", async ({
+  /*
+   * This was "Delivery & activity carries only those two, at every width",
+   * read through `.ilk-status__key` / `.ilk-status__line` / `.ilk-status__value`
+   * — the two visibly-keyed lines of the old shared cell.
+   *
+   * 67368b23 (2026-09-05) split that cell in two: Delivery is its own column
+   * (channel over provider state) and Activity moved under the lifecycle badge
+   * in Status. The keyed lines are gone; each value is `.ilk-state-text` with
+   * an assistive name. So "only those two" became "each cell carries exactly
+   * its own facts, once", which is what is asserted — for every row, at every
+   * table width, with the renderer itself pinned rather than skipped.
+   */
+  test("Delivery and Status each carry exactly their own facts, at every width", async ({
     page,
   }) => {
-    for (const width of [1440, 1280, 1024, 768]) {
+    for (const width of [1440, 1280, TABLE_CUTOVER + 1, 1024, 768]) {
       await page.setViewportSize({ width, height: 900 });
       await openIntakeLinks(page, "organization");
       const measured = await page.evaluate(() => {
         const wide = document.querySelector(".ilk-records--wide") as HTMLElement;
         if (getComputedStyle(wide).display === "none") return null;
+        const count = (host: Element, sel: string) =>
+          host.querySelectorAll(sel).length;
+        const names = (host: Element) =>
+          Array.from(host.querySelectorAll(".app-visually-hidden")).map(
+            (n) => n.textContent,
+          );
         return Array.from(
-          wide.querySelectorAll<HTMLElement>(".ilk-status"),
-        ).map((s) => ({
-          keys: Array.from(s.querySelectorAll(".ilk-status__key")).map((k) =>
-            k.textContent?.trim(),
-          ),
-          lifecycle: s.querySelectorAll("[data-intake-links-row-link-state]")
-            .length,
-          // Each labelled line is one key and one value — nothing is
-          // concatenated. (The optional provider-detail line carries no
-          // visible key and is not one of the two facts.)
-          lines: Array.from(s.querySelectorAll(".ilk-status__line"))
-            .filter((l) => l.querySelector(".ilk-status__key"))
-            .map((l) => l.querySelectorAll(".ilk-status__value").length),
-        }));
+          wide.querySelectorAll<HTMLElement>("tr[data-intake-links-row-id]"),
+        ).map((row) => {
+          const delivery = row.querySelector(
+            'td[data-col="delivery"]',
+          ) as HTMLElement;
+          const status = row.querySelector('td[data-col="status"]') as HTMLElement;
+          return {
+            delivery: {
+              delivery: count(delivery, "[data-intake-links-row-delivery]"),
+              activity: count(delivery, "[data-intake-links-row-session-state]"),
+              lifecycle: count(delivery, "[data-intake-links-row-link-state]"),
+              values: count(delivery, ".ilk-state-text"),
+              names: names(delivery),
+            },
+            status: {
+              delivery: count(status, "[data-intake-links-row-delivery]"),
+              activity: count(status, "[data-intake-links-row-session-state]"),
+              lifecycle: count(status, "[data-intake-links-row-link-state]"),
+              values: count(status, ".ilk-state-text"),
+              names: names(status),
+            },
+            // Nothing outside those two cells states any of the three.
+            rowTotal: count(
+              row,
+              "[data-intake-links-row-delivery], [data-intake-links-row-session-state], [data-intake-links-row-link-state]",
+            ),
+          };
+        });
       });
+      // The table is shown exactly above the cutover — a width is never
+      // silently skipped.
+      expect(measured !== null, `${width}px renderer`).toBe(width > TABLE_CUTOVER);
       if (!measured) continue;
       expect(measured.length, `${width}px`).toBeGreaterThan(0);
-      for (const s of measured) {
-        expect(s.keys, `${width}px`).toEqual(["Delivery", "Activity"]);
-        expect(s.lifecycle, `${width}px`).toBe(0);
-        expect(s.lines, `${width}px`).toEqual([1, 1]);
+      for (const row of measured) {
+        // Delivery: the provider state, named, and nothing else.
+        expect(row.delivery, `${width}px delivery cell`).toEqual({
+          delivery: 1,
+          activity: 0,
+          lifecycle: 0,
+          values: 1,
+          names: ["Delivery status: "],
+        });
+        // Status: the lifecycle badge over ONE named activity value.
+        expect(row.status, `${width}px status cell`).toEqual({
+          delivery: 0,
+          activity: 1,
+          lifecycle: 1,
+          values: 1,
+          names: ["Contributor activity: "],
+        });
+        expect(row.rowTotal, `${width}px`).toBe(3);
       }
     }
   });
@@ -600,7 +800,10 @@ test.describe("wizard geometry", () => {
 // ===========================================================================
 
 test.describe("localization: long translated and user-generated values", () => {
-  for (const width of [1024, 768]) {
+  // 1280 and 1200 were added when the cutover moved to 1199px (67368b23): at
+  // 1024 and 768 the German values are now measured in the CARDS, so without
+  // these two widths nothing would measure them in the table's columns at all.
+  for (const width of [1280, TABLE_CUTOVER + 1, 1024, 768]) {
     test(`German-length values fit the same columns @ ${width}`, async ({
       page,
     }) => {
@@ -617,14 +820,17 @@ test.describe("localization: long translated and user-generated values", () => {
     });
   }
 
-  test("German-length values fit in RTL too", async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 900 });
-    await openIntakeLinks(page, "organization", { rows: GERMAN_ROWS });
-    await setDirection(page, "rtl");
-    expect(await horizontalOverflow(page)).toBe(0);
-    expect(await cellEscapes(page)).toEqual([]);
-    expect(await badgeCollisions(page)).toEqual([]);
-  });
+  // 1280 joins 1024 for the same reason as above: 1024 is the cards now.
+  for (const width of [1280, 1024]) {
+    test(`German-length values fit in RTL too @ ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openIntakeLinks(page, "organization", { rows: GERMAN_ROWS });
+      await setDirection(page, "rtl");
+      expect(await horizontalOverflow(page)).toBe(0);
+      expect(await cellEscapes(page)).toEqual([]);
+      expect(await badgeCollisions(page)).toEqual([]);
+    });
+  }
 
   test("a doubled text scale still contains every column", async ({ page }) => {
     // Browser text scaling is the accessibility case the fixed grid most
@@ -645,7 +851,7 @@ test.describe("localization: long translated and user-generated values", () => {
 });
 
 // ===========================================================================
-// The 900px cutover
+// The 1199px cutover (900px until 67368b23, 2026-09-05)
 // ===========================================================================
 
 test.describe("the table/card cutover", () => {
@@ -690,11 +896,13 @@ test.describe("the table/card cutover", () => {
     });
   }
 
-  test("901px is the table, 900px is the cards, and never both", async ({
+  // The cutover was 901/900. 67368b23 (2026-09-05) moved it to 1200/1199 with
+  // the seven-column regrouping: "the table hands over to the cards at 1199px".
+  test("1200px is the table, 1199px is the cards, and never both", async ({
     page,
   }) => {
-    const above = await factsAt(page, 901);
-    const below = await factsAt(page, 900);
+    const above = await factsAt(page, TABLE_CUTOVER + 1);
+    const below = await factsAt(page, TABLE_CUTOVER);
 
     expect(above.tableShowing).toBe(true);
     expect(above.cardsShowing).toBe(false);
@@ -703,8 +911,12 @@ test.describe("the table/card cutover", () => {
   });
 
   test("nothing is lost crossing the cutover", async ({ page }) => {
-    const above = await factsAt(page, 901);
-    const below = await factsAt(page, 900);
+    // Measured either side of the REAL cutover. At the retired 901/900 pair
+    // both reads came from the cards, which compared a renderer with itself.
+    const above = await factsAt(page, TABLE_CUTOVER + 1);
+    const below = await factsAt(page, TABLE_CUTOVER);
+    expect(above.tableShowing).toBe(true);
+    expect(below.cardsShowing).toBe(true);
 
     // The three axes, the expiry date and the record's identity survive the
     // switch unchanged — the cards are a different renderer, not a smaller
@@ -723,10 +935,14 @@ test.describe("the table/card cutover", () => {
   });
 
   test("the table fits wherever it is shown", async ({ page }) => {
-    // The reason the cutover moved: seven columns stopped fitting at 768. At
-    // every width where the table renders it must fit its own frame without a
+    // The reason the cutover moved: seven columns stopped fitting. At every
+    // width where the table renders it must fit its own frame without a
     // sideways scroller.
-    for (const width of [1440, 1280, 1024, 940, 901]) {
+    //
+    // The widths were [1440, 1280, 1024, 940, 901]; since 67368b23 the table
+    // is not rendered below 1200px, so the narrow end of the list is now the
+    // 1200–1279px band down to the cutover itself.
+    for (const width of [1440, 1280, 1279, 1240, TABLE_CUTOVER + 1]) {
       await page.setViewportSize({ width, height: 900 });
       await openIntakeLinks(page, "organization");
       const measured = await page.evaluate(() => {

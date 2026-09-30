@@ -142,6 +142,31 @@ function OutputUnavailableNote({
  * but DOES render a failed attempt beyond it, a new version in flight, and the
  * optional new-version menu.
  */
+/**
+ * ONE GENERATION-INCIDENT NOTICE PER TAB.
+ *
+ * The notice is said beside the control it affects. This tab can show two
+ * such controls at once — the report's (its own action, or the new-version
+ * offer) and the package's recovery — and each rendered its own copy, so a
+ * single incident was stated twice, one panel above the other.
+ *
+ * The report panel comes first, so it owns the notice whenever it shows one.
+ * The package panel states it only when the report panel does not. Both
+ * panels read this one function, so they cannot disagree about who speaks.
+ *
+ * Only meaningful while the report is READY: that is the only state in which
+ * the package panel renders at all.
+ */
+export function reportPanelStatesGenerationIncident(
+  report: Pick<EvidenceOutputProjection, "state" | "action">,
+  newVersion: { action?: string | null; reason?: string | null } | null | undefined,
+): boolean {
+  if (report.state !== "READY") return true;
+  // A new version in flight renders its own progress block, with no notice.
+  if (newVersion?.reason === "IN_PROGRESS") return false;
+  return report.action !== "NONE" || newVersion?.action === NEW_VERSION_ACTION;
+}
+
 function ArtifactLifecyclePanel({
   ctx,
   output,
@@ -505,7 +530,11 @@ function PackageRecoveryPanel({
         </p>
       ) : null}
       {older}
-      {pkg.action !== "NONE" ? (
+      {pkg.action !== "NONE" &&
+      !reportPanelStatesGenerationIncident(
+        report,
+        ctx.workspace.artifactStatus.outputs.newVersion,
+      ) ? (
         <RuntimeStatusBanner requires={["artifactGeneration"]} />
       ) : null}
       <OutputActionButton ctx={ctx} kind="verificationPackage" output={pkg} />

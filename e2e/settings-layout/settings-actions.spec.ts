@@ -166,32 +166,116 @@ test.describe("settings — the secondary actions are one family", () => {
     ["", "[data-cc-preferences-detect-tz]"],
   ] as const;
 
+  /*
+   * WHAT CHANGED IN THE PRODUCT, AND WHO DECIDED IT.
+   *
+   * These five were asserted as "white-surfaced with PURPLE ink" — a local
+   * Settings treatment. The day after this spec was written, 553dc2e5
+   * (2026-08-31, "fix(web): match evidence secondary action states") moved
+   * every one of them onto the product's canonical
+   * `.app-secondary-action .app-secondary-action--lg`, and wrote down the
+   * rest state it measured off the Evidence Library header:
+   *
+   *   "REST background rgba(255,255,255,0.9), ink rgb(52,64,84),
+   *    border 1px solid rgba(124,58,237,0.24), 44px"
+   *
+   * The primitive states the rule — "Secondary action = light surface with
+   * dark-neutral label text (§2)" — and keeps purple ink for a separate
+   * `--accent` modifier these controls do not carry. c3a92a42 (2026-09-10)
+   * removed the last local paint: "The control carries `.app-secondary-action`
+   * now, so its surface, ink, border and radius come from the canonical
+   * action". `apps/web/__tests__/settings-billing-canonical-actions.test.ts`
+   * pins all of it at source level.
+   *
+   * So neutral ink is the decision, not a regression. The old check compared
+   * colour channels ("more blue than green"); this one asserts the canonical
+   * family EXACTLY, and that all five are the same paint — which is what "one
+   * family" meant in the first place.
+   */
+  const CANONICAL_SECONDARY = {
+    surface: "rgba(255, 255, 255, 0.9)",
+    border: "rgba(124, 58, 237, 0.24)",
+    borderWidth: "1px",
+    height: "44px",
+    radius: "10px",
+  } as const;
+
+  const readPaint = (
+    page: import("@playwright/test").Page,
+    selector: string,
+  ) =>
+    page.locator(selector).first().evaluate((el) => {
+      const cs = getComputedStyle(el);
+      // The token, resolved by the browser in this element's own context.
+      const probe = document.createElement("span");
+      probe.style.color = "var(--app-ink-label)";
+      el.parentElement?.appendChild(probe);
+      const inkLabel = getComputedStyle(probe).color;
+      probe.remove();
+      return {
+        family: el.classList.contains("app-secondary-action"),
+        large: el.classList.contains("app-secondary-action--lg"),
+        // Any tone or fill modifier (--accent, --orange, --danger, --filled)
+        // would make this a different member of the family.
+        toned: Array.from(el.classList).filter(
+          (c) =>
+            c.startsWith("app-secondary-action--") &&
+            c !== "app-secondary-action--lg",
+        ),
+        inkLabel,
+        surface: cs.backgroundColor,
+        ink: cs.color,
+        border: cs.borderTopColor,
+        borderWidth: cs.borderTopWidth,
+        height: cs.height,
+        radius: cs.borderTopLeftRadius,
+      };
+    });
+
   for (const [hash, selector] of SECONDARY) {
-    test(`${selector} is white-surfaced with purple ink and a purple border`, async ({
+    test(`${selector} is the canonical secondary action: white surface, neutral label ink, lavender border`, async ({
       page,
     }) => {
       await page.setViewportSize({ width: 1440, height: 1200 });
       await openSettings(page, "personal", hash);
 
-      const paint = await page.locator(selector).first().evaluate((el) => {
-        const cs = getComputedStyle(el);
-        return { bg: cs.backgroundColor, fg: cs.color, border: cs.borderTopColor };
-      });
+      const paint = await readPaint(page, selector);
 
-      const rgb = (v: string) => (v.match(/\d+(\.\d+)?/g) ?? []).map(Number);
-      const [br, bg, bb] = rgb(paint.bg);
-      const [fr, fg, fb] = rgb(paint.fg);
-      const [dr, , db] = rgb(paint.border);
+      expect(paint.family, `${selector} carries .app-secondary-action`).toBe(true);
+      expect(paint.large, `${selector} carries --lg`).toBe(true);
+      expect(paint.toned, `${selector} carries no tone or fill modifier`).toEqual([]);
 
       // A light surface — not the dark ink these used to be on Overview.
-      expect(Math.min(br, bg, bb), `${selector} surface`).toBeGreaterThan(200);
-      // Purple ink: markedly more blue than green, with real red.
-      expect(fb, `${selector} ink is purple`).toBeGreaterThan(fg + 40);
-      expect(fr, `${selector} ink is purple, not blue`).toBeGreaterThan(40);
-      // And a purple border rather than a neutral one.
-      expect(db, `${selector} border is purple`).toBeGreaterThan(dr);
+      expect(paint.surface, `${selector} surface`).toBe(CANONICAL_SECONDARY.surface);
+      // The ink IS the label token, and the token is the documented neutral.
+      expect(paint.inkLabel, "--app-ink-label must resolve").toBe("rgb(52, 64, 84)");
+      expect(paint.ink, `${selector} ink is --app-ink-label`).toBe(paint.inkLabel);
+      // And the lavender hairline rather than a neutral one. Unchanged.
+      expect(paint.border, `${selector} border`).toBe(CANONICAL_SECONDARY.border);
+      expect(paint.borderWidth).toBe(CANONICAL_SECONDARY.borderWidth);
+      expect(paint.height).toBe(CANONICAL_SECONDARY.height);
+      expect(paint.radius).toBe(CANONICAL_SECONDARY.radius);
     });
   }
+
+  test("all five resolve to one identical paint", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+
+    const paints: Array<Awaited<ReturnType<typeof readPaint>>> = [];
+    let opened: string | null = null;
+    for (const [hash, selector] of SECONDARY) {
+      if (opened !== hash) {
+        await openSettings(page, "personal", hash);
+        opened = hash;
+      }
+      paints.push(await readPaint(page, selector));
+    }
+
+    expect(paints).toHaveLength(5);
+    // One family means one paint: every control equals the first, field for
+    // field, so a sixth local treatment cannot hide behind a tolerance.
+    for (const paint of paints) expect(paint).toEqual(paints[0]);
+  });
 
   test("the policy links are links, not buttons", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1200 });

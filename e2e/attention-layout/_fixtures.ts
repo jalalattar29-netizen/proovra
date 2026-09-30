@@ -881,6 +881,65 @@ export async function installApi(
         }),
       );
     }
+    // THE GROUPED QUEUE, contract-shaped.
+    //
+    // Since 36cc44c0e (2026-08-26) the workbench opens on the grouped view and
+    // reads this endpoint first. The fixture predates that and did not answer
+    // it, so the page this project opened showed an error where the queue
+    // should be. Built from the same four conditions the flat list returns, so
+    // the two views cannot disagree.
+    if (path.includes("/v1/ops/incident-groups")) {
+      const rows = [1, 2, 3, 4].map((i) => incident(i));
+      if (path.includes("/affected")) {
+        return route.fulfill(
+          json({
+            records: rows.map((r) => ({
+              conditionId: r.id,
+              evidenceId: r.relatedEvidenceId,
+              title: r.title,
+              severity: r.severity,
+              status: r.status,
+              lastSeenAtUtc: r.lastSeenAtUtc,
+            })),
+            pagination: { nextCursor: null, returned: rows.length },
+            completeness: { complete: true },
+          }),
+        );
+      }
+      const worst = rows[0]!;
+      return route.fulfill(
+        json({
+          groups: [
+            {
+              groupKey: "EVIDENCE_INTEGRITY",
+              sourceId: "EVIDENCE_INTEGRITY",
+              category: worst.category,
+              title: worst.title,
+              conditionCount: rows.length,
+              affectedRecordCount: rows.length,
+              affectedUnit: "records",
+              observations: rows.length,
+              durationSeconds: null,
+              lastObservedAtUtc: worst.lastSeenAtUtc,
+              severity: worst.severity,
+              statusPosture: "OPEN",
+              firstSeenAtUtc: worst.firstSeenAtUtc,
+              lastSeenAtUtc: worst.lastSeenAtUtc,
+              latestActivityAtUtc: worst.lastSeenAtUtc,
+              assignedCount: rows.filter((r) => r.assignedOperatorUserId).length,
+              failureGroups: [],
+              affectedSample: [],
+              hasMoreAffected: false,
+              availableActions: [],
+              metric: null,
+            },
+          ],
+          totals: { groups: 1, conditions: rows.length },
+          conservation: { conditions: rows.length, grouped: rows.length },
+          completeness: { complete: true, mayAssertAllClear: true },
+        }),
+      );
+    }
     if (path.endsWith("/v1/ops/incidents")) {
       return route.fulfill(
         json({
@@ -1260,6 +1319,30 @@ export async function installApi(
 }
 
 /** Flip the document direction and wait for the reflow the assertions read. */
+/**
+ * Select "All conditions" — the FLAT list — the way an operator does.
+ *
+ * The workbench opens on the grouped queue (36cc44c0e, 2026-08-26). Every
+ * per-row control this project measures — the owner cell, the row menu, the
+ * inspector trigger — lives in the flat list, which does not render until it
+ * is asked for. The Operations tests here were written before that default
+ * and waited sixty seconds each for rows the page was no longer showing.
+ *
+ * This presses the real header control (`data-ops-view="flat"`); it does not
+ * poke state. A context with no workbench (Personal Free) has no such control
+ * and is left alone.
+ */
+export async function showAllConditions(page: Page): Promise<void> {
+  const flat = page.locator('[data-ops-view="flat"]');
+  if ((await page.locator('[data-testid="operations-page"]').count()) === 0) return;
+  await flat.waitFor({ state: "visible", timeout: 30_000 });
+  await flat.click();
+  await page
+    .locator("[data-ops-table-surface], [data-ops-cards], [data-ops-empty]")
+    .first()
+    .waitFor({ state: "attached", timeout: 30_000 });
+}
+
 export async function setDirection(page: Page, dir: "ltr" | "rtl"): Promise<void> {
   await page.evaluate((d) => {
     document.documentElement.setAttribute("dir", d);

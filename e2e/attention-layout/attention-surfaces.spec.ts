@@ -22,6 +22,7 @@ import {
   hasHorizontalOverflow,
   installApi,
   setDirection,
+  showAllConditions,
   VIEWPORTS,
   type AttentionContext,
 } from "./_fixtures";
@@ -37,6 +38,8 @@ async function open(
   await page.goto(path, { waitUntil: "domcontentloaded" });
   // The shell resolves its envelope before any console mounts.
   await page.waitForLoadState("networkidle").catch(() => undefined);
+  // Operations opens on the grouped queue; this project measures the rows.
+  if (path.startsWith("/operations")) await showAllConditions(page);
 }
 
 // ============================================================================

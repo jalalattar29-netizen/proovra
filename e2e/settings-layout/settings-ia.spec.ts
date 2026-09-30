@@ -97,13 +97,44 @@ test.describe("settings — the map is the resolver's answer", () => {
     for (const id of ["members", "roles", "retention", "sso", "audit"]) {
       expect(ids, `personal space must not offer ${id}`).not.toContain(id);
     }
+    // Nor any destination that administers billing or integrations for one.
+    for (const id of ["integrations", "billing"]) {
+      expect(ids, `personal space must not offer ${id}`).not.toContain(id);
+    }
     // What it does have, it keeps.
     for (const id of ["overview", "security", "notifications"]) {
       expect(ids).toContain(id);
     }
-    // The rail carries no Workspace group at all in a personal space.
-    await expect(page.locator("[data-settings-nav]")).not.toContainText("Workspace");
-    await expect(page.locator("[data-settings-nav]")).toContainText("Account");
+
+    // This asserted "no Workspace group at all in a personal space". That
+    // stopped being the product on 2026-09-04: d684de7c ("let a personal
+    // workspace reach Settings → AI & assistance") offers the AI pane to a
+    // personal space, because AI policy is the one workspace-level thing a
+    // personal space DOES have and `AiSection` already had two modes written
+    // for it. The resolver's unit test pins it
+    // (`settings-architecture.test.ts`, "Settings offers AI & assistance to a
+    // personal workspace, not only an org").
+    //
+    // What this test is about is unchanged and is asserted more exactly: the
+    // Workspace group exists with ONE item, which is not collaborative, and
+    // the Integrations and System groups do not exist.
+    const groups = await page
+      .locator(".set-nav__rail .set-nav__group")
+      .evaluateAll((els) =>
+        els.map((g) => ({
+          label: g.querySelector(".set-nav__group-label")?.textContent?.trim(),
+          ids: Array.from(g.querySelectorAll("[data-settings-nav-item]")).map(
+            (el) => el.getAttribute("data-settings-nav-item"),
+          ),
+        })),
+      );
+    expect(groups).toEqual([
+      { label: "Account", ids: ["security", "notifications", "privacy"] },
+      { label: "Workspace", ids: ["workspace"] },
+    ]);
+    await expect(
+      page.locator('[data-settings-nav-item="workspace"]'),
+    ).toHaveText("AI & assistance");
   });
 });
 

@@ -176,6 +176,13 @@ function teamsPayload() {
         viewerCanManage: true,
       },
     ],
+    // The rest of CollaborationTeamPage: the page reads every one of these.
+    nextCursor: null,
+    totalActive: 1,
+    workspaceTotalActive: 1,
+    scope: "ALL",
+    canGovernWorkspace: true,
+    rollup: null,
   };
 }
 
@@ -199,6 +206,34 @@ async function openTeamsDialog(page: Page): Promise<void> {
     if (path.endsWith("/v1/platform/context")) return json(envelope);
     if (path.endsWith("/v1/auth/me") || path.endsWith("/v1/users/me")) {
       return json({ id: "u-1", email: "operator@example.invalid" });
+    }
+    // THE COMMERCIAL PROJECTION, contract-shaped (CollaborationEntitlement).
+    //
+    // Since WCR-06 (afc746aa, 2026-09-07) the page learns whether a group may
+    // be created from `/v1/collaboration-teams/entitlement` and from nothing
+    // else. This fixture predates that and answered `{}` — a projection with
+    // no `featureIncluded`, which the page correctly reads as "the plan does
+    // not include Teams" and refuses to open the create dialog. The dialog
+    // this gate measures never rendered.
+    if (path.endsWith("/v1/collaboration-teams/entitlement")) {
+      return json({
+        workspaceId: "55555555-5555-4555-8555-555555555555",
+        workspaceKind: "ORGANIZATION",
+        plan: "TEAM",
+        featureIncluded: true,
+        mutationsAllowed: true,
+        lifecycle: { state: "ACTIVE", reasonCode: null, graceEndsAtUtc: null },
+        workspaceSeats: { limit: 10, used: 4, remaining: 6, overLimit: false, source: "PLAN" },
+        collaborationTeams: { limit: 10, used: 1, remaining: 9, overLimit: false, source: "PLAN" },
+        collaborationTeamMembers: { limit: 25, source: "PLAN" },
+        invitations: { pending: 1, maxPending: 25, maxPer24h: 50 },
+        canCreateCollaborationTeam: true,
+        canInviteWorkspaceMember: true,
+        canAssignExistingMember: true,
+        governance: { canViewAllTeams: true, allTeamsCount: 1 },
+        exceededDimensions: [],
+        upgradeHref: null,
+      });
     }
     if (path.endsWith("/v1/collaboration-teams")) return json(teamsPayload());
     return json({});

@@ -316,9 +316,11 @@ test("a zero-count card is visually identical to a populated one", async ({
     // A zero card is a live control, not an inert one.
     expect(zero.disabled).toBe(false);
   }
-  // Critical keeps the canonical blue at zero.
-  expect(measured.zeroTone.toLowerCase()).toBe("#2563eb");
-  expect(measured.zeroValueColor).toBe("rgb(37, 99, 235)");
+  // Critical keeps its canonical tone at zero. That tone is the danger red
+  // (--error #DC2626) since 2866f107 (2026-08-27); this pinned the blue it
+  // had before the severity colours were aligned.
+  expect(measured.zeroTone.toLowerCase()).toBe("#dc2626");
+  expect(measured.zeroValueColor).toBe("rgb(220, 38, 38)");
 });
 
 test("a zero-count card is still clickable, and leads somewhere", async ({

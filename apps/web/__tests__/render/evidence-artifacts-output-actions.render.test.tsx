@@ -23,6 +23,12 @@ vi.mock("../../lib/api", () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
+// The tenant service status, as the shell would have read it. Null (healthy /
+// not read) unless a case sets it.
+let serviceStatus: unknown = null;
+vi.mock("../../lib/useServiceStatus", () => ({
+  useServiceStatus: () => ({ status: serviceStatus, error: false, settled: true }),
+}));
 // The export-governance preflight is its own surface with its own tests.
 vi.mock("../../components/governance/GovernedExportAction", () => ({
   GovernedExportAction: ({ renderAction }: { renderAction: (p: { disabled: boolean; onClick: () => void }) => React.ReactNode }) => (
@@ -138,7 +144,10 @@ function mount(ws: ReturnType<typeof workspace>) {
 
 const NOT_REQUIRED: Out = { state: "READY", action: "NONE", actionUnavailableReason: "NOT_REQUIRED", version: 3, latestAvailableVersion: 3 };
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  serviceStatus = null;
+});
 
 describe("Evidence Artifacts — per-output actions", () => {
   it("a missing package is RECOVERED from the stored report: its own panel, its own verb, intent RECOVER", () => {
@@ -333,5 +342,85 @@ describe("Evidence Artifacts — per-output actions", () => {
     const { container } = mount(workspace({ report: NOT_REQUIRED, pkg: NOT_REQUIRED }));
     expect(container.querySelector("[data-evidence-section='reports-ready-actions']")).toBeNull();
     expect(container.querySelector("[data-evidence-section^='package-recovery']")).toBeNull();
+  });
+});
+
+describe("Evidence Artifacts — a generation incident is stated once", () => {
+  const degraded = () => {
+    serviceStatus = {
+      status: "DEGRADED",
+      capabilities: {
+        uploads: "HEALTHY",
+        artifactGeneration: "DEGRADED",
+        downloads: "HEALTHY",
+        search: "HEALTHY",
+        reviewAutomation: "HEALTHY",
+      },
+    };
+  };
+  const notices = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll("[data-service-notice='artifactGeneration']"));
+  const newVersionOffer = {
+    action: "CREATE_NEW_VERSION",
+    reason: null,
+    currentVersion: 3,
+    nextVersion: 4,
+    estimate: null,
+  };
+  const readyReport: Out = { state: "READY", action: "NONE", actionUnavailableReason: "NOT_REQUIRED", version: 3, latestAvailableVersion: 3 };
+  const recoverablePackage: Out = {
+    state: "ELIGIBLE_NOT_GENERATED",
+    action: "RECOVER",
+    actionUnavailableReason: null,
+    operation: "PACKAGE_RECOVERY",
+    version: null,
+    latestAvailableVersion: null,
+  };
+
+  it("a new-version offer AND a package recovery on one tab: one notice, beside the report's action", () => {
+    degraded();
+    const { container } = mount(workspace({ report: readyReport, pkg: recoverablePackage, newVersion: newVersionOffer }));
+    // Both controls are there…
+    expect(container.querySelector("[data-evidence-section='reports-ready-actions']")).not.toBeNull();
+    expect(container.querySelector("[data-evidence-action='generate-outputs']")).not.toBeNull();
+    // …and the incident is said once, in the first of them.
+    const found = notices(container);
+    expect(found.length).toBe(1);
+    expect(found[0]!.closest("[data-evidence-section='reports-ready-actions']")).not.toBeNull();
+  });
+
+  it("only the package needs recovering: the notice is beside the package's action", () => {
+    degraded();
+    const { container } = mount(workspace({ report: readyReport, pkg: recoverablePackage }));
+    const found = notices(container);
+    expect(found.length).toBe(1);
+    expect(found[0]!.closest("[data-evidence-section='reports-ready-actions']")).toBeNull();
+    expect(found[0]!.parentElement!.querySelector("[data-evidence-action='generate-outputs']")).not.toBeNull();
+  });
+
+  it("a new version in flight shows no report notice, so the package panel states it", () => {
+    degraded();
+    const { container } = mount(
+      workspace({
+        report: readyReport,
+        pkg: recoverablePackage,
+        newVersion: { action: "NONE", reason: "IN_PROGRESS", currentVersion: 3, nextVersion: 4, estimate: null },
+      }),
+    );
+    expect(container.querySelector("[data-evidence-section='reports-new-version-in-flight']")).not.toBeNull();
+    expect(notices(container).length).toBe(1);
+  });
+
+  it("nothing to generate: no notice at all, whatever the service status", () => {
+    degraded();
+    const { container } = mount(
+      workspace({ report: readyReport, pkg: { ...readyReport } }),
+    );
+    expect(notices(container).length).toBe(0);
+  });
+
+  it("a healthy service says nothing beside either action", () => {
+    const { container } = mount(workspace({ report: readyReport, pkg: recoverablePackage, newVersion: newVersionOffer }));
+    expect(notices(container).length).toBe(0);
   });
 });

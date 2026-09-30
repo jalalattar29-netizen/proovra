@@ -19,7 +19,7 @@ const rgb = (value: string) =>
   ((value.match(/\d+/g) ?? []).slice(0, 3).map(Number) as [number, number, number]);
 
 test.describe("settings — the personal map is short on purpose", () => {
-  test("a personal space offers exactly Overview, Security, Notifications, Privacy & data", async ({
+  test("a personal space offers exactly Overview, Security, Notifications, Privacy & data, AI & assistance", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -34,12 +34,25 @@ test.describe("settings — the personal map is short on purpose", () => {
     // sake of it: cookie consent, policy acceptance, the personal data export
     // and account closure are account-scoped controls that had no reachable
     // destination at all — see `settings-privacy.spec.ts`.
+    //
+    // AI & ASSISTANCE (pane id `workspace`) is the fifth, added AFTER this
+    // spec was written, by d684de7c (2026-09-04, "let a personal workspace
+    // reach Settings → AI & assistance"): `AiSection` carries two modes that
+    // exist only for personal accounts and both were unreachable behind an
+    // org-only entry. It is NOT "General" coming back — that pane was retired
+    // for holding one sentence; this is the destination that owns AI policy,
+    // named as such. Still exact: a sixth entry fails here.
     expect(await navIds(page)).toEqual([
       "overview",
       "security",
       "notifications",
       "privacy",
+      "workspace",
     ]);
+    await expect(
+      page.locator('[data-settings-nav-item="workspace"]'),
+    ).toHaveText("AI & assistance");
+    await expect(page.locator("[data-settings-nav]")).not.toContainText("General");
   });
 
   test("the retired destinations still resolve rather than 404", async ({
@@ -50,7 +63,15 @@ test.describe("settings — the personal map is short on purpose", () => {
     // route, so re-installing per hash would put the broad host catch above
     // the envelope handler.
     await installSettingsApi(page, "personal");
-    for (const hash of ["#profile", "#preferences", "#workspace", "#billing"]) {
+    // `#workspace` was in this list, and it was only ever true by accident:
+    // after the first iteration these `goto`s are same-document hash changes,
+    // and the shell resolves the hash when the navigation MODEL changes, not
+    // on `hashchange` — so the pane stayed wherever `#profile` had put it.
+    // Since d684de7c (2026-09-04) `workspace` is a real destination for a
+    // personal space (AI & assistance), and a fresh load of `#workspace` opens
+    // it. That is pinned, on a fresh load, in `settings-contexts.spec.ts`
+    // ("its AI & assistance pane is the PERSONAL branch…").
+    for (const hash of ["#profile", "#preferences", "#billing"]) {
       await page.goto(`/settings${hash}`);
       await page.waitForSelector("[data-settings-shell]");
       await expect(
@@ -100,21 +121,60 @@ test.describe("settings — Overview absorbed the account", () => {
     // They were dark ink with white labels, which is the weight this product
     // reserves for a STRONG secondary — and these are ordinary ones, beside
     // "Manage cookie preferences" and "Use my current timezone", which were
-    // painted three other ways. One white/purple family now, shared with the
-    // secondary action Capture already uses.
+    // painted three other ways. One family now, shared with the secondary
+    // action the Evidence Library header uses.
+    //
+    // WHAT CHANGED. This asserted a local white/PURPLE-ink treatment. One day
+    // after it was written, 553dc2e5 (2026-08-31, "match evidence secondary
+    // action states") replaced that with the product's canonical
+    // `.app-secondary-action .app-secondary-action--lg`, and recorded the
+    // measured rest state: "background rgba(255,255,255,0.9), ink
+    // rgb(52,64,84), border 1px solid rgba(124,58,237,0.24)". The primitive
+    // says the same: "Secondary action = light surface with dark-neutral label
+    // text (§2)"; purple ink is the separate `--accent` modifier, which these
+    // do not carry. `settings-billing-canonical-actions.test.ts` pins it.
+    //
+    // So the ink is the neutral label ink BY DECISION, and what is asserted is
+    // that decision exactly rather than a channel comparison.
+    const inkLabel = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--app-ink-label)";
+      document.body.appendChild(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return resolved;
+    });
+    expect(inkLabel, "--app-ink-label must resolve").toBe("rgb(52, 64, 84)");
+
     for (const sel of ["[data-cc-profile-edit]", '[data-settings-open="security"]']) {
       const paint = await page.locator(sel).first().evaluate((el) => {
         const cs = getComputedStyle(el);
-        return { bg: cs.backgroundColor, fg: cs.color, border: cs.borderTopColor };
+        return {
+          family: el.classList.contains("app-secondary-action"),
+          large: el.classList.contains("app-secondary-action--lg"),
+          toned: Array.from(el.classList).filter(
+            (c) =>
+              c.startsWith("app-secondary-action--") &&
+              c !== "app-secondary-action--lg",
+          ),
+          bg: cs.backgroundColor,
+          fg: cs.color,
+          border: cs.borderTopColor,
+          borderWidth: cs.borderTopWidth,
+          height: cs.height,
+        };
       });
-      const rgb = (v: string) => (v.match(/[0-9]+(\.[0-9]+)?/g) ?? []).map(Number);
-      const [br, bgc, bb] = rgb(paint.bg);
-      const [fr, fg, fb] = rgb(paint.fg);
-      const [dr, , db] = rgb(paint.border);
-      expect(Math.min(br, bgc, bb), `${sel} is light-surfaced`).toBeGreaterThan(200);
-      expect(fb, `${sel} ink is purple`).toBeGreaterThan(fg + 40);
-      expect(fr, `${sel} ink is purple, not blue`).toBeGreaterThan(40);
-      expect(db, `${sel} border is purple`).toBeGreaterThan(dr);
+      expect(paint.family, `${sel} is the canonical secondary action`).toBe(true);
+      expect(paint.large, `${sel} is the large size`).toBe(true);
+      expect(paint.toned, `${sel} carries no tone or fill modifier`).toEqual([]);
+      expect(paint.bg, `${sel} is light-surfaced`).toBe("rgba(255, 255, 255, 0.9)");
+      expect(paint.fg, `${sel} ink is the neutral label ink`).toBe(inkLabel);
+      // The border is still the lavender hairline — that part did not change.
+      expect(paint.border, `${sel} border is the lavender hairline`).toBe(
+        "rgba(124, 58, 237, 0.24)",
+      );
+      expect(paint.borderWidth).toBe("1px");
+      expect(paint.height).toBe("44px");
     }
   });
 

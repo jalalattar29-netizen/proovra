@@ -200,8 +200,16 @@ test.describe("the canonical shell is the one that renders", () => {
 test.describe("KPI cards resolve the mandated tones", () => {
   const EXPECTED: Array<[string, [number, number, number], string]> = [
     // key, resolved rail colour, label
-    ["total", [100, 116, 139], "Total links"],
-    ["active", [109, 40, 217], "Active"],
+    //
+    // `total` was slate [100, 116, 139] and `active` was the brand purple
+    // [109, 40, 217]. 791c602a (2026-09-02, "polish analytics and semantic
+    // metrics") changed both on purpose: "`Total links` … was slate — the
+    // quietest card in the row. It leads in the brand accent. `Active` … now
+    // takes the shared attention orange" (`--orange-500`, #EA580C). The same
+    // commit pinned the pair in `kpi-tones.spec.ts` and in
+    // `analytics-and-semantic-metrics.test.ts`.
+    ["total", [109, 40, 217], "Total links"],
+    ["active", [234, 88, 12], "Active"],
     ["submitted", [37, 99, 235], "Submitted"],
     ["opened", [22, 122, 91], "Opened"],
     ["failedDelivery", [201, 54, 62], "Failed delivery"],
@@ -270,6 +278,7 @@ test.describe("KPI cards resolve the mandated tones", () => {
           rail,
           surface,
           valueColor: getComputedStyle(value).color,
+          valueFontSize: parseFloat(getComputedStyle(value).fontSize),
           labelColor: getComputedStyle(label).color,
           metaColor: meta ? getComputedStyle(meta).color : null,
           valueText: value.textContent?.trim() ?? "",
@@ -277,6 +286,9 @@ test.describe("KPI cards resolve the mandated tones", () => {
       }),
     );
     expect(cards.length).toBe(7);
+    // The one card the large-text rule below is argued for must exist, so the
+    // exception can never be satisfied by the card going missing.
+    expect(cards.filter((c) => c.key === "active").length).toBe(1);
 
     for (const c of cards) {
       // ONE tone per card: the rail and the number resolve the same custom
@@ -288,10 +300,31 @@ test.describe("KPI cards resolve the mandated tones", () => {
       expect(rgb(c.metaColor!), `${c.key} note`).not.toEqual(rgb(c.rail));
       expect(rgb(c.labelColor), `${c.key} label`).not.toEqual(rgb(c.rail));
       // A toned number is still readable on the card it sits on.
-      expect(
-        contrast(c.valueColor, c.surface),
-        `${c.key} number contrast`,
-      ).toBeGreaterThanOrEqual(4.5);
+      if (c.key === "active") {
+        // THE ONE EXCEPTION, MEASURED AND ARGUED — not a lowered bar.
+        //
+        // 791c602a (2026-09-02) moved Active from the brand purple to the
+        // shared attention orange, `--orange-500` (#EA580C), deliberately:
+        // "one authority for every high/attention surface in the product".
+        // That ink measures 3.56:1 on the card, below the 4.5:1 this test
+        // demands of every other card.
+        //
+        // It is held to the WCAG 2 SC 1.4.3 LARGE-TEXT threshold instead, and
+        // only while it qualifies for it: the figure must be exactly that
+        // token, and must be large text (>= 24px). If the number is ever set
+        // smaller, or another tone drops below 4.5:1, this fails.
+        expect(c.valueColor, "active number ink").toBe("rgb(234, 88, 12)");
+        expect(c.valueFontSize, "active number is large text").toBeGreaterThanOrEqual(24);
+        expect(
+          contrast(c.valueColor, c.surface),
+          "active number contrast (large text)",
+        ).toBeGreaterThanOrEqual(3);
+      } else {
+        expect(
+          contrast(c.valueColor, c.surface),
+          `${c.key} number contrast`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     }
     // The card surfaces stay restrained: no card is filled with its tone.
     for (const c of cards) {
@@ -394,7 +427,18 @@ test.describe("records surface anatomy", () => {
         lifecycle: { ...box(life), text: life.textContent?.trim() },
         activity: { ...box(act), text: act.textContent?.trim() },
         delivery: { ...box(del), text: del.textContent?.trim() },
-        sameCell: life.closest("td") === act.closest("td"),
+        lifecycleColumn: life.closest("td")?.getAttribute("data-col"),
+        activityColumn: act.closest("td")?.getAttribute("data-col"),
+        deliveryColumn: del.closest("td")?.getAttribute("data-col"),
+        sameNode: life === act,
+        nested: life.contains(act) || act.contains(life),
+        lifecycleIsBadge: life.classList.contains("app-status-badge"),
+        activityIsText: act.classList.contains("ilk-state-text"),
+        activityIsBadge: act.classList.contains("app-status-badge"),
+        activityName:
+          act.parentElement?.querySelector(".app-visually-hidden")?.textContent ??
+          null,
+        rowText: row.textContent ?? "",
         lifecycleBg: getComputedStyle(life).backgroundColor,
         activityBg: getComputedStyle(act).backgroundColor,
         deliveryBg: getComputedStyle(del).backgroundColor,
@@ -407,15 +451,46 @@ test.describe("records surface anatomy", () => {
     // headed Delivery. The wire value is still QUEUED; only the sentence a
     // person reads got shorter.
     expect(measured.delivery.text).toBe("With provider");
-    expect(measured.sameCell).toBe(false);
+    // THIS USED TO BE `sameCell === false`: lifecycle and activity in two
+    // different <td>s.
+    //
+    // 67368b23 (2026-09-05, "simplify link results hierarchy") put them in ONE
+    // Status column on purpose — "a filled badge over quiet toned text" — and
+    // its render tests restate the guarantee the cell boundary was a proxy
+    // for: "They used to be required to sit in DIFFERENT CELLS. That was a
+    // proxy for the real guarantee — that an operator never reads them as one
+    // value". That guarantee is asserted directly here: two distinct elements,
+    // neither containing the other, two different treatments, a name on the
+    // subordinate one, and never a concatenated word. Delivery keeps a column
+    // of its own.
+    expect(measured.lifecycleColumn).toBe("status");
+    expect(measured.activityColumn).toBe("status");
+    expect(measured.deliveryColumn).toBe("delivery");
+    expect(measured.sameNode).toBe(false);
+    expect(measured.nested).toBe(false);
+    expect(measured.lifecycleIsBadge).toBe(true);
+    expect(measured.activityIsText).toBe(true);
+    expect(measured.activityIsBadge).toBe(false);
+    expect(measured.activityName).toBe("Contributor activity: ");
+    expect(measured.rowText).not.toContain("ArchivedSubmitted");
 
     // Painted boxes do not intersect — the concatenation defect cannot recur.
-    const intersects =
-      measured.lifecycle.left < measured.activity.right - 0.5 &&
-      measured.activity.left < measured.lifecycle.right - 0.5 &&
-      measured.lifecycle.top < measured.activity.bottom - 0.5 &&
-      measured.activity.top < measured.lifecycle.bottom - 0.5;
-    expect(intersects).toBe(false);
+    // All three pairs now, since two of the regions share a cell.
+    const overlap = (
+      a: { left: number; right: number; top: number; bottom: number },
+      b: { left: number; right: number; top: number; bottom: number },
+    ) =>
+      a.left < b.right - 0.5 &&
+      b.left < a.right - 0.5 &&
+      a.top < b.bottom - 0.5 &&
+      b.top < a.bottom - 0.5;
+    expect(overlap(measured.lifecycle, measured.activity)).toBe(false);
+    expect(overlap(measured.lifecycle, measured.delivery)).toBe(false);
+    expect(overlap(measured.activity, measured.delivery)).toBe(false);
+    // Stacked, not side by side: the activity sits wholly BELOW the badge.
+    expect(measured.activity.top).toBeGreaterThanOrEqual(
+      measured.lifecycle.bottom - 0.5,
+    );
 
     // EXACTLY ONE FILLED SURFACE in the row: the lifecycle chip.
     //
@@ -432,53 +507,105 @@ test.describe("records surface anatomy", () => {
   test("Delivery & activity is TONED TEXT — no fill, no chip, no capsule", async ({
     page,
   }) => {
-    for (const width of [1440, 1280, 1024, 940]) {
+    // WHAT MOVED UNDER THIS TEST, AND WHAT DID NOT.
+    //
+    // It read the two values through `.ilk-status__value` / `.ilk-status__key`
+    // — two visibly-keyed lines sharing one "Delivery & activity" cell — at
+    // [1440, 1280, 1024, 940]. 67368b23 (2026-09-05, "simplify link results
+    // hierarchy") split that cell: Delivery is its own column, Activity sits
+    // under the lifecycle badge in Status, the visible keys became the column
+    // heading plus an assistive name, and the table is not rendered below
+    // 1200px. Both values are still `.ilk-state-text`, which is what every
+    // TREATMENT assertion below measures — on BOTH values of every row now,
+    // where it used to sample only the first one in the cell.
+    for (const width of [1440, 1280, 1200]) {
       await page.setViewportSize({ width, height: 900 });
       await openIntakeLinks(page, "organization");
 
       const measured = await page.evaluate(() => {
-        const cells = Array.from(
-          document.querySelectorAll<HTMLElement>(".ilk-records--wide .ilk-status"),
+        const rows = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".ilk-records--wide tr[data-intake-links-row-id]",
+          ),
         );
-        return cells.map((cell) => {
-          const value = cell.querySelector(".ilk-status__value") as HTMLElement;
-          const key = cell.querySelector(".ilk-status__key") as HTMLElement;
-          const cs = getComputedStyle(value);
-          return {
-            badges: cell.querySelectorAll(".app-status-badge").length,
-            // The BADGE tone attributes must stay absent from this column…
-            badgeToned: cell.querySelectorAll("[data-tone], [data-fill]").length,
-            // …and the two values must each carry the text tone.
-            toned: cell.querySelectorAll("[data-ilk-tone]").length,
-            lifecycle: cell.querySelectorAll("[data-intake-links-row-link-state]")
-              .length,
-            keys: Array.from(cell.querySelectorAll(".ilk-status__key")).map((k) =>
-              k.textContent?.trim(),
-            ),
-            valueColor: cs.color,
-            valueBackground: cs.backgroundColor,
-            valueRadius: cs.borderTopLeftRadius,
-            valueShadow: cs.boxShadow,
-            valueTextShadow: cs.textShadow,
-            valueBorder: cs.borderTopColor,
-            valueBorderWidth: cs.borderTopWidth,
-            valuePadding: cs.paddingTop,
-            valueTexts: Array.from(
-              cell.querySelectorAll(".ilk-status__value"),
-            ).map((v) => v.textContent?.trim()),
-            valueWhiteSpace: cs.whiteSpace,
-            valueWidth: value.getBoundingClientRect().width,
-            cellWidth: cell.getBoundingClientRect().width,
-            usesSharedAuthority: value.classList.contains("app-fact-value"),
-            radiusToken: getComputedStyle(document.documentElement)
-              .getPropertyValue("--radius-sm")
-              .trim(),
-            keyColor: getComputedStyle(key).color,
-          };
+        return rows.flatMap((row) => {
+          const deliveryCell = row.querySelector(
+            'td[data-col="delivery"]',
+          ) as HTMLElement;
+          const statusCell = row.querySelector(
+            'td[data-col="status"]',
+          ) as HTMLElement;
+          const facts: Array<[string, HTMLElement, string, string]> = [
+            [
+              "delivery",
+              deliveryCell,
+              "[data-intake-links-row-delivery]",
+              "Delivery status: ",
+            ],
+            [
+              "activity",
+              statusCell,
+              "[data-intake-links-row-session-state]",
+              "Contributor activity: ",
+            ],
+          ];
+          return facts.map(([fact, cell, probe, expectedName]) => {
+            const values = Array.from(cell.querySelectorAll<HTMLElement>(probe));
+            const value = values[0];
+            const cs = getComputedStyle(value);
+            const td = getComputedStyle(cell);
+            const cellRect = cell.getBoundingClientRect();
+            return {
+              fact,
+              expectedName,
+              probeCount: values.length,
+              // Every toned-text value in the cell, not just the probed one.
+              stateTexts: cell.querySelectorAll(".ilk-state-text").length,
+              isStateText: value.classList.contains("ilk-state-text"),
+              isBadge: value.classList.contains("app-status-badge"),
+              // The BADGE tone attributes must stay off the value itself…
+              badgeToned:
+                value.hasAttribute("data-tone") || value.hasAttribute("data-fill"),
+              // …which carries the text tone instead.
+              toned: value.hasAttribute("data-ilk-tone"),
+              // The only badge either cell may hold is the lifecycle chip, and
+              // only the Status cell holds it.
+              badges: cell.querySelectorAll(".app-status-badge").length,
+              lifecycle: cell.querySelectorAll("[data-intake-links-row-link-state]")
+                .length,
+              names: Array.from(
+                cell.querySelectorAll(".app-visually-hidden"),
+              ).map((n) => n.textContent),
+              retiredKeys: cell.querySelectorAll(
+                ".ilk-status__key, .ilk-status__value, .ilk-status__line",
+              ).length,
+              valueColor: cs.color,
+              valueBackground: cs.backgroundColor,
+              valueRadius: cs.borderTopLeftRadius,
+              valueShadow: cs.boxShadow,
+              valueTextShadow: cs.textShadow,
+              valueBorderWidth: cs.borderTopWidth,
+              valuePadding: cs.paddingTop,
+              valueText: value.textContent?.trim() ?? "",
+              valueWhiteSpace: cs.whiteSpace,
+              valueWidth: value.getBoundingClientRect().width,
+              // The CONTENT box of the cell: the value must leave room inside
+              // the cell's own padding, not merely inside its border.
+              cellContentWidth:
+                cellRect.width -
+                parseFloat(td.paddingLeft) -
+                parseFloat(td.paddingRight),
+              usesSharedAuthority: value.classList.contains("app-fact-value"),
+              // The cell's own ink — what the value would inherit if it were
+              // not toned. It stands where the retired visible key stood.
+              cellInk: td.color,
+            };
+          });
         });
       });
 
-      expect(measured.length, `${width}px`).toBeGreaterThan(0);
+      // Six fixture rows, two facts each — every one measured.
+      expect(measured.length, `${width}px`).toBe(ROWS.length * 2);
       for (const cell of measured) {
         // WHAT CHANGED, AND WHY.
         //
@@ -493,8 +620,19 @@ test.describe("records surface anatomy", () => {
         // two, because a capsule can hide a lot inside its border.
 
         // 1. No capsule, in any form.
-        expect(cell.badges, `${width}px: a badge survived`).toBe(0);
-        expect(cell.badgeToned, `${width}px: a badge tone survived`).toBe(0);
+        expect(cell.isBadge, `${width}px ${cell.fact}: the value is a badge`).toBe(
+          false,
+        );
+        expect(
+          cell.badgeToned,
+          `${width}px ${cell.fact}: a badge tone survived`,
+        ).toBe(false);
+        expect(cell.isStateText, `${width}px ${cell.fact}`).toBe(true);
+        // The cell holds no badge except the lifecycle chip — and that chip's
+        // one home is Status (67368b23), never Delivery.
+        expect(cell.badges, `${width}px ${cell.fact}: a badge survived`).toBe(
+          cell.fact === "activity" ? 1 : 0,
+        );
         expect(
           cell.usesSharedAuthority,
           `${width}px: the bordered fact surface came back`,
@@ -508,23 +646,35 @@ test.describe("records surface anatomy", () => {
         expect(cell.valueRadius, `${width}px`).toBe("0px");
         expect(cell.valuePadding, `${width}px`).toBe("0px");
         // Content-width, not cell-width — nothing paints a column.
-        expect(cell.valueWidth, `${width}px`).toBeLessThan(cell.cellWidth);
+        expect(cell.valueWidth, `${width}px ${cell.fact}`).toBeLessThan(
+          cell.cellContentWidth,
+        );
         // One line, always: a state phrase split in two reads as two states.
         expect(cell.valueWhiteSpace, `${width}px`).toBe("nowrap");
-        // 2. Lifecycle is still absent from this column.
-        expect(cell.lifecycle, `${width}px: lifecycle came back`).toBe(0);
-        // 3. Both labelled facts survive.
-        expect(cell.keys, `${width}px`).toEqual(["Delivery", "Activity"]);
+        // 2. Lifecycle never appears in Delivery, and appears exactly once in
+        //    Status — above the activity, never as part of it. (It used to be
+        //    asserted absent from the shared cell; its home moved, its count
+        //    did not.)
+        expect(cell.lifecycle, `${width}px ${cell.fact}: lifecycle count`).toBe(
+          cell.fact === "activity" ? 1 : 0,
+        );
+        // 3. Both labelled facts survive, each stated once and each NAMED. The
+        //    visible "Delivery" / "Activity" keys were retired with the shared
+        //    cell; the name now reaches assistive technology directly.
+        expect(cell.probeCount, `${width}px ${cell.fact}`).toBe(1);
+        expect(cell.stateTexts, `${width}px ${cell.fact}`).toBe(1);
+        expect(cell.names, `${width}px ${cell.fact}`).toEqual([cell.expectedName]);
+        expect(cell.retiredKeys, `${width}px ${cell.fact}`).toBe(0);
         // 4. THE VALUE IS TONED, and the tone is a CANONICAL token — never a
-        //    literal this page invented. The key stays the quiet half.
-        expect(cell.toned, `${width}px: the value carries no tone`).toBe(2);
+        //    literal this page invented. It is not the cell's own ink.
+        expect(cell.toned, `${width}px: the value carries no tone`).toBe(true);
         expect(
           CANONICAL_TONE_INKS,
           `${width}px value ink ${cell.valueColor}`,
         ).toContain(cell.valueColor);
-        expect(cell.valueColor, `${width}px`).not.toBe(cell.keyColor);
+        expect(cell.valueColor, `${width}px`).not.toBe(cell.cellInk);
         // 5. AND THE WORD IS ALWAYS THERE. Colour is never the only cue.
-        expect(cell.valueTexts.every((t) => (t ?? "").length > 0)).toBe(true);
+        expect(cell.valueText.length, `${width}px ${cell.fact}`).toBeGreaterThan(0);
       }
     }
   });
@@ -604,7 +754,11 @@ test.describe("records surface anatomy", () => {
   test("Link disabled is one unbroken line at every table width", async ({
     page,
   }) => {
-    for (const width of [1440, 1280, 1024, 940]) {
+    // The table widths were [1440, 1280, 1024, 940]. 67368b23 (2026-09-05)
+    // moved the table/card cutover from 900px to 1199px, so 1024 and 940 are
+    // card widths now (the card is covered by the next test); the narrowest
+    // table is 1200px, and it is measured here in their place.
+    for (const width of [1440, 1280, 1240, 1200]) {
       await page.setViewportSize({ width, height: 900 });
       await openIntakeLinks(page, "organization");
 
@@ -827,9 +981,33 @@ test.describe("records surface anatomy", () => {
         const date = el.querySelector(
           "[data-intake-links-row-expiry-date]",
         ) as HTMLElement;
-        const hidden = el.querySelector(".app-visually-hidden") as HTMLElement;
-        const hiddenCs = getComputedStyle(hidden);
+        // The relationship used to reach assistive technology through a
+        // visually-hidden "Expired on" / "Expires on" prefix inside this cell.
+        // 67368b23 (2026-09-05) replaced it with a real, VISIBLE <dt> key on
+        // the same line — pinned by `intake-links-record-matrix.render.test`:
+        // "now from a real <dt> key rather than a visually-hidden phrase …
+        // The key reads "Expires" in every state on purpose: the Status column
+        // one cell away already says "Expired" when it is".
+        const line = el.closest(".ilk-timeline__line") as HTMLElement;
+        const key = line.querySelector(".ilk-timeline__key") as HTMLElement;
+        const keyRect = key.getBoundingClientRect();
+        const dateRect = date.getBoundingClientRect();
         return {
+          hiddenPrefixes: el.querySelectorAll(".app-visually-hidden").length,
+          keyTag: key.tagName,
+          valueTag: el.tagName,
+          listTag: (line.parentElement as HTMLElement).tagName,
+          keyText: key.textContent?.trim() ?? "",
+          keyPainted: keyRect.width > 0 && keyRect.height > 0,
+          // Key and date share one line and do not overlap.
+          keyBesideDate:
+            Math.abs(
+              (keyRect.top + keyRect.bottom) / 2 -
+                (dateRect.top + dateRect.bottom) / 2,
+            ) < keyRect.height / 2 &&
+            (keyRect.right <= dateRect.left + 0.5 ||
+              dateRect.right <= keyRect.left + 0.5),
+          column: (el.closest("td") as HTMLElement).getAttribute("data-col"),
           state: el.getAttribute("data-intake-links-row-expires"),
           visible: date.textContent?.trim() ?? "",
           color: getComputedStyle(date).color,
@@ -842,10 +1020,6 @@ test.describe("records surface anatomy", () => {
           fits:
             date.getBoundingClientRect().width <=
             (el.closest("td") as HTMLElement).getBoundingClientRect().width + 1,
-          // Assistive text is present but takes no space.
-          atText: hidden.textContent ?? "",
-          atWidth: Math.round(hidden.getBoundingClientRect().width),
-          atPosition: hiddenCs.position,
           title: el.getAttribute("title") ?? "",
         };
       }),
@@ -865,18 +1039,27 @@ test.describe("records surface anatomy", () => {
       expect(c.fits).toBe(true);
       // The full local timestamp is still one hover away.
       expect(c.title.length).toBeGreaterThan(0);
-      expect(c.atWidth).toBeLessThanOrEqual(1);
-      expect(c.atPosition).toBe("absolute");
+      // The date is named by a real, painted key in a real description list —
+      // <dl><div><dt>Expires</dt><dd>date</dd></div></dl> — beside it on the
+      // same line, and the retired hidden prefix is gone rather than doubled.
+      expect(c.column).toBe("timeline");
+      expect(c.listTag).toBe("DL");
+      expect(c.keyTag).toBe("DT");
+      expect(c.valueTag).toBe("DD");
+      expect(c.keyPainted).toBe(true);
+      expect(c.keyBesideDate).toBe(true);
+      expect(c.hiddenPrefixes).toBe(0);
+      // "Expires" in EVERY state — the expired rows included. The word
+      // "Expired" belongs to the Status badge alone (asserted below).
+      expect(c.keyText).toBe("Expires");
     }
     for (const c of expired) {
-      // The word moved to assistive text; the ink is no longer danger red.
-      expect(c.atText).toContain("Expired on");
+      // The ink is not danger red: the badge carries the state, not the date.
       expect(rgb(c.color)).not.toEqual([201, 54, 62]);
       expect(rgb(c.color)).not.toEqual([220, 38, 38]);
     }
-    for (const c of ok) expect(c.atText).toContain("Expires on");
 
-    // Expired links say so exactly once per row, in the Lifecycle column.
+    // Expired links say so exactly once per row, in the Status column.
     const stated = await page.evaluate(() => {
       const row = document.querySelector(
         '.ilk-records--wide [data-intake-links-row-id="r-expired"]',
@@ -884,9 +1067,10 @@ test.describe("records surface anatomy", () => {
       const badge = row.querySelector(
         "[data-intake-links-row-link-state]",
       ) as HTMLElement;
-      // VISIBLE text only. The expiry cell's assistive prefix says "Expired on"
-      // on purpose — that is the relationship the sighted reader gets from the
-      // two cells being side by side.
+      // VISIBLE text only: the assistive names ("Delivery status: ",
+      // "Contributor activity: ") are stripped so the count is what a sighted
+      // reader sees. None of them says "Expired" any more either.
+      const allText = row.textContent ?? "";
       const visible = row.cloneNode(true) as HTMLElement;
       for (const hidden of Array.from(
         visible.querySelectorAll(".app-visually-hidden"),
@@ -895,11 +1079,18 @@ test.describe("records surface anatomy", () => {
       }
       return {
         count: (visible.textContent ?? "").split("Expired").length - 1,
+        // Hidden text included: the word is said once to everybody.
+        countWithAssistive: allText.split("Expired").length - 1,
+        badgeText: badge.textContent?.trim(),
         column: (badge.closest("td") as HTMLElement).getAttribute("data-col"),
       };
     });
     expect(stated.count).toBe(1);
-    expect(stated.column).toBe("lifecycle");
+    expect(stated.countWithAssistive).toBe(1);
+    expect(stated.badgeText).toBe("Expired");
+    // Was "lifecycle". 67368b23 (2026-09-05) made the Status column the
+    // lifecycle badge's one home in the table.
+    expect(stated.column).toBe("status");
   });
 
   test("row actions are a menu on the canonical overlay, never a selector", async ({
@@ -1456,7 +1647,9 @@ test.describe("wizard label hierarchy is painted, not merely classed", () => {
 
 test.describe("Delivery & activity presentation holds at every supported width", () => {
   /** Every width the surface supports, table and card alike. */
-  const ALL_WIDTHS = [1440, 1280, 1024, 940, 901, 768, 430, 390];
+  // 1200 and 1199 joined the list when 67368b23 (2026-09-05) moved the
+  // table/card cutover there; 901 stays, though it no longer straddles anything.
+  const ALL_WIDTHS = [1440, 1280, 1200, 1199, 1024, 940, 901, 768, 430, 390];
 
   for (const direction of ["ltr", "rtl"] as const) {
     test(`${direction}: nothing clips, overlaps or overflows at any width`, async ({
@@ -1588,39 +1781,56 @@ test.describe("Delivery & activity presentation holds at every supported width",
     // German runs roughly twice the English length here. It may truncate — the
     // surface never wraps — but it must not escape, and the whole string has to
     // remain reachable through the accessible description.
-    await page.setViewportSize({ width: 1024, height: 900 });
-    await openIntakeLinks(page, "organization", { rows: GERMAN_ROWS });
+    //
+    // This measured the TABLE at 1024px and read each value's host as its
+    // <td>. 67368b23 (2026-09-05) moved the table/card cutover to 1199px, so
+    // at 1024px the values are in the cards and have no <td> at all. The
+    // column is still measured — at 1200px, the narrowest table — and 1024px
+    // is kept, measured against the card region that now hosts the values.
+    for (const [width, renderer] of [
+      [1200, "td"],
+      [1024, ".ilk-card__facts"],
+    ] as const) {
+      await page.setViewportSize({ width, height: 900 });
+      await openIntakeLinks(page, "organization", { rows: GERMAN_ROWS });
 
-    const measured = await page.evaluate(() => {
-      const values = Array.from(
-        document.querySelectorAll<HTMLElement>(".ilk-state-text"),
-      ).filter((v) => v.offsetParent !== null);
-      return values.map((v) => {
-        const host = v.closest("td") as HTMLElement;
-        const hb = host.getBoundingClientRect();
-        const vb = v.getBoundingClientRect();
-        const lh = parseFloat(getComputedStyle(v).lineHeight) || 18;
-        return {
-          escapes: vb.right > hb.right + 1 || vb.left < hb.left - 1,
-          wrapped: vb.height > lh * 1.8,
-          hasDescription: (v.getAttribute("title") ?? "").length > 0,
-          overflowStrategy: getComputedStyle(v).textOverflow,
-        };
+      const measured = await page.evaluate((hostSelector) => {
+        const values = Array.from(
+          document.querySelectorAll<HTMLElement>(".ilk-state-text"),
+        ).filter((v) => v.offsetParent !== null);
+        return values.map((v) => {
+          const host = v.closest(hostSelector) as HTMLElement | null;
+          if (!host) return { hosted: false as const };
+          const hb = host.getBoundingClientRect();
+          const vb = v.getBoundingClientRect();
+          const lh = parseFloat(getComputedStyle(v).lineHeight) || 18;
+          return {
+            hosted: true as const,
+            escapes: vb.right > hb.right + 1 || vb.left < hb.left - 1,
+            wrapped: vb.height > lh * 1.8,
+            hasDescription: (v.getAttribute("title") ?? "").length > 0,
+            overflowStrategy: getComputedStyle(v).textOverflow,
+          };
+        });
+      }, renderer);
+
+      // Two rows, a delivery and an activity value each — all four painted,
+      // and all four in the renderer this width is supposed to show.
+      expect(measured.length, `${width}px`).toBe(GERMAN_ROWS.length * 2);
+      for (const v of measured) {
+        expect(v.hosted, `${width}px: value is not in ${renderer}`).toBe(true);
+        if (!v.hosted) continue;
+        expect(v.escapes, `${width}px`).toBe(false);
+        expect(v.wrapped, `${width}px`).toBe(false);
+        expect(v.hasDescription, `${width}px`).toBe(true);
+        expect(v.overflowStrategy, `${width}px`).toBe("ellipsis");
+      }
+      const pageOverflow = await page.evaluate(() => {
+        const doc = document.documentElement;
+        return doc.scrollWidth - doc.clientWidth;
       });
-    });
-
-    expect(measured.length).toBeGreaterThan(0);
-    for (const v of measured) {
-      expect(v.escapes).toBe(false);
-      expect(v.wrapped).toBe(false);
-      expect(v.hasDescription).toBe(true);
-      expect(v.overflowStrategy).toBe("ellipsis");
+      expect(pageOverflow, `${width}px`).toBe(0);
     }
-    const pageOverflow = await page.evaluate(() => {
-      const doc = document.documentElement;
-      return doc.scrollWidth - doc.clientWidth;
-    });
-    expect(pageOverflow).toBe(0);
   });
 });
 

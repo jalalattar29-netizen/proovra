@@ -46,10 +46,38 @@ test.describe("settings — the Privacy & data destination", () => {
       "Cases & evidence",
     );
 
+    // Exactly: inside the ACCOUNT group, not merely somewhere on a rail that
+    // also says "Account". (The check above reads the whole nav's text.)
+    const accountIds = await page
+      .locator(".set-nav__rail .set-nav__group")
+      .filter({ has: page.locator(".set-nav__group-label", { hasText: /^Account$/ }) })
+      .locator("[data-settings-nav-item]")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-settings-nav-item")));
+    expect(accountIds).toEqual(["security", "notifications", "privacy"]);
+
     // The IA decisions this restoration must not undo.
-    for (const gone of ["profile", "preferences", "workspace", "billing"]) {
+    //
+    // `workspace` was in this list. It was retired for a personal space as
+    // "General" — one sentence and a pricing link — and that pane has not come
+    // back. The ID is offered again, as a different destination: d684de7c
+    // (2026-09-04, "let a personal workspace reach Settings → AI &
+    // assistance") made it the AI pane, which has real personal modes. So the
+    // thing that must not return is asserted by what it WAS — the "General"
+    // label — and the id is asserted to be the AI destination.
+    for (const gone of ["profile", "preferences", "billing"]) {
       expect(ids, `${gone} must not return`).not.toContain(gone);
     }
+    await expect(page.locator("[data-settings-nav]")).not.toContainText("General");
+    await expect(
+      page.locator('[data-settings-nav-item="workspace"]'),
+    ).toHaveText("AI & assistance");
+    expect(ids).toEqual([
+      "overview",
+      "security",
+      "notifications",
+      "privacy",
+      "workspace",
+    ]);
   });
 
   test("selecting it renders the four sections in order", async ({ page }) => {
