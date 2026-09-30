@@ -246,6 +246,37 @@ export async function requestReportGeneration(
         outcome: "NOT_INCLUDED",
       };
     }
+
+    /*
+     * ET-COM-06 — THE HISTORICAL FIRST-ISSUANCE RULE, on the manual path too.
+     *
+     * The worker issues the FIRST report of a record only when the entitlement
+     * says `mayIssueHistoricalFirstOutputs` (a confirmed paid subscription, or
+     * a credit-funded record) — a trial or a payment grace is not confirmed
+     * payment. A customer's Generate click needed only ENTITLED (grace and
+     * trial included), so it issued what the automatic path withholds. A
+     * person's request for a record's first report now takes the same rule.
+     * Completion-time issuance (`evidence_completed`) is not historical: the
+     * record was finalized under this entitlement.
+     */
+    if (
+      input.purpose !== "evidence_completed" &&
+      eligibility &&
+      !eligibility.issuance.mayIssueHistoricalFirstOutputs
+    ) {
+      const firstReport = await prisma.report
+        .findFirst({ where: { evidenceId: input.evidenceId }, select: { id: true } })
+        .then((r) => r === null)
+        .catch(() => false);
+      if (firstReport) {
+        bump("report_generation_not_included_total");
+        return {
+          requested: false,
+          reason: "first_issuance_awaits_confirmed_payment",
+          outcome: "NOT_INCLUDED",
+        };
+      }
+    }
   }
 
   /*

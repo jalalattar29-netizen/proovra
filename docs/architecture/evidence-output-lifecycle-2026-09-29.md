@@ -101,6 +101,17 @@ security-event drift allowlist. Apply both before deploying the API and worker.
    Watch `pipeline.package_generation_failed`.
 6. Set `OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED=true` only for confirmed-paid
    subjects (the decision already enforces this).
+
+   **Flag state (ET-COM-06, 2026-09-30).** Default **OFF** in code and absent
+   from every env example; the audit never reads production configuration, so
+   its production value is an owner confirmation. OFF, the worker's automatic
+   first issuance covers only records signed within the last 7 days; ON, it
+   also backfills older ones. Either way it issues a record's FIRST report only
+   when the entitlement says `mayIssueHistoricalFirstOutputs` (a confirmed paid
+   subscription, or a credit-funded record) — never in a trial or a payment
+   grace. The customer's Generate click follows the SAME rule
+   (`requestReportGeneration`, reason `first_issuance_awaits_confirmed_payment`);
+   the flag itself governs only the automatic backfill.
 7. Run `destruction-certificate-audit.ts` (read-only). Correcting any V2
    certificate is a separate, authorized procedure: it is never automatic.
 
