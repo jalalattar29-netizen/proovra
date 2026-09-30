@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 138,
+    "FIXED_IN_THIS_TASK": 148,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 15,
+    "STILL_PRESENT": 5,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,8 +18,8 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 12,
-      "P3": 3
+      "P2": 4,
+      "P3": 1
     }
   },
   "openIds": {
@@ -27,21 +27,11 @@
     "P1": [],
     "P2": [
       "ET-COM-02",
-      "ET-COM-03",
       "ET-COM-04",
-      "ET-DC-04",
-      "ET-PKG-05",
-      "ET-PKG-06",
       "ET-PKG-07",
-      "ET-PKG-08",
-      "ET-SEC-20",
-      "ET-SEC-24",
-      "ET-SEC-26",
       "ET-SM-07"
     ],
     "P3": [
-      "ET-ACQ-05",
-      "ET-COM-06",
       "ET-Q-07"
     ]
   },
@@ -1413,20 +1403,25 @@
         "services/api/src/services/billing/paypal-settlement.service.ts:771",
         "services/api/src/routes/webhooks.routes.ts:253"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The 2026-09-28 refund work was PayPal-only.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Stripe refunds and lost disputes never reversed evidence credits: no charge.refunded / charge.dispute.* handling.",
+      "canonicalAuthority": "stripe-settlement applyStripeChargeAdverseEvent -> the one reverseEvidenceCreditPurchase (grant providerRef = Checkout Session); partial refunds and shortfalls to billing review",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/webhooks.routes.ts",
+        "services/api/src/services/billing/stripe-settlement.service.ts"
+      ],
+      "redTest": "services/api/test/stripe-credit-refund-reversal.integration.test.ts (evidence/ET-COM-03-red-baseline.txt)",
+      "greenTest": "services/api/test/stripe-credit-refund-reversal.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "9845beb252 fix(billing): a refunded or charged-back Stripe credit purchase takes its credits back (ET-COM-03)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-COM-04",
@@ -1828,20 +1823,24 @@
       "citations": [
         "services/api/src/services/auth/extension-oauth.service.ts:37"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Permissive default for unset config.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "With EXTENSION_OAUTH_REDIRECT_ALLOW unset the extension OAuth accepted any chromiumapp.org extension id and issued a code from the ambient session.",
+      "canonicalAuthority": "extension-oauth isAllowedExtensionRedirect: the explicit allow-list is the only authority (unset refuses every redirect). Owner confirmation: the variable must be set in production.",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/auth/extension-oauth.service.ts"
+      ],
+      "redTest": "services/api/test/uc1-extension-oauth.integration.test.ts [ET-DC-04] (evidence/ET-DC-04-red-baseline.txt)",
+      "greenTest": "services/api/test/uc1-extension-oauth.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "5621aeb40d fix(auth): the extension OAuth redirect allow-list fails closed (ET-DC-04)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-DC-05",
@@ -2477,20 +2476,27 @@
         "services/api/src/routes/evidence.routes.ts:802",
         "apps/web/app/verify/[token]/page.tsx:2460"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Presence booleans used as integrity verdict.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Public Verify's package verdict was derived from artifact-presence flags, so an unsealed legacy package got the success badge, and a partial package was described as absent.",
+      "canonicalAuthority": "worker assertSealSignatureVerifies (a seal that does not verify is never published); API withPackageSealState (packageFormatVersion + sealed) on both package-integrity projections; web badge requires sealed",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/verify/[token]/_verify-types.ts",
+        "apps/web/app/verify/[token]/page.tsx",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "redTest": "services/api/test/public-verify-package-sealed.integration.test.ts + services/worker/test/package-seal-self-verification.test.ts + apps/web/__tests__/verify-package-sealed-badge.test.ts (evidence/ET-PKG-05-red-baseline.txt)",
+      "greenTest": "services/api/test/public-verify-package-sealed.integration.test.ts; services/worker/test/package-seal-self-verification.test.ts; apps/web/__tests__/verify-package-sealed-badge.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "ed3bf70d58 fix(verify): the public package verdict rests on a verified seal, not file names (ET-PKG-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-06",
@@ -2504,20 +2510,27 @@
         "services/api/src/routes/evidence.routes.ts:13133",
         "packages/shared/src/basic-verification.ts:192"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Snapshot fallback labelled verified.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Public Verify reported a row's storage-lock snapshot as verified and immutable with no expiry check and no object check, and counted it as a passed signal.",
+      "canonicalAuthority": "StorageProtectionSummary source RECORDED | OBSERVED + expired (retentionState); web presents recorded / expired, only an observed lock is a passed signal; BASIC names what it checked",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/app/verify/[token]/BasicVerificationView.tsx",
+        "apps/web/app/verify/[token]/_verify-types.ts",
+        "apps/web/app/verify/[token]/page.tsx",
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "redTest": "services/api/test/public-verify-storage-recorded.integration.test.ts + apps/web/__tests__/verify-storage-recorded.test.ts (evidence/ET-PKG-06-red-baseline.txt)",
+      "greenTest": "services/api/test/public-verify-storage-recorded.integration.test.ts; apps/web/__tests__/verify-storage-recorded.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "4562d8fca6 fix(verify): a recorded storage lock is stated as recorded, an expired one as expired; only an observed lock is a passed signal (ET-PKG-06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-PKG-07",
@@ -2554,20 +2567,28 @@
         "services/worker/src/verification-package.ts:2577",
         "services/worker/src/processor.ts:2636"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Gate scoped to team mode.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The package eligibility gate ran only for team-governed packages, so Personal records and records whose workspace kind was unresolved skipped the lifecycle, destruction and drift checks.",
+      "canonicalAuthority": "worker createVerificationPackage runs assertPackageEligibleOrDeny for every package (teamId null for a legacy Personal record); an unresolved workspace kind is denied before any build. Owner confirmation: holds now block Personal packages (fail closed).",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/redaction.routes.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts",
+        "services/worker/src/governance/package-eligibility-gate.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "redTest": "services/worker/test/package-gate-every-package.test.ts (evidence/ET-PKG-08-red-baseline.txt)",
+      "greenTest": "services/worker/test/package-gate-every-package.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "b8541bf0f0 fix(packages): the package eligibility gate runs for every package, and an unresolved workspace is denied (ET-PKG-08)",
+        "1a68465b25 fix(redaction): a redacted derivative is released through the byte-release gate (ET-SEC-26)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-Q-03",
@@ -3259,20 +3280,27 @@
         "services/api/src/services/billing/evidence-output-eligibility.service.ts:488",
         "services/worker/src/report-generation-authority.ts:749"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Each dashboard implemented its own owed-output predicate; evidence-output-eligibility uses plan capabilities only while the worker uses the lifecycle-aware shared resolver.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The report/package backlog was computed by five aggregators with three rules: plan-only narrowing, no narrowing in case risk and org health, and a worker package-owed check without the lifecycle.",
+      "canonicalAuthority": "outputEntitledEvidenceWhere decides through resolveOutputIssuanceEntitlement (plan + paid lifecycle); case risk and org health narrow through it; worker verificationPackageOwed uses resolveEvidenceOutputIssuance",
+      "obsoleteRemoved": "the plan-only reportsIncluded narrowing; the un-narrowed case-risk and org-health backlog counts; the worker's plan+funding package-owed rule",
+      "productFiles": [
+        "services/api/src/services/billing/evidence-output-eligibility.service.ts",
+        "services/api/src/services/cases/case-risk-engine.service.ts",
+        "services/api/src/services/dashboard/org-health.service.ts",
+        "services/worker/src/report-generation-authority.ts"
+      ],
+      "redTest": "services/api/test/owed-output-backlog-agreement.integration.test.ts (evidence/ET-SEC-20-red-baseline.txt)",
+      "greenTest": "services/api/test/owed-output-backlog-agreement.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "1a5f26f376 fix(ops): every backlog aggregator counts only owed outputs, by the one decision issuance honours (ET-SEC-20)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-21",
@@ -3370,20 +3398,27 @@
         "services/api/src/jobs/capture-draft-expiry.job.ts:111",
         "services/worker/src/capture-reaper.ts:129"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Two reapers exist for the same rows and the API sweep builds events from the selected set, not from rows it actually transitioned.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Two reapers expired capture drafts; the API sweep wrote EXPIRED events for every selected row, including rows the worker had already expired.",
+      "canonicalAuthority": "worker capture-reaper (CAPTURE_DRAFT_REAPER) is the one reaper",
+      "obsoleteRemoved": "services/api/src/jobs/capture-draft-expiry.job.ts, services/api/scripts/sweep-capture-drafts.ts, the server.ts in-process timer",
+      "productFiles": [
+        "services/api/scripts/sweep-capture-drafts.ts",
+        "services/api/src/jobs/capture-draft-expiry.job.ts",
+        "services/api/src/server.ts"
+      ],
+      "redTest": "services/api/test/capture-draft-expiry-sweeper.test.ts (evidence/ET-SEC-24-red-baseline.txt)",
+      "greenTest": "services/api/test/capture-draft-expiry-sweeper.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "5159a8b40c fix(capture): capture drafts are expired by one reaper; the API sweep and its CLI are retired (ET-SEC-24)",
+        "c1e75d0664 test(seed): the persona seed pin asserts no dotenv import, not the word in a comment (ET-UPL-04 / ET-SEC-24 follow-up)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-25",
@@ -3425,20 +3460,25 @@
         "services/api/src/routes/redaction.routes.ts:1614",
         "services/api/src/services/evidence/artifact-download-gate.service.ts:37"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The byte-release gate's ArtifactKind union never included redaction derivatives, so the redaction route presigns directly.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Redacted derivative downloads presigned bytes outside the canonical byte-release gate (no legal hold / lifecycle / export eligibility).",
+      "canonicalAuthority": "artifact-download-gate evaluateArtifactDownload kind \"redaction\" on GET /v1/redaction/derivatives/:id/download-url. Owner confirmation: no download policy names derivatives.",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/redaction.routes.ts",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts"
+      ],
+      "redTest": "services/api/test/redaction-derivative-byte-release.integration.test.ts (evidence/ET-SEC-26-red-baseline.txt)",
+      "greenTest": "services/api/test/redaction-derivative-byte-release.integration.test.ts; services/api/test/phase-12b-redaction-request.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "1a68465b25 fix(redaction): a redacted derivative is released through the byte-release gate (ET-SEC-26)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-27",
@@ -3873,7 +3913,10 @@
       "productFiles": [
         "services/api/scripts/lib/local-seed-guard.ts",
         "services/api/scripts/seed-admin-fixture.ts",
-        "services/api/scripts/seed-home-personas.ts"
+        "services/api/scripts/seed-home-personas.ts",
+        "services/api/scripts/sweep-capture-drafts.ts",
+        "services/api/src/jobs/capture-draft-expiry.job.ts",
+        "services/api/src/server.ts"
       ],
       "redTest": "services/api/test/local-seed-guard.test.ts (evidence/ET-UPL-04-red-baseline.txt)",
       "greenTest": "services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host",
@@ -3882,7 +3925,9 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "29a64fa112 fix(scripts): every seeder refuses a non-local database by name AND host before its first write (ET-UPL-04)"
+        "29a64fa112 fix(scripts): every seeder refuses a non-local database by name AND host before its first write (ET-UPL-04)",
+        "5159a8b40c fix(capture): capture drafts are expired by one reaper; the API sweep and its CLI are retired (ET-SEC-24)",
+        "c1e75d0664 test(seed): the persona seed pin asserts no dotenv import, not the word in a comment (ET-UPL-04 / ET-SEC-24 follow-up)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3896,20 +3941,27 @@
         "services/api/src/services/capture-checklist-gate.ts:1",
         "services/api/src/services/templates/identity-resolver.service.ts:157"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The server trusts the client's plan.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The required-checklist gate enforced only the client-written intakePlanJson (omit it and the gate did not apply), and the template identity stamp read any capture session id.",
+      "canonicalAuthority": "capture-checklist-gate effectiveChecklistPlan (the owner's capture session plan mode + the template's required steps; a client plan can only add); identity-resolver reads only the owner's session. Owner confirmation: checklist completion is a product guarantee for CHECKLIST_REQUIRED sessions.",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/capture-checklist-gate.ts",
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/src/services/templates/identity-resolver.service.ts"
+      ],
+      "redTest": "services/api/test/checklist-plan-server-authority.integration.test.ts (evidence/ET-ACQ-05-red-baseline.txt)",
+      "greenTest": "services/api/test/checklist-plan-server-authority.integration.test.ts; services/api/test/capture-finalize-checklist-gate.test.ts; services/api/test/phase-t-capture-to-evidence-identity.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "898a573128 fix(capture): the checklist gate enforces the server's plan, and the template stamp reads only the owner's session (ET-ACQ-05)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-ACQ-06",
@@ -3977,20 +4029,24 @@
         "services/worker/src/first-issuance-reconciliation.ts:169",
         "services/api/src/services/reports/report-generation-authority.service.ts:199"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Rollout gate left off by default; manual path not aligned with mayIssueHistoricalFirstOutputs.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A customer's Generate click issued a record's first report under any ENTITLED decision (grace, trial), while the automatic path requires mayIssueHistoricalFirstOutputs; the backfill flag's state was undocumented.",
+      "canonicalAuthority": "requestReportGeneration applies mayIssueHistoricalFirstOutputs to a person's first-report request (completion-time issuance exempt); runbook documents OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED (default OFF). Owner decision: enabling the backfill in production.",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/reports/report-generation-authority.service.ts"
+      ],
+      "redTest": "services/api/test/first-issuance-manual-rule.integration.test.ts (evidence/ET-COM-06-red-baseline.txt)",
+      "greenTest": "services/api/test/first-issuance-manual-rule.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "893fd59f6f fix(reports): a customer's first-report click follows the historical first-issuance rule; the flag state is documented (ET-COM-06)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-CUS-12",
@@ -4147,7 +4203,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "387924aa81 fix(capture): the capture trust-event sub-chain is extended under a lock and backed by a unique (chain, sequence) (ET-DC-10)"
+        "387924aa81 fix(capture): the capture trust-event sub-chain is extended under a lock and backed by a unique (chain, sequence) (ET-DC-10)",
+        "4101459da5 fix(migrations): the capture trust-event uniqueness indexes are column-guarded (ET-DC-10 follow-up)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"

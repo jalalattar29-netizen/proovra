@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 138 |
+| FIXED_IN_THIS_TASK | 148 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 15 |
+| STILL_PRESENT | 5 |
 
-Open by severity: P0 0 · P1 0 · P2 12 · P3 3
+Open by severity: P0 0 · P1 0 · P2 4 · P3 1
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 | ET-ACQ-03 | P2 | FIXED_IN_THIS_TASK | evidence-complete runCompletionFanoutOnce — a durable claim (evidence.completion_fanout_claimed_at_utc lease + _done_at_utc) reached by the first finalize and any retry; migrations 20280812000000 (EXPAND) and 20280812000001 (BACKFILL) | edfbbfb0b1 | services/api/test/completion-fanout-once.integration.test.ts |
 | ET-ACQ-04 | P2 | FIXED_IN_THIS_TASK | evidence-complete prehashCompletionObjects (HEAD sum -> 413 before any GET; hash outside the transaction) + digestOf (a pre-computed digest reused only when bound to the exact bucket/key/version/ETag/size the in-transaction HEAD describes); the in-transaction multipart path refuses the HEAD total before any read. The presigned PUT's Content-Length is not signed: completion is the authority, so an oversize object can be stored but never sealed. | ef6abab1ff | services/api/test/completion-size-and-prehash.integration.test.ts |
 | ET-COM-02 | P2 | STILL_PRESENT |  |  |  |
-| ET-COM-03 | P2 | STILL_PRESENT |  |  |  |
+| ET-COM-03 | P2 | FIXED_IN_THIS_TASK | stripe-settlement applyStripeChargeAdverseEvent -> the one reverseEvidenceCreditPurchase (grant providerRef = Checkout Session); partial refunds and shortfalls to billing review | 9845beb252 | services/api/test/stripe-credit-refund-reversal.integration.test.ts |
 | ET-COM-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-CUS-02 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create); chain-transfer.service appendTransferCustodyTx inside each transition's conditional-claim transaction | b916261bf1, fef4f4a8a0 | services/api/test/chain-transfer-custody.integration.test.ts (INITIATED/ACCEPTED/COMPLETED on every record, in order; cross-workspace and cross-organisation refused, nothing appended) |
 | ET-CUS-03 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime governance/legal-hold-custody: appendLegalHoldCustodyTx (in the hold transaction) + reconcileLegalHoldCustody (coverage for EVIDENCE/CASE/WORKSPACE scopes; run on place/release and by the Worker retention reconcile) | 33ad2d5f17, fef4f4a8a0 | services/api/test/legal-hold-custody-coverage.integration.test.ts (every covered record shows place and release; reconcile is idempotent) |
@@ -60,7 +60,7 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 | ET-CUS-09 | P2 | FIXED_IN_THIS_TASK | services/worker exchange-package-builder: full chain with payloads + hash formula; per-evidence failure throws EXCHANGE_EVIDENCE_READ_FAILED | 24a30ca91c, fef4f4a8a0 | services/api/test/package-custody-completeness.integration.test.ts (complete, contiguous, every hash recomputes) |
 | ET-CUS-10 | P2 | FIXED_IN_THIS_TASK | @proovra/shared RETENTION_ACTIVITY_CUSTODY_EVENT_TYPES (workspace activity only); the retention worker writes RETENTION_AUTO_EXTENDED in the extension transaction | d917c7387a, 2ac81f7b1f, fef4f4a8a0 | services/api/test/custody-lock-and-retention-extension.integration.test.ts (public views do not extend; an extension is a custody fact) |
 | ET-CUS-11 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime custody/custody-chain appendCustodyEventTx (the one custody append: lock, head, hash, create) in the mutation's transaction (publication, certification, finalization governance, retention sweeper); swallowCustodyAppendError for non-mutating facts | 426b9bcbd3, fef4f4a8a0 | services/api/test/governance-custody-atomicity.integration.test.ts; services/api/test/custody-append-no-silent-catch.test.ts (structural guard: .catch(() => null\|undefined\|{}) and try { append } catch {}) |
-| ET-DC-04 | P2 | STILL_PRESENT |  |  |  |
+| ET-DC-04 | P2 | FIXED_IN_THIS_TASK | extension-oauth isAllowedExtensionRedirect: the explicit allow-list is the only authority (unset refuses every redirect). Owner confirmation: the variable must be set in production. | 5621aeb40d | services/api/test/uc1-extension-oauth.integration.test.ts |
 | ET-DC-05 | P2 | FIXED_IN_THIS_TASK | capture-reaper releaseExpiredReservations (session claim under the capture-session lock) + releaseEvidenceReservationTx(CAPTURE_SESSION_EXPIRED) | cb0b0bde37 | services/api/test/reservation-sweep.integration.test.ts [ET-DC-05: session EXPIRED, reservation released with CAPTURE_SESSION_EXPIRED] |
 | ET-DC-06 | P2 | FIXED_IN_THIS_TASK | direct-capture-ingest extendDirectCaptureSessionOnActivity: expiry slides to now + 1h on each accepted reservation/declaration, capped at startedAt + MAX_SESSION_LIFETIME_SECONDS (24h) | cb0b0bde37 | services/api/test/direct-capture-session-sliding-expiry.integration.test.ts (slides; capped at the lifetime; a silent session still expires) |
 | ET-DC-07 | P2 | FIXED_IN_THIS_TASK | createEvidence({ transaction }) writes the record in the caller's transaction and returns afterCommit; the reserve runs it after its commit | f616c41e26 | services/api/test/direct-capture-reserve-atomic.integration.test.ts |
@@ -79,10 +79,10 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 | ET-OTS-04 | P2 | FIXED_IN_THIS_TASK | worker ots.service throws OtsStampCallFailed into the initializer's retry budget; shared boundedOtsFailureCode / OTS_FAILURE_CODE_LABELS is the only failure value any reader shows | 84c612665b | services/worker/test/ots-initialization-truth.test.ts; services/api/test/ots-failure-reason-bounded.integration.test.ts |
 | ET-PKG-03 | P2 | FIXED_IN_THIS_TASK | verification-package buildReadme: sealed packages verified by the seal (a-e) incl. key fingerprint vs Public Verify; unsealed packages state what the manifest signature cannot show | 9ae43300d1, 4a4affa6b7 | services/worker/test/package-readme-seal-instructions.test.ts |
 | ET-PKG-04 | P2 | FIXED_IN_THIS_TASK | verification-package buildPackageManifest contents — every flag that can be true maps to an appended entry (exhaustive test) | 4a4affa6b7 | services/worker/test/package-manifest-contents-truth.test.ts |
-| ET-PKG-05 | P2 | STILL_PRESENT |  |  |  |
-| ET-PKG-06 | P2 | STILL_PRESENT |  |  |  |
+| ET-PKG-05 | P2 | FIXED_IN_THIS_TASK | worker assertSealSignatureVerifies (a seal that does not verify is never published); API withPackageSealState (packageFormatVersion + sealed) on both package-integrity projections; web badge requires sealed | ed3bf70d58 | services/api/test/public-verify-package-sealed.integration.test.ts; services/worker/test/package-seal-self-verification.test.ts; apps/web/__tests__/verify-package-sealed-badge.test.ts |
+| ET-PKG-06 | P2 | FIXED_IN_THIS_TASK | StorageProtectionSummary source RECORDED \| OBSERVED + expired (retentionState); web presents recorded / expired, only an observed lock is a passed signal; BASIC names what it checked | 4562d8fca6 | services/api/test/public-verify-storage-recorded.integration.test.ts; apps/web/__tests__/verify-storage-recorded.test.ts |
 | ET-PKG-07 | P2 | STILL_PRESENT |  |  |  |
-| ET-PKG-08 | P2 | STILL_PRESENT |  |  |  |
+| ET-PKG-08 | P2 | FIXED_IN_THIS_TASK | worker createVerificationPackage runs assertPackageEligibleOrDeny for every package (teamId null for a legacy Personal record); an unresolved workspace kind is denied before any build. Owner confirmation: holds now block Personal packages (fail closed). | b8541bf0f0, 1a68465b25 | services/worker/test/package-gate-every-package.test.ts |
 | ET-Q-03 | P2 | FIXED_IN_THIS_TASK | shared-runtime run tracker (markRunProcessing / fenced markRunCompleted / markRunFailed) via media-intelligence.processor settleRunAround + refuseRun | f89f4909a3, 1bc4344ed4, e2ca76ba73 | services/api/test/point5/family-intelligence-operations.integration.test.ts [ET-Q-03: COMPLETED; FAILED kind_not_implemented / evidence_scope_mismatch] |
 | ET-Q-04 | P2 | FIXED_IN_THIS_TASK | redaction-derivative-writer: claimDerivativeForRender (QUEUED or lease-expired RENDERING, REDACTION_RENDER_LEASE_MS from the registry), releaseDerivativeClaim; reconciler lists lease-expired RENDERING | e950ba769b, 3b566105b8, 1bc4344ed4 | services/api/test/point5/family-redaction.integration.test.ts [ET-Q-04: stale taken over, live not stolen, transient releases] |
 | ET-Q-05 | P2 | FIXED_IN_THIS_TASK | worker_sweep_cursors keyset cursor (trash-grace, wraps at the end); enqueueWork/enqueueEvidencePurgeJob selfJobId | ff7965066d, 1bc4344ed4, 0f49532af2 | services/api/test/point5/family-trash-grace.integration.test.ts [ET-Q-05: next tick passes the blocked rows; dry run does not move the cursor] |
@@ -102,13 +102,13 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 | ET-SEC-17 | P2 | FIXED_IN_THIS_TASK | legal-hold.service evaluateCaseDeletionHold (clear \| held \| unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable | 9d7aa0ed67, 84b9c10423 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17]; services/api/test/legal-hold-tenant-spread-guard.test.ts |
 | ET-SEC-18 | P2 | FIXED_IN_THIS_TASK | middleware/authorize evaluateAuthorize / authorizeOrFail (evidence.read, antiEnumeration) for both lists; owner arm bounded to legacy NULL-team rows | 8d781d8043, d5dacdf2db, 34571506e1 | services/api/test/reports-list-authorization.integration.test.ts; services/api/test/phase-ia-self-serve-regression-fix.test.ts; services/api/test/phase-32-8-d-cases-reports.test.ts |
 | ET-SEC-19 | P2 | FIXED_IN_THIS_TASK | evidence-exchange.service generateSignedUrl returns the URL to its minter only; the row keeps only signedUrlExpiresAtUtc; the list projection carries no URL | 8b8bef5de8 | services/api/test/exchange-signed-url-not-listed.integration.test.ts |
-| ET-SEC-20 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-20 | P2 | FIXED_IN_THIS_TASK | outputEntitledEvidenceWhere decides through resolveOutputIssuanceEntitlement (plan + paid lifecycle); case risk and org health narrow through it; worker verificationPackageOwed uses resolveEvidenceOutputIssuance | 1a5f26f376 | services/api/test/owed-output-backlog-agreement.integration.test.ts |
 | ET-SEC-21 | P2 | FIXED_IN_THIS_TASK | case-risk-engine.service reads the live evidence rows (status FAILED_HASH_MISMATCH / verificationStatus FAILED; REVIEW_REQUIRED for review) | 1f331bcf9b | services/api/test/case-risk-live-integrity.integration.test.ts |
 | ET-SEC-22 | P2 | FIXED_IN_THIS_TASK | workspace-usage.service getWorkspaceUsage over the canonical evidenceScopeFor population for both enforcement points | cc30261090 | services/api/test/workspace-usage-population.integration.test.ts |
 | ET-SEC-23 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-billing resolveStorageAddonEntitlement — the Pricing row's storageAddonCell derives every self-service cell from it | 5a1ea53c7f | apps/web/__tests__/pricing-storage-addons-truth.test.ts |
-| ET-SEC-24 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-24 | P2 | FIXED_IN_THIS_TASK | worker capture-reaper (CAPTURE_DRAFT_REAPER) is the one reaper | 5159a8b40c, c1e75d0664 | services/api/test/capture-draft-expiry-sweeper.test.ts |
 | ET-SEC-25 | P2 | FIXED_IN_THIS_TASK | access-policy.service workspaceLifecycleDenial (shared by evaluateAccess and requireApiKey via loadWorkspaceLifecycleState; fail closed 503) | d3f31f99a8, 34571506e1 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-SEC-25: SUSPENDED org key -> 403 ORGANIZATION_NOT_ACTIVE, nothing written] |
-| ET-SEC-26 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-26 | P2 | FIXED_IN_THIS_TASK | artifact-download-gate evaluateArtifactDownload kind "redaction" on GET /v1/redaction/derivatives/:id/download-url. Owner confirmation: no download policy names derivatives. | 1a68465b25 | services/api/test/redaction-derivative-byte-release.integration.test.ts; services/api/test/phase-12b-redaction-request.test.ts |
 | ET-SEC-27 | P2 | FIXED_IN_THIS_TASK | exchange-package-builder: claim token = started_at_utc; attempt-scoped object key; READY only while attemptStillOwnsBuild (FOR UPDATE); UPLOADED / FAILED / DRAFT-revert fenced by the attempt | f78d0daee7 | services/api/test/point5/family-exchange-package.integration.test.ts [ET-SEC-27] |
 | ET-SM-02 | P2 | FIXED_IN_THIS_TASK | services/worker/src/processor.ts REPORTABLE_AT_COMMIT_WHERE / isReportableAtCommit (conditional commit; REPORT_EVIDENCE_STATE_CHANGED otherwise) | e16588fb76 | services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: integrity rejection and trash during render] |
 | ET-SM-03 | P2 | FIXED_IN_THIS_TASK | storage.ts versioned applyObjectRetention / applyDefaultObjectRetention / headObject / copyObjectStorageClass(sourceVersionId); evidence-complete RetentionTarget.versionId; buildPublicEvidenceContent pins sealedVersionId | 49e9a5f3eb | services/api/test/storage-sealed-version.test.ts |
@@ -119,15 +119,15 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 | ET-TSA-05 | P2 | FIXED_IN_THIS_TASK | verification-package README timestamp.tsr section + fileSha256Label state the exact recomputation (per-part lowercase hex in partIndex order joined by '\|', SHA-256) and that it differs from multipartManifestSha256 | d263f4f61f | services/worker unit suite |
 | ET-TSA-06 | P2 | FIXED_IN_THIS_TASK | evidence.tsa_failure_code (bounded TimestampFailureCode) written at finalize and in the TIMESTAMP_* custody payload | d263f4f61f | services/api/test/tsa-finalize-persistence.integration.test.ts [tsa_token_untrusted, tsa_message_imprint_mismatch persisted] |
 | ET-UPL-02 | P2 | FIXED_IN_THIS_TASK | upload-session.service: evaluateUploadSessionFinalizeGate (abandoned sessions skipped, superseded FAILED skipped, abandoned-only = applies:false); createUploadSession releases a terminal session's key; abortUploadSession limited to the session actor or record owner | 68235bdaa4, 0f49532af2 | services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02]; services/api/test/phase-30-11-unified-evidence-model.test.ts; services/api/test/phase-30-7-finalize-gate.test.ts |
-| ET-UPL-04 | P2 | FIXED_IN_THIS_TASK | services/api/scripts/lib/local-seed-guard.ts — the one refusal (name AND host) every seeder runs before its first write | 29a64fa112 | services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host |
-| ET-ACQ-05 | P3 | STILL_PRESENT |  |  |  |
+| ET-UPL-04 | P2 | FIXED_IN_THIS_TASK | services/api/scripts/lib/local-seed-guard.ts — the one refusal (name AND host) every seeder runs before its first write | 29a64fa112, 5159a8b40c, c1e75d0664 | services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host |
+| ET-ACQ-05 | P3 | FIXED_IN_THIS_TASK | capture-checklist-gate effectiveChecklistPlan (the owner's capture session plan mode + the template's required steps; a client plan can only add); identity-resolver reads only the owner's session. Owner confirmation: checklist completion is a product guarantee for CHECKLIST_REQUIRED sessions. | 898a573128 | services/api/test/checklist-plan-server-authority.integration.test.ts; services/api/test/capture-finalize-checklist-gate.test.ts; services/api/test/phase-t-capture-to-evidence-identity.test.ts |
 | ET-ACQ-06 | P3 | FIXED_IN_THIS_TASK | createEvidence takes lockEvidenceCapacitySubject (the completion settlement lock) in the insert transaction and re-makes assertWorkspaceAllowsEvidenceCreation under it | 0fee486237 | services/api/test/evidence-cap-admission-serialized.integration.test.ts |
 | ET-ACQ-07 | P3 | FIXED_IN_THIS_TASK | evidence-part-writer MAX_EVIDENCE_PARTS (the one bound; indexes are unique so it bounds the count; direct capture reads it too) + per-user presign rate limit | ac74edf0b5 | services/api/test/evidence-parts-bounds.integration.test.ts |
-| ET-COM-06 | P3 | STILL_PRESENT |  |  |  |
+| ET-COM-06 | P3 | FIXED_IN_THIS_TASK | requestReportGeneration applies mayIssueHistoricalFirstOutputs to a person's first-report request (completion-time issuance exempt); runbook documents OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED (default OFF). Owner decision: enabling the backfill in production. | 893fd59f6f | services/api/test/first-issuance-manual-rule.integration.test.ts |
 | ET-CUS-12 | P3 | FIXED_IN_THIS_TASK | @proovra/shared REDACTION_CUSTODY_MATERIAL_CODES; emitRedactionActivity + reviewer-audit append REDACTION_RECORDED / REVIEW_DECISION_RECORDED in their transaction | 60cc9d95b0, fef4f4a8a0 | services/api/test/redaction-review-custody.integration.test.ts |
 | ET-CUS-13 | P3 | FIXED_IN_THIS_TASK | @proovra/shared custody-labels custodyEventLabel (report, web); RETENTION_POLICY_APPLIED; evidence.routes latestForDisplay + whole-chain counts (review-workspace and public verify) | 426b9bcbd3, 67664498f5, fef4f4a8a0, 0ec7406c30, 1078664675 | services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code) |
 | ET-CUS-14 | P3 | FIXED_IN_THIS_TASK | platform-audit-log appendPlatformAuditLog liftRequestContextFromMetadata (every row: address/UA to the masked columns; correlationId fills requestId); tenant/platform envelopes carry ipAddress/userAgent/requestId | d03bdd5b64, fef4f4a8a0, 98f95a99dc | services/api/test/audit-request-context-columns.integration.test.ts (route-driven row and facade row; chain verifies); phase5-audit-identity-contract.integration.test.ts |
-| ET-DC-10 | P3 | FIXED_IN_THIS_TASK | trust-event.service emitCaptureTrustEvent: sorted advisory locks on every chain the event belongs to; partial unique indexes (migration 20280813000000) as the backstop | 387924aa81 | services/api/test/capture-trust-chain-concurrency.integration.test.ts |
+| ET-DC-10 | P3 | FIXED_IN_THIS_TASK | trust-event.service emitCaptureTrustEvent: sorted advisory locks on every chain the event belongs to; partial unique indexes (migration 20280813000000) as the backstop | 387924aa81, 4101459da5 | services/api/test/capture-trust-chain-concurrency.integration.test.ts |
 | ET-DC-11 | P3 | FIXED_IN_THIS_TASK | req.user.tokenScope + extensionMayPresignPart; evaluateMemberAccess(evidence.create) on the draft route; manifest classed before completeDirectCapture | 0fb5c3b957 | services/api/test/capture-scope-and-draft-authority.integration.test.ts |
 | ET-INT-15 | P3 | FIXED_IN_THIS_TASK | external-intake route capture environment on the part's record; evidence.service intake UPLOAD_AUTHORIZED meaning | 1078664675 | services/api/test/intake-link-restrictions.integration.test.ts [ET-INT-15] |
 | ET-OTS-05 | P3 | FIXED_IN_THIS_TASK | createOpenTimestamp always returns PENDING; the upgrade ladder's classifier alone establishes an anchor | 84c612665b | services/worker/test/ots-initialization-truth.test.ts; services/worker/test/ots-upgrade-output.test.ts |
@@ -621,6 +621,20 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **productFiles:** `services/api/src/services/evidence-complete.service.ts`
 - **commits:** ef6abab1ff fix(evidence): completion refuses an oversize upload before reading a byte and hashes outside the transaction (ET-ACQ-04)
 
+## ET-COM-03 — Stripe credit refunds and chargebacks never reverse evidence credits (only PayPal is handled)
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Stripe refunds and lost disputes never reversed evidence credits: no charge.refunded / charge.dispute.* handling.
+- **canonicalAuthority:** stripe-settlement applyStripeChargeAdverseEvent -> the one reverseEvidenceCreditPurchase (grant providerRef = Checkout Session); partial refunds and shortfalls to billing review
+- **redTest:** services/api/test/stripe-credit-refund-reversal.integration.test.ts (evidence/ET-COM-03-red-baseline.txt)
+- **greenTest:** services/api/test/stripe-credit-refund-reversal.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/webhooks.routes.ts`, `services/api/src/services/billing/stripe-settlement.service.ts`
+- **commits:** 9845beb252 fix(billing): a refunded or charged-back Stripe credit purchase takes its credits back (ET-COM-03)
+
 ## ET-CUS-02 — Chain-of-custody transfers never write a custody event: the event type does not exist in the enum and the failure is swallowed
 
 - **severity:** P2
@@ -765,6 +779,20 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/scripts/capability-authority/tenant-binding.mjs`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence-certification.service.ts`, `services/api/src/services/governance/destructive-action-gate.service.ts`, `services/api/src/services/governance/finalization-governance.service.ts`, `services/api/src/services/governance/publication.service.ts`, `services/api/src/services/governance/retention-sweeper.service.ts`
 - **commits:** 426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11); fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated
+
+## ET-DC-04 — Extension OAuth accepts any chromiumapp.org extension id when EXTENSION_OAUTH_REDIRECT_ALLOW is unset, with no consent step
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** With EXTENSION_OAUTH_REDIRECT_ALLOW unset the extension OAuth accepted any chromiumapp.org extension id and issued a code from the ambient session.
+- **canonicalAuthority:** extension-oauth isAllowedExtensionRedirect: the explicit allow-list is the only authority (unset refuses every redirect). Owner confirmation: the variable must be set in production.
+- **redTest:** services/api/test/uc1-extension-oauth.integration.test.ts [ET-DC-04] (evidence/ET-DC-04-red-baseline.txt)
+- **greenTest:** services/api/test/uc1-extension-oauth.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/auth/extension-oauth.service.ts`
+- **commits:** 5621aeb40d fix(auth): the extension OAuth redirect allow-list fails closed (ET-DC-04)
 
 ## ET-DC-05 — No reaper for ACTIVE/INTERRUPTED direct-capture sessions; the extension never discards, so failed captures leave permanent empty Evidence rows and orphan objects
 
@@ -1019,6 +1047,48 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/worker/src/verification-package.ts`
 - **commits:** 4a4affa6b7 fix(package): the signed manifest claims only files the package contains; a root evidence file never takes a fixed entry name (ET-PKG-04, ET-PKG-14; ET-OTS-07 proven)
+
+## ET-PKG-05 — Public Verify "Package Integrity Complete / Independent Review Enabled" is derived from file-name presence, never from seal or signature verification
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Public Verify's package verdict was derived from artifact-presence flags, so an unsealed legacy package got the success badge, and a partial package was described as absent.
+- **canonicalAuthority:** worker assertSealSignatureVerifies (a seal that does not verify is never published); API withPackageSealState (packageFormatVersion + sealed) on both package-integrity projections; web badge requires sealed
+- **redTest:** services/api/test/public-verify-package-sealed.integration.test.ts + services/worker/test/package-seal-self-verification.test.ts + apps/web/__tests__/verify-package-sealed-badge.test.ts (evidence/ET-PKG-05-red-baseline.txt)
+- **greenTest:** services/api/test/public-verify-package-sealed.integration.test.ts; services/worker/test/package-seal-self-verification.test.ts; apps/web/__tests__/verify-package-sealed-badge.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/verify/[token]/_verify-types.ts`, `apps/web/app/verify/[token]/page.tsx`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/verification-package.ts`
+- **commits:** ed3bf70d58 fix(verify): the public package verdict rests on a verified seal, not file names (ET-PKG-05)
+
+## ET-PKG-06 — Public Verify storage "verified/Immutable Storage Locked" comes from a DB snapshot (no expiry check, no object check); integrity verdict is DB self-consistency only
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Public Verify reported a row's storage-lock snapshot as verified and immutable with no expiry check and no object check, and counted it as a passed signal.
+- **canonicalAuthority:** StorageProtectionSummary source RECORDED \| OBSERVED + expired (retentionState); web presents recorded / expired, only an observed lock is a passed signal; BASIC names what it checked
+- **redTest:** services/api/test/public-verify-storage-recorded.integration.test.ts + apps/web/__tests__/verify-storage-recorded.test.ts (evidence/ET-PKG-06-red-baseline.txt)
+- **greenTest:** services/api/test/public-verify-storage-recorded.integration.test.ts; apps/web/__tests__/verify-storage-recorded.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/app/verify/[token]/_verify-types.ts`, `apps/web/app/verify/[token]/page.tsx`, `services/api/src/routes/evidence.routes.ts`
+- **commits:** 4562d8fca6 fix(verify): a recorded storage lock is stated as recorded, an expired one as expired; only an observed lock is a passed signal (ET-PKG-06)
+
+## ET-PKG-08 — Package eligibility gate (hold / lifecycle / destruction review / immutable drift) is skipped for personal workspaces and when the Team row resolves isPersonal=null
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The package eligibility gate ran only for team-governed packages, so Personal records and records whose workspace kind was unresolved skipped the lifecycle, destruction and drift checks.
+- **canonicalAuthority:** worker createVerificationPackage runs assertPackageEligibleOrDeny for every package (teamId null for a legacy Personal record); an unresolved workspace kind is denied before any build. Owner confirmation: holds now block Personal packages (fail closed).
+- **redTest:** services/worker/test/package-gate-every-package.test.ts (evidence/ET-PKG-08-red-baseline.txt)
+- **greenTest:** services/worker/test/package-gate-every-package.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/redaction.routes.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`, `services/worker/src/governance/package-eligibility-gate.ts`, `services/worker/src/verification-package.ts`
+- **commits:** b8541bf0f0 fix(packages): the package eligibility gate runs for every package, and an unresolved workspace is denied (ET-PKG-08); 1a68465b25 fix(redaction): a redacted derivative is released through the byte-release gate (ET-SEC-26)
 
 ## ET-Q-03 — MediaIntelligenceRun rows for perceptual hashes, technical metadata, text-similarity and deferred kinds never leave PENDING, so the intelligence-run reconciler re-runs them every 10 minutes forever and starves genuinely stranded runs
 
@@ -1294,6 +1364,21 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **productFiles:** `services/api/src/services/exchange/evidence-exchange.service.ts`
 - **commits:** 8b8bef5de8 fix(exchange): a signed package URL is handed to its minter only — never stored, never listed (ET-SEC-19)
 
+## ET-SEC-20 — Report/package backlog computed by five aggregators with three rules (entitlement-narrowed relation test, column test, un-narrowed); dashboard 'entitled' ignores subscription lifecycle while worker issuance honors it
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The report/package backlog was computed by five aggregators with three rules: plan-only narrowing, no narrowing in case risk and org health, and a worker package-owed check without the lifecycle.
+- **canonicalAuthority:** outputEntitledEvidenceWhere decides through resolveOutputIssuanceEntitlement (plan + paid lifecycle); case risk and org health narrow through it; worker verificationPackageOwed uses resolveEvidenceOutputIssuance
+- **obsoleteRemoved:** the plan-only reportsIncluded narrowing; the un-narrowed case-risk and org-health backlog counts; the worker's plan+funding package-owed rule
+- **redTest:** services/api/test/owed-output-backlog-agreement.integration.test.ts (evidence/ET-SEC-20-red-baseline.txt)
+- **greenTest:** services/api/test/owed-output-backlog-agreement.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/billing/evidence-output-eligibility.service.ts`, `services/api/src/services/cases/case-risk-engine.service.ts`, `services/api/src/services/dashboard/org-health.service.ts`, `services/worker/src/report-generation-authority.ts`
+- **commits:** 1a5f26f376 fix(ops): every backlog aggregator counts only owed outputs, by the one decision issuance honours (ET-SEC-20)
+
 ## ET-SEC-21 — Case risk 'integrity' signal reads evidence_integrity_snapshots, which is backfilled once for SIGNED/REPORTED only and never refreshed, so it cannot report FAILED rows
 
 - **severity:** P2
@@ -1338,6 +1423,21 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **productFiles:** `apps/web/app/pricing/page.tsx`
 - **commits:** 5a1ea53c7f fix(web): the Pricing page's storage add-on row states what the server allows (ET-SEC-23)
 
+## ET-SEC-24 — Two reapers expire the same capture drafts; the API sweep writes EXPIRED events for all selected rows, not only those it transitioned
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Two reapers expired capture drafts; the API sweep wrote EXPIRED events for every selected row, including rows the worker had already expired.
+- **canonicalAuthority:** worker capture-reaper (CAPTURE_DRAFT_REAPER) is the one reaper
+- **obsoleteRemoved:** services/api/src/jobs/capture-draft-expiry.job.ts, services/api/scripts/sweep-capture-drafts.ts, the server.ts in-process timer
+- **redTest:** services/api/test/capture-draft-expiry-sweeper.test.ts (evidence/ET-SEC-24-red-baseline.txt)
+- **greenTest:** services/api/test/capture-draft-expiry-sweeper.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/scripts/sweep-capture-drafts.ts`, `services/api/src/jobs/capture-draft-expiry.job.ts`, `services/api/src/server.ts`
+- **commits:** 5159a8b40c fix(capture): capture drafts are expired by one reaper; the API sweep and its CLI are retired (ET-SEC-24); c1e75d0664 test(seed): the persona seed pin asserts no dotenv import, not the word in a comment (ET-UPL-04 / ET-SEC-24 follow-up)
+
 ## ET-SEC-25 — API-key upload path bypasses organization-lifecycle denial enforced on the user upload path
 
 - **severity:** P2
@@ -1351,6 +1451,20 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/middleware/integrations-auth.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/services/identity/access-policy.service.ts`
 - **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25); 34571506e1 test: org-lifecycle and home-reports source pins follow ET-SEC-25 (one shared lifecycle rule) and ET-SEC-18 (named legacy owner arm)
+
+## ET-SEC-26 — Redaction derivative download presigns bytes outside the canonical byte-release gate (no legal-hold/export-eligibility evaluation)
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Redacted derivative downloads presigned bytes outside the canonical byte-release gate (no legal hold / lifecycle / export eligibility).
+- **canonicalAuthority:** artifact-download-gate evaluateArtifactDownload kind "redaction" on GET /v1/redaction/derivatives/:id/download-url. Owner confirmation: no download policy names derivatives.
+- **redTest:** services/api/test/redaction-derivative-byte-release.integration.test.ts (evidence/ET-SEC-26-red-baseline.txt)
+- **greenTest:** services/api/test/redaction-derivative-byte-release.integration.test.ts; services/api/test/phase-12b-redaction-request.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/redaction.routes.ts`, `services/api/src/services/evidence/artifact-download-gate.service.ts`
+- **commits:** 1a68465b25 fix(redaction): a redacted derivative is released through the byte-release gate (ET-SEC-26)
 
 ## ET-SEC-27 — Exchange-package build race after 30-min lease expiry: late builder overwrites fixed object key after the winner committed READY with its sha; failure path unconditionally marks build FAILED
 
@@ -1490,8 +1604,22 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/scripts/lib/local-seed-guard.ts`, `services/api/scripts/seed-admin-fixture.ts`, `services/api/scripts/seed-home-personas.ts`
-- **commits:** 29a64fa112 fix(scripts): every seeder refuses a non-local database by name AND host before its first write (ET-UPL-04)
+- **productFiles:** `services/api/scripts/lib/local-seed-guard.ts`, `services/api/scripts/seed-admin-fixture.ts`, `services/api/scripts/seed-home-personas.ts`, `services/api/scripts/sweep-capture-drafts.ts`, `services/api/src/jobs/capture-draft-expiry.job.ts`, `services/api/src/server.ts`
+- **commits:** 29a64fa112 fix(scripts): every seeder refuses a non-local database by name AND host before its first write (ET-UPL-04); 5159a8b40c fix(capture): capture drafts are expired by one reaper; the API sweep and its CLI are retired (ET-SEC-24); c1e75d0664 test(seed): the persona seed pin asserts no dotenv import, not the word in a comment (ET-UPL-04 / ET-SEC-24 follow-up)
+
+## ET-ACQ-05 — The required-checklist gate enforces a plan the client wrote (intakePlanJson), and the template identity stamp does not check who owns the capture session
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The required-checklist gate enforced only the client-written intakePlanJson (omit it and the gate did not apply), and the template identity stamp read any capture session id.
+- **canonicalAuthority:** capture-checklist-gate effectiveChecklistPlan (the owner's capture session plan mode + the template's required steps; a client plan can only add); identity-resolver reads only the owner's session. Owner confirmation: checklist completion is a product guarantee for CHECKLIST_REQUIRED sessions.
+- **redTest:** services/api/test/checklist-plan-server-authority.integration.test.ts (evidence/ET-ACQ-05-red-baseline.txt)
+- **greenTest:** services/api/test/checklist-plan-server-authority.integration.test.ts; services/api/test/capture-finalize-checklist-gate.test.ts; services/api/test/phase-t-capture-to-evidence-identity.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/capture-checklist-gate.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/templates/identity-resolver.service.ts`
+- **commits:** 898a573128 fix(capture): the checklist gate enforces the server's plan, and the template stamp reads only the owner's session (ET-ACQ-05)
 
 ## ET-ACQ-06 — The record-cap count is read without a lock, and SHARED workspaces are not re-checked at completion
 
@@ -1521,6 +1649,20 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`
 - **commits:** ac74edf0b5 fix(evidence): a record's parts are bounded and part presigning is rate limited (ET-ACQ-07)
+
+## ET-COM-06 — Historical FREE records are not issued automatically after upgrade unless a default-OFF flag is set; customer-initiated Generate bypasses the 'confirmed payment' rule during grace
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** A customer's Generate click issued a record's first report under any ENTITLED decision (grace, trial), while the automatic path requires mayIssueHistoricalFirstOutputs; the backfill flag's state was undocumented.
+- **canonicalAuthority:** requestReportGeneration applies mayIssueHistoricalFirstOutputs to a person's first-report request (completion-time issuance exempt); runbook documents OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED (default OFF). Owner decision: enabling the backfill in production.
+- **redTest:** services/api/test/first-issuance-manual-rule.integration.test.ts (evidence/ET-COM-06-red-baseline.txt)
+- **greenTest:** services/api/test/first-issuance-manual-rule.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/reports/report-generation-authority.service.ts`
+- **commits:** 893fd59f6f fix(reports): a customer's first-report click follows the historical first-issuance rule; the flag state is documented (ET-COM-06)
 
 ## ET-CUS-12 — Redaction publication and derivatives, and reviewer workflow decisions, never reach the evidence custody chain; they live in unhashed, mutable side tables
 
@@ -1579,7 +1721,7 @@ Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/prisma/migrations/20280813000000_capture_trust_event_chain_unique/migration.sql`, `services/api/src/services/capture-trust/trust-event.service.ts`
-- **commits:** 387924aa81 fix(capture): the capture trust-event sub-chain is extended under a lock and backed by a unique (chain, sequence) (ET-DC-10)
+- **commits:** 387924aa81 fix(capture): the capture trust-event sub-chain is extended under a lock and backed by a unique (chain, sequence) (ET-DC-10); 4101459da5 fix(migrations): the capture trust-event uniqueness indexes are column-guarded (ET-DC-10 follow-up)
 
 ## ET-DC-11 — CAPTURE_MANIFEST relabel happens after the seal outside the signed fingerprint; extension token can presign parts on any owned unsealed evidence; draft route uses a hand-rolled membership check; dead device-identity code
 

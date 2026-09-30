@@ -48,12 +48,12 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1314
-ROUTE_ATTRIBUTED_REACHABLE                  1173
+TerminalWriters                             1313
+ROUTE_ATTRIBUTED_REACHABLE                  1174
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
-STARTUP_OR_SCHEDULED                          17
+STARTUP_OR_SCHEDULED                          15
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
@@ -650,3 +650,18 @@ node services/api/scripts/audit/index.mjs --closure-check
   no writer.
 - TerminalWriters 1311 -> 1314, ROUTE_ATTRIBUTED_REACHABLE 1170 -> 1173.
   JOB_ATTRIBUTED_REACHABLE and STARTUP_OR_SCHEDULED unchanged.
+
+### 2026-09-30 — EVIDENCE-LIFECYCLE REMEDIATION B17: VERIFY TRUTH, BILLING REVERSAL, SAFE-DEFAULT OWNER ITEMS (writers 1314 -> 1313)
+
+- ET-COM-03: `applyStripeChargeAdverseEvent` marks a refunded / lost-disputed
+  Stripe credit payment REFUNDED (`payment.updateMany`, +1, route-attributed
+  through the Stripe webhook); the credit reversal itself is the existing
+  `reverseEvidenceCreditPurchase`.
+- ET-SEC-24: the in-process API capture-draft sweep is retired
+  (`sweepExpiredCaptureDrafts`: `captureSession.updateMany` and
+  `captureSessionEvent.createMany`, -2, STARTUP_OR_SCHEDULED); the worker's
+  capture-reaper is the one reaper.
+- The other B17 fixes (PKG-05/06/08, COM-06, DC-04, SEC-20/26, ACQ-05)
+  change gates, projections, reads and one worker build check; no writer.
+- TerminalWriters 1314 -> 1313, ROUTE_ATTRIBUTED_REACHABLE 1173 -> 1174,
+  STARTUP_OR_SCHEDULED 17 -> 15. JOB_ATTRIBUTED_REACHABLE unchanged.

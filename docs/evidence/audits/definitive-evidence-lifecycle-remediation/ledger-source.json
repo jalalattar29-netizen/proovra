@@ -1075,6 +1075,78 @@
       "obsoleteRemoved": "device-identity findDeviceByPubkey; the post-seal CAPTURE_MANIFEST relabel",
       "redTest": "services/api/test/capture-scope-and-draft-authority.integration.test.ts (evidence/ET-DC-11-red-baseline.txt)",
       "greenTest": "services/api/test/capture-scope-and-draft-authority.integration.test.ts"
+    },
+    "ET-PKG-05": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Public Verify's package verdict was derived from artifact-presence flags, so an unsealed legacy package got the success badge, and a partial package was described as absent.",
+      "canonicalAuthority": "worker assertSealSignatureVerifies (a seal that does not verify is never published); API withPackageSealState (packageFormatVersion + sealed) on both package-integrity projections; web badge requires sealed",
+      "redTest": "services/api/test/public-verify-package-sealed.integration.test.ts + services/worker/test/package-seal-self-verification.test.ts + apps/web/__tests__/verify-package-sealed-badge.test.ts (evidence/ET-PKG-05-red-baseline.txt)",
+      "greenTest": "services/api/test/public-verify-package-sealed.integration.test.ts; services/worker/test/package-seal-self-verification.test.ts; apps/web/__tests__/verify-package-sealed-badge.test.ts"
+    },
+    "ET-PKG-06": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Public Verify reported a row's storage-lock snapshot as verified and immutable with no expiry check and no object check, and counted it as a passed signal.",
+      "canonicalAuthority": "StorageProtectionSummary source RECORDED | OBSERVED + expired (retentionState); web presents recorded / expired, only an observed lock is a passed signal; BASIC names what it checked",
+      "redTest": "services/api/test/public-verify-storage-recorded.integration.test.ts + apps/web/__tests__/verify-storage-recorded.test.ts (evidence/ET-PKG-06-red-baseline.txt)",
+      "greenTest": "services/api/test/public-verify-storage-recorded.integration.test.ts; apps/web/__tests__/verify-storage-recorded.test.ts"
+    },
+    "ET-PKG-08": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The package eligibility gate ran only for team-governed packages, so Personal records and records whose workspace kind was unresolved skipped the lifecycle, destruction and drift checks.",
+      "canonicalAuthority": "worker createVerificationPackage runs assertPackageEligibleOrDeny for every package (teamId null for a legacy Personal record); an unresolved workspace kind is denied before any build. Owner confirmation: holds now block Personal packages (fail closed).",
+      "redTest": "services/worker/test/package-gate-every-package.test.ts (evidence/ET-PKG-08-red-baseline.txt)",
+      "greenTest": "services/worker/test/package-gate-every-package.test.ts"
+    },
+    "ET-COM-03": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Stripe refunds and lost disputes never reversed evidence credits: no charge.refunded / charge.dispute.* handling.",
+      "canonicalAuthority": "stripe-settlement applyStripeChargeAdverseEvent -> the one reverseEvidenceCreditPurchase (grant providerRef = Checkout Session); partial refunds and shortfalls to billing review",
+      "redTest": "services/api/test/stripe-credit-refund-reversal.integration.test.ts (evidence/ET-COM-03-red-baseline.txt)",
+      "greenTest": "services/api/test/stripe-credit-refund-reversal.integration.test.ts"
+    },
+    "ET-COM-06": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A customer's Generate click issued a record's first report under any ENTITLED decision (grace, trial), while the automatic path requires mayIssueHistoricalFirstOutputs; the backfill flag's state was undocumented.",
+      "canonicalAuthority": "requestReportGeneration applies mayIssueHistoricalFirstOutputs to a person's first-report request (completion-time issuance exempt); runbook documents OUTPUT_HISTORICAL_FIRST_ISSUANCE_ENABLED (default OFF). Owner decision: enabling the backfill in production.",
+      "redTest": "services/api/test/first-issuance-manual-rule.integration.test.ts (evidence/ET-COM-06-red-baseline.txt)",
+      "greenTest": "services/api/test/first-issuance-manual-rule.integration.test.ts"
+    },
+    "ET-DC-04": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "With EXTENSION_OAUTH_REDIRECT_ALLOW unset the extension OAuth accepted any chromiumapp.org extension id and issued a code from the ambient session.",
+      "canonicalAuthority": "extension-oauth isAllowedExtensionRedirect: the explicit allow-list is the only authority (unset refuses every redirect). Owner confirmation: the variable must be set in production.",
+      "redTest": "services/api/test/uc1-extension-oauth.integration.test.ts [ET-DC-04] (evidence/ET-DC-04-red-baseline.txt)",
+      "greenTest": "services/api/test/uc1-extension-oauth.integration.test.ts"
+    },
+    "ET-SEC-20": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The report/package backlog was computed by five aggregators with three rules: plan-only narrowing, no narrowing in case risk and org health, and a worker package-owed check without the lifecycle.",
+      "canonicalAuthority": "outputEntitledEvidenceWhere decides through resolveOutputIssuanceEntitlement (plan + paid lifecycle); case risk and org health narrow through it; worker verificationPackageOwed uses resolveEvidenceOutputIssuance",
+      "obsoleteRemoved": "the plan-only reportsIncluded narrowing; the un-narrowed case-risk and org-health backlog counts; the worker's plan+funding package-owed rule",
+      "redTest": "services/api/test/owed-output-backlog-agreement.integration.test.ts (evidence/ET-SEC-20-red-baseline.txt)",
+      "greenTest": "services/api/test/owed-output-backlog-agreement.integration.test.ts"
+    },
+    "ET-SEC-24": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Two reapers expired capture drafts; the API sweep wrote EXPIRED events for every selected row, including rows the worker had already expired.",
+      "canonicalAuthority": "worker capture-reaper (CAPTURE_DRAFT_REAPER) is the one reaper",
+      "obsoleteRemoved": "services/api/src/jobs/capture-draft-expiry.job.ts, services/api/scripts/sweep-capture-drafts.ts, the server.ts in-process timer",
+      "redTest": "services/api/test/capture-draft-expiry-sweeper.test.ts (evidence/ET-SEC-24-red-baseline.txt)",
+      "greenTest": "services/api/test/capture-draft-expiry-sweeper.test.ts"
+    },
+    "ET-SEC-26": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Redacted derivative downloads presigned bytes outside the canonical byte-release gate (no legal hold / lifecycle / export eligibility).",
+      "canonicalAuthority": "artifact-download-gate evaluateArtifactDownload kind \"redaction\" on GET /v1/redaction/derivatives/:id/download-url. Owner confirmation: no download policy names derivatives.",
+      "redTest": "services/api/test/redaction-derivative-byte-release.integration.test.ts (evidence/ET-SEC-26-red-baseline.txt)",
+      "greenTest": "services/api/test/redaction-derivative-byte-release.integration.test.ts; services/api/test/phase-12b-redaction-request.test.ts"
+    },
+    "ET-ACQ-05": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The required-checklist gate enforced only the client-written intakePlanJson (omit it and the gate did not apply), and the template identity stamp read any capture session id.",
+      "canonicalAuthority": "capture-checklist-gate effectiveChecklistPlan (the owner's capture session plan mode + the template's required steps; a client plan can only add); identity-resolver reads only the owner's session. Owner confirmation: checklist completion is a product guarantee for CHECKLIST_REQUIRED sessions.",
+      "redTest": "services/api/test/checklist-plan-server-authority.integration.test.ts (evidence/ET-ACQ-05-red-baseline.txt)",
+      "greenTest": "services/api/test/checklist-plan-server-authority.integration.test.ts; services/api/test/capture-finalize-checklist-gate.test.ts; services/api/test/phase-t-capture-to-evidence-identity.test.ts"
     }
   }
 }
