@@ -152,7 +152,7 @@ const PUBLIC_INTAKE_RATE_LIMIT_PER_TOKEN_PER_MIN = 20;
 
 /**
  * PHASE1-003 (2026-08-16) — the sibling of PHASE1-002, on the surface whose
- * design the citizen-intake limiter was copied FROM.
+ * design the (since retired, 410) citizen-intake limiter was copied FROM.
  *
  * This read `x-forwarded-for` unconditionally and keyed the per-IP limiter on
  * it. `API_TRUST_PROXY` is unset by default, so on that deployment the header
@@ -1052,8 +1052,10 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         }
 
         // Phase 11 — pre-presign file validation. We only have the
-        // CLIENT-supplied MIME and filename at this point; magic-byte
-        // sniffing on the upload bytes runs at completion. This pass
+        // CLIENT-supplied MIME and filename at this point. (ET-INT-15 — no
+        // magic-byte sniffing of the bytes runs later: completion hashes the
+        // stored object, and the post-finalize malware scan, when configured,
+        // is the only byte-level check.) This pass
         // catches the cheap disguises (executable extensions, double
         // extensions, dangerous claimed MIME) before we ever sign a
         // PUT URL. SecurityEvent is emitted from inside the helper.
@@ -1112,12 +1114,15 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         // once per session (on the first part). Reuses the shared writer
         // (UA hash + masked IP only; never raw). Best-effort +
         // non-blocking — never fails the upload.
-        if (body.partIndex === 0 && session.evidenceId) {
+        // ET-INT-15 — the record the part was written to. The session object
+        // is a snapshot taken before the first part created the record, so
+        // `session.evidenceId` was always null here and the write never ran.
+        if (body.partIndex === 0 && result.part.evidenceId) {
           const { recordCaptureEnvironment, resolveCaptureClientIp } = await import(
             "../services/technical-metadata/capture-environment-writer.js"
           );
           await recordCaptureEnvironment({
-            evidenceId: session.evidenceId,
+            evidenceId: result.part.evidenceId,
             rawUserAgent: req.headers["user-agent"] ?? null,
             rawIp: resolveCaptureClientIp(req),
             timezone: body.captureTimezone ?? null,

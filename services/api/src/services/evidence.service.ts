@@ -319,8 +319,8 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   // A managed enterprise identity has NO personal space, so it may NOT create
   // PERSONAL-scope Evidence (teamId omitted, or targeting its own personal
   // Team — both resolve `isPersonalWorkspaceCapture`). This funnels EVERY
-  // personal-capture caller (POST /v1/evidence, mobile citizen capture, intake
-  // links) through the canonical gate and FAILS CLOSED for MANAGED and
+  // personal-capture caller (POST /v1/evidence, the mobile app, intake links;
+  // citizen capture is retired, 410) through the canonical gate and FAILS CLOSED for MANAGED and
   // MANAGED_UNRESOLVED. It runs BEFORE any Evidence/custody write, so a denial
   // never creates, transfers, or mutates Personal Evidence. TEAM captures
   // (a real workspace membership) are unaffected. `ensurePersonalWorkspace`
@@ -561,7 +561,12 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         bucket,
         key,
         contentType: normalizedMimeType,
-        meaning: `A presigned upload URL was issued for the initial ${UPLOAD_LOCATION_BY_ACQUISITION[params.acquisitionMode]} location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.`,
+        // ET-INT-15 — an intake record never hands out this initial URL: each
+        // intake file gets its own upload URL when its part is authorized.
+        meaning:
+          params.acquisitionMode === "SECURE_INTAKE_LINK"
+            ? "The intake record's storage location was reserved. No upload URL was issued for it; each file the contributor sends receives its own upload URL, and no bytes have been confirmed uploaded yet."
+            : `A presigned upload URL was issued for the initial ${UPLOAD_LOCATION_BY_ACQUISITION[params.acquisitionMode]} location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.`,
       } as prismaPkg.Prisma.InputJsonValue,
     });
 

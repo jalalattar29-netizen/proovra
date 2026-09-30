@@ -82,6 +82,35 @@ describe("ET-INT-06 — intake link restrictions (live PostgreSQL 16)", () => {
     expect(ok.statusCode, ok.body).toBe(200);
   });
 
+  it("ET-INT-15: the first part records the capture environment, and the intake record's UPLOAD_AUTHORIZED claims no URL it never issued", async () => {
+    const { rawToken } = await mint({});
+    const t = encodeURIComponent(rawToken);
+    const boot = await h.app.inject({ method: "GET", url: `/v1/external-intake/${t}`, remoteAddress: inside });
+    const opened = boot.json() as { session: { id: string }; link: { consentPolicyVersion: string | null; consentDisclosureText: string | null } };
+    const sid = opened.session.id;
+    await h.app.inject({
+      method: "POST",
+      url: `/v1/external-intake/${t}/sessions/${sid}/consent`,
+      remoteAddress: inside,
+      payload: { consent: { acceptedAtUtc: new Date().toISOString(), policyVersion: opened.link.consentPolicyVersion || "v1", disclosureTextHash: createHash("sha256").update(opened.link.consentDisclosureText ?? "").digest("hex"), termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null } },
+    });
+    const part = await h.app.inject({
+      method: "POST",
+      url: `/v1/external-intake/${t}/sessions/${sid}/parts`,
+      remoteAddress: inside,
+      headers: { "user-agent": "Mozilla/5.0 (INT-15)" },
+      payload: { partIndex: 0, mimeType: "text/plain", originalFileName: "a.txt", checksumSha256Base64: null, webkitRelativePath: null },
+    });
+    expect(part.statusCode, part.body).toBe(201);
+    const evidenceId = (await prisma.evidencePart.findUniqueOrThrow({ where: { id: (part.json() as { part: { id: string } }).part.id }, select: { evidenceId: true } })).evidenceId;
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { captureEnvironment: true } });
+    expect(ev.captureEnvironment).not.toBeNull();
+    const authorized = await prisma.custodyEvent.findFirstOrThrow({ where: { evidenceId, eventType: "UPLOAD_AUTHORIZED" }, select: { payload: true } });
+    const meaning = (authorized.payload as { meaning?: string }).meaning ?? "";
+    expect(meaning).toContain("No upload URL was issued for it");
+    expect(meaning).not.toContain("A presigned upload URL was issued");
+  });
+
   it("an allowlist entry the matcher cannot use is refused at creation", async () => {
     const r = await create({ ipAllowlistCidrs: ["not-an-ip"] });
     expect(r.statusCode, r.body).toBe(400);
