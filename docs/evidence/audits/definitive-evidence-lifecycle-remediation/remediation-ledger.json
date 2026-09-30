@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 120,
+    "FIXED_IN_THIS_TASK": 124,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 33,
+    "STILL_PRESENT": 29,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,8 +18,8 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 24,
-      "P3": 9
+      "P2": 21,
+      "P3": 8
     }
   },
   "openIds": {
@@ -44,9 +44,6 @@
       "ET-SEC-15",
       "ET-SEC-16",
       "ET-SEC-20",
-      "ET-SEC-21",
-      "ET-SEC-22",
-      "ET-SEC-23",
       "ET-SEC-24",
       "ET-SEC-26",
       "ET-SM-07"
@@ -59,8 +56,7 @@
       "ET-DC-10",
       "ET-DC-11",
       "ET-Q-07",
-      "ET-SEC-31",
-      "ET-SEC-35"
+      "ET-SEC-31"
     ]
   },
   "rows": [
@@ -2001,6 +1997,8 @@
       "canonicalAuthority": "workflow-intake-session assertIntakeClientAllowed via the route's validateIntakeTokenFromClient (every public call); submitExternalIntake byte cap; isValidIpAllowlistEntry at creation",
       "obsoleteRemoved": null,
       "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
         "packages/shared/src/identity.ts",
         "packages/shared/src/index.ts",
         "services/api/src/routes/external-intake.routes.ts",
@@ -2015,7 +2013,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "4431cb0f44 fix(intake): a link's IP allowlist and per-submission byte cap are enforced (ET-INT-06)"
+        "4431cb0f44 fix(intake): a link's IP allowlist and per-submission byte cap are enforced (ET-INT-06)",
+        "84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -2124,6 +2123,8 @@
       "canonicalAuthority": "integrations-api.routes integrationActorAndIntakeGate (credential's createdByUserId + assertWorkspaceAllowsIntake); sendIntegrationDomainError (bounded 4xx codes only)",
       "obsoleteRemoved": null,
       "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
         "services/api/src/middleware/integrations-auth.ts",
         "services/api/src/routes/integrations-api.routes.ts",
         "services/api/src/services/identity/access-policy.service.ts"
@@ -2135,7 +2136,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)"
+        "d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)",
+        "84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3107,6 +3109,8 @@
       "canonicalAuthority": "legal-hold.service evaluateCaseDeletionHold (clear | held | unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable",
       "obsoleteRemoved": "route-local checkCaseLegalHold in cases.routes.ts",
       "productFiles": [
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/lib/feedback/error-code-registry.ts",
         "services/api/src/routes/cases.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/services/governance/legal-hold.service.ts"
@@ -3118,7 +3122,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)"
+        "9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)",
+        "84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3218,20 +3223,25 @@
         "services/api/src/services/cases/case-risk-engine.service.ts:180",
         "services/api/src/services/dashboard/integrity-snapshot.service.ts:439"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The risk engine reads a denormalized snapshot table whose only writer is a one-time backfill that excludes failed rows and is never refreshed.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The case risk engine counted integrity failures from evidence_integrity_snapshots, backfilled once for SIGNED/REPORTED rows and never refreshed, so a FAILED_HASH_MISMATCH record raised no risk.",
+      "canonicalAuthority": "case-risk-engine.service reads the live evidence rows (status FAILED_HASH_MISMATCH / verificationStatus FAILED; REVIEW_REQUIRED for review)",
+      "obsoleteRemoved": "the risk engine's evidence_integrity_snapshots read",
+      "productFiles": [
+        "services/api/src/services/cases/case-risk-engine.service.ts",
+        "services/api/src/services/dashboard/integrity-snapshot.service.ts"
+      ],
+      "redTest": "services/api/test/case-risk-live-integrity.integration.test.ts (evidence/ET-SEC-21-35-red-baseline.txt)",
+      "greenTest": "services/api/test/case-risk-live-integrity.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "1f331bcf9b fix(integrity): case risk reads live record state; the integrity snapshot claims only what was checked (ET-SEC-21, ET-SEC-35)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-22",
@@ -3243,20 +3253,24 @@
         "services/api/src/services/workspace-usage.service.ts:347",
         "packages/shared-runtime/src/workspace-scope.ts:151"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "getWorkspaceUsage branches on whether the caller passed null or the personal team id instead of using the shared workspace-scope population.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Personal-workspace storage was measured over the personal scope (legacy NULL-team rows + team) at creation and over the strict team id at completion, so completion undercounted every legacy byte.",
+      "canonicalAuthority": "workspace-usage.service getWorkspaceUsage over the canonical evidenceScopeFor population for both enforcement points",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/workspace-usage.service.ts"
+      ],
+      "redTest": "services/api/test/workspace-usage-population.integration.test.ts (evidence/ET-SEC-22-red-baseline.txt)",
+      "greenTest": "services/api/test/workspace-usage-population.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "cc30261090 fix(billing): a personal workspace's storage is measured over one population at creation and completion (ET-SEC-22)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-23",
@@ -3267,20 +3281,24 @@
         "apps/web/app/pricing/page.tsx:558",
         "packages/shared-billing/src/plan-catalog.ts:1049"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The pricing page hard-codes the add-on row instead of reading the shared commercial policy.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The Pricing page hard-coded FREE storage add-ons as \"Not available\" while the shared commercial policy and the API let a FREE account buy them.",
+      "canonicalAuthority": "@proovra/shared-billing resolveStorageAddonEntitlement — the Pricing row's storageAddonCell derives every self-service cell from it",
+      "obsoleteRemoved": "the hard-coded Storage add-ons cells",
+      "productFiles": [
+        "apps/web/app/pricing/page.tsx"
+      ],
+      "redTest": "apps/web/__tests__/pricing-storage-addons-truth.test.ts (evidence/ET-SEC-23-red-baseline.txt)",
+      "greenTest": "apps/web/__tests__/pricing-storage-addons-truth.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "5a1ea53c7f fix(web): the Pricing page's storage add-on row states what the server allows (ET-SEC-23)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-24",
@@ -3501,7 +3519,9 @@
         "apps/web/app/(app)/evidence/lib/evidence-library-status.ts",
         "apps/web/components/home-experience/home-view-model.ts",
         "packages/shared/src/evidence-record-status.ts",
-        "packages/shared/src/index.ts"
+        "packages/shared/src/index.ts",
+        "services/api/src/services/cases/case-risk-engine.service.ts",
+        "services/api/src/services/dashboard/integrity-snapshot.service.ts"
       ],
       "redTest": "services/api/test/evidence-record-status-coverage.test.ts (evidence/ET-SM-08-red-baseline.txt)",
       "greenTest": "services/api/test/evidence-record-status-coverage.test.ts; apps/mobile/test/evidence-library.test.mjs",
@@ -3510,7 +3530,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "a25e13daf6 fix(presentation): one evidence record-status label and tone; an integrity failure is never \"Status not recorded\" (ET-SM-08)"
+        "a25e13daf6 fix(presentation): one evidence record-status label and tone; an integrity failure is never \"Status not recorded\" (ET-SM-08)",
+        "1f331bcf9b fix(integrity): case risk reads live record state; the integrity snapshot claims only what was checked (ET-SEC-21, ET-SEC-35)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -5199,20 +5220,25 @@
         "services/api/src/services/dashboard/integrity-snapshot.service.ts:128",
         "apps/web/app/(app)/evidence/lib/evidence-library-status.ts:168"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Status-derived booleans stand in for real checks; the web label map was not extended when FAILED_HASH_MISMATCH was added.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "deriveIntegritySnapshot wrote hash/signature/custody true for MATERIALS_AVAILABLE (nothing verified), all three false for a hash mismatch, and OTS matches from status alone.",
+      "canonicalAuthority": "dashboard/integrity-snapshot.service deriveIntegritySnapshot: only RECORDED_INTEGRITY_VERIFIED claims all three; FAILED is canonicalHashMatches false only; otsHashMatches compares otsHash with fingerprintHash",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/services/cases/case-risk-engine.service.ts",
+        "services/api/src/services/dashboard/integrity-snapshot.service.ts"
+      ],
+      "redTest": "services/api/test/integrity-snapshot-truth.test.ts (evidence/ET-SEC-21-35-red-baseline.txt)",
+      "greenTest": "services/api/test/integrity-snapshot-truth.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "1f331bcf9b fix(integrity): case risk reads live record state; the integrity snapshot claims only what was checked (ET-SEC-21, ET-SEC-35)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-TSA-07",

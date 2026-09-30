@@ -939,6 +939,36 @@
       "canonicalAuthority": "services/api/scripts/lib/local-seed-guard.ts — the one refusal (name AND host) every seeder runs before its first write",
       "redTest": "services/api/test/local-seed-guard.test.ts (evidence/ET-UPL-04-red-baseline.txt)",
       "greenTest": "services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host"
+    },
+    "ET-SEC-21": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The case risk engine counted integrity failures from evidence_integrity_snapshots, backfilled once for SIGNED/REPORTED rows and never refreshed, so a FAILED_HASH_MISMATCH record raised no risk.",
+      "canonicalAuthority": "case-risk-engine.service reads the live evidence rows (status FAILED_HASH_MISMATCH / verificationStatus FAILED; REVIEW_REQUIRED for review)",
+      "obsoleteRemoved": "the risk engine's evidence_integrity_snapshots read",
+      "redTest": "services/api/test/case-risk-live-integrity.integration.test.ts (evidence/ET-SEC-21-35-red-baseline.txt)",
+      "greenTest": "services/api/test/case-risk-live-integrity.integration.test.ts"
+    },
+    "ET-SEC-22": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Personal-workspace storage was measured over the personal scope (legacy NULL-team rows + team) at creation and over the strict team id at completion, so completion undercounted every legacy byte.",
+      "canonicalAuthority": "workspace-usage.service getWorkspaceUsage over the canonical evidenceScopeFor population for both enforcement points",
+      "redTest": "services/api/test/workspace-usage-population.integration.test.ts (evidence/ET-SEC-22-red-baseline.txt)",
+      "greenTest": "services/api/test/workspace-usage-population.integration.test.ts"
+    },
+    "ET-SEC-23": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The Pricing page hard-coded FREE storage add-ons as \"Not available\" while the shared commercial policy and the API let a FREE account buy them.",
+      "canonicalAuthority": "@proovra/shared-billing resolveStorageAddonEntitlement — the Pricing row's storageAddonCell derives every self-service cell from it",
+      "obsoleteRemoved": "the hard-coded Storage add-ons cells",
+      "redTest": "apps/web/__tests__/pricing-storage-addons-truth.test.ts (evidence/ET-SEC-23-red-baseline.txt)",
+      "greenTest": "apps/web/__tests__/pricing-storage-addons-truth.test.ts"
+    },
+    "ET-SEC-35": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "deriveIntegritySnapshot wrote hash/signature/custody true for MATERIALS_AVAILABLE (nothing verified), all three false for a hash mismatch, and OTS matches from status alone.",
+      "canonicalAuthority": "dashboard/integrity-snapshot.service deriveIntegritySnapshot: only RECORDED_INTEGRITY_VERIFIED claims all three; FAILED is canonicalHashMatches false only; otsHashMatches compares otsHash with fingerprintHash",
+      "redTest": "services/api/test/integrity-snapshot-truth.test.ts (evidence/ET-SEC-21-35-red-baseline.txt)",
+      "greenTest": "services/api/test/integrity-snapshot-truth.test.ts"
     }
   }
 }

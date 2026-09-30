@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 120 |
+| FIXED_IN_THIS_TASK | 124 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 33 |
+| STILL_PRESENT | 29 |
 
-Open by severity: P0 0 · P1 0 · P2 24 · P3 9
+Open by severity: P0 0 · P1 0 · P2 21 · P3 8
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -66,11 +66,11 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 | ET-DC-07 | P2 | STILL_PRESENT |  |  |  |
 | ET-DC-08 | P2 | STILL_PRESENT |  |  |  |
 | ET-DC-09 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-06 | P2 | FIXED_IN_THIS_TASK | workflow-intake-session assertIntakeClientAllowed via the route's validateIntakeTokenFromClient (every public call); submitExternalIntake byte cap; isValidIpAllowlistEntry at creation | 4431cb0f44 | services/api/test/intake-link-restrictions.integration.test.ts |
+| ET-INT-06 | P2 | FIXED_IN_THIS_TASK | workflow-intake-session assertIntakeClientAllowed via the route's validateIntakeTokenFromClient (every public call); submitExternalIntake byte cap; isValidIpAllowlistEntry at creation | 4431cb0f44, 84b9c10423 | services/api/test/intake-link-restrictions.integration.test.ts |
 | ET-INT-07 | P2 | FIXED_IN_THIS_TASK | services/intake/intake-link-mint-gate.ts intakeLinkMintRefusal — the one plan + governance gate for every workspace mint (request send, request-more, POST /v1/workflow/intake-links) | 352bc9954f | services/api/test/intake-link-mint-gate.integration.test.ts |
 | ET-INT-08 | P2 | FIXED_IN_THIS_TASK | evidence-request.service transitionEvidenceRequest -> revokeRequestIntakeLinksTx (bound link + every request-more follow-up, same transaction) | 22a969a812 | services/api/test/intake-link-mint-gate.integration.test.ts [ET-INT-08] |
 | ET-INT-09 | P2 | FIXED_IN_THIS_TASK | reserveIntakeLinkUse / releaseIntakeLinkUse (conditional used_count < max_uses); createOrLoadExternalEvidence conditional session claim + releaseEvidenceReservationTx(INTAKE_SESSION_RACE_LOST); writeEvidencePart maxPartCount under the record lock | a6bab4697e | services/api/test/intake-concurrency.integration.test.ts |
-| ET-INT-10 | P2 | FIXED_IN_THIS_TASK | integrations-api.routes integrationActorAndIntakeGate (credential's createdByUserId + assertWorkspaceAllowsIntake); sendIntegrationDomainError (bounded 4xx codes only) | d3f31f99a8 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-INT-10: attributed to the creator; FREE -> 409 INTAKE_NOT_INCLUDED; no credential id as user] |
+| ET-INT-10 | P2 | FIXED_IN_THIS_TASK | integrations-api.routes integrationActorAndIntakeGate (credential's createdByUserId + assertWorkspaceAllowsIntake); sendIntegrationDomainError (bounded 4xx codes only) | d3f31f99a8, 84b9c10423 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-INT-10: attributed to the creator; FREE -> 409 INTAKE_NOT_INCLUDED; no credential id as user] |
 | ET-INT-11 | P2 | FIXED_IN_THIS_TASK | workflow-intake-session recordIntakeConsent: server time, termsAcknowledged required, the link's disclosure hash and policy version, one-shot conditional claim | 2f696feae2 | services/api/test/intake-consent-server-truth.integration.test.ts |
 | ET-INT-12 | P2 | FIXED_IN_THIS_TASK | shared INTAKE_SUBMITTED_BY_LABEL (report, custody summarizer isIntake branch, Verify overview) | fc931d470c | services/api/test/intake-verify-attribution.integration.test.ts |
 | ET-INT-13 | P2 | FIXED_IN_THIS_TASK | submitExternalIntake idempotent post-commit steps (already-finalized retry path; once-per-session EXTERNAL_INTAKE_SUBMITTED; SUBMITTED transition tolerant); evaluateFinalizationGovernance one event per unchanged refusal | da973780a1 | services/api/test/intake-finalization-governance.integration.test.ts |
@@ -99,13 +99,13 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 | ET-SEC-14 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-15 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-16 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-17 | P2 | FIXED_IN_THIS_TASK | legal-hold.service evaluateCaseDeletionHold (clear \| held \| unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17]; services/api/test/legal-hold-tenant-spread-guard.test.ts |
+| ET-SEC-17 | P2 | FIXED_IN_THIS_TASK | legal-hold.service evaluateCaseDeletionHold (clear \| held \| unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable | 9d7aa0ed67, 84b9c10423 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17]; services/api/test/legal-hold-tenant-spread-guard.test.ts |
 | ET-SEC-18 | P2 | FIXED_IN_THIS_TASK | middleware/authorize evaluateAuthorize / authorizeOrFail (evidence.read, antiEnumeration) for both lists; owner arm bounded to legacy NULL-team rows | 8d781d8043, d5dacdf2db, 34571506e1 | services/api/test/reports-list-authorization.integration.test.ts; services/api/test/phase-ia-self-serve-regression-fix.test.ts; services/api/test/phase-32-8-d-cases-reports.test.ts |
 | ET-SEC-19 | P2 | FIXED_IN_THIS_TASK | evidence-exchange.service generateSignedUrl returns the URL to its minter only; the row keeps only signedUrlExpiresAtUtc; the list projection carries no URL | 8b8bef5de8 | services/api/test/exchange-signed-url-not-listed.integration.test.ts |
 | ET-SEC-20 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-21 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-22 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-23 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-21 | P2 | FIXED_IN_THIS_TASK | case-risk-engine.service reads the live evidence rows (status FAILED_HASH_MISMATCH / verificationStatus FAILED; REVIEW_REQUIRED for review) | 1f331bcf9b | services/api/test/case-risk-live-integrity.integration.test.ts |
+| ET-SEC-22 | P2 | FIXED_IN_THIS_TASK | workspace-usage.service getWorkspaceUsage over the canonical evidenceScopeFor population for both enforcement points | cc30261090 | services/api/test/workspace-usage-population.integration.test.ts |
+| ET-SEC-23 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-billing resolveStorageAddonEntitlement — the Pricing row's storageAddonCell derives every self-service cell from it | 5a1ea53c7f | apps/web/__tests__/pricing-storage-addons-truth.test.ts |
 | ET-SEC-24 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-25 | P2 | FIXED_IN_THIS_TASK | access-policy.service workspaceLifecycleDenial (shared by evaluateAccess and requireApiKey via loadWorkspaceLifecycleState; fail closed 503) | d3f31f99a8, 34571506e1 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-SEC-25: SUSPENDED org key -> 403 ORGANIZATION_NOT_ACTIVE, nothing written] |
 | ET-SEC-26 | P2 | STILL_PRESENT |  |  |  |
@@ -113,7 +113,7 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 | ET-SM-02 | P2 | FIXED_IN_THIS_TASK | services/worker/src/processor.ts REPORTABLE_AT_COMMIT_WHERE / isReportableAtCommit (conditional commit; REPORT_EVIDENCE_STATE_CHANGED otherwise) | e16588fb76 | services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: integrity rejection and trash during render] |
 | ET-SM-03 | P2 | FIXED_IN_THIS_TASK | storage.ts versioned applyObjectRetention / applyDefaultObjectRetention / headObject / copyObjectStorageClass(sourceVersionId); evidence-complete RetentionTarget.versionId; buildPublicEvidenceContent pins sealedVersionId | 49e9a5f3eb | services/api/test/storage-sealed-version.test.ts |
 | ET-SM-07 | P2 | STILL_PRESENT |  |  |  |
-| ET-SM-08 | P2 | FIXED_IN_THIS_TASK | packages/shared/src/evidence-record-status.ts evidenceRecordStatusLabel / evidenceRecordStatusTone (EVIDENCE_RECORD_STATUSES_PRESENTED); web and mobile delegate | a25e13daf6 | services/api/test/evidence-record-status-coverage.test.ts; apps/mobile/test/evidence-library.test.mjs |
+| ET-SM-08 | P2 | FIXED_IN_THIS_TASK | packages/shared/src/evidence-record-status.ts evidenceRecordStatusLabel / evidenceRecordStatusTone (EVIDENCE_RECORD_STATUSES_PRESENTED); web and mobile delegate | a25e13daf6, 1f331bcf9b | services/api/test/evidence-record-status-coverage.test.ts; apps/mobile/test/evidence-library.test.mjs |
 | ET-TSA-02 | P2 | FIXED_IN_THIS_TASK | parseTsaReply (missing imprint => tsa_response_parse_failed) + timestamp.service reply stage (openssl 'token not present' => tsa_token_missing) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-02]; services/api/test/phase-ia-tsa-false-failed.test.ts [granted reply with NO readable imprint] |
 | ET-TSA-04 | P2 | FIXED_IN_THIS_TASK | processor.ts passes timestampToken only when presentedTsaStatus === STAMPED; README describes a not-included unvalidated reply | d263f4f61f | services/worker unit suite (package README/entries); source: processor.ts timestampToken gate |
 | ET-TSA-05 | P2 | FIXED_IN_THIS_TASK | verification-package README timestamp.tsr section + fileSha256Label state the exact recomputation (per-part lowercase hex in partIndex order joined by '\|', SHA-256) and that it differs from multipartManifestSha256 | d263f4f61f | services/worker unit suite |
@@ -164,7 +164,7 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 | ET-SEC-32 | P3 | FIXED_IN_THIS_TASK | evidence.routes annotationPartBelongsToEvidence — the one part-ownership check for annotation create and edit | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32] |
 | ET-SEC-33 | P3 | FIXED_IN_THIS_TASK | createWorkflowIntakeLink and createEvidenceRequest refuse ids outside the workspace (404, like a missing row) | 6b8141879d, d4b17bb727, 1078664675 | services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33] |
 | ET-SEC-34 | P3 | FIXED_IN_THIS_TASK | legal-hold.service (canonical hold queries always tenant-anchored) | 9d7aa0ed67 | services/api/test/legal-hold-tenant-spread-guard.test.ts [ET-SEC-34: no symbol anywhere in src; no optional tenant spread] |
-| ET-SEC-35 | P3 | STILL_PRESENT |  |  |  |
+| ET-SEC-35 | P3 | FIXED_IN_THIS_TASK | dashboard/integrity-snapshot.service deriveIntegritySnapshot: only RECORDED_INTEGRITY_VERIFIED claims all three; FAILED is canonicalHashMatches false only; otsHashMatches compares otsHash with fingerprintHash | 1f331bcf9b | services/api/test/integrity-snapshot-truth.test.ts |
 | ET-TSA-07 | P3 | FIXED_IN_THIS_TASK | classifyTsaSubprocessError reads killed / curl exit code / HTTP status only; credentials in a 0600 curl config (-K) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-07, credentials absent from the result]; services/api/test/phase-ia-tsa-false-failed.test.ts [credentials never in argv] |
 | ET-TSA-08 | P3 | FIXED_IN_THIS_TASK | report technical-model reference notes point to the package (timestamp.tsr when validated); integrity-snapshot docblock states no parser is wired and names the validator | d263f4f61f | services/worker unit suite; grep: no 'technical verification endpoint' remains in services/apps/packages |
 | ET-TSA-09 | P3 | FIXED_IN_THIS_TASK | kept-token-validation.ts evaluateKeptTsaToken (same parser + same validator; serial, genTime, imprint required) used by repair-tsa-failed-with-token.ts; remediation-registry names the CLI as the one later writer | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-09 kept-token decision: validated ok; other digest, forged, no anchor, no token refused]; services/api/test/phase-ia-tsa-false-failed.test.ts [ET-TSA-09 source contracts] |
@@ -760,8 +760,8 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared/src/identity.ts`, `packages/shared/src/index.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workflow-intake-session.service.ts`
-- **commits:** 4431cb0f44 fix(intake): a link's IP allowlist and per-submission byte cap are enforced (ET-INT-06)
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared/src/identity.ts`, `packages/shared/src/index.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workflow-intake-session.service.ts`
+- **commits:** 4431cb0f44 fix(intake): a link's IP allowlist and per-submission byte cap are enforced (ET-INT-06); 84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof
 
 ## ET-INT-07 — Evidence-request send and request-more mint intake links without the plan and governance gates
 
@@ -819,8 +819,8 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/src/middleware/integrations-auth.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/services/identity/access-policy.service.ts`
-- **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/src/middleware/integrations-auth.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/services/identity/access-policy.service.ts`
+- **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25); 84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof
 
 ## ET-INT-11 — Intake consent is client-asserted: acceptedAtUtc taken from the body, termsAcknowledged/disclosure hash never checked, consent re-postable
 
@@ -1132,8 +1132,8 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/legal-hold.service.ts`
-- **commits:** 9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/legal-hold.service.ts`
+- **commits:** 9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34); 84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof
 
 ## ET-SEC-18 — GET /v1/reports skips authorizeOrFail (bare ACTIVE-status membership, no permission/expiry/org-lifecycle); fallback query drops deletedAt/lifecycle filters
 
@@ -1163,6 +1163,50 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/services/exchange/evidence-exchange.service.ts`
 - **commits:** 8b8bef5de8 fix(exchange): a signed package URL is handed to its minter only — never stored, never listed (ET-SEC-19)
+
+## ET-SEC-21 — Case risk 'integrity' signal reads evidence_integrity_snapshots, which is backfilled once for SIGNED/REPORTED only and never refreshed, so it cannot report FAILED rows
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The case risk engine counted integrity failures from evidence_integrity_snapshots, backfilled once for SIGNED/REPORTED rows and never refreshed, so a FAILED_HASH_MISMATCH record raised no risk.
+- **canonicalAuthority:** case-risk-engine.service reads the live evidence rows (status FAILED_HASH_MISMATCH / verificationStatus FAILED; REVIEW_REQUIRED for review)
+- **obsoleteRemoved:** the risk engine's evidence_integrity_snapshots read
+- **redTest:** services/api/test/case-risk-live-integrity.integration.test.ts (evidence/ET-SEC-21-35-red-baseline.txt)
+- **greenTest:** services/api/test/case-risk-live-integrity.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/cases/case-risk-engine.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`
+- **commits:** 1f331bcf9b fix(integrity): case risk reads live record state; the integrity snapshot claims only what was checked (ET-SEC-21, ET-SEC-35)
+
+## ET-SEC-22 — Storage-used population differs between evidence creation (includes legacy NULL-team rows) and completion/worker (strict team) for personal workspaces
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Personal-workspace storage was measured over the personal scope (legacy NULL-team rows + team) at creation and over the strict team id at completion, so completion undercounted every legacy byte.
+- **canonicalAuthority:** workspace-usage.service getWorkspaceUsage over the canonical evidenceScopeFor population for both enforcement points
+- **redTest:** services/api/test/workspace-usage-population.integration.test.ts (evidence/ET-SEC-22-red-baseline.txt)
+- **greenTest:** services/api/test/workspace-usage-population.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/workspace-usage.service.ts`
+- **commits:** cc30261090 fix(billing): a personal workspace's storage is measured over one population at creation and completion (ET-SEC-22)
+
+## ET-SEC-23 — Pricing page says FREE storage add-ons 'Not available' while shared commercial policy and API allow FREE storage add-on purchase
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The Pricing page hard-coded FREE storage add-ons as "Not available" while the shared commercial policy and the API let a FREE account buy them.
+- **canonicalAuthority:** @proovra/shared-billing resolveStorageAddonEntitlement — the Pricing row's storageAddonCell derives every self-service cell from it
+- **obsoleteRemoved:** the hard-coded Storage add-ons cells
+- **redTest:** apps/web/__tests__/pricing-storage-addons-truth.test.ts (evidence/ET-SEC-23-red-baseline.txt)
+- **greenTest:** apps/web/__tests__/pricing-storage-addons-truth.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/pricing/page.tsx`
+- **commits:** 5a1ea53c7f fix(web): the Pricing page's storage add-on row states what the server allows (ET-SEC-23)
 
 ## ET-SEC-25 — API-key upload path bypasses organization-lifecycle denial enforced on the user upload path
 
@@ -1234,8 +1278,8 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/mobile/src/product/evidence-library.ts`, `apps/web/app/(app)/evidence/lib/evidence-library-status.ts`, `apps/web/components/home-experience/home-view-model.ts`, `packages/shared/src/evidence-record-status.ts`, `packages/shared/src/index.ts`
-- **commits:** a25e13daf6 fix(presentation): one evidence record-status label and tone; an integrity failure is never "Status not recorded" (ET-SM-08)
+- **productFiles:** `apps/mobile/src/product/evidence-library.ts`, `apps/web/app/(app)/evidence/lib/evidence-library-status.ts`, `apps/web/components/home-experience/home-view-model.ts`, `packages/shared/src/evidence-record-status.ts`, `packages/shared/src/index.ts`, `services/api/src/services/cases/case-risk-engine.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`
+- **commits:** a25e13daf6 fix(presentation): one evidence record-status label and tone; an integrity failure is never "Status not recorded" (ET-SM-08); 1f331bcf9b fix(integrity): case risk reads live record state; the integrity snapshot claims only what was checked (ET-SEC-21, ET-SEC-35)
 
 ## ET-TSA-02 — Granted reply without a parseable imprint (incl. granted status with no timeStampToken) is persisted as STAMPED
 
@@ -1831,6 +1875,20 @@ Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/legal-hold.service.ts`
 - **commits:** 9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)
+
+## ET-SEC-35 — Integrity snapshot writes misleading booleans from status (MATERIALS_AVAILABLE => hash/signature/custody true; OTS matches true by status) — no reader; web library labels FAILED_HASH_MISMATCH 'Status not recorded'
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** deriveIntegritySnapshot wrote hash/signature/custody true for MATERIALS_AVAILABLE (nothing verified), all three false for a hash mismatch, and OTS matches from status alone.
+- **canonicalAuthority:** dashboard/integrity-snapshot.service deriveIntegritySnapshot: only RECORDED_INTEGRITY_VERIFIED claims all three; FAILED is canonicalHashMatches false only; otsHashMatches compares otsHash with fingerprintHash
+- **redTest:** services/api/test/integrity-snapshot-truth.test.ts (evidence/ET-SEC-21-35-red-baseline.txt)
+- **greenTest:** services/api/test/integrity-snapshot-truth.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/cases/case-risk-engine.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`
+- **commits:** 1f331bcf9b fix(integrity): case risk reads live record state; the integrity snapshot claims only what was checked (ET-SEC-21, ET-SEC-35)
 
 ## ET-TSA-07 — TSA failure classifier substring-matches the full execFile error (argv incl. URL and user:password, digest, temp path); real timeouts are never classified as timeouts
 

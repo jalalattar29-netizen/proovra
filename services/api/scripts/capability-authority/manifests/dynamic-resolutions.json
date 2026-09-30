@@ -22,10 +22,10 @@
   ],
   "entries": [
     {
-      "site": "apps/web/app/intake/[token]/page.tsx:787",
+      "site": "apps/web/app/intake/[token]/page.tsx:795",
       "class": "OBJECT_STORE",
-      "evidence": "fetch(res.upload.putUrl, { method: \"PUT\" }) — the presigned URL returned by the intake upload-session response; the storage provider, not this API. | Re-anchored :624 -> :766 on 2026-09-07. Verified BY READING the site: stageFile still performs the direct PUT under the comment \"Direct upload to S3 via presigned URL. Skip the api wrapper — this request must hit S3 directly without our auth cookie.\" Line 624 is now an apiFetch to the consent route, which the analyzer resolves on its own, so the old anchor had become a dead exemption over a resolvable call. | Re-anchored :766 -> :784 on 2026-09-29 (ET-INT-02): the PUT is now wrapped in a try so a network failure becomes a retryable part; verified by reading, still the direct presigned PUT. | Re-anchored :784 -> :787 on 2026-09-30 (ET-UPL-05 accounting): three lines, from the PART_NOT_UPLOADED copy added above it in c201527c. Verified BY READING: still `const putRes = await fetch(res.upload.putUrl, {`, the direct presigned PUT.",
-      "reviewedAtUtc": "2026-09-29"
+      "evidence": "fetch(res.upload.putUrl, { method: \"PUT\" }) — the presigned URL returned by the intake upload-session response; the storage provider, not this API. | Re-anchored :624 -> :766 on 2026-09-07. Verified BY READING the site: stageFile still performs the direct PUT under the comment \"Direct upload to S3 via presigned URL. Skip the api wrapper — this request must hit S3 directly without our auth cookie.\" Line 624 is now an apiFetch to the consent route, which the analyzer resolves on its own, so the old anchor had become a dead exemption over a resolvable call. | Re-anchored :766 -> :784 on 2026-09-29 (ET-INT-02): the PUT is now wrapped in a try so a network failure becomes a retryable part; verified by reading, still the direct presigned PUT. | Re-anchored :784 -> :787 on 2026-09-30 (ET-UPL-05 accounting): three lines, from the PART_NOT_UPLOADED copy added above it in c201527c. Verified BY READING: still `const putRes = await fetch(res.upload.putUrl, {`, the direct presigned PUT. | Re-anchored :787 -> :795 on 2026-09-30 (batch-14 accounting): eight lines, from the ET-INT-06 LINK_NOT_AVAILABLE_FROM_THIS_NETWORK / SUBMISSION_TOO_LARGE copy added above it in 84b9c104. Verified BY READING: still `const putRes = await fetch(res.upload.putUrl, {`, the direct presigned PUT.",
+      "reviewedAtUtc": "2026-09-30"
     },
     {
       "site": "apps/web/app/(app)/evidence/[id]/page.tsx:602",
