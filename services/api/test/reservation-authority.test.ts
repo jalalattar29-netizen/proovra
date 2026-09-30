@@ -39,13 +39,16 @@ describe("evidence reservation has one authority", () => {
     expect(definers).toEqual([CANONICAL]);
   });
 
-  it("both releasers go through releaseEvidenceReservationTx", () => {
+  it("every releaser goes through releaseEvidenceReservationTx", () => {
     const users = files
       .filter((f) => f.path !== CANONICAL && /releaseEvidenceReservationTx\(/.test(f.source))
       .map((f) => f.path)
       .sort();
     expect(users).toEqual([
       "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+      // ET-INT-09 — the loser of a concurrent intake session claim releases
+      // the record it reserved (reason INTAKE_SESSION_RACE_LOST).
+      "services/api/src/services/external-intake-orchestration.service.ts",
       "services/worker/src/capture-reaper.ts",
     ]);
   });

@@ -2,6 +2,7 @@ import { prisma } from "../db.js";
 import { getPublicBaseUrl, presignPutObject } from "../storage.js";
 import {
   assertWorkspaceAllowsEvidenceCreation,
+  lockEvidenceCapacitySubject,
   resolveEnforcementScopeForRequester,
   assertWorkspaceAllowsStorageGrowth,
 } from "./billing-enforcement.service.js";
@@ -468,6 +469,14 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     null;
 
   const created = await prisma.$transaction(async (tx) => {
+    // ET-ACQ-06 — record-cap ADMISSION is serialized per capacity subject
+    // (workspace, or the Personal owner). The check above read the count
+    // with no lock, so concurrent creates at cap-1 were all admitted, and a
+    // SHARED workspace was never settled again at completion. Under the
+    // subject's lock (the one completion settlement takes) the decision is
+    // re-made and the row inserted before the next creator can count.
+    await lockEvidenceCapacitySubject(scope, tx);
+    await assertWorkspaceAllowsEvidenceCreation(scope);
     const evidence = await tx.evidence.create({
 data: {
   ownerUserId: params.ownerUserId,
