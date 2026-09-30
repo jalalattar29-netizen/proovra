@@ -1,0 +1,11 @@
+ET-SEC-15 red baseline — services/api/test/ai-categorization-run-authority.integration.test.ts
+Run against HEAD 02d46f0d's services/api/src/routes/evidence.routes.ts (read access; policy without role/plan), live PostgreSQL 16, 2026-09-30T02:32Z.
+
+   × AI categorization run authority (live PostgreSQL 16, real HTTP) > a viewer (read access only) cannot run it: the same 404 as a missing record, nothing written 114ms
+     → {"categorization":{"status":"DISABLED","summary":"AI assistance is temporarily unavailable. You can continue using PROOVRA normally — capture, reports, verification and packages are unaffected.","categories":["PHOTO","SINGLE_ITEM","CAPTURE_METHOD_UNRECORDED"],"suggestedTags":["mime-unrecorded","verification-unrecorded","report-missing","case-unassigned"],"riskFlags":[],"legalDisclaimer"
+   × AI categorization run authority (live PostgreSQL 16, real HTTP) > the workspace's AI role allowlist applies: a role on it runs, a member outside it is refused ROLE_NOT_PERMITTED 47ms
+     → {"code":"AI_WORKSPACE_POLICY_DENIED","message":"Your role is not permitted to use AI in this workspace.","decision":"ROLE_NOT_PERMITTED"}: expected 403 to be 200 // Object.is equality
+   × AI categorization run authority (live PostgreSQL 16, real HTTP) > the plan step applies: a workspace whose paid lifecycle has lapsed is refused PLAN_NOT_ENTITLED 49ms
+     → {"categorization":{"status":"DISABLED","summary":"AI assistance is temporarily unavailable. You can continue using PROOVRA normally — capture, reports, verification and packages are unaffected.","categories":["PHOTO","SINGLE_ITEM","CAPTURE_METHOD_UNRECORDED"],"suggestedTags":["mime-unrecorded","verification-unrecorded","report-missing","case-unassigned"],"riskFlags":[],"legalDisclaimer"
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed (3)

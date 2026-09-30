@@ -202,7 +202,9 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     // create/update/delete = 8. The relationship writes only checked read
     // access, so a viewer could add, edit or remove a relationship (Batch K3,
     // D21); they now require the capability every other metadata write does.
-    expect(count("evidence.update_metadata")).toBe(8);
+    // + the AI categorization run (ET-SEC-15: a paid run that rewrites the
+    // record's categorization checked read access only) = 9.
+    expect(count("evidence.update_metadata")).toBe(9);
     // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the bulk (un)archive and
     // bulk trash/restore callers are GONE from this file. Their authorization
     // moved into `applyEvidenceLifecycleAction`, alongside the single routes',

@@ -205,6 +205,7 @@ import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
 import { createEvidence } from "../services/evidence.service.js";
 import {
   resolveEnforcementScopeForRequester,
+  scopeIncludesAiOperations,
 } from "../services/billing-enforcement.service.js";
 import { completeEvidence } from "../services/evidence-complete.service.js";
 import type { Prisma } from "@prisma/client";
@@ -8641,7 +8642,12 @@ return {
     async (req, reply) => {
       const userId = getAuthUserId(req);
       const id = z.string().uuid().parse((req.params as ParamsId).id);
-      const evidence = await getEvidenceWithReadAccess(userId, id);
+      // ET-SEC-15 — a paid, budget-consuming run that writes the record's
+      // categorization is a MUTATION: the canonical record gate with the
+      // metadata-write capability, as the categorization review / dismiss
+      // routes beside it. Read access used to be enough, so a viewer spent
+      // the workspace's AI budget.
+      const evidence = await getEvidenceWithRecordAccess(userId, id, "evidence.update_metadata");
 
       const guard = evidenceAiCostGuard.canCategorizeEvidence(userId, id);
       if (!guard.allowed) {
@@ -8689,10 +8695,32 @@ return {
       // independently fail-closed and the request is answered 200/DISABLED
       // without a call. The gate keeps its teeth where they mean something:
       // a workspace opt-out, a feature switch, a role, a plan, a data class.
+      //
+      // ET-SEC-15 — with the policy's FULL inputs. Without a role the
+      // workspace's allowedRoles restriction and without a plan answer the
+      // plan-entitlement step were skipped. The role is the actor's ACTIVE
+      // membership in the record's workspace; the plan is the record's
+      // commercial subject (the workspace, or the Personal owner's account).
+      const catRole = evidence.teamId
+        ? await prisma.teamMember
+            .findUnique({
+              where: { teamId_userId: { teamId: evidence.teamId, userId } },
+              select: { role: true, status: true },
+            })
+            .then((m) => (m?.status === "ACTIVE" ? m.role : null))
+        : null;
+      const catPlanAllowed = await scopeIncludesAiOperations(
+        await resolveEnforcementScopeForRequester({
+          ownerUserId: evidence.ownerUserId,
+          teamId: evidence.teamId ?? null,
+        }),
+      );
       const catPolicy = await evaluateWorkspaceAiPolicy({
         teamId: evidence.teamId ?? null,
         feature: "EVIDENCE_CATEGORIZATION",
         dataClass: "METADATA",
+        userRole: catRole,
+        planAllowed: catPlanAllowed,
       });
       if (!catPolicy.allowed && !isOperatorCapabilityGap(catPolicy.decision)) {
         return reply.code(403).send({

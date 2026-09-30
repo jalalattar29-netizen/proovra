@@ -1091,6 +1091,20 @@ const AI_DENIAL_RESPONSES: Record<
  * canonical envelope: a member's own personal plan never governs another
  * workspace's allowance.
  */
+/**
+ * ET-SEC-15 — the PLAN half of the AI policy's inputs (`planAllowed`): does
+ * this commercial subject's plan include AI at all, in a lifecycle that allows
+ * paid operations? The same decision as above, read as entitlement: a spent
+ * monthly allowance is a limit, not a plan that excludes AI.
+ */
+export async function scopeIncludesAiOperations(scope: WorkspaceScope): Promise<boolean> {
+  const outcome = await decideAiOperationAllowance(scope);
+  return (
+    outcome.denial !== "AI_NOT_INCLUDED" &&
+    outcome.denial !== "COMMERCIAL_LIFECYCLE_RESTRICTED"
+  );
+}
+
 export async function evaluateWorkspaceAiOperation(input: {
   teamId: string;
 }): Promise<AiOperationAllowance> {
