@@ -1,6 +1,6 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
-import { countedEvidenceRecordWhere } from "@proovra/shared-runtime";
+import { countedEvidenceRecordWhere, evidenceScopeFor } from "@proovra/shared-runtime";
 import { sumDerivedAssetStorageBytes } from "@proovra/shared-runtime";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
@@ -324,51 +324,40 @@ export async function getWorkspaceUsage(
   // provably gone: the canonical executor writes it after verifying the objects
   // no longer exist. ACTIVE, ARCHIVED and TRASHED all consume storage, because
   // they all are storage.
-  const personalTeamForUsage = scope.teamId
-    ? null
+  // ET-SEC-22 — ONE population for every phase. Creation passed a personal
+  // scope (teamId null: the owner's legacy NULL-team rows + the personal team)
+  // while completion passed the personal TEAM id (strict: team rows only), so
+  // the same workspace was measured two ways and completion undercounted by
+  // every legacy byte. Both now resolve the workspace and use the canonical
+  // evidenceScopeFor population (a PERSONAL workspace widens to its owner's
+  // NULL-team rows; any other is strict).
+  const usageTeam = scope.teamId
+    ? await prisma.team.findUnique({
+        where: { id: scope.teamId },
+        select: { id: true, isPersonal: true, ownerUserId: true },
+      })
     : await prisma.team.findFirst({
         where: { ownerUserId: scope.ownerUserId, isPersonal: true },
-        select: { id: true },
+        select: { id: true, isPersonal: true, ownerUserId: true },
       });
-  const personalEvidenceWhere = {
-    ownerUserId: scope.ownerUserId,
-    // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — see STORAGE ACCOUNTING
-    // below. Only a DESTROYED tombstone stops consuming storage.
-    lifecycleState: { not: "DESTROYED" as const },
-    OR: [
-      { teamId: null },
-      ...(personalTeamForUsage ? [{ teamId: personalTeamForUsage.id }] : []),
-    ],
-  };
+  const populationWhere = usageTeam
+    ? evidenceScopeFor({
+        physicalWorkspaceId: usageTeam.id,
+        workspaceKind: usageTeam.isPersonal ? "PERSONAL" : "ORGANIZATION",
+        personalOwnerUserId: usageTeam.isPersonal ? usageTeam.ownerUserId ?? scope.ownerUserId : null,
+      })
+    : // A personal account whose personal team does not exist yet: its rows
+      // can only be its own legacy NULL-team rows.
+      { AND: [{ ownerUserId: scope.ownerUserId }, { teamId: null }] };
+  const personalTeamForUsage = !scope.teamId ? usageTeam : null;
 
-  const evidenceWhere = scope.teamId
-    ? {
-        teamId: scope.teamId,
-        lifecycleState: { not: "DESTROYED" as const },
-      }
-    : personalEvidenceWhere;
-
-  const reportWhere = scope.teamId
-    ? {
-        evidence: {
-          teamId: scope.teamId,
-          lifecycleState: { not: "DESTROYED" as const },
-        },
-      }
-    : {
-        evidence: personalEvidenceWhere,
-      };
-
-  const verificationPackageWhere = scope.teamId
-    ? {
-        evidence: {
-          teamId: scope.teamId,
-          lifecycleState: { not: "DESTROYED" as const },
-        },
-      }
-    : {
-        evidence: personalEvidenceWhere,
-      };
+  // STORAGE ACCOUNTING — only a DESTROYED tombstone stops consuming storage
+  // (EVIDENCE LIFECYCLE CONVERGENCE, 2026-08-24, above).
+  const evidenceWhere = {
+    AND: [populationWhere, { lifecycleState: { not: "DESTROYED" as const } }],
+  } as prismaPkg.Prisma.EvidenceWhereInput;
+  const reportWhere = { evidence: evidenceWhere };
+  const verificationPackageWhere = { evidence: evidenceWhere };
 
   const [
     evidenceAggregate,

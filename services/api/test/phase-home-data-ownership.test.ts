@@ -185,8 +185,12 @@ describe("personal plan limits + storage usage count personal-team rows", () => 
 
   it("workspace-usage personal aggregates include personal-team rows", () => {
     const src = readSource("../src/services/workspace-usage.service.ts");
+    // ET-SEC-22 — personal usage is the CANONICAL workspace population (the
+    // personal team's rows + the owner's legacy NULL-team rows), the same for
+    // a creation-shaped and a completion-shaped scope.
     expect(src).toMatch(/personalTeamForUsage/);
-    expect(src).toMatch(/personalEvidenceWhere/);
+    expect(src).toMatch(/const populationWhere = usageTeam\s*\?\s*evidenceScopeFor\(\{/);
+    expect(src).toMatch(/workspaceKind: usageTeam\.isPersonal \? "PERSONAL" : "ORGANIZATION"/);
   });
 });
 
