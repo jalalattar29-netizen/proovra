@@ -198,13 +198,15 @@ describe("evidence.routes — the 10 former owner-gate callers are classified", 
     // to the canonical loader (ET-SEC-03/04/05: creator identity, case
     // ownership and CaseAccess rows no longer grant reads).
     expect(count("evidence.read")).toBe(2);
-    // label + parts + lock + complete + bulk case-link + relationship
-    // create/update/delete = 8. The relationship writes only checked read
-    // access, so a viewer could add, edit or remove a relationship (Batch K3,
-    // D21); they now require the capability every other metadata write does.
+    // label + parts + lock + complete + relationship create/update/delete = 7.
+    // The relationship writes only checked read access, so a viewer could
+    // add, edit or remove a relationship (Batch K3, D21); they now require the
+    // capability every other metadata write does. Bulk case-link moved to THE
+    // case-link authority (ET-SEC-16: the case matrix decides the link and the
+    // record must be open to the caller).
     // + the AI categorization run (ET-SEC-15: a paid run that rewrites the
-    // record's categorization checked read access only) = 9.
-    expect(count("evidence.update_metadata")).toBe(9);
+    // record's categorization checked read access only) = 8.
+    expect(count("evidence.update_metadata")).toBe(8);
     // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the bulk (un)archive and
     // bulk trash/restore callers are GONE from this file. Their authorization
     // moved into `applyEvidenceLifecycleAction`, alongside the single routes',

@@ -40,6 +40,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { prisma as defaultPrisma } from "../../db.js";
 import { evaluateMemberAccess } from "../identity/access-policy.service.js";
+import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 
 /**
  * The bounded set of case mutation classes the route layer uses to
@@ -521,4 +522,58 @@ export async function resolveCaseRecordAccess(
     select: { role: true },
   });
   return { allowed: true, role: c.access.length > 0 ? "MEMBER" : (membership?.role ?? "MEMBER") };
+}
+
+/**
+ * ET-SEC-16 — THE case-link authority: may this user link evidence to, or
+ * unlink it from, this case?
+ *
+ * Three routes answered it three ways: the single POST/DELETE
+ * /v1/cases/:id/evidence admitted the case OWNER by id alone and ignored a
+ * case's CaseAccess list (and gated the evidence by who CREATED it); bulk
+ * ADD_TO_CASE admitted any ACTIVE member, VIEWER included, and bulk
+ * REMOVE_FROM_CASE checked no case at all; the case workspace link routes used
+ * the matrix below. One rule now, for every link and unlink:
+ *
+ *   1. the case is open to the user under the current case-access rule
+ *      (`resolveCaseRecordAccess`: workspace authority first, then the case
+ *      owner / CaseAccess list) — otherwise 404, like a missing case;
+ *   2. the EVIDENCE_LINK row of the case mutation matrix, with the user's
+ *      active case assignments — otherwise 403 with the matrix's reason;
+ *   3. when a record is named, the record is open to the user (the canonical
+ *      record engine) — otherwise 404, like a missing record.
+ *
+ * Same workspace, not deleted and the link row itself stay with the
+ * case-evidence authority (`attachEvidenceToCase` / `detachEvidenceFromCase`).
+ */
+export type CaseEvidenceLinkAuthorization =
+  | { allowed: true; accessRole: string }
+  | { allowed: false; status: 404 | 403; subject: "case" | "evidence"; reason: string };
+
+export async function authorizeCaseEvidenceLink(
+  input: { userId: string; caseId: string; evidenceId?: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<CaseEvidenceLinkAuthorization> {
+  const access = await resolveCaseRecordAccess({ userId: input.userId, caseId: input.caseId }, client);
+  if (!access.allowed) {
+    return { allowed: false, status: 404, subject: "case", reason: access.internalReason };
+  }
+  const decision = evaluateCaseMutationPermission({
+    mutation: "EVIDENCE_LINK",
+    accessRole: access.role as CaseAccessRole,
+    assignmentRoles: await getCaseAssignmentRoles(input.caseId, input.userId),
+  });
+  if (!decision.allowed) {
+    return { allowed: false, status: 403, subject: "case", reason: decision.reason };
+  }
+  if (input.evidenceId) {
+    const record = await resolveEvidenceRecordAccess(
+      { userId: input.userId, evidenceId: input.evidenceId, permission: "evidence.read" },
+      client,
+    );
+    if (!record.allowed) {
+      return { allowed: false, status: 404, subject: "evidence", reason: record.internalReason };
+    }
+  }
+  return { allowed: true, accessRole: access.role };
 }

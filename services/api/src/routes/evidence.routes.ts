@@ -10,7 +10,7 @@ import { resolveRecipientContactDisclosure } from "../services/privacy/recipient
 import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
-import { evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
+import { authorizeCaseEvidenceLink, evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
 // Track 1B — CANONICAL case ↔ evidence relationship authority (link row
 // + audit in one transaction; the link table is the only truth).
 import {
@@ -7171,17 +7171,15 @@ return {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      let canAccessCase = caseItem.ownerUserId === userId;
-      if (!canAccessCase && caseItem.teamId) {
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        const caseTeamMember = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          select: { status: true },
-        });
-        canAccessCase = caseTeamMember?.status === "ACTIVE";
-      }
-      if (!canAccessCase) {
-        return reply.code(403).send({ message: "Forbidden" });
+      // ET-SEC-16 — THE case-link authority, as the single link routes: the
+      // case open to the caller (CaseAccess list included) and the
+      // EVIDENCE_LINK matrix. Any ACTIVE member, VIEWER included, used to
+      // pass here; a caller with no relationship to the case is concealed.
+      const caseAuth = await authorizeCaseEvidenceLink({ userId, caseId: caseItem.id });
+      if (!caseAuth.allowed) {
+        return caseAuth.status === 404
+          ? reply.code(404).send({ message: "Case not found" })
+          : reply.code(403).send({ message: "Forbidden" });
       }
     }
 
@@ -7200,7 +7198,9 @@ return {
       try {
         // PHASE 1 (2026-07-21) — per-action canonical capability against the
         // PERSISTED evidence.teamId (owner rule only for personal-scope
-        // evidence): case linking → update_metadata; everything else read.
+        // evidence). Case linking is decided by THE case-link authority
+        // (ET-SEC-16) per case below; the record itself must be open to the
+        // caller, which is that authority's record rule.
         //
         // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24) — the four lifecycle
         // actions are NOT resolved here any more. Their authorization is part
@@ -7208,14 +7208,7 @@ return {
         // persisted row with the same primitive the single routes use. Doing it
         // twice would mean two places could answer differently, which is the
         // class of drift this pass exists to remove.
-        const evidence =
-          body.action === "ADD_TO_CASE" || body.action === "REMOVE_FROM_CASE"
-            ? await getEvidenceWithRecordAccess(
-                userId,
-                evidenceId,
-                "evidence.update_metadata",
-              )
-            : await getEvidenceWithReadAccess(userId, evidenceId);
+        const evidence = await getEvidenceWithReadAccess(userId, evidenceId);
 
         switch (body.action) {
           case "ADD_TO_CASE": {
@@ -7288,9 +7281,18 @@ return {
             if (evidenceCaseLinks.length === 0) {
               throw new Error("Evidence is not assigned to a case");
             }
-            // Detach through the CANONICAL case-evidence authority.
-            // Preserves the historical bulk semantics: leaving the last
-            // case also resets the workspace binding.
+            // ET-SEC-16 — every case the record leaves is a case mutation
+            // under THE case-link authority; this branch checked no case at
+            // all. Decided for every linked case before any detach, so a
+            // record is detached from all of them or from none.
+            for (const link of evidenceCaseLinks) {
+              const caseAuth = await authorizeCaseEvidenceLink({ userId, caseId: link.caseId });
+              if (!caseAuth.allowed) {
+                throw new Error(caseAuth.status === 404 ? "Case not found" : "Forbidden");
+              }
+            }
+            // Detach through the CANONICAL case-evidence authority. Leaving a
+            // case never changes the record's workspace (ET-SEC-02).
             for (const link of evidenceCaseLinks) {
               await detachEvidenceFromCase({
                 caseId: link.caseId,

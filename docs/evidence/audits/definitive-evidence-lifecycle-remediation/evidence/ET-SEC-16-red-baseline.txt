@@ -1,0 +1,17 @@
+ET-SEC-16 red baseline — services/api/test/case-link-authority.integration.test.ts
+Run against HEAD 113ae387's evidence.routes.ts, cases.routes.ts, case-workspace.routes.ts and case-permission.service.ts, live PostgreSQL 16, 2026-09-30T02:41Z.
+
+   × case-link authority (live PostgreSQL 16, real HTTP) > bulk ADD_TO_CASE: a member kept out by the case's access list gets 404 and links nothing 118ms
+     → {"successCount":1,"failedCount":0,"results":[{"evidenceId":"d288a703-836e-41cf-973a-69a900e2d05a","ok":true}],"items":[{"id":"d288a703-836e-41cf-973a-69a900e2d05a","title":"Case-link authority fixture","type":"PHOTO","mimeType":null,"primaryKind":"other","previewable":false,"status":"SIGNED
+   × case-link authority (live PostgreSQL 16, real HTTP) > bulk ADD_TO_CASE: a VIEWER is refused by the case mutation matrix (403) 25ms
+     → {"successCount":0,"failedCount":1,"results":[{"evidenceId":"bd9bec25-c75f-48dc-90c7-a6844a1566e4","ok":false,"reason":"Evidence not found"}],"items":[]}: expected 200 to be 403 // Object.is equality
+   × case-link authority (live PostgreSQL 16, real HTTP) > bulk REMOVE_FROM_CASE: the case is checked; a member kept out of it detaches nothing 85ms
+     → expected { successCount: 1, …(3) } to match object { successCount: +0, …(2) }
+   × case-link authority (live PostgreSQL 16, real HTTP) > single POST /v1/cases/:id/evidence: the access list applies there too (404, nothing linked) 52ms
+     → {"evidence":{"id":"bad60322-2017-43a8-aac6-f58cb0ba0092","type":"PHOTO","status":"SIGNED","createdAt":"2026-09-30T02:39:52.199Z","caseId":"baf00442-0231-42d6-8671-c09bb63fa8e9","teamId":"87cf211e-61bd-40de-ac88-5b0cb840d1b5"}}: expected 200 to be 404 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: {"successCount":1,"failedCount":0,"results":[{"evidenceId":"d288a703-836e-41cf-973a-69a900e2d05a","ok":true}],"items":[{"id":"d288a703-836e-41cf-973a-69a900e2d05a","title":"Case-link authority fixture","type":"PHOTO","mimeType":null,"primaryKind":"other","previewable":false,"status":
+AssertionError: {"successCount":0,"failedCount":1,"results":[{"evidenceId":"bd9bec25-c75f-48dc-90c7-a6844a1566e4","ok":false,"reason":"Evidence not found"}],"items":[]}: expected 200 to be 403 // Object.is equality
+AssertionError: expected { successCount: 1, …(3) } to match object { successCount: +0, …(2) }
+AssertionError: {"evidence":{"id":"bad60322-2017-43a8-aac6-f58cb0ba0092","type":"PHOTO","status":"SIGNED","createdAt":"2026-09-30T02:39:52.199Z","caseId":"baf00442-0231-42d6-8671-c09bb63fa8e9","teamId":"87cf211e-61bd-40de-ac88-5b0cb840d1b5"}}: expected 200 to be 404 // Object.is equality
+      Tests  4 failed (4)

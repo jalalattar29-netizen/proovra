@@ -37,9 +37,9 @@ import {
 import {
   type CaseAccessRole,
   resolveCaseDestructiveGate,
+  authorizeCaseEvidenceLink,
   evaluateCaseMutationPermission,
   evaluateCrossTeamAttach,
-  getCaseAssignmentRoles,
 } from "../services/cases/case-permission.service.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { evaluateCaseDeletionHold } from "../services/governance/legal-hold.service.js";
@@ -1342,29 +1342,13 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      let hasPermission = caseItem.ownerUserId === userId;
-      // D50 — attaching evidence is a case mutation (EVIDENCE_LINK), the same
-      // rule K4 put on detaching: VIEWER never mutates, and a caller with no
-      // relationship to the case is concealed as a missing case.
-      let isMember = false;
-
-      if (!hasPermission && caseItem.teamId) {
-        const member = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          select: { status: true, role: true },
-        });
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        isMember = member?.status === "ACTIVE";
-        hasPermission =
-          isMember &&
-          evaluateCaseMutationPermission({
-            mutation: "EVIDENCE_LINK",
-            accessRole: member!.role as CaseAccessRole,
-            assignmentRoles: await getCaseAssignmentRoles(id, userId),
-          }).allowed;
-      }
-
-      if (!hasPermission) {
+      // ET-SEC-16 — THE case-link authority (case access incl. CaseAccess,
+      // the EVIDENCE_LINK matrix, the record open to the caller). The case
+      // owner id used to admit by itself and the record's CREATOR was the
+      // only one allowed to attach it; bulk and the case workspace routes
+      // answered differently.
+      const linkAuth = await authorizeCaseEvidenceLink({ userId, caseId: id, evidenceId: body.evidenceId });
+      if (!linkAuth.allowed) {
         auditCaseAction(req, {
           userId,
           action: "cases.add_evidence",
@@ -1373,14 +1357,14 @@ export async function casesRoutes(app: FastifyInstance) {
           resourceId: id,
           teamId: caseItem.teamId,
           metadata: {
-            reason: isMember ? "forbidden" : "not_found_concealed",
+            reason: linkAuth.status === 403 ? "forbidden" : linkAuth.subject === "case" ? "not_found_concealed" : "evidence_not_found",
             evidenceId: body.evidenceId,
           },
         });
-        if (!isMember) {
-          return reply.code(404).send({ message: "Case not found" });
-        }
-        return reply.code(403).send({ message: "Forbidden" });
+        if (linkAuth.status === 403) return reply.code(403).send({ message: "Forbidden" });
+        return reply
+          .code(404)
+          .send({ message: linkAuth.subject === "case" ? "Case not found" : "Evidence not found" });
       }
 
       const evidence = await prisma.evidence.findUnique({
@@ -1398,19 +1382,6 @@ export async function casesRoutes(app: FastifyInstance) {
           metadata: { reason: "evidence_not_found", evidenceId: body.evidenceId },
         });
         return reply.code(404).send({ message: "Evidence not found" });
-      }
-
-      if (evidence.ownerUserId !== userId) {
-        auditCaseAction(req, {
-          userId,
-          action: "cases.add_evidence",
-          outcome: "blocked",
-          severity: "warning",
-          resourceId: id,
-          teamId: caseItem.teamId,
-          metadata: { reason: "evidence_not_owned", evidenceId: body.evidenceId },
-        });
-        return reply.code(403).send({ message: "Evidence does not belong to you" });
       }
 
       // Phase O-blockers / A-2 — Cross-team IDOR fix. Before this
@@ -1550,31 +1521,12 @@ export async function casesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Case not found" });
       }
 
-      let hasPermission = caseItem.ownerUserId === userId;
-      // K4 (2026-09-16) — unlinking evidence is a case mutation, so it goes
-      // through the case-permission matrix (EVIDENCE_LINK: VIEWER never
-      // mutates). The former check admitted ANY active member, VIEWER
-      // included. A caller with no relationship to the case is concealed
-      // (404) exactly like a missing case; it used to receive 403.
-      let isMember = false;
-
-      if (!hasPermission && caseItem.teamId) {
-        const member = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: caseItem.teamId, userId } },
-          select: { status: true, role: true },
-        });
-        // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-        isMember = member?.status === "ACTIVE";
-        hasPermission =
-          isMember &&
-          evaluateCaseMutationPermission({
-            mutation: "EVIDENCE_LINK",
-            accessRole: member!.role as CaseAccessRole,
-            assignmentRoles: await getCaseAssignmentRoles(id, userId),
-          }).allowed;
-      }
-
-      if (!hasPermission) {
+      // K4 (2026-09-16) / ET-SEC-16 — unlinking evidence is a case mutation
+      // under THE case-link authority (case access incl. CaseAccess, the
+      // EVIDENCE_LINK matrix). A caller with no relationship to the case is
+      // concealed (404) exactly like a missing case.
+      const linkAuth = await authorizeCaseEvidenceLink({ userId, caseId: id });
+      if (!linkAuth.allowed) {
         auditCaseAction(req, {
           userId,
           action: "cases.remove_evidence",
@@ -1583,11 +1535,11 @@ export async function casesRoutes(app: FastifyInstance) {
           resourceId: id,
           teamId: caseItem.teamId,
           metadata: {
-            reason: isMember ? "forbidden" : "not_found_concealed",
+            reason: linkAuth.status === 403 ? "forbidden" : "not_found_concealed",
             evidenceId,
           },
         });
-        if (!isMember) {
+        if (linkAuth.status === 404) {
           return reply.code(404).send({ message: "Case not found" });
         }
         return reply.code(403).send({ message: "Forbidden" });
@@ -1620,8 +1572,7 @@ export async function casesRoutes(app: FastifyInstance) {
         caseId: id,
         evidenceId,
         actorUserId: userId,
-        // Historical route semantics: leaving the (only) case also
-        // resets the evidence's workspace binding.
+        // Leaving a case never changes the record's workspace (ET-SEC-02).
         ipAddress: req.ip,
         userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
       });

@@ -46,6 +46,7 @@ import {
   removeLegacyEvidenceCaseId,
 } from "../services/cases/case-lifecycle.service.js";
 import {
+  authorizeCaseEvidenceLink,
   type CaseAccessRole,
   type CaseMutation,
   evaluateCaseMutationPermission,
@@ -160,6 +161,30 @@ async function requireCaseAccess(
     return { userId, role: access.role };
   }
   reply.code(404).send({ error: { code: "not_found" } });
+  return null;
+}
+
+/**
+ * ET-SEC-16 — link / unlink goes through THE case-link authority
+ * (`authorizeCaseEvidenceLink`) that the single and bulk evidence routes use,
+ * so the three cannot answer differently.
+ */
+async function requireCaseEvidenceLink(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  caseId: string,
+  evidenceId: string | null,
+): Promise<{ userId: string } | null> {
+  const userId = getAuthUserId(req);
+  const decision = await authorizeCaseEvidenceLink({ userId, caseId, evidenceId });
+  if (decision.allowed) return { userId };
+  if (decision.status === 403) {
+    reply.code(403).send({ error: { code: "forbidden", reason: decision.reason } });
+  } else {
+    reply
+      .code(404)
+      .send({ error: { code: decision.subject === "case" ? "not_found" : "evidence_not_found" } });
+  }
   return null;
 }
 
@@ -1070,14 +1095,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const params = WorkspaceParams.parse(req.params);
       const body = EvidenceLinkBody.parse(req.body ?? {});
-      const access = await requireCaseAccess(req, reply, params.id);
-      if (!access) return;
-      const member = await gateCaseMutation(
-        reply,
-        "EVIDENCE_LINK",
-        params.id,
-        access,
-      );
+      const member = await requireCaseEvidenceLink(req, reply, params.id, body.evidenceId);
       if (!member) return;
       try {
         const row = await addEvidenceLink({
@@ -1140,14 +1158,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
       const params = z
         .object({ id: z.string().uuid(), linkId: z.string().uuid() })
         .parse(req.params);
-      const access = await requireCaseAccess(req, reply, params.id);
-      if (!access) return;
-      const member = await gateCaseMutation(
-        reply,
-        "EVIDENCE_LINK",
-        params.id,
-        access,
-      );
+      const member = await requireCaseEvidenceLink(req, reply, params.id, null);
       if (!member) return;
       try {
         const result = await removeEvidenceLink({
