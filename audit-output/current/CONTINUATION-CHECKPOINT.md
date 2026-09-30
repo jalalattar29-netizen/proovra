@@ -693,3 +693,18 @@ node services/api/scripts/audit/index.mjs --closure-check
 - RegisteredRoutes 1170 -> 1176 (ProductionRegisteredRoutes 1169 -> 1175),
   TerminalWriters 1313 -> 1323, ROUTE_ATTRIBUTED_REACHABLE 1174 -> 1182,
   JOB_ATTRIBUTED_REACHABLE 121 -> 127, STARTUP_OR_SCHEDULED 15 -> 11.
+
+### 2026-09-30 — POST-AUDIT CORRECTIONS PA-01..PA-08 (writers 1323 -> 1323, routes unchanged)
+
+- PA-02: the eleven graph node tombstone UPDATEs stay literal at their call
+  sites (passed to the one sweep helper as thunks), so all eleven remain in the
+  mutation inventory. The three graph write helpers were renamed
+  (`upsertNode` -> `upsertNodeRow`, `upsertEdge` -> `upsertEdgeRow`,
+  `findNodeId` -> `findNodeIdRow`, now taking a failure recorder); the writer
+  count is unchanged.
+- PA-03: `governancePolicyAudit.create` moved from `emitPolicyAudit` into the
+  one throwing writer `writePolicyAudit`; still one writer.
+- PA-01, PA-04..PA-08 change gates, presentation, fixtures and CI; no writer.
+- Post-audit discoveries are accounted separately in
+  `docs/evidence/audits/definitive-evidence-lifecycle-remediation/post-audit-discoveries.md`
+  (8 found, 8 fixed, 0 open); the canonical ledger stays 153/153.

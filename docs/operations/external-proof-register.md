@@ -31,6 +31,21 @@ Every row is therefore **LOCAL PROOF ONLY — EXTERNAL PROOF OUTSTANDING**.
 | 5 | PayPal (sandbox) | Order capture, refund and dispute webhooks settle and reverse credits; duplicate and out-of-order deliveries are idempotent | Fixture payloads: `services/api/test/billing-paypal-integrity.integration.test.ts`, `paypal-end-to-end-settlement.test.ts`, `phase-10-paypal-idempotency.test.ts` | **None** | No PayPal sandbox client id / secret / webhook id configured for a non-production deployment |
 | 6 | Browser-extension OAuth allow-list | With `EXTENSION_OAUTH_REDIRECT_ALLOW` set to the published extension's id, the real extension completes sign-in and every other `chromiumapp.org` id is refused | `services/api/test/uc1-extension-oauth.integration.test.ts` (unset refuses every redirect; listed id accepted; unlisted id refused) | **None** | The extension is unpublished, so its production id does not exist yet; no non-production deployment to exercise it against |
 
+## Local tests that need a fixture this workstation does not have
+
+These are not external proof either; they are local tests that skip here, with
+the reason. They are listed so a skip is never read as a pass.
+
+| Suite | Tests | Skips because | Where it runs |
+|---|---|---|---|
+| `services/worker/test/verification-package-publication.minio.test.ts` | 4 | needs `OBJECT_LOCK_MINIO_ENDPOINT` and credentials for a MinIO bucket created with Object Lock (COMPLIANCE default retention); none is configured here | nowhere yet — the MinIO these gates use was not created with Object Lock. Together with row 1 this is the Object Lock proof still owed |
+| `services/worker/test/uc4-keyframe-producer.test.ts` | 2 | needs the `ffmpeg` binary; `ffmpeg-static`'s install script (which downloads it) did not run on this workstation, and downloading a binary was not done without the owner's say-so | CI: `ffmpeg-static` is in `onlyBuiltDependencies`, so `pnpm install` fetches the binary there (not verified from the CI log, which needs a token) |
+
+The other 11 worker skips are integration suites that need `TEST_DATABASE_URL`
+and a loopback Redis (`P7_TEST_REDIS_URL`); run in that fixture they pass
+(`ots-pending-recovery.integration.test.ts` 2/2,
+`uc4-screen-intelligence-persistence.integration.test.ts` 9/9).
+
 ## What closes each row
 
 Each row closes when the named run is performed against a **non-production**

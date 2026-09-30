@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9298,
-      "UNRESOLVED_IDENTIFIER": 1234
+      "METHOD_ON_VALUE": 9306,
+      "UNRESOLVED_IDENTIFIER": 1237
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -16627,8 +16627,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$executeRawUnsafe@1461",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1461",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$executeRawUnsafe@1557",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1557",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -16662,8 +16662,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$executeRawUnsafe@1769",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1769",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$executeRawUnsafe@1870",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1870",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "retractManualRelationship",
       "kind": "RAW_SQL",
@@ -16695,10 +16695,10 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$executeRawUnsafe@2156",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:2156",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$executeRawUnsafe@2267",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:2267",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
-      "enclosingDeclaration": "upsertEdge",
+      "enclosingDeclaration": "upsertEdgeRow",
       "kind": "RAW_SQL",
       "target": "investigation_graph_edges",
       "mutationKind": "$executeRawUnsafe",
@@ -16730,8 +16730,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$queryRawUnsafe@1705",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1705",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_edges.$queryRawUnsafe@1806",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1806",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "createManualRelationship",
       "kind": "RAW_SQL",
@@ -16763,8 +16763,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@1164",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1164",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@1041",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1041",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -16798,8 +16798,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@1184",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1184",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@1266",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1266",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -16833,8 +16833,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@1204",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1204",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@1284",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1284",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -16868,43 +16868,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@2102",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:2102",
-      "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
-      "enclosingDeclaration": "upsertNode",
-      "kind": "RAW_SQL",
-      "target": "investigation_graph_nodes",
-      "mutationKind": "$executeRawUnsafe",
-      "primaryFamily": "CASE",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "POST /v1/ops/reconcile"
-      ],
-      "entryJobs": [
-        "SWEEP services/worker/src/subsystem-queue-processors.ts#processGraphReconcileJob"
-      ],
-      "entryModules": [
-        "MODULE services/api/src/routes/ops.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@236",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:236",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@1302",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1302",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -16938,8 +16903,43 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@363",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:363",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@2205",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:2205",
+      "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
+      "enclosingDeclaration": "upsertNodeRow",
+      "kind": "RAW_SQL",
+      "target": "investigation_graph_nodes",
+      "mutationKind": "$executeRawUnsafe",
+      "primaryFamily": "CASE",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/ops/reconcile"
+      ],
+      "entryJobs": [
+        "SWEEP services/worker/src/subsystem-queue-processors.ts#processGraphReconcileJob"
+      ],
+      "entryModules": [
+        "MODULE services/api/src/routes/ops.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "MEMBERSHIP_LOOKUP",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@337",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:337",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -16973,8 +16973,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@446",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:446",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@469",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:469",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -17008,8 +17008,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@539",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:539",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@553",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:553",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -17043,8 +17043,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@634",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:634",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@645",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:645",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -17078,8 +17078,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@728",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:728",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@739",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:739",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -17113,8 +17113,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@820",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:820",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@832",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:832",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -17148,8 +17148,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@939",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:939",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#investigation_graph_nodes.$executeRawUnsafe@923",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:923",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "reconcileTeamGraph",
       "kind": "RAW_SQL",
@@ -17183,8 +17183,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#manual_relationships.$queryRawUnsafe@1690",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1690",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#manual_relationships.$queryRawUnsafe@1791",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1791",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "createManualRelationship",
       "kind": "RAW_SQL",
@@ -17216,8 +17216,8 @@
       }
     },
     {
-      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#manual_relationships.$queryRawUnsafe@1747",
-      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1747",
+      "writerId": "packages/shared-runtime/src/graph/graph-builder.service.ts#manual_relationships.$queryRawUnsafe@1848",
+      "terminalLocation": "packages/shared-runtime/src/graph/graph-builder.service.ts:1848",
       "file": "packages/shared-runtime/src/graph/graph-builder.service.ts",
       "enclosingDeclaration": "retractManualRelationship",
       "kind": "RAW_SQL",
@@ -20920,8 +20920,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1264",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1264",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.update@1266",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1266",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -20953,8 +20953,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1046",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1046",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1048",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1048",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -20986,8 +20986,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1192",
-      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1192",
+      "writerId": "services/api/src/routes/identity-security.routes.ts#authenticatedSession.updateMany@1194",
+      "terminalLocation": "services/api/src/routes/identity-security.routes.ts:1194",
       "file": "services/api/src/routes/identity-security.routes.ts",
       "enclosingDeclaration": "identitySecurityRoutes",
       "kind": "DATABASE",
@@ -23165,8 +23165,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2673",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2673",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2674",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2674",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -23198,8 +23198,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2740",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:2740",
+      "writerId": "services/api/src/routes/teams.routes.ts#case.update@2741",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:2741",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -23297,8 +23297,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@3159",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3159",
+      "writerId": "services/api/src/routes/teams.routes.ts#caseAccess.delete@3160",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3160",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -23429,8 +23429,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@3177",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3177",
+      "writerId": "services/api/src/routes/teams.routes.ts#teamActivity.create@3178",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3178",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -23534,8 +23534,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3591",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3591",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3592",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3592",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -23567,8 +23567,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3621",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3621",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.create@3622",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3622",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -23600,8 +23600,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@3660",
-      "terminalLocation": "services/api/src/routes/teams.routes.ts:3660",
+      "writerId": "services/api/src/routes/teams.routes.ts#workspaceClosureRequest.updateMany@3661",
+      "terminalLocation": "services/api/src/routes/teams.routes.ts:3661",
       "file": "services/api/src/routes/teams.routes.ts",
       "enclosingDeclaration": "teamsRoutes",
       "kind": "DATABASE",
@@ -43965,15 +43965,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicy.create@64",
-      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:64",
+      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicy.create@68",
+      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:68",
       "file": "services/api/src/services/governance/governance-policy.service.ts",
       "enclosingDeclaration": "createPolicy",
       "kind": "DATABASE",
       "target": "governancePolicy",
       "mutationKind": "create",
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/governance/policies"
       ],
@@ -43989,7 +43989,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -43998,15 +43998,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicy.update@101",
-      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:101",
+      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicy.update@107",
+      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:107",
       "file": "services/api/src/services/governance/governance-policy.service.ts",
       "enclosingDeclaration": "activatePolicy",
       "kind": "DATABASE",
       "target": "governancePolicy",
       "mutationKind": "update",
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/governance/policies/:id/activate"
       ],
@@ -44022,7 +44022,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -44031,15 +44031,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicy.update@127",
-      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:127",
+      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicy.update@134",
+      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:134",
       "file": "services/api/src/services/governance/governance-policy.service.ts",
       "enclosingDeclaration": "deprecatePolicy",
       "kind": "DATABASE",
       "target": "governancePolicy",
       "mutationKind": "update",
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/governance/policies/:id/deprecate"
       ],
@@ -44055,7 +44055,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -44064,15 +44064,15 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicyAssignment.upsert@160",
-      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:160",
+      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicyAssignment.upsert@168",
+      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:168",
       "file": "services/api/src/services/governance/governance-policy.service.ts",
       "enclosingDeclaration": "assignPolicy",
       "kind": "DATABASE",
       "target": "governancePolicyAssignment",
       "mutationKind": "upsert",
       "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
-      "insideTransaction": false,
+      "insideTransaction": true,
       "entryRoutes": [
         "POST /v1/governance/policies/:id/assignments"
       ],
@@ -44088,7 +44088,7 @@
         "tenantBinding": "BOUND",
         "tenantUnboundEntryRoutes": [],
         "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
+        "transactionAuthority": "INSIDE_TRANSACTION",
         "externalSideEffectBoundary": "NOT_APPLICABLE",
         "idempotencyAuthority": "NOT_DECLARED",
         "retrySemantics": "NOT_APPLICABLE",
@@ -44097,10 +44097,10 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicyAudit.create@375",
-      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:375",
+      "writerId": "services/api/src/services/governance/governance-policy.service.ts#governancePolicyAudit.create@398",
+      "terminalLocation": "services/api/src/services/governance/governance-policy.service.ts:398",
       "file": "services/api/src/services/governance/governance-policy.service.ts",
-      "enclosingDeclaration": "emitPolicyAudit",
+      "enclosingDeclaration": "writePolicyAudit",
       "kind": "DATABASE",
       "target": "governancePolicyAudit",
       "mutationKind": "create",
@@ -92227,7 +92227,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/cases/:caseId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2702",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2703",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92299,7 +92299,7 @@
       "method": "DELETE",
       "path": "/v1/teams/:id/external-grants/:grantId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3094",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3095",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -96643,7 +96643,7 @@
       "method": "GET",
       "path": "/v1/auth/email/availability",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:964",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:968",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -96699,7 +96699,7 @@
       "method": "GET",
       "path": "/v1/auth/me",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1632",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1641",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -96892,7 +96892,7 @@
       "method": "GET",
       "path": "/v1/auth/session-light",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1678",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1687",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -105341,7 +105341,7 @@
       "method": "GET",
       "path": "/v1/external-intake/:token",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:815",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:817",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/external-intake.routes.ts: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -109021,7 +109021,7 @@
       "method": "GET",
       "path": "/v1/identity-security/my-sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1078",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1080",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -109216,7 +109216,7 @@
       "method": "GET",
       "path": "/v1/identity-security/security-events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1286",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1288",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -118138,7 +118138,7 @@
       "method": "GET",
       "path": "/v1/platform/rbac/matrix",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3220",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3221",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -123983,7 +123983,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/access-review",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2927",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2928",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124055,7 +124055,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2503",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2504",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124210,7 +124210,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3493",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3494",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -124276,7 +124276,7 @@
       "method": "GET",
       "path": "/v1/teams/:id/external-collaborators",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2792",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2793",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128920,7 +128920,7 @@
       "method": "PATCH",
       "path": "/v1/external-intake/:token/sessions/:sid/parts/:partId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1167",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1169",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/external-intake.routes.ts: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -133240,7 +133240,7 @@
       "method": "POST",
       "path": "/v1/auth/apple",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:755",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:758",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133347,7 +133347,7 @@
       "method": "POST",
       "path": "/v1/auth/email/login",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:989",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:994",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133421,7 +133421,7 @@
       "method": "POST",
       "path": "/v1/auth/email/register",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:850",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:853",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -133510,7 +133510,7 @@
       "method": "POST",
       "path": "/v1/auth/email/resend-verification",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1331",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1339",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -133587,7 +133587,7 @@
       "method": "POST",
       "path": "/v1/auth/email/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1258",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1265",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133652,7 +133652,7 @@
       "method": "POST",
       "path": "/v1/auth/google",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:657",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:660",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133742,7 +133742,7 @@
       "method": "POST",
       "path": "/v1/auth/logout",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1591",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1600",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> handler: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133803,7 +133803,7 @@
       "method": "POST",
       "path": "/v1/auth/mfa/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1378",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1387",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/auth.routes.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -133881,7 +133881,7 @@
       "method": "POST",
       "path": "/v1/auth/password-reset/confirm",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1213",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1220",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -133947,7 +133947,7 @@
       "method": "POST",
       "path": "/v1/auth/password-reset/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1126",
+      "registrationEvidence": "services/api/src/routes/auth.routes.ts:1132",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -146284,7 +146284,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/consent",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:922",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:924",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/external-intake.routes.ts: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -146350,7 +146350,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/identity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:879",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:881",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/external-intake.routes.ts: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -146413,7 +146413,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:970",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:972",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/external-intake.routes.ts: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -146531,7 +146531,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/submit",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1227",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1229",
       "authorizationClass": "INVITATION_TOKEN",
       "authorizationEvidence": [
         "handler body -> services/api/src/routes/external-intake.routes.ts: reaches the invitation/intake token authority (validateIntakeToken)"
@@ -146662,7 +146662,7 @@
       "method": "POST",
       "path": "/v1/external-intake/:token/sessions/:sid/transition",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1433",
+      "registrationEvidence": "services/api/src/routes/external-intake.routes.ts:1435",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -150381,7 +150381,7 @@
       "method": "POST",
       "path": "/v1/identity-security/contact-factors/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:252",
+      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:253",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150520,7 +150520,7 @@
       "method": "POST",
       "path": "/v1/identity-security/contact-factors/enroll/verify",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:192",
+      "registrationEvidence": "services/api/src/routes/identity-security-contact-factors.routes.ts:193",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150731,7 +150731,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1220",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1222",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -150801,7 +150801,7 @@
       "method": "POST",
       "path": "/v1/identity-security/my-sessions/revoke-others",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1128",
+      "registrationEvidence": "services/api/src/routes/identity-security.routes.ts:1130",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -153638,7 +153638,7 @@
       "method": "POST",
       "path": "/v1/intake/citizen/sessions",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/citizen-capture.routes.ts:126",
+      "registrationEvidence": "services/api/src/routes/citizen-capture.routes.ts:128",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -153675,7 +153675,7 @@
       "method": "POST",
       "path": "/v1/intake/citizen/sessions/:id/capture",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/citizen-capture.routes.ts:138",
+      "registrationEvidence": "services/api/src/routes/citizen-capture.routes.ts:140",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -168627,7 +168627,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/cases/link",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2610",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2611",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -168701,7 +168701,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3525",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3526",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -168778,7 +168778,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/closure/:requestId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3648",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3649",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -168935,7 +168935,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/invites/:inviteId/resend",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2447",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2448",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -169005,7 +169005,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/reopen",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3759",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3760",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -169078,7 +169078,7 @@
       "method": "POST",
       "path": "/v1/teams/:id/transfer-ownership",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3706",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:3707",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -169153,7 +169153,7 @@
       "method": "POST",
       "path": "/v1/teams/invites/:token/accept",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2357",
+      "registrationEvidence": "services/api/src/routes/teams.routes.ts:2358",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
