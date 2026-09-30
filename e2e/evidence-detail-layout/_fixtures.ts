@@ -556,6 +556,7 @@ function respond(path: string): unknown {
   // before share links existed, so it carries the legacy record-id link (the
   // `sharePath` above) and one active share link.
   if (path.includes("/verify-links")) {
+    const iso = (s: string) => s;
     return {
       publicVerifyState: "PUBLISHED",
       shareable: true,
