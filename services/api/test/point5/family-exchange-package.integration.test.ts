@@ -25,10 +25,15 @@ import type { WorkspaceFixture } from "./family-harness.js";
 
 const storage = vi.hoisted(() => ({
   put: [] as Array<{ key: string; bytes: number }>,
+  deleted: [] as string[],
   fail: false,
+  /** ET-SEC-27 — runs after a put is recorded (simulates what happens meanwhile). */
+  onPut: null as null | ((key: string) => Promise<void>),
   reset() {
     this.put.length = 0;
+    this.deleted.length = 0;
     this.fail = false;
+    this.onPut = null;
   },
 }));
 
@@ -39,7 +44,11 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
     putObjectBuffer: async (p: { key: string; body?: Buffer }) => {
       if (storage.fail) throw new Error("storage unavailable");
       storage.put.push({ key: p.key, bytes: p.body?.length ?? 0 });
+      if (storage.onPut) await storage.onPut(p.key);
       return { etag: "test" };
+    },
+    deleteObject: async (p: { key: string }) => {
+      storage.deleted.push(p.key);
     },
   };
 });
@@ -239,6 +248,40 @@ describe("POINT 5 FAMILY — exchange package builder (live PostgreSQL 16)", () 
 
     expect(storage.put).toHaveLength(1);
     expect((await buildRow(packageId))!.state).toBe("UPLOADED");
+  });
+
+  it("ET-SEC-27: a builder whose lease is re-claimed mid-build commits nothing, fails nothing and removes its own object", async () => {
+    const packageId = await seedPackage(own);
+    storage.reset();
+    let reclaimedAt: Date | null = null;
+    // While the first builder uploads, its lease is taken over (a second
+    // builder re-claims the expired build and is now the live holder).
+    storage.onPut = async () => {
+      reclaimedAt = new Date(Date.now() + 1000);
+      await prisma.evidenceExchangePackageBuild.update({
+        where: { packageId },
+        data: { state: "BUILDING", startedAtUtc: reclaimedAt, failureReason: null },
+      });
+    };
+
+    await builder.buildExchangePackage(packageId, prisma as never);
+
+    const row = await buildRow(packageId);
+    // The live holder's claim is untouched: not UPLOADED, not FAILED.
+    expect(row!.state).toBe("BUILDING");
+    expect(row!.startedAtUtc?.getTime()).toBe(reclaimedAt!.getTime());
+    expect(row!.failureReason).toBeNull();
+    // The package was neither committed READY by the late builder nor pulled
+    // back to DRAFT from under the live one.
+    const pkg = await prisma.evidenceExchangePackage.findUniqueOrThrow({
+      where: { id: packageId },
+      select: { state: true, storageKey: true, packageSha256: true },
+    });
+    expect(pkg).toEqual({ state: "BUILDING", storageKey: null, packageSha256: null });
+    // Its upload went to an attempt-scoped key and was removed.
+    expect(storage.put).toHaveLength(1);
+    expect(storage.put[0]!.key).toMatch(new RegExp(`^exchange-packages/${own.teamId}/${packageId}/.+\\.zip$`));
+    expect(storage.deleted).toEqual([storage.put[0]!.key]);
   });
 
   it("a replay after completion creates no second artifact", async () => {

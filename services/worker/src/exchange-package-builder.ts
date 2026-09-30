@@ -9,7 +9,9 @@
  *      new deps).
  *   4. Per-kind content per KIND_CONTENT_MAP below.
  *   5. Caps at MAX_EVIDENCE_PER_PACKAGE; sets manifest.limited=true when exceeded.
- *   6. Uploads ZIP to S3 at "exchange-packages/<teamId>/<packageId>.zip".
+ *   6. Uploads ZIP to S3 at "exchange-packages/<teamId>/<packageId>/<attempt>.zip"
+ *      (ET-SEC-27: attempt-scoped, so a late builder never overwrites the
+ *      object a winner committed READY with its sha).
  *   7. Computes streaming SHA-256 of final buffer.
  *   8. Updates EvidenceExchangePackage → state=READY + storageKey + sha256 + sizeBytes.
  *   9. Updates EvidenceExchangePackageBuild → state=UPLOADED via raw SQL.
@@ -61,7 +63,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { PassThrough } from "node:stream";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "./db.js";
-import { putObjectBuffer } from "./storage.js";
+import { deleteObject, putObjectBuffer } from "./storage.js";
 import { env } from "./config.js";
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 import { logger } from "./logger.js";
@@ -177,22 +179,46 @@ async function claimPackageBuild(
   prisma: PrismaClient,
   packageId: string,
   teamId: string,
-): Promise<boolean> {
+): Promise<Date | null> {
   const leaseCutoff = new Date(Date.now() - EXCHANGE_BUILD_LEASE_MS);
+  // ET-SEC-27 — the claim's started_at_utc is this attempt's FENCING TOKEN: a
+  // re-claim is only possible after the lease expired, so the value names one
+  // attempt, and every later write of this attempt is conditional on it.
+  const attemptAt = new Date();
   const claimed = await prisma.$executeRaw`
     INSERT INTO evidence_exchange_package_builds
       (id, team_id, package_id, state, started_at_utc, created_at)
     VALUES
-      (${randomUUID()}, ${teamId}::uuid, ${packageId}::uuid, 'BUILDING', NOW(), NOW())
+      (${randomUUID()}, ${teamId}::uuid, ${packageId}::uuid, 'BUILDING', ${attemptAt}, NOW())
     ON CONFLICT (package_id) DO UPDATE
       SET state = 'BUILDING',
-          started_at_utc = NOW(),
+          started_at_utc = ${attemptAt},
           failure_reason = NULL
       WHERE evidence_exchange_package_builds.state <> 'BUILDING'
          OR evidence_exchange_package_builds.started_at_utc IS NULL
          OR evidence_exchange_package_builds.started_at_utc < ${leaseCutoff}
   `;
-  return claimed === 1;
+  return claimed === 1 ? attemptAt : null;
+}
+
+/**
+ * ET-SEC-27 — true while THIS attempt still owns the build (nobody re-claimed
+ * it after its lease expired). Taken with FOR UPDATE inside the READY
+ * transaction so the ownership read and the commit are one decision.
+ */
+async function attemptStillOwnsBuild(
+  tx: Pick<PrismaClient, "$queryRaw">,
+  packageId: string,
+  attemptAt: Date,
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ ok: number }>>`
+    SELECT 1 AS ok FROM evidence_exchange_package_builds
+     WHERE package_id = ${packageId}::uuid
+       AND state = 'BUILDING'
+       AND started_at_utc = ${attemptAt}
+     FOR UPDATE
+  `;
+  return rows.length === 1;
 }
 
 async function upsertBuildRow(
@@ -206,6 +232,8 @@ async function upsertBuildRow(
     sizeBytes?: bigint;
     failureReason?: string;
     completedAtUtc?: Date;
+    /** ET-SEC-27 — the claiming attempt; UPLOADED / FAILED are fenced by it. */
+    attemptAt?: Date;
   },
 ): Promise<void> {
   try {
@@ -223,6 +251,7 @@ async function upsertBuildRow(
               failure_reason = NULL
       `;
     } else if (state === "UPLOADED") {
+      // ET-SEC-27 — fenced by the attempt that claimed the build.
       await prisma.$executeRaw`
         UPDATE evidence_exchange_package_builds
         SET state = 'UPLOADED',
@@ -232,14 +261,17 @@ async function upsertBuildRow(
             size_bytes = ${extra?.sizeBytes !== undefined ? String(extra.sizeBytes) : null}::bigint,
             failure_reason = NULL
         WHERE package_id = ${packageId}
+          AND started_at_utc = ${extra?.attemptAt ?? null}
       `;
     } else if (state === "FAILED") {
+      // ET-SEC-27 — a late attempt's failure never marks the live build FAILED.
       await prisma.$executeRaw`
         UPDATE evidence_exchange_package_builds
         SET state = 'FAILED',
             completed_at_utc = NOW(),
             failure_reason = ${(extra?.failureReason ?? "").slice(0, 590)}
         WHERE package_id = ${packageId}
+          AND started_at_utc = ${extra?.attemptAt ?? null}
       `;
     }
   } catch {
@@ -829,8 +861,8 @@ export async function buildExchangePackage(
   // THE CLAIM. A caller that does not win it does nothing at all — no ZIP is
   // assembled, no object is uploaded and no terminal state is written, so the
   // holder's outcome is the only one that can be recorded.
-  const owned = await claimPackageBuild(prisma, pkg.id, teamId);
-  if (!owned) {
+  const attemptAt = await claimPackageBuild(prisma, pkg.id, teamId);
+  if (!attemptAt) {
     logger.info(
       { packageId, teamId },
       "exchange.package_builder.claim_held_by_another_worker",
@@ -950,8 +982,11 @@ export async function buildExchangePackage(
     const zipSha256 = hashStream.digest("hex");
     const zipSizeBytes = zipBuffer.length;
 
-    // Upload to S3.
-    const storageKey = `exchange-packages/${teamId}/${packageId}.zip`;
+    // Upload to S3 — at an ATTEMPT-SCOPED key (ET-SEC-27). A fixed key let a
+    // late builder whose lease expired overwrite the object a winner had
+    // already committed READY with its own sha; the pointer now moves only in
+    // the conditional READY transition below.
+    const storageKey = `exchange-packages/${teamId}/${packageId}/${attemptAt.getTime()}-${randomUUID()}.zip`;
     await putObjectBuffer({
       bucket: env.S3_BUCKET,
       key: storageKey,
@@ -975,6 +1010,8 @@ export async function buildExchangePackage(
     // rolling READY back, so a metering failure lands in the FAILED path
     // below instead of committing an unmetered READY package.
     const completed = await prisma.$transaction(async (tx) => {
+      // ET-SEC-27 — only the attempt that still owns the build commits.
+      if (!(await attemptStillOwnsBuild(tx, pkg.id, attemptAt))) return false;
       const transition = await tx.evidenceExchangePackage.updateMany({
         where: { id: pkg.id, teamId, state: "BUILDING" },
         data: {
@@ -990,13 +1027,16 @@ export async function buildExchangePackage(
       return true;
     });
     if (!completed) {
-      // The package left BUILDING while we built it (e.g. revoked). Nothing
-      // was metered; record the build as failed rather than uploaded.
+      // The package left BUILDING while we built it (e.g. revoked), or this
+      // attempt lost its claim (ET-SEC-27). Nothing was metered; this
+      // attempt's own object is removed (best effort) — no pointer names it.
+      await deleteObject({ bucket: env.S3_BUCKET, key: storageKey }).catch(() => null);
       throw new Error("package_left_building_state_during_build");
     }
 
     // Mark build UPLOADED.
     await upsertBuildRow(prisma, pkg.id, teamId, "UPLOADED", {
+      attemptAt,
       storageKey: storageKey.slice(0, 600),
       payloadSha256: zipSha256.slice(0, 64),
       sizeBytes: BigInt(zipSizeBytes),
@@ -1026,20 +1066,26 @@ export async function buildExchangePackage(
       "exchange.package_builder.failed",
     );
 
-    // Revert package to DRAFT so operators can retry.
+    // Revert package to DRAFT so operators can retry — ONLY while this attempt
+    // still owns the build (ET-SEC-27): a late attempt whose lease was
+    // re-claimed must not pull the live build's package out from under it.
     try {
-      // Conditional: only a package still BUILDING returns to DRAFT, so a
-      // package revoked during the build stays REVOKED.
-      await prisma.evidenceExchangePackage.updateMany({
-        where: { id: pkg.id, state: "BUILDING" },
-        data: { state: "DRAFT" },
+      await prisma.$transaction(async (tx) => {
+        if (!(await attemptStillOwnsBuild(tx, pkg.id, attemptAt))) return;
+        // Conditional: only a package still BUILDING returns to DRAFT, so a
+        // package revoked during the build stays REVOKED.
+        await tx.evidenceExchangePackage.updateMany({
+          where: { id: pkg.id, state: "BUILDING" },
+          data: { state: "DRAFT" },
+        });
       });
     } catch {
       // ignore
     }
 
-    // Mark build FAILED.
+    // Mark build FAILED (fenced by the attempt).
     await upsertBuildRow(prisma, pkg.id, teamId, "FAILED", {
+      attemptAt,
       failureReason: reason,
     });
   }
