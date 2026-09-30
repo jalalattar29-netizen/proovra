@@ -17,6 +17,10 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 - Web build pinned NEXT_PUBLIC_API_BASE=http://127.0.0.1:9; extension build pinned PROOVRA_API_ORIGIN=http://127.0.0.1:4000; mobile export pinned EXPO_PUBLIC_API_BASE=http://127.0.0.1:9 with EXPO_OFFLINE=1.
 - Two generated files touched by runs (docs/architecture/point5-family-proven-cases.json by the integration ledger; apps/mobile/package.json and apps/mobile/android/ by expo prebuild) were restored/removed immediately; the final product diff is zero.
 
+## Runtime-evidence caveats
+
+- Teardown gap (auditor): the first harness run's parent process and tsx-watch wrappers for API and worker survived the port-level kills at ~20:52Z and lived until rec.sh's 3600 s timeout at 21:34:12Z. They restarted their API/worker children whenever the auditor rebuilt shared packages (20:51, 21:11, 21:25, 21:30Z) against the same loopback container ports later stacks reused. This caused the EADDRINUSE 4001 worker failure of phase-2 attempt 1 (that run is discarded: runtime/journeys-phase2-raw.invalid-run.json). The restarted orphans emitted no structured log lines, so it cannot be proven that none of them consumed a queue job during phase-2b (21:22-21:31Z); if one did, it ran the same commit with the same worker configuration against the same disposable services, so outputs would be identical. No orphan could reach Production: the worktree has no .env and the fixture environment is loopback-only.
+
 ## Environment limits
 
 - No macOS/Xcode: iOS native compilation, prebuild and device execution are BLOCKED.
@@ -294,7 +298,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | executed-run overrides name executed runs | PASS |  |
 | runtime-bound findings exist | PASS |  |
 | every blocker names an external proof row | PASS |  |
-| every command in the ledger has an exit code | PASS | 39 commands |
+| every command in the ledger has an exit code | PASS | 40 commands |
 | API integration run executed (not skipped) and green | PASS | 463/463 |
 | independent package recompute passed (incl. negative controls) | PASS | 14/14 |
 | worker run green | PASS | 1152/1156 (4 skipped) |
@@ -323,7 +327,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | journeys-run3 | 0 | journeys-run3.log |
 | seed-journeys-4 | 0 | seed4.json |
 | journeys-run4 | 0 | journeys-run4.log |
-| uc1-acceptance-fullstack | 1 | uc1-acceptance.log — Playwright result FAIL in both projects (AUTH INVALID_CLIENT_OR_REDIRECT); stack then kept up intentionally for journeys J01-J07 and torn down by the auditor (processes on 4000/3311/4599 killed, uc1-acc-* containers removed) |
+| uc1-acceptance-fullstack | 1 | uc1-acceptance.log — Playwright result FAIL in both projects (AUTH INVALID_CLIENT_OR_REDIRECT). The stack was kept up for journeys J01-J07. CORRECTION: the auditor killed the listening API/web/fixture processes at ~20:52Z, but the harness parent and its tsx-watch wrappers survived until rec.sh timeout (exit 124, 21:34:12Z); see the following ledger row and META.runtimeCaveats. |
 | uc1-acceptance-audit-copy | 1 | uc1-acceptance-audit-copy.log |
 | worker-tests | 0 | worker-tests.log |
 | uc1-acceptance-audit-copy-2 | 1 | uc1-acceptance-audit-copy.log |
@@ -344,6 +348,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | worker-typecheck | 0 | worker-typecheck.log |
 | web-typecheck | 0 | web-typecheck.log |
 | audit-tooling-syntax | 0 | audit-tooling-syntax.log |
+| uc1-acceptance-fullstack | 124 | uc1-acceptance.log |
 
 ## Artifacts
 

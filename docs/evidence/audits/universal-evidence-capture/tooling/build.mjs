@@ -294,6 +294,8 @@ function mdTruth() {
   o.push("## Safety", "");
   for (const [k, v] of Object.entries(L.META.safety)) if (k !== "notes") o.push(`- ${k}: **${v}**`);
   for (const n of L.META.safety.notes) o.push(`- ${n}`);
+  o.push("", "## Runtime-evidence caveats", "");
+  for (const n of L.META.runtimeCaveats) o.push(`- ${n}`);
   o.push("", "## Environment limits", "");
   for (const n of L.META.environmentLimits) o.push(`- ${n}`);
   o.push("", "## UC verdicts", "", "| UC | Name | Verdict | Key findings | External blockers |", "|---|---|---|---|---|");

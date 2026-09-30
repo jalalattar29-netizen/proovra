@@ -21,6 +21,9 @@ export const META = {
     "No JDK/Android SDK/emulator/device: Android native compilation and device execution are BLOCKED; Android prebuild (native project generation) ran.",
     "No sandbox credentials for TSA, OpenTimestamps, AWS S3 Object Lock, Stripe, PayPal, Chrome Web Store, Edge Add-ons, App Store Connect or Google Play: every such proof is in the external proof register, never counted as passed.",
   ],
+  runtimeCaveats: [
+    "Teardown gap (auditor): the first harness run's parent process and tsx-watch wrappers for API and worker survived the port-level kills at ~20:52Z and lived until rec.sh's 3600 s timeout at 21:34:12Z. They restarted their API/worker children whenever the auditor rebuilt shared packages (20:51, 21:11, 21:25, 21:30Z) against the same loopback container ports later stacks reused. This caused the EADDRINUSE 4001 worker failure of phase-2 attempt 1 (that run is discarded: runtime/journeys-phase2-raw.invalid-run.json). The restarted orphans emitted no structured log lines, so it cannot be proven that none of them consumed a queue job during phase-2b (21:22-21:31Z); if one did, it ran the same commit with the same worker configuration against the same disposable services, so outputs would be identical. No orphan could reach Production: the worktree has no .env and the fixture environment is loopback-only.",
+  ],
   scope: [
     "apps/web (Web/PWA), apps/extension (Chrome/Edge MV3), apps/mobile (Expo; Android + iOS native module and broadcast extension)",
     "services/api, services/worker, packages/shared, shared-runtime, shared-evidence-presentation, shared-billing",
