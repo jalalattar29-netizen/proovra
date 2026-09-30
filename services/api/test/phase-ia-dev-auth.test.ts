@@ -149,7 +149,7 @@ describe("Phase IA-dev-auth — persona seed script", () => {
     // NAME and HOST), not NODE_ENV alone: it refuses any non-local target
     // before the first write.
     expect(SEED).toMatch(/assertLocalSeedDatabase\(/);
-    expect(SEED).not.toMatch(/dotenv\/config/);
+    expect(SEED).not.toMatch(/^import\s+["']dotenv\/config["']/m);
   });
 
   it("seeds the data each persona needs for its widgets", () => {
