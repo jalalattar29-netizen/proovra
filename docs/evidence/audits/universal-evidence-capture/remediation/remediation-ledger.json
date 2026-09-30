@@ -1,0 +1,3998 @@
+{
+  "schema": "PROOVRA_UNIVERSAL_CAPTURE_REMEDIATION_LEDGER_V1",
+  "auditBranch": "audit/universal-evidence-capture-truth",
+  "auditSha": "dae43b40",
+  "auditRemote": "NOT PUSHED — the push was refused by the session's permission classifier; the owner must push it (git push -u origin audit/universal-evidence-capture-truth)",
+  "baseSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
+  "counts": {
+    "total": 119,
+    "OPEN": 119,
+    "fixed": 0,
+    "blocked": 0,
+    "remaining": 119
+  },
+  "gates": [
+    {
+      "name": "ledger rows = 119 original findings",
+      "ok": true,
+      "detail": "119"
+    },
+    {
+      "name": "no duplicate ids",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every consolidated alias maps to exactly one ledger row",
+      "ok": true,
+      "detail": "UC-TQ-001->UC-IOS-001, UC-EXT-011->UC-PROV-004"
+    },
+    {
+      "name": "no lane reports an unknown id",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "119 = fixed + externally-blocked",
+      "ok": false,
+      "detail": "{\"OPEN\":119}"
+    },
+    {
+      "name": "every disposition is allowed",
+      "ok": false,
+      "detail": "UC-AND-003,UC-CASE-001,UC-EXT-001,UC-EXT-003,UC-IOS-001,UC-IOS-002,UC-IOS-004,UC-OUT-001,UC-PROV-001,UC-STR-001,UC-STR-002,UC-AND-004,UC-AND-006,UC-AND-007,UC-ARCH-001,UC-ARCH-002,UC-ARCH-003,UC-ARCH-004,UC-ARCH-005,UC-CASE-002,UC-CASE-003,UC-COM-001,UC-DER-001,UC-DER-002,UC-DER-003,UC-DER-004,UC-DER-005,UC-DER-006,UC-DER-007,UC-DER-010,UC-EXT-002,UC-EXT-004,UC-EXT-005,UC-EXT-006,UC-EXT-007,UC-IOS-003,UC-IOS-005,UC-IOS-006,UC-IOS-007,UC-IOS-008,UC-IOS-009,UC-IOS-010,UC-LCH-001,UC-PROV-002,UC-PROV-003,UC-PROV-004,UC-PROV-005,UC-SEC-001,UC-SEC-002,UC-SEC-003,UC-SEC-004,UC-STR-003,UC-TQ-002,UC-TQ-003,UC-TQ-004,UC-TQ-007,UC-TQ-008,UC-TRUST-001,UC-TRUST-002,UC-TRUST-003,UC-TRUST-004,UC-TRUST-005,UC-TRUST-008,UC-WEB-001,UC-WEB-003,UC-WEB-004,UC-AND-008,UC-AND-010,UC-AND-011,UC-AND-012,UC-AND-013,UC-AND-014,UC-ARCH-006,UC-ARCH-007,UC-ARCH-008,UC-ARCH-009,UC-CASE-004,UC-CASE-005,UC-COM-002,UC-COM-003,UC-COM-004,UC-DER-008,UC-DER-009,UC-DER-011,UC-DER-012,UC-DER-013,UC-DER-014,UC-DER-015,UC-EXT-008,UC-EXT-009,UC-EXT-010,UC-IOS-011,UC-IOS-012,UC-LCH-002,UC-LCH-003,UC-LCH-004,UC-LCH-005,UC-LCH-006,UC-OUT-002,UC-OUT-003,UC-OUT-004,UC-OUT-005,UC-PROV-006,UC-PROV-007,UC-PROV-008,UC-PROV-009,UC-PROV-010,UC-PROV-011,UC-SEC-005,UC-SEC-006,UC-STR-004,UC-STR-006,UC-TQ-005,UC-TQ-006,UC-TRUST-006,UC-TRUST-007,UC-WEB-002,UC-WEB-005,UC-WEB-006"
+    },
+    {
+      "name": "every fixed row has red proof, green proof and a commit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every blocked row names the exact external proof and has a commit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "remaining P0/P1/P2/P3 = 0",
+      "ok": false,
+      "detail": ""
+    }
+  ],
+  "rows": [
+    {
+      "id": "UC-AND-003",
+      "aliases": [],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-2",
+        "UC-3"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "Android 13 runtime notification permission was treated as a manifest declaration.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/AndroidManifest.xml:13",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:136",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:131",
+        "apps/mobile/app/(stack)/screen-capture.tsx:227",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:428"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-CASE-001",
+      "aliases": [
+        "ET-SEC-16",
+        "ET-SEC-17"
+      ],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios",
+        "web"
+      ],
+      "rootCause": "The case-hold scope is computed dynamically from mutable links (resolveLinkedCaseIds), but the one detach authority treats linkage as a pure relationship edit and has no preservation gate.",
+      "sourceEvidence": [
+        "services/api/src/services/cases/case-evidence-link.service.ts:218",
+        "services/api/src/routes/cases.routes.ts:1571",
+        "services/api/src/routes/evidence.routes.ts:7441",
+        "services/api/src/services/cases/case-lifecycle.service.ts:687",
+        "packages/shared-runtime/src/governance/effective-legal-hold.ts:210",
+        "services/api/src/routes/cases.routes.ts:1262"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-001",
+      "aliases": [],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension"
+      ],
+      "rootCause": "Popup parses an invented envelope key. The acceptance spec never opens the popup: it writes the token into storage and sends PRESERVE with PROOVRA_E2E_TEAM_ID directly from the service worker (direct-web-capture.spec.ts:409-449), so the defect is structurally invisible to every existing test.",
+      "sourceEvidence": [
+        "apps/extension/src/popup.ts:32",
+        "apps/extension/src/popup.ts:138",
+        "apps/extension/src/popup.ts:143",
+        "services/api/src/services/platform-context/types.ts:1097",
+        "services/api/src/routes/platform-context.routes.ts:94",
+        "apps/extension/e2e/direct-web-capture.spec.ts:435"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-003",
+      "aliases": [],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "Tile timing chosen for lazy-load settling only, ignoring the platform capture quota; real-browser acceptance never passed (UC1 doc §K), so it was never observed.",
+      "sourceEvidence": [
+        "apps/extension/src/lib/capture.ts:114",
+        "apps/extension/src/lib/capture.ts:124",
+        "apps/extension/src/lib/capture.ts:125",
+        "apps/extension/src/lib/capture.ts:43",
+        "apps/extension/src/lib/config.ts:32"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-001",
+      "aliases": [
+        "ET-DC-09",
+        "UC-TQ-001"
+      ],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "api",
+        "ios"
+      ],
+      "rootCause": "The iOS device shape was never reconciled with the manifest schema; server tests fabricate the device object instead of deriving it from the native payload.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:58",
+        "apps/mobile/src/continuous-capture.ts:121",
+        "packages/shared/src/screen-continuous-manifest.ts:286",
+        "packages/shared/src/screen-continuous-manifest.ts:289",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts:94",
+        "services/api/test/uc5-ios-screen-capture.integration.test.ts:253",
+        "apps/mobile/test/native-module-contract.test.mjs:75"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-002",
+      "aliases": [],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "The extension side of the stop handshake was never implemented; the app-side comment (:98-99) assumes it exists.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:100",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:119",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:35",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:136",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:112",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:273"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-004",
+      "aliases": [
+        "ET-DC-09"
+      ],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "api",
+        "ios"
+      ],
+      "rootCause": "finalizeSegment's force path passes a literal 0 instead of measuring the segment.",
+      "sourceEvidence": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:74",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:121",
+        "packages/shared/src/screen-continuous-manifest.ts:391",
+        "packages/shared/src/screen-continuous-manifest.ts:402"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-OUT-001",
+      "aliases": [
+        "ET-PKG-02",
+        "ET-PKG-03",
+        "ET-PKG-07"
+      ],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api",
+        "web",
+        "worker"
+      ],
+      "rootCause": "ET-PKG-07 made records private by default and gave reports their own token, but the report template, README and owner UI were not updated for the unpublished state; the public route collapses unpublished into not-found.",
+      "sourceEvidence": [
+        "services/worker/src/processor.ts:2685",
+        "services/worker/src/processor.ts:4247",
+        "services/worker/src/report-v2/sections/cover.ts:253",
+        "services/api/src/services/evidence-complete.service.ts:1258",
+        "services/api/src/routes/evidence.routes.ts:12832",
+        "services/worker/src/verification-package.ts:2176",
+        "apps/web/components/evidence-outputs/PublicVerificationLinksPanel.tsx:81"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-001",
+      "aliases": [
+        "ET-DC-02"
+      ],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-0a",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios",
+        "pwa",
+        "web",
+        "worker"
+      ],
+      "rootCause": "The column is named capturedAtUtc but holds server creation time; surfaces label it by its name, and basic-verification.ts invented a 'Declared' semantics for it.",
+      "sourceEvidence": [
+        "services/api/src/services/evidence.service.ts:446",
+        "services/api/src/services/evidence.service.ts:531",
+        "packages/shared/src/basic-verification.ts:51",
+        "packages/shared/src/basic-verification.ts:253",
+        "apps/web/app/verify/[token]/BasicVerificationView.tsx:216",
+        "apps/mobile/src/ui/basic-verification-view.tsx:122",
+        "apps/web/app/verify/[token]/page.tsx:4098",
+        "apps/web/app/verify/[token]/page.tsx:3661",
+        "apps/mobile/src/product/public-verify.ts:1513",
+        "services/worker/src/report-v2/build-view-model.ts:365",
+        "services/worker/src/report-v2/sections/executive-summary.ts:356",
+        "services/worker/src/report-v2/build-view-model.ts:1654",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:378",
+        "apps/mobile/src/product/evidence-record.ts:985",
+        "packages/shared/src/evidence-acquisition.ts:454",
+        "apps/extension/src/background.ts:46",
+        "apps/extension/src/background.ts:59",
+        "services/api/src/routes/evidence.routes.ts:5054"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-STR-001",
+      "aliases": [
+        "ET-ACQ-07"
+      ],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios"
+      ],
+      "rootCause": "SCREEN_CONTINUOUS_STREAM_BOUNDS.maxSegments / SCREEN_CONTINUOUS_MANIFEST_BOUNDS.maxSegments (600) were never reconciled with MAX_EVIDENCE_PARTS (200) introduced by ET-ACQ-07.",
+      "sourceEvidence": [
+        "services/api/src/services/evidence/evidence-part-writer.service.ts:42",
+        "services/api/src/routes/capture-trust.routes.ts:230",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:495",
+        "services/api/src/routes/evidence.routes.ts:464",
+        "packages/shared/src/screen-continuous-manifest.ts:131",
+        "packages/shared/src/screen-continuous-manifest.ts:60",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt:123",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:222",
+        "apps/mobile/modules/proovra-screen-capture/index.ts:269",
+        "apps/mobile/src/continuous-capture.ts:261",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:319",
+        "apps/mobile/src/direct-capture.ts:273"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-STR-002",
+      "aliases": [
+        "ET-DC-09"
+      ],
+      "originalSeverity": "P1",
+      "finalSeverity": "P1",
+      "ucs": [
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios"
+      ],
+      "rootCause": "Completeness is taken from the native recorder's termination only; upload-side loss is not an input to completeness, and the server cannot see segments that were never declared.",
+      "sourceEvidence": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx:138",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:303",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:450",
+        "apps/mobile/src/continuous-capture.ts:102",
+        "apps/mobile/src/continuous-capture.ts:110",
+        "apps/mobile/src/continuous-capture.ts:261",
+        "packages/shared/src/screen-continuous-manifest.ts:395",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts:118"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-004",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-3"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "Durability of the streaming session was designed around the React component lifetime, not the foreground-service lifetime.",
+      "sourceEvidence": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx:88",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:194",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:235",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:345",
+        "apps/mobile/modules/proovra-screen-capture/index.ts:223",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt:124"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-006",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-2",
+        "UC-3"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "No logout hook for capture state.",
+      "sourceEvidence": [
+        "apps/mobile/app/(tabs)/settings.tsx:183",
+        "apps/mobile/src/capture/capture-session-store.ts:24",
+        "apps/mobile/app/(stack)/capture.tsx:487"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-007",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-3"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "Error from MediaRecorder.stop() treated as ignorable.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:284",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:288",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:297"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-001",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "extension",
+        "ios"
+      ],
+      "rootCause": "UC-0 treats 'server-issued session' as the authority for mode, but the server issues whatever mode the caller requests.",
+      "sourceEvidence": [
+        "services/api/src/routes/capture-trust.routes.ts:158",
+        "services/api/src/routes/capture-trust.routes.ts:358",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:294",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts:25",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts:70",
+        "services/api/src/services/evidence.service.ts:251",
+        "packages/shared/src/evidence-acquisition.ts:335"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-002",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "extension",
+        "ios"
+      ],
+      "rootCause": "Lifecycle side effects implemented in route handlers instead of the canonical createEvidence service.",
+      "sourceEvidence": [
+        "services/api/src/routes/evidence.routes.ts:5631",
+        "services/api/src/routes/evidence.routes.ts:5594",
+        "services/api/src/services/external-intake-orchestration.service.ts:452",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:401",
+        "services/api/src/services/governance.service.ts:1210",
+        "services/api/src/services/evidence/evidence-delete-eligibility.service.ts:128"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0",
+        "UC-0a",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "extension",
+        "ios",
+        "web"
+      ],
+      "rootCause": "Same as UC-ARCH-002 on the completion side: route-resident fan-out.",
+      "sourceEvidence": [
+        "services/api/src/routes/evidence.routes.ts:10507",
+        "services/api/src/routes/evidence.routes.ts:10561",
+        "services/api/src/routes/evidence.routes.ts:10591",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:805",
+        "services/api/src/services/external-intake-orchestration.service.ts:999",
+        "services/api/src/services/external-intake-orchestration.service.ts:1027",
+        "services/api/src/services/reviewer-ops/queue-intelligence.service.ts:333",
+        "services/api/src/services/review-operations/review-operations.service.ts:660"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-004",
+      "aliases": [
+        "ET-SEC-25",
+        "ET-UPL-01"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Byte-write authority has only OWNER and INTAKE_SESSION principals; the integration path was not migrated when ET-UPL-01 was remediated.",
+      "sourceEvidence": [
+        "services/api/src/routes/integrations-uploads.routes.ts:338",
+        "services/api/src/services/uploads/upload-session.service.ts:393",
+        "services/api/src/services/evidence/evidence-part-writer.service.ts:106",
+        "services/api/src/services/uploads/upload-session.service.ts:2026",
+        "services/api/test/phase-30-6-integrations-uploads.test.ts:380"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-005",
+      "aliases": [
+        "ET-INT-05"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "Intake records reuse the owner's byte-write and completion authority instead of a session-bound one like UC-0.",
+      "sourceEvidence": [
+        "services/api/src/services/external-intake-orchestration.service.ts:321",
+        "services/api/src/routes/evidence.routes.ts:6120",
+        "services/api/src/routes/evidence.routes.ts:6169",
+        "services/api/src/routes/evidence.routes.ts:10486",
+        "services/api/src/services/evidence-complete.service.ts:780",
+        "services/api/src/services/intake-link-lifecycle.service.ts:739"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-CASE-002",
+      "aliases": [
+        "ET-SEC-04",
+        "ET-SEC-16"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios",
+        "web"
+      ],
+      "rootCause": "resolveCaseRecordAccess synthesizes MEMBER for any access-list grantee; the unlink path relies solely on that role (detach has no record-access check).",
+      "sourceEvidence": [
+        "services/api/src/services/cases/case-permission.service.ts:524",
+        "services/api/src/services/cases/case-permission.service.ts:171",
+        "services/api/src/routes/cases.routes.ts:795",
+        "services/api/src/services/cases/case-evidence-link.service.ts:141",
+        "services/api/src/routes/cases.routes.ts:1443"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-CASE-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios",
+        "web"
+      ],
+      "rootCause": "Intake/request caseId was designed as metadata; the case-evidence authority has an INTAKE source value with no writer.",
+      "sourceEvidence": [
+        "services/api/src/routes/workflow-intake-links.routes.ts:391",
+        "services/api/src/services/workflow-intake-link.service.ts:219",
+        "services/api/src/services/evidence-request.service.ts:206",
+        "services/api/src/services/external-intake-source-summary.service.ts:173",
+        "apps/web/app/(app)/evidence/[id]/components/ExternalIntakeSourceCard.tsx:586",
+        "services/api/src/routes/external-intake.routes.ts:1230"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-COM-001",
+      "aliases": [
+        "ET-ACQ-02",
+        "ET-ACQ-06"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "The 24h TTL was added to the COUNT (so abandoned reservations free their slot) without adding the matching refusal at COMPLETION, while settlement's 'prior records' cursor assumes every earlier record is already counted.",
+      "sourceEvidence": [
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts:35",
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts:91",
+        "services/api/src/services/billing-enforcement.service.ts:911",
+        "services/api/src/services/billing-enforcement.service.ts:562",
+        "services/api/src/services/evidence-complete.service.ts:603",
+        "services/api/src/routes/evidence.routes.ts:5990"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-001",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-4"
+      ],
+      "platforms": [
+        "api",
+        "web",
+        "worker"
+      ],
+      "rootCause": "The idempotency key is per (kind, evidence) forever and the reuse path ignores status; the route's 'dismiss then re-enqueue' assumes a new row will be inserted, but the unique key and the status-blind reuse return the settled row, which the exclusive claim correctly refuses.",
+      "sourceEvidence": [
+        "services/api/src/routes/media-intelligence.routes.ts:1560",
+        "services/api/src/routes/media-intelligence.routes.ts:1569",
+        "services/api/src/queue/media-intelligence-queue.ts:261",
+        "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts:154",
+        "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts:241",
+        "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts:257",
+        "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts:393",
+        "services/worker/src/screen-intelligence.handler.ts:80",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:90"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-002",
+      "aliases": [
+        "ET-SEC-26"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0c",
+        "UC-4"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "The Phase 31.14 bytes proxy predates the 2026-09-29 single byte-release authority and was never folded into it (the redaction derivative was, ET-SEC-26).",
+      "sourceEvidence": [
+        "services/api/src/routes/media-intelligence.routes.ts:1333",
+        "services/api/src/routes/media-intelligence.routes.ts:1346",
+        "services/api/src/routes/media-intelligence.routes.ts:1353",
+        "services/api/src/routes/media-intelligence.routes.ts:1434",
+        "services/api/src/routes/media-intelligence.routes.ts:1277",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts:67",
+        "services/api/src/routes/evidence.routes.ts:3093",
+        "packages/shared/src/permissions.ts:533"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-3",
+        "UC-4",
+        "UC-5"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "The keyframe rendition reuses the video_frame thumbnail sizing, and the same bytes feed OCR.",
+      "sourceEvidence": [
+        "services/worker/src/ffmpeg-derived-assets.ts:159",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:310",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:355"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-004",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-4"
+      ],
+      "platforms": [
+        "web",
+        "worker"
+      ],
+      "rootCause": "The deterministic core assumes the whole frame scrolls and OCR is exact; the runtime supplies neither fingerprints nor change-scored frames that the core's safety rules rely on.",
+      "sourceEvidence": [
+        "packages/shared/src/screen-reconstruction.ts:106",
+        "packages/shared/src/screen-reconstruction.ts:121",
+        "packages/shared/src/screen-reconstruction.ts:220",
+        "services/worker/src/tesseract-ocr-provider.ts:82",
+        "services/worker/src/ffmpeg-derived-assets.ts:159",
+        "packages/shared/src/screen-keyframes.ts:66"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-005",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0c",
+        "UC-4"
+      ],
+      "platforms": [
+        "api",
+        "worker"
+      ],
+      "rootCause": "Lineage columns were added at UC-0 but producers were not updated to fill them; the observation record type omitted geometry.",
+      "sourceEvidence": [
+        "services/worker/src/screen-intelligence.handler.ts:40",
+        "services/worker/src/tesseract-ocr-provider.ts:152",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:356",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:381",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:444",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:657",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:145",
+        "services/worker/src/derived-assets.processor.ts:66",
+        "services/worker/src/derived-assets.processor.ts:70",
+        "packages/shared/src/screen-intelligence-descriptor.ts:106"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-006",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0c",
+        "UC-4"
+      ],
+      "platforms": [
+        "api",
+        "worker"
+      ],
+      "rootCause": "UC-0's 'never orphan a pointer' rule was implemented as replace-and-delete rather than versioning; the orchestrator never reconciles the previous run's variant set.",
+      "sourceEvidence": [
+        "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:173",
+        "services/worker/src/derived-assets.processor.ts:702",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:440",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:500",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:536",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:246",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:636"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-007",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0c",
+        "UC-4"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "Bounds sized for Phase-31 thumbnails (one per part) were not revisited when UC-4 added many-per-part variants.",
+      "sourceEvidence": [
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts:323",
+        "services/worker/src/verification-package.ts:3289",
+        "services/worker/src/verification-package-intelligence.ts:157",
+        "services/worker/src/verification-package-intelligence.ts:323",
+        "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:253"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-010",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-2",
+        "UC-3",
+        "UC-4",
+        "UC-5"
+      ],
+      "platforms": [
+        "api",
+        "web",
+        "worker"
+      ],
+      "rootCause": "Derived-asset and run tables are team-keyed; the personal-owner model was never extended to derivatives.",
+      "sourceEvidence": [
+        "services/api/prisma/schema.prisma:14287",
+        "services/api/prisma/schema.prisma:14544",
+        "services/api/src/routes/media-intelligence.routes.ts:1553",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:39",
+        "packages/shared-runtime/src/media-intelligence/screen-ocr-policy.ts:29",
+        "services/worker/src/report-v2/derived-review-bridge.ts:20",
+        "apps/web/app/(app)/evidence/[id]/page.tsx:943"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-002",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "loadWorkspaces collapses every non-OK outcome to an empty array.",
+      "sourceEvidence": [
+        "apps/extension/src/popup.ts:30",
+        "apps/extension/src/popup.ts:33",
+        "apps/extension/src/popup.ts:138"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-004",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension",
+        "web",
+        "worker"
+      ],
+      "rootCause": "The manifest was designed as a validation input only; no read-model consumes it.",
+      "sourceEvidence": [
+        "apps/extension/src/lib/manifest-builder.ts:40",
+        "apps/extension/src/lib/capture.ts:60",
+        "apps/extension/src/lib/capture.ts:116",
+        "packages/shared/src/web-capture-manifest.ts:51",
+        "packages/shared/src/web-capture-manifest.ts:52",
+        "packages/shared/src/evidence-acquisition.ts:241",
+        "services/worker/src/verification-package.ts:1306",
+        "services/api/src/services/capture-trust/web-capture.service.ts:73"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-005",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "busy() is popup DOM state; the orchestrator is stateless.",
+      "sourceEvidence": [
+        "apps/extension/src/popup.ts:50",
+        "apps/extension/src/popup.ts:66",
+        "apps/extension/src/popup.ts:16",
+        "apps/extension/src/background.ts:153",
+        "apps/extension/src/lib/capture.ts:119",
+        "apps/extension/src/lib/capture.ts:125"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-006",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension"
+      ],
+      "rootCause": "Authorize reuses API-only requireAuth, which is designed for XHR callers.",
+      "sourceEvidence": [
+        "services/api/src/routes/extension-oauth.routes.ts:288",
+        "services/api/src/middleware/auth.ts:47",
+        "services/api/src/middleware/auth.ts:60",
+        "apps/extension/src/popup.ts:12"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-007",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "Secret clearing is input-centric.",
+      "sourceEvidence": [
+        "apps/extension/src/lib/sanitizer.ts:115",
+        "apps/extension/src/lib/sanitizer.ts:116",
+        "apps/extension/src/lib/sanitizer.ts:25",
+        "apps/extension/src/content.ts:48",
+        "apps/extension/public/popup.html:28"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Shared UC-3 client flow assumes the host process runs during capture, which is false on iOS.",
+      "sourceEvidence": [
+        "apps/mobile/app.json:51",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:161",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:442",
+        "packages/shared/src/screen-continuous-manifest.ts:161"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-005",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "No 'broadcast started' signal from extension to app (broadcastStarted writes nothing and posts nothing, SampleHandler.swift:35-45).",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:86",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:170",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:256"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-006",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Fallback written as a placeholder.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:136",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:131"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-007",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Error paths of AVAssetWriter not handled.",
+      "sourceEvidence": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:57",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:110",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:118",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:124"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-008",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Android MediaProjection assumption (buffer geometry follows display rotation) carried to ReplayKit.",
+      "sourceEvidence": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:51",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:128",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:149"
+      ],
+      "runtimeEvidenceStatus": "source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED)",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-009",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Lifecycle callbacks not implemented.",
+      "sourceEvidence": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift:19"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-010",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "The shared continuous screen was designed around a foreground-service Android process that survives app switches.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:85",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:194",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:88"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-LCH-001",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-2",
+        "UC-3",
+        "UC-5",
+        "UC-6"
+      ],
+      "platforms": [
+        "android",
+        "ios",
+        "web"
+      ],
+      "rootCause": "Legal corpus not extended when UC-2/3/5 shipped.",
+      "sourceEvidence": [
+        "apps/web/content/legal/en/privacy.md:1",
+        "apps/web/content/legal/en/direct-web-capture.md:1"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-002",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "extension",
+        "ios",
+        "web",
+        "worker"
+      ],
+      "rootCause": "Two hand-maintained switch tables in shared-runtime were not widened when UC-1..UC-5 added modes; resolveEvidenceAcquisition is not their source.",
+      "sourceEvidence": [
+        "packages/shared-runtime/src/technical-metadata/display-helpers.ts:30",
+        "packages/shared-runtime/src/technical-metadata/display-helpers.ts:43",
+        "packages/shared-runtime/src/technical-metadata/acquisition.ts:155",
+        "packages/shared-runtime/src/technical-metadata/acquisition.ts:235",
+        "services/worker/src/report-v2/build-view-model.ts:690",
+        "services/worker/src/report-v2/technical-model.ts:251",
+        "services/worker/src/report-v2/truth-model.ts:383",
+        "services/worker/src/verification-package.ts:1250",
+        "services/worker/src/verification-package.ts:1265",
+        "services/worker/src/verification-package.ts:2366",
+        "services/worker/src/report-v2/normalizers.ts:59",
+        "services/api/src/services/technical-metadata/verify-projection.service.ts:180",
+        "apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts:149"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a",
+        "UC-1",
+        "UC-2"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "extension",
+        "web",
+        "worker"
+      ],
+      "rootCause": "UC-1/UC-2 stopped at validation; no projection/persistence step for manifest facts was built.",
+      "sourceEvidence": [
+        "services/api/src/services/capture-trust/web-capture.service.ts:77",
+        "services/api/src/services/capture-trust/web-capture.service.ts:131",
+        "services/api/src/services/capture-trust/screen-capture.service.ts:219",
+        "packages/shared/src/web-capture-manifest.ts:94",
+        "packages/shared/src/web-capture-manifest.ts:113",
+        "packages/shared/src/evidence-acquisition.ts:240",
+        "apps/web/content/legal/en/direct-web-capture.md:27",
+        "apps/extension/src/background.ts:93"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-004",
+      "aliases": [
+        "ET-DC-02",
+        "ET-DC-03",
+        "UC-EXT-011"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a",
+        "UC-1"
+      ],
+      "platforms": [
+        "extension",
+        "web"
+      ],
+      "rootCause": "ET-DC-02/03 remediation reworded evidence-acquisition.ts only; copy outside the resolver was not swept.",
+      "sourceEvidence": [
+        "apps/web/content/legal/en/direct-web-capture.md:17",
+        "apps/web/content/legal/en/direct-web-capture.md:18",
+        "apps/web/content/legal/en/direct-web-capture.md:21",
+        "apps/web/content/legal/en/direct-web-capture.md:28",
+        "packages/shared/src/legal/corpus.generated.ts:121",
+        "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:64",
+        "apps/extension/src/background.ts:46",
+        "apps/extension/src/background.ts:55"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-005",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api",
+        "web",
+        "worker"
+      ],
+      "rootCause": "Capture Environment was designed for in-browser capture and reused unchanged for uploads.",
+      "sourceEvidence": [
+        "services/worker/src/report-v2/sections/technical-summary.ts:116",
+        "services/worker/src/report-v2/sections/technical-summary.ts:145",
+        "services/worker/src/report-v2/sections/executive-summary.ts:84",
+        "services/worker/src/report-v2/sections/executive-summary.ts:98",
+        "services/api/src/routes/evidence.routes.ts:5595",
+        "services/api/src/routes/evidence.routes.ts:5597",
+        "services/api/src/services/technical-metadata/capture-environment-writer.ts:94"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-SEC-001",
+      "aliases": [
+        "ET-UPL-01",
+        "ET-UPL-02"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "ET-UPL-01 fix moved the bridge to the byte-write authority as the SESSION's actor, not the CALLER; per-route caller checks were added only to create/abort.",
+      "sourceEvidence": [
+        "services/api/src/routes/upload-sessions.routes.ts:662",
+        "services/api/src/services/uploads/upload-session.service.ts:1640",
+        "services/api/src/routes/upload-sessions.routes.ts:709",
+        "services/api/src/services/uploads/upload-session.service.ts:1800",
+        "services/api/src/services/uploads/upload-session.service.ts:626",
+        "services/api/src/services/uploads/upload-session.service.ts:2026"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-SEC-002",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension"
+      ],
+      "rootCause": "UC-1 added OAuth redirect pinning but not the matching CORS/host-permission wiring.",
+      "sourceEvidence": [
+        "services/api/src/server.ts:658",
+        "services/api/src/server.ts:291",
+        "apps/extension/public/manifest.json:15",
+        "apps/extension/src/lib/api-client.ts:25"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-SEC-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a",
+        "UC-4"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Redaction is a hand-maintained regex list rather than derived from route parameters.",
+      "sourceEvidence": [
+        "services/api/src/server.ts:786",
+        "services/api/src/server.ts:811",
+        "services/api/src/server.ts:864",
+        "services/api/src/routes/external-intake.routes.ts:818",
+        "services/api/src/routes/external-review.routes.ts:331",
+        "services/api/src/routes/organizations.routes.ts:1045",
+        "services/api/src/routes/evidence.routes.ts:12529"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-SEC-004",
+      "aliases": [
+        "ET-DC-04"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension"
+      ],
+      "rootCause": "Extension OAuth reuses signJwt but not the session-inventory write that every other login path performs.",
+      "sourceEvidence": [
+        "services/api/src/routes/extension-oauth.routes.ts:108",
+        "services/api/src/middleware/auth.ts:161",
+        "services/api/src/middleware/auth.ts:190"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-STR-003",
+      "aliases": [
+        "ET-DC-06"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "rootCause": "ET-DC-06 made the server expiry slide, but the mobile durable record kept the open-time value.",
+      "sourceEvidence": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx:348",
+        "apps/mobile/src/continuous-capture.ts:189",
+        "apps/mobile/src/capture/capture-session-store.ts:120",
+        "apps/mobile/app/(stack)/capture.tsx:491",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:173"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TQ-002",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "Manual launch ignores project configuration; no assertion on the launched browser identity.",
+      "sourceEvidence": [
+        "apps/extension/e2e/playwright.config.ts:16",
+        "apps/extension/e2e/playwright.config.ts:17",
+        "apps/extension/e2e/direct-web-capture.spec.ts:400",
+        "scripts/uc1-acceptance-windows.mjs:533",
+        "scripts/uc1-acceptance-windows.mjs:539",
+        "docs/admin/audits/UC1_DIRECT_WEB_CAPTURE_IMPLEMENTATION.md:33"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TQ-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-2",
+        "UC-3",
+        "UC-4"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "Worker integration suites were written against the API's TEST_DATABASE_URL convention but the worker has no CI step that provides a database.",
+      "sourceEvidence": [
+        "services/worker/src/media-intelligence.processor.ts:406",
+        "services/worker/src/screen-intelligence.handler.ts:49",
+        "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts:33",
+        "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts:34",
+        "services/worker/test/uc4-tesseract-ocr.test.ts:55",
+        "services/worker/test/uc4-tesseract-ocr.test.ts:60",
+        "services/worker/test/uc4-keyframe-producer.test.ts:48",
+        "services/worker/test/uc4-guards.test.ts:12",
+        ".github/workflows/ci.yml:391"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TQ-004",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a",
+        "UC-3"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "Harness replaced (c8291b86 → 76fddb72) without updating the CI step that served the old harness.",
+      "sourceEvidence": [
+        "services/worker/test/verification-package-publication.minio.test.ts:33",
+        "services/worker/test/verification-package-publication.minio.test.ts:34",
+        ".github/workflows/ci.yml:335",
+        ".github/workflows/ci.yml:367",
+        ".github/workflows/ci.yml:389"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TQ-007",
+      "aliases": [
+        "ET-DC-04"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1",
+        "UC-6"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "Commit 5621aeb4 (ET-DC-04) changed isAllowedExtensionRedirect to require an explicit allow-list without updating the harness or the fixture-env scanner.",
+      "sourceEvidence": [
+        "services/api/src/services/auth/extension-oauth.service.ts:37",
+        "scripts/uc1-acceptance-windows.mjs:438",
+        "scripts/local-fixture-env/index.mjs:543",
+        "apps/extension/e2e/direct-web-capture.spec.ts:47"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TQ-008",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "chrome.runtime.sendMessage does not dispatch to listeners in the sending context; the spec was never executed successfully (memory: 'browser E2E needs a real gesture').",
+      "sourceEvidence": [
+        "apps/extension/e2e/direct-web-capture.spec.ts:435",
+        "apps/extension/e2e/direct-web-capture.spec.ts:376",
+        "apps/extension/src/background.ts:153"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-001",
+      "aliases": [
+        "ET-PKG-06"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0a",
+        "UC-0b"
+      ],
+      "platforms": [
+        "all",
+        "api",
+        "web",
+        "worker"
+      ],
+      "rootCause": "The fingerprint is treated as an opaque signed blob; fileSha256 and part sha256 columns were introduced as 'the' digest and every later reader trusts them.",
+      "sourceEvidence": [
+        "services/worker/src/integrity-recheck.ts:183",
+        "services/worker/src/integrity-recheck.ts:311",
+        "services/api/src/routes/evidence.routes.ts:9480",
+        "services/api/src/routes/evidence.routes.ts:13340",
+        "services/worker/src/processor.ts:993",
+        "packages/shared/src/stored-bytes-integrity.ts:141",
+        "services/api/src/services/evidence-complete.service.ts:1018"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-002",
+      "aliases": [
+        "ET-RPT-09",
+        "ET-TSA-01"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0b",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios",
+        "web",
+        "worker"
+      ],
+      "rootCause": "The projection infers state from custody event TYPES, whose names ('OTS_APPLIED', 'TIMESTAMP_APPLIED') predate the claim/validation vocabularies.",
+      "sourceEvidence": [
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts:193",
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts:225",
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts:230",
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts:232",
+        "services/worker/src/ots-lifecycle.ts:279",
+        "services/worker/src/ots-upgrade.processor.ts:685",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx:219",
+        "apps/mobile/src/product/provenance.ts:95",
+        "services/worker/src/processor.ts:4596"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-003",
+      "aliases": [
+        "ET-PKG-02"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0b"
+      ],
+      "platforms": [
+        "api",
+        "worker"
+      ],
+      "rootCause": "Evidence signing predates the package-seal hardening; the key registry was designed as a convenience lookup, not as the record's identity binding.",
+      "sourceEvidence": [
+        "services/api/src/seed-signing-key.ts:355",
+        "services/api/src/signing/signer.ts:67",
+        "services/api/src/services/evidence-complete.service.ts:1150",
+        "services/api/src/routes/evidence.routes.ts:13044",
+        "services/api/src/routes/evidence.routes.ts:9041",
+        "services/worker/src/processor.ts:2657",
+        "services/api/prisma/schema.prisma:984"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-004",
+      "aliases": [
+        "ET-DC-10"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0b",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "extension",
+        "ios",
+        "worker"
+      ],
+      "rootCause": "The sub-chain was added for concurrency (ET-DC-10) and display, not as a verified structure.",
+      "sourceEvidence": [
+        "services/api/src/services/capture-trust/trust-event.service.ts:138",
+        "services/api/src/services/capture-trust/trust-event.service.ts:220",
+        "services/api/src/services/capture-trust/trust-event.service.ts:234",
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts:104",
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts:134",
+        "services/api/prisma/migrations/20280805000000_custody_append_only/migration.sql:20",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:898"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-005",
+      "aliases": [
+        "ET-SM-07"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0b"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios",
+        "web"
+      ],
+      "rootCause": "ET-SM-07 added the recheck as a new row beside the existing verdict pipeline instead of as an input to the shared trust decision.",
+      "sourceEvidence": [
+        "services/api/src/routes/evidence.routes.ts:13489",
+        "services/api/src/routes/evidence.routes.ts:1847",
+        "services/api/src/routes/evidence.routes.ts:13425",
+        "apps/web/app/verify/[token]/page.tsx:1532",
+        "apps/web/app/verify/[token]/page.tsx:1612",
+        "packages/shared/src/basic-verification.ts:244",
+        "services/worker/src/integrity-recheck.ts:168"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-008",
+      "aliases": [
+        "ET-SM-07"
+      ],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0b",
+        "UC-6"
+      ],
+      "platforms": [
+        "api",
+        "web",
+        "worker"
+      ],
+      "rootCause": "STORED_BYTES_INTEGRITY 'verified_current' is time-window based (INTEGRITY_RECHECK_INTERVAL_DAYS default 30) and maps to the badge 'Verified'; no read path re-hashes.",
+      "sourceEvidence": [
+        "packages/shared/src/basic-verification.ts:305",
+        "packages/shared-runtime/src/integrity-recheck/authority.ts:81",
+        "services/worker/src/integrity-recheck.ts:11"
+      ],
+      "runtimeEvidenceStatus": "runtime-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-WEB-001",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api",
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Finalize treated as one-shot; draft transition bound to create instead of seal.",
+      "sourceEvidence": [
+        "services/api/src/routes/evidence.routes.ts:5711",
+        "services/api/src/routes/evidence.routes.ts:5725",
+        "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:671",
+        "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:888",
+        "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:944",
+        "apps/web/app/(app)/capture/page.tsx:1072"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-WEB-003",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api",
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Session-per-redemption design with no client-held session handle.",
+      "sourceEvidence": [
+        "services/api/src/routes/external-intake.routes.ts:835",
+        "services/api/src/services/workflow-intake-session.service.ts:666",
+        "apps/web/app/intake/[token]/page.tsx:458",
+        "apps/web/app/intake/[token]/page.tsx:466",
+        "apps/web/app/intake/[token]/page.tsx:1363"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-WEB-004",
+      "aliases": [],
+      "originalSeverity": "P2",
+      "finalSeverity": "P2",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Home CTA not reconciled with the registry's own note.",
+      "sourceEvidence": [
+        "apps/web/components/home-experience/home-view-model.ts:2169",
+        "apps/web/lib/navigation/routeRegistry.ts:1673",
+        "apps/web/app/(app)/evidence-requests/[id]/page.tsx:1"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-008",
+      "aliases": [
+        "ET-DC-11"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-2"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Partial application of the ET-DC-11 fix.",
+      "sourceEvidence": [
+        "services/api/src/services/capture-trust/screen-capture.service.ts:125",
+        "services/api/src/services/capture-trust/screen-capture.service.ts:135",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts:166"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-010",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-2"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "UC-3 cleanup was not back-ported to UC-2.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:241",
+        "apps/mobile/src/screen-capture.ts:173",
+        "apps/mobile/app/(stack)/screen-capture.tsx:238"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-011",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-2"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "Assumption that secure windows throw.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:255",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:242"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-012",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-2"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "Rotation handling implemented only for UC-3.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:182",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:200",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:277"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-013",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-2",
+        "UC-3"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "rootCause": "Start success is signalled by callback with no failure counterpart.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:168",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:146",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt:154"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-AND-014",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-2",
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "F5 rename applied to Kotlin only.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:65",
+        "apps/mobile/modules/proovra-screen-capture/index.ts:97"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-006",
+      "aliases": [
+        "ET-TSA-05"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api",
+        "worker"
+      ],
+      "rootCause": "No shared integrity-digest module.",
+      "sourceEvidence": [
+        "services/api/src/services/evidence-complete.service.ts:1000",
+        "services/worker/src/integrity-recheck.ts:92",
+        "services/worker/src/processor.ts:903",
+        "services/worker/src/processor.ts:2394",
+        "services/api/src/stream-hash.ts:4",
+        "services/worker/src/integrity-recheck.ts:83",
+        "services/worker/src/processor.ts:1227"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-007",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "api",
+        "ios"
+      ],
+      "rootCause": "Server-first build without the native client half.",
+      "sourceEvidence": [
+        "services/api/src/routes/capture-trust.routes.ts:243",
+        "services/api/src/routes/capture-trust.routes.ts:470",
+        "services/api/src/routes/capture-trust.routes.ts:636",
+        "apps/mobile/src/direct-capture.ts:71",
+        "apps/mobile/src/direct-capture.ts:142",
+        "apps/extension/src/lib/api-client.ts:60"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-008",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0",
+        "UC-0a"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "Pre-multipart single-object design retained in the canonical writer.",
+      "sourceEvidence": [
+        "services/api/src/services/evidence.service.ts:544",
+        "services/api/src/services/evidence.service.ts:613",
+        "services/api/src/services/evidence.service.ts:674",
+        "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:768"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-ARCH-009",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "extension"
+      ],
+      "rootCause": "Mobile fix (sealDirectCapture) not ported to the extension.",
+      "sourceEvidence": [
+        "apps/extension/src/background.ts:38",
+        "apps/extension/src/lib/api-client.ts:56",
+        "services/worker/src/capture-reaper.ts:244"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-CASE-004",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Invariant documented in the service header is not backed by a constraint.",
+      "sourceEvidence": [
+        "services/api/src/services/cases/case-evidence-link.service.ts:151",
+        "services/api/src/services/cases/case-evidence-link.service.ts:163",
+        "services/api/prisma/schema.prisma:10218"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-CASE-005",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "Legacy single Evidence.caseId response shape preserved after the many-to-many link table became the authority.",
+      "sourceEvidence": [
+        "services/api/src/routes/evidence.routes.ts:9184",
+        "services/api/src/routes/evidence.routes.ts:10012",
+        "apps/web/app/(app)/evidence/[id]/page.tsx:757"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-COM-002",
+      "aliases": [
+        "ET-ACQ-06"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Lock key and monthly population are derived from scope.teamId, which differs by builder, rather than from the billing shape.",
+      "sourceEvidence": [
+        "services/api/src/services/billing-enforcement.service.ts:86",
+        "services/api/src/services/evidence.service.ts:404",
+        "services/api/src/services/evidence-complete.service.ts:618",
+        "services/api/src/services/workspace-billing.service.ts:461",
+        "services/api/src/services/billing-enforcement.service.ts:855"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-COM-003",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a",
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "all"
+      ],
+      "rootCause": "Deliberate 'admission only, spend at completion' design without a pending-commitment count.",
+      "sourceEvidence": [
+        "services/api/src/services/billing-enforcement.service.ts:396",
+        "services/api/src/services/billing-enforcement.service.ts:923"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-COM-004",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Invariant held only by application check-then-create.",
+      "sourceEvidence": [
+        "services/api/src/services/billing.service.ts:140",
+        "services/api/src/services/auth.service.ts:526",
+        "services/api/prisma/schema.prisma:2347",
+        "services/api/src/services/billing/evidence-credits.service.ts:432"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-008",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-4"
+      ],
+      "platforms": [
+        "web",
+        "worker"
+      ],
+      "rootCause": "Descriptor has no OCR-disabled reason field.",
+      "sourceEvidence": [
+        "services/worker/src/screen-intelligence.handler.ts:201",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:188",
+        "services/worker/src/report-v2/sections/derived-review.ts:71"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-009",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0c",
+        "UC-4"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "Content-addressing applied to the storage key only.",
+      "sourceEvidence": [
+        "services/api/src/routes/media-intelligence.routes.ts:1434",
+        "services/api/src/routes/media-intelligence.routes.ts:1303",
+        "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:173"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-011",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-4"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "rootCause": "UC-4 reused the derived-asset table without updating the Phase-31 strip.",
+      "sourceEvidence": [
+        "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:507",
+        "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:612",
+        "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:739"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-012",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-4"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "rootCause": "UC-4 tab written without the NEW-028 fix.",
+      "sourceEvidence": [
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:288",
+        "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:630"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-013",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0c",
+        "UC-4"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "Lifecycle eligibility was added to the derived-asset reconciler only.",
+      "sourceEvidence": [
+        "services/worker/src/screen-intelligence.handler.ts:97",
+        "services/worker/src/derived-assets.processor.ts:211",
+        "services/worker/src/intelligence-run-reconciler.ts:224",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:649"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-014",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0c"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "Bounded reads were added for resource safety without provenance for the bound.",
+      "sourceEvidence": [
+        "services/worker/src/derived-assets.processor.ts:269",
+        "services/worker/src/derived-assets.processor.ts:366",
+        "services/worker/src/ffmpeg-derived-assets.ts:74",
+        "services/worker/src/ffmpeg-derived-assets.ts:308",
+        "services/worker/src/screen-intelligence.handler.ts:188",
+        "services/worker/src/storage.ts:249",
+        "services/api/prisma/schema.prisma:486"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-DER-015",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-4"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "Summary-only design omitted the binding identifiers.",
+      "sourceEvidence": [
+        "services/worker/src/report-v2/sections/derived-review.ts:65",
+        "services/worker/src/report-v2/derived-review-bridge.ts:65",
+        "services/worker/src/verification-package-intelligence-bridge.ts:152"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-008",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension"
+      ],
+      "rootCause": "No auth-state branch in the failure path; scope string advertises offline access that is never implemented.",
+      "sourceEvidence": [
+        "apps/extension/src/background.ts:41",
+        "apps/extension/src/lib/auth.ts:73",
+        "apps/extension/src/popup.ts:101",
+        "services/api/src/services/auth/extension-oauth.service.ts:17"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-009",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension"
+      ],
+      "rootCause": "Extension token minted outside the session registry.",
+      "sourceEvidence": [
+        "apps/extension/src/lib/auth.ts:108",
+        "services/api/src/routes/extension-oauth.routes.ts:346",
+        "services/api/src/middleware/auth.ts:117"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-EXT-010",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-1"
+      ],
+      "platforms": [
+        "api",
+        "extension"
+      ],
+      "rootCause": "Feature never built; doc drift.",
+      "sourceEvidence": [
+        "services/api/src/routes/capture-trust.routes.ts:156",
+        "services/api/src/services/auth/extension-scope.ts:189",
+        "docs/admin/audits/UC1_DIRECT_WEB_CAPTURE_IMPLEMENTATION.md:140"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-011",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Partial platform branching.",
+      "sourceEvidence": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx:427",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:428",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:442"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-IOS-012",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-5"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Incorrect CFNotificationCenter observer identity.",
+      "sourceEvidence": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:202",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:211",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:133"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-LCH-002",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-1",
+        "UC-2",
+        "UC-3",
+        "UC-5",
+        "UC-6"
+      ],
+      "platforms": [
+        "all",
+        "api"
+      ],
+      "rootCause": "Capture features shipped without observability requirements.",
+      "sourceEvidence": [
+        "infra/grafana/alerts/proovra-operations-alerts.yaml:24",
+        "infra/grafana/provisioning/alerting/contact-points.yaml:22",
+        "docs/uc6-release-acceptance.md:82"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-LCH-003",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-1",
+        "UC-5",
+        "UC-6"
+      ],
+      "platforms": [
+        "extension",
+        "ios"
+      ],
+      "rootCause": "CI matrix limited to Linux.",
+      "sourceEvidence": [
+        ".github/workflows/ci.yml:260",
+        ".github/workflows/playwright-e2e.yml:315",
+        "apps/extension/e2e/playwright.config.ts:1",
+        "docs/uc6-release-acceptance.md:141"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-LCH-004",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-6"
+      ],
+      "platforms": [
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Manifest minimal.",
+      "sourceEvidence": [
+        "apps/web/public/manifest.webmanifest:10"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-LCH-005",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-1",
+        "UC-6"
+      ],
+      "platforms": [
+        "api",
+        "extension",
+        "web"
+      ],
+      "rootCause": "Documentation drift.",
+      "sourceEvidence": [
+        "services/api/src/services/auth/extension-oauth.service.ts:40",
+        "apps/web/app/(app)/capture/_lib/useCaptureCapabilities.ts:26",
+        "services/api/.env.example:303"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-LCH-006",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-5",
+        "UC-6"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "rootCause": "Docs not regenerated after 92669167.",
+      "sourceEvidence": [
+        "docs/uc6-release-acceptance.md:272",
+        "docs/uc6-release-acceptance.md:297",
+        "apps/mobile/docs/uc-disposition.md:88"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-OUT-002",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "rootCause": "Placeholder quick actions never connected to the output authority.",
+      "sourceEvidence": [
+        "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:919",
+        "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:933",
+        "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:1767"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-OUT-003",
+      "aliases": [
+        "ET-PKG-15"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "ET-PKG-15 pinned originals only.",
+      "sourceEvidence": [
+        "services/worker/src/processor.ts:3230",
+        "services/worker/src/processor.ts:3305"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-OUT-004",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "rootCause": "Handler never migrated to the safe-feedback path.",
+      "sourceEvidence": [
+        "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:124",
+        "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:126"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-OUT-005",
+      "aliases": [
+        "ET-PKG-07"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "Share/publication authority keyed on the raw teamId column.",
+      "sourceEvidence": [
+        "services/api/src/routes/verification-share.routes.ts:169",
+        "services/api/src/services/governance/verification-share.service.ts:312"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-006",
+      "aliases": [
+        "ET-INT-12"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api",
+        "worker"
+      ],
+      "rootCause": "ET-INT-12 fix relabelled rendered surfaces but left the shared mapper keyed on the owner snapshot.",
+      "sourceEvidence": [
+        "packages/shared-runtime/src/technical-metadata/acquisition.ts:165",
+        "packages/shared-runtime/src/technical-metadata/acquisition.ts:183",
+        "services/api/src/services/technical-metadata/verify-projection.service.ts:383",
+        "services/api/src/services/technical-metadata/verify-projection.service.ts:342",
+        "services/api/src/services/external-intake-orchestration.service.ts:321",
+        "services/api/src/services/evidence.service.ts:458",
+        "services/worker/src/report-v2/build-view-model.ts:372"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-007",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "worker"
+      ],
+      "rootCause": "Forbidden-phrase guard applies to report artifact copy, not package file names/profile values.",
+      "sourceEvidence": [
+        "services/worker/src/verification-package.ts:523",
+        "services/worker/src/verification-package.ts:2329",
+        "services/worker/src/verification-package.ts:1941",
+        "packages/shared/src/report-artifact.ts:173"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-008",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "web",
+        "worker"
+      ],
+      "rootCause": "UC-0 sweep covered report/Verify/package JSON labels but not the exchange builder, file naming, or legacy mappers.",
+      "sourceEvidence": [
+        "services/worker/src/exchange-package-builder.ts:384",
+        "services/worker/src/verification-package.ts:474",
+        "services/worker/src/verification-package.ts:2834",
+        "services/worker/src/processor.ts:1809",
+        "services/worker/src/processor.ts:4755",
+        "apps/web/app/(app)/evidence/lib/evidence-library-status.ts:196",
+        "services/worker/src/report-v2/normalizers.ts:578"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-009",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Trigger designed to permit the D9 backfill but not constrained to backfill sources.",
+      "sourceEvidence": [
+        "services/api/prisma/migrations/20280601000000_uc0_acquisition_provenance_foundation/migration.sql:128",
+        "services/api/prisma/migrations/20280601000000_uc0_acquisition_provenance_foundation/migration.sql:132",
+        "packages/shared/src/evidence-acquisition.ts:100"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-010",
+      "aliases": [
+        "ET-DC-09"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "rootCause": "Tone chosen for positive state rather than evidentiary basis.",
+      "sourceEvidence": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx:452"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-PROV-011",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Marketing copy in product surface.",
+      "sourceEvidence": [
+        "apps/web/app/(app)/capture/_lib/CaptureTrustStrip.tsx:32"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-SEC-005",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "Preview convenience left in the production policy.",
+      "sourceEvidence": [
+        "services/api/src/server.ts:267",
+        "services/api/src/server.ts:297",
+        "services/api/src/routes/auth.routes.ts:416"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-SEC-006",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Global bound applied to intake/auth but not verify.",
+      "sourceEvidence": [
+        "services/api/src/routes/evidence.routes.ts:12553",
+        "services/api/src/routes/evidence.routes.ts:12623",
+        "services/api/src/services/rate-limit.ts:292"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-STR-004",
+      "aliases": [
+        "ET-DC-05"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "android",
+        "ios"
+      ],
+      "rootCause": "sealDirectCapture wraps only the staging step, not the pre-staging lifecycle.",
+      "sourceEvidence": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx:388",
+        "apps/mobile/app/(stack)/continuous-capture.tsx:257",
+        "services/worker/src/capture-reaper.ts:270"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-STR-006",
+      "aliases": [
+        "ET-DC-09"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "ET-DC-09 fix appended a post-seal update instead of threading completeness into the bind.",
+      "sourceEvidence": [
+        "services/api/src/services/capture-trust/continuous-capture.service.ts:185",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:856",
+        "packages/shared/src/screen-continuous-manifest.ts:100"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TQ-005",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a",
+        "UC-3",
+        "UC-5"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Deliberately loose assertions ('rather than a brittle exact code').",
+      "sourceEvidence": [
+        "services/api/test/uc5-ios-screen-capture.integration.test.ts:338",
+        "services/api/test/uc5-ios-screen-capture.integration.test.ts:344",
+        "services/api/test/uc5-ios-screen-capture.integration.test.ts:371",
+        "services/api/test/uc3-continuous-capture.integration.test.ts:455",
+        "services/api/test/uc0-acquisition-capture.integration.test.ts:692",
+        "services/api/test/uc0-acquisition-capture.integration.test.ts:697",
+        "services/api/test/uc0-acquisition-capture.integration.test.ts:893"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TQ-006",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0a"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "Unit test for a DB-backed gate.",
+      "sourceEvidence": [
+        "services/api/test/capture-workspace-billing-scope.test.ts:214",
+        "services/api/test/capture-workspace-billing-scope.test.ts:382"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-006",
+      "aliases": [
+        "ET-TSA-01"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0b"
+      ],
+      "platforms": [
+        "api"
+      ],
+      "rootCause": "ET-TSA-01 remediation fixed the validator but left configuration as documentation (docs/operations/external-proof-register.md).",
+      "sourceEvidence": [
+        "services/api/src/services/timestamp/validate-tsa-token.ts:91",
+        "services/api/src/services/timestamp/validate-tsa-token.ts:111",
+        "services/api/src/services/timestamp/validate-tsa-token.ts:178",
+        "services/api/src/services/timestamp/validate-tsa-token.ts:187",
+        "services/api/src/services/timestamp.service.ts:194",
+        "services/api/.env.example:1"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-TRUST-007",
+      "aliases": [
+        "ET-SEC-35"
+      ],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0b"
+      ],
+      "platforms": [
+        "api",
+        "web"
+      ],
+      "rootCause": "Pre-resolver projections not migrated when presentedTsaStatus / resolveOtsAnchorClaim / stored-bytes resolver became the authorities.",
+      "sourceEvidence": [
+        "services/api/src/services/evidence-intelligence.service.ts:527",
+        "services/api/src/services/evidence-intelligence.service.ts:1039",
+        "services/api/src/services/dashboard/trust-summary.service.ts:128",
+        "services/api/src/services/admin/evidence-records.service.ts:293",
+        "packages/shared/src/evidence-digest-policy.ts:205"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-WEB-002",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Inverted condition.",
+      "sourceEvidence": [
+        "apps/web/app/(app)/capture/page.tsx:487",
+        "apps/web/app/(app)/capture/page.tsx:510"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-WEB-005",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Boolean poll.",
+      "sourceEvidence": [
+        "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:304",
+        "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:307",
+        "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:933"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    },
+    {
+      "id": "UC-WEB-006",
+      "aliases": [],
+      "originalSeverity": "P3",
+      "finalSeverity": "P3",
+      "ucs": [
+        "UC-0"
+      ],
+      "platforms": [
+        "pwa",
+        "web"
+      ],
+      "rootCause": "Local ad-hoc error mapping.",
+      "sourceEvidence": [
+        "apps/web/app/(app)/capture/page.tsx:931"
+      ],
+      "runtimeEvidenceStatus": "source-proven",
+      "owner": null,
+      "decision": null,
+      "red": null,
+      "green": null,
+      "proofKind": null,
+      "implementationCommits": [],
+      "migrations": null,
+      "impacts": null,
+      "externalProofRemaining": null,
+      "finalDisposition": "OPEN"
+    }
+  ]
+}
