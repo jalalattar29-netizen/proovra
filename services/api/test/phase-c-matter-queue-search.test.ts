@@ -96,14 +96,23 @@ vi.mock("../src/db.js", () => ({ prisma: mockClient }));
 // Prisma.sql tagged-template shim: capture the interpolated params so we
 // can assert the raw queries bind the right teamId and are parameterised
 // (never string-concatenated).
-vi.mock("@prisma/client", () => ({
-  Prisma: {
-    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
-      strings: Array.from(strings),
-      values,
-    }),
-  },
-}));
+// Only `Prisma.sql` is replaced (so the composed SQL can be inspected). The
+// rest of the module stays real: since ET-SEC-20 the case-risk engine reaches
+// the shared output-issuance authority, whose module graph reads real Prisma
+// enums (e.g. GovernanceReconciliationKind) at import time.
+vi.mock("@prisma/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@prisma/client")>();
+  return {
+    ...actual,
+    Prisma: {
+      ...actual.Prisma,
+      sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+        strings: Array.from(strings),
+        values,
+      }),
+    },
+  };
+});
 
 const { buildMatterQueue } = await import(
   "../src/services/cases/matter-queue.service.js"
