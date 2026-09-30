@@ -235,6 +235,42 @@ export function isConclusivelyUnanchored(input: {
   );
 }
 
+/**
+ * ET-OTS-06 — an unreadable proof is terminal after this many CONSECUTIVE
+ * identical deterministic read failures (counted from the custody chain's
+ * OTS_ATTEMPT_ERROR events, so no new state). One is not enough: the bytes are
+ * the same, but a strike count keeps a single odd read from being final.
+ */
+export const OTS_UNREADABLE_PROOF_STRIKES = 3;
+export const OTS_PROOF_UNREADABLE_REASON =
+  "OTS_PROOF_UNREADABLE: ots info could not read this proof (an offline, deterministic read).";
+
+/** How many of the most recent OTS custody events are this same unreadable-proof attempt. */
+export async function priorConsecutiveUnreadableAttempts(evidenceId: string): Promise<number> {
+  const events = await prisma.custodyEvent.findMany({
+    where: {
+      evidenceId,
+      eventType: {
+        in: [
+          prismaPkg.CustodyEventType.OTS_ATTEMPT_ERROR,
+          prismaPkg.CustodyEventType.OTS_APPLIED,
+          prismaPkg.CustodyEventType.OTS_FAILED,
+        ],
+      },
+    },
+    orderBy: { sequence: "desc" },
+    take: OTS_UNREADABLE_PROOF_STRIKES - 1,
+    select: { eventType: true, payload: true },
+  });
+  let n = 0;
+  for (const e of events) {
+    const reason = (e.payload as { reason?: unknown } | null)?.reason;
+    if (e.eventType === prismaPkg.CustodyEventType.OTS_ATTEMPT_ERROR && reason === OTS_PROOF_UNREADABLE_REASON) n += 1;
+    else break;
+  }
+  return n;
+}
+
 /** Why the check could not conclude, for the custody event. Bounded vocabulary. */
 export function inconclusiveCheckReason(input: {
   infoStatus: string;
@@ -514,6 +550,37 @@ export async function processOtsUpgrade(job: Job<unknown>) {
         // A hard command error that is not an established proof defect: the
         // attempt failed, the proof did not.
         observation = { kind: "TRANSIENT_ERROR", reason: classification.reason };
+      } else if (
+        info !== null &&
+        expectedHash !== null &&
+        info.fileHash === expectedHash &&
+        info.bitcoinBlockHeights.length > 0
+      ) {
+        // ET-OTS-06 — the proof commits to THIS record and carries a Bitcoin
+        // block attestation, but no transaction id could be read. That is an
+        // anchor by proof structure (the claim that does not say "checked");
+        // the txid is optional for it. Treating it as inconclusive retried it
+        // forever and never recorded the anchor.
+        observation = {
+          kind: "ANCHOR_PROVEN",
+          proofBase64,
+          check: "PROOF_STRUCTURE",
+          txid: classification.txid ?? null,
+          blockTimeUtc: null,
+          blockHeight: Math.max(...info.bitcoinBlockHeights),
+        };
+      } else if (infoResult.status === "ERROR" && infoResult.deterministic) {
+        // ET-OTS-06 — `ots info` is offline: the same bytes fail the same way.
+        // After OTS_UNREADABLE_PROOF_STRIKES consecutive identical failures
+        // the proof is MALFORMED (terminal); before that it is an attempt error.
+        observation =
+          (await priorConsecutiveUnreadableAttempts(evidenceId)) >= OTS_UNREADABLE_PROOF_STRIKES - 1
+            ? {
+                kind: "PROOF_INVALID",
+                code: "MALFORMED_PROOF",
+                reason: `The stored proof could not be read by ots info on ${OTS_UNREADABLE_PROOF_STRIKES} consecutive attempts.`,
+              }
+            : { kind: "TRANSIENT_ERROR", reason: OTS_PROOF_UNREADABLE_REASON };
       } else if (!isConclusivelyUnanchored({ info, expectedHash })) {
         /*
          * THE CHECK DID NOT COMPLETE — THAT IS NOT "PENDING" (2026-09-29).

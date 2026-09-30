@@ -301,12 +301,16 @@ describe("inconclusive check (info timeout, unreadable output, attestation witho
     await expectUnchangedAttempt(/no file hash/);
   });
 
-  it("a block attestation without a readable txid neither promotes nor demotes (txid rule kept)", async () => {
+  // ET-OTS-06 — a proof that commits to THIS record and carries a Bitcoin
+  // block attestation is an anchor by proof structure; the txid is optional
+  // for that (not-checked) claim. It used to be retried as inconclusive forever.
+  it("ET-OTS-06: a block attestation without a readable txid records the anchor as PROOF_STRUCTURE (no txid)", async () => {
     h.row = baseRow({ otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date("2026-09-01T00:00:00Z") });
     h.upgrades.push(upgradedTo(PROOF_V2));
     h.info = infoAttestationNoTxid;
-    await expectUnchangedAttempt(/block attestation but no transaction id/);
-    expect(h.row!.otsAnchorCheck).toBeNull(); // not promoted to PROOF_STRUCTURE
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE", otsBitcoinTxid: null, otsProofBase64: PROOF_V2 });
+    expect(h.custody.map((c) => c.eventType)).toEqual(["OTS_APPLIED"]);
   });
 
   it("a PENDING proof past the 30-day budget is NOT marked FAILED when the check cannot complete", async () => {
@@ -317,11 +321,55 @@ describe("inconclusive check (info timeout, unreadable output, attestation witho
     expect(h.row!.otsStatus).toBe("PENDING");
   });
 
-  it("a PENDING proof past the budget with an attestation but no txid is NOT marked FAILED", async () => {
+  it("ET-OTS-06: a PENDING proof past the budget with an attestation but no txid is ANCHORED by proof structure, not FAILED", async () => {
     h.row = baseRow({ createdAt: FORTY_DAYS_AGO });
     h.upgrades.push(upgradedTo(PROOF_V2));
     h.info = infoAttestationNoTxid;
-    await expectUnchangedAttempt(/block attestation but no transaction id/);
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE" });
+  });
+
+  // ET-OTS-06 — `ots info` is offline; a deterministic read failure repeats
+  // for the same bytes. It is an attempt error until the third consecutive
+  // identical one, which is terminal MALFORMED_PROOF.
+  const infoUnreadable = { status: "ERROR", info: null, binaryMissing: false, error: "Error! not a timestamp", deterministic: true };
+  const unreadableAttempt = {
+    atUtc: new Date("2026-09-29T00:00:00Z"),
+    eventType: "OTS_ATTEMPT_ERROR",
+    payload: { reason: "OTS_PROOF_UNREADABLE: ots info could not read this proof (an offline, deterministic read)." },
+  };
+
+  it("ET-OTS-06: a first deterministic unreadable read is an attempt error with the bounded reason", async () => {
+    h.row = baseRow();
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoUnreadable;
+    await expectUnchangedAttempt(/^OTS_PROOF_UNREADABLE:/);
+  });
+
+  it("ET-OTS-06: the third consecutive deterministic unreadable read is FAILED (MALFORMED_PROOF), not retried", async () => {
+    h.row = baseRow();
+    h.custodyHistory.push(unreadableAttempt as never, unreadableAttempt as never);
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoUnreadable;
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "FAILED", otsFailureReason: "MALFORMED_PROOF" });
+    expect(h.custody.map((c) => c.eventType)).toEqual(["OTS_FAILED"]);
+    expect(h.enqueued).toEqual([]);
+  });
+
+  it("ET-OTS-06: a timeout never counts toward the strikes, and an intervening other event resets them", async () => {
+    h.row = baseRow();
+    h.custodyHistory.push(unreadableAttempt as never, unreadableAttempt as never);
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = { ...infoUnreadable, deterministic: false };
+    await expectUnchangedAttempt(/OTS_CHECK_INCONCLUSIVE/);
+
+    h.custody.length = 0;
+    h.custodyHistory.length = 0;
+    h.custodyHistory.push(unreadableAttempt as never, { atUtc: new Date(), eventType: "OTS_APPLIED", payload: {} } as never);
+    h.upgrades.push(upgradedTo(PROOF_V1));
+    h.info = infoUnreadable;
+    await expectUnchangedAttempt(/^OTS_PROOF_UNREADABLE:/);
   });
 
   it("a record with no OpenTimestamps hash to compare is inconclusive, not pending", async () => {

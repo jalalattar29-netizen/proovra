@@ -523,6 +523,12 @@ export type GetOtsProofInfoResult =
       info: OtsInfoOutput | null;
       binaryMissing: false;
       error: string;
+      /**
+       * ET-OTS-06 — `ots info` is OFFLINE: it only reads the proof bytes. A
+       * failure that is not a timeout / kill / environment fault will repeat
+       * identically for the same bytes, so it says something about the proof.
+       */
+      deterministic: boolean;
     };
 
 export async function getOtsProofInfo(
@@ -543,6 +549,7 @@ export async function getOtsProofInfo(
       info: null,
       binaryMissing: false,
       error: "getOtsProofInfo called with an empty proofBase64.",
+      deterministic: false,
     };
   }
 
@@ -553,6 +560,7 @@ export async function getOtsProofInfo(
     let stdout = "";
     let stderr = "";
     let commandErrored = false;
+    let interrupted = false;
     try {
       const result = await execFileAsync(
         resolveOtsBin(),
@@ -566,10 +574,18 @@ export async function getOtsProofInfo(
         stdout?: string | Buffer;
         stderr?: string | Buffer;
         message?: string;
+        killed?: boolean;
+        signal?: string | null;
+        code?: string | number;
       };
       stdout = (e.stdout ?? "").toString();
       stderr = (e.stderr ?? e.message ?? "").toString();
       commandErrored = true;
+      interrupted =
+        e.killed === true ||
+        Boolean(e.signal) ||
+        e.code === "ETIMEDOUT" ||
+        /timed? ?out/i.test(e.message ?? "");
     }
 
     const merged = `${stdout}\n${stderr}`;
@@ -605,6 +621,7 @@ export async function getOtsProofInfo(
         info: parsed,
         binaryMissing: false,
         error: parsed.raw.slice(0, 380),
+        deterministic: !interrupted,
       };
     }
     // Edge case: the command succeeded but emitted no file-hash line.
@@ -615,6 +632,7 @@ export async function getOtsProofInfo(
       info: parsed,
       binaryMissing: false,
       error: "ots info returned no `File sha256 hash` line.",
+      deterministic: true,
     };
   } catch (error) {
     return {
@@ -622,6 +640,7 @@ export async function getOtsProofInfo(
       info: null,
       binaryMissing: false,
       error: normalizeErrorMessage(error).slice(0, 380),
+      deterministic: false,
     };
   } finally {
     await cleanup([workDir]);
