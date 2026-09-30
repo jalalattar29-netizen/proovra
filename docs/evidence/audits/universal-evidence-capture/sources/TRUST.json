@@ -1,0 +1,424 @@
+{
+  "area": "TRUST",
+  "reviewed": [
+    {
+      "topic": "Original byte acquisition + server hashing at completion (completeEvidence)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:528-574 (prehashCompletionObjects: HEAD all, 413 before any GET, stream-hash outside tx, bound to [bucket,key,versionId,etag,size]); :506-517 digestOf re-uses a pre-hash only for the exact object the in-tx HEAD describes, else GET at meta.versionId; :603-608 owner+deletedAt:null lookup under pg_advisory_xact_lock; :895-921 per-part HEAD, size<=0 -> 404 OBJECT_NOT_FOUND; :1249-1256 finalize claim WHERE deletedAt null AND status in (CREATED,UPLOADING)",
+      "note": "Server computes SHA-256 itself (services/api/src/stream-hash.ts:4-11, node crypto streaming). Client-declared digests are compared only on capture-session paths (:957-976). Signing and the TSA HTTP call still run inside the 120 s interactive transaction (:1150-1155, :1481-1482) - not a trust defect, noted for latency."
+    },
+    {
+      "topic": "Incremental/stream hashing and final digest; algorithm + canonical encoding",
+      "verdict": "OK",
+      "evidence": "services/api/src/stream-hash.ts:4-11; services/api/src/services/evidence-complete.service.ts:999-1011 (fileSha256 = single-file SHA-256, or multipart composite sha256(lowercase part hex joined by '|') in partIndex order; multipartManifestSha256 = sha256(part hex joined by '\\n')); :1034-1064 & :1109-1130 fingerprint = buildFingerprint(...) -> canonicalJson (npm 'canonicalize', RFC 8785 JCS, services/api/src/crypto.ts:35-41) -> fingerprintHash = sha256(utf8 canonical)",
+      "note": "Two multipart digests exist (composite '|' and manifest LF); the package states both (services/worker/src/verification-package.ts:1895-1904)."
+    },
+    {
+      "topic": "EvidencePart hashes",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:1018-1031 writes per-part sha256/size/mime/storageVersionId; services/api/prisma/schema.prisma:526 @@unique([evidenceId, partIndex]); services/api/src/routes/evidence.routes.ts:464 client-supplied partIndex 0..MAX-1",
+      "note": "Per-part digests are signed inside the fingerprint (evidence-complete.service.ts:450-457) but the per-part columns are later trusted without comparison to the signed fingerprint (see UC-TRUST-001). partIndex gaps (client never presigned an index) are accepted on the generic multipart path; only capture-session paths enforce a declared set (evidence-complete.service.ts:960-975) and continuous manifests enforce contiguity (packages/shared/src/screen-continuous-manifest.ts:355-362)."
+    },
+    {
+      "topic": "Manifest / root hash formula (fingerprint as root)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:437-462 multipart fingerprint {v:1,evidenceId,type,file:{multipart:true,summary,parts:[{partIndex,storageBucket,storageKey,sizeBytes,mimeType,sha256}]},capturedAtUtc,deviceTimeIso,gps,uploadedAtUtc}; :465-480 single-file variant with etag:null",
+      "note": "The fingerprint is the only signed root; custody, TSA and OTS are separate layers (OTS stamps the fingerprint bytes, services/worker/src/ots-lifecycle.ts:229-232; TSA stamps fileSha256, evidence-complete.service.ts:1152-1154)."
+    },
+    {
+      "topic": "Custody chain formula + append-only",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/custody-hash.ts:41-60 eventHash = sha256(canonicalJsonValue({v:1,evidenceId,sequence,eventType,atUtc:ISO,payload|null,prevEventHash|null})) with sorted-key canonical JSON (:11-39); packages/shared-runtime/src/custody/custody-chain.ts:45-90 single appender under pg_advisory_xact_lock(hashtext(evidenceId)); :106-148 evaluator (sequence_gap :126, prev_hash_mismatch :138, event_hash_mismatch :141, stripped-modern-chain hash_missing :115-120); services/api/prisma/migrations/20280805000000_custody_append_only/migration.sql:20-28 UPDATE/DELETE triggers",
+      "note": "Hash is unkeyed; tail truncation is prevented only by the DELETE trigger, not by the chain (no signed head). The package seal records custodyThroughSequence (packages/shared/src/package-seal.ts:73-77)."
+    },
+    {
+      "topic": "Capture trust-event sub-chain",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/services/capture-trust/trust-event.service.ts:112-148, :220-245; packages/shared-runtime/src/capture-trust/provenance-chain.ts:104-119",
+      "note": "Hashed on write, never verified on read, not append-only. See UC-TRUST-004."
+    },
+    {
+      "topic": "Evidence signature creation (key source, algorithm, key id, rotation, public-key fingerprint persistence)",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/signing/signer.ts:50-77 (local-pem Ed25519 over the 32 raw bytes of fingerprintHash, keyId/version from SIGNING_KEY_ID/VERSION env, committed-fixture refusal :62-65), :80-92 + services/api/src/signing/kms-signer.ts:88-117 (KMS ED25519_SHA_512 RAW), :111-121 ControlledEvidenceSigner refuses RETIRED/REVOKED at sign time; persisted: evidence.signingKeyId/signingKeyVersion only (evidence-complete.service.ts:1192-1194); public key: signing_keys row (schema.prisma:984-995) seeded by services/api/src/seed-signing-key.ts:350-360",
+      "note": "No per-record public-key fingerprint, no sign-time self-verification, seed upsert overwrites the key and clears revokedAt, verify ignores revocation. See UC-TRUST-003."
+    },
+    {
+      "topic": "Package seal (format 5) and package manifest signature",
+      "verdict": "OK",
+      "evidence": "services/worker/src/verification-package.ts:3676-3685 checksum index over every entry; :3689-3696 report digest must equal the certified report (PACKAGE_SEAL_REPORT_DIGEST_MISMATCH); :3697-3714 seal = canonicalize(PackageSeal) -> sha256 -> Ed25519 over 32 raw bytes; :3716-3721 signingKeyFingerprint = sha256(DER SPKI); :3744-3748 assertSealSignatureVerifies before publish; :1052-1108 streamed originals hashed on the way in, build fails on size/digest drift; services/worker/src/signing/package-signer.ts:62-80 local private/public key match, :123-152 startup self-test; packages/shared/src/package-seal.ts:158-274 reference verifier",
+      "note": "verifySealedPackageEntries trusts the key file inside the ZIP and does not compare signingKeyFingerprint to the key it verified with; only the README (verification-package.ts:2169-2186) asks a human to compare with Public Verify (ET-PKG-02 remediation). Acceptable because the in-code verifier is test-only."
+    },
+    {
+      "topic": "TSA request / imprint / nonce / response validation (ET-TSA-01 status)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/timestamp.service.ts:239-243 `openssl ts -query -digest <hex> -sha256 -cert` (default random nonce); :270 reply bytes kept; :274-286 granted-without-token -> tsa_token_missing; :288-306 parse; :309-324 validateTsaToken; :326-336 STAMPED only when validated. services/api/src/services/timestamp/validate-tsa-token.ts:99-115 anchor = TSA_TRUST_BUNDLE_PATH only (unset/unreadable/empty -> fail closed), :111-113 test-anchor refused when NODE_ENV=production, :178-181 policy allow-list, :183-195 `openssl ts -verify -in <tsr> -CAfile <anchor> -queryfile <tsq> [-attime genTime]` (signature, chain, EKU, signer validity at genTime, imprint, nonce), :125-143 bounded classification; services/api/src/services/timestamp/parse-tsa-reply.ts:323-377 non-granted / imprint mismatch / imprint absent refused before validation",
+      "note": "ET-TSA-01 is FIXED at the issuance boundary: STAMPED now implies an openssl chain+signature+nonce+imprint verification against an environment trust anchor (commit d263f4f61f). Legacy STAMPED rows without tsaValidatedAtUtc are presented as RECORDED_NOT_VALIDATED (packages/shared/src/tsa-validation-state.ts:25-35) everywhere the API projects TSA state. Residual configuration gaps: UC-TRUST-006. Tests run the real code against a locally minted openssl TSA over loopback (services/api/test/tsa-token-validation.test.ts:79-207)."
+    },
+    {
+      "topic": "Kept-token later validation (repair CLI)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/timestamp/kept-token-validation.ts:45-97 (same parser + validator, -digest instead of -queryfile, serial+genTime required); services/api/src/scripts/repair-tsa-failed-with-token.ts:134-138 candidates, :192-215 compare-and-set, :216-238 TIMESTAMP_APPLIED only for FAILED->STAMPED",
+      "note": "Nonce cannot be re-checked for a kept token (query gone) - documented, acceptable."
+    },
+    {
+      "topic": "OpenTimestamps submission, upgrade states, retry, corrupted proof",
+      "verdict": "OK",
+      "evidence": "services/worker/src/ots-lifecycle.ts:229-232 stamps fingerprintCanonicalJson bytes; :258-270 race-guarded write; services/worker/src/ots.service.ts:211-251 initialization never writes ANCHORED; services/worker/src/ots-upgrade.processor.ts:457-462 magic-header check -> MALFORMED_PROOF, :530-536 ots info file hash != otsHash -> PROOF_HASH_MISMATCH, :537-549 anchor only via ots verify (BITCOIN_VERIFIED) or info structure (PROOF_STRUCTURE), :570-582 3-strike deterministic unreadable -> MALFORMED_PROOF; packages/shared/src/ots.ts:97-126 resolveOtsAnchorClaim (VERIFIED requires BITCOIN_VERIFIED + txid)",
+      "note": "Claim vocabulary is honest on report/package/Public Verify. The provenance projection bypasses it - UC-TRUST-002."
+    },
+    {
+      "topic": "Integrity recheck (shared-runtime authority + worker)",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/integrity-recheck/authority.ts:70-76 eligible = SIGNED/REPORTED, not DESTROYED/PENDING_DESTRUCTION, fileSha256 not null; :104-133 lease claim; :177-224 history row + latest state; :263-280 reader; services/worker/src/integrity-recheck.ts:138-190 reads each object at its recorded VersionId, composite '|' rule, legacy single-part composite accepted (:182-183), 404 -> OBJECT_VERSION_MISSING, other errors -> UNAVAILABLE; :211-250 DIGEST_MISMATCH -> rejectEvidenceIntegrity (FAILED_HASH_MISMATCH); packages/shared/src/stored-bytes-integrity.ts:94-127 verified_current / verified_stale / pending / failed / unknown",
+      "note": "Mechanics are sound and runtime-tested against live PG (services/api/test/integrity-recheck.integration.test.ts:161-418, storage reader injected). Two gaps: the expected digest is the unsigned fileSha256 column (UC-TRUST-001) and the verdict surfaces do not consume the result (UC-TRUST-005)."
+    },
+    {
+      "topic": "Verification after restart",
+      "verdict": "OK",
+      "evidence": "All verify inputs are persisted: signature/fingerprint (evidence row), public key (signing_keys, evidence.routes.ts:13044-13052), TSA validation facts (tsaValidatedAtUtc etc., evidence-complete.service.ts:1227-1235), OTS claim inputs (otsAnchorCheck), custody (custody_events), recheck state (integrity* columns). Recheck due-ness is a DB fact (integrity-recheck.ts:346-420) and OTS ladder is DB-recovered.",
+      "note": "No in-memory trust state is consulted by any verifier; the only cache is the KMS public-key cache used by the signer (kms-signer.ts:68-86)."
+    },
+    {
+      "topic": "Legacy records missing new fields",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/tsa-validation-state.ts:25-35 (STAMPED w/o tsaValidatedAtUtc -> RECORDED_NOT_VALIDATED); packages/shared/src/evidence-digest-policy.ts:220-233 (missing imprint -> null, not mismatch); packages/shared/src/ots.ts:65-72,114-119 (anchorCheck null -> ANCHORED_NOT_CHECKED); packages/shared-runtime/src/custody/custody-chain.ts:104-120 (pre-2026-09-25 unhashed chain -> legacy valid, modern unhashed -> hash_missing); services/worker/src/integrity-recheck.ts:182 legacy single-part composite; services/worker/src/verification-package.ts:1871-1876 multipartManifestSha256 derived for legacy rows; packages/shared/src/stored-bytes-integrity.ts:126 never-checked -> unknown",
+      "note": "Exception: the provenance projection reads legacy TIMESTAMP_APPLIED events as 'Independent timestamp: Applied' (UC-TRUST-002)."
+    },
+    {
+      "topic": "Behaviour when keys / trust config are absent",
+      "verdict": "PARTIAL",
+      "evidence": "signing key file/env missing -> ed25519SignHexWithKeyPath/must() throw inside the completion tx, nothing is signed (services/api/src/crypto.ts:43-53, signer.ts:74-75); signing_keys row missing -> Public Verify generic failure + alert (evidence.routes.ts:13054-13080), review workspace signatureValid=false (:9486-9504); TSA disabled -> tsaStatus null, 'not_issued'; TSA enabled without TSA_URL/USERNAME/PASSWORD -> must() throws out of completeEvidence (timestamp.service.ts:194-196) so capture completion fails for every record; TSA_TRUST_BUNDLE_PATH missing -> FAILED tsa_trust_anchor_not_configured with token kept (validate-tsa-token.ts:102-110); OTS binary missing -> PENDING/transient",
+      "note": "All fail closed (never positive). TSA_ENABLED=true with a credential-less TSA blocks completion entirely; anchor absence is not surfaced by any readiness check (UC-TRUST-006)."
+    },
+    {
+      "topic": "Status vocabulary: TSA presentation across API/UI/report/package",
+      "verdict": "OK",
+      "evidence": "presentedTsaStatus applied at every exit found: evidence.routes.ts:9509 & :13359 (review workspace + public verify), :14135; services/worker/src/processor.ts:2923 (report), :4634-4635 (timestamp.tsr only when presented STAMPED); services/api/src/services/dashboard/integrity-snapshot.service.ts:181; trust-summary.service.ts:118; matter-workspace.service.ts:902; ai evidence-analysis-snapshot.service.ts:138; packages/shared/src/basic-verification.ts:190-210; web apps/web/components/verify-v2/_helpers.ts:110-120; mobile apps/mobile/src/product/public-verify.ts:441-448",
+      "note": "Residual raw reads: admin evidence-records (services/api/src/services/admin/evidence-records.service.ts:293) and custody narrative lines 'Timestamp applied - Status: STAMPED' for legacy events (evidence.routes.ts:2049-2058). Folded into UC-TRUST-007 / UC-TRUST-002."
+    },
+    {
+      "topic": "Status vocabulary: OTS / integrity / signature / verdict collapse",
+      "verdict": "PARTIAL",
+      "evidence": "OTS claim honest in basic verification (packages/shared/src/basic-verification.ts:212-231), report and package; collapsed in provenance projection (UC-TRUST-002) and trust-summary otsBucket (services/api/src/services/dashboard/trust-summary.service.ts:126-128); stored-bytes state honest in its own row but ignored by verdicts (UC-TRUST-005); evidence-intelligence verificationProof asserts MATCH/APPLIED from presence (services/api/src/services/evidence-intelligence.service.ts:527-529)",
+      "note": "See findings."
+    },
+    {
+      "topic": "Public Verify for trashed / destroyed / hash-mismatch / unpublished records",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:12697 (deletedAt null, lifecycleState not TRASHED/DESTROYED), :12860-12875 FAILED_HASH_MISMATCH -> 404 with audit; services/api/test/verification-share-links.integration.test.ts:354-367",
+      "note": "Recheck never resurrects: authority.ts:70-76 excludes DESTROYED/PENDING_DESTRUCTION, trashed rechecked in place (integrity-recheck.integration.test.ts:241)."
+    },
+    {
+      "topic": "Continuous / screen capture manifest ordering, duplicates, gaps, substitution",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/screen-continuous-manifest.ts:329 duplicate partIndex, :355-362 contiguous sequence 0..N-1; services/api/src/services/capture-trust/continuous-capture.service.ts:104-146 manifest bytes must be a declared part and segments map 1:1 to declared digests, :148-162 stored size check; evidence-complete.service.ts:960-975 server digest vs declared digest per part",
+      "note": "Tests: services/api/test/uc3-continuous-capture.integration.test.ts:363-455 (storage/signer doubles, real validator + DB)."
+    },
+    {
+      "topic": "Media type binding",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:925-929 & :1094-1095 mime = S3 HEAD Content-Type (uploader-controlled) -> signed into the fingerprint; services/api/src/routes/evidence.routes.ts:6187-6194 presign validation runs with an empty byte head (claimed mime/extension only); packages/shared-runtime/src/media-intelligence/analyzer.service.ts:167-180 post-seal advisory MIME_EXTENSION_MISMATCH compares name vs mime, not bytes",
+      "note": "The recorded media type is a declared value, never sniffed from the sealed bytes. Presented as 'mimeType', not as a verified property, so recorded as PARTIAL rather than a finding."
+    }
+  ],
+  "findings": [
+    {
+      "id": "UC-TRUST-001",
+      "severity": "P2",
+      "title": "Integrity checks compare stored bytes to unsigned columns (fileSha256 / EvidencePart.sha256); nothing binds them to the signed fingerprint, yet the UI calls it 'its signed hash'",
+      "ucs": ["UC-0a", "UC-0b"],
+      "platforms": ["api", "worker", "web", "all"],
+      "userImpact": "A record whose bytes and digest columns were changed together keeps 'Stored file rechecked - matched its signed hash', a valid signature and a verified original on Verify.",
+      "legalImpact": "The platform's own recheck and verify answers would certify substituted evidence under an insider/DB-write threat model; the signed fingerprint that would expose the substitution is never consulted.",
+      "securityImpact": "Defence-in-depth gap: the signature protects fingerprintCanonicalJson, but every byte-level check reads mutable, unsigned columns of the evidence and evidence_parts tables (neither is append-only).",
+      "locations": [
+        {"file": "services/worker/src/integrity-recheck.ts", "line": 183},
+        {"file": "services/worker/src/integrity-recheck.ts", "line": 311},
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 9480},
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 13340},
+        {"file": "services/worker/src/processor.ts", "line": 993},
+        {"file": "packages/shared/src/stored-bytes-integrity.ts", "line": 141},
+        {"file": "services/api/src/services/evidence-complete.service.ts", "line": 1018}
+      ],
+      "reproduction": "Signed multipart record R. As a DB writer: PUT new bytes to R's key (new S3 version), UPDATE evidence_parts SET sha256=<new>, storage_version_id=<new version>; UPDATE evidence SET file_sha256=sha256(join('|')), storage_version_id=... . Run the recheck: observeOriginalDigest computes the new composite and compares it to evidence.fileSha256 (integrity-recheck.ts:181-183) -> VERIFIED. Public Verify: canonicalHashMatches = sha256(fingerprintCanonicalJson)===fingerprintHash (evidence.routes.ts:13340-13344) and signatureValid over it -> both true; custody chain untouched -> valid. fingerprintCanonicalJson still lists the ORIGINAL part sha256 values and the UPLOAD_COMPLETED custody payload still holds the original fileSha256; no code compares either with the columns.",
+      "observed": "No verifier parses fingerprintCanonicalJson.file.sha256 / file.parts[].sha256 or the UPLOAD_COMPLETED payload and compares them with fileSha256 / EvidencePart.sha256 (grep: the only JSON.parse of the fingerprint is services/worker/src/report-v2/content-model.ts:41 for counts). The stored-bytes copy says 'matched its signed hash'.",
+      "expected": "The expected digest of every byte check is derived from (or asserted equal to) the signed fingerprint: single-file file.sha256, multipart composite of file.parts[].sha256 in partIndex order, with part storage coordinates from the fingerprint. A disagreement between the fingerprint and the columns is itself an integrity failure.",
+      "rootCause": "The fingerprint is treated as an opaque signed blob; fileSha256 and part sha256 columns were introduced as 'the' digest and every later reader trusts them.",
+      "proof": "source-proven",
+      "remediation": "Add one shared resolver signedDigestsFromFingerprint(fingerprintCanonicalJson) and use it (a) as expectedDigest in observeOriginalDigest/recordIntegrityObservation, (b) in Public Verify / review workspace as a 'columnsMatchSignedFingerprint' check feeding overallIntegrity, (c) in report issuance before promotion. Treat a mismatch as FAILED_HASH_MISMATCH.",
+      "requiredTests": "Live-PG test: sign a record, rewrite file_sha256 + evidence_parts.sha256 + bytes consistently, assert recheck FAILED and Verify not verified; unit test for the resolver on single/multipart/legacy fingerprints.",
+      "migrationImpact": "none",
+      "dependsOn": [],
+      "aliases": ["ET-PKG-06"],
+      "runtimeProbe": "Disposable PG + in-memory reader: create SIGNED record via completeEvidence with test signer, UPDATE evidence.file_sha256 and evidence_parts.sha256 to digests of replacement bytes served by the injected reader, call recheckEvidenceIntegrity({force:true}) -> expect today VERIFIED (defect)."
+    },
+    {
+      "id": "UC-TRUST-002",
+      "severity": "P2",
+      "title": "Provenance chain says 'Public anchor: Anchored' for any PENDING OTS proof and 'Independent timestamp: Applied' for unvalidated legacy TSA tokens (web, native, package provenance/chain.json)",
+      "ucs": ["UC-0b", "UC-1", "UC-2", "UC-3", "UC-5"],
+      "platforms": ["web", "android", "ios", "api", "worker"],
+      "userImpact": "The Evidence Detail provenance section and the native provenance view show 'Anchored' minutes after capture, when the proof only exists at a calendar and Bitcoin anchoring is pending; legacy records whose token was never validated show the RFC 3161 layer as applied.",
+      "legalImpact": "A reviewer reading provenance (or provenance/chain.json in the verification package) is told a public blockchain anchor exists when every other surface correctly says PENDING / ANCHORED_NOT_CHECKED; contradicts the one-OTS-claim rule.",
+      "securityImpact": "none",
+      "locations": [
+        {"file": "packages/shared-runtime/src/capture-trust/provenance-chain.ts", "line": 193},
+        {"file": "packages/shared-runtime/src/capture-trust/provenance-chain.ts", "line": 225},
+        {"file": "packages/shared-runtime/src/capture-trust/provenance-chain.ts", "line": 230},
+        {"file": "packages/shared-runtime/src/capture-trust/provenance-chain.ts", "line": 232},
+        {"file": "services/worker/src/ots-lifecycle.ts", "line": 279},
+        {"file": "services/worker/src/ots-upgrade.processor.ts", "line": 685},
+        {"file": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx", "line": 219},
+        {"file": "apps/mobile/src/product/provenance.ts", "line": 95},
+        {"file": "services/worker/src/processor.ts", "line": 4596}
+      ],
+      "reproduction": "Finalize any record with OTS enabled. ots-lifecycle.ts:275-280 appends OTS_APPLIED with otsStatus PENDING / otsPhase proof_created. loadProvenanceChain (provenance-chain.ts:193-236) selects SIGNATURE_APPLIED/TIMESTAMP_APPLIED/OTS_APPLIED/ANCHOR_PUBLISHED and sets otsApplied=true for any OTS_APPLIED; web EvidenceProvenanceChainSection.tsx:229-237 renders 'Anchored', mobile provenance.ts:96 the same; the worker ships the same object as provenance/chain.json (processor.ts:4596, verification-package.ts:3518-3523). For a pre-2026-09-29 STAMPED row, TIMESTAMP_APPLIED exists (written from reply text) so rfc3161.applied=true regardless of presentedTsaStatus.",
+      "observed": "time.ots.applied=true for PENDING (and for a later FAILED record, since the earlier OTS_APPLIED persists); anchorTxId always null because the reader looks for payload key 'txId' while writers use 'bitcoinTxid' (ots-lifecycle.ts:293, ots-upgrade.processor.ts:692); confirmations never written. time.rfc3161.applied ignores tsaValidatedAtUtc.",
+      "expected": "Provenance time layers derived from resolveOtsAnchorClaim and presentedTsaStatus on the evidence row (VERIFIED / ANCHORED_NOT_CHECKED / PENDING / FAILED; STAMPED / RECORDED_NOT_VALIDATED / FAILED), and UI copy per claim.",
+      "rootCause": "The projection infers state from custody event TYPES, whose names ('OTS_APPLIED', 'TIMESTAMP_APPLIED') predate the claim/validation vocabularies.",
+      "proof": "source-proven",
+      "remediation": "In loadProvenanceChain select otsStatus/otsAnchoredAtUtc/otsAnchorCheck/otsBitcoinTxid/tsaStatus/tsaValidatedAtUtc from Evidence and emit {ots:{claim,...}, rfc3161:{status: presentedTsaStatus(...)}}; bump PROVENANCE_CHAIN_SCHEMA_VERSION; update web/mobile labels to the shared claim badges.",
+      "requiredTests": "Unit: PENDING OTS row -> claim PENDING, label not 'Anchored'; legacy STAMPED w/o validation -> RECORDED_NOT_VALIDATED. Render tests for web + mobile provenance sections.",
+      "migrationImpact": "none",
+      "dependsOn": [],
+      "aliases": ["ET-TSA-01", "ET-RPT-09"],
+      "runtimeProbe": "Disposable PG: insert evidence + custody OTS_APPLIED {otsStatus:'PENDING'}; call loadProvenanceChain -> time.ots.applied === true today."
+    },
+    {
+      "id": "UC-TRUST-003",
+      "severity": "P2",
+      "title": "Evidence signing-key identity is a mutable (keyId, version) row: no sign-time self-check, seed upsert overwrites the key and un-revokes it, verify ignores revocation, no per-record key fingerprint",
+      "ucs": ["UC-0b"],
+      "platforms": ["api", "worker"],
+      "userImpact": "A private/public key mismatch (rotation without a version bump, wrong mounted PEM) signs every new record with a signature that Verify then reports invalid, with no error at capture time; re-running the seed with a new key silently invalidates every historical signature under that keyId/version.",
+      "legalImpact": "Signature validity of historical evidence depends on an overwritable table row rather than a key identity bound to the record; a revoked/compromised key still verifies as valid.",
+      "securityImpact": "A DB writer can replace signing_keys.public_key_pem and the evidence signature/fingerprint consistently; revocation of a compromised key has no effect on verification.",
+      "locations": [
+        {"file": "services/api/src/seed-signing-key.ts", "line": 355},
+        {"file": "services/api/src/signing/signer.ts", "line": 67},
+        {"file": "services/api/src/services/evidence-complete.service.ts", "line": 1150},
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 13044},
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 9041},
+        {"file": "services/worker/src/processor.ts", "line": 2657},
+        {"file": "services/api/prisma/schema.prisma", "line": 984}
+      ],
+      "reproduction": "(a) Configure SIGNING_PRIVATE_KEY_PATH to key K2 while signing_keys(keyId,1) holds K1: completeEvidence signs (signer.ts:67-76) and commits SIGNED with no verification; Public Verify verifies with K1 (evidence.routes.ts:13044-13052, :13348-13356) -> signatureValid false for every new record. (b) Run seed with SIGNING_PUBLIC_KEY_PEM=K2 and the same SIGNING_KEY_ID/VERSION: upsert update {publicKeyPem, revokedAt:null} (seed-signing-key.ts:355-358) replaces K1 for all historical records and clears any revocation. (c) signing_keys.revokedAt is never read by any verifier (only findUnique selecting publicKeyPem).",
+      "observed": "Evidence rows persist signingKeyId + signingKeyVersion only; no SPKI fingerprint. The package signer, by contrast, checks private/public match (services/worker/src/signing/package-signer.ts:74-78) and self-verifies the seal before publishing (verification-package.ts:3744-3748).",
+      "expected": "Sign-time self-verification against the registered public key (fail closed); signing_keys immutable once referenced (insert-only, refuse to change public_key_pem for an existing (keyId,version)); evidence persists signing_key_sha256 (SPKI fingerprint) and verifiers require it to match; revocation surfaced (at least 'signed with a key revoked at T').",
+      "rootCause": "Evidence signing predates the package-seal hardening; the key registry was designed as a convenience lookup, not as the record's identity binding.",
+      "proof": "source-proven",
+      "remediation": "Additive column evidence.signing_key_sha256; ControlledEvidenceSigner verifies its own signature with the registry key before returning; seed refuses an update that changes public_key_pem and never clears revoked_at; verifiers compare fingerprints and project revocation.",
+      "requiredTests": "Integration: mismatched private key -> completion refused, nothing SIGNED; seed with a different PEM for an existing (keyId,version) refused; revoked key -> verify shows revoked signer.",
+      "migrationImpact": "additive",
+      "dependsOn": [],
+      "aliases": ["ET-PKG-02"],
+      "runtimeProbe": "Disposable PG: seed signing_keys with K1, set local-pem env to K2, call completeEvidence with a stub object -> status SIGNED, then GET /public/verify -> signatureValid false (defect)."
+    },
+    {
+      "id": "UC-TRUST-004",
+      "severity": "P2",
+      "title": "Capture trust-event sub-chain is hash-linked on write but never verified, not append-only, and its hash formula is not reproducible for nested payloads",
+      "ucs": ["UC-0b", "UC-1", "UC-2", "UC-3", "UC-5"],
+      "platforms": ["api", "worker", "extension", "android", "ios"],
+      "userImpact": "Capture provenance (device signature verdicts, session binding, digests confirmed, trustChainHeadHash) is displayed and packaged from rows no code has checked; an edited or deleted trust event changes the provenance verdict silently.",
+      "legalImpact": "The 'trust chain head hash' presented as provenance evidence cannot be independently recomputed and is not verified by the platform.",
+      "securityImpact": "capture_trust_event_records allows UPDATE/DELETE (the append-only migration covers custody_events and admin_audit_logs only); signatureVerdict is read straight from row payloads.",
+      "locations": [
+        {"file": "services/api/src/services/capture-trust/trust-event.service.ts", "line": 138},
+        {"file": "services/api/src/services/capture-trust/trust-event.service.ts", "line": 220},
+        {"file": "services/api/src/services/capture-trust/trust-event.service.ts", "line": 234},
+        {"file": "packages/shared-runtime/src/capture-trust/provenance-chain.ts", "line": 104},
+        {"file": "packages/shared-runtime/src/capture-trust/provenance-chain.ts", "line": 134},
+        {"file": "services/api/prisma/migrations/20280805000000_custody_append_only/migration.sql", "line": 20},
+        {"file": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts", "line": 898}
+      ],
+      "reproduction": "grep buildTrustEventHash: defined and called only at trust-event.service.ts:138/220; no evaluator exists. loadProvenanceChain reads up to 400 rows ordered by createdAt (provenance-chain.ts:104-119) and derives signatureVerdict/provenanceClass from payload strings (:132-171) without recomputing eventHash/prevEventHash. The hash line sorts only top-level payload keys (:234-236) and JSON.stringify's nested objects in insertion order, which a JSONB round-trip does not preserve, so an external recomputation from stored rows can fail for nested payloads.",
+      "observed": "Hash columns are write-only metadata; chain breaks, edits and deletions are undetectable.",
+      "expected": "An evaluator (like evaluateCustodyChain) run by the provenance projection with a 'chainValid' field; full-depth canonical JSON (reuse canonicalJsonValue); append-only trigger on capture_trust_event_records; package exports the rows with hashes so the sub-chain can be recomputed.",
+      "rootCause": "The sub-chain was added for concurrency (ET-DC-10) and display, not as a verified structure.",
+      "proof": "source-proven",
+      "remediation": "Add evaluateTrustEventChain in shared-runtime, version the hash formula (v2 = canonicalJsonValue), add append-only trigger, surface chainValid in ProvenanceChain and treat invalid as capture provenance class C.",
+      "requiredTests": "Unit: edited payload / deleted middle row / reordered sequence -> invalid; nested payload JSONB round-trip recomputes under v2. Integration: UPDATE on capture_trust_event_records refused.",
+      "migrationImpact": "additive",
+      "dependsOn": [],
+      "aliases": ["ET-DC-10"],
+      "runtimeProbe": "Disposable PG: emit 3 trust events, UPDATE the middle row's payload.signatureVerdict to 'VALID', call loadProvenanceChain -> deviceSignatureVerdict VALID and no chain error (defect)."
+    },
+    {
+      "id": "UC-TRUST-005",
+      "severity": "P2",
+      "title": "Verify final verdict and integrity headline ignore the stored-bytes recheck: a missing original (OBJECT_VERSION_MISSING) or never-rechecked record still reads 'Recorded integrity verified - reviewers may rely'",
+      "ucs": ["UC-0b"],
+      "platforms": ["api", "web", "android", "ios"],
+      "userImpact": "Public Verify shows a separate 'Stored file: Failed' row but the headline verdict, risk level 'Low' and legal statement ('storage signals ... support the recorded integrity state') stay positive.",
+      "legalImpact": "A recipient can rely on a green verdict for a record whose original object version no longer exists in storage.",
+      "securityImpact": "none",
+      "locations": [
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 13489},
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 1847},
+        {"file": "services/api/src/routes/evidence.routes.ts", "line": 13425},
+        {"file": "apps/web/app/verify/[token]/page.tsx", "line": 1532},
+        {"file": "apps/web/app/verify/[token]/page.tsx", "line": 1612},
+        {"file": "packages/shared/src/basic-verification.ts", "line": 244},
+        {"file": "services/worker/src/integrity-recheck.ts", "line": 168}
+      ],
+      "reproduction": "Signed record; delete its object version in storage; recheck records FAILED/OBJECT_VERSION_MISSING (integrity-recheck.ts:166-176) - status stays SIGNED because only DIGEST_MISMATCH rejects (:235). Public Verify: overallIntegrity = canonicalHash && signature && custody && !tsaMismatch && otsHash!==false (evidence.routes.ts:13489-13494) - storedBytes absent; buildEvidenceTrustDecision input has no recheck fact (:13425-13471); web buildVerificationVerdict (page.tsx:1532-1640) takes no storedBytes; basic verification original.state 'verified' (basic-verification.ts:244) is independent of storedBytes.",
+      "observed": "Only a standalone StoredBytesNotice row (page.tsx:4576) carries the failure; the verdict object, headline and trust decision are unchanged.",
+      "expected": "storedBytes.state 'failed' forces review_required / 'Recorded Integrity Review Required'; 'unknown'/'verified_stale' prevents the unqualified 'Low risk / may rely' verdict.",
+      "rootCause": "ET-SM-07 added the recheck as a new row beside the existing verdict pipeline instead of as an input to the shared trust decision.",
+      "proof": "source-proven",
+      "remediation": "Pass readStoredBytesIntegrity(...) into buildEvidenceTrustDecision (new signal 'stored_bytes') and into overallIntegrity; web/mobile verdict consume the same signal.",
+      "requiredTests": "Live-PG: OBJECT_VERSION_MISSING recheck -> /public/verify overallIntegrity false and trust decision not VERIFIED; web render test for verdict with storedBytes failed.",
+      "migrationImpact": "none",
+      "dependsOn": [],
+      "aliases": ["ET-SM-07"],
+      "runtimeProbe": "Extend services/api/test/integrity-recheck.integration.test.ts:190 case: after the OBJECT_VERSION_MISSING recheck, GET /public/verify/<token> and assert integrity.overallIntegrity === true today (defect)."
+    },
+    {
+      "id": "UC-TRUST-006",
+      "severity": "P3",
+      "title": "RFC 3161 trust configuration is unguarded: anchor/policy absent from env templates and readiness, production test-anchor refusal is a subject-string + NODE_ENV check, policy allow-list optional, genTime-unparsed tokens verified at 'now'",
+      "ucs": ["UC-0b"],
+      "platforms": ["api"],
+      "userImpact": "A production deploy without TSA_TRUST_BUNDLE_PATH silently records every new timestamp as FAILED ('Timestamp failed') with no readiness signal; a mistakenly mounted non-marker CA bundle (e.g. a staging root) is accepted as a trust anchor.",
+      "legalImpact": "Low: all failures are fail-closed, but the positive path accepts any policy OID and any anchor the file contains.",
+      "securityImpact": "Anchor pinning relies solely on the mounted file; the test-anchor guard triggers only for subjects containing PROOVRA-TEST-TSA-ANCHOR and only when NODE_ENV === 'production' (PROOVRA_ENV not consulted).",
+      "locations": [
+        {"file": "services/api/src/services/timestamp/validate-tsa-token.ts", "line": 91},
+        {"file": "services/api/src/services/timestamp/validate-tsa-token.ts", "line": 111},
+        {"file": "services/api/src/services/timestamp/validate-tsa-token.ts", "line": 178},
+        {"file": "services/api/src/services/timestamp/validate-tsa-token.ts", "line": 187},
+        {"file": "services/api/src/services/timestamp.service.ts", "line": 194},
+        {"file": "services/api/.env.example", "line": 1}
+      ],
+      "reproduction": "grep TSA_TRUST_BUNDLE_PATH|TSA_ACCEPTED_POLICY_OIDS|tsa_trust_anchor_not_configured outside tests/docs: only validate-tsa-token.ts. .env.example files contain no TSA_* keys. With genTime unparsed (parse-tsa-reply.ts:384 warning) -attime is omitted (validate-tsa-token.ts:187) so signer validity is checked at the current time.",
+      "observed": "No boot/readiness/ops check for anchor or policy; TSA_USERNAME/PASSWORD mandatory even for unauthenticated TSAs (timestamp.service.ts:195-196), which throws and blocks completion.",
+      "expected": "Production readiness fails (or ops condition raised) when TSA_ENABLED without a readable non-test anchor and an accepted-policy list; anchor fingerprint allow-list; refuse STAMPED when genTime cannot be parsed; optional credentials.",
+      "rootCause": "ET-TSA-01 remediation fixed the validator but left configuration as documentation (docs/operations/external-proof-register.md).",
+      "proof": "source-proven",
+      "remediation": "Add TSA config to secrets-authority/readiness, require TSA_ACCEPTED_POLICY_OIDS in production, pin expected anchor SHA-256, treat unparsed genTime as not validated, make credentials optional.",
+      "requiredTests": "Readiness test for missing anchor in production; validator test for unparsed genTime; production + PROOVRA_ENV test.",
+      "migrationImpact": "none",
+      "dependsOn": [],
+      "aliases": ["ET-TSA-01"],
+      "runtimeProbe": ""
+    },
+    {
+      "id": "UC-TRUST-007",
+      "severity": "P3",
+      "title": "Secondary projections still derive positive trust words from field presence or raw status (evidenceIntelligence.verificationProof, dashboard OTS bucket, admin records, stale digest-policy doc)",
+      "ucs": ["UC-0b"],
+      "platforms": ["api", "web"],
+      "userImpact": "The review-workspace API returns verificationProof.hashMatch 'MATCH' and signatureStatus 'APPLIED' whenever a digest/signature column is non-null (no comparison, including records later found mismatched); the dashboard counts ANCHORED_NOT_CHECKED proofs as 'anchored'; admin record lists show raw 'STAMPED' for unvalidated legacy tokens.",
+      "legalImpact": "Minor; not the primary verdict surfaces, but an API consumer or AI context can read 'MATCH' as a verification result.",
+      "securityImpact": "none",
+      "locations": [
+        {"file": "services/api/src/services/evidence-intelligence.service.ts", "line": 527},
+        {"file": "services/api/src/services/evidence-intelligence.service.ts", "line": 1039},
+        {"file": "services/api/src/services/dashboard/trust-summary.service.ts", "line": 128},
+        {"file": "services/api/src/services/admin/evidence-records.service.ts", "line": 293},
+        {"file": "packages/shared/src/evidence-digest-policy.ts", "line": 205}
+      ],
+      "reproduction": "buildVerificationProof: hashMatch = hasHash ? 'MATCH' : 'NOT_CHECKED' (evidence-intelligence.service.ts:527) returned in the review-workspace payload (evidence.routes.ts:9738); otsBucket maps raw ANCHORED to 'anchored' without anchorCheck (trust-summary.service.ts:126-128); admin evidence-records projects r.tsaStatus unmodified (:293); compareTimestampDigest doc still says nothing validates tokens (evidence-digest-policy.ts:205).",
+      "observed": "Presence-as-positive and raw-status-as-positive in four places outside the shared resolvers.",
+      "expected": "hashMatch derived from the live canonical/recheck result or 'NOT_CHECKED'; OTS buckets from resolveOtsAnchorClaim; admin via presentedTsaStatus; doc updated.",
+      "rootCause": "Pre-resolver projections not migrated when presentedTsaStatus / resolveOtsAnchorClaim / stored-bytes resolver became the authorities.",
+      "proof": "source-proven",
+      "remediation": "Route each through the shared resolver; add a structural guard forbidding literal 'MATCH' derivations from presence.",
+      "requiredTests": "Unit tests per projection with legacy/unchecked inputs.",
+      "migrationImpact": "none",
+      "dependsOn": [],
+      "aliases": ["ET-SEC-35"],
+      "runtimeProbe": ""
+    }
+  ],
+  "facts": {
+    "etTsa01Status": "FIXED at issuance (commit d263f4f61f): timestamp.service.ts only returns STAMPED after validate-tsa-token.ts runs `openssl ts -verify -queryfile <request> -CAfile $TSA_TRUST_BUNDLE_PATH [-attime genTime]` (CMS signature, chain to the env anchor only, timeStamping EKU, signer validity at genTime, imprint, nonce) plus an optional policy allow-list; failures persist FAILED + bounded tsaFailureCode with the reply kept; legacy STAMPED rows present as RECORDED_NOT_VALIDATED via presentedTsaStatus; the repair CLI validates kept tokens with the same validator (no nonce). Tests run real openssl against a local TSA (services/api/test/tsa-token-validation.test.ts:79-207). Residual gaps: UC-TRUST-006.",
+    "hashFormulas": {
+      "singleFileDigest": "fileSha256 = hex(SHA-256(original bytes)) - streamed, services/api/src/stream-hash.ts:4-11",
+      "multipartComposite": "fileSha256 = hex(SHA-256(utf8(join('|', [lowercase hex sha256 of part i for i in partIndex asc])))) - evidence-complete.service.ts:999-1001; TSA imprint uses this value (tsaInputKind CANONICAL_PACKAGE_SHA256)",
+      "multipartManifest": "multipartManifestSha256 = hex(SHA-256(utf8(join('\\n', part hex in partIndex asc)))) - evidence-complete.service.ts:1003-1010",
+      "fingerprint": "fingerprintCanonicalJson = RFC 8785 JCS (npm canonicalize) of buildFingerprint(...) (evidence-complete.service.ts:408-480); fingerprintHash = hex(SHA-256(utf8(fingerprintCanonicalJson)))",
+      "evidenceSignature": "Ed25519 (local PEM: node sign(null,...); KMS: ED25519_SHA_512 MessageType RAW = pure Ed25519) over the 32 raw bytes hex-decoded from fingerprintHash; base64 in evidence.signatureBase64; key identified only by (signingKeyId, signingKeyVersion) -> signing_keys.public_key_pem",
+      "custodyEvent": "eventHash = hex(SHA-256(canonicalJsonValue({v:1, evidenceId, sequence, eventType, atUtc: Date.toISOString(), payload: payload ?? null, prevEventHash: prev ?? null}))) with recursive sorted-key JSON, JSON.stringify for strings/numbers (packages/shared/src/custody-hash.ts:11-60); prevEventHash of sequence 1 is null",
+      "captureTrustEvent": "eventHash = hex(SHA-256(JSON.stringify({teamId, code, captureSessionId, evidenceId, deviceId, sequence, atUtc ISO, payload (top-level keys sorted only), prevEventHash}))) - trust-event.service.ts:220-245; never verified (UC-TRUST-004)",
+      "ots": "ots stamp over the bytes of fingerprintCanonicalJson; otsHash = SHA-256 of those bytes = fingerprintHash",
+      "tsa": "openssl ts -query -digest fileSha256 -sha256 -cert (random nonce); token kept base64 in tsaTokenBase64; tsaMessageImprint = imprint parsed FROM the token; tsaInputDigestHex = digest sent",
+      "packageSeal": "package-seal.json = canonicalize(PackageSeal{schema,sealVersion:1,packageFormatVersion:5,evidenceId,reportVersion,reportFile,reportSha256,reportIssuedAtUtc,packageAssembledAtUtc,assembly,custodyThroughSequence,proofMaterialsObservedAtUtc,fileSha256,fingerprintHash,checksumsFile,checksumsSha256,fileCount}); sealSha256 = SHA-256(bytes); Ed25519 over the 32 raw bytes of sealSha256; signingKeyFingerprint = SHA-256(DER SPKI of package-manifest-public-key.pem); recorded server-side as verification_packages.seal_sha256 / seal_signing_key_sha256 / package_sha256 and served by Basic Verify package.sealKeyFingerprint / packageSha256",
+      "packageManifestSig": "Ed25519 over the 32 raw bytes of SHA-256(package-manifest.json bytes) (verification-package.ts:1179-1216); covers the manifest only"
+    },
+    "statusVocabularies": {
+      "tsaStored": ["STAMPED", "FAILED", "null (TSA disabled / not requested)"],
+      "tsaPresented": ["STAMPED (validated)", "RECORDED_NOT_VALIDATED", "FAILED", "null"],
+      "tsaFailureCodes": ["tsa_provider_quota_exceeded", "tsa_provider_access_restricted", "tsa_provider_auth_failed", "tsa_provider_timeout", "tsa_provider_unreachable", "tsa_provider_http_error", "tsa_unknown_error", "tsa_response_parse_failed", "tsa_response_not_granted", "tsa_message_imprint_mismatch", "tsa_token_missing", "tsa_trust_anchor_not_configured", "tsa_trust_anchor_refused", "tsa_token_untrusted", "tsa_token_signature_invalid", "tsa_nonce_mismatch", "tsa_policy_not_accepted"],
+      "tsaBasicVerify": "state verified|not_checked|pending|failed|not_issued; basis TOKEN_VALIDATED|TOKEN_RECORDED_NOT_VALIDATED|TOKEN_RECORDED_IMPRINT_NOT_COMPARED (packages/shared/src/basic-verification.ts:190-210)",
+      "otsStored": ["DISABLED", "PENDING", "ANCHORED", "FAILED"],
+      "otsEffective": "ANCHORED without anchoredAtUtc -> PENDING (packages/shared/src/ots.ts:45-53)",
+      "otsAnchorCheck": ["BITCOIN_VERIFIED", "PROOF_STRUCTURE", "null"],
+      "otsClaim": ["VERIFIED", "ANCHORED_NOT_CHECKED", "PENDING", "FAILED", "UNAVAILABLE", "NOT_CONFIGURED"],
+      "otsFailureCodes": ["MALFORMED_PROOF", "PROOF_HASH_MISMATCH", "global budget exhausted"],
+      "integrityRecheckOutcome": ["VERIFIED", "FAILED", "UNAVAILABLE"],
+      "integrityRecheckFailureCodes": ["DIGEST_MISMATCH", "OBJECT_VERSION_MISSING", "STORAGE_UNAVAILABLE", "NOT_CHECKABLE"],
+      "storedBytesState": ["verified_current", "verified_stale", "pending", "failed", "unknown"],
+      "evidenceStatusTerminal": "FAILED_HASH_MISMATCH (Public Verify 404, recheck ineligible)",
+      "verificationStatus": ["MATERIALS_AVAILABLE", "RECORDED_INTEGRITY_VERIFIED", "REVIEW_REQUIRED", "FAILED"],
+      "evidenceSignature": "signatureValid boolean (true only when verified with signing_keys row); null/false when key row missing",
+      "deviceCaptureSignature": ["VALID", "INVALID_SIGNATURE", "INVALID_HASH", "INVALID_CANONICAL_JSON", "UNKNOWN_DEVICE", "MISSING", "ALGORITHM_UNSUPPORTED"],
+      "custodyChain": "valid bool; mode empty|hashed|legacy; reason sequence_gap|prev_hash_mismatch|event_hash_mismatch|hash_missing",
+      "packageSealChecks": ["SEAL_PRESENT", "SIGNATURE_PRESENT", "SIGNATURE_VALID", "CHECKSUM_INDEX_BOUND", "ENTRIES_MATCH_INDEX", "NO_UNLISTED_ENTRIES", "REPORT_BOUND"],
+      "verifyHeadline": ["Recorded Integrity Review Required", "Core Integrity Verified", "Core Integrity Verified; Trusted Timestamp Unavailable", "Integrity Materials Recorded", "Recorded Integrity Materials Available"],
+      "webVerdict": "review_required | verified | partial (apps/web/app/verify/[token]/page.tsx:1532-1680)",
+      "collapseFindings": "Collapses into a positive found only in: provenance projection (UC-TRUST-002), verdict ignoring stored-bytes FAILED/unknown (UC-TRUST-005), presence-derived verificationProof/dash/admin (UC-TRUST-007). TSA RECORDED_NOT_VALIDATED, OTS ANCHORED_NOT_CHECKED/PENDING, stored-bytes stale/unknown are kept non-positive on Public Verify basic view, report, package README/manifest/opentimestamps.json and web/mobile verify badges."
+    },
+    "negativeCases": [
+      {"case": "changed byte (at completion, capture session)", "detector": "services/api/src/services/evidence-complete.service.ts:972-974 (CAPTURE_DIGEST_MISMATCH)", "test": "services/api/test/uc0-acquisition-capture.integration.test.ts:607", "testIsReal": true, "note": "real completion + live PG; storage/signer/TSA are test doubles"},
+      {"case": "changed byte (after seal, stored object)", "detector": "services/worker/src/integrity-recheck.ts:181-183 -> :235 rejectEvidenceIntegrity; report path services/worker/src/processor.ts:2337", "test": "services/api/test/integrity-recheck.integration.test.ts:161; services/worker/test/integrity-recheck-digest-rule.test.ts:92", "testIsReal": true, "note": "real rule + live PG; storage reader injected"},
+      {"case": "changed byte (inside a package)", "detector": "packages/shared/src/package-seal.ts:239-251 (ENTRIES_MATCH_INDEX); build-time services/worker/src/verification-package.ts:1099-1106", "test": "packages/shared/tests/package-seal.test.mjs:106", "testIsReal": true},
+      {"case": "changed bytes + digest columns together (DB writer)", "detector": "NONE (UC-TRUST-001)", "test": "NONE", "testIsReal": false},
+      {"case": "reordered part (post-seal partIndex swap)", "detector": "services/worker/src/integrity-recheck.ts:181 (order-sensitive '|' composite vs fileSha256)", "test": "NONE", "testIsReal": false},
+      {"case": "reordered segment (continuous capture)", "detector": "packages/shared/src/screen-continuous-manifest.ts:355-362 + services/api/src/services/capture-trust/continuous-capture.service.ts:137-146 (1:1 by partIndex+digest)", "test": "services/api/test/uc3-continuous-capture.integration.test.ts:421 (out-of-order upload accepted by index), :407 (substitution refused)", "testIsReal": true, "note": "storage doubles"},
+      {"case": "missing part (generic multipart: presigned but not uploaded)", "detector": "services/api/src/services/evidence-complete.service.ts:907-912 (HEAD size<=0 -> 404 OBJECT_NOT_FOUND)", "test": "NONE found", "testIsReal": false, "note": "a partIndex gap never presigned is accepted - no expected part count on the generic path"},
+      {"case": "missing part (capture session / continuous)", "detector": "services/api/src/services/evidence-complete.service.ts:962-971 (declaration count/undeclared); packages/shared/src/screen-continuous-manifest.ts:357-361", "test": "services/api/test/uc0-acquisition-capture.integration.test.ts:337-344; services/api/test/uc3-continuous-capture.integration.test.ts:363, :370", "testIsReal": true},
+      {"case": "missing part (post-seal row/object deleted)", "detector": "services/worker/src/integrity-recheck.ts:166-176 (OBJECT_VERSION_MISSING) / composite mismatch if row deleted", "test": "services/api/test/integrity-recheck.integration.test.ts:190; services/worker/test/integrity-recheck-digest-rule.test.ts:101", "testIsReal": true},
+      {"case": "duplicate part", "detector": "services/api/prisma/schema.prisma:526 @@unique([evidenceId, partIndex]); packages/shared/src/screen-continuous-manifest.ts:329 (duplicate partIndex), :357-361 (duplicate sequence)", "test": "services/api/test/uc3-continuous-capture.integration.test.ts:414", "testIsReal": true, "note": "identical-content parts on the generic path are allowed and listed in package duplicate-digests.json"},
+      {"case": "wrong media type", "detector": "NONE at seal (mime = uploader Content-Type, evidence-complete.service.ts:925-929); advisory post-seal name-vs-mime only packages/shared-runtime/src/media-intelligence/analyzer.service.ts:167", "test": "NONE", "testIsReal": false},
+      {"case": "corrupted manifest (continuous capture manifest)", "detector": "services/api/src/services/capture-trust/continuous-capture.service.ts:84-101 (parse/validate), :104-116 (manifest digest must be a declared part)", "test": "services/api/test/uc3-continuous-capture.integration.test.ts:335-384", "testIsReal": true},
+      {"case": "corrupted package manifest / checksum index / seal", "detector": "packages/shared/src/package-seal.ts:197-219 (seal signature), :225-226 (index digest)", "test": "packages/shared/tests/package-seal.test.mjs:119", "testIsReal": true},
+      {"case": "corrupted fingerprint JSON in DB", "detector": "services/api/src/routes/evidence.routes.ts:13340-13344 & :9480-9484 (sha256(json) vs fingerprintHash)", "test": "services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-10]", "testIsReal": true},
+      {"case": "forged TSA token", "detector": "services/api/src/services/timestamp/validate-tsa-token.ts:183-195 (openssl ts -verify -CAfile), classified :129-141", "test": "services/api/test/tsa-token-validation.test.ts:93; services/api/test/tsa-finalize-persistence.integration.test.ts:180", "testIsReal": true, "note": "real openssl + locally minted TSA over loopback"},
+      {"case": "wrong imprint", "detector": "services/api/src/services/timestamp/parse-tsa-reply.ts:339-356 (before validation); openssl classify validate-tsa-token.ts:128", "test": "services/api/test/tsa-token-validation.test.ts:111; services/api/test/tsa-finalize-persistence.integration.test.ts:189", "testIsReal": true},
+      {"case": "wrong nonce (replayed genuine token)", "detector": "services/api/src/services/timestamp/validate-tsa-token.ts:184 (-queryfile) + :127", "test": "services/api/test/tsa-token-validation.test.ts:121", "testIsReal": true},
+      {"case": "expired / untrusted signer", "detector": "services/api/src/services/timestamp/validate-tsa-token.ts:187 (-attime genTime), :129-141", "test": "services/api/test/tsa-token-validation.test.ts:103", "testIsReal": true, "note": "-attime omitted when genTime unparsed (UC-TRUST-006)"},
+      {"case": "wrong policy", "detector": "services/api/src/services/timestamp/validate-tsa-token.ts:178-181", "test": "services/api/test/tsa-token-validation.test.ts:153", "testIsReal": true, "note": "only when TSA_ACCEPTED_POLICY_OIDS is set; unset accepts any policy"},
+      {"case": "fake trust anchor in production mode", "detector": "services/api/src/services/timestamp/validate-tsa-token.ts:111-113 (subject marker + NODE_ENV=production only)", "test": "services/api/test/tsa-token-validation.test.ts:170", "testIsReal": true, "note": "a non-marker wrong anchor is accepted (UC-TRUST-006)"},
+      {"case": "corrupted OTS proof", "detector": "services/worker/src/ots-upgrade.processor.ts:457-462 (magic header), :530-536 (PROOF_HASH_MISMATCH), :576-581 (3-strike MALFORMED_PROOF)", "test": "services/worker/test/ots-upgrade-processor.behaviour.test.ts:414, :405, :349", "testIsReal": false, "note": "processor logic real; ots binary (node:child_process), DB and custody are mocked"},
+      {"case": "stale integrity status", "detector": "packages/shared/src/stored-bytes-integrity.ts:113-121 (verified_stale)", "test": "services/api/test/integrity-recheck.integration.test.ts:392", "testIsReal": true, "note": "row is honest; verdict ignores it (UC-TRUST-005)"},
+      {"case": "mismatched package seal key", "detector": "manual only: README step 2c services/worker/src/verification-package.ts:2174-2179 vs Basic Verify package.sealKeyFingerprint (packages/shared/src/basic-verification.ts:289); in-code verifier packages/shared/src/package-seal.ts:197-219 does not compare fingerprints", "test": "services/api/test/public-verify-package-seal-identity.integration.test.ts:101 (fingerprint served)", "testIsReal": true},
+      {"case": "mismatched report digest", "detector": "services/worker/src/verification-package.ts:3689-3696 (build); packages/shared/src/package-seal.ts:264-270 (REPORT_BOUND)", "test": "packages/shared/tests/package-seal.test.mjs:90", "testIsReal": true, "note": "build-time PACKAGE_SEAL_REPORT_DIGEST_MISMATCH branch has no test"},
+      {"case": "wrong evidence signing key (private/public mismatch)", "detector": "NONE at sign time; only later verify signatureValid=false (evidence.routes.ts:13348-13356)", "test": "NONE", "testIsReal": false},
+      {"case": "custody event edited / gap / broken back-link", "detector": "packages/shared-runtime/src/custody/custody-chain.ts:126, :138, :141; DB trigger migration 20280805000000_custody_append_only/migration.sql:20-23", "test": "services/api/test/phase-12-point4-canonical-module-integrity.test.ts:181-201; services/api/test/custody-append-only.integration.test.ts:44", "testIsReal": true},
+      {"case": "capture trust-event edited", "detector": "NONE (UC-TRUST-004)", "test": "NONE", "testIsReal": false},
+      {"case": "wrong tenant", "detector": "services/api/src/services/evidence-complete.service.ts:603-616 (owner-bound, 404); share-token binding in /public/verify evidence.routes.ts:12616-12640", "test": "services/api/test/verification-share-links.integration.test.ts:308", "testIsReal": true},
+      {"case": "trashed / destroyed evidence", "detector": "services/api/src/routes/evidence.routes.ts:12697; packages/shared-runtime/src/integrity-recheck/authority.ts:70-76; completion claim evidence-complete.service.ts:1252", "test": "services/api/test/verification-share-links.integration.test.ts:365; services/api/test/integrity-recheck.integration.test.ts:241", "testIsReal": true},
+      {"case": "legacy record (unvalidated TSA / unhashed custody / no anchorCheck)", "detector": "packages/shared/src/tsa-validation-state.ts:31-33; packages/shared-runtime/src/custody/custody-chain.ts:115-120; packages/shared/src/ots.ts:114-119", "test": "services/api/test/public-verify-tsa-missing-imprint.integration.test.ts:128; services/api/test/custody-append-only.integration.test.ts:60", "testIsReal": true, "note": "provenance projection still reads legacy TIMESTAMP_APPLIED as applied (UC-TRUST-002)"}
+    ],
+    "recomputeRecipe": {
+      "inputs": "Unzipped verification package (format 5) + the record's Public Verify BASIC answer (package.packageSha256, package.sealKeyFingerprint, publicKeyPem of the evidence key) + optional TSA root CA PEM of the provider. Only node >= 18 `crypto`, `fs`; optional `openssl` and `ots` CLIs.",
+      "steps": [
+        "0. Package file: sha256(zip bytes) must equal Public Verify package.packageSha256.",
+        "1. Seal: const seal = fs.readFileSync('package-seal.json'); const sig = JSON.parse(fs.readFileSync('package-seal.sig','utf8')); assert(sha256hex(seal) === sig.sealSha256). const pub = crypto.createPublicKey(fs.readFileSync(sig.publicKeyFile)); assert(crypto.verify(null, Buffer.from(sig.sealSha256,'hex'), pub, Buffer.from(sig.signatureBase64,'base64'))). const fp = sha256hex(pub.export({type:'spki',format:'der'})); assert(fp === sig.signingKeyFingerprint && fp === publicVerify.package.sealKeyFingerprint). Optionally assert seal bytes === JCS(JSON.parse(seal)) (keys sorted, no whitespace).",
+        "2. Index: const s = JSON.parse(seal); assert(sha256hex(read('package-checksums.json')) === s.checksumsSha256); for each f of index.files: bytes=read(f.path); assert(bytes.length===f.sizeBytes && sha256hex(bytes)===f.sha256); every ZIP entry except package-checksums.json, package-seal.json, package-seal.sig must be listed; assert(sha256hex(read(s.reportFile)) === s.reportSha256).",
+        "3. Fingerprint: fp = read('fingerprint.json') (exact bytes, JCS); fingerprintHash = sha256hex(fp); assert(fingerprintHash === s.fingerprintHash). F = JSON.parse(fp).",
+        "4. Evidence signature: assert(crypto.verify(null, Buffer.from(fingerprintHash,'hex'), crypto.createPublicKey(read('public-key.pem')), Buffer.from(read('signature.txt','utf8').trim(),'base64'))); compare public-key.pem (SPKI sha256) with the key Public Verify publishes for the record (the package key alone vouches for nothing).",
+        "5. Original bytes vs SIGNED fingerprint (not vs package metadata): single file -> sha256hex(file) === F.file.sha256 === s.fileSha256. Multipart -> read evidence-manifest.json, map each F.file.parts[i] (partIndex, sha256, sizeBytes) to evidence-parts/<name> by partIndex; assert sha256hex(bytes)===part.sha256 && length===sizeBytes; composite = sha256hex(parts.sort(by partIndex).map(p=>p.sha256.toLowerCase()).join('|')) === s.fileSha256; manifest = sha256hex(same.join('\\n')) === package-manifest.json multipartManifestSha256. Assert no signed part is absent and no extra original part exists.",
+        "6. Custody: const ev = JSON.parse(read('custody.json')) sorted by sequence; evidenceId = s.evidenceId; prev = null; for e of ev: assert(e.sequence === (i===0 ? e.sequence : last+1)); assert((e.prevEventHash ?? null) === prev); h = sha256hex(canon({v:1, evidenceId, sequence:e.sequence, eventType:e.eventType, atUtc:new Date(e.atUtc).toISOString(), payload: e.payload ?? null, prevEventHash: prev})); assert(h === e.eventHash); prev = h. canon = recursive: null->'null'; number/string -> JSON.stringify; boolean; array -> '['+items.join(',')+']'; object -> '{'+Object.keys(o).sort().map(k=>JSON.stringify(k)+':'+canon(o[k])).join(',')+'}'. Use e.payload, never e.presentationPayload. The first event's prevEventHash must be null; last sequence >= s.custodyThroughSequence. Confirm the UPLOAD_COMPLETED payload.fileSha256 equals F-derived fileSha256 and SIGNATURE_APPLIED payload.fingerprintHash equals step 3.",
+        "7. RFC 3161 (only if timestamp.tsr present, which means the platform validated it): `openssl ts -verify -in timestamp.tsr -digest <s.fileSha256> -CAfile <provider root PEM>`; `openssl ts -reply -in timestamp.tsr -text` -> Message data imprint === s.fileSha256, Time stamp = genTime, Policy OID in your accepted list. Absence of timestamp.tsr means FAILED or RECORDED_NOT_VALIDATED - do not treat as timestamped.",
+        "8. OpenTimestamps (if opentimestamps-proof.ots present): proof commits to sha256(fingerprint.json bytes) = fingerprintHash; `ots verify -d <fingerprintHash> opentimestamps-proof.ots` (requires a Bitcoin node for a chain check); read opentimestamps.json claim (VERIFIED only if BITCOIN_VERIFIED).",
+        "9. package-manifest.sig (legacy/format-4 only): Ed25519 over 32 raw bytes of sha256(package-manifest.json) with package-manifest-public-key.pem; covers the manifest only."
+      ],
+      "files": ["package-seal.json", "package-seal.sig", "package-manifest-public-key.pem", "package-checksums.json", "reports/<reportFile>", "fingerprint.json", "signature.txt", "public-key.pem", "<original> or evidence-parts/* + evidence-manifest.json", "package-manifest.json", "custody.json", "timestamp.tsr (optional)", "opentimestamps-proof.ots + opentimestamps.json (optional)"],
+      "caveats": "Step 5 is the check the platform itself never performs (UC-TRUST-001); a recipient should rely on it rather than on package-checksums.json alone. The capture trust sub-chain cannot be recomputed from the package (UC-TRUST-004)."
+    }
+  }
+}

@@ -1,0 +1,2764 @@
+{
+  "schema": "PROOVRA_UNIVERSAL_CAPTURE_TRUTH_V1",
+  "headline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
+  "meta": {
+    "title": "Definitive Universal Evidence Capture Truth",
+    "baselineSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
+    "baselineRef": "origin/main (== local main) at audit start, 2026-09-30",
+    "auditBranch": "audit/universal-evidence-capture-truth",
+    "auditWorktree": "D:/pv-uca (fresh worktree from origin/main; contains no .env files)",
+    "auditDate": "2026-09-30",
+    "runtime": {
+      "node": "v24.12.0",
+      "pnpm": "10.28.2",
+      "docker": "29.2.1",
+      "os": "Windows 11 Pro 10.0.26200"
+    },
+    "environmentLimits": [
+      "No macOS/Xcode: iOS native compilation, prebuild and device execution are BLOCKED.",
+      "No JDK/Android SDK/emulator/device: Android native compilation and device execution are BLOCKED; Android prebuild (native project generation) ran.",
+      "No sandbox credentials for TSA, OpenTimestamps, AWS S3 Object Lock, Stripe, PayPal, Chrome Web Store, Edge Add-ons, App Store Connect or Google Play: every such proof is in the external proof register, never counted as passed."
+    ],
+    "scope": [
+      "apps/web (Web/PWA), apps/extension (Chrome/Edge MV3), apps/mobile (Expo; Android + iOS native module and broadcast extension)",
+      "services/api, services/worker, packages/shared, shared-runtime, shared-evidence-presentation, shared-billing",
+      "Prisma schema/migrations, BullMQ queues and scheduled sweeps, storage/Object Lock integration",
+      "reports, verification packages, Public Verify, share links, TSA/OTS, custody, cases, intake links and Evidence Requests, commercial admission"
+    ],
+    "safety": {
+      "productionContacted": "NO",
+      "deployed": "NO",
+      "migratedProduction": "NO",
+      "productionDataChanged": "NO",
+      "mainTouched": "NO",
+      "productSourceFilesChanged": 0,
+      "notes": [
+        "Every database, Redis, object store and API used was a disposable loopback container or process started by this audit.",
+        "prisma generate refused to run without DATABASE_URL because the audit worktree has no .env: the Production fallback is absent by construction.",
+        "Web build pinned NEXT_PUBLIC_API_BASE=http://127.0.0.1:9; extension build pinned PROOVRA_API_ORIGIN=http://127.0.0.1:4000; mobile export pinned EXPO_PUBLIC_API_BASE=http://127.0.0.1:9 with EXPO_OFFLINE=1.",
+        "Two generated files touched by runs (docs/architecture/point5-family-proven-cases.json by the integration ledger; apps/mobile/package.json and apps/mobile/android/ by expo prebuild) were restored/removed immediately; the final product diff is zero."
+      ]
+    }
+  },
+  "auditShaNote": "The audit commit SHA is the commit that adds this directory on the audit branch; it is recorded in the final report, not inside the artifact (a file cannot contain its own commit hash).",
+  "counts": {
+    "findings": 119,
+    "consolidated": 2,
+    "bySeverity": {
+      "P0": 0,
+      "P1": 11,
+      "P2": 55,
+      "P3": 53
+    },
+    "byProof": {
+      "runtime-proven": 12,
+      "source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED)": 1,
+      "source-proven": 106
+    },
+    "journeys": {
+      "PASS": 8,
+      "FAIL": 6,
+      "BLOCKED": 6
+    },
+    "ucBuckets": {
+      "complete": 0,
+      "partial": 7,
+      "missing": 2,
+      "blocked": 0
+    },
+    "surfaces": 27,
+    "mutations": 59,
+    "queues": 13,
+    "reviewedTopics": 301
+  },
+  "ucVerdicts": [
+    {
+      "uc": "UC-0a",
+      "name": "Provenance Truth Repair",
+      "verdict": "PRESENT BUT UNTRUTHFUL",
+      "rationale": "The acquisition-mode authority, set-once trigger and fail-closed attestation are real and runtime-visible (J01/J08/J09 report snapshots and Public Verify carry the server-recorded mode and IMPORTED_EXISTING_MEDIA tier). But server record-creation time is presented as capture time and on Public Verify as 'declared by the capturing device'; every direct-capture record reads 'Capture Method: Not recorded' in the rendered report (runtime-proven on an Android continuous record) and package; the client still chooses the direct-capture mode label; validated manifest facts (URL, title, browser, completeness) are dropped.",
+      "keyFindings": [
+        "UC-PROV-001",
+        "UC-PROV-002",
+        "UC-ARCH-001",
+        "UC-PROV-003",
+        "UC-PROV-004",
+        "UC-PROV-005"
+      ],
+      "blockers": [],
+      "bucket": "partial"
+    },
+    {
+      "uc": "UC-0b",
+      "name": "Trust / Attestation Repair",
+      "verdict": "PARTIALLY COMPLETE",
+      "rationale": "Signing, custody chain, package seal and share-token verify work end to end (J01, J02; 463/463 API integration incl. public-verify-*, ots-integrity-lifecycle, integrity-recheck). RFC 3161 tokens are now validated with openssl against a configured anchor (tested with a local TSA). Open: OTS PENDING shown as 'Anchored', stored-bytes 'Verified' survives substitution for the recheck window (runtime J06), verdict ignores recheck, signing-key identity mutable, capture trust-event sub-chain never verified. Real TSA/OTS/Object Lock authority is external.",
+      "keyFindings": [
+        "UC-TRUST-008",
+        "UC-TRUST-005",
+        "UC-TRUST-002",
+        "UC-TRUST-001",
+        "UC-TRUST-003",
+        "UC-TRUST-004"
+      ],
+      "blockers": [
+        "EP-01",
+        "EP-02",
+        "EP-03"
+      ],
+      "bucket": "partial"
+    },
+    {
+      "uc": "UC-0c",
+      "name": "Derivative Lifecycle Closure",
+      "verdict": "PARTIALLY COMPLETE",
+      "rationale": "One derived-asset authority, tenant binding, destruction sweep and redaction byte gate are in place (worker 1152/1152 executed, 4 Object-Lock cases run separately 4/4). Open: derived bytes bypass the byte-release gate (VIEWER can fetch OCR/keyframes), regeneration overwrites lineage and deletes prior objects, provenance (tool version, parameters, text digest) dropped, package derived manifests silently truncated.",
+      "keyFindings": [
+        "UC-DER-002",
+        "UC-DER-006",
+        "UC-DER-005",
+        "UC-DER-007",
+        "UC-DER-013",
+        "UC-DER-014"
+      ],
+      "blockers": [],
+      "bucket": "partial"
+    },
+    {
+      "uc": "UC-1",
+      "name": "Chrome / Edge Web Capture",
+      "verdict": "PRESENT BUT UNREACHABLE",
+      "rationale": "The server side of Direct Web Capture works (uc1-web-capture + uc1-extension-oauth integration pass). A real user cannot capture: the popup never lists a workspace (runtime-proven), the extension origin is absent from production CORS and host_permissions, it is unpublished, and the shipped acceptance harness fails at AUTH on main. Full-page capture exceeds Chrome's captureVisibleTab quota by construction. No case selection.",
+      "keyFindings": [
+        "UC-EXT-001",
+        "UC-EXT-003",
+        "UC-SEC-002",
+        "UC-TQ-007",
+        "UC-EXT-004",
+        "UC-EXT-005"
+      ],
+      "blockers": [
+        "EP-04",
+        "EP-05",
+        "EP-12"
+      ],
+      "bucket": "missing"
+    },
+    {
+      "uc": "UC-2",
+      "name": "Android Direct Screen Capture",
+      "verdict": "PARTIALLY COMPLETE",
+      "rationale": "Server seal path runtime-proven (uc2-screen-capture integration); JS↔Kotlin parity, manifest service declarations and foreground-service typing verified; Android prebuild generated the native project; Hermes bundle builds. Unproven on any device; POST_NOTIFICATIONS is never requested, so on Android 13+ the capture-frame notification action (the only way to capture another app) is suppressed. No share-into-PROOVRA, logout does not stop capture.",
+      "keyFindings": [
+        "UC-AND-003",
+        "UC-AND-006",
+        "UC-AND-007",
+        "UC-AND-011",
+        "UC-AND-012"
+      ],
+      "blockers": [
+        "EP-06",
+        "EP-07"
+      ],
+      "bucket": "partial"
+    },
+    {
+      "uc": "UC-3",
+      "name": "Continuous Capture + Streaming",
+      "verdict": "PRESENT BUT UNTRUTHFUL",
+      "rationale": "Seal refuses missing/duplicate/out-of-order/tampered declared segments (uc3 integration, real PG) and the full pipeline to Public Verify works for a sealed session (J09). But a lost TAIL segment seals as SIGNED COMPLETE_SESSION (runtime-proven), part index 200+ is refused while the client allows 600 segments so long recordings are discarded (runtime-proven), and a session is not resumable after app restart.",
+      "keyFindings": [
+        "UC-STR-002",
+        "UC-STR-001",
+        "UC-AND-004",
+        "UC-STR-003",
+        "UC-STR-006"
+      ],
+      "blockers": [
+        "EP-06"
+      ],
+      "bucket": "partial"
+    },
+    {
+      "uc": "UC-4",
+      "name": "Keyframes / OCR / Conversation Reconstruction",
+      "verdict": "PARTIALLY COMPLETE",
+      "rationale": "Runtime J10 (real worker, real ffmpeg-static): Generate → reconstruct_screen COMPLETED with 4 keyframes and 1 reconstruction descriptor, labelled DERIVED_RECONSTRUCTED; OCR did not run (ocrAllowed defaults OFF; coverage PARTIAL). A single manual 'Generate Derived Review' path exists, labelled as derived and never as original, with no actor-attribution claims. There is no conversation-capture channel; 'conversation' is OCR screen reconstruction. Retry/Regenerate never run again, OCR runs on ≤256 px keyframes for video sources, dedup cannot merge real chat screens, provenance fields are dropped, and the worker path has no CI-executed behavioural test.",
+      "keyFindings": [
+        "UC-DER-001",
+        "UC-DER-003",
+        "UC-DER-004",
+        "UC-DER-005",
+        "UC-TQ-003",
+        "UC-DER-010"
+      ],
+      "blockers": [],
+      "bucket": "partial"
+    },
+    {
+      "uc": "UC-5",
+      "name": "iOS",
+      "verdict": "PRESENT BUT DISCONNECTED",
+      "rationale": "Swift module, broadcast upload extension, App Group and entitlements exist and are internally consistent, and the server accepts DIRECT_SCREEN_CAPTURE_IOS. But no real iOS recording can be sealed: the device block the Swift code writes is refused by the shared validator (runtime-proven 422). The app cannot stop the broadcast, the last segment always has duration 0, and there is no crash recovery. Native compilation and ReplayKit behaviour are BLOCKED here (no macOS/Xcode).",
+      "keyFindings": [
+        "UC-IOS-001",
+        "UC-IOS-002",
+        "UC-IOS-004",
+        "UC-IOS-003",
+        "UC-IOS-010"
+      ],
+      "blockers": [
+        "EP-08",
+        "EP-09"
+      ],
+      "bucket": "missing"
+    },
+    {
+      "uc": "UC-6",
+      "name": "Full Public Launch",
+      "verdict": "PARTIALLY COMPLETE",
+      "rationale": "Web build, extension build, both Hermes bundles and the API/worker suites are green locally; CI runs the API integration project against real PG. Not launched: extension unpublished and unusable, iOS cannot seal, Android unproven on device, PWA not installable, no capture monitoring/runbook, no mobile screen-recording privacy disclosure, extension/native never compiled or run in CI.",
+      "keyFindings": [
+        "UC-LCH-001",
+        "UC-LCH-002",
+        "UC-LCH-003",
+        "UC-LCH-004",
+        "UC-TQ-002",
+        "UC-TQ-004"
+      ],
+      "blockers": [
+        "EP-04",
+        "EP-05",
+        "EP-06",
+        "EP-07",
+        "EP-08",
+        "EP-09"
+      ],
+      "bucket": "partial"
+    }
+  ],
+  "platformMatrix": [
+    {
+      "platform": "Browser Extension",
+      "capture": "BROKEN",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "NOT_IMPLEMENTED",
+      "build": "WORKS_LOCALLY",
+      "realBrowser": "FAIL",
+      "distribution": "BLOCKED",
+      "note": "Popup cannot select a workspace (UC-EXT-001); server path proven by uc1 integration."
+    },
+    {
+      "platform": "Web",
+      "capture": "PARTIAL",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "NOT_IMPLEMENTED",
+      "build": "WORKS_LOCALLY",
+      "realBrowser": "NOT_EXECUTED_IN_UI",
+      "distribution": "N/A",
+      "note": "File/drag/camera/mic upload proven via the product API sequence (J01); no screen capture (getDisplayMedia) or clipboard."
+    },
+    {
+      "platform": "PWA",
+      "capture": "PARTIAL",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "NOT_IMPLEMENTED",
+      "build": "WORKS_LOCALLY",
+      "realBrowser": "NOT_EXECUTED_IN_UI",
+      "distribution": "BROKEN",
+      "note": "Same code as Web; not installable (one 'any' icon, no service worker), no offline, no share_target."
+    },
+    {
+      "platform": "Android",
+      "capture": "BLOCKED",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "NOT_IMPLEMENTED",
+      "build": "PARTIAL",
+      "realBrowser": "N/A",
+      "distribution": "BLOCKED",
+      "note": "Server seal + outputs proven (uc2/uc3 integration, J09). Native compile/device BLOCKED; POST_NOTIFICATIONS never requested (UC-AND-003)."
+    },
+    {
+      "platform": "iOS",
+      "capture": "BROKEN",
+      "evidencePipeline": "BROKEN",
+      "caseAtCapture": "NOT_IMPLEMENTED",
+      "build": "PARTIAL",
+      "realBrowser": "N/A",
+      "distribution": "BLOCKED",
+      "note": "Real device block refused at seal (UC-IOS-001, runtime); native build/device BLOCKED (no macOS)."
+    }
+  ],
+  "convergenceVerdict": {
+    "verdict": "CONVERGED WRITERS, DIVERGENT SIDE EFFECTS",
+    "statement": "Every live capture channel reaches ONE Evidence writer, ONE part writer, ONE finalizer (completeEvidence), ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route; no duplicate evidence model or writer was found and every queue has a consumer. The divergence is in what surrounds the finalizer: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run only in the web route, so direct-capture and intake records differ from uploads (UC-ARCH-002/003). iOS never reaches the finalizer (UC-IOS-001)."
+  },
+  "openP0P1": [
+    "UC-AND-003",
+    "UC-CASE-001",
+    "UC-EXT-001",
+    "UC-EXT-003",
+    "UC-IOS-001",
+    "UC-IOS-002",
+    "UC-IOS-004",
+    "UC-OUT-001",
+    "UC-PROV-001",
+    "UC-STR-001",
+    "UC-STR-002"
+  ],
+  "validation": {
+    "apiIntegration": {
+      "files": 64,
+      "suites": 176,
+      "tests": 463,
+      "passed": 463,
+      "failed": 0,
+      "skipped": 0
+    },
+    "worker": {
+      "files": 91,
+      "suites": 367,
+      "tests": 1156,
+      "passed": 1152,
+      "failed": 0,
+      "skipped": 4
+    },
+    "commands": [
+      {
+        "label": "ext-lint",
+        "exit": 0,
+        "log": "ext-lint.log"
+      },
+      {
+        "label": "ext-test",
+        "exit": 0,
+        "log": "ext-test.log"
+      },
+      {
+        "label": "ext-build",
+        "exit": 0,
+        "log": "ext-build.log"
+      },
+      {
+        "label": "mobile-typecheck",
+        "exit": 0,
+        "log": "mobile-typecheck.log"
+      },
+      {
+        "label": "mobile-test",
+        "exit": 0,
+        "log": "mobile-test.log"
+      },
+      {
+        "label": "mobile-export-android-ios",
+        "exit": 0,
+        "log": "mobile-export.log"
+      },
+      {
+        "label": "mobile-prebuild",
+        "exit": 0,
+        "log": "mobile-prebuild.log"
+      },
+      {
+        "label": "web-build",
+        "exit": 0,
+        "log": "web-build.log"
+      },
+      {
+        "label": "api-integration-capture",
+        "exit": 0,
+        "log": "api-integration-capture.log"
+      },
+      {
+        "label": "seed-journeys",
+        "exit": 0,
+        "log": "seed.json"
+      },
+      {
+        "label": "journeys-run1",
+        "exit": 0,
+        "log": "journeys-run1.log"
+      },
+      {
+        "label": "seed-journeys-2",
+        "exit": 0,
+        "log": "seed2.json"
+      },
+      {
+        "label": "journeys-run2",
+        "exit": 0,
+        "log": "journeys-run2.log"
+      },
+      {
+        "label": "probes-integration",
+        "exit": 0,
+        "log": "probes-integration.log"
+      },
+      {
+        "label": "seed-journeys-3",
+        "exit": 0,
+        "log": "seed3.json"
+      },
+      {
+        "label": "journeys-run3",
+        "exit": 0,
+        "log": "journeys-run3.log"
+      },
+      {
+        "label": "seed-journeys-4",
+        "exit": 0,
+        "log": "seed4.json"
+      },
+      {
+        "label": "journeys-run4",
+        "exit": 0,
+        "log": "journeys-run4.log"
+      },
+      {
+        "label": "uc1-acceptance-fullstack",
+        "exit": 1,
+        "log": "uc1-acceptance.log",
+        "note": "Playwright result FAIL in both projects (AUTH INVALID_CLIENT_OR_REDIRECT); stack then kept up intentionally for journeys J01-J07 and torn down by the auditor (processes on 4000/3311/4599 killed, uc1-acc-* containers removed)"
+      },
+      {
+        "label": "uc1-acceptance-audit-copy",
+        "exit": 1,
+        "log": "uc1-acceptance-audit-copy.log"
+      },
+      {
+        "label": "worker-tests",
+        "exit": 0,
+        "log": "worker-tests.log"
+      },
+      {
+        "label": "uc1-acceptance-audit-copy-2",
+        "exit": 1,
+        "log": "uc1-acceptance-audit-copy.log"
+      },
+      {
+        "label": "worker-object-lock-minio",
+        "exit": 0,
+        "log": "worker-object-lock-minio.log"
+      },
+      {
+        "label": "uc1-stack-phase2",
+        "exit": 1,
+        "log": "uc1-stack-phase2.log"
+      },
+      {
+        "label": "seed-journeys-phase2",
+        "exit": 0,
+        "log": "seed5.json"
+      },
+      {
+        "label": "extension-step-probe",
+        "exit": 0,
+        "log": "extension-step-probe.log"
+      },
+      {
+        "label": "uc1-acceptance-audit-copy-3",
+        "exit": 1,
+        "log": "uc1-acceptance-audit-copy.log"
+      },
+      {
+        "label": "uc1-acceptance-audit-copy-3",
+        "exit": 1,
+        "log": "uc1-acceptance-audit-copy.log",
+        "note": "AUTH PASS; first test x after 11.2m backstop without reaching CAPTURE; stopped by the auditor (TaskStop), ports 4000/3311/4599 killed, uc1-acc-* removed"
+      },
+      {
+        "label": "journeys-phase2",
+        "exit": 0,
+        "log": "journeys-phase2.log"
+      },
+      {
+        "label": "uc1-stack-phase2 (attempt 1)",
+        "exit": 1,
+        "log": "uc1-stack-phase2.log",
+        "note": "INVALID RUN (auditor teardown gap): worker died EADDRINUSE 0.0.0.0:4001 held by an orphaned worker from the previous stack; phase-2 journey results from this stack for report/package availability are discarded and rerun"
+      },
+      {
+        "label": "seed-journeys-phase2b",
+        "exit": 0,
+        "log": "seed6.json"
+      },
+      {
+        "label": "audit-engine-check",
+        "exit": 0,
+        "log": "audit-engine-check.log"
+      },
+      {
+        "label": "journeys-phase2b",
+        "exit": 0,
+        "log": "journeys-phase2.log"
+      },
+      {
+        "label": "uc1-stack-phase2b",
+        "exit": 0,
+        "log": "uc1-stack-phase2b.log",
+        "note": "intentional keep-up server for J08-J11 and the report-link probe; worker healthy; torn down by the auditor (4000/4001/3311/4599 killed, uc1-acc-* removed)"
+      },
+      {
+        "label": "package-independent-recompute",
+        "exit": 0,
+        "log": "package-recompute.log"
+      },
+      {
+        "label": "api-typecheck",
+        "exit": 0,
+        "log": "api-typecheck.log"
+      },
+      {
+        "label": "worker-typecheck",
+        "exit": 0,
+        "log": "worker-typecheck.log"
+      },
+      {
+        "label": "web-typecheck",
+        "exit": 0,
+        "log": "web-typecheck.log"
+      },
+      {
+        "label": "audit-tooling-syntax",
+        "exit": 0,
+        "log": "audit-tooling-syntax.log"
+      }
+    ]
+  },
+  "reviewedCoverage": [
+    {
+      "area": "AND",
+      "topic": "MediaProjection consent flow (UC-2 + UC-3)",
+      "verdict": "OK",
+      "evidence": "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt:180-187 (createScreenCaptureIntent via startActivityForResult), :141-168 (OnActivityResult routes by pendingKind; RESULT_OK+data required, else PERMISSION_DENIED)",
+      "note": "Nothing is captured before consent. Minor: startCapture's BUSY check (:69) does not look at a pending continuousStartPromise (and vice versa :117), so two overlapping start requests overwrite pendingKind (:73/:121) and the consent result is routed to the wrong flow. UI buttons are 'busy'-guarded, so P3-level, not filed."
+    },
+    {
+      "area": "AND",
+      "topic": "Foreground service type + ordering (Android 10/14)",
+      "verdict": "OK",
+      "evidence": "ScreenCaptureService.kt:152-165 startForeground(..., FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION) then :167-175 getMediaProjection; ContinuousScreenCaptureService.kt:116-117,138-148 same order; registerCallback before createVirtualDisplay (ScreenCaptureService.kt:192 vs :202; Continuous :158 vs :243)",
+      "note": "startForeground precedes getMediaProjection; callback registered before createVirtualDisplay (Android 14 requirement). Continuous reuses ONE VirtualDisplay (resize + setSurface, :241-251), so the single-createVirtualDisplay-per-token rule is respected."
+    },
+    {
+      "area": "AND",
+      "topic": "Manifest declarations (both services, FGS permissions, POST_NOTIFICATIONS)",
+      "verdict": "PARTIAL",
+      "evidence": "apps/mobile/modules/proovra-screen-capture/android/src/main/AndroidManifest.xml:11-13 (FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PROJECTION, POST_NOTIFICATIONS), :17-28 (both services exported=false, type mediaProjection)",
+      "note": "Both services declared (F6 fixed). POST_NOTIFICATIONS is declared but never requested at runtime -> UC-AND-003."
+    },
+    {
+      "area": "AND",
+      "topic": "Android 14 token single-use",
+      "verdict": "OK",
+      "evidence": "ProovraScreenCaptureModule.kt:85,129 (every start launches a fresh consent); ScreenCaptureService.kt:81-93 / ContinuousScreenCaptureService.kt:94-101 (token used once per start)",
+      "note": "A consent Intent is never reused across sessions."
+    },
+    {
+      "area": "AND",
+      "topic": "Android 14+ partial (single-app) screen sharing",
+      "verdict": "PARTIAL",
+      "evidence": "ProovraScreenCaptureModule.kt:183 createScreenCaptureIntent() with no MediaProjectionConfig; no onCapturedContentResize/onCapturedContentVisibilityChanged callbacks in either service",
+      "note": "When the user picks single-app sharing, frames/segments after leaving that app are black; nothing records it and the manifest/statement say 'device screen'. Needs device proof; not filed separately."
+    },
+    {
+      "area": "AND",
+      "topic": "JS <-> native function-name parity (Android)",
+      "verdict": "OK",
+      "evidence": "modules/proovra-screen-capture/index.ts:92-98,232-237 vs ProovraScreenCaptureModule.kt:53-139 (isSupported, isContinuousSupported, getState, getContinuousState, startCapture, captureFrame, stopCapture, startContinuousCapture, stopContinuousCapture; events :51)",
+      "note": "Every JS call has a matching Kotlin Function/AsyncFunction; F5 rename to stopCapture present."
+    },
+    {
+      "area": "AND",
+      "topic": "JS <-> native function-name parity (iOS Swift)",
+      "verdict": "DEFECT",
+      "evidence": "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:65 AsyncFunction(\"stop\") vs index.ts:97,153 stopCapture()",
+      "note": "Unreachable today because stopScreenCapture throws on non-Android first (index.ts:152) -> UC-AND-014 (P3)."
+    },
+    {
+      "area": "AND",
+      "topic": "Orientation (UC-3 continuous)",
+      "verdict": "OK",
+      "evidence": "ContinuousScreenCaptureService.kt:174-183,273-279 (display listener -> rollover), :231-235 (per-segment geometry + ORIENTATION_CHANGED_DURING_CAPTURE); packages/shared/src/screen-continuous-manifest.ts:346-369",
+      "note": "Rotation is a segment boundary and must be recorded as a limitation."
+    },
+    {
+      "area": "AND",
+      "topic": "Orientation (UC-2 frames)",
+      "verdict": "DEFECT",
+      "evidence": "ScreenCaptureService.kt:182-187,200,277",
+      "note": "-> UC-AND-012."
+    },
+    {
+      "area": "AND",
+      "topic": "Audio rules",
+      "verdict": "OK",
+      "evidence": "ContinuousScreenCaptureService.kt:193-196 (VideoSource.SURFACE only, no audio source); UC-2 is image-only; app.json:45-58 microphone string refers to camera capture",
+      "note": "Screen-only; no RECORD_AUDIO in the module manifest."
+    },
+    {
+      "area": "AND",
+      "topic": "Screen-off / lock during capture",
+      "verdict": "PARTIAL",
+      "evidence": "No SCREEN_OFF / keyguard handling in ScreenCaptureService.kt or ContinuousScreenCaptureService.kt; only MediaProjection.Callback.onStop -> PERMISSION_REVOKED (ScreenCaptureService.kt:192-194, Continuous :158-160)",
+      "note": "If the OS keeps projecting while locked, the lock screen/black is recorded as ordinary segments with no limitation; if the OS revokes, the session ends INTERRUPTED truthfully. Device-dependent; not filed."
+    },
+    {
+      "area": "AND",
+      "topic": "Backgrounding",
+      "verdict": "OK",
+      "evidence": "Foreground services keep the process alive; notification Stop/Capture Frame actions route to the same service (ScreenCaptureService.kt:108-124, Continuous :111-119)",
+      "note": "JS upload pump keeps running while the process lives. Notification visibility on Android 13+ -> UC-AND-003."
+    },
+    {
+      "area": "AND",
+      "topic": "Process death / crash recovery",
+      "verdict": "DEFECT",
+      "evidence": "continuous-capture.tsx:88-90,191-200,345; index.ts:223,259-266",
+      "note": "-> UC-AND-004. UC-2: frames live in the service's static list; a JS reload re-attaches via getState (screen-capture.tsx:73-81) but a process death loses the list and leaves PNGs in cacheDir."
+    },
+    {
+      "area": "AND",
+      "topic": "Storage pressure",
+      "verdict": "PARTIAL",
+      "evidence": "No free-space check before recording; MediaRecorder error -> finish(\"ERROR\") (ContinuousScreenCaptureService.kt:215); PNG write failure is caught and mislabelled SECURE_CONTENT_OMITTED (ScreenCaptureService.kt:255-259)",
+      "note": "Continuous fails closed as INTERRUPTED; UC-2 mislabels -> UC-AND-011."
+    },
+    {
+      "area": "AND",
+      "topic": "Long capture bounds",
+      "verdict": "DEFECT",
+      "evidence": "ContinuousScreenCaptureService.kt:56,222 (50 min / 600 segments) vs services/api/src/services/evidence/evidence-part-writer.service.ts:42 (MAX_EVIDENCE_PARTS=200)",
+      "note": "-> UC-STR-001."
+    },
+    {
+      "area": "AND",
+      "topic": "Pause / resume",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "index.ts exports no pause/resume; ProovraScreenCaptureModule.kt:48-168 defines none",
+      "note": "Only start/stop. Not a defect per se; the manifest has no pause concept."
+    },
+    {
+      "area": "AND",
+      "topic": "Stop / finalize (client)",
+      "verdict": "PARTIAL",
+      "evidence": "continuous-capture.tsx:269-289 (stop awaits native stop then drainUploads), :291-386 (finalize drains again, stages via sealDirectCapture, persists, hands off)",
+      "note": "Drain-before-stage is correct; the missing declared-vs-recorded reconciliation is UC-STR-002."
+    },
+    {
+      "area": "AND",
+      "topic": "Local spool location + encryption at rest",
+      "verdict": "PARTIAL",
+      "evidence": "ScreenCaptureService.kt:241-242 (cacheDir/proovra-screen-*.png), ContinuousScreenCaptureService.kt:237 (cacheDir/proovra-continuous-*.mp4), screen-capture.ts:173 / continuous-capture.ts:264 (FileSystem.cacheDirectory manifests)",
+      "note": "Plaintext in the app-private cache; no app-level encryption (relies on Android file-based encryption + sandbox). Cache is OS-evictable, which is also the only protection against leftover UC-2 frames (UC-AND-010)."
+    },
+    {
+      "area": "AND",
+      "topic": "Cleanup after upload",
+      "verdict": "PARTIAL",
+      "evidence": "continuous-capture.ts:224 (segment deleted after durable PUT), :278 (manifest deleted); continuous-capture.tsx:392 (discard deletes seen segments). UC-2: no delete anywhere (grep deleteAsync: only continuous-capture.ts:157)",
+      "note": "UC-3 OK; UC-2 -> UC-AND-010. Failed UC-3 segments are removed only on Discard/Reset, not after a successful handoff."
+    },
+    {
+      "area": "AND",
+      "topic": "Network constraints / backpressure",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/screen-continuous-manifest.ts:151-161 (maxSessionBytes 512MB, uploadConcurrency 1, retries 2, maxPendingSegments 8); continuous-capture.tsx:117-176 (bounded queue, controlled stop on backlog or byte ceiling)",
+      "note": "Bounded. No wifi-only option; uploads go over any network. Failed segments still count as pending so the backlog bound trips."
+    },
+    {
+      "area": "AND",
+      "topic": "Share intent / media import into PROOVRA (Android)",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/mobile/app.json:61-160 intentFilters contain only action VIEW (https deep links); no SEND/SEND_MULTIPLE filter anywhere (grep action.SEND over apps/mobile: none); no share-intent package in package.json",
+      "note": "Import is only via the in-app file/image picker on /capture."
+    },
+    {
+      "area": "AND",
+      "topic": "Deep links (Android App Links)",
+      "verdict": "OK",
+      "evidence": "apps/mobile/app.json:61-160 (autoVerify VIEW filters for /intake,/portal,/legal,/verify,/invite,/org-invites,/reset-password,/auth/*); apps/web/public/.well-known/assetlinks.json (package com.jalalattar29.proovra with a real SHA-256 fingerprint)",
+      "note": "No capture deep link; DeepLinkGate blocks links while a capture is active (src/DeepLinkGate.tsx:33 via setCaptureActive)."
+    },
+    {
+      "area": "AND",
+      "topic": "Workspace selection on mobile screen capture",
+      "verdict": "OK",
+      "evidence": "continuous-capture.tsx:78,235 and screen-capture.tsx:57,139 pass usePlatformContext().context?.activeTeamId; server authorizes it (capture-trust.routes.ts:375-385,703-727)",
+      "note": "ET-DC-08 remediation holds. Both screens are gated by usePersonalSpaceAllowed (continuous-capture.tsx:399, screen-capture.tsx:187) exactly like /capture (capture.tsx:381-384)."
+    },
+    {
+      "area": "AND",
+      "topic": "Logout / account switch during capture",
+      "verdict": "DEFECT",
+      "evidence": "app/(tabs)/settings.tsx:183-188; src/capture/capture-session-store.ts:24",
+      "note": "-> UC-AND-006."
+    },
+    {
+      "area": "AND",
+      "topic": "Attestation truth (Play Integrity / key attestation)",
+      "verdict": "OK",
+      "evidence": "No Play Integrity / key-attestation call in apps/mobile (grep); sessions open unbound (direct-capture.ts:23-27, 142 signed:null); server provider GOOGLE_PLAY_INTEGRITY is UnverifiablePlatformProvider (services/api/src/services/capture-trust/attestation-verifier.service.ts:41-44,223); statements are 'client-attested' with SCREEN_DEVICE_INTEGRITY_NOT_VERIFIED (packages/shared/src/evidence-acquisition.ts:306-334); UI caveats (continuous-capture.tsx:429-431, screen-capture.tsx:214-216)",
+      "note": "No attestation exists and none is claimed; wording is honest."
+    },
+    {
+      "area": "AND",
+      "topic": "Upload queue sequence numbering + idempotency (client)",
+      "verdict": "OK",
+      "evidence": "ContinuousScreenCaptureService.kt:289 (sequence = segments.size, monotonic), continuous-capture.ts:214-220 (partIndex = sequence), direct-capture.ts:135-170 (declare then presign then PUT); server: declaration idempotent on same digest (direct-capture-ingest.service.ts:557-561), presign RETURN_EXISTING (evidence-part-writer.service.ts:159-162)",
+      "note": "Retries are safe; no explicit Idempotency-Key header, idempotency is by (session, partIndex, digest)."
+    },
+    {
+      "area": "AND",
+      "topic": "Seal cannot happen with missing / uncommitted / unhashed / mismatched parts",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:892-915 (every part HEADed; absent object -> OBJECT_NOT_FOUND), :962-976 (declared count must equal stored parts; undeclared part refused; digest must match server re-hash) ; continuous-capture.service.ts:118-139 (manifest <-> declarations 1:1), :141-162 (stored size = stated size)",
+      "note": "PROVEN in source: a declared-but-unPUT part, an undeclared part, a re-hash mismatch, or a manifest omitting a declared part all refuse before signing. Gap: a segment that was NEVER declared is invisible to the server -> UC-STR-002."
+    },
+    {
+      "area": "AND",
+      "topic": "Out-of-order / duplicate sequence",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/screen-continuous-manifest.ts:319-362 (duplicate partIndex refused, sequences must be contiguous 0..N-1); uc3-continuous-capture.integration.test.ts:414,421",
+      "note": "Out-of-order upload seals (by index); duplicate sequence refused."
+    },
+    {
+      "area": "AND",
+      "topic": "Concurrent part uploads / declarations",
+      "verdict": "PARTIAL",
+      "evidence": "direct-capture-ingest.service.ts:557-586 (existing check then emit, no per-session lock); trust chain itself is locked (ET-DC-10, capture-trust-chain-concurrency.integration.test.ts)",
+      "note": "Two concurrent declarations of one partIndex with DIFFERENT digests can both return 201; readPartDeclarations keeps the first (:635). Completion then refuses with CAPTURE_DIGEST_MISMATCH if the other bytes were stored, so integrity holds (self-harm only). Client concurrency is 1. Not filed."
+    },
+    {
+      "area": "AND",
+      "topic": "Finalize / discard race",
+      "verdict": "OK",
+      "evidence": "direct-capture-ingest.service.ts:991-1061 (session lock then evidence lock; SIGNED record refused with EVIDENCE_ALREADY_FINALIZED); direct-capture-discard-race.integration.test.ts:169",
+      "note": "ET-DC-01 remediation holds in source."
+    },
+    {
+      "area": "AND",
+      "topic": "Stop / finalize race (client)",
+      "verdict": "OK",
+      "evidence": "continuous-capture.tsx:222-226,276,303 (drain loop before review and before manifest)",
+      "note": "Native finish emits the last onScreenSegment before onStopped (ContinuousScreenCaptureService.kt:333 then :359)."
+    },
+    {
+      "area": "AND",
+      "topic": "Partial evidence (INTERRUPTED_SESSION)",
+      "verdict": "PARTIAL",
+      "evidence": "ContinuousScreenCaptureService.kt:338-354; continuous-capture.ts:102-107; screen-continuous-manifest.ts:395-412; continuous-capture.service.ts:185-188",
+      "note": "A native interruption is carried truthfully; client-side upload loss is not -> UC-STR-002; completeness persisted non-atomically -> UC-STR-006."
+    },
+    {
+      "area": "AND",
+      "topic": "Session expiry / sliding expiry",
+      "verdict": "PARTIAL",
+      "evidence": "direct-capture-ingest.service.ts:156-191,449,588 (slides to now+1h on reserve/declare, capped 24h); direct-capture-session-sliding-expiry.integration.test.ts:48,88",
+      "note": "Server side OK; the client persists the ORIGINAL expiry -> UC-STR-003."
+    },
+    {
+      "area": "AND",
+      "topic": "Capture reaper (worker)",
+      "verdict": "OK",
+      "evidence": "services/worker/src/capture-reaper.ts:244-358 (ACTIVE/INTERRUPTED past expiry -> EXPIRED under the session advisory lock, reservation released CAPTURE_SESSION_EXPIRED; unsealed reservations released), :403-457 (recorded, paged run)",
+      "note": "Abandoned UC-3 sessions (UC-STR-004) are eventually released by this sweep."
+    },
+    {
+      "area": "AND",
+      "topic": "Quota reservation / release",
+      "verdict": "OK",
+      "evidence": "direct-capture-ingest.service.ts:415-459 (reserve = createEvidence in tx under session lock), :1054-1059 (discard releases via releaseEvidenceReservationTx); uc0-discard-lifecycle.integration.test.ts:159 (reserved record never listed)",
+      "note": "Release on discard and on expiry; reserved records are not library content."
+    },
+    {
+      "area": "AND",
+      "topic": "Max duration / size",
+      "verdict": "PARTIAL",
+      "evidence": "screen-continuous-manifest.ts:126-162; evidence-complete.service.ts:916-921 (EVIDENCE_TOO_LARGE); ContinuousScreenCaptureService.kt:52,56,207",
+      "note": "Byte and time bounds agree across client/native/server, but the SEGMENT count bound does not -> UC-STR-001."
+    },
+    {
+      "area": "AND",
+      "topic": "Generic /complete refused for manifest modes",
+      "verdict": "OK",
+      "evidence": "direct-capture-ingest.service.ts:744-764",
+      "note": "A continuous session cannot be sealed without manifest validation."
+    },
+    {
+      "area": "AND",
+      "topic": "Continuous-complete route authorization",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:612-633,731-746 (owner-scoped load + authorizeOrFail evidence.create, anti-enumeration)",
+      "note": "Membership re-checked per call."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Canonical Evidence row writer (duplicate evidence writers)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence.service.ts:488 (the only tx.evidence.create in services/, packages/ production code); callers: services/api/src/routes/evidence.routes.ts:5511 (web), services/api/src/services/capture-trust/direct-capture-ingest.service.ts:431 (UC-0..UC-5), services/api/src/services/external-intake-orchestration.service.ts:321 (intake/Evidence Requests)",
+      "note": "Every live capture channel creates Evidence through createEvidence(); only dev script services/api/scripts/dev-populate-investigation.ts:282 calls it outside the three ingress adapters. No raw INSERT INTO Evidence found."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Canonical EvidencePart writer (duplicate part writers)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence/evidence-part-writer.service.ts:153 writeEvidencePart / :168 tx.evidencePart.create; callers evidence.routes.ts:6224, external-intake-orchestration.service.ts:569, uploads/upload-session.service.ts:2023",
+      "note": "Single insert behind lockEvidenceForByteWrite (:93). Principals OWNER and INTAKE_SESSION only."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Canonical finalizer (duplicate finalizers)",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:576 completeEvidence; callers evidence.routes.ts:10486, direct-capture-ingest.service.ts:805, external-intake-orchestration.service.ts:1027",
+      "note": "One cryptographic finalizer (hash, sign :1150, TSA :1152, custody UPLOAD_COMPLETED/SIGNATURE_APPLIED :1296/:1312, OTS :1673, report :1682, fan-out :1707). BUT post-finalization side effects live in the web /complete route handler only (see UC-ARCH-003). Three manifest-seal wrappers (web-capture.service.ts:49, screen-capture.service.ts:54, continuous-capture.service.ts:62) each re-implement manifest<->declaration cross-checks and then delegate to completeDirectCapture (:766) - duplicated validation, single seal."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Direct-capture completion guard (other door)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:780-792",
+      "note": "A record bound to a UC-0 session (acquisitionMode not null) refuses POST /v1/evidence/:id/complete (CAPTURE_SESSION_COMPLETION_REQUIRED). No equivalent guard for intake-bound records (UC-ARCH-005)."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Custody writer (duplicate custody builders)",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/custody/custody-chain.ts:45 appendCustodyEventTx / :77 tx.custodyEvent.create; API face services/api/src/services/custody-events.service.ts:28; worker face services/worker/src/custody-events.ts:19 (span wrapper only)",
+      "note": "One appender. A second, channel-specific chain exists for direct capture: CaptureTrustEventRecord via services/api/src/services/capture-trust/trust-event.service.ts:67 (CAPTURE_SESSION_STARTED/BOUND etc.) - parallel trust log, not custody."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Hash builders (duplicate hash builders)",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:1000; services/worker/src/integrity-recheck.ts:92; services/worker/src/processor.ts:903,2394; stream hashers services/api/src/stream-hash.ts:4, services/worker/src/integrity-recheck.ts:83, services/worker/src/processor.ts:1227",
+      "note": "See UC-ARCH-006. Currently consistent (partIndex asc everywhere), no shared authority."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Report builder (duplicate report builders)",
+      "verdict": "OK",
+      "evidence": "services/worker/src/processor.ts:3089 processGenerateReport -> services/worker/src/report-v2/build-report-pdf.ts:12/46",
+      "note": "Only report-v2 remains; services/worker/src/pdf holds signPdf.ts only. Enqueue authority services/api/src/services/reports/report-generation-authority.service.ts:144 (enqueue :397/:456)."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Package builder (duplicate package builders)",
+      "verdict": "OK",
+      "evidence": "services/worker/src/verification-package.ts:2504 createVerificationPackage, called only at services/worker/src/processor.ts:4599; services/worker/src/exchange-package-builder.ts:810 is the separate chain-transfer exchange package (different product object, EvidenceExchangePackage)",
+      "note": "API-side buildVerificationPackagePreview (services/api/src/services/trust/trust-verification-manifest.service.ts:254) is a preview projection, not a second builder."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Public Verify authority",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:12529 GET /public/verify/:id; owner link controls services/api/src/routes/verification-share.routes.ts:148-269",
+      "note": "Single public read; channel-agnostic."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Channel-specific evidence models",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/prisma/schema.prisma:9 Evidence, :479 EvidencePart (shared by all channels); :1885 CaptureSession overloaded for web DRAFTs and UC-0 direct sessions (status enum :3814-3823); :5317 UploadSession (observational reliability) vs :14407 EvidenceUploadSession (resumable multipart); :12117 CaptureTrustEventRecord; :4387 WorkflowIntakeSession",
+      "note": "No channel has its own Evidence model. Two upload-session models with overlapping names/concepts; CaptureSession carries two unrelated lifecycles. Web drafts are marked FINALIZED at Evidence CREATE time (evidence.routes.ts:5725), before any byte is uploaded or the record is completed."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Evidence Requests vs intake links",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-request.service.ts:1-18,38 (createWorkflowIntakeLink reuse), :973 linkResponseFromIntakeSession called from services/api/src/services/external-intake-orchestration.service.ts:1144",
+      "note": "Evidence Requests are a request/deliverable tracking domain layered on intake links; bytes arrive only through the public intake submit path (acquisition SECURE_INTAKE_LINK). Not a distinct capture channel. Feature-flagged EVIDENCE_REQUESTS_ENABLED (evidence-request.service.ts:63-67)."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Retired / 410 capture routes",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/citizen-capture.routes.ts:128,140; services/api/src/routes/capture-trust.routes.ts:344-356; services/api/src/routes/external-intake.routes.ts:1435-1446",
+      "note": "All answer 410 before any DB access; no in-repo client calls them (mobile/src/direct-capture.ts:5 is a comment)."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Client URL conformance (extension, mobile, web) vs registered routes",
+      "verdict": "OK",
+      "evidence": "apps/extension/src/lib/api-client.ts:57,69,77,91,103; apps/mobile/src/direct-capture.ts:69,95,136,147,179,292; apps/mobile/src/capture/screen-acquisition.ts:79,83; apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:88,102,171,177,671,768,902; apps/web/lib/uploads/multipart-uploader.ts:269,279,387,433,526; apps/web/app/intake/[token]/page.tsx:458-933",
+      "note": "Scripted extraction of every /v1 literal in apps/extension/src, apps/mobile/{src,app}, apps/web/{app,lib,components} compared to 1171 registered route patterns: zero capture/evidence caller hits a non-existent route (only dynamic-suffix templates unresolved, all of which resolve to registered suffixes). Extension OAuth endpoints /v1/oauth/extension/{authorize,token} registered (services/api/src/server.ts:1226)."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Extension token scope boundary",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/auth/extension-scope.ts:38-47,57-72; services/api/src/routes/evidence.routes.ts:6081-6086",
+      "note": "capture.direct token restricted to direct-session POSTs, part presign (only for its own ACTIVE DIRECT_WEB_CAPTURE_EXTENSION session) and platform context."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Direct-capture workspace authorization",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:703-745 (authorizeOrFail evidence.create + personal-space guard at open and on every session sub-route)",
+      "note": "Session owner-only; foreign ids 404. Open/reserve also require legal acceptance; declaration/attestation/complete/discard/*-complete use requireAuth only (same as web /parts and /complete)."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Web upload authorization",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:5510 assertInteractiveEvidenceCreateAllowed; :6120 getEvidenceWithRecordAccess + :6169 lockEvidenceForByteWrite; upload sessions services/api/src/routes/upload-sessions.routes.ts:333-345 authorizeOrFail",
+      "note": ""
+    },
+    {
+      "area": "ARCH",
+      "topic": "Abandoned direct-session recovery",
+      "verdict": "OK",
+      "evidence": "services/worker/src/capture-reaper.ts:244-300 releaseExpiredReservations; services/worker/src/index.ts:617",
+      "note": "ACTIVE/INTERRUPTED sessions past expiresAtUtc are EXPIRED and their reserved Evidence released; covers clients that never call /discard (the extension, UC-ARCH-009)."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Web screen capture (getDisplayMedia)",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "grep getDisplayMedia over apps/web/{app,components,lib}: 0 hits; camera/mic only apps/web/app/(app)/capture/_hooks/useCaptureCamera.ts:164, useCaptureAudioRecorder.ts:143",
+      "note": "No web/PWA screen-capture channel exists; screen capture is Android/iOS native only."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Share-intent / share-target into app",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/mobile/app.json:82-120 intentFilters are VIEW deep links only (no SEND); only NSExtension is the broadcast upload extension apps/mobile/plugins/broadcast-extension/Info.plist:21; apps/web/public/manifest.webmanifest has no share_target",
+      "note": "No Android SEND intent, no iOS share extension, no PWA share_target."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Case attachment",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/cases.routes.ts:1324 -> services/api/src/services/cases/case-evidence-link.service.ts:104 attachEvidenceToCase; services/api/src/routes/case-workspace.routes.ts:1092 -> services/api/src/services/cases/case-lifecycle.service.ts:621 addEvidenceLink -> :647 attachEvidenceToCase",
+      "note": "Two routes, one writer (CaseEvidenceLink). Links existing Evidence; creates no Evidence. DELETE /v1/cases/:id/legacy-evidence-link/:evidenceId (case-workspace.routes.ts:1122) has no in-repo caller."
+    },
+    {
+      "area": "ARCH",
+      "topic": "BullMQ producer/consumer topology",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/queue-integrity/names.ts:100-113; services/worker/src/index.ts:2136-2341",
+      "note": "10 processed queues each with >=1 producer and exactly one worker; 2 DLQ sinks. No producerless/consumerless queue at this baseline (5 were retired by ET-Q-07). See facts.queues."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Duplicate report/package/verify per channel",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:1682 (report request for every channel via completeEvidence)",
+      "note": "No channel-specific report or package path; acquisition projected by services/worker/src/report-technical-summary-bridge.ts:248 and services/worker/src/verification-package.ts:1279."
+    },
+    {
+      "area": "ARCH",
+      "topic": "Post-create side effects parity (retention, capture environment, template trio, draft binding)",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/evidence.routes.ts:5594,5631; services/api/src/services/external-intake-orchestration.service.ts:452; services/api/src/services/capture-trust/direct-capture-ingest.service.ts:401-489",
+      "note": "UC-ARCH-002"
+    },
+    {
+      "area": "ARCH",
+      "topic": "Post-complete side effects parity (EVIDENCE_COMPLETED custody, reviewer workflow, tenant audit)",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/evidence.routes.ts:10500-10600",
+      "note": "UC-ARCH-003"
+    },
+    {
+      "area": "ARCH",
+      "topic": "Acquisition-mode authority",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:156-163; services/api/src/services/capture-trust/direct-capture-ingest.service.ts:294",
+      "note": "UC-ARCH-001"
+    },
+    {
+      "area": "ARCH",
+      "topic": "API-key (integration) upload channel",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/integrations-uploads.routes.ts:338; services/api/src/services/uploads/upload-session.service.ts:393-396",
+      "note": "UC-ARCH-004"
+    },
+    {
+      "area": "ARCH",
+      "topic": "Device-bound signing / attestation surfaces",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:243,470,636",
+      "note": "UC-ARCH-007 - server code present, no client ever reaches it."
+    },
+    {
+      "area": "COM",
+      "topic": "Single evidence-row writer (bypass search)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence.service.ts:488 (the only tx.evidence.create in services/ and packages/ outside tests/seeds); callers: services/api/src/routes/evidence.routes.ts:5511, services/api/src/services/capture-trust/direct-capture-ingest.service.ts:431, services/api/src/services/external-intake-orchestration.service.ts:321",
+      "note": "Every capture channel (web upload, direct sessions for extension/Android/iOS/continuous/mobile app, secure intake links and evidence requests) reaches the same createEvidence -> assertWorkspaceAllowsEvidenceCreation path. No channel bypasses admission. Integrations API upload sessions cannot create Evidence (they attach to an existing evidenceId, services/api/src/routes/integrations-uploads.routes.ts:271-300). Citizen capture is retired (410)."
+    },
+    {
+      "area": "COM",
+      "topic": "Admission serialized per capacity subject (ET-ACQ-06)",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/evidence.service.ts:409,486-487; services/api/src/services/billing-enforcement.service.ts:82-92",
+      "note": "Creation re-decides under pg_advisory_xact_lock('evidence-capacity:<subject>'). For Personal records the key differs between creation (personal:<owner>, scope.teamId null) and completion (team:<personalTeamId>), see UC-COM-002."
+    },
+    {
+      "area": "COM",
+      "topic": "FREE allowance authority (allowanceSlotEvidenceWhere)",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/evidence-reservation/reservation.ts:35-42,68-76; services/api/src/services/billing-enforcement.service.ts:499-570",
+      "note": "One predicate for gate, settlement and meters. But unsealed reservations only count for 24h from createdAt while completion has no age limit, see UC-COM-001."
+    },
+    {
+      "area": "COM",
+      "topic": "Fourth-attempt refusal on FREE",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/billing-enforcement.service.ts:396-480; packages/shared-billing/src/plan-catalog.ts:1198-1250",
+      "note": "FREE at 3 slots with 0 credits -> 409 FREE_LIMIT_REACHED; lapsed paid plan -> 409 PLAN_LAPSED_ALLOWANCE_EXHAUSTED. Refused before any row is written (evidence.service.ts:409)."
+    },
+    {
+      "area": "COM",
+      "topic": "Which record consumes a credit, and when",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/billing-enforcement.service.ts:403-408,723-947; services/api/src/services/evidence-complete.service.ts:1392-1395; services/api/src/services/billing/evidence-credits.service.ts:413-475",
+      "note": "Deterministic: a credit is consumed only inside the finalization transaction of the record that exceeds the allowance (ordered by createdAt,id), never at session open/reservation. consumeEvidenceCreditForCompletion has exactly one caller (settlement); no route attaches a credit to an arbitrary existing record. Unique ledger evidence_id makes retries idempotent; conditional decrement (credits >= 1) prevents double-spend."
+    },
+    {
+      "area": "COM",
+      "topic": "Credit admission is not a reservation",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/services/billing-enforcement.service.ts:396-408",
+      "note": "See UC-COM-003: one banked credit admits unlimited over-allowance reservations; all but one fail with 402 at completion after the bytes were uploaded."
+    },
+    {
+      "area": "COM",
+      "topic": "Credit purchase Stripe",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/billing/stripe-settlement.service.ts:198-257; services/api/src/routes/webhooks.routes.ts:165-240",
+      "note": "Grant only when payment_status=paid and amount matches the immutable attempt price; open/unpaid -> PENDING, expired -> EXPIRED, no grant. Idempotent on (provider, providerRef) plus unique stripe_event_id."
+    },
+    {
+      "area": "COM",
+      "topic": "Credit purchase PayPal",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/billing/paypal-settlement.service.ts:412; services/api/src/routes/webhooks.routes.ts:573-610",
+      "note": "Server-side capture read; unique paypal_event_id; grant idempotent on providerRef."
+    },
+    {
+      "area": "COM",
+      "topic": "Refund / chargeback reversal",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/billing/evidence-credits.service.ts:338-400; services/api/src/services/billing/stripe-settlement.service.ts:432; services/api/src/services/billing/paypal-settlement.service.ts:771",
+      "note": "REVERSAL entry removes unspent credits (never below zero), shortfall reported; a spent credit is never taken back from its record (record keeps its outputs). ET-COM-03 closed for Stripe."
+    },
+    {
+      "area": "COM",
+      "topic": "Webhook replay",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/webhooks.routes.ts:194-240,573-610",
+      "note": "Unique event-id insert; duplicate delivery is a no-op."
+    },
+    {
+      "area": "COM",
+      "topic": "Credit expiry",
+      "verdict": "OK",
+      "evidence": "packages/shared-billing/src/plan-catalog.ts:771-778",
+      "note": "creditsExpire:false; no expiry code path exists, consistent with catalog."
+    },
+    {
+      "area": "COM",
+      "topic": "Upgrade/downgrade/lapse (lapse != suspension)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/billing-enforcement.service.ts:164-184,230-237,437-453",
+      "note": "Lapsed personal plan decided as FREE (allowance then credit); lapsed shared workspace refused 402 COMMERCIAL_LIFECYCLE_RESTRICTED; plan row unchanged."
+    },
+    {
+      "area": "COM",
+      "topic": "output_earned_* stored facts keep paid outputs funded",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:1397-1418",
+      "note": "Issuance decision stored in the finalization transaction (outputEarnedPlan/Basis/At, write-once via outputEarnedBasis:null guard); credit-funded record's fact is its CONSUMPTION ledger row."
+    },
+    {
+      "area": "COM",
+      "topic": "Trash keeps slot / destroy releases / unsealed release",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/evidence-reservation/reservation.ts:44-76,137-176",
+      "note": "TRASHED and PENDING_DESTRUCTION hold the slot; DESTROYED and released unsealed reservations free it (ET-COM-02 closed)."
+    },
+    {
+      "area": "COM",
+      "topic": "Legal hold interaction with capture/upload",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/integrations-uploads.routes.ts:292-298; services/api/src/services/evidence/evidence-part-writer.service.ts:81-110",
+      "note": "Byte writes require CREATED|UPLOADING, not locked, lifecycle ACTIVE; hold blocks integration session creation. Slot accounting is independent of hold (a held record is never DESTROYED)."
+    },
+    {
+      "area": "COM",
+      "topic": "Payment pending/failed",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/billing/stripe-settlement.service.ts:202-213,236-240",
+      "note": "No grant on pending/failed/amount mismatch (NEEDS_REVIEW)."
+    },
+    {
+      "area": "COM",
+      "topic": "Suspended account / organization",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:703-725; services/api/src/services/identity-security/session-revocation.service.ts:181-211",
+      "note": "Org suspension/lifecycle enforced by authorizeOrFail on every capture route; there is no user-level suspended status on User consulted by requireAuth (platform disabling is ALL_FOR_USER session revocation). Not probed at runtime."
+    },
+    {
+      "area": "COM",
+      "topic": "Duplicate active entitlements",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/services/billing.service.ts:140-160; services/api/prisma/schema.prisma:2329-2349",
+      "note": "See UC-COM-004."
+    },
+    {
+      "area": "COM",
+      "topic": "Reservation release per channel",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:966,1054; services/worker/src/capture-reaper.ts:290,309-318; services/api/src/services/external-intake-orchestration.service.ts:350",
+      "note": "Direct sessions: explicit discard + session-expiry release. Web upload and intake: no explicit release; only the 24h RESERVATION_EXPIRED sweep (a web upload abort holds the slot up to 24h)."
+    },
+    {
+      "area": "COM",
+      "topic": "Anonymous / non-member / wrong workspace / read-only on capture routes",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:358-372,703-745; services/api/src/services/capture-trust/direct-capture-ingest.service.ts:328-339; packages/shared/src/permissions.ts:513-541",
+      "note": "requireAuth 401; authorizeOrFail(evidence.create, antiEnumeration) 404 for non-member; session loaded by (id, ownerUserId) so another user's session is SESSION_NOT_FOUND; VIEWER lacks evidence.create."
+    },
+    {
+      "area": "COM",
+      "topic": "Extension token scope + presign scope (ET-DC-11)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/auth/extension-scope.ts:37-73; services/api/src/routes/evidence.routes.ts:6080-6086",
+      "note": "capture.direct token is route-allowlisted; part presign only for the record bound to the owner's ACTIVE DIRECT_WEB_CAPTURE_EXTENSION session (does not also check expiresAtUtc>now, but completion does)."
+    },
+    {
+      "area": "COM",
+      "topic": "Extension OAuth redirect allowlist (ET-DC-04)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/auth/extension-oauth.service.ts:35-45,93",
+      "note": "Fail-closed exact-match allowlist from EXTENSION_OAUTH_REDIRECT_ALLOW; code 60s single-use, PKCE S256."
+    },
+    {
+      "area": "COM",
+      "topic": "Extension token session semantics",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/extension-oauth.routes.ts:108-123; services/api/src/middleware/auth.ts:161-190",
+      "note": "See UC-SEC-004."
+    },
+    {
+      "area": "COM",
+      "topic": "Storage key tenancy / presigned URL scope and expiry",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence.service.ts:570; services/api/src/storage.ts:235-245,286-351,353-380",
+      "note": "Keys are evidence/<evidenceId>/..., not team-prefixed; tenancy is enforced by DB authorization before presign. PUT URL signed for one key + content-type (+checksum when supplied), expiry clamped 60-900s (default 600). GET presign pins versionId when recorded."
+    },
+    {
+      "area": "COM",
+      "topic": "Resumable upload session byte-write authority",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/upload-sessions.routes.ts:443-470,662-690,709-760; services/api/src/services/uploads/upload-session.service.ts:626-676,1640-1660,1800-1810",
+      "note": "See UC-SEC-001 (ET-UPL-01/02 fixed create and abort only)."
+    },
+    {
+      "area": "COM",
+      "topic": "Upload completion part verification",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/upload-sessions.routes.ts:506-530; services/api/src/services/evidence-complete.service.ts:506-517,1133-1150",
+      "note": "markPartVerified is machine-only (internal service token); completion hashes stored objects server-side bound to version; client sha256 is advisory only."
+    },
+    {
+      "area": "COM",
+      "topic": "Client-asserted verification",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:17-26,500-560; services/api/src/routes/capture-trust.routes.ts:400-430",
+      "note": "No request schema accepts a verified/integrity flag; declared digests are compared to server digests at completion; attestation verdict computed server-side and fails closed."
+    },
+    {
+      "area": "COM",
+      "topic": "Internal service tokens",
+      "verdict": "OK",
+      "evidence": "services/api/src/middleware/internal-service-auth.ts:36-98",
+      "note": "HMAC-then-timingSafeEqual; 503 in production when unset."
+    },
+    {
+      "area": "COM",
+      "topic": "CORS",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/server.ts:267-300,612-672",
+      "note": "See UC-SEC-002 (chrome-extension origin absent) and UC-SEC-005 (*.vercel.app and localhost credentialed origins in production)."
+    },
+    {
+      "area": "COM",
+      "topic": "Rate limiting on capture/verify/intake",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/routes/external-intake.routes.ts:172-207; services/api/src/routes/capture-trust.routes.ts:364-371; services/api/src/routes/evidence.routes.ts:6088-6096,12552-12556,12623-12629; services/api/src/services/rate-limit.ts:292-318",
+      "note": "Public intake uses bound:global per IP and per token. Public verify (anonymous) and capture routes use the default process bound (N replicas = N allowances; memory during Redis outage). See UC-SEC-006."
+    },
+    {
+      "area": "COM",
+      "topic": "Log redaction of URLs/tokens",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/server.ts:786-811,864; packages/shared/src/web-capture-manifest.ts:281-283",
+      "note": "redactUrlForLog exists only for web-capture manifest URLs; the request log redacts only invite paths. See UC-SEC-003."
+    },
+    {
+      "area": "COM",
+      "topic": "Share token hashing, revocation, Public Verify minimization",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/verification-share/authority.ts:66-82,182-241; services/api/src/routes/verification-share.routes.ts:156-229; services/api/src/routes/evidence.routes.ts:1360-1383,12594-12634",
+      "note": "pvs_ + 32 random bytes, only SHA-256 stored, token shown once; revoked/expired/exhausted 410, unknown 404; first link publishes behind step-up; submitter email always null and workspace/org names null unless env opt-in."
+    },
+    {
+      "area": "COM",
+      "topic": "Intake link token",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/workflow-intake-session.service.ts:114-121",
+      "note": "Looked up by hash with constant-time compare; per-token global rate limit."
+    },
+    {
+      "area": "COM",
+      "topic": "Output routes tenancy",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:11783-11826,3176-3205",
+      "note": "Original download: record read access + shared byte-release gate (hold/lifecycle/policy), 600s version-pinned GET URL; 404 for no access."
+    },
+    {
+      "area": "DER",
+      "topic": "Derived-asset kind catalog (shared-runtime)",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:37-50",
+      "note": "7 kinds: image_thumbnail, video_frame, audio_waveform, low_res_proxy, compact_review_preview, video_keyframe, screen_reconstruction. The API producer catalog (services/api/src/queue/derived-assets-queue.ts:38-44) and the POST run zod enum (services/api/src/routes/media-intelligence.routes.ts:1462-1468) carry only the first 5; video_keyframe/screen_reconstruction are written only by the UC-4 orchestrator. packages/shared/src/evidence-acquisition.ts:537-543 also declares screen_crop, which has NO producer anywhere."
+    },
+    {
+      "area": "DER",
+      "topic": "Derived-asset producer tenant binding (Point-5 command-id pattern)",
+      "verdict": "OK",
+      "evidence": "services/api/src/queue/derived-assets-queue.ts:81-127; services/worker/src/derived-assets.processor.ts:104-128,211-222",
+      "note": "Producer proves the part via evidence.team_id join, commits the row, enqueues only its id; the processor re-derives team/evidence/part/kind from the row and team-anchors the source SQL."
+    },
+    {
+      "area": "DER",
+      "topic": "Derived-asset enqueue idempotency / completed job-id release",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/queue-integrity/enqueue.ts:155-206",
+      "note": "A retained completed job under the deterministic mi-derived-<rowId> id is removed before re-add, so a re-request after COMPLETED actually runs."
+    },
+    {
+      "area": "DER",
+      "topic": "Derived-asset replay guard",
+      "verdict": "OK",
+      "evidence": "services/worker/src/derived-assets.processor.ts:148-159",
+      "note": "COMPLETED/UNSUPPORTED replay is a logged no-op (READY bug fixed)."
+    },
+    {
+      "area": "DER",
+      "topic": "Stranded PENDING derived-asset recovery (ET-Q-07 derived-asset part)",
+      "verdict": "OK",
+      "evidence": "services/worker/src/intelligence-run-reconciler.ts:467-594",
+      "note": "Claimed, bounded, lifecycle-filtered (deleted_at IS NULL + ineligible lifecycle states), attempts capped then FAILED recovery_attempts_exhausted. The ET-Q-07 'no derived-asset reconciler' claim is no longer reproducible."
+    },
+    {
+      "area": "DER",
+      "topic": "Failed rebuild keeps prior artifact pointer",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:141-143,173-192",
+      "note": "FAILED/UNSUPPORTED writes COALESCE the artifact columns so a previously stored object stays counted/destroyable; bytes route serves only COMPLETED (media-intelligence.routes.ts:1384)."
+    },
+    {
+      "area": "DER",
+      "topic": "Rebuild: superseded object handling",
+      "verdict": "PARTIAL",
+      "evidence": "services/worker/src/derived-assets.processor.ts:661,684-713; packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:302-304,517-519,536-543",
+      "note": "previousStorage is DELETED after a successful regeneration (no history kept) unless an effective hold is active, in which case the old object is kept with no row pointer. Superseded objects are lost from the list if the run throws or returns descriptor_too_large before line 536. Destruction still reaches such orphans via the derived-assets/<evidenceId>/ prefix sweep (packages/shared-runtime/src/evidence-destruction/executor.ts:142-149,754-763). See UC-DER-006."
+    },
+    {
+      "area": "DER",
+      "topic": "Destruction of derived rows/objects/text",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/evidence-destruction/executor.ts:602-621,716-740,754-763",
+      "note": "Derived rows, OCR/transcript/extracted text, semantic chunks, search docs deleted in the tombstone tx; objects enumerated from rows AND the derived-assets/<evidenceId>/ prefix."
+    },
+    {
+      "area": "DER",
+      "topic": "reconcileDestroyedDerivedAssets retroactive sweep",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/evidence-destruction/reconcile-destroyed-derivatives.ts:74-130; services/worker/src/governance/destruction-orchestrator.worker.ts:417-438",
+      "note": "Runs every orchestrator tick, bounded 200 tombstones, objects-before-rows, hold-guarded. Also incidentally sweeps any derived row written after destruction (see UC-DER-013)."
+    },
+    {
+      "area": "DER",
+      "topic": "Legal hold vs derived generation",
+      "verdict": "OK",
+      "evidence": "services/worker/src/screen-intelligence.handler.ts:168-175; services/worker/src/derived-assets.processor.ts:690-701",
+      "note": "Generation of a new derivative is allowed under hold (creation of a first output is not blocked by policy); superseded-object deletion is suppressed under hold, fail-closed on hold read error in UC-4."
+    },
+    {
+      "area": "DER",
+      "topic": "Trash / restore behaviour of derivatives",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/media-intelligence.routes.ts:1352-1359,1619-1625",
+      "note": "Trash changes nothing on derived rows; the bytes and derived-review GET routes do not check deletedAt, so a trashed record's derivatives remain served. Restore needs nothing. Folded into UC-DER-002."
+    },
+    {
+      "area": "DER",
+      "topic": "Derived bytes authorization (view-only role, byte-release gate)",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/media-intelligence.routes.ts:1333-1443; services/api/src/services/evidence/artifact-download-gate.service.ts:67-73",
+      "note": "evidence.read only; evaluateArtifactDownload is not consulted. UC-DER-002."
+    },
+    {
+      "area": "DER",
+      "topic": "UC-4 reachability: what enqueues reconstruct_screen",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/app/(app)/evidence/[id]/page.tsx:937-946,1377-1379; apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:38-41,90-119; apps/web/lib/media-intelligence/useDerivedReview.ts:144-150; services/api/src/routes/media-intelligence.routes.ts:1531-1591; services/api/src/queue/media-intelligence-queue.ts:241-285; services/worker/src/media-intelligence.processor.ts:406-415",
+      "note": "ONLY producer: POST /v1/evidence/:id/derived-review/generate (permission intelligence.run: OWNER/ADMIN/REVIEWER), called by the 'Generate Derived Review'/'Retry'/'Regenerate' buttons of the web Evidence Detail 'Derived Review' tab. The tab is shown only when acquisition.category === DIRECT_SCREEN_CAPTURE (Android frame, Android continuous, iOS); hidden for UC-1 web captures and uploads. Nothing enqueues it automatically on capture/finalize. The API does NOT restrict to screen evidence: any image/video part of any team evidence is processed (handler.ts:115-132). First generation works; Retry/Regenerate are dead (UC-DER-001); Personal NULL-team records can never run it (UC-DER-010)."
+    },
+    {
+      "area": "DER",
+      "topic": "UC-4 OCR gate (ocrAllowed default OFF)",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/media-intelligence/screen-ocr-policy.ts:22-40; services/api/prisma/schema.prisma:14048; services/worker/src/screen-intelligence.handler.ts:162-166; apps/web/app/(app)/settings/_sections/AiSection.tsx:638",
+      "note": "Generation is NOT gated by OCR policy; OCR is gated at run time on workspace_ai_policies.ai_enabled && ocr_allowed, default false (no row => false). With OCR off the run still extracts keyframes and completes with zero blocks, coverage PARTIAL, UI says 'OCR is disabled'. The service comment 'surfaced at trigger time (the API)' is not implemented (route 1531-1591 never reads it) — harmless because the outcome is labelled. Web settings expose the OCR toggle."
+    },
+    {
+      "area": "DER",
+      "topic": "Conversation capture channel",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "packages/shared/src/evidence-acquisition.ts:35-91 (7 acquisition modes: PROOVRA_WEB_UPLOAD, SECURE_INTAKE_LINK, PROOVRA_MOBILE_APP, DIRECT_WEB_CAPTURE_EXTENSION, DIRECT_SCREEN_CAPTURE_ANDROID, DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS, DIRECT_SCREEN_CAPTURE_IOS)",
+      "note": "There is no conversation/chat-export/messaging-API capture channel. 'Conversation' exists only as the name of a DERIVED OCR-based screen reconstruction transformation (screen-conversation-reconstruction/v1). WhatsApp is a retired intake DELIVERY channel, not a capture channel."
+    },
+    {
+      "area": "DER",
+      "topic": "Keyframe producer: timestamps/offsets",
+      "verdict": "PARTIAL",
+      "evidence": "services/worker/src/ffmpeg-derived-assets.ts:139-140,154-166,173-191",
+      "note": "Single ffmpeg pass fps=1000/1500ms, ≤240 frames/part, output kf-%04d.webp. offsetMs = (i-1)*intervalMs is NOMINAL (derived from the output index), not the decoded frame PTS and not relative to the container start_time; VFR screen recordings get approximated offsets. Offsets are part-relative; no absolute UTC mapping. Offset persisted to source_offset_ms (screen-intelligence.service.ts:286) but NOT projected by listDerivedAssetsForEvidence (derived-assets.service.ts:253-258) nor the package manifests."
+    },
+    {
+      "area": "DER",
+      "topic": "Keyframe producer: tool version / parameters / output digest",
+      "verdict": "DEFECT",
+      "evidence": "services/worker/src/ffmpeg-derived-assets.ts:159,186-188; packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:145,270-289",
+      "note": "Output sha256 per keyframe recorded (derived_sha256, content-addressed key). ffmpeg binary version never recorded (engineVersion hard-coded 'uc4-screen-intelligence-v1'), parameters (interval, max frames, scale 256, q75) not recorded, parameters_sha256 null. UC-DER-005."
+    },
+    {
+      "area": "DER",
+      "topic": "Keyframes: duplicates, long video, corrupt media, unsupported codec",
+      "verdict": "PARTIAL",
+      "evidence": "services/worker/src/ffmpeg-derived-assets.ts:63,168,192; packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:228-252; packages/shared/src/screen-intelligence-descriptor.ts:41-68",
+      "note": "Duplicates: fixed-interval sampling (the change-scored selectKeyframes in packages/shared/src/screen-keyframes.ts:66 is used only by the test-only runScreenIntelligence) so a static screen yields many identical keyframes, identical bytes share one content-addressed key. Long video: >240 frames (6 min) flags RECONSTRUCTION_BOUNDS_REACHED; the 60 s ffmpeg timeout fails the part -> POSSIBLE_GAP. Corrupt/unsupported codec: ffmpeg non-zero exit -> part skipped with the generic RECONSTRUCTION_POSSIBLE_GAP; the concrete reason (ffmpeg_exit..., non_video_mime, no_keyframes_produced) is discarded at screen-intelligence.service.ts:246-251 and never shown. A truncated-but-decodable source (range cap) yields no limitation (UC-DER-014)."
+    },
+    {
+      "area": "DER",
+      "topic": "Tesseract OCR provider + capability probe",
+      "verdict": "PARTIAL",
+      "evidence": "services/worker/src/tesseract-capability.ts:57-70; services/worker/src/tesseract-ocr-provider.ts:31-98,100-155; services/worker/Dockerfile:174-176",
+      "note": "Local, argv spawn, 30 s timeout, TSV parse into line regions with bbox + mean confidence; version from `tesseract --version` banner (cached); eng+ara packs installed. Failure per frame throws -> counted in stats.ocrFailedKeyframes, frame degraded. Engine unavailable -> run proceeds with OCR disabled (labelled as 'disabled by policy', UC-DER-008). Language and bbox are returned but dropped downstream (UC-DER-005). OCR runs on 256-px keyframes for video (UC-DER-003)."
+    },
+    {
+      "area": "DER",
+      "topic": "OCR text persistence / digest / failure visibility",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:620-694",
+      "note": "OCR_SCREEN + SCREEN_RECONSTRUCTION EvidenceExtractedText rows replaced per run (deleteMany then create), language null, confidence null, extractedAtUtc null, no text digest; failures swallowed silently (catch at 690) — a run can be COMPLETED while search text persistence failed with no signal."
+    },
+    {
+      "area": "DER",
+      "topic": "Reconstruction core: ordering authority & message identity",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared/src/screen-reconstruction.ts:187-194,240-275; services/worker/src/screen-intelligence.handler.ts:97-105,124-126",
+      "note": "Ordering authority = evidence_parts.part_index then frameOrder (keyframe index) then OCR rowOrder (vertical position). Message identity: blockId = representative observation id 'obs-N' — positional, regenerated each run, not stable. No provider message id."
+    },
+    {
+      "area": "DER",
+      "topic": "Reconstruction: actor attribution, visible timestamps, tz",
+      "verdict": "OK",
+      "evidence": "services/worker/src/tesseract-ocr-provider.ts:84; packages/shared/src/screen-reconstruction.ts:37-46",
+      "note": "NO actor attribution is claimed: the only OCR provider emits kind 'TEXT' for every region; VISIBLE_LABEL / VISIBLE_TIMESTAMP / MEDIA / SYSTEM kinds exist in the type but nothing produces them. No on-screen timestamp parsing, no timezone handling. Copy correctly says a visible label is not a verified identity."
+    },
+    {
+      "area": "DER",
+      "topic": "Reconstruction: edits/deletions, attachments, threads",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "packages/shared/src/screen-reconstruction.ts:66-93",
+      "note": "Not modelled: blocks are OCR text lines only. No attachment detection, no thread/reply structure, no edit/deletion markers."
+    },
+    {
+      "area": "DER",
+      "topic": "Reconstruction: duplicates & missing context",
+      "verdict": "DEFECT",
+      "evidence": "packages/shared/src/screen-reconstruction.ts:106-134,200-228,277-278",
+      "note": "Missing context flagged RECONSTRUCTION_POSSIBLE_GAP when no overlap is found. But the overlap test cannot succeed on real messaging screens, so duplicates are the norm. UC-DER-004."
+    },
+    {
+      "area": "DER",
+      "topic": "Reconstruction: limitation labelling, observed vs inferred, derivative-not-original labelling",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/screen-intelligence-descriptor.ts:142-169,177-207,259-276; apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:70-77,123-143; services/worker/src/report-v2/sections/derived-review.ts:39-51",
+      "note": "Descriptor keeps observations (machine-extracted) separate from blocks (reconstructed); projection carries DERIVED_RECONSTRUCTED / DERIVED_MACHINE_EXTRACTED markers; coverage never exceeds acquisition completeness (screen-intelligence.service.ts:419-436); UI/report carry standing 'not original acquisition' copy. Everything is stored as EvidencePartDerivedAsset, never as an EvidencePart."
+    },
+    {
+      "area": "DER",
+      "topic": "media_intelligence_runs kind reconstruct_screen lifecycle",
+      "verdict": "DEFECT",
+      "evidence": "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts:146-165,233-257,382-393",
+      "note": "Claim/lease/fence correct for the first run; reuse-by-idempotency-key makes every later run impossible. UC-DER-001."
+    },
+    {
+      "area": "DER",
+      "topic": "Inspector 'Derived Review' tab",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx:31-311; services/api/src/services/media-intelligence/screen-intelligence-read.service.ts:118-141",
+      "note": "Reads the persisted descriptor only (no mock), paginates 100, per-block View Source with keyframe thumbnails and Open Original. Shows the last COMPLETED descriptor even when the latest run FAILED, without saying it is from an earlier run (generatedAtUtc not rendered). DISMISSED state has no action button (dead end, UC-DER-001)."
+    },
+    {
+      "area": "DER",
+      "topic": "Report 'Machine-Derived Review Materials'",
+      "verdict": "PARTIAL",
+      "evidence": "services/worker/src/report-v2/sections/derived-review.ts:32-94; services/worker/src/report-v2/derived-review-bridge.ts:16-70; services/worker/src/processor.ts:2974,3985",
+      "note": "Counts/coverage/limitations/transformation versions only, never text — correct separation. Not tied to the descriptor it summarises (no digest, generatedAtUtc passed but not rendered): UC-DER-015. Returns null for NULL-team records."
+    },
+    {
+      "area": "DER",
+      "topic": "Package derived manifests",
+      "verdict": "DEFECT",
+      "evidence": "services/worker/src/verification-package.ts:1349-1377,3289-3291,3546-3558; services/worker/src/verification-package-intelligence.ts:157,241-253,313-340,369-392; services/worker/src/verification-package-intelligence-bridge.ts:73-176",
+      "note": "Lineage-only manifests (no derived bytes): derived/derived-manifest.json, intelligence/derived_assets manifest, intelligence/screen_reconstruction_manifest.json. Silently truncated (UC-DER-007); descriptor digest TOCTOU (UC-DER-015)."
+    },
+    {
+      "area": "DER",
+      "topic": "Can a report/package include an old derivative as current",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:246-251,466-468; packages/shared-runtime/src/capture-trust/provenance-chain.ts:304-344",
+      "note": "Yes in two ways: (a) keyframe variants from an earlier run that the new run did not rewrite stay COMPLETED and are listed by loadDerivedArtifacts/listDerivedAssetsForEvidence; (b) a regeneration that returns descriptor_too_large (or throws after keyframes persisted) leaves the previous descriptor COMPLETED while its keyframe rows (same ids) now hold new bytes, so the descriptor's per-keyframe derivedSha256 no longer matches the served bytes. No staleness check compares source_sha256_at_generation to evidence_parts.sha256 anywhere (only projected: provenance-chain.ts:317,338; verification-package.ts:1363)."
+    },
+    {
+      "area": "DER",
+      "topic": "EvidenceExtractedText AI OCR/transcript path (OCR_IMAGE/OCR_PDF/PDF_TEXT/TRANSCRIPT_*)",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/routes/internal-media-intelligence-extract.routes.ts:325-345; services/api/src/services/intelligence/extraction.service.ts:141-255",
+      "note": "Provider/providerVersion/language/confidence recorded when the provider returns them; no source digest, no text digest; text silently truncated at MAX_TEXT_BYTES with no flag; each run CREATEs a new row (the 'upserted' doc comment at 135-136 is false) so stale rows accumulate. AI-policy/provider aspects belong to the AI area; not audited in depth here."
+    },
+    {
+      "area": "DER",
+      "topic": "Legacy EvidenceOcrText / EvidenceTranscriptSegment",
+      "verdict": "OK",
+      "evidence": "services/api/prisma/schema.prisma:14265-14284; packages/shared-runtime/src/evidence-destruction/executor.ts:609-612",
+      "note": "No production writer; still swept on destruction."
+    },
+    {
+      "area": "DER",
+      "topic": "EXIF summary / technical metadata derivation",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/media-intelligence/exif-summary.service.ts:77-160; services/worker/src/media-intelligence.processor.ts:716; services/api/prisma/schema.prisma:505-512",
+      "note": "Row-level facts (not bytes); parser name stored on the part (technical_meta_parser). Not audited in depth (no byte release, no object)."
+    },
+    {
+      "area": "DER",
+      "topic": "Redaction derivatives / redacted downloads",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/redaction/redaction-derivative.service.ts:71-198; services/api/src/routes/redaction.routes.ts:1635; services/api/src/services/evidence/artifact-download-gate.service.ts:211-232",
+      "note": "Released only through evaluateArtifactDownload kind 'redaction' with the explicit redaction.derivative.download capability (ET-SEC-26 fixed). Destruction enumerates redactionDerivative objects (executor.ts:721-724). Redaction internals belong to the redaction area."
+    },
+    {
+      "area": "DER",
+      "topic": "Reports / verification packages / downloadable originals as byte releases",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence/artifact-download-gate.service.ts:67-95,111-330; services/api/src/routes/evidence.routes.ts:3093-3101,11815-11820",
+      "note": "All go through the one gate (permission, personal-owner rule, policy, export eligibility incl. hold/trash). The derived-assets bytes route is the remaining byte-release path outside it (UC-DER-002)."
+    },
+    {
+      "area": "DER",
+      "topic": "AI outputs (media_intelligence_signals)",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/media-intelligence/analyzer.service.ts:460; services/api/prisma/schema.prisma:14565-14584",
+      "note": "Row-level advisory signals with engine_version; no source digest; swept on destruction? not in the executor's derived deletes (only via evidence FK-less table) — not verified in depth, outside DER scope."
+    },
+    {
+      "area": "DER",
+      "topic": "Derived-assets list projection",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts:246-269",
+      "note": "Team-anchored, storage keys never projected (OK). Omits variant_key, transformation, parameters_sha256, source_offset_ms, so 240 keyframes/part are indistinguishable rows in the API, the Technical Appendix strip (UC-DER-011) and the intelligence package manifest."
+    },
+    {
+      "area": "EXT",
+      "topic": "MV3 manifest validity",
+      "verdict": "OK",
+      "evidence": "apps/extension/public/manifest.json:2-25; apps/extension/scripts/validate-manifest.mjs:267-292",
+      "note": "manifest_version 3, module service worker, strict extension_pages CSP (script-src 'self'), minimum_chrome_version 116, lint enforces allowlist."
+    },
+    {
+      "area": "EXT",
+      "topic": "Permissions minimal & sufficient",
+      "verdict": "OK",
+      "evidence": "apps/extension/public/manifest.json:15-16",
+      "note": "activeTab+scripting+storage+identity, host_permissions empty. Sufficient for captureVisibleTab/executeScript after an action click and for launchWebAuthFlow."
+    },
+    {
+      "area": "EXT",
+      "topic": "Chrome/Edge compatibility",
+      "verdict": "PARTIAL",
+      "evidence": "apps/extension/src/background.ts:135-151; docs/admin/audits/UC1_DIRECT_WEB_CAPTURE_IMPLEMENTATION.md:9-10,302-305",
+      "note": "No Chrome-only API beyond identity/tabs/scripting; Edge detected by UA. Real Chrome AND Edge acceptance recorded NOT EXECUTED/DEFERRED; the e2e harness bypasses the popup (see UC-EXT-001) so it could never have caught the popup defect."
+    },
+    {
+      "area": "EXT",
+      "topic": "Content script injection",
+      "verdict": "PARTIAL",
+      "evidence": "apps/extension/src/background.ts:35-37; apps/extension/src/content.ts:15-67",
+      "note": "Injected on demand (no static content_scripts). Re-injected on every capture, so each capture on the same page adds another onMessage listener (duplicate DOM serialisation work); functionally harmless."
+    },
+    {
+      "area": "EXT",
+      "topic": "Popup",
+      "verdict": "DEFECT",
+      "evidence": "apps/extension/src/popup.ts:22-36,126-153",
+      "note": "Workspace list reads a field the API does not return (UC-EXT-001); load errors rendered as empty (UC-EXT-002)."
+    },
+    {
+      "area": "EXT",
+      "topic": "OAuth PKCE (client)",
+      "verdict": "OK",
+      "evidence": "apps/extension/src/lib/auth.ts:28-33,65-106",
+      "note": "S256 verifier/challenge, random state checked, code exchanged with verifier, token in chrome.storage.session."
+    },
+    {
+      "area": "EXT",
+      "topic": "OAuth server (authorize/token)",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/auth/extension-oauth.service.ts:35-45,116-151; services/api/src/routes/extension-oauth.routes.ts:286-376",
+      "note": "Single-use hashed 60s code, atomic claim, client+redirect+PKCE binding all correct. Authorize has no sign-in bridge (UC-EXT-006). Token hard-codes authMethod SOCIAL_OAUTH regardless of how the user authenticated (extension-oauth.routes.ts:351) - provenance label only, noted not filed."
+    },
+    {
+      "area": "EXT",
+      "topic": "EXTENSION_OAUTH_REDIRECT_ALLOW fail-closed",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/auth/extension-oauth.service.ts:37-45",
+      "note": "Unset/invalid env => explicit list empty => every redirect refused. ET-DC-04 remediation holds. Not present in any .env.example; release checklist carries it (docs/admin/EXTENSION_RELEASE_CHECKLIST.md:68-71)."
+    },
+    {
+      "area": "EXT",
+      "topic": "Token scope capture.direct",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/auth/extension-scope.ts:189-238; services/api/src/middleware/auth.ts:343-360",
+      "note": "Deny-by-default route-pattern allowlist; presign limited to the ACTIVE extension session's own record (extension-scope.ts:209-223)."
+    },
+    {
+      "area": "EXT",
+      "topic": "Workspace selection",
+      "verdict": "DEFECT",
+      "evidence": "apps/extension/src/popup.ts:32; services/api/src/services/platform-context/types.ts:1097",
+      "note": "See UC-EXT-001: list always empty, capture disabled."
+    },
+    {
+      "area": "EXT",
+      "topic": "Case selection / add to existing case",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:156-163; services/api/src/services/auth/extension-scope.ts:189-197; apps/extension/public/popup.html:21-46",
+      "note": "No case field in popup, open-session body has no caseId (.strict()), and the scoped token cannot reach /v1/cases/*. Filing to a case is only possible later in the web app. UC-EXT-010."
+    },
+    {
+      "area": "EXT",
+      "topic": "Create evidence (server chain)",
+      "verdict": "OK",
+      "evidence": "apps/extension/src/background.ts:54-131; services/api/src/services/capture-trust/web-capture.service.ts:49-137",
+      "note": "open -> reserve -> per-part presign/PUT/declare -> manifest part -> web-complete; server validates manifest, ties it to a declared digest, 1:1 artifact<->part cross-check, recomputes digests at seal."
+    },
+    {
+      "area": "EXT",
+      "topic": "Cancel",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/extension/public/popup.html:34-45; apps/extension/src/background.ts:153-166",
+      "note": "No cancel control; /discard route is on the scope allowlist but never called. Abandoned reservations rely on the worker reservation sweep (ET-DC-05 remediation, services/worker/src/capture-reaper.ts)."
+    },
+    {
+      "area": "EXT",
+      "topic": "Retry",
+      "verdict": "PARTIAL",
+      "evidence": "apps/extension/src/lib/api-client.ts:19-49,80-83",
+      "note": "No step-level retry; any failure fails the whole capture and the user re-clicks, which opens a brand-new session/record."
+    },
+    {
+      "area": "EXT",
+      "topic": "Offline / network loss",
+      "verdict": "PARTIAL",
+      "evidence": "apps/extension/src/popup.ts:99-106",
+      "note": "Network error surfaces as the generic line 'Nothing was saved'. That line is false if the drop happens after web-complete sealed server-side (response lost) - covered by UC-EXT-005."
+    },
+    {
+      "area": "EXT",
+      "topic": "Token expiry / refresh",
+      "verdict": "DEFECT",
+      "evidence": "apps/extension/src/lib/auth.ts:46-54,73; apps/extension/src/background.ts:40-41",
+      "note": "1h token, 'offline' scope requested but no refresh token issued or used; expiry mid-session shows the generic capture failure, not a sign-in prompt. UC-EXT-008."
+    },
+    {
+      "area": "EXT",
+      "topic": "Duplicate click idempotency",
+      "verdict": "DEFECT",
+      "evidence": "apps/extension/src/popup.ts:50-53,66; apps/extension/src/background.ts:153-166",
+      "note": "Guard lives only in popup DOM state; see UC-EXT-005."
+    },
+    {
+      "area": "EXT",
+      "topic": "Browser restart / SW state persistence",
+      "verdict": "PARTIAL",
+      "evidence": "apps/extension/src/lib/auth.ts:104,155-167; apps/extension/src/background.ts:39-133",
+      "note": "Token in storage.session (cleared on browser restart => re-sign-in, by design). No in-flight capture state is persisted anywhere; a SW/browser termination mid-capture is unrecoverable and unreported; server session expires and reservation is swept."
+    },
+    {
+      "area": "EXT",
+      "topic": "Progress & failure reporting",
+      "verdict": "PARTIAL",
+      "evidence": "apps/extension/src/background.ts:31-33; apps/extension/src/popup.ts:68-111",
+      "note": "Progress only reaches an open popup; closing the popup loses the outcome entirely. Known denial codes mapped truthfully (apps/extension/src/lib/denial-copy.ts:23-62)."
+    },
+    {
+      "area": "EXT",
+      "topic": "Logout / revocation",
+      "verdict": "PARTIAL",
+      "evidence": "apps/extension/src/lib/auth.ts:108-110; services/api/src/routes/extension-oauth.routes.ts:346-360",
+      "note": "Sign-out only deletes the local copy; no server revocation endpoint, token carries no sid so per-session revocation cannot target it; stays valid up to 1h. UC-EXT-009."
+    },
+    {
+      "area": "EXT",
+      "topic": "DOM snapshot sanitisation",
+      "verdict": "DEFECT",
+      "evidence": "apps/extension/src/lib/sanitizer.ts:10-45,88-158",
+      "note": "Scripts/handlers/javascript: URLs/refresh/base removed and secret-named inputs cleared, but <meta name=csrf-token content=...> and similar are kept. UC-EXT-007."
+    },
+    {
+      "area": "EXT",
+      "topic": "Per-capture limitations surfaced to reviewers",
+      "verdict": "DEFECT",
+      "evidence": "packages/shared/src/web-capture-manifest.ts:49-57; services/worker/src/verification-package.ts:1306",
+      "note": "Manifest completeness/limitations are validated then never read by any API/worker/web consumer. UC-EXT-004."
+    },
+    {
+      "area": "EXT",
+      "topic": "Site-specific logic (social/marketplaces)",
+      "verdict": "OK",
+      "evidence": "apps/extension/src (grep facebook|instagram|tiktok|twitter|linkedin|marketplace: 0 hits)",
+      "note": "Entirely generic; no product copy claims platform-specific capture. See facts.siteSpecific."
+    },
+    {
+      "area": "EXT",
+      "topic": "Build loopback safety / release packager",
+      "verdict": "OK",
+      "evidence": "apps/extension/build.mjs:19-32; apps/extension/release.mjs:125-139,150-164",
+      "note": "Local build defaults to http://localhost:4000 (never production). Release refuses missing/non-https/localhost PROOVRA_API_ORIGIN and scans the bundle for localhost. Gap (P3, not filed): PROOVRA_AUTH_AUTHORIZE_URL/PROOVRA_AUTH_TOKEN_URL overrides are not https-checked, only localhost-scanned."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: Direct Web Capture card",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx:50-98; packages/shared/src/capture-capability.ts:131-189",
+      "note": "No install link unless a validated store URL exists (extension unpublished => 'has not been published yet'). Copy overclaim filed as UC-EXT-011."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: file upload / drag-drop / folder",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/app/(app)/capture/page.tsx:569-600,915-936",
+      "note": "Works through canonical POST /v1/evidence + /parts + /complete. Drop path puts a raw browser exception message on screen (UC-WEB-006)."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: getDisplayMedia screen capture",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/web (grep getDisplayMedia: 0 hits)",
+      "note": "No browser screen capture on web/PWA; web capture of a page is extension-only."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: camera / microphone",
+      "verdict": "OK",
+      "evidence": "apps/web/app/(app)/capture/_hooks/useCaptureCamera.ts:138-200,300-390; apps/web/app/(app)/capture/_hooks/useCaptureAudioRecorder.ts:122-263",
+      "note": "getUserMedia with unsupported/denied states; recorded as PROOVRA_WEB_UPLOAD (truthful, services/api/src/routes/evidence.routes.ts create path). No pause/resume of recording."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: clipboard paste",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/web (grep clipboard.read|onPaste: 0 hits in capture)",
+      "note": ""
+    },
+    {
+      "area": "EXT",
+      "topic": "Public intake submit page",
+      "verdict": "DEFECT",
+      "evidence": "apps/web/app/intake/[token]/page.tsx:456-483,692-860,868-975",
+      "note": "Per-part retry keeps the same index (ET-INT-02 holds). Reload loses the session (UC-WEB-003). No beforeunload guard."
+    },
+    {
+      "area": "EXT",
+      "topic": "Evidence Requests (what it is)",
+      "verdict": "DEFECT",
+      "evidence": "apps/web/app/(app)/evidence-requests/[id]/page.tsx:1-27; apps/web/components/home-experience/home-view-model.ts:2169",
+      "note": "An EvidenceRequest is a reviewer-side request that mints an intake link for an external contributor (deliverables checklist, responses, re-request). Only the [id] inspector exists; Home CTA links to the missing list page (UC-WEB-004)."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: case attachment during upload",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/web/app/(app)/capture (grep caseId: 0 hits); apps/web/app/(app)/evidence/page.tsx:1146-1157",
+      "note": "Capture never takes a case; filing is a later bulk action on the Evidence library."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: resumable/multipart upload sessions",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/lib/uploads/feature-flag.ts:106; apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:53-180,707-764",
+      "note": "Full multipart+IndexedDB recovery engine exists but is gated by NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED (default off); production path is single presigned PUT per file with 3 transient retries."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: service worker / offline",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/web (grep serviceWorker: 0 hits); apps/web/public (no sw.js)",
+      "note": "No service worker; no offline capture queue on the default path."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: PWA manifest / install",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/public/manifest.webmanifest:1-12; apps/web/app/layout.tsx:67",
+      "note": "Single 469x529 non-square PNG declared sizes 'any' purpose 'any maskable'; no 192/512 icons. Installability in Chromium not assured and maskable crop will distort. P3, not filed separately."
+    },
+    {
+      "area": "EXT",
+      "topic": "Web: canonical lifecycle reuse",
+      "verdict": "OK",
+      "evidence": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:671,768,902; apps/web/app/intake/[token]/page.tsx:727-735,932-935",
+      "note": "Capture uses /v1/evidence, /parts, /complete; intake uses external-intake routes that write parts through the one writeEvidencePart authority (services/api/src/services/external-intake-orchestration.service.ts:568-596)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Swift module location + registration",
+      "verdict": "OK",
+      "evidence": "apps/mobile/modules/proovra-screen-capture/expo-module.config.json (ios.modules = ProovraScreenCaptureModule); apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:27,41; ProovraScreenCapture.podspec:8 (iOS 13.4), :19",
+      "note": "Module name ProovraScreenCapture matches JS requireNativeModule (index.ts:104)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Broadcast Upload Extension target (config plugin)",
+      "verdict": "PARTIAL",
+      "evidence": "apps/mobile/plugins/withProovraIosScreenBroadcast.cjs:55-143 (addTarget app_extension :94, Sources :97, frameworks :99-104, build settings :112-125, target dependency :140), :145-157 file copy; app.json:185-191 registers the plugin; app.json:24-33 extra.eas.build.experimental.ios.appExtensions",
+      "note": "pbxproj mutation is proven only offline by apps/mobile/test/pbxproj-integrity.test.mjs against a fixture; git log 63eb0538 records a signed dev build that installed on iPad after a CFBundleExecutable fix. Compile/sign on this tree: BLOCKED (no Xcode)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Extension Info.plist",
+      "verdict": "OK",
+      "evidence": "apps/mobile/plugins/broadcast-extension/Info.plist:17-26 (NSExtensionPointIdentifier com.apple.broadcast-services-upload, principal class $(PRODUCT_MODULE_NAME).SampleHandler, RPBroadcastProcessModeSampleBuffer); :10-11 CFBundleExecutable",
+      "note": "Correct extension point for an upload extension."
+    },
+    {
+      "area": "IOS",
+      "topic": "App Group identifier consistency",
+      "verdict": "OK",
+      "evidence": "app.json:47-49 (main app entitlement group.com.jalalattar29.proovra); app.json:29-31 (appExtensions entitlement); plugins/broadcast-extension/ProovraBroadcast.entitlements:5-7; ProovraScreenCaptureModule.swift:31; SampleHandler.swift:20",
+      "note": "One literal in 5 places, all equal. Extension bundle id com.jalalattar29.proovra.broadcast equal in app.json:27, withProovraIosScreenBroadcast.cjs:56-57, ProovraScreenCaptureModule.swift:87. Hard-coded (not derived) in Swift — a bundle-id change needs 3 edits. Apple-side App Group capability on both App IDs is an external console fact: not assessed."
+    },
+    {
+      "area": "IOS",
+      "topic": "Info.plist usage strings (app.json ios.infoPlist)",
+      "verdict": "OK",
+      "evidence": "app.json:51-69 (NSCamera, NSMicrophone :53, NSPhotoLibrary, NSLocationWhenInUse, ITSAppUsesNonExemptEncryption=false)",
+      "note": "No NSPhotoLibraryAddUsageDescription, but no save-to-library code exists (grep saveToLibraryAsync/createAssetAsync: none). Screen broadcast needs no usage string. No ios.privacyManifests declared in app.json — whether Expo SDK 52 prebuild's aggregated PrivacyInfo.xcprivacy satisfies App Store required-reason review is NOT ASSESSED (needs prebuild output)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Extension→app handoff (shared container + Darwin notifications)",
+      "verdict": "DEFECT",
+      "evidence": "ProovraBroadcastShared.swift:4-14 (file contract), :109-131 readNewSegments; SampleHandler.swift:130-136 (sidecar, state, segmentReady post), :152 (finished post); ProovraScreenCaptureModule.swift:113-124",
+      "note": "Extension→app direction exists (files + Darwin posts). App→extension direction does not exist: see UC-IOS-002."
+    },
+    {
+      "area": "IOS",
+      "topic": "RPSystemBroadcastPickerView usage / no programmatic start",
+      "verdict": "PARTIAL",
+      "evidence": "ProovraBroadcastShared.swift:167-180",
+      "note": "Respects Apple's rule that a broadcast can only be started by the user tapping Start Broadcast; preferredExtension set; showsMicrophoneButton=false. The picker is never added to a view hierarchy and its internal UIButton is triggered via sendActions — an undocumented technique whose behaviour on current iOS is device-only knowledge: BLOCKED. Start/cancel is not observable (UC-IOS-005)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Apple restrictions: 50 MB broadcast-extension memory ceiling",
+      "verdict": "PARTIAL",
+      "evidence": "SampleHandler.swift:97-114 (AVAssetWriter at full native buffer size, no bitrate/profile keys), :122-124 (blocking 5 s wait inside the sample callback)",
+      "note": "Frames are streamed to disk (no in-memory accumulation), which is the right shape for the ~50 MB jetsam ceiling. Whether full-resolution H.264 on large iPads stays under the ceiling is device-only: BLOCKED. A jetsam kill produces no result.json and falls into the fabricated fallback (UC-IOS-006)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Apple restrictions: host app is suspended in background",
+      "verdict": "DEFECT",
+      "evidence": "app.json:51-69 (no UIBackgroundModes); continuous-capture.tsx:92-176",
+      "note": "See UC-IOS-003."
+    },
+    {
+      "area": "IOS",
+      "topic": "Recording indicator",
+      "verdict": "OK",
+      "evidence": "SampleHandler.swift:19 (RPBroadcastSampleHandler)",
+      "note": "iOS draws the red status-bar / Dynamic Island indicator for every system broadcast; nothing in the code suppresses or overlays it (no private API)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Microphone rules",
+      "verdict": "OK",
+      "evidence": "SampleHandler.swift:48 (only .video buffers processed); ProovraBroadcastShared.swift:172 (showsMicrophoneButton=false)",
+      "note": "Screen-only; audioApp/audioMic buffers are ignored. Consistent with the screen-only copy."
+    },
+    {
+      "area": "IOS",
+      "topic": "Interruptions (broadcastPaused / broadcastResumed)",
+      "verdict": "DEFECT",
+      "evidence": "SampleHandler.swift:19-93 (no broadcastPaused/broadcastResumed override)",
+      "note": "See UC-IOS-009."
+    },
+    {
+      "area": "IOS",
+      "topic": "Termination (user stop from system UI, bounds, crash)",
+      "verdict": "PARTIAL",
+      "evidence": "SampleHandler.swift:71-76 (broadcastFinished writes result.json), :83-93 (BOUNDS_REACHED → finishBroadcastWithError); ProovraBroadcastShared.swift:133-143 (no result.json fallback)",
+      "note": "System-UI stop and the segment cap are handled; in-app stop is not (UC-IOS-002); crash/jetsam fallback fabricates timing (UC-IOS-006)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Storage pressure",
+      "verdict": "DEFECT",
+      "evidence": "SampleHandler.swift:101,110,118",
+      "note": "No free-space check; writer failure is never inspected (UC-IOS-007)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Orientation",
+      "verdict": "DEFECT",
+      "evidence": "SampleHandler.swift:51,128",
+      "note": "See UC-IOS-008."
+    },
+    {
+      "area": "IOS",
+      "topic": "Long capture bounds",
+      "verdict": "OK",
+      "evidence": "index.ts:276-280 clamps segmentMs 2000..30000 and maxSegments ≤600 (packages/shared/src/screen-continuous-manifest.ts:128-131); SampleHandler.swift:40-43 reads them from state.json, :65-67 stops at maxSegments",
+      "note": "600 × 6 s = 60 min, inside the 1 h direct-session TTL (services/api/src/services/capture-trust/direct-capture-ingest.service.ts:156)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Local spool / encryption at rest (file protection class)",
+      "verdict": "PARTIAL",
+      "evidence": "SampleHandler.swift:99-101,163; ProovraBroadcastShared.swift:158",
+      "note": "Segments are written to the App Group container with no explicit FileProtectionType, so they get the iOS default (CompleteUntilFirstUserAuthentication). No app-level encryption. JS deletes the mp4 after a durable PUT (src/continuous-capture.ts:224) but the seg-N.json sidecars are never deleted. Not a finding by itself."
+    },
+    {
+      "area": "IOS",
+      "topic": "Retry / resume of segment upload",
+      "verdict": "OK",
+      "evidence": "apps/mobile/src/continuous-capture.ts:202-242 (bounded retries with backoff)",
+      "note": "Per-segment retry exists; resume after app relaunch does not (UC-IOS-010)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Crash recovery",
+      "verdict": "DEFECT",
+      "evidence": "ProovraBroadcastShared.swift:83-86; continuous-capture.tsx:191-200",
+      "note": "See UC-IOS-010."
+    },
+    {
+      "area": "IOS",
+      "topic": "Share extension",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "grep of apps/mobile for share-extension / NSExtensionActivationRule / com.apple.share-services / expo-share-intent: no hits",
+      "note": "No iOS Share Extension exists and none is claimed in apps/mobile/docs/uc-disposition.md. Not a defect, a scope fact."
+    },
+    {
+      "area": "IOS",
+      "topic": "Deep links: AASA / associatedDomains",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/public/.well-known/apple-app-site-association:6 (4LCZK75N86.com.jalalattar29.proovra); app.json:70-73; apps/web/__tests__/universal-link-parity.test.ts:152",
+      "note": "Placeholder <APPLE_TEAM_ID> is GONE (replaced in 92669167, 2026-09-25, recorded as user-confirmed in docs/audit/pwa-native-2026-09-24-v2/SLICE-01-REPORT.md:11). assetlinks.json:10 holds a real fingerprint. Not proven: deployed file, Content-Type on the extensionless path (no headers() rule in apps/web/next.config.js), apex→www redirect behaviour, and the App ID Associated Domains capability that docs/uc6-release-acceptance.md:75 says blocked the iOS build. No capture path is in the AASA (none needed)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Workspace / case selection",
+      "verdict": "PARTIAL",
+      "evidence": "continuous-capture.tsx:76-78,235 (teamId = active workspace); services/api/src/routes/capture-trust.routes.ts:375-385 (authorizeDirectCapture)",
+      "note": "Capture is bound to the active workspace, server-authorized. No case selection on this screen (case/checklist binding only happens later in Capture's Finish & Sign). Gate copy says Personal Space only (continuous-capture.tsx:399-404)."
+    },
+    {
+      "area": "IOS",
+      "topic": "Finalization path + mode",
+      "verdict": "DEFECT",
+      "evidence": "apps/mobile/src/continuous-capture.ts:187-189 (DIRECT_SCREEN_CAPTURE_IOS on open); apps/mobile/src/capture/screen-acquisition.ts:97-104 (iOS → /continuous-complete); services/api/src/routes/capture-trust.routes.ts:612-630; services/api/src/services/capture-trust/continuous-capture.service.ts:71-101",
+      "note": "Routing and mode are correct; the manifest the iOS app produces is refused by the validator (UC-IOS-001, UC-IOS-004). iOS never calls /screen-complete (correct: UC-2 frame mode rejects on iOS, ProovraScreenCaptureModule.swift:59-64)."
+    },
+    {
+      "area": "IOS",
+      "topic": "JS↔Swift function-name parity",
+      "verdict": "PARTIAL",
+      "evidence": "index.ts:92-98,232-237; ProovraScreenCaptureModule.swift:46-105; android/.../ProovraScreenCaptureModule.kt:105; apps/mobile/test/native-module-contract.test.mjs:75-99",
+      "note": "All continuous names and all 4 events match. Frame-mode stop is named \"stop\" in Swift (:65) but \"stopCapture\" in JS (index.ts:97,153) and Kotlin — unreachable on iOS because stopScreenCapture throws first on non-Android (index.ts:152). The contract test checks NAMES only, never payload shape, which is how UC-IOS-001 escaped."
+    },
+    {
+      "area": "IOS",
+      "topic": "Mobile discoverability of iOS capture",
+      "verdict": "OK",
+      "evidence": "apps/mobile/app/(stack)/capture.tsx:1722-1738",
+      "note": "iOS shows 'Continuous screen capture' with an explanation; Android-only single-shot is hidden on iOS."
+    },
+    {
+      "area": "IOS",
+      "topic": "iOS consent/education copy",
+      "verdict": "DEFECT",
+      "evidence": "continuous-capture.tsx:422-428,442",
+      "note": "See UC-IOS-011."
+    },
+    {
+      "area": "IOS",
+      "topic": "Web capture discoverability + extension CTA",
+      "verdict": "OK",
+      "evidence": "apps/web/components/command-center/CommandCenter.tsx:4587; apps/web/app/(app)/capture/_lib/useCaptureCapabilities.ts:25-27; packages/shared/src/capture-capability.ts:147-189",
+      "note": "Unset NEXT_PUBLIC_EXTENSION_INSTALL_URL resolves to UNPUBLISHED/COMING_SOON with canInstall=false — the old 404 install CTA is closed."
+    },
+    {
+      "area": "IOS",
+      "topic": "Rate limiting on capture routes",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:233 (30/min), :365-372",
+      "note": "Only session OPEN is rate-limited. Declaration, attestation, complete, continuous-complete and discard are owner-bound and authorized per call (:731-746) but not rate-limited. No global Fastify rate-limit plugin found in services/api/src/server.ts."
+    },
+    {
+      "area": "IOS",
+      "topic": "Orphan/abandoned reservation cleanup",
+      "verdict": "OK",
+      "evidence": "services/worker/src/index.ts:593-595 (CAPTURE_DRAFT_REAPER_ENABLED, default on, 30-min sweep); services/api/src/services/operations/platform-health-snapshot.service.ts:298-300",
+      "note": "Server-side reservations of abandoned iOS sessions are released by the reaper."
+    },
+    {
+      "area": "IOS",
+      "topic": "Audit/custody events for capture",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:27-28,941-958,1053",
+      "note": "Reserve/complete/discard are custody-logged through the evidence spine (EVIDENCE_CREATED / EVIDENCE_DELETED). No dedicated audit event for session open, declaration or manifest refusal was found; a CONTINUOUS_MANIFEST_INVALID refusal leaves no operator-visible trace beyond the HTTP response. Depth not fully assessed."
+    },
+    {
+      "area": "IOS",
+      "topic": "Monitoring for capture",
+      "verdict": "DEFECT",
+      "evidence": "infra/grafana/alerts/proovra-operations-alerts.yaml (32 titles, none capture-related); infra/grafana/provisioning/alerting/contact-points.yaml:15-22",
+      "note": "See UC-LCH-002."
+    },
+    {
+      "area": "IOS",
+      "topic": "Runbooks for capture",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "git ls-files | grep runbook → docs/operations/runbooks/17-monitoring-readiness.md, docs/operations/collaboration-surfacing-runbook.md; none mention direct/screen/continuous capture or broadcast",
+      "note": "Folded into UC-LCH-002."
+    },
+    {
+      "area": "IOS",
+      "topic": "Privacy/legal disclosure for screen recording",
+      "verdict": "DEFECT",
+      "evidence": "apps/web/content/legal/en/*.md",
+      "note": "See UC-LCH-001."
+    },
+    {
+      "area": "IOS",
+      "topic": "PWA manifest + service worker",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/public/manifest.webmanifest:9-11; apps/web/app/layout.tsx:67",
+      "note": "See UC-LCH-004."
+    },
+    {
+      "area": "IOS",
+      "topic": "Android release config",
+      "verdict": "PARTIAL",
+      "evidence": "apps/mobile/eas.json:4 (appVersionSource remote), :36-37 (production autoIncrement), :66-67 (submit.production {}); app.json android.package",
+      "note": "versionCode is EAS-remote (not in repo); signing is EAS-managed; no Play service-account / track in submit config; assetlinks holds the upload-key fingerprint only (Play App Signing key not yet added, per docs/uc6-release-acceptance.md §E3 row 3)."
+    },
+    {
+      "area": "IOS",
+      "topic": "iOS release config",
+      "verdict": "PARTIAL",
+      "evidence": "app.json:41-42 (bundleIdentifier, buildNumber \"1\" overridden by remote versioning); eas.json:66-67 (submit.production empty: no ascAppId/appleTeamId)",
+      "note": "Team ID exists only in the AASA. docs/uc6-release-acceptance.md:75,296 records the latest device build ERRORED on the missing Associated Domains capability; no signed iOS build of the current tree is recorded."
+    },
+    {
+      "area": "IOS",
+      "topic": "Feature flags gating capture/intake/extension",
+      "verdict": "OK",
+      "evidence": "see facts.featureFlags",
+      "note": "No flag gates direct/screen capture itself — it is always on server-side. Two flags used by capture are undocumented in any .env.example (UC-LCH-005)."
+    },
+    {
+      "area": "IOS",
+      "topic": "CI coverage of capture",
+      "verdict": "PARTIAL",
+      "evidence": "see facts.ciCoverage",
+      "note": "See UC-LCH-003."
+    },
+    {
+      "area": "IOS",
+      "topic": "Migration for DIRECT_SCREEN_CAPTURE_IOS",
+      "verdict": "OK",
+      "evidence": "services/api/prisma/migrations/20280660000000_uc5_ios_screen_capture_acquisition_mode/migration.sql (CHECK-constraint swap on evidence + capture_sessions)",
+      "note": "Additive widening; must be applied before an iOS build that opens IOS-mode sessions reaches users (API is manual IMAGE_TAG deploy). Production application not assessed."
+    },
+    {
+      "area": "IOS",
+      "topic": "Release docs vs tree",
+      "verdict": "DEFECT",
+      "evidence": "docs/uc6-release-acceptance.md:272,297; apps/mobile/docs/uc-disposition.md:88",
+      "note": "See UC-LCH-006."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case link authority (ET-SEC-16) — one decision for single, bulk and case-workspace link/unlink",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/cases/case-permission.service.ts:553; services/api/src/routes/cases.routes.ts:1350; services/api/src/routes/cases.routes.ts:1528; services/api/src/routes/evidence.routes.ts:7322; services/api/src/routes/evidence.routes.ts:7433; services/api/src/routes/case-workspace.routes.ts:179",
+      "note": "All five link/unlink paths call authorizeCaseEvidenceLink (case access -> EVIDENCE_LINK matrix -> record access). ET-SEC-16 fix is present. Residual role-derivation defect in resolveCaseRecordAccess: UC-CASE-002."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case link: workspace membership",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/cases/case-permission.service.ts:492",
+      "note": "resolveCaseRecordAccess requires evaluateMemberAccess (ACTIVE membership, expiry, org lifecycle) before case owner / CaseAccess narrowing; personal (teamId null) case is owner-only."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case link: case belongs to workspace / cross-tenant refusal",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/cases/case-evidence-link.service.ts:123; services/api/src/services/cases/case-evidence-link.service.ts:135; services/api/src/routes/cases.routes.ts:1411",
+      "note": "Strict evidence.teamId === case.teamId inside the one attach authority, plus same-owner rule for null-team pairs; route also emits CROSS_TEAM_ATTACH_BLOCKED. Cross-tenant caller gets 404 (concealed) from authorizeCaseEvidenceLink."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case link: role",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/services/cases/case-permission.service.ts:524; services/api/src/services/cases/case-permission.service.ts:171",
+      "note": "EVIDENCE_LINK allows OWNER/ADMIN/MEMBER or assigned OWNER/INVESTIGATOR; VIEWER refused — except a VIEWER on a case access list is re-labelled MEMBER (UC-CASE-002)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case link: atomicity",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/cases/case-evidence-link.service.ts:151; services/api/src/services/cases/case-evidence-link.service.ts:162; services/api/src/routes/cases.routes.ts:1443",
+      "note": "Link row + tenant audit (cases.evidence_linked) commit in one transaction. The existence check runs before the transaction (race: UC-CASE-004). The route-level audit cases.add_evidence and analytics are written after, outside the transaction. There is NO capture-time link, so 'link in the same transaction as the evidence' does not arise: every link is a post-hoc second operation on an already-created record, and a failed link leaves the record intact and unlinked."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case link: idempotent retry",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/cases/case-evidence-link.service.ts:154; services/api/src/services/cases/case-evidence-link.service.ts:239; services/api/src/routes/cases.routes.ts:1590",
+      "note": "Sequential re-attach returns created:false (200). Re-detach is zero-mutation but POST/DELETE route answers 400 'Evidence is not in this case' (not an idempotent 2xx). Concurrent attach not idempotent (UC-CASE-004)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case detail lists evidence",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/cases.routes.ts:889; services/api/src/services/cases/matter-workspace.service.ts:852",
+      "note": "Lists via caseLinks (the one relationship table). Trashed records (deletedAt set) drop out of the simple case count/list."
+    },
+    {
+      "area": "OUT",
+      "topic": "Evidence detail shows case",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/routes/evidence.routes.ts:9184; services/api/src/routes/evidence.routes.ts:10012",
+      "note": "Only the earliest linked case is projected (UC-CASE-005)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case link audit event actor/action",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/cases/case-evidence-link.service.ts:175; services/api/src/services/cases/case-evidence-link.service.ts:255; services/api/src/routes/cases.routes.ts:1481",
+      "note": "cases.evidence_linked / cases.evidence_unlinked tenant audit with actorUserId, caseId, evidenceId, ip, UA; plus route audit cases.add_evidence / cases.remove_evidence. No custody-chain event is written for case membership changes (custody log does not show case linkage)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Unlink never deletes evidence; never resets tenancy",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/cases/case-evidence-link.service.ts:245; services/api/src/services/cases/case-evidence-link.service.ts:250",
+      "note": "deleteMany on case_evidence_links only; Evidence.teamId unchanged (ET-SEC-02). Case delete runs detachAllEvidenceFromCase and is itself hold-gated (cases.routes.ts:1262)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Legal hold / destruction with case holds",
+      "verdict": "DEFECT",
+      "evidence": "packages/shared-runtime/src/governance/effective-legal-hold.ts:210; services/api/src/routes/cases.routes.ts:1262; services/api/src/routes/cases.routes.ts:1571",
+      "note": "Case holds are evaluated dynamically from current links; case deletion is hold-gated but single/bulk/case-workspace unlink is not (UC-CASE-001)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Capture-time case assignment on any channel",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "services/api/src/routes/evidence.routes.ts:418; services/api/src/routes/capture-trust.routes.ts:156; services/api/src/routes/capture-trust.routes.ts:165",
+      "note": "CreateEvidenceBody has no caseId; direct-session open/reserve bodies are .strict() without caseId (a caseId is rejected 400). See facts.caseMatrix."
+    },
+    {
+      "area": "OUT",
+      "topic": "Intake link / evidence request bound to a case",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/routes/workflow-intake-links.routes.ts:391; services/api/src/services/evidence-request.service.ts:206; services/api/src/services/external-intake-source-summary.service.ts:173",
+      "note": "caseId validated and stored, never used to link the submitted evidence (UC-CASE-003)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Report creation (enqueue)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/reports/report-generation-authority.service.ts:144; packages/shared-runtime/src/reports/report-generation-request.ts:203",
+      "note": "Request row committed first (idempotencyKey @unique, supersession ordinal chain), then enqueueCanonicalWork with only the row id; commercial precheck fails closed; forceRegenerate derived from persistence."
+    },
+    {
+      "area": "OUT",
+      "topic": "Worker report generation / run modes",
+      "verdict": "OK",
+      "evidence": "services/worker/src/processor.ts:3559; services/worker/src/processor.ts:3564",
+      "note": "NEW_REPORT vs PACKAGE_FOR_VERSION decided from persisted request stage/artifactType; a retry after REPORT_COMMITTED resumes as package-only; pair_complete returns without work."
+    },
+    {
+      "area": "OUT",
+      "topic": "Report digest",
+      "verdict": "OK",
+      "evidence": "services/worker/src/processor.ts:4271; services/api/prisma/schema.prisma:746",
+      "note": "pdfSha256 of the finalized PDF stored on the Report row in the commit transaction; @@unique(evidenceId, version)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Report versioning / regeneration",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:11005; services/api/src/services/reports/output-recovery.service.ts:577; packages/shared/src/evidence-output-lifecycle.ts:1146",
+      "note": "NEW_VERSION needs reason (>=3 chars) and idempotency key, is rate/concurrency limited, blocked by legal hold, never produced by recovery or operator supersede."
+    },
+    {
+      "area": "OUT",
+      "topic": "Report download",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:11286; services/api/src/routes/evidence.routes.ts:11320",
+      "note": "Read access + assertArtifactDownloadAllowed (export eligibility incl. hold); presign pinned to s3VersionId; custody REPORT_DOWNLOADED + audit. The HEAD existence probe is not version-pinned (minor). Response also returns bucket/key."
+    },
+    {
+      "area": "OUT",
+      "topic": "Report failure / recovery decision",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/evidence-output-lifecycle.ts:1089; services/api/src/services/reports/output-recovery.service.ts:461",
+      "note": "Server re-derives the verb; RETRY re-runs only its own FAILED_RETRYABLE row; package recovery builds only the package for the latest (or named) report version; technical terminal escalates to operator."
+    },
+    {
+      "area": "OUT",
+      "topic": "Package creation / seal / digest",
+      "verdict": "OK",
+      "evidence": "services/worker/src/processor.ts:5077; services/api/prisma/schema.prisma:904",
+      "note": "packageSha256, reportSha256, sealSha256, sealSigningKeySha256, packageFormatVersion recorded on VerificationPackage; @@unique(evidenceId, version)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Package README content",
+      "verdict": "PARTIAL",
+      "evidence": "services/worker/src/verification-package.ts:2170; services/worker/src/verification-package.ts:2198",
+      "note": "Seal steps a-e documented; step 2c and step 6 depend on Public Verify, which is unreachable for a private (default) record (UC-OUT-001)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Package inclusion: original / derivative / custody / provenance / TSA / OTS",
+      "verdict": "OK",
+      "evidence": "services/worker/src/verification-package.ts:514; services/worker/src/verification-package.ts:1348; services/worker/src/verification-package.ts:2251",
+      "note": "Originals (version-pinned per ET-PKG-15), custody.json, acquisition.json, capture-context.json, timestamp.tsr, opentimestamps-proof.ots, report PDF under reports/; derived bytes excluded, lineage-only derived/derived-manifest.json."
+    },
+    {
+      "area": "OUT",
+      "topic": "Stored report read for package recovery (exact source version)",
+      "verdict": "DEFECT",
+      "evidence": "services/worker/src/processor.ts:3230; services/worker/src/processor.ts:3305",
+      "note": "Digest-verified but not version-pinned (UC-OUT-003)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Public Verify API",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:12529; services/api/src/routes/evidence.routes.ts:12815; services/api/src/routes/evidence.routes.ts:12832; services/api/src/routes/evidence.routes.ts:14175",
+      "note": "Token resolved by hash (404 unknown, 410 revoked/expired/exhausted), record must be PUBLISHED and not trashed/destroyed/hash-mismatch; use counted conditionally; BASIC projection narrows; Cache-Control no-store."
+    },
+    {
+      "area": "OUT",
+      "topic": "Public Verify web page",
+      "verdict": "OK",
+      "evidence": "apps/web/app/verify/[token]/page.tsx:3404; apps/web/app/verify/[token]/layout.tsx:10",
+      "note": "Calls /public/verify/:token; noindex robots; token not sent to Sentry. Every 404/410 is still captureException'd (noise)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Opaque share link (pvs_ token) generation + hashing at rest",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/verification-share/authority.ts:1; services/api/prisma/schema.prisma:2371",
+      "note": "pvs_ + 32 random bytes base64url; SHA-256 hex stored (tokenHash @unique); constant-time compare after lookup; token returned once."
+    },
+    {
+      "area": "OUT",
+      "topic": "Share link revocation / replacement / expiry / use limit",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/governance/verification-share.service.ts:183; services/api/src/routes/verification-share.routes.ts:250; services/api/src/routes/verification-share.routes.ts:269",
+      "note": "Create under per-record advisory lock with 25 active cap; revoke/rotate transactional; rotate refuses non-ACTIVE; expiry and exhaustion derived at read time."
+    },
+    {
+      "area": "OUT",
+      "topic": "Legacy /verify/<id> 180-day grace",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:12815; services/api/src/services/governance/verification-share.service.ts:280",
+      "note": "Bare id served only while legacyVerifyUuidUntilUtc > now; owner can end it one-way. Inventory is scoped by teamId so NULL-team legacy records are invisible to it (UC-OUT-005)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Case-level report/package",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:919; apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx:933",
+      "note": "Buttons labelled Generate report / Create verification package only switch tabs (UC-OUT-002)."
+    },
+    {
+      "area": "OUT",
+      "topic": "Reports page actions re-read server state",
+      "verdict": "OK",
+      "evidence": "apps/web/components/reports-experience/ReportsIndex.tsx:1284; apps/web/components/reports-experience/ReportsIndex.tsx:665",
+      "note": "requestOutput calls onOutputsRequested in finally -> refreshAfterAction reloads summary + current page."
+    },
+    {
+      "area": "PROV",
+      "topic": "Acquisition authority: modes, descriptors, provenance tiers, limitation codes",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/evidence-acquisition.ts:35-91, 161-172, 197-258, 260-359, 381-407",
+      "note": "Every direct-capture mode is tier CLIENT_ATTESTED_CAPTURE with CAPTURE_CLIENT_ATTESTED limitation; uploads/intake/mobile/legacy are IMPORTED_EXISTING_MEDIA. No mode reaches SERVER_OBSERVED_CAPTURE. Descriptor statements say 'reports that it captured' (ET-DC-02/03 wording fix present here)."
+    },
+    {
+      "area": "PROV",
+      "topic": "Mode assignment is server-side constant per ingress adapter",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence.service.ts:249-282, 511-512; services/api/src/routes/evidence.routes.ts:5534; services/api/src/services/external-intake-orchestration.service.ts:321-330; services/api/src/services/capture-trust/direct-capture-ingest.service.ts:427-441",
+      "note": "createEvidence refuses a missing/unknown mode; direct-capture copies session.acquisitionMode."
+    },
+    {
+      "area": "PROV",
+      "topic": "Direct-capture session mode is caller-selected (who may claim to be the extension / iOS app)",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/routes/capture-trust.routes.ts:156-163, 360-398; services/api/src/services/auth/extension-scope.ts:36-45",
+      "note": "Any ordinary AUTH_JWT may open DIRECT_WEB_CAPTURE_EXTENSION / DIRECT_SCREEN_CAPTURE_IOS; the extension scope only narrows routes, not modes. Owner decision 4 accepted this by tiering (CLIENT_ATTESTED + CAPTURE_CLIENT_ATTESTED text). Not re-reported; alias ET-DC-03."
+    },
+    {
+      "area": "PROV",
+      "topic": "Set-once DB trigger on evidence.acquisition_mode / acquisition_mode_source",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/prisma/migrations/20280601000000_uc0_acquisition_provenance_foundation/migration.sql:82-110, 128-150; services/api/prisma/migrations/20280660000000_uc5_ios_screen_capture_acquisition_mode/migration.sql:22-44",
+      "note": "BEFORE UPDATE trigger refuses change/clear of a non-null value; CHECK lists all 7 modes; pair check. It permits NULL -> any (mode, RECORDED_AT_CREATION) on UPDATE (see UC-PROV-009). No app code updates acquisitionMode (grep of services/packages)."
+    },
+    {
+      "area": "PROV",
+      "topic": "captureMethod (structure) never read as origin in authority/provenance chain",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/capture-trust/provenance-chain.ts:82-89; services/api/src/routes/evidence.routes.ts:5006-5022; services/worker/src/report-v2/normalizers.ts:51-62",
+      "note": "Chain, sourceType, custody presentation, report and Verify use acquisitionMode. Residual structure-as-origin leaks in exports: UC-PROV-008."
+    },
+    {
+      "area": "PROV",
+      "topic": "Attestation verifier fail-closed + reader gate",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/capture-trust/attestation-verifier.service.ts:170-215, 345-350; packages/shared/src/capture-trust.ts:239-273; packages/shared-runtime/src/capture-trust/provenance-chain.ts:175-190",
+      "note": "CRYPTOGRAPHIC_ATTESTATION_VERIFIER_VERSIONS is empty, so every positive verdict re-projects to UNVERIFIED. No reachable device-attested or OS-attested class."
+    },
+    {
+      "area": "PROV",
+      "topic": "Mobile (Android/iOS) attestation status and wording",
+      "verdict": "OK",
+      "evidence": "apps/mobile/src/direct-capture.ts:23-27, 60-73, 136-144; packages/shared-runtime/src/capture-trust/public-acquisition.ts:73,99-105; apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:115-121; packages/shared/src/evidence-acquisition.ts:246-255",
+      "note": "Mobile opens UNBOUND sessions, never sends signatures or attestations -> signature MISSING, attestation NOT_ATTEMPTED; Verify renders no attestation line; limitation text says device integrity not verified. 'verified' copy only reachable if isPositiveAttestationVerdict, which the gate makes impossible."
+    },
+    {
+      "area": "PROV",
+      "topic": "Device signature path (device-bound sessions)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:520-557; packages/shared-runtime/src/capture-trust/provenance-chain.ts:160-171",
+      "note": "Unreachable from any shipped client (none binds a device). signedAtUtc is client payload; labelled 'Signed on device'. Class B only internal."
+    },
+    {
+      "area": "PROV",
+      "topic": "Public Verify acquisition block",
+      "verdict": "OK",
+      "evidence": "packages/shared-runtime/src/capture-trust/public-acquisition.ts:62-117; apps/web/components/verify-v2/VerifyCaptureIntegritySection.tsx:56-147",
+      "note": "Neutral, carries tier/limitations/qualifier; no device id, session id, URL. Session times described as 'opened/completed' (not capture)."
+    },
+    {
+      "area": "PROV",
+      "topic": "Package acquisition.json",
+      "verdict": "OK",
+      "evidence": "services/worker/src/verification-package.ts:1279-1344",
+      "note": "States tier, limitations, and 'dependsOnProovraRecord' for mode/session/device verdicts. Contradicted by sibling files (UC-PROV-002)."
+    },
+    {
+      "area": "PROV",
+      "topic": "Report acquisition statement panel",
+      "verdict": "OK",
+      "evidence": "services/worker/src/report-v2/sections/executive-summary.ts:39-57",
+      "note": "Label + statement + limitation text + global qualifier from resolver."
+    },
+    {
+      "area": "PROV",
+      "topic": "Derived / machine-extracted material labelling",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/evidence-acquisition.ts:563-574; services/worker/src/report-v2/sections/derived-review.ts:41-50; services/worker/src/verification-package.ts:1348-1373",
+      "note": "DERIVED never a part; OCR/reconstruction labelled not-acquired, not verified identity/time/truth."
+    },
+    {
+      "area": "PROV",
+      "topic": "Continuous manifest window/platform validation",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/screen-continuous-manifest.ts:374-409; services/api/src/services/capture-trust/continuous-capture.service.ts:68-96, 182-187",
+      "note": "Platform must match mode, window within session +/- clockSkew. Web (web-capture-manifest.ts:164-169) and UC-2 frame (screen-capture-manifest.ts:164-168) manifests get NO window / end>=start check (UC-1/UC-2 sessions open after capture, ET-DC-02)."
+    },
+    {
+      "area": "PROV",
+      "topic": "Web manifest domain vs sourceUrlPrivate consistency",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared/src/web-capture-manifest.ts:170-180; apps/extension/src/lib/manifest-builder.ts:56,65",
+      "note": "Validator does not check page.domain == publicDomainFromUrl(sourceUrlPrivate); harmless today only because neither is projected anywhere (UC-PROV-003)."
+    },
+    {
+      "area": "PROV",
+      "topic": "Location provenance wording",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/capture-location.ts:1-13; services/worker/src/report-v2/build-view-model.ts:1634-1640",
+      "note": "Device/browser-reported, not proof of presence."
+    },
+    {
+      "area": "PROV",
+      "topic": "deviceTimeIso wording",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:5045-5050; apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:388-390",
+      "note": "API labels it client-reported/unverified; UI shows 'Device time'."
+    },
+    {
+      "area": "PROV",
+      "topic": "TSA/OTS 'verified' only on validated token / verified anchor (Basic verify)",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/basic-verification.ts:189-235",
+      "note": "timestamp recorded -> not_checked, not verified."
+    },
+    {
+      "area": "PROV",
+      "topic": "Copy sweep: verified/authentic/tamper-proof/court/attested/device-verified/secure camera/captured",
+      "verdict": "PARTIAL",
+      "evidence": "grep of apps/web, apps/mobile, apps/extension, services/worker, packages/shared(-runtime)",
+      "note": "Most copy is disciplined (disclaimers). Upgrades found: UC-PROV-001, 004, 005, 007, 008, 010, 011. Marketing 'why-proovra', 'trust', 'faq' checked: no provenance upgrade."
+    },
+    {
+      "area": "PROV",
+      "topic": "Android share-intent import / iOS share extension",
+      "verdict": "NOT_IMPLEMENTED",
+      "evidence": "grep apps/mobile for ACTION_SEND/share-extension/NSExtensionActivation = no hits; apps/mobile/app contains no share route",
+      "note": "Not claimed by docs/admin/audits UC* either. Android/iOS 'import' is only DocumentPicker inside PROOVRA_MOBILE_APP (capture.tsx:1083-1100)."
+    },
+    {
+      "area": "PROV",
+      "topic": "Web capture page camera/audio (getUserMedia)",
+      "verdict": "OK",
+      "evidence": "apps/web/app/(app)/capture/_hooks/useCaptureCamera.ts:141-164; services/api/src/routes/evidence.routes.ts:5534",
+      "note": "Recorded as PROOVRA_WEB_UPLOAD / IMPORTED tier with CREATION_NOT_OBSERVED - honest downgrade, not an upgrade."
+    },
+    {
+      "area": "PROV",
+      "topic": "clientReportedSource CAMERA vs FILE_PICKER",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/capture-trust/direct-capture-ingest.service.ts:569-576; grep clientReportedSource readers = none",
+      "note": "Recorded only in trust-event payload; no surface reads it, so camera vs imported file is indistinguishable downstream (conservative, not an upgrade)."
+    },
+    {
+      "area": "TQ",
+      "topic": "API integration suites (*.integration.test.ts) actually execute in CI",
+      "verdict": "OK",
+      "evidence": "services/api/vitest.config.ts:62 (unit project excludes *.integration.test.ts); services/api/vitest.integration.config.ts:82-84,87 (includes only that suffix, sets RUN_LIVE_INTEGRATION=1, fileParallelism false); .github/workflows/schema-reproducibility.yml:215-244 (creates proovra_integration_test, sets TEST_DATABASE_URL + RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1, runs pnpm test:integration on push + pull_request)",
+      "note": "No describe.skip / skipIf / .only in any sampled uc*/direct-capture*/capture*/intake*/public-verify*/package*/report* API test. PostgreSQL 16 (pgvector) is real; object store, signer and TSA are vi.mock'ed in-process doubles (e.g. services/api/test/uc1-web-capture.integration.test.ts:27-80), so signatures/timestamps are NOT exercised by the UC suites. Whether the workflow is green at the baseline could not be verified (no network)."
+    },
+    {
+      "area": "TQ",
+      "topic": "API unit project in CI",
+      "verdict": "OK",
+      "evidence": ".github/workflows/ci.yml:454-515 (Test — api; exit!=0 tolerated only when zero failed tests and every unhandled error is the known onTaskUpdate RPC timeout)",
+      "note": "The tolerance is narrow (checks 'failed' absent from summary and counts caught errors); not a false-pass vector for assertion failures."
+    },
+    {
+      "area": "TQ",
+      "topic": "Worker unit tests in CI + env-gated worker integration suites",
+      "verdict": "DEFECT",
+      "evidence": "services/worker/vitest.config.ts include test/**/*.test.ts (no integration project); .github/workflows/ci.yml:391-394 sets neither TEST_DATABASE_URL nor OBJECT_LOCK_MINIO_ENDPOINT; services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts:33-34; services/worker/test/verification-package-publication.minio.test.ts:33-34",
+      "note": "See UC-TQ-003 and UC-TQ-004. docs/operations/external-proof-register.md:41-47 honestly records both as not run in CI, but the ci.yml comment at :335-352 claims the opposite for the MinIO suite."
+    },
+    {
+      "area": "TQ",
+      "topic": "Extension unit tests run in CI (Node 20 glob trap fixed)",
+      "verdict": "OK",
+      "evidence": "apps/extension/scripts/run-tests.mjs (explicit enumeration, fails on zero files); .github/workflows/ci.yml:932-934 (extension-package job runs pnpm run test)",
+      "note": "4 of 5 files exercise real bundled lib modules (capture-plan, sanitizer, manifest-builder, denial-copy); no-backend-text is SOURCE_STRING. background.ts, capture.ts, api-client.ts, auth.ts (the actual capture/upload/OAuth pipeline) have no unit test."
+    },
+    {
+      "area": "TQ",
+      "topic": "Extension browser acceptance (apps/extension/e2e) — CI and browser identity",
+      "verdict": "DEFECT",
+      "evidence": "apps/extension/e2e/playwright.config.ts:16-17; apps/extension/e2e/direct-web-capture.spec.ts:400-403; scripts/uc1-acceptance-windows.mjs:531-539; no workflow under .github/workflows references apps/extension/e2e",
+      "note": "See UC-TQ-002."
+    },
+    {
+      "area": "TQ",
+      "topic": "UC-5 iOS broadcast manifest acceptance tests vs real native output",
+      "verdict": "DEFECT",
+      "evidence": "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:58-63; apps/mobile/src/continuous-capture.ts:121; packages/shared/src/screen-continuous-manifest.ts:286-291; services/api/test/uc5-ios-screen-capture.integration.test.ts:253-262",
+      "note": "See UC-TQ-001 (product defect masked by hand-authored fixtures)."
+    },
+    {
+      "area": "TQ",
+      "topic": "UC-4 screen intelligence (keyframes/OCR/reconstruction) executed proof",
+      "verdict": "DEFECT",
+      "evidence": "services/worker/src/media-intelligence.processor.ts:406-415; services/worker/src/screen-intelligence.handler.ts:49; services/worker/test/uc4-guards.test.ts (source-only); services/worker/test/uc4-tesseract-ocr.test.ts:55-61; services/worker/test/uc4-keyframe-producer.test.ts:48,74",
+      "note": "See UC-TQ-003. Pure cores (reconstruction, TSV parser, descriptor projection, package manifest section, report section) are REAL unit tests and run in CI."
+    },
+    {
+      "area": "TQ",
+      "topic": "Refusal-path assertion strength in UC capture integration suites",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/test/uc5-ios-screen-capture.integration.test.ts:344,371; services/api/test/uc3-continuous-capture.integration.test.ts:455; services/api/test/uc0-acquisition-capture.integration.test.ts:692,697,893",
+      "note": "See UC-TQ-005."
+    },
+    {
+      "area": "TQ",
+      "topic": "Mobile native layer (Kotlin/Swift) test coverage",
+      "verdict": "PARTIAL",
+      "evidence": "apps/mobile/test/native-module-contract.test.mjs:31-47 (regex name-set comparison), apps/mobile/test/android-manifest-contract.test.mjs:57-66 (fixed 220-char window after android:name); apps/mobile/test/support/render.mjs header (native packages swapped for stubs)",
+      "note": "No executed test touches Kotlin or Swift code; the contract guards compare method NAMES only (no argument/return-shape check), which is exactly the gap UC-TQ-001 fell through. Render tests run real RN component code with stubbed native modules; they are honest about that. The 220-char window currently lands inside each service's own element (manifest verified), so it is not presently a false pass."
+    },
+    {
+      "area": "TQ",
+      "topic": "Mobile tests named as parity/e2e",
+      "verdict": "PARTIAL",
+      "evidence": "apps/mobile/test/capture-lifecycle-e2e.test.mjs:263-277",
+      "note": "The 'UC-5 ReplayKit output enters canonical Capture' case seals manifestJson '{\"segments\":2}' through a recording transport that always answers 200; it proves route selection only, not that a real iOS manifest is sealable. capture-parity.render drives the real native screen against stubbed server shapes (legitimate, but not device parity)."
+    },
+    {
+      "area": "TQ",
+      "topic": "Shared manifest / acquisition tests",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared/tests/screen-continuous-manifest.test.mjs:74-86; packages/shared/tests/web-capture-manifest.test.mjs; packages/shared/tests/evidence-acquisition.test.mjs; .github/workflows/ci.yml Test — shared step",
+      "note": "REAL tests of the validators, run in CI. The iOS acceptance case spreads the Android device block and flips platform, so it cannot detect the missing iOS device fields (UC-TQ-001)."
+    },
+    {
+      "area": "TQ",
+      "topic": "Web __tests__ for capture/verify",
+      "verdict": "PARTIAL",
+      "evidence": "apps/web/__tests__/verify-package-sealed-badge.test.ts:12-13; apps/web/__tests__/verify-storage-recorded.test.ts:10-12; apps/web/__tests__/verify-capture-integrity-gating.test.ts:33-37; apps/web/scripts/run-tests.mjs:84-85,111-130 (render suite now gated by the same CI step)",
+      "note": "ET-PKG-05/06 public-verify badge claims are proven by SOURCE_STRING regex over page.tsx, not rendering. Slices are indexOf-anchored (a missing anchor makes positive assertions fail, so not vacuous), but a rename to an equivalent expression breaks them and a semantically wrong expression with the pinned text passes. A render test (apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx) exists for the BASIC view only."
+    },
+    {
+      "area": "TQ",
+      "topic": "Capture reaper claims",
+      "verdict": "OK",
+      "evidence": "services/api/test/capture-reaper-run.integration.test.ts:25,35 imports the real ../../worker/src/capture-reaper.js against live PG16; capture-draft-expiry-sweeper.test.ts is an additional SOURCE_STRING guard",
+      "note": "Worker reaper behaviour is executed in CI via the API integration project."
+    },
+    {
+      "area": "TQ",
+      "topic": "Integrity recheck",
+      "verdict": "OK",
+      "evidence": "services/api/test/integrity-recheck.integration.test.ts (live PG16); services/worker/test/integrity-recheck-digest-rule.test.ts:15-19 mocks db/storage/logger but calls the real observeOriginalDigest with an injected reader",
+      "note": "Not MOCKED_SUT: the digest rule is the unit under test and is real."
+    },
+    {
+      "area": "TQ",
+      "topic": "Package seal self-verification",
+      "verdict": "OK",
+      "evidence": "services/worker/test/package-seal-self-verification.test.ts:23-45 (real ed25519 sign/verify, tamper + wrong key refused), :47-53 source-order check",
+      "note": "Mixed REAL + SOURCE_STRING; the ordering claim (check before write) rests on string indices."
+    },
+    {
+      "area": "TQ",
+      "topic": "Env fallback to Production in capture tests/configs",
+      "verdict": "OK",
+      "evidence": "apps/extension/e2e/direct-web-capture.spec.ts:44 (default http://localhost:4000); apps/extension/build-test.mjs (origins defined as empty strings); playwright-e2e.yml:85 NEXT_PUBLIC_API_BASE localhost; scripts/uc1-acceptance-windows.mjs:178 forbids proovra.com/amazonaws.com/neon.tech",
+      "note": "No sampled capture/verify test defaults to api.proovra.com or a production bucket. (The extension-package release job builds with PROOVRA_API_ORIGIN=https://api.proovra.com at ci.yml:944 by design — a store build, not a test.)"
+    },
+    {
+      "area": "TQ",
+      "topic": ".only / .skip / retries / huge timeouts",
+      "verdict": "PARTIAL",
+      "evidence": "no .only in scope; describe.skip only via env gates listed in testClassification; playwright.config.ts:153 retries 1 on CI; services/api/vitest.integration.config.ts:84-85 hookTimeout 900000 / testTimeout 60000; apps/extension/e2e/direct-web-capture.spec.ts:390-393 test timeout = sum of stage caps + 120s",
+      "note": "Retries=1 in root Playwright can mask a flaky capture/verify spec; timeouts are bounded and justified."
+    },
+    {
+      "area": "TQ",
+      "topic": "Swallowed-catch / always-true assertions",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/test/capture-workspace-billing-scope.test.ts:214,382; services/api/test/capture-environment-writer.test.ts:118-129 (legit: asserts threw===false)",
+      "note": "See UC-TQ-006 for the billing gate positive path."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Original byte acquisition + server hashing at completion (completeEvidence)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:528-574 (prehashCompletionObjects: HEAD all, 413 before any GET, stream-hash outside tx, bound to [bucket,key,versionId,etag,size]); :506-517 digestOf re-uses a pre-hash only for the exact object the in-tx HEAD describes, else GET at meta.versionId; :603-608 owner+deletedAt:null lookup under pg_advisory_xact_lock; :895-921 per-part HEAD, size<=0 -> 404 OBJECT_NOT_FOUND; :1249-1256 finalize claim WHERE deletedAt null AND status in (CREATED,UPLOADING)",
+      "note": "Server computes SHA-256 itself (services/api/src/stream-hash.ts:4-11, node crypto streaming). Client-declared digests are compared only on capture-session paths (:957-976). Signing and the TSA HTTP call still run inside the 120 s interactive transaction (:1150-1155, :1481-1482) - not a trust defect, noted for latency."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Incremental/stream hashing and final digest; algorithm + canonical encoding",
+      "verdict": "OK",
+      "evidence": "services/api/src/stream-hash.ts:4-11; services/api/src/services/evidence-complete.service.ts:999-1011 (fileSha256 = single-file SHA-256, or multipart composite sha256(lowercase part hex joined by '|') in partIndex order; multipartManifestSha256 = sha256(part hex joined by '\\n')); :1034-1064 & :1109-1130 fingerprint = buildFingerprint(...) -> canonicalJson (npm 'canonicalize', RFC 8785 JCS, services/api/src/crypto.ts:35-41) -> fingerprintHash = sha256(utf8 canonical)",
+      "note": "Two multipart digests exist (composite '|' and manifest LF); the package states both (services/worker/src/verification-package.ts:1895-1904)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "EvidencePart hashes",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:1018-1031 writes per-part sha256/size/mime/storageVersionId; services/api/prisma/schema.prisma:526 @@unique([evidenceId, partIndex]); services/api/src/routes/evidence.routes.ts:464 client-supplied partIndex 0..MAX-1",
+      "note": "Per-part digests are signed inside the fingerprint (evidence-complete.service.ts:450-457) but the per-part columns are later trusted without comparison to the signed fingerprint (see UC-TRUST-001). partIndex gaps (client never presigned an index) are accepted on the generic multipart path; only capture-session paths enforce a declared set (evidence-complete.service.ts:960-975) and continuous manifests enforce contiguity (packages/shared/src/screen-continuous-manifest.ts:355-362)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Manifest / root hash formula (fingerprint as root)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:437-462 multipart fingerprint {v:1,evidenceId,type,file:{multipart:true,summary,parts:[{partIndex,storageBucket,storageKey,sizeBytes,mimeType,sha256}]},capturedAtUtc,deviceTimeIso,gps,uploadedAtUtc}; :465-480 single-file variant with etag:null",
+      "note": "The fingerprint is the only signed root; custody, TSA and OTS are separate layers (OTS stamps the fingerprint bytes, services/worker/src/ots-lifecycle.ts:229-232; TSA stamps fileSha256, evidence-complete.service.ts:1152-1154)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Custody chain formula + append-only",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/custody-hash.ts:41-60 eventHash = sha256(canonicalJsonValue({v:1,evidenceId,sequence,eventType,atUtc:ISO,payload|null,prevEventHash|null})) with sorted-key canonical JSON (:11-39); packages/shared-runtime/src/custody/custody-chain.ts:45-90 single appender under pg_advisory_xact_lock(hashtext(evidenceId)); :106-148 evaluator (sequence_gap :126, prev_hash_mismatch :138, event_hash_mismatch :141, stripped-modern-chain hash_missing :115-120); services/api/prisma/migrations/20280805000000_custody_append_only/migration.sql:20-28 UPDATE/DELETE triggers",
+      "note": "Hash is unkeyed; tail truncation is prevented only by the DELETE trigger, not by the chain (no signed head). The package seal records custodyThroughSequence (packages/shared/src/package-seal.ts:73-77)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Capture trust-event sub-chain",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/services/capture-trust/trust-event.service.ts:112-148, :220-245; packages/shared-runtime/src/capture-trust/provenance-chain.ts:104-119",
+      "note": "Hashed on write, never verified on read, not append-only. See UC-TRUST-004."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Evidence signature creation (key source, algorithm, key id, rotation, public-key fingerprint persistence)",
+      "verdict": "DEFECT",
+      "evidence": "services/api/src/signing/signer.ts:50-77 (local-pem Ed25519 over the 32 raw bytes of fingerprintHash, keyId/version from SIGNING_KEY_ID/VERSION env, committed-fixture refusal :62-65), :80-92 + services/api/src/signing/kms-signer.ts:88-117 (KMS ED25519_SHA_512 RAW), :111-121 ControlledEvidenceSigner refuses RETIRED/REVOKED at sign time; persisted: evidence.signingKeyId/signingKeyVersion only (evidence-complete.service.ts:1192-1194); public key: signing_keys row (schema.prisma:984-995) seeded by services/api/src/seed-signing-key.ts:350-360",
+      "note": "No per-record public-key fingerprint, no sign-time self-verification, seed upsert overwrites the key and clears revokedAt, verify ignores revocation. See UC-TRUST-003."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Package seal (format 5) and package manifest signature",
+      "verdict": "OK",
+      "evidence": "services/worker/src/verification-package.ts:3676-3685 checksum index over every entry; :3689-3696 report digest must equal the certified report (PACKAGE_SEAL_REPORT_DIGEST_MISMATCH); :3697-3714 seal = canonicalize(PackageSeal) -> sha256 -> Ed25519 over 32 raw bytes; :3716-3721 signingKeyFingerprint = sha256(DER SPKI); :3744-3748 assertSealSignatureVerifies before publish; :1052-1108 streamed originals hashed on the way in, build fails on size/digest drift; services/worker/src/signing/package-signer.ts:62-80 local private/public key match, :123-152 startup self-test; packages/shared/src/package-seal.ts:158-274 reference verifier",
+      "note": "verifySealedPackageEntries trusts the key file inside the ZIP and does not compare signingKeyFingerprint to the key it verified with; only the README (verification-package.ts:2169-2186) asks a human to compare with Public Verify (ET-PKG-02 remediation). Acceptable because the in-code verifier is test-only."
+    },
+    {
+      "area": "TRUST",
+      "topic": "TSA request / imprint / nonce / response validation (ET-TSA-01 status)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/timestamp.service.ts:239-243 `openssl ts -query -digest <hex> -sha256 -cert` (default random nonce); :270 reply bytes kept; :274-286 granted-without-token -> tsa_token_missing; :288-306 parse; :309-324 validateTsaToken; :326-336 STAMPED only when validated. services/api/src/services/timestamp/validate-tsa-token.ts:99-115 anchor = TSA_TRUST_BUNDLE_PATH only (unset/unreadable/empty -> fail closed), :111-113 test-anchor refused when NODE_ENV=production, :178-181 policy allow-list, :183-195 `openssl ts -verify -in <tsr> -CAfile <anchor> -queryfile <tsq> [-attime genTime]` (signature, chain, EKU, signer validity at genTime, imprint, nonce), :125-143 bounded classification; services/api/src/services/timestamp/parse-tsa-reply.ts:323-377 non-granted / imprint mismatch / imprint absent refused before validation",
+      "note": "ET-TSA-01 is FIXED at the issuance boundary: STAMPED now implies an openssl chain+signature+nonce+imprint verification against an environment trust anchor (commit d263f4f61f). Legacy STAMPED rows without tsaValidatedAtUtc are presented as RECORDED_NOT_VALIDATED (packages/shared/src/tsa-validation-state.ts:25-35) everywhere the API projects TSA state. Residual configuration gaps: UC-TRUST-006. Tests run the real code against a locally minted openssl TSA over loopback (services/api/test/tsa-token-validation.test.ts:79-207)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Kept-token later validation (repair CLI)",
+      "verdict": "OK",
+      "evidence": "services/api/src/services/timestamp/kept-token-validation.ts:45-97 (same parser + validator, -digest instead of -queryfile, serial+genTime required); services/api/src/scripts/repair-tsa-failed-with-token.ts:134-138 candidates, :192-215 compare-and-set, :216-238 TIMESTAMP_APPLIED only for FAILED->STAMPED",
+      "note": "Nonce cannot be re-checked for a kept token (query gone) - documented, acceptable."
+    },
+    {
+      "area": "TRUST",
+      "topic": "OpenTimestamps submission, upgrade states, retry, corrupted proof",
+      "verdict": "OK",
+      "evidence": "services/worker/src/ots-lifecycle.ts:229-232 stamps fingerprintCanonicalJson bytes; :258-270 race-guarded write; services/worker/src/ots.service.ts:211-251 initialization never writes ANCHORED; services/worker/src/ots-upgrade.processor.ts:457-462 magic-header check -> MALFORMED_PROOF, :530-536 ots info file hash != otsHash -> PROOF_HASH_MISMATCH, :537-549 anchor only via ots verify (BITCOIN_VERIFIED) or info structure (PROOF_STRUCTURE), :570-582 3-strike deterministic unreadable -> MALFORMED_PROOF; packages/shared/src/ots.ts:97-126 resolveOtsAnchorClaim (VERIFIED requires BITCOIN_VERIFIED + txid)",
+      "note": "Claim vocabulary is honest on report/package/Public Verify. The provenance projection bypasses it - UC-TRUST-002."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Integrity recheck (shared-runtime authority + worker)",
+      "verdict": "PARTIAL",
+      "evidence": "packages/shared-runtime/src/integrity-recheck/authority.ts:70-76 eligible = SIGNED/REPORTED, not DESTROYED/PENDING_DESTRUCTION, fileSha256 not null; :104-133 lease claim; :177-224 history row + latest state; :263-280 reader; services/worker/src/integrity-recheck.ts:138-190 reads each object at its recorded VersionId, composite '|' rule, legacy single-part composite accepted (:182-183), 404 -> OBJECT_VERSION_MISSING, other errors -> UNAVAILABLE; :211-250 DIGEST_MISMATCH -> rejectEvidenceIntegrity (FAILED_HASH_MISMATCH); packages/shared/src/stored-bytes-integrity.ts:94-127 verified_current / verified_stale / pending / failed / unknown",
+      "note": "Mechanics are sound and runtime-tested against live PG (services/api/test/integrity-recheck.integration.test.ts:161-418, storage reader injected). Two gaps: the expected digest is the unsigned fileSha256 column (UC-TRUST-001) and the verdict surfaces do not consume the result (UC-TRUST-005)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Verification after restart",
+      "verdict": "OK",
+      "evidence": "All verify inputs are persisted: signature/fingerprint (evidence row), public key (signing_keys, evidence.routes.ts:13044-13052), TSA validation facts (tsaValidatedAtUtc etc., evidence-complete.service.ts:1227-1235), OTS claim inputs (otsAnchorCheck), custody (custody_events), recheck state (integrity* columns). Recheck due-ness is a DB fact (integrity-recheck.ts:346-420) and OTS ladder is DB-recovered.",
+      "note": "No in-memory trust state is consulted by any verifier; the only cache is the KMS public-key cache used by the signer (kms-signer.ts:68-86)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Legacy records missing new fields",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/tsa-validation-state.ts:25-35 (STAMPED w/o tsaValidatedAtUtc -> RECORDED_NOT_VALIDATED); packages/shared/src/evidence-digest-policy.ts:220-233 (missing imprint -> null, not mismatch); packages/shared/src/ots.ts:65-72,114-119 (anchorCheck null -> ANCHORED_NOT_CHECKED); packages/shared-runtime/src/custody/custody-chain.ts:104-120 (pre-2026-09-25 unhashed chain -> legacy valid, modern unhashed -> hash_missing); services/worker/src/integrity-recheck.ts:182 legacy single-part composite; services/worker/src/verification-package.ts:1871-1876 multipartManifestSha256 derived for legacy rows; packages/shared/src/stored-bytes-integrity.ts:126 never-checked -> unknown",
+      "note": "Exception: the provenance projection reads legacy TIMESTAMP_APPLIED events as 'Independent timestamp: Applied' (UC-TRUST-002)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Behaviour when keys / trust config are absent",
+      "verdict": "PARTIAL",
+      "evidence": "signing key file/env missing -> ed25519SignHexWithKeyPath/must() throw inside the completion tx, nothing is signed (services/api/src/crypto.ts:43-53, signer.ts:74-75); signing_keys row missing -> Public Verify generic failure + alert (evidence.routes.ts:13054-13080), review workspace signatureValid=false (:9486-9504); TSA disabled -> tsaStatus null, 'not_issued'; TSA enabled without TSA_URL/USERNAME/PASSWORD -> must() throws out of completeEvidence (timestamp.service.ts:194-196) so capture completion fails for every record; TSA_TRUST_BUNDLE_PATH missing -> FAILED tsa_trust_anchor_not_configured with token kept (validate-tsa-token.ts:102-110); OTS binary missing -> PENDING/transient",
+      "note": "All fail closed (never positive). TSA_ENABLED=true with a credential-less TSA blocks completion entirely; anchor absence is not surfaced by any readiness check (UC-TRUST-006)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Status vocabulary: TSA presentation across API/UI/report/package",
+      "verdict": "OK",
+      "evidence": "presentedTsaStatus applied at every exit found: evidence.routes.ts:9509 & :13359 (review workspace + public verify), :14135; services/worker/src/processor.ts:2923 (report), :4634-4635 (timestamp.tsr only when presented STAMPED); services/api/src/services/dashboard/integrity-snapshot.service.ts:181; trust-summary.service.ts:118; matter-workspace.service.ts:902; ai evidence-analysis-snapshot.service.ts:138; packages/shared/src/basic-verification.ts:190-210; web apps/web/components/verify-v2/_helpers.ts:110-120; mobile apps/mobile/src/product/public-verify.ts:441-448",
+      "note": "Residual raw reads: admin evidence-records (services/api/src/services/admin/evidence-records.service.ts:293) and custody narrative lines 'Timestamp applied - Status: STAMPED' for legacy events (evidence.routes.ts:2049-2058). Folded into UC-TRUST-007 / UC-TRUST-002."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Status vocabulary: OTS / integrity / signature / verdict collapse",
+      "verdict": "PARTIAL",
+      "evidence": "OTS claim honest in basic verification (packages/shared/src/basic-verification.ts:212-231), report and package; collapsed in provenance projection (UC-TRUST-002) and trust-summary otsBucket (services/api/src/services/dashboard/trust-summary.service.ts:126-128); stored-bytes state honest in its own row but ignored by verdicts (UC-TRUST-005); evidence-intelligence verificationProof asserts MATCH/APPLIED from presence (services/api/src/services/evidence-intelligence.service.ts:527-529)",
+      "note": "See findings."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Public Verify for trashed / destroyed / hash-mismatch / unpublished records",
+      "verdict": "OK",
+      "evidence": "services/api/src/routes/evidence.routes.ts:12697 (deletedAt null, lifecycleState not TRASHED/DESTROYED), :12860-12875 FAILED_HASH_MISMATCH -> 404 with audit; services/api/test/verification-share-links.integration.test.ts:354-367",
+      "note": "Recheck never resurrects: authority.ts:70-76 excludes DESTROYED/PENDING_DESTRUCTION, trashed rechecked in place (integrity-recheck.integration.test.ts:241)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Continuous / screen capture manifest ordering, duplicates, gaps, substitution",
+      "verdict": "OK",
+      "evidence": "packages/shared/src/screen-continuous-manifest.ts:329 duplicate partIndex, :355-362 contiguous sequence 0..N-1; services/api/src/services/capture-trust/continuous-capture.service.ts:104-146 manifest bytes must be a declared part and segments map 1:1 to declared digests, :148-162 stored size check; evidence-complete.service.ts:960-975 server digest vs declared digest per part",
+      "note": "Tests: services/api/test/uc3-continuous-capture.integration.test.ts:363-455 (storage/signer doubles, real validator + DB)."
+    },
+    {
+      "area": "TRUST",
+      "topic": "Media type binding",
+      "verdict": "PARTIAL",
+      "evidence": "services/api/src/services/evidence-complete.service.ts:925-929 & :1094-1095 mime = S3 HEAD Content-Type (uploader-controlled) -> signed into the fingerprint; services/api/src/routes/evidence.routes.ts:6187-6194 presign validation runs with an empty byte head (claimed mime/extension only); packages/shared-runtime/src/media-intelligence/analyzer.service.ts:167-180 post-seal advisory MIME_EXTENSION_MISMATCH compares name vs mime, not bytes",
+      "note": "The recorded media type is a declared value, never sniffed from the sealed bytes. Presented as 'mimeType', not as a verified property, so recorded as PARTIAL rather than a finding."
+    }
+  ],
+  "gates": [
+    {
+      "name": "discovered capture surfaces = dispositioned capture surfaces",
+      "ok": true,
+      "detail": "27 surfaces"
+    },
+    {
+      "name": "discovered mutations = dispositioned mutations",
+      "ok": true,
+      "detail": "59 mutations"
+    },
+    {
+      "name": "discovered queues = classified queues",
+      "ok": true,
+      "detail": "13 queue rows"
+    },
+    {
+      "name": "runtime journeys = passed + failed + blocked",
+      "ok": true,
+      "detail": "{\"PASS\":8,\"FAIL\":6,\"BLOCKED\":6}"
+    },
+    {
+      "name": "findings = fixed + partial + present + accepted-risk",
+      "ok": true,
+      "detail": "119"
+    },
+    {
+      "name": "every UC = complete + partial + missing + blocked",
+      "ok": true,
+      "detail": "{\"complete\":0,\"partial\":7,\"missing\":2,\"blocked\":0}"
+    },
+    {
+      "name": "no UNKNOWN without explicit blocker",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no NOT_REVIEWED",
+      "ok": true,
+      "detail": "301 reviewed topics"
+    },
+    {
+      "name": "no duplicate finding IDs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "consolidations point at a kept finding",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every finding has the required fields",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every finding id matches UC-AREA-NNN",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every UC key finding exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every remediation-order finding exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every open P0/P1 is in the remediation order",
+      "ok": true,
+      "detail": "UC-AND-003,UC-CASE-001,UC-EXT-001,UC-EXT-003,UC-IOS-001,UC-IOS-002,UC-IOS-004,UC-OUT-001,UC-PROV-001,UC-STR-001,UC-STR-002"
+    },
+    {
+      "name": "every dependsOn resolves",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "executed-run overrides name executed runs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "runtime-bound findings exist",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every blocker names an external proof row",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every command in the ledger has an exit code",
+      "ok": true,
+      "detail": "39 commands"
+    },
+    {
+      "name": "API integration run executed (not skipped) and green",
+      "ok": true,
+      "detail": "463/463"
+    },
+    {
+      "name": "independent package recompute passed (incl. negative controls)",
+      "ok": true,
+      "detail": "14/14"
+    },
+    {
+      "name": "worker run green",
+      "ok": true,
+      "detail": "1152/1156 (4 skipped)"
+    },
+    {
+      "name": "no artifact/render disagreement",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no undefined, placeholder or TODO in final artifacts",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

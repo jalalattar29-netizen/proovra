@@ -1,0 +1,44 @@
+# Excerpt of the J09 (Android continuous) report PDF, pdftotext -layout; line numbers from the full extract
+18:                                        Timestamp pending                           Storage protection unavailable
+20:                       Evidence Snapshot     STRUCTURE                             Open verification page
+22:                       EVIDENCE TYPE         Multipart evidence package       PUBLIC VERIFICATION
+24:                       Mixed media evidence  LEAD ITEM                    Scan QR code or open verification page
+54:For technical validation, use the verification page and appendix.
+67:Android screen recording -- PROOVRA app (client-attested)
+94:CAPTURED & SIGNED                                      SUBMITTED BY
+96:30 Sep 2026, 21:26:52 UTC / 30 Sep 2026, 21:26:52 UTC  uca-ownerA-1790803564098@test.proovra.local
+135:i  Trusted timestamp                               Not recorded                 i  Bitcoin anchoring                                     Not recorded
+137:   Timestamp not recorded                                                          Anchoring not recorded
+139:   No RFC 3161 timestamp state was included. The evidence may still have           Anchoring was not recorded for this evidence record.
+142:i  Immutable storage                               Not recorded                    Custody chain                                           Verified
+146:   No verifiable immutable-storage protection was included in the record           A forensic custody chronology and custody hash-chain references are
+159:Passed signals: Core integrity, Digital signature, Custody chain, Workspace identity, Verification package. Degraded signals: Timestamp not recorded; Anchoring not recorded;
+211:access activity should be reviewed on the verification page or audit
+283:intentionally kept out of this PDF and should be reviewed through the verification page or internal audit trail when needed.
+291:                                                             the verification page.
+295:Anchoring not recorded
+297:         Evidence record created                                                                                                       30 Sep 2026, 21:26:52 UTC
+302:2  Identity snapshot recorded at submission                                                                                            30 Sep 2026, 21:26:52 UTC
+308:3  Upload authorization recorded                                                                                                       30 Sep 2026, 21:26:52 UTC
+312:         Upload completion confirmed                                                                                                   30 Sep 2026, 21:26:52 UTC
+317:         Digital signature applied                                                                                                     30 Sep 2026, 21:26:52 UTC
+322:6  Storage protection unavailable (Object Lock not applied)                                                                            30 Sep 2026, 21:26:52 UTC
+324:   Storage protection was attempted, but Object Lock retention was not actually applied. Treat storage immutability as not asserted for this record.
+326:         OpenTimestamps update recorded                                                                                                30 Sep 2026, 21:26:52 UTC
+331:8  Capture session event recorded                                                                                                      30 Sep 2026, 21:26:52 UTC
+346:the public verification page.
+352:     1  30 Sep 2026, 21:26:52 UTC
+353:     2  30 Sep 2026, 21:26:52 UTC  Evidence record created         N/A                                      854a69c786d9fe80f563cce8fe5d4506f66692c
+354:     3  30 Sep 2026, 21:26:52 UTC                                                                           8f3b1f4659d2ebe9727097295
+355:     4  30 Sep 2026, 21:26:52 UTC
+356:     5  30 Sep 2026, 21:26:52 UTC  Identity snapshot recorded at   854a69c786d9fe80f563cce8fe5d4506f66692c  c2b9d8bc2a8e6c44e2382c016424fc60d3625f
+357:     6  30 Sep 2026, 21:26:52 UTC  submission                      8f3b1f4659d2ebe9727097295                d2267556a2fe889dd0d6634cb0
+358:     7  30 Sep 2026, 21:26:52 UTC
+359:     8  30 Sep 2026, 21:26:52 UTC  Upload authorization recorded   c2b9d8bc2a8e6c44e2382c016424fc60d3625f 852998c4b15006e83df10d28a24f36d489311e
+371:                                   Storage protection unavailable  9b223bc71d3c5cb39047121b146f720c4b076    16fb2ddafd10b2fa58efb96b0b12d0c8c90fc09
+491:UPLOADED BY USER REF                                                               CAPTURE METHOD
+492:a09bbd[redacted-middle]81ab06                                                      Not recorded
+547:N/A                                                                                      Not recorded
+559:                                                                                         Anchoring not recorded
+UPLOADED BY USER REF                                                               CAPTURE METHOD
+a09bbd[redacted-middle]81ab06                                                      Not recorded

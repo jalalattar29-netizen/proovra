@@ -1,0 +1,87 @@
+{
+  "tool": "node:crypto only (independent of product code)",
+  "evidenceId": "7ccb5a00-7c68-40da-8ccc-d178a44593c3",
+  "packageSha256": "f6fec271b09a4ac92e2f11d4a67d68f01ba29cdf0b69c732cc258879cc9d478d",
+  "entries": 43,
+  "passed": 14,
+  "total": 14,
+  "checks": [
+    {
+      "name": "0. sha256(zip) equals Public Verify package.packageSha256",
+      "ok": true,
+      "detail": "f6fec271b09a4ac92e2f11d4a67d68f01ba29cdf0b69c732cc258879cc9d478d"
+    },
+    {
+      "name": "1a. sha256(package-seal.json) equals seal signature's sealSha256",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1b. seal signature verifies (Ed25519 over sealSha256)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1c. seal key SPKI fingerprint equals the signature file and Public Verify",
+      "ok": true,
+      "detail": "8eab16d0cd2d5648ff598ed60351bdb1514eab65cbd87d9e207ad2c2f3d41e98"
+    },
+    {
+      "name": "2a. sha256(package-checksums.json) equals seal.checksumsSha256",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2b. every indexed file present with matching size and SHA-256",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "2c. no ZIP entry outside the index (except the three seal files)",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "2d. report bytes equal seal.reportSha256",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3. sha256(fingerprint.json) equals seal.fingerprintHash and Public Verify",
+      "ok": true,
+      "detail": "3dd326220c9e986656f85b4b294914831b87fa73d7ddab17429e60f2d1d23eb1"
+    },
+    {
+      "name": "4. evidence signature verifies over the fingerprint hash",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "5. original bytes hash to the SIGNED fingerprint's file digest and to Public Verify",
+      "ok": true,
+      "detail": {
+        "originalName": "digital-evidence-record-2026-09-30t20-46z.png",
+        "origSha": "469bf3ed3f5fa672e6ea7ab591fbb42f303c728aab69efc3d174625e37d678ba",
+        "signedSha": "469bf3ed3f5fa672e6ea7ab591fbb42f303c728aab69efc3d174625e37d678ba"
+      }
+    },
+    {
+      "name": "6. custody hash chain replays from genesis",
+      "ok": true,
+      "detail": {
+        "events": 13,
+        "firstBad": null
+      }
+    },
+    {
+      "name": "N1. a single flipped byte in the original no longer matches the signed digest",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "N2. a one-bit change to the seal signature fails verification",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

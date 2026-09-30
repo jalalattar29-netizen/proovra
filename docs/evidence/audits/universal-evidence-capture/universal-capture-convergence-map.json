@@ -1,0 +1,258 @@
+{
+  "schema": "PROOVRA_UNIVERSAL_CAPTURE_CONVERGENCE_V1",
+  "baselineSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
+  "verdict": {
+    "verdict": "CONVERGED WRITERS, DIVERGENT SIDE EFFECTS",
+    "statement": "Every live capture channel reaches ONE Evidence writer, ONE part writer, ONE finalizer (completeEvidence), ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route; no duplicate evidence model or writer was found and every queue has a consumer. The divergence is in what surrounds the finalizer: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run only in the web route, so direct-capture and intake records differ from uploads (UC-ARCH-002/003). iOS never reaches the finalizer (UC-IOS-001)."
+  },
+  "arrows": [
+    {
+      "step": 1,
+      "arrow": "Capture (client) -> server session",
+      "authority": "UC-0: services/api/src/services/capture-trust/direct-capture-ingest.service.ts:260 openDirectCaptureSession; web: none (draft capture_sessions only, capture.routes.ts:225); intake: WorkflowIntakeSession via GET /v1/external-intake/:token (external-intake.routes.ts:817); resumable: upload-session.service.ts:331",
+      "note": "Three session concepts (CaptureSession UC-0, WorkflowIntakeSession, EvidenceUploadSession) + observational UploadSession. AMBIGUOUS: no single session authority."
+    },
+    {
+      "step": 2,
+      "arrow": "session -> Evidence row",
+      "authority": "services/api/src/services/evidence.service.ts:235 createEvidence (:488 insert)",
+      "note": "Single writer; acquisitionMode constant per adapter except UC-0 where it is client-chosen (UC-ARCH-001)."
+    },
+    {
+      "step": 3,
+      "arrow": "upload -> EvidencePart",
+      "authority": "services/api/src/services/evidence/evidence-part-writer.service.ts:153 writeEvidencePart (principal check :106)",
+      "note": "Presign sites: evidence.routes.ts:6272, external-intake-orchestration.service.ts:659, storage-multipart presign (upload-session.service.ts:1640)."
+    },
+    {
+      "step": 4,
+      "arrow": "EvidencePart -> finalization",
+      "authority": "services/api/src/services/evidence-complete.service.ts:576 completeEvidence",
+      "note": "Callers: evidence.routes.ts:10486, direct-capture-ingest.service.ts:805, external-intake-orchestration.service.ts:1027. Finalization governance gate evaluated by each caller (evidence.routes.ts:10471, direct-capture-ingest.service.ts:800, orchestration :1008) rather than inside completeEvidence."
+    },
+    {
+      "step": 5,
+      "arrow": "finalization -> hash/sign/TSA",
+      "authority": "evidence-complete.service.ts:1000 (composite digest), :1150 signFingerprintHex, :1152 createEvidenceTimestamp (services/api/src/services/timestamp.service.ts:177)",
+      "note": "Composite digest duplicated in worker (UC-ARCH-006)."
+    },
+    {
+      "step": 6,
+      "arrow": "finalization -> custody",
+      "authority": "packages/shared-runtime/src/custody/custody-chain.ts:45 (UPLOAD_COMPLETED evidence-complete.service.ts:1296, SIGNATURE_APPLIED :1312, TIMESTAMP_* :1340-1346, EVIDENCE_LOCKED :1583)",
+      "note": "EVIDENCE_COMPLETED only from web route evidence.routes.ts:10507 - AMBIGUOUS across channels (UC-ARCH-003)."
+    },
+    {
+      "step": 7,
+      "arrow": "finalization -> integrity record",
+      "authority": "evidence-complete.service.ts:1435 recordIntegrityCheckTx (shared-runtime); periodic recheck services/worker/src/integrity-recheck.ts:346 runIntegrityRecheckSweep (services/worker/src/index.ts:711)",
+      "note": ""
+    },
+    {
+      "step": 8,
+      "arrow": "finalization -> OTS anchoring",
+      "authority": "evidence-complete.service.ts:1673 -> services/api/src/services/integrity/ots-anchoring-authority.service.ts:80 (enqueue :85) -> worker services/worker/src/ots-upgrade.processor.ts:290",
+      "note": ""
+    },
+    {
+      "step": 9,
+      "arrow": "finalization -> derivatives / intelligence",
+      "authority": "evidence-complete.service.ts:1851 runEvidenceFinalizationFanout (services/api/src/services/evidence-finalization-fanout.service.ts: MI :261, graph :278) + :1864 graph reconcile; worker index.ts:2211 (media-intelligence), :2233 (mi-derived-assets)",
+      "note": "Best-effort; reconcilers are the catch-up."
+    },
+    {
+      "step": 10,
+      "arrow": "finalization -> report",
+      "authority": "evidence-complete.service.ts:1682 -> services/api/src/services/reports/report-generation-authority.service.ts:144 (enqueue :397) -> services/worker/src/processor.ts:3089 processGenerateReport -> report-v2/build-report-pdf.ts:46",
+      "note": ""
+    },
+    {
+      "step": 11,
+      "arrow": "report -> verification package",
+      "authority": "services/worker/src/processor.ts:4599 -> services/worker/src/verification-package.ts:2504 createVerificationPackage",
+      "note": "Package built inside report job."
+    },
+    {
+      "step": 12,
+      "arrow": "package -> Public Verify",
+      "authority": "services/api/src/routes/evidence.routes.ts:12529 GET /public/verify/:id; share tokens services/api/src/routes/verification-share.routes.ts:156",
+      "note": ""
+    },
+    {
+      "step": 13,
+      "arrow": "post-complete review queue entry",
+      "authority": "MISSING for UC-0 and intake: only evidence.routes.ts:10561 upserts EvidenceReviewWorkflow",
+      "note": "UC-ARCH-003"
+    },
+    {
+      "step": 14,
+      "arrow": "create -> retention policy",
+      "authority": "MISSING for UC-0: only evidence.routes.ts:5631 and external-intake-orchestration.service.ts:452",
+      "note": "UC-ARCH-002"
+    }
+  ],
+  "queues": [
+    {
+      "name": "report",
+      "job": "GenerateReportJob",
+      "producers": [
+        "services/api/src/services/reports/report-generation-authority.service.ts:397",
+        "services/api/src/services/reports/report-generation-authority.service.ts:456",
+        "services/worker/src/queue.ts:374 (callers services/worker/src/first-issuance-reconciliation.ts:181,303; services/worker/src/lifecycle-recovery.ts:186)"
+      ],
+      "consumer": "services/worker/src/index.ts:2136 -> processor.ts:3089",
+      "classification": "LIVE"
+    },
+    {
+      "name": "report-dlq",
+      "job": null,
+      "producers": [
+        "services/worker/src/processor.ts:5563"
+      ],
+      "consumer": "none by design (sink; health read services/worker/src/health.ts:22)",
+      "classification": "LIVE"
+    },
+    {
+      "name": "ots-upgrade",
+      "job": "UpgradeOts",
+      "producers": [
+        "services/api/src/services/integrity/ots-anchoring-authority.service.ts:85",
+        "services/worker/src/ots-initialization-reconciler.ts:206,255",
+        "services/worker/src/ots-upgrade.processor.ts:390,773"
+      ],
+      "consumer": "services/worker/src/index.ts:2154 -> ots-upgrade.processor.ts:290",
+      "classification": "LIVE"
+    },
+    {
+      "name": "evidence-purge",
+      "job": "PurgeDeletedEvidenceJob",
+      "producers": [
+        "services/worker/src/governance/trash-grace-reconciler.ts:315",
+        "services/worker/src/processor.ts:5970"
+      ],
+      "consumer": "services/worker/src/index.ts:2171 -> processor.ts:5838",
+      "classification": "LIVE"
+    },
+    {
+      "name": "search-indexing",
+      "job": "RebuildSearchDocument",
+      "producers": [
+        "services/api/src/queue/search-queue.ts:99",
+        "services/api/src/services/search/search-scheduled-work.service.ts:149",
+        "services/worker/src/media-intelligence.processor.ts:1439",
+        "services/worker/src/search-index-reconciler.ts:604,778",
+        "services/worker/src/subsystem-queue-processors.ts:325",
+        "services/worker/src/screen-intelligence.handler.ts:227"
+      ],
+      "consumer": "services/worker/src/index.ts:2189",
+      "classification": "LIVE"
+    },
+    {
+      "name": "media-intelligence",
+      "job": "RunMediaIntelligence",
+      "producers": [
+        "services/api/src/queue/media-intelligence-queue.ts:270",
+        "services/api/src/services/evidence-finalization-fanout.service.ts:261",
+        "services/worker/src/intelligence-run-reconciler.ts:244",
+        "services/worker/src/media-intelligence.processor.ts:144"
+      ],
+      "consumer": "services/worker/src/index.ts:2211",
+      "classification": "LIVE"
+    },
+    {
+      "name": "media-intelligence-dlq",
+      "job": null,
+      "producers": [
+        "services/worker/src/index.ts:282"
+      ],
+      "consumer": "none by design (sink)",
+      "classification": "LIVE"
+    },
+    {
+      "name": "mi-derived-assets",
+      "job": "GenerateDerivedAsset",
+      "producers": [
+        "services/api/src/queue/derived-assets-queue.ts:129 (caller services/api/src/routes/media-intelligence.routes.ts:1498)",
+        "services/worker/src/intelligence-run-reconciler.ts:539"
+      ],
+      "consumer": "services/worker/src/index.ts:2233",
+      "classification": "LIVE"
+    },
+    {
+      "name": "redaction-derivative",
+      "job": "RenderRedactionDerivative",
+      "producers": [
+        "services/api/src/queue/redaction-derivative-queue.ts:87 (caller services/api/src/services/redaction/redaction-derivative.service.ts:147)",
+        "services/worker/src/index.ts:1050 (reconciler)"
+      ],
+      "consumer": "services/worker/src/index.ts:2255",
+      "classification": "LIVE"
+    },
+    {
+      "name": "mi-embed",
+      "job": "EmbedSemanticChunks",
+      "producers": [
+        "services/api/src/queue/mi-embed-queue.ts:57 (caller services/api/src/services/intelligence/semantic.service.ts:120)",
+        "services/worker/src/intelligence-run-reconciler.ts:287"
+      ],
+      "consumer": "services/worker/src/index.ts:2314",
+      "classification": "LIVE"
+    },
+    {
+      "name": "graph-reconcile",
+      "job": "ReconcileTeamGraph",
+      "producers": [
+        "services/api/src/queue/graph-reconcile-queue.ts:79",
+        "services/api/src/services/evidence-complete.service.ts:1864",
+        "services/api/src/routes/graph.routes.ts:1290",
+        "services/worker/src/search-index-reconciler.ts:493"
+      ],
+      "consumer": "services/worker/src/index.ts:2293",
+      "classification": "LIVE"
+    },
+    {
+      "name": "graph-search-projection",
+      "job": "RefreshGraphSearchProjection",
+      "producers": [
+        "services/worker/src/subsystem-queue-processors.ts:183"
+      ],
+      "consumer": "services/worker/src/index.ts:2336",
+      "classification": "LIVE"
+    },
+    {
+      "name": "mi-exif, mi-search-index, graph-domain-sync, graph-timeline-sync, org-health-refresh, mi-ocr, mi-transcript",
+      "job": null,
+      "producers": [],
+      "consumer": "none",
+      "classification": "RETIRED",
+      "note": "packages/shared/src/queue-integrity/names.ts:26-53 (ET-Q-07)"
+    }
+  ],
+  "detections": {
+    "duplicateEvidenceWriters": "none (1: evidence.service.ts:488)",
+    "duplicatePartWriters": "none (1: evidence-part-writer.service.ts:168)",
+    "duplicateFinalizers": "one finalizer; three manifest-seal wrappers duplicate cross-check logic; post-finalize fan-out split between service and web route (UC-ARCH-003)",
+    "duplicateHashBuilders": "3 composite-digest copies, 3 stream-hash copies (UC-ARCH-006)",
+    "duplicateCustodyBuilders": "none (shared-runtime custody-chain.ts:45); parallel CaptureTrustEventRecord chain for UC-0",
+    "duplicateReportPackageBuilders": "none",
+    "channelSpecificEvidenceModels": "none for Evidence; duplicate session models (UploadSession vs EvidenceUploadSession; CaptureSession overloaded)",
+    "deprecatedRoutesStillReachable": "4 capture routes answer 410 (expected); /v1/evidence/claim legacy guest claim still live with callers",
+    "routesWithNoCaller": [
+      "POST /v1/capture/devices",
+      "POST /v1/capture/direct-sessions/:id/attestation",
+      "GET /v1/capture/sessions/:id/trust-timeline",
+      "POST /v1/uploads/sessions/:id/parts/:n/verified",
+      "GET /v1/uploads/sessions/:id",
+      "DELETE /v1/cases/:id/legacy-evidence-link/:evidenceId",
+      "/v1/integrations/api/uploads/* (external-only and structurally broken)"
+    ],
+    "callersHittingNonexistentRoutes": "none found (extension, mobile, web)",
+    "producerConsumerMismatches": "none at baseline",
+    "sourceSpecificShortcuts": [
+      "UC-0 mode chosen by client (UC-ARCH-001)",
+      "retention/audit/review-workflow side effects only on web routes (UC-ARCH-002/003)",
+      "owner-principal bypass of intake session on intake records (UC-ARCH-005)",
+      "API-key upload path authorized by gateEvidenceForUpload not authorizeOrFail (ET-SEC-25, now moot due to UC-ARCH-004)"
+    ]
+  }
+}

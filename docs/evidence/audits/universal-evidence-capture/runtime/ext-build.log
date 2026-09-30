@@ -1,0 +1,17 @@
+
+> @proovra/extension@1.0.0 prebuild D:\pv-uca\apps\extension
+> pnpm run build:deps
+
+
+> @proovra/extension@1.0.0 build:deps D:\pv-uca\apps\extension
+> pnpm --filter @proovra/shared build
+
+
+> @proovra/shared@1.0.0 build D:\pv-uca\packages\shared
+> tsc -p tsconfig.build.json
+
+
+> @proovra/extension@1.0.0 build D:\pv-uca\apps\extension
+> node build.mjs
+
+extension built: 9 files in dist/

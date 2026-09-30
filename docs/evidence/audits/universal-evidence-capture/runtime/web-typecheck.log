@@ -1,0 +1,28 @@
+
+> proovra-web@1.0.0 pretypecheck D:\pv-uca\apps\web
+> pnpm run build:deps
+
+
+> proovra-web@1.0.0 build:deps D:\pv-uca\apps\web
+> pnpm --filter @proovra/shared build && pnpm --filter @proovra/shared-billing build && pnpm --filter @proovra/shared-evidence-presentation build && pnpm --filter @proovra/ui build
+
+
+> @proovra/shared@1.0.0 build D:\pv-uca\packages\shared
+> tsc -p tsconfig.build.json
+
+
+> @proovra/shared-billing@1.0.0 build D:\pv-uca\packages\shared-billing
+> pnpm exec tsc -p tsconfig.json
+
+
+> @proovra/shared-evidence-presentation@1.0.0 build D:\pv-uca\packages\shared-evidence-presentation
+> tsc -p tsconfig.build.json
+
+
+> @proovra/ui@1.0.0 build D:\pv-uca\packages\ui
+> tsc -p tsconfig.build.json
+
+
+> proovra-web@1.0.0 typecheck D:\pv-uca\apps\web
+> tsc --noEmit
+

@@ -1,0 +1,11 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mD:/pv-uca/services/worker[39m
+
+ [32m✓[39m test/verification-package-publication.minio.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 989[2mms[22m[39m
+   [33m[2m✓[22m[39m publication to an Object-Lock bucket with default COMPLIANCE retention[2m > [22mthe destruction version port sees the COMPLIANCE-locked version as retained, and it cannot be deleted [33m 767[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 22:50:48
+[2m   Duration [22m 2.01s[2m (transform 395ms, setup 0ms, collect 675ms, tests 989ms, environment 0ms, prepare 72ms)[22m
+

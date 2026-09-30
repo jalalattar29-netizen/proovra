@@ -1,0 +1,14 @@
+PASS  0. sha256(zip) equals Public Verify package.packageSha256
+PASS  1a. sha256(package-seal.json) equals seal signature's sealSha256
+PASS  1b. seal signature verifies (Ed25519 over sealSha256)
+PASS  1c. seal key SPKI fingerprint equals the signature file and Public Verify
+PASS  2a. sha256(package-checksums.json) equals seal.checksumsSha256
+PASS  2b. every indexed file present with matching size and SHA-256
+PASS  2c. no ZIP entry outside the index (except the three seal files)
+PASS  2d. report bytes equal seal.reportSha256
+PASS  3. sha256(fingerprint.json) equals seal.fingerprintHash and Public Verify
+PASS  4. evidence signature verifies over the fingerprint hash
+PASS  5. original bytes hash to the SIGNED fingerprint's file digest and to Public Verify
+PASS  6. custody hash chain replays from genesis
+PASS  N1. a single flipped byte in the original no longer matches the signed digest
+PASS  N2. a one-bit change to the seal signature fails verification
