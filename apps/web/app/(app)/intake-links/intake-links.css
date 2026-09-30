@@ -244,13 +244,18 @@
    against the production build with the layout suite's long-value fixture,
    the seven columns then need 1061px while the records frame (viewport minus
    the 212px shell) gives 988px at 1200 — a 75px sideways scroller inside the
-   surface, at every width up to 1273px. From 1280px the frame is 1068px and
-   the full labels fit.
+   surface, at every width up to 1273px in Chromium on Windows.
+   THE BAND ENDS AT 1439px, NOT 1279px. The first version stopped at 1279px,
+   where the Windows measurement said the full labels fit — and on the Linux
+   CI runner, whose fonts are wider, the same table measured 1105px in the
+   1068px frame at 1280px, with "Retry scheduled" filling its Delivery cell to
+   the pixel. A fold that fits on one platform by 2px is not a fold. At 1439px
+   the frame is 1227px, which holds the full-label table with room on both.
    With the short labels the same table measures 986px in the 988px frame at
    1200px. Nothing is dropped: the button's accessible name stays the full
    phrase and the trigger keeps its `aria-label`. Scoped to the table so the
    cards, which have the room, keep their own 1080px rule. */
-@media (min-width: 1200px) and (max-width: 1279px) {
+@media (min-width: 1200px) and (max-width: 1439px) {
   .ilk-table .ilk-fold[data-fold="short"] {
     display: inline;
   }

@@ -942,7 +942,10 @@ test.describe("the table/card cutover", () => {
     // The widths were [1440, 1280, 1024, 940, 901]; since 67368b23 the table
     // is not rendered below 1200px, so the narrow end of the list is now the
     // 1200–1279px band down to the cutover itself.
-    for (const width of [1440, 1280, 1279, 1240, TABLE_CUTOVER + 1]) {
+    // 1439 and 1440 are the two sides of the short-label band's upper edge;
+    // 1360 and 1280 sit inside it, where the Linux runner's wider fonts first
+    // overflowed the full-label table.
+    for (const width of [1440, 1439, 1360, 1280, 1240, TABLE_CUTOVER + 1]) {
       await page.setViewportSize({ width, height: 900 });
       await openIntakeLinks(page, "organization");
       const measured = await page.evaluate(() => {

@@ -518,7 +518,7 @@ test.describe("records surface anatomy", () => {
     // 1200px. Both values are still `.ilk-state-text`, which is what every
     // TREATMENT assertion below measures — on BOTH values of every row now,
     // where it used to sample only the first one in the cell.
-    for (const width of [1440, 1280, 1200]) {
+    for (const width of [1440, 1439, 1360, 1280, 1200]) {
       await page.setViewportSize({ width, height: 900 });
       await openIntakeLinks(page, "organization");
 
@@ -758,7 +758,7 @@ test.describe("records surface anatomy", () => {
     // moved the table/card cutover from 900px to 1199px, so 1024 and 940 are
     // card widths now (the card is covered by the next test); the narrowest
     // table is 1200px, and it is measured here in their place.
-    for (const width of [1440, 1280, 1240, 1200]) {
+    for (const width of [1440, 1439, 1360, 1280, 1240, 1200]) {
       await page.setViewportSize({ width, height: 900 });
       await openIntakeLinks(page, "organization");
 
