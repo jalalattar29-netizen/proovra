@@ -5,6 +5,7 @@ import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 import { getEvidenceSigner } from "../signing/signer.js";
 import {
   assertWorkspaceAllowsStorageGrowth,
+  lockEvidenceCapacitySubject,
   resolveEnforcementScopeForRequester,
   settleEvidenceCompletionFunding,
 } from "./billing-enforcement.service.js";
@@ -1010,6 +1011,10 @@ const fingerprint = buildFingerprint({
           ? nextStoredBytes - existingStoredBytes
           : 0n;
 
+      // ET-SEC-28 — under the workspace capacity lock (see
+      // lockEvidenceCapacitySubject): a concurrent finalize in this workspace
+      // waits here until this one commits, then sees its bytes.
+      await lockEvidenceCapacitySubject(scope, tx);
       await assertWorkspaceAllowsStorageGrowth({
         scope,
         incomingBytes: incomingGrowth,

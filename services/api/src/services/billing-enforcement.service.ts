@@ -60,9 +60,17 @@ function createdBeforeEvidenceWhere(cursor: EvidenceCapacityCursor) {
   };
 }
 
-async function lockEvidenceCapacitySubject(
+/**
+ * The per-workspace capacity lock (transaction-scoped). ET-SEC-28 — exported so
+ * the completion's STORAGE check runs under it too: the check used to run
+ * before any capacity lock, so two finalizes in one workspace (different
+ * records, so the per-evidence lock did not serialize them) could both pass.
+ * Re-entrant within one transaction, and always taken after the per-evidence
+ * lock, in the same order as settlement.
+ */
+export async function lockEvidenceCapacitySubject(
   scope: WorkspaceScope,
-  client: EvidenceCapacitySettlementClient,
+  client: Pick<EvidenceCapacitySettlementClient, "$executeRaw">,
 ) {
   const subject = scope.teamId
     ? `team:${scope.teamId}`

@@ -241,7 +241,8 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Rebaselined 2026-09-29: 59,826 -> 59,931 — the finalize claim refuses a released (soft-deleted) reservation (ET-DC-01).
     // Rebaselined 2026-09-29: 59,931 -> 60,529 — ET-SEC-11: a REPORTED record's repeat complete is alreadyFinalized (+ duplicate-finalize security event)
     // Rebaselined 2026-09-29: 60,529 -> 60,968 — ET-SM-03: retention targets and the lock snapshot address the sealed version
-    expect(sz).toBe(60968);
+    // Rebaselined 2026-09-30: 60,968 -> 61,257 — ET-SEC-28: the storage check runs under the workspace capacity lock
+    expect(sz).toBe(61257);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {
