@@ -1379,6 +1379,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280812000000_evidence_completion_fanout_marker",
       // …and its backfill: already-signed rows marked done. BACKFILL.
       "20280812000001_evidence_completion_fanout_backfill",
+      // Capture trust-event chain uniqueness (2026-09-30, ET-DC-10): two partial unique indexes. EXPAND.
+      "20280813000000_capture_trust_event_chain_unique",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

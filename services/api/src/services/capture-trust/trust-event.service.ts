@@ -96,63 +96,83 @@ export async function emitCaptureTrustEvent(
     }
   }
 
-  // Resolve previous-event hash for the (session, evidence) pair so
-  // the trust-event sub-chain is verifiable independently.
-  const last = await prisma.captureTrustEventRecord.findFirst({
-    where: {
-      teamId: input.teamId,
-      OR: [
-        input.evidenceId !== null
-          ? { evidenceId: input.evidenceId }
-          : { id: "00000000-0000-0000-0000-000000000000" },
-        input.captureSessionId !== null
-          ? { captureSessionId: input.captureSessionId }
-          : { id: "00000000-0000-0000-0000-000000000000" },
-      ],
-    },
-    orderBy: { sequence: "desc" },
-    select: { sequence: true, eventHash: true },
-  });
-  const nextSequence = (last?.sequence ?? 0) + 1;
-  const prevEventHash = last?.eventHash ?? null;
+  // ET-DC-10 — the sub-chain is extended under a lock on every chain it
+  // belongs to (its session's and its record's, taken in one sorted order so
+  // two appenders never deadlock). The read of the chain's head and the insert
+  // of the next link were two unlocked statements, so concurrent declarations
+  // read the same head and forked the chain with duplicate sequences. A
+  // partial unique index on (chain, sequence) backs this up
+  // (migration 20280813000000).
+  const chainKeys = [
+    input.captureSessionId !== null ? `capture-trust:session:${input.captureSessionId}` : null,
+    input.evidenceId !== null ? `capture-trust:evidence:${input.evidenceId}` : null,
+  ]
+    .filter((k): k is string => k !== null)
+    .sort();
+  const { record, nextSequence, prevEventHash, eventHash } = await prisma.$transaction(async (tx) => {
+    for (const k of chainKeys) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${k}))`;
+    }
 
-  // Local hash for the trust-event sub-chain.
-  const eventHash = buildTrustEventHash({
-    teamId: input.teamId,
-    code: input.code,
-    captureSessionId: input.captureSessionId,
-    evidenceId: input.evidenceId,
-    deviceId: input.deviceId,
-    sequence: nextSequence,
-    atUtc: now,
-    payload,
-    prevEventHash,
-  });
+    // Resolve previous-event hash for the (session, evidence) pair so
+    // the trust-event sub-chain is verifiable independently.
+    const last = await tx.captureTrustEventRecord.findFirst({
+      where: {
+        teamId: input.teamId,
+        OR: [
+          input.evidenceId !== null
+            ? { evidenceId: input.evidenceId }
+            : { id: "00000000-0000-0000-0000-000000000000" },
+          input.captureSessionId !== null
+            ? { captureSessionId: input.captureSessionId }
+            : { id: "00000000-0000-0000-0000-000000000000" },
+        ],
+      },
+      orderBy: { sequence: "desc" },
+      select: { sequence: true, eventHash: true },
+    });
+    const nextSequence = (last?.sequence ?? 0) + 1;
+    const prevEventHash = last?.eventHash ?? null;
 
-  const record = await prisma.captureTrustEventRecord.create({
-    data: {
+    // Local hash for the trust-event sub-chain.
+    const eventHash = buildTrustEventHash({
       teamId: input.teamId,
+      code: input.code,
       captureSessionId: input.captureSessionId,
-      // R7-capture-trust: evidenceId is now schema-nullable for pre-finalise events
-      // (CAPTURE_STARTED / DEVICE_REGISTERED). The custody-chain mirror below already
-      // guards on `input.evidenceId !== null`, so chain integrity is preserved:
-      // pre-finalise events live ONLY in capture_trust_event_records (correlated by
-      // captureSessionId), and post-finalise events also chain into custody.
       evidenceId: input.evidenceId,
       deviceId: input.deviceId,
-      code: input.code,
       sequence: nextSequence,
       atUtc: now,
-      // R7-capture-trust: payload is JSONB. Use Prisma.JsonNull for null vs
-      // Prisma.InputJsonValue for present, replacing the legacy `as never` cast.
-      payload:
-        payload === null || payload === undefined
-          ? Prisma.JsonNull
-          : (payload as Prisma.InputJsonValue),
+      payload,
       prevEventHash,
-      eventHash,
-    },
-    select: { id: true },
+    });
+
+    const record = await tx.captureTrustEventRecord.create({
+      data: {
+        teamId: input.teamId,
+        captureSessionId: input.captureSessionId,
+        // R7-capture-trust: evidenceId is now schema-nullable for pre-finalise events
+        // (CAPTURE_STARTED / DEVICE_REGISTERED). The custody-chain mirror below already
+        // guards on `input.evidenceId !== null`, so chain integrity is preserved:
+        // pre-finalise events live ONLY in capture_trust_event_records (correlated by
+        // captureSessionId), and post-finalise events also chain into custody.
+        evidenceId: input.evidenceId,
+        deviceId: input.deviceId,
+        code: input.code,
+        sequence: nextSequence,
+        atUtc: now,
+        // R7-capture-trust: payload is JSONB. Use Prisma.JsonNull for null vs
+        // Prisma.InputJsonValue for present, replacing the legacy `as never` cast.
+        payload:
+          payload === null || payload === undefined
+            ? Prisma.JsonNull
+            : (payload as Prisma.InputJsonValue),
+        prevEventHash,
+        eventHash,
+      },
+      select: { id: true },
+    });
+    return { record, nextSequence, prevEventHash, eventHash };
   });
 
   // Mirror to the canonical custody chain when the evidence row is
