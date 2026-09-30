@@ -1,0 +1,6 @@
+ET-SEC-19 red — services/api/test/exchange-signed-url-not-listed.integration.test.ts against HEAD (34571506) evidence-exchange.service.ts (live PG16):
+   × exchange signed URL is not stored or listed (live PostgreSQL 16) > a minted URL is returned to its minter only: not on the row, not in a viewer's list 65ms
+     → expected '{"packages":[{"id":"09c570b1-4ba1-4b9…' not to contain 'MjAyNi0wOS0zMFQwMTo0MjozMC40OTlafDM1f…'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed (1)
+(A VIEWER's GET /v1/exchange/packages carried the signed URL an admin minted behind generate_package + step-up.)

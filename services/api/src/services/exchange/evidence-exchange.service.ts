@@ -276,10 +276,15 @@ export async function generateSignedUrl(
   const base = (input.baseUrl ?? process.env.EXCHANGE_DOWNLOAD_BASE_URL ?? "https://download.proovra.local/exchange/").replace(/\/$/, "/");
   const signedUrl = `${base}${row.id}?token=${signed.token}`.slice(0, 1024);
   const expiresAt = new Date(signed.expiresAtUtc);
+  // ET-SEC-19 — the bearer URL is handed to the privileged caller that minted
+  // it (generate_package + step-up) and NEVER stored: the list projection is
+  // readable by every evidence.read member, and a stored URL leaked a 7-day
+  // package token to all of them. Only the expiry is kept, and any URL a
+  // previous release stored is cleared on the next mint.
   await prisma.evidenceExchangePackage.update({
     where: { id: row.id },
     data: {
-      signedUrl,
+      signedUrl: null,
       signedUrlExpiresAtUtc: expiresAt,
     },
   });
@@ -590,7 +595,8 @@ export async function listPackages(
       : [],
     caseId: r.caseId,
     scopeNote: r.scopeNote,
-    signedUrl: r.signedUrl,
+    // ET-SEC-19 — no bearer URL in a member-readable projection (rows written
+    // before this release may still carry one until it expires).
     signedUrlExpiresAtUtc: r.signedUrlExpiresAtUtc?.toISOString() ?? null,
     packageSha256: r.packageSha256,
     packageSizeBytes:
