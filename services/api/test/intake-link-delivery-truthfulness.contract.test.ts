@@ -69,29 +69,31 @@ describe("MAX_FILES_REACHED — only triggers when there's a real evidence row t
     );
   });
 
-  it("the cap-check branch is gated on session.evidenceId being truthy", () => {
-    const src = read(PUBLIC_ROUTES);
-    // Pin the literal so a refactor can't quietly drop the gate.
+  // ET-INT-09 — the cap moved into the ONE part writer, counted under the
+  // record lock (the route counted before the insert, outside any lock). It
+  // counts only the record the part is written to, so a session with no
+  // record yet (its first part) is never compared against a foreign total.
+  it("the cap is enforced by the part writer under the record lock, for the record being written", () => {
+    const writer = read(resolve(REPO_ROOT, "services/api/src/services/evidence/evidence-part-writer.service.ts"));
     assert.match(
-      src,
-      /link\.maxFileCountPerSession > 0 &&\s*\n?\s*session\.evidenceId\s*\n?\s*\) \{/,
+      writer,
+      /if \(typeof input\.maxPartCount === "number" && input\.maxPartCount > 0\) \{\s*const held = await tx\.evidencePart\.count\(\{ where: \{ evidenceId: input\.evidenceId \} \}\);/,
     );
+    const orch = read(resolve(REPO_ROOT, "services/api/src/services/external-intake-orchestration.service.ts"));
+    assert.match(orch, /maxPartCount: input\.link\.maxFileCountPerSession \?\? null,/);
   });
 
-  it("count query filters strictly on the session's real evidenceId (no nullish fallback)", () => {
+  it("the route no longer counts parts itself", () => {
     const src = read(PUBLIC_ROUTES);
-    // The corrected query — no `?? undefined`.
-    assert.match(
-      src,
-      /where: \{ evidenceId: session\.evidenceId \},/,
-    );
+    assert.doesNotMatch(src, /prisma\.evidencePart\.count\(/);
+    assert.match(src, /case "max_files_reached": \{/);
   });
 
   it("MAX_FILES_REACHED now ships a user-safe message", () => {
     const src = read(PUBLIC_ROUTES);
     assert.match(
       src,
-      /code: "MAX_FILES_REACHED",\s*\n?\s*message: `You can upload up to/,
+      /code: "MAX_FILES_REACHED",\s*message: max\s*\?\s*`You can upload up to \$\{max\} files per submission/,
     );
   });
 });

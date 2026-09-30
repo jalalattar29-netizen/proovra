@@ -90,7 +90,10 @@ async function heldByLiveSession(tx: Prisma.TransactionClient, evidenceId: strin
 export type ReservationReleaseReason =
   | "CAPTURE_SESSION_DISCARDED"
   | "CAPTURE_SESSION_EXPIRED"
-  | "RESERVATION_EXPIRED";
+  | "RESERVATION_EXPIRED"
+  // ET-INT-09 — two first-part intake uploads raced; the loser releases its own
+  // still-empty reservation (the session is bound to the winner's record).
+  | "INTAKE_SESSION_RACE_LOST";
 
 /**
  * Release one reservation inside the caller's transaction. Returns false (and

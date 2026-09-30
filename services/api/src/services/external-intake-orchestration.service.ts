@@ -60,7 +60,13 @@ import { createEvidence } from "./evidence.service.js";
 import { completeEvidence } from "./evidence-complete.service.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
 import { swallowCustodyAppendError } from "./custody-events-observability.js";
-import { transitionIntakeSession } from "./workflow-intake-session.service.js";
+import {
+  releaseIntakeLinkUse,
+  reserveIntakeLinkUse,
+  transitionIntakeSession,
+  WorkflowIntakeSessionError,
+} from "./workflow-intake-session.service.js";
+import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 import { linkResponseFromIntakeSession } from "./evidence-request.service.js";
 import { emitWebhookEvent } from "./integrations/webhook-dispatcher.js";
 // Client-signal helpers — server-side canonical source. The intake
@@ -110,6 +116,8 @@ export type ExternalIntakeOrchestrationErrorCode =
   | "location_required"
   // The receiving workspace's policy refuses finalization (2026-09-29, D3).
   | "finalization_blocked_by_policy"
+  // ET-INT-09 — the link's per-submission file cap (checked under the record lock).
+  | "max_files_reached"
   | "internal_error";
 
 export class ExternalIntakeOrchestrationError extends Error {
@@ -288,11 +296,18 @@ export async function createOrLoadExternalEvidence(
 ): Promise<DbEvidence> {
   assertSessionUploadEligible(pair.session);
 
-  if (pair.session.evidenceId) {
+  // ET-INT-09 — read the binding FRESH (the route's session object may be
+  // stale when two first-part uploads race).
+  const bound = await client.workflowIntakeSession.findUnique({
+    where: { id: pair.session.id },
+    select: { evidenceId: true },
+  });
+  const boundEvidenceId = bound?.evidenceId ?? pair.session.evidenceId ?? null;
+  if (boundEvidenceId) {
     const existing = await client.evidence.findUnique({
-      where: { id: pair.session.evidenceId },
+      where: { id: boundEvidenceId },
     });
-    if (existing) return existing;
+    if (existing && !existing.deletedAt) return existing;
     // Evidence was deleted out from under us — fall through and re-create.
   }
 
@@ -316,6 +331,35 @@ export async function createOrLoadExternalEvidence(
   const evidence = await client.evidence.findUniqueOrThrow({
     where: { id: createResult.id },
   });
+
+  // ET-INT-09 — CLAIM the session for this record: a conditional write, so of
+  // two concurrent first-part uploads exactly one binds its record. The loser
+  // releases its own (still empty) reservation and uses the winner's.
+  const claimed = await client.workflowIntakeSession.updateMany({
+    where: {
+      id: pair.session.id,
+      OR: [{ evidenceId: null }, ...(boundEvidenceId ? [{ evidenceId: boundEvidenceId }] : [])],
+    },
+    data: { evidenceId: evidence.id },
+  });
+  if (claimed.count !== 1) {
+    await client.$transaction((tx) =>
+      releaseEvidenceReservationTx(tx, {
+        evidenceId: evidence.id,
+        reason: "INTAKE_SESSION_RACE_LOST",
+        now: new Date(),
+      }),
+    );
+    const winner = await client.workflowIntakeSession.findUnique({
+      where: { id: pair.session.id },
+      select: { evidenceId: true },
+    });
+    const won = winner?.evidenceId
+      ? await client.evidence.findUnique({ where: { id: winner.evidenceId } })
+      : null;
+    if (!won) throw new ExternalIntakeOrchestrationError("session_not_open_for_upload");
+    return won;
+  }
 
   // Post-update: record who submitted. These columns do not affect the
   // integrity pipeline (fingerprint / signature / OTS / TSA / anchor are
@@ -393,12 +437,8 @@ export async function createOrLoadExternalEvidence(
     /* propagation-only: never break the bytes pipeline */
   }
 
-  // Link the session to the freshly-minted evidence so a resumed upload
-  // hits the same Evidence on the next presign request.
-  await client.workflowIntakeSession.update({
-    where: { id: pair.session.id },
-    data: { evidenceId: evidence.id },
-  });
+  // (ET-INT-09 — the session was bound to this record by the conditional
+  // claim above.)
 
   // Phase 9.5 — external intake evidence also receives workspace
   // retention policy. Same failure-safe wrapper as authenticated create.
@@ -536,6 +576,7 @@ export async function addExternalEvidencePart(
         // the SAME reserved row with a fresh upload URL (checked below); only
         // a different file on a taken index is refused.
         onExistingIndex: "RETURN_EXISTING",
+        maxPartCount: input.link.maxFileCountPerSession ?? null,
         data: {
         storageBucket: bucket,
         storageKey: key,
@@ -574,6 +615,11 @@ export async function addExternalEvidencePart(
       if (err.code === "EVIDENCE_NOT_FOUND") {
         throw new ExternalIntakeOrchestrationError("evidence_not_found");
       }
+      if (err.code === "PART_COUNT_EXCEEDED") {
+        throw new ExternalIntakeOrchestrationError("max_files_reached", {
+          max: input.link.maxFileCountPerSession ?? null,
+        });
+      }
       throw new ExternalIntakeOrchestrationError("session_not_open_for_upload");
     }
     if (
@@ -590,11 +636,21 @@ export async function addExternalEvidencePart(
   // Make sure the session has transitioned to UPLOAD_STARTED so the
   // lifecycle stays observable. Idempotent if already there.
   if (input.session.status === "OPENED") {
-    await transitionIntakeSession({
-      sessionId: input.session.id,
-      expectedLinkId: input.link.id,
-      to: "UPLOAD_STARTED",
-    });
+    try {
+      await transitionIntakeSession({
+        sessionId: input.session.id,
+        expectedLinkId: input.link.id,
+        to: "UPLOAD_STARTED",
+      });
+    } catch (err) {
+      // ET-INT-09 — a concurrent upload in this session already started it
+      // (the route's session object is a snapshot); that is the state we want.
+      const now = await client.workflowIntakeSession.findUnique({
+        where: { id: input.session.id },
+        select: { status: true },
+      });
+      if (now?.status !== "UPLOAD_STARTED") throw err;
+    }
   }
 
   const putUrl = await presignPutObject({
@@ -931,12 +987,23 @@ export async function submitExternalIntake(
     throw new ExternalIntakeOrchestrationError("finalization_blocked_by_policy");
   }
 
+  // ET-INT-09 — RESERVE this submission's use of the link before finalizing:
+  // one conditional increment (used_count < max_uses), so concurrent submits
+  // on a ONE_TIME link finalize exactly one record. The check in
+  // validateIntakeToken and the increment after completion were a read and a
+  // later unconditional write. A finalization that fails gives the use back.
+  if (!(await reserveIntakeLinkUse(input.link.id, client))) {
+    throw new WorkflowIntakeSessionError(
+      input.link.maxUses === 1 ? "link_already_submitted" : "link_exhausted",
+    );
+  }
   try {
     await completeEvidence({
       evidenceId: evidence.id,
       ownerUserId: evidence.ownerUserId,
     });
   } catch (err) {
+    await releaseIntakeLinkUse(input.link.id, client);
     // ET-INT-02 — a part whose object was never written is the contributor's
     // to fix (upload it again), not "this intake can't accept evidence".
     // Both not-found shapes completion raises: a zero-size object, and a HEAD
@@ -1000,8 +1067,8 @@ export async function submitExternalIntake(
     },
   });
 
-  // Transition the session. This bumps link.usedCount via the existing
-  // transitionIntakeSession helper.
+  // Transition the session. (ET-INT-09 — the link's use was reserved before
+  // finalization; the transition no longer counts it again.)
   const submitted = await transitionIntakeSession({
     sessionId: input.session.id,
     expectedLinkId: input.link.id,

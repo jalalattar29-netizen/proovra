@@ -43,7 +43,12 @@ export type EvidencePartWritePrincipal =
    */
   | { kind: "INTAKE_SESSION"; linkCreatorUserId: string; sessionId: string };
 
-export type EvidencePartWriteRefusalCode = "EVIDENCE_NOT_FOUND" | "EVIDENCE_NOT_WRITABLE" | "PART_INDEX_TAKEN";
+export type EvidencePartWriteRefusalCode =
+  | "EVIDENCE_NOT_FOUND"
+  | "EVIDENCE_NOT_WRITABLE"
+  | "PART_INDEX_TAKEN"
+  // ET-INT-09 — the caller's per-record part cap, checked under the record lock.
+  | "PART_COUNT_EXCEEDED";
 
 export class EvidencePartWriteRefused extends Error {
   readonly statusCode: number;
@@ -54,7 +59,9 @@ export class EvidencePartWriteRefused extends Error {
         ? "Evidence not found"
         : code === "PART_INDEX_TAKEN"
           ? "This part index is already in use"
-          : "This evidence record no longer accepts new files",
+          : code === "PART_COUNT_EXCEEDED"
+            ? "This record has reached its file limit"
+            : "This evidence record no longer accepts new files",
     );
     this.name = "EvidencePartWriteRefused";
     this.code = code;
@@ -120,6 +127,12 @@ export type EvidencePartWriteInput = {
    * external-intake contract (PART_INDEX_TAKEN).
    */
   onExistingIndex: "RETURN_EXISTING" | "REFUSE";
+  /**
+   * ET-INT-09 — refuse a NEW part once the record holds this many. Counted
+   * under the record lock, so two concurrent uploads cannot both slip under it
+   * (the external-intake route counted before inserting, outside any lock).
+   */
+  maxPartCount?: number | null;
 };
 
 export type EvidencePartWriteResult = {
@@ -139,6 +152,10 @@ export async function writeEvidencePart(
     if (existing) {
       if (input.onExistingIndex === "REFUSE") throw new EvidencePartWriteRefused("PART_INDEX_TAKEN");
       return { part: existing, created: false, evidence };
+    }
+    if (typeof input.maxPartCount === "number" && input.maxPartCount > 0) {
+      const held = await tx.evidencePart.count({ where: { evidenceId: input.evidenceId } });
+      if (held >= input.maxPartCount) throw new EvidencePartWriteRefused("PART_COUNT_EXCEEDED");
     }
     const part = await tx.evidencePart.create({
       data: { ...input.data, evidenceId: input.evidenceId, partIndex: input.partIndex },

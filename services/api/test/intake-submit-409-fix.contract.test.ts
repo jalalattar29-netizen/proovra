@@ -65,8 +65,11 @@ describe("State machine — UPLOAD_STARTED → SUBMITTED is allowed (prod 409 fi
     const src = read(ORCH_PATH);
     assert.match(
       src,
-      /if \(input\.session\.status === "OPENED"\) \{\s*\n?\s*await transitionIntakeSession\(\{\s*\n?\s*sessionId: input\.session\.id,[\s\S]{0,200}to: "UPLOAD_STARTED",/,
+      /if \(input\.session\.status === "OPENED"\) \{\s*try \{\s*await transitionIntakeSession\(\{\s*sessionId: input\.session\.id,[\s\S]{0,200}to: "UPLOAD_STARTED",/,
     );
+    // ET-INT-09 — idempotent under concurrency: a failed bump is accepted only
+    // when a concurrent upload in the session already made it UPLOAD_STARTED.
+    assert.match(src, /if \(now\?\.status !== "UPLOAD_STARTED"\) throw err;/);
   });
 });
 

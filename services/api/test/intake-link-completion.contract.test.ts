@@ -80,19 +80,25 @@ describe("public route maps link_already_submitted → 410 LINK_ALREADY_SUBMITTE
 // ============================================================================
 
 describe("ONE_TIME link consumption remains intact (transitionIntakeSession to SUBMITTED)", () => {
-  it("transitionIntakeSession increments usedCount on SUBMITTED", () => {
-    const src = read("services/api/src/services/workflow-intake-session.service.ts");
-    assert.match(
-      src,
-      /if \(input\.to === "SUBMITTED"\)[\s\S]{0,800}usedCount: \{ increment: 1 \}/,
-    );
+  // ET-INT-09 — the use is consumed by ONE conditional reservation before
+  // finalization (used_count < max_uses), not by an unconditional increment
+  // after it; a finalization that fails gives the use back.
+  it("submitExternalIntake reserves the link use before completeEvidence and releases it on failure", () => {
+    const orch = read("services/api/src/services/external-intake-orchestration.service.ts");
+    const reserveAt = orch.indexOf("await reserveIntakeLinkUse(input.link.id, client)");
+    const completeAt = orch.indexOf("await completeEvidence({", reserveAt);
+    assert.ok(reserveAt > 0 && completeAt > reserveAt, "the reservation precedes finalization");
+    assert.match(orch, /\} catch \(err\) \{\s*await releaseIntakeLinkUse\(input\.link\.id, client\);/);
+    const sess = read("services/api/src/services/workflow-intake-session.service.ts");
+    assert.match(sess, /WHERE id = \$\{linkId\}::uuid AND used_count < max_uses/);
+    assert.doesNotMatch(sess, /usedCount: \{ increment: 1 \}/);
   });
 
   it("transitionIntakeSession flips ONE_TIME (maxUses === 1) links to EXPIRED", () => {
     const src = read("services/api/src/services/workflow-intake-session.service.ts");
     assert.match(
       src,
-      /isOneTime[\s\S]{0,300}status: "EXPIRED"/,
+      /if \(input\.to === "SUBMITTED"\)[\s\S]{0,400}where: \{ id: session\.intakeLinkId, maxUses: 1, status: "ACTIVE" \},\s*data: \{ status: "EXPIRED" \}/,
     );
   });
 

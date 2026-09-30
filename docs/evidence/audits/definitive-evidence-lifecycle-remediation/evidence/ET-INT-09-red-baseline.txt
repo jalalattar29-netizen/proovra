@@ -1,0 +1,10 @@
+ET-INT-09 red — services/api/test/intake-concurrency.integration.test.ts against HEAD (22a969a8) external-intake-orchestration.service.ts, workflow-intake-session.service.ts, evidence-part-writer.service.ts, external-intake.routes.ts (live PG16):
+   × ET-INT-09 — intake races (live PostgreSQL 16) > concurrent submits on a ONE_TIME link finalize exactly ONE record 601ms
+     → 200 {"session":{"id":"7aa19973-e3c4-45cc-89b5-7d5324519b78","status":"SUBMITTED","openedAtUtc":"2026-09-30T01:17:54.680Z","uploadStartedAtUtc":"2026-09-30T01:17:54.833Z","uploadCompletedAtUtc":null,"submittedAtUtc":"2026-09-30T01:1
+   × ET-INT-09 — intake races (live PostgreSQL 16) > two concurrent first-part uploads in one session bind ONE record; the other reservation is released 156ms
+     → expected Set{ …(2) } to deeply equal Set{ 'e0f562ed-1b70-4ebe-b4be-17b382…' }
+   × ET-INT-09 — intake races (live PostgreSQL 16) > maxFileCountPerSession holds under concurrent uploads 140ms
+     → {"part":{"id":"f16f353a-9ffb-4460-b91b-0f59c92b6ee6","partIndex":1,"mimeType":"text/plain","originalFileName":"f1.txt","checklistStepId":null,"privateRole":null,"privateNote":null,"sizeBytes":null,"uploadedAtUtc":null},"upload":{"b
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed (3)
+(HEAD: both ONE_TIME submits returned 200 and signed a record each; two first-part uploads bound TWO records to one session; two uploads both passed a cap with one slot left.)

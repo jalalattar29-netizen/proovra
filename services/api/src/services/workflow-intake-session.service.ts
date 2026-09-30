@@ -544,19 +544,11 @@ export async function transitionIntakeSession(
   // EXPIRED so any in-flight attempts to open a new session fail fast,
   // independent of the usedCount >= maxUses check in validateIntakeToken.
   if (input.to === "SUBMITTED") {
-    const link = await client.workflowIntakeLink.findUnique({
-      where: { id: session.intakeLinkId },
-      select: { maxUses: true, status: true },
-    });
-    const isOneTime = link?.maxUses === 1;
-    await client.workflowIntakeLink.update({
-      where: { id: session.intakeLinkId },
-      data: {
-        usedCount: { increment: 1 },
-        ...(isOneTime && link?.status === "ACTIVE"
-          ? { status: "EXPIRED" as const }
-          : {}),
-      },
+    // ET-INT-09 — the use was RESERVED (reserveIntakeLinkUse) before
+    // finalization; here a ONE_TIME link is only closed.
+    await client.workflowIntakeLink.updateMany({
+      where: { id: session.intakeLinkId, maxUses: 1, status: "ACTIVE" },
+      data: { status: "EXPIRED" },
     });
   }
 
@@ -564,6 +556,38 @@ export async function transitionIntakeSession(
     where: { id: session.id },
     data,
   });
+}
+
+// -----------------------------------------------------------------------------
+// ET-INT-09 — link-use reservation
+// -----------------------------------------------------------------------------
+
+/**
+ * Reserve one use of the link: a single conditional increment, true when a use
+ * was available. Concurrent submits on a ONE_TIME link reserve exactly once.
+ */
+export async function reserveIntakeLinkUse(
+  linkId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<boolean> {
+  const n = await client.$executeRaw`
+    UPDATE workflow_intake_links
+       SET used_count = used_count + 1, updated_at = NOW()
+     WHERE id = ${linkId}::uuid AND used_count < max_uses
+  `;
+  return n === 1;
+}
+
+/** Give a reserved use back (a finalization that failed). Never below zero. */
+export async function releaseIntakeLinkUse(
+  linkId: string,
+  client: PrismaClient = defaultPrisma,
+): Promise<void> {
+  await client.$executeRaw`
+    UPDATE workflow_intake_links
+       SET used_count = used_count - 1, updated_at = NOW()
+     WHERE id = ${linkId}::uuid AND used_count > 0
+  `;
 }
 
 // -----------------------------------------------------------------------------

@@ -267,6 +267,18 @@ function orchestrationErrorToReply(
   // like `{"error":{"code":"X"}}` to recipients.
   const friendly = friendlyPublicIntakeMessage;
   switch (err.code) {
+    case "max_files_reached": {
+      const max = typeof err.details?.max === "number" ? err.details.max : null;
+      reply.code(409).send({
+        error: {
+          code: "MAX_FILES_REACHED",
+          message: max
+            ? `You can upload up to ${max} files per submission. Contact the sender for a new link if you need to add more.`
+            : "This submission has reached its file limit. Contact the sender for a new link if you need to add more.",
+        },
+      });
+      return;
+    }
     case "consent_not_accepted":
       reply.code(412).send({
         error: { code: "CONSENT_REQUIRED", message: friendly("CONSENT_REQUIRED") },
@@ -1045,24 +1057,9 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         // zero parts. Skip the cap check entirely until the Evidence
         // exists; once it does, filter strictly on its id (no nullish
         // fallback).
-        if (
-          typeof link.maxFileCountPerSession === "number" &&
-          link.maxFileCountPerSession > 0 &&
-          session.evidenceId
-        ) {
-          const existing = await prisma.evidencePart.count({
-            where: { evidenceId: session.evidenceId },
-          });
-          if (existing >= link.maxFileCountPerSession) {
-            return reply.code(409).send({
-              error: {
-                code: "MAX_FILES_REACHED",
-                message: `You can upload up to ${link.maxFileCountPerSession} files per submission. Contact the sender for a new link if you need to add more.`,
-              },
-            });
-          }
-        }
-
+        // ET-INT-09 — the per-submission file cap is enforced by the part writer
+        // under the record lock (a count here, before the insert, let two
+        // concurrent uploads both pass); its refusal is max_files_reached.
         const result = await addExternalEvidencePart({
           link,
           session,

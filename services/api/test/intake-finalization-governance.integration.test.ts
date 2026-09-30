@@ -58,6 +58,10 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
   const bucket = "intake-fixture-bucket";
 
   beforeAll(async () => {
+    // The submission mints a real link (ET-INT-09), so the intake feature is on.
+    process.env.WORKFLOW_INTAKE_LINKS_ENABLED = "true";
+    process.env.WORKFLOW_INTAKE_TOKEN_SECRET =
+      process.env.WORKFLOW_INTAKE_TOKEN_SECRET ?? "remediation-throwaway-intake-hmac-0123456789abcdef";
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     h = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
@@ -112,9 +116,22 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
         sha256: createHash("sha256").update(bytes).digest("hex"),
       } as never,
     });
-    // The two rows the service reads before finalizing, as plain values: the
-    // link (no location policy, no checklist) and an OPEN consented session.
-    const link = { locationPolicy: "NONE", workflowTemplateSnapshot: {} } as never;
+    // The link is a REAL row (ET-INT-09: a submission consumes one of the
+    // link's uses, reserved before finalization); the session is a plain OPEN
+    // consented value, as before.
+    const { createWorkflowIntakeLink } = await import("../src/services/workflow-intake-link.service.js");
+    const minted = await createWorkflowIntakeLink(
+      {
+        teamId: teamA.teamId,
+        workflowTemplateSlug: "general-evidence-record",
+        intakeMode: "EXTERNAL_REUSABLE",
+        recipientLabel: "governance",
+        maxUses: 5,
+        expiresAtUtc: new Date(Date.now() + 3_600_000),
+      } as never,
+      { actorUserId: teamA.ownerUserId },
+    );
+    const link = { ...minted.link, locationPolicy: "NONE", workflowTemplateSnapshot: {} } as never;
     const session = {
       status: "OPEN",
       expiresAtUtc: new Date(Date.now() + 3600_000),
