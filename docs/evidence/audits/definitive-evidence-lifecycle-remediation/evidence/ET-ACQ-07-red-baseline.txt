@@ -1,0 +1,9 @@
+ET-ACQ-07 red baseline — services/api/test/evidence-parts-bounds.integration.test.ts
+Run against HEAD's services/api/src/routes/evidence.routes.ts (unbounded partIndex, no presign rate limit), live PostgreSQL 16, 2026-09-30T03:22Z. Response bodies truncated (they carry a local-MinIO presigned URL).
+
+   × evidence part bounds (live PostgreSQL 16, real HTTP) > an index past the bound is refused 400 and creates no part; the last index inside it is accepted 234ms
+     → {"part":{"id":"d114901f-72e5-421e-a99d-a5066e4e47c5","evidenceId":"ead471e1-05fc-48b6-9c72-53807e803e02","partIndex":200,"storageBucket":"point7-local-bucket","storageKey":"evidence/ead471e1-
+   × evidence part bounds (live PostgreSQL 16, real HTTP) > part presigning is rate limited per user (429, nothing created past the limit) 154ms
+     → {"part":{"id":"84ab01fe-4bf6-413d-b01a-9c084dc77ce9","evidenceId":"ed00ec99-c9e9-48d4-bd81-9d9567280973","partIndex":2,"storageBucket":"point7-local-bucket","storageKey":"evidence/ed00ec99-c9
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed (2)

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import {
   lockEvidenceForByteWrite,
+  MAX_EVIDENCE_PARTS,
   writeEvidencePart,
 } from "../services/evidence/evidence-part-writer.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
@@ -446,7 +447,9 @@ const LockBody = z.object({
 });
 
 const CreatePartBody = z.object({
-  partIndex: z.number().int().min(0),
+  // ET-ACQ-07 — bounded: indexes are unique per record, so this bounds the
+  // number of parts (and presigned URLs) a record can hold.
+  partIndex: z.number().int().min(0).max(MAX_EVIDENCE_PARTS - 1),
   mimeType: z.string().min(1).max(128).optional(),
   originalFileName: z.string().trim().min(1).max(255).optional(),
   durationMs: z.number().int().positive().optional(),
@@ -5943,6 +5946,18 @@ const storage = await getStorageProtectionSummary(
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
+
+      // ET-ACQ-07 — each call mints a presigned upload URL; bounded per user.
+      const partRate = await enforceRateLimit({
+        key: `ratelimit:evidence-part-presign:user:${ownerUserId}`,
+        max: readPositiveIntEnv("EVIDENCE_PART_PRESIGN_RATE_LIMIT_PER_USER", 600),
+        windowSec: readPositiveIntEnv("EVIDENCE_PART_PRESIGN_RATE_WINDOW_SEC", 3600),
+      });
+      if (!partRate.allowed) {
+        const retryAfterSec = Math.max(1, Math.ceil((partRate.resetAtMs - Date.now()) / 1000));
+        reply.header("Retry-After", String(retryAfterSec));
+        return reply.code(429).send({ code: "RATE_LIMITED", retryAfterSec, message: "Too many upload requests. Try again later." });
+      }
 
       const normalizedChecksum = normalizeChecksumSha256Base64(
         body.checksumSha256Base64

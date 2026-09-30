@@ -33,6 +33,14 @@ type Tx = Prisma.TransactionClient;
 type AnyClient = PrismaClient | Tx;
 
 /** Who is asking to add bytes to the record. */
+/**
+ * ET-ACQ-07 — THE upper bound on a record's parts: indexes 0..MAX-1. Indexes
+ * are unique per record, so bounding the index bounds the count. The owner
+ * parts route and direct capture both use it (the owner route had no bound:
+ * any number of part rows and presigned URLs).
+ */
+export const MAX_EVIDENCE_PARTS = 200;
+
 export type EvidencePartWritePrincipal =
   /** The record's owner (web capture, mobile, extension, resumable upload). */
   | { kind: "OWNER"; userId: string }

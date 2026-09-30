@@ -52,6 +52,7 @@ import { emitCaptureTrustEvent } from "./trust-event.service.js";
 import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 import { verifyCaptureSignature } from "./signature-verifier.service.js";
 import { verifyDeviceAttestation } from "./attestation-verifier.service.js";
+import { MAX_EVIDENCE_PARTS } from "../evidence/evidence-part-writer.service.js";
 
 // -----------------------------------------------------------------------------
 // Contract
@@ -188,7 +189,8 @@ export async function extendDirectCaptureSessionOnActivity(
   });
   return moved.count === 1 ? next : null;
 }
-const MAX_PARTS = 200;
+// ET-ACQ-07 — the one part bound, shared with the owner parts route.
+const MAX_PARTS = MAX_EVIDENCE_PARTS;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 /** Completion failures that prove the session's claims were false. */
