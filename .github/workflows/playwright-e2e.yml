@@ -666,6 +666,43 @@ jobs:
     # costs the diagnosis as well as the result.
     timeout-minutes: 75
 
+    # EVERY LAYOUT PROJECT, IN FOUR SHARDS.
+    #
+    # This job ran two of the eight layout projects (operations, capture). The
+    # other six — search, attention, evidence-detail, billing, intake-links,
+    # settings — were opt-in projects that NO workflow named, so they ran only
+    # when somebody remembered to. Run together on 2026-09-30 they had 73
+    # failures: specs pinning a breakpoint, a colour, a column set and a consent
+    # behaviour the product had each deliberately changed weeks earlier, two
+    # real CSS overflows and one purchase button that had lost its weight. None
+    # of it was reported, because a suite nobody runs cannot fail.
+    #
+    # Four shards rather than one job: the eight projects are 1,199 tests, each
+    # shard serves its own production build, and one timeout must not be able
+    # to take the diagnosis of all eight down with it. `min` is the discovery
+    # floor for the shard — a parse error or a missing opt-in variable reports
+    # zero tests and exits 0, which is a green run that measured nothing.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: operations
+            projects: operations-layout capture-layout
+            flags: OPERATIONS_LAYOUT CAPTURE_LAYOUT
+            min: 280
+          - shard: search
+            projects: search-layout
+            flags: SEARCH_LAYOUT
+            min: 380
+          - shard: records
+            projects: evidence-detail-layout intake-links-layout
+            flags: EVIDENCE_LAYOUT INTAKE_LAYOUT
+            min: 215
+          - shard: account
+            projects: attention-layout billing-layout settings-layout
+            flags: ATTENTION_LAYOUT BILLING_LAYOUT SETTINGS_LAYOUT
+            min: 285
+
     env:
       # POINT THE BUILD AT A DEAD PORT.
       #
@@ -677,8 +714,6 @@ jobs:
       # locally and loudly instead of succeeding quietly against the real API.
       NEXT_PUBLIC_API_BASE: http://127.0.0.1:59999
       NEXT_TELEMETRY_DISABLED: "1"
-      OPERATIONS_LAYOUT: "1"
-      CAPTURE_LAYOUT: "1"
 
       # PRISMA GENERATE REFUSES TO RUN WITHOUT A URL, AND NEVER CONNECTS TO IT.
       #
@@ -723,29 +758,37 @@ jobs:
 
       # A JOB THAT RUNS ZERO TESTS IS GREEN AND WORTHLESS.
       #
-      # Both projects are opt-in: without their variables the config contributes
+      # Every layout project is opt-in: without its variable the config contributes
       # no projects and no web servers, and `playwright test` exits 0 having
       # done nothing. It has also happened that a spec failed to PARSE, which
       # reports "Total: 0 tests in 0 files" and exit 0. So the count is asserted
       # before the suite is trusted to mean anything.
-      - name: Assert both projects discover their tests
+      # Each project is opt-in through its own variable (it also starts that
+      # project's production server). The shard sets exactly the ones it runs.
+      - name: Select this shard's projects
         run: |
           set -euo pipefail
-          total=$(pnpm exec playwright test \
-            --project=operations-layout --project=capture-layout --list 2>&1 \
+          for flag in ${{ matrix.flags }}; do echo "${flag}=1" >> "$GITHUB_ENV"; done
+          args=""
+          for project in ${{ matrix.projects }}; do args="${args} --project=${project}"; done
+          echo "LAYOUT_PROJECT_ARGS=${args}" >> "$GITHUB_ENV"
+
+      - name: Assert the shard's projects discover their tests
+        run: |
+          set -euo pipefail
+          total=$(pnpm exec playwright test $LAYOUT_PROJECT_ARGS --list 2>&1 \
             | sed -E 's/\x1b\[[0-9;]*m//g' \
             | grep -oE 'Total: [0-9]+ tests' | grep -oE '[0-9]+' || echo 0)
           echo "discovered: ${total}"
-          if [ "${total}" -lt 280 ]; then
-            echo "::error::layout projects discovered ${total} tests; expected at least 280 (296 at f822de79a). A parse error or a missing opt-in variable reports zero and exits 0."
+          if [ "${total}" -lt ${{ matrix.min }} ]; then
+            echo "::error::layout shard ${{ matrix.shard }} discovered ${total} tests; expected at least ${{ matrix.min }}. A parse error or a missing opt-in variable reports zero and exits 0."
             exit 1
           fi
 
       - name: Run the layout and accessibility suites
         run: |
           set +e
-          pnpm exec playwright test \
-            --project=operations-layout --project=capture-layout \
+          pnpm exec playwright test $LAYOUT_PROJECT_ARGS \
             --reporter=line 2>&1 | tee /tmp/layout.log
           rc=${PIPESTATUS[0]}
           set -e
@@ -768,7 +811,7 @@ jobs:
             sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/layout.log \
               | grep -aE "^[[:space:]]*([0-9]+\) \\[|Error:|Expected|Received|[0-9]+ (passed|failed))" \
               | tail -10 \
-              | while IFS= read -r line; do echo "::error::layout: $line"; done
+              | while IFS= read -r line; do echo "::error::layout (${{ matrix.shard }}): $line"; done
           fi
           exit $rc
 
@@ -776,7 +819,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: layout-playwright-report
+          name: layout-playwright-report-${{ matrix.shard }}
           path: playwright-report/
           if-no-files-found: ignore
 
@@ -786,7 +829,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: layout-test-results
+          name: layout-test-results-${{ matrix.shard }}
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
