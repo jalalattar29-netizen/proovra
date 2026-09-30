@@ -26,6 +26,7 @@
  *     written.
  */
 
+import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type {
   PrismaClient,
@@ -421,6 +422,11 @@ export type RecordConsentInput = {
   sessionId: string;
   expectedLinkId: string;
   consent: unknown;
+  /**
+   * ET-INT-06/11 — the link the consent is for: the accepted disclosure hash
+   * and policy version must be this link's.
+   */
+  link?: { consentDisclosureText: string | null; consentPolicyVersion: string | null };
 };
 
 export async function recordIntakeConsent(
@@ -445,13 +451,40 @@ export async function recordIntakeConsent(
 
   const consent: WorkflowIntakeConsentSnapshot = parsed.data;
 
-  return client.workflowIntakeSession.update({
-    where: { id: session.id },
+  // ET-INT-11 — consent is a SERVER fact. On a40ca76f the acceptance time was
+  // the client's (backdatable), termsAcknowledged:false was recorded as
+  // accepted, the disclosure the contributor saw was never compared with the
+  // link's, and a re-post overwrote the record.
+  if (consent.termsAcknowledged !== true) {
+    throw new WorkflowIntakeSessionError("consent_invalid_payload");
+  }
+  if (input.link) {
+    const expectedHash = createHash("sha256").update(input.link.consentDisclosureText ?? "").digest("hex");
+    const policyOk = !input.link.consentPolicyVersion || consent.policyVersion === input.link.consentPolicyVersion;
+    if (consent.disclosureTextHash.toLowerCase() !== expectedHash || !policyOk) {
+      throw new WorkflowIntakeSessionError("consent_invalid_payload");
+    }
+  }
+  // One-shot: an accepted consent is never rewritten (a re-post returns it).
+  if (session.consentAcceptedAtUtc) return session;
+
+  const acceptedAt = new Date();
+  const claimed = await client.workflowIntakeSession.updateMany({
+    where: { id: session.id, consentAcceptedAtUtc: null },
     data: {
-      consentAcceptedAtUtc: new Date(consent.acceptedAtUtc),
-      consentSnapshotJson: consent as unknown as Prisma.InputJsonValue,
+      consentAcceptedAtUtc: acceptedAt,
+      consentSnapshotJson: {
+        ...consent,
+        acceptedAtUtc: acceptedAt.toISOString(),
+        clientReportedAcceptedAtUtc: consent.acceptedAtUtc,
+      } as unknown as Prisma.InputJsonValue,
     },
   });
+  if (claimed.count !== 1) {
+    // A concurrent post recorded it first; that record stands.
+    return client.workflowIntakeSession.findUniqueOrThrow({ where: { id: session.id } });
+  }
+  return client.workflowIntakeSession.findUniqueOrThrow({ where: { id: session.id } });
 }
 
 // -----------------------------------------------------------------------------

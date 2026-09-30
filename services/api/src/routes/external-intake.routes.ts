@@ -938,6 +938,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           sessionId: params.sid,
           expectedLinkId: link.id,
           consent: body.consent,
+          link: { consentDisclosureText: link.consentDisclosureText, consentPolicyVersion: link.consentPolicyVersion },
         });
 
         return reply
