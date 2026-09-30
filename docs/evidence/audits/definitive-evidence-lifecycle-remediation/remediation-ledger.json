@@ -2252,8 +2252,12 @@
       "obsoleteRemoved": null,
       "productFiles": [
         "packages/shared-runtime/src/ops/metrics.service.ts",
+        "services/api/src/routes/evidence-requests.routes.ts",
+        "services/api/src/services/capture-trust/trust-event.service.ts",
         "services/api/src/services/external-intake-orchestration.service.ts",
-        "services/api/src/services/governance/finalization-governance.service.ts"
+        "services/api/src/services/governance/finalization-governance.service.ts",
+        "services/worker/src/index.ts",
+        "services/worker/src/report-v2/normalizers.ts"
       ],
       "redTest": "services/api/test/intake-finalization-governance.integration.test.ts (evidence/ET-INT-13-red-baseline.txt)",
       "greenTest": "services/api/test/intake-finalization-governance.integration.test.ts",
@@ -2262,7 +2266,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "da973780a1 fix(intake): a finalized submission is never reported as failed; retries neither re-finalize nor grow the custody chain (ET-INT-13)"
+        "da973780a1 fix(intake): a finalized submission is never reported as failed; retries neither re-finalize nor grow the custody chain (ET-INT-13)",
+        "57290cb7ab fix(ci): lint clean across the repo; the ET-DC-10 partial unique indexes are registered raw-schema objects"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -4115,8 +4120,10 @@
         "services/api/prisma/schema.prisma",
         "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/src/routes/cases.routes.ts",
+        "services/api/src/routes/evidence-requests.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/services/capture-trust/trust-event.service.ts",
         "services/api/src/services/evidence-certification.service.ts",
         "services/api/src/services/evidence.service.ts",
         "services/api/src/services/external-intake-orchestration.service.ts",
@@ -4125,6 +4132,7 @@
         "services/api/src/services/governance/finalization-governance.service.ts",
         "services/api/src/services/governance/publication.service.ts",
         "services/api/src/services/governance/retention-sweeper.service.ts",
+        "services/worker/src/index.ts",
         "services/worker/src/processor.ts",
         "services/worker/src/report-v2/build-view-model.ts",
         "services/worker/src/report-v2/custody-model.ts",
@@ -4142,7 +4150,8 @@
         "67664498f5 fix(custody): one custody label, own retention-policy type, latest-first timeline with whole-chain counts (ET-CUS-13)",
         "fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated",
         "0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13)",
-        "1078664675 fix(intake): the first part records the capture environment; intake custody and comments say what is true (ET-INT-15)"
+        "1078664675 fix(intake): the first part records the capture environment; intake custody and comments say what is true (ET-INT-15)",
+        "57290cb7ab fix(ci): lint clean across the repo; the ET-DC-10 partial unique indexes are registered raw-schema objects"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -4198,7 +4207,11 @@
       "obsoleteRemoved": null,
       "productFiles": [
         "services/api/prisma/migrations/20280813000000_capture_trust_event_chain_unique/migration.sql",
-        "services/api/src/services/capture-trust/trust-event.service.ts"
+        "services/api/src/routes/evidence-requests.routes.ts",
+        "services/api/src/services/capture-trust/trust-event.service.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/worker/src/index.ts",
+        "services/worker/src/report-v2/normalizers.ts"
       ],
       "redTest": "services/api/test/capture-trust-chain-concurrency.integration.test.ts (evidence/ET-DC-10-red-baseline.txt)",
       "greenTest": "services/api/test/capture-trust-chain-concurrency.integration.test.ts",
@@ -4208,7 +4221,8 @@
       "compatibilityImpact": "none",
       "commits": [
         "387924aa81 fix(capture): the capture trust-event sub-chain is extended under a lock and backed by a unique (chain, sequence) (ET-DC-10)",
-        "4101459da5 fix(migrations): the capture trust-event uniqueness indexes are column-guarded (ET-DC-10 follow-up)"
+        "4101459da5 fix(migrations): the capture trust-event uniqueness indexes are column-guarded (ET-DC-10 follow-up)",
+        "57290cb7ab fix(ci): lint clean across the repo; the ET-DC-10 partial unique indexes are registered raw-schema objects"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -4665,9 +4679,13 @@
       "canonicalAuthority": "services/worker/src/job-event-context.ts (jobCommandId, isExpectedOtsPendingError); UnprocessableJobPayload extends BullMQ UnrecoverableError",
       "obsoleteRemoved": null,
       "productFiles": [
+        "services/api/src/routes/evidence-requests.routes.ts",
+        "services/api/src/services/capture-trust/trust-event.service.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
         "services/worker/src/canonical-job.ts",
         "services/worker/src/index.ts",
-        "services/worker/src/job-event-context.ts"
+        "services/worker/src/job-event-context.ts",
+        "services/worker/src/report-v2/normalizers.ts"
       ],
       "redTest": "services/worker/test/job-event-context.test.ts [ET-Q-09] (evidence/ET-Q-09-red-baseline.txt)",
       "greenTest": "services/worker/test/job-event-context.test.ts",
@@ -4676,7 +4694,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "d2b0d7da95 fix(worker): job events log commandId, OTS transient attempts are pending retries, rejected payloads are not retried (ET-Q-09)"
+        "d2b0d7da95 fix(worker): job events log commandId, OTS transient attempts are pending retries, rejected payloads are not retried (ET-Q-09)",
+        "57290cb7ab fix(ci): lint clean across the repo; the ET-DC-10 partial unique indexes are registered raw-schema objects"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -5318,9 +5337,13 @@
         "services/api/src/routes/external-intake.routes.ts",
         "services/api/src/routes/integrations-api.routes.ts",
         "services/api/src/routes/workflow-intake-links.routes.ts",
+        "services/api/src/services/capture-trust/trust-event.service.ts",
         "services/api/src/services/evidence-request.service.ts",
         "services/api/src/services/evidence.service.ts",
-        "services/api/src/services/workflow-intake-link.service.ts"
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/workflow-intake-link.service.ts",
+        "services/worker/src/index.ts",
+        "services/worker/src/report-v2/normalizers.ts"
       ],
       "redTest": "services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33] (evidence/ET-SEC-33-red-baseline.txt)",
       "greenTest": "services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33]",
@@ -5331,7 +5354,8 @@
       "commits": [
         "6b8141879d fix(intake): a link or evidence request can only name its own workspace's case and evidence (ET-SEC-33)",
         "d4b17bb727 fix(intake): keep the explicit invalid_sender_display_name -> 400 branch beside the new case_not_in_workspace -> 404 (ET-SEC-33 follow-up; restores the pinned error mapping)",
-        "1078664675 fix(intake): the first part records the capture environment; intake custody and comments say what is true (ET-INT-15)"
+        "1078664675 fix(intake): the first part records the capture environment; intake custody and comments say what is true (ET-INT-15)",
+        "57290cb7ab fix(ci): lint clean across the repo; the ET-DC-10 partial unique indexes are registered raw-schema objects"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
