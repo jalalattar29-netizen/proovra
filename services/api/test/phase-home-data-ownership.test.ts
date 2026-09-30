@@ -198,9 +198,10 @@ describe("Home read endpoints — personal workspace sees owner data", () => {
   it("/v1/reports?teamId=<own personal team> includes legacy NULL rows", () => {
     const src = readSource("../src/routes/reports.routes.ts");
     expect(src).toMatch(/isCallersPersonalTeam/);
-    expect(src).toMatch(
-      /OR:\s*\[\s*\{\s*teamId:\s*scopedTeamId\s*\},\s*\{\s*AND:\s*\[\{\s*ownerUserId:\s*userId\s*\},\s*\{\s*teamId:\s*null\s*\}\]\s*\},\s*\]/,
-    );
+    // ET-SEC-18 — the legacy NULL-team owner arm is one named clause, used by
+    // the personal-team branch.
+    expect(src).toMatch(/const LEGACY_OWNED = \{ AND: \[\{ ownerUserId: userId \}, \{ teamId: null \}\] \};/);
+    expect(src).toMatch(/accessClause = \{ OR: \[\{ teamId: scopedTeamId \}, LEGACY_OWNED\] \};/);
   });
 
   it("trust-summary builds its base filter via workspaceEvidenceWhere", () => {

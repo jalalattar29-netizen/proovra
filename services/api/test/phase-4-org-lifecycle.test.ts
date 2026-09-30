@@ -387,7 +387,11 @@ describe("Phase 4 §7.6 — access/switcher gates key off SUSPENDED", () => {
       join(ROOT, "services", "identity", "access-policy.service.ts"),
       "utf8",
     );
-    expect(src).toContain('actor.organizationStatus !== "ACTIVE"');
+    // ET-SEC-25 — the rule is ONE function shared by the member decision and
+    // the API-key path; evaluateAccess delegates to it.
+    expect(src).toContain('state.organizationStatus !== "ACTIVE"');
+    expect(src).toMatch(/export function workspaceLifecycleDenial\(/);
+    expect(src).toMatch(/const lifecycleDenial = workspaceLifecycleDenial\(actor\);\s*if \(lifecycleDenial\) return lifecycleDenial;/);
   });
 
   it("admin routes register suspend + resume behind platform admin + step-up", () => {
