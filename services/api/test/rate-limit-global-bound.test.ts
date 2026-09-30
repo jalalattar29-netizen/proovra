@@ -75,7 +75,7 @@ vi.mock("ioredis", () => {
     }
     pipeline() {
       const ops: Array<() => unknown> = [];
-      const self = this;
+      const guard = () => this.guard();
       const p = {
         incr(key: string) {
           ops.push(() => (ensure(key).value += 1));
@@ -90,7 +90,7 @@ vi.mock("ioredis", () => {
           return p;
         },
         async exec() {
-          self.guard();
+          guard();
           return ops.map((op) => [null, op()]);
         },
       };
