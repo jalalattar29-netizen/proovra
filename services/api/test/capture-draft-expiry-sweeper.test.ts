@@ -1,88 +1,48 @@
 /**
- * Phase CAPTURE-HARDENING — sweeper safety contract locks.
+ * ET-SEC-24 — capture drafts are expired by ONE reaper.
  *
- * The sweeper has dangerous adjacent code paths (it touches a write
- * path on a row type that also represents finalized evidence drafts),
- * so we lock the WHERE clause and the audit-insert shape at the
- * source level. A regression that accidentally targets the wrong
- * status, drops the audit, or removes the index hint fails CI here.
+ * Two reapers expired the same drafts: the worker's capture-reaper (on by
+ * default) and an in-process API sweep (CAPTURE_DRAFT_SWEEP_INPROCESS, or the
+ * sweep-capture-drafts CLI). The API sweep flipped rows with one updateMany
+ * and then wrote an EXPIRED event for every row it had SELECTED — including
+ * rows the worker had already expired between its select and its update — so
+ * running both produced two events for one row. The API sweep is retired; the
+ * worker reaper is the one authority.
  *
- * For a real DB-backed proof, see scripts/sweep-capture-drafts.ts
- * which is exercised by the live CLI proof in the deploy report.
+ * The safety contract the retired suite held for the API sweep now holds for
+ * the canonical reaper.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const JOB_SRC = readFileSync(
-  resolve(__dirname, "..", "src", "jobs", "capture-draft-expiry.job.ts"),
-  "utf8",
-);
-const SERVER_SRC = readFileSync(
-  resolve(__dirname, "..", "src", "server.ts"),
-  "utf8",
-);
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const API_SRC = resolve(__dirname, "..", "src");
+const REAPER_SRC = readFileSync(resolve(__dirname, "..", "..", "worker", "src", "capture-reaper.ts"), "utf8");
+const SERVER_SRC = readFileSync(resolve(API_SRC, "server.ts"), "utf8");
 
-describe("capture-draft-expiry sweeper — safety contract", () => {
-  it("WHERE clause filters status=DRAFT only (never touches FINALIZED/DISCARDED/EXPIRED)", () => {
-    expect(JOB_SRC).toMatch(/status:\s*"DRAFT"/);
-    expect(JOB_SRC).not.toMatch(/status:\s*"FINALIZED"/);
-    expect(JOB_SRC).not.toMatch(/status:\s*"DISCARDED"/);
+describe("capture drafts have one reaper (ET-SEC-24)", () => {
+  it("the in-process API sweep and its CLI are gone", () => {
+    expect(existsSync(resolve(API_SRC, "jobs", "capture-draft-expiry.job.ts"))).toBe(false);
+    expect(existsSync(resolve(__dirname, "..", "scripts", "sweep-capture-drafts.ts"))).toBe(false);
+    expect(SERVER_SRC).not.toMatch(/CAPTURE_DRAFT_SWEEP_INPROCESS/);
+    expect(SERVER_SRC).not.toMatch(/runCaptureDraftExpirySweepSafe/);
   });
 
-  it("WHERE clause requires expiresAtUtc < now AND not null", () => {
-    expect(JOB_SRC).toMatch(/expiresAtUtc:\s*\{[^}]*lt:\s*now/);
-    expect(JOB_SRC).toMatch(/not:\s*null/);
+  it("the worker reaper expires DRAFT rows past their expiry only", () => {
+    expect(REAPER_SRC).toMatch(/status: prismaPkg\.CaptureSessionStatus\.DRAFT,\s*expiresAtUtc: \{ not: null, lt: now \}/);
+    expect(REAPER_SRC).not.toMatch(/CaptureSessionStatus\.(FINALIZED|DISCARDED),\s*expiresAtUtc/);
   });
 
-  it("updateMany re-asserts status: DRAFT (race-safe vs concurrent FINALIZE/DISCARD)", () => {
-    // The second guard prevents a rare race where a row gets
-    // finalized between findMany and updateMany within the same
-    // transaction window.
-    expect(JOB_SRC).toMatch(/updateMany\(\{\s*where:\s*\{\s*id:\s*\{\s*in:\s*ids\s*\}\s*,\s*status:\s*"DRAFT"\s*\}/);
-  });
-
-  it("status transition target is EXPIRED (never DELETED)", () => {
-    expect(JOB_SRC).toMatch(/data:\s*\{\s*status:\s*"EXPIRED"\s*\}/);
-    expect(JOB_SRC).not.toMatch(/prisma\.captureSession\.delete/);
-    expect(JOB_SRC).not.toMatch(/deleteMany/);
-  });
-
-  it("appends a CaptureSessionEvent(EXPIRED) for every row transitioned", () => {
-    expect(JOB_SRC).toMatch(/eventType:\s*"EXPIRED" as const/);
-    expect(JOB_SRC).toMatch(/captureSessionEvent\.createMany/);
-    expect(JOB_SRC).toMatch(/reason:\s*"expiresAtUtc elapsed"/);
-  });
-
-  it("update + audit run inside a single prisma.$transaction (atomic + idempotent)", () => {
-    expect(JOB_SRC).toMatch(/prisma\.\$transaction/);
-  });
-
-  it("bounded batch via take: limit", () => {
-    expect(JOB_SRC).toMatch(/take:\s*limit/);
-  });
-
-  it("never touches Evidence or S3 storage", () => {
-    expect(JOB_SRC).not.toMatch(/prisma\.evidence\./);
-    expect(JOB_SRC).not.toMatch(/storageBucket/);
-    expect(JOB_SRC).not.toMatch(/s3Client|S3Client|getStorage/);
-  });
-
-  it("cron-wrapper swallows errors so a DB blip never crashes the API", () => {
-    expect(JOB_SRC).toMatch(/runCaptureDraftExpirySweepSafe[\s\S]*try[\s\S]*catch/);
-  });
-
-  it("server bootstrap registers the sweeper behind an env flag and unrefs the timer", () => {
-    expect(SERVER_SRC).toMatch(
-      /process\.env\.CAPTURE_DRAFT_SWEEP_INPROCESS\s*===\s*"true"/,
-    );
-    expect(SERVER_SRC).toMatch(/setInterval\(\s*\(\)\s*=>\s*\{[\s\S]*runCaptureDraftExpirySweepSafe/);
-    expect(SERVER_SRC).toMatch(/handle as \{ unref\?: \(\) => void \}/);
-    // OnClose hook clears the interval so test harnesses can close cleanly.
-    expect(SERVER_SRC).toMatch(/addHook\("onClose"[\s\S]*clearInterval\(handle\)/);
+  it("each row is claimed conditionally and gets its EXPIRED event only when this run transitioned it", () => {
+    const claim = REAPER_SRC.indexOf("const claimed = await tx.captureSession.updateMany(");
+    const guard = REAPER_SRC.indexOf("if (claimed.count !== 1) {", claim);
+    const event = REAPER_SRC.indexOf("await tx.captureSessionEvent.create(", guard);
+    expect(claim).toBeGreaterThan(0);
+    expect(guard).toBeGreaterThan(claim);
+    expect(event).toBeGreaterThan(guard);
+    expect(REAPER_SRC.slice(event, event + 400)).toMatch(/CaptureSessionEventType\.EXPIRED/);
   });
 });

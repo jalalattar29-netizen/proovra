@@ -1583,40 +1583,11 @@ allowedHeaders: [
     app.log.error({ err }, "runtime.schema_validation.unexpected_error");
   }
 
-  // Phase CAPTURE-HARDENING — capture draft expiry sweeper. Runs every
-  // 6 hours (configurable via CAPTURE_DRAFT_SWEEP_INTERVAL_MS) on
-  // exactly one replica when `CAPTURE_DRAFT_SWEEP_INPROCESS=true`.
-  // Multi-replica deploys should leave this off and run the
-  // `scripts/sweep-capture-drafts.ts` CLI from a CronJob instead.
-  //
-  // The sweeper is wrapped in `runCaptureDraftExpirySweepSafe` which
-  // swallows errors so a DB blip during a tick never crashes the API.
-  if (process.env.CAPTURE_DRAFT_SWEEP_INPROCESS === "true") {
-    const { runCaptureDraftExpirySweepSafe } = await import(
-      "./jobs/capture-draft-expiry.job.js"
-    );
-    const intervalMs = Number.parseInt(
-      process.env.CAPTURE_DRAFT_SWEEP_INTERVAL_MS ?? "21600000",
-      10,
-    );
-    // Kick once at boot so freshly-deployed replicas catch up
-    // immediately if a tick was missed during the rolling restart.
-    runCaptureDraftExpirySweepSafe().catch(() => null);
-    const handle = setInterval(() => {
-      runCaptureDraftExpirySweepSafe().catch(() => null);
-    }, intervalMs);
-    // Prevent the timer from holding the process open during tests.
-    if (typeof (handle as { unref?: () => void }).unref === "function") {
-      (handle as { unref?: () => void }).unref!();
-    }
-    app.addHook("onClose", async () => {
-      clearInterval(handle);
-    });
-    app.log.info(
-      { intervalMs },
-      "capture_draft_expiry.in_process_sweeper.started",
-    );
-  }
+  // ET-SEC-24 — capture drafts are expired by ONE reaper: the worker's
+  // capture-reaper (CAPTURE_DRAFT_REAPER, on by default, a per-row conditional
+  // claim + its EXPIRED event). The in-process API sweep and its CLI were a
+  // second reaper whose events were built from every SELECTED row, not only
+  // those it transitioned; both are retired.
 
   // WORKSPACE-SCOPE CONVERGENCE (§7.2) — scheduled Operations discovery.
   //

@@ -145,8 +145,11 @@ describe("Phase IA-dev-auth — persona seed script", () => {
 
   it("the seed script exists and refuses to run in production", () => {
     expect(existsSync(fileURLToPath(new URL("../scripts/seed-home-personas.ts", import.meta.url)))).toBe(true);
-    expect(SEED).toMatch(/NODE_ENV === "production"/);
-    expect(SEED).toMatch(/REFUSING to seed personas in production/);
+    // ET-UPL-04 — the refusal is the shared local-seed guard (a local database
+    // NAME and HOST), not NODE_ENV alone: it refuses any non-local target
+    // before the first write.
+    expect(SEED).toMatch(/assertLocalSeedDatabase\(/);
+    expect(SEED).not.toMatch(/dotenv\/config/);
   });
 
   it("seeds the data each persona needs for its widgets", () => {
