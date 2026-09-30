@@ -98,6 +98,23 @@ export function revokeLegacyVerifyLink(evidenceId: string): Promise<{ legacy: Le
   }>;
 }
 
+export type LegacyVerifyLinkInventory = {
+  activeCount: number;
+  earliestExpiryUtc: string | null;
+  latestExpiryUtc: string | null;
+  graceDays: number;
+  records: Array<{ evidenceId: string; title: string | null; expiresAtUtc: string }>;
+};
+
+/**
+ * The active workspace's records that can still be opened by their record id
+ * (the bounded transition for records published before share links existed).
+ * The workspace is the caller's own; nothing is passed.
+ */
+export function legacyVerifyLinkInventory(): Promise<LegacyVerifyLinkInventory> {
+  return apiFetch("/v1/verify-links/legacy-inventory") as Promise<LegacyVerifyLinkInventory>;
+}
+
 /** The absolute link a recipient opens, on THIS app's origin. */
 export function absoluteVerifyUrl(verifyPath: string): string {
   const origin =

@@ -338,6 +338,63 @@ describe("Public verification links — owner controls", () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
+  it("the workspace's records still reachable by record ID are listed on request, each linking to its own controls", async () => {
+    const OTHER = "5b0e7a52-2f8e-4a0c-8b65-0f0d2a1c9e77";
+    routes["GET /v1/verify-links/legacy-inventory"] = () => ({
+      activeCount: 3,
+      earliestExpiryUtc: "2027-01-10T10:00:00.000Z",
+      latestExpiryUtc: "2027-03-29T10:00:00.000Z",
+      graceDays: 180,
+      records: [
+        { evidenceId: OTHER, title: "Harbour claim photo", expiresAtUtc: "2027-01-10T10:00:00.000Z" },
+        { evidenceId: EVIDENCE, title: null, expiresAtUtc: "2027-03-29T10:00:00.000Z" },
+      ],
+    });
+    const { container } = await mount();
+    const toggle = container.querySelector("[data-verification-links-toggle='legacy-inventory']")!;
+
+    // Not read until asked for.
+    expect(calls.some((c) => c.path.includes("legacy-inventory"))).toBe(false);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(toggle);
+    await waitFor(() => expect(container.querySelector("[data-verification-legacy-inventory='some']")).not.toBeNull());
+
+    const list = container.querySelector("[data-verification-legacy-inventory='some']")!;
+    expect(list.textContent).toContain("3 records can still be opened by record ID");
+    expect(list.textContent).toContain("Showing the 2 that end soonest.");
+    const first = list.querySelector(`[data-verification-legacy-record='${OTHER}'] a`)!;
+    expect(first.textContent).toBe("Harbour claim photo");
+    expect(first.getAttribute("href")).toBe(`/evidence/${OTHER}?tab=artifacts#public-verification-links`);
+    expect(list.querySelector(`[data-verification-legacy-record='${EVIDENCE}'] a`)!.textContent).toBe("Untitled record");
+    // The list links to controls — it never renders a /verify/<id> link itself.
+    expect(list.innerHTML).not.toContain("/verify/");
+
+    fireEvent.click(toggle);
+    expect(container.querySelector("[data-verification-legacy-inventory]")).toBeNull();
+  });
+
+  it("a workspace with no legacy links says so; a failed read says so", async () => {
+    routes["GET /v1/verify-links/legacy-inventory"] = () => ({
+      activeCount: 0,
+      earliestExpiryUtc: null,
+      latestExpiryUtc: null,
+      graceDays: 180,
+      records: [],
+    });
+    const { container } = await mount();
+    const toggle = container.querySelector("[data-verification-links-toggle='legacy-inventory']")!;
+    fireEvent.click(toggle);
+    await waitFor(() => expect(container.querySelector("[data-verification-legacy-inventory='none']")).not.toBeNull());
+    expect(container.textContent).toContain("No record in this workspace can be opened by its record ID.");
+
+    fireEvent.click(toggle);
+    routes["GET /v1/verify-links/legacy-inventory"] = () => {
+      throw Object.assign(new Error("boom"), { statusCode: 500 });
+    };
+    fireEvent.click(toggle);
+    await waitFor(() => expect(container.querySelector("[data-verification-legacy-inventory='error']")).not.toBeNull());
+  });
+
   it("a record that cannot be shared yet offers no form and says why", async () => {
     routes[`GET ${BASE}`] = () => listing({ publicVerifyState: "NOT_PUBLISHED", shareable: false, links: [] });
     const { container } = await mount();

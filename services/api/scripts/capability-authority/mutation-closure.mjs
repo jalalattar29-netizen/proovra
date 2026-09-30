@@ -213,6 +213,13 @@ const FAMILY_RULES = Object.freeze([
   [/^billingReviewItem$/, "BILLING_SUBSCRIPTION_SEAT"],
   /** The public verification page's view record for a shared package. */
   [/^verificationView$/, "EXTERNAL_REVIEW_INTAKE_SHARE"],
+  /**
+   * ET-PKG-07 (2026-09-30) — a public verification share link: the opaque,
+   * revocable token that lets someone OUTSIDE the workspace open a record's
+   * public verification page. Minted, used, revoked and rotated only through
+   * `packages/shared-runtime/src/verification-share/authority.ts`.
+   */
+  [/^verificationShareToken$/, "EXTERNAL_REVIEW_INTAKE_SHARE"],
   /** SCIM/SSO-driven membership provisioning grants. */
   [/^membershipGrant$/, "ORGANIZATION_MEMBERSHIP"],
   /** The AI copilot's human-review record over its own observations. */

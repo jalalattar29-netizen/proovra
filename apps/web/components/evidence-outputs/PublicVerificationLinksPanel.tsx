@@ -16,6 +16,7 @@
  * Creating the FIRST link on an unpublished record is the act of publishing it,
  * and says so before it happens.
  */
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AppListbox, AppStatusBadge, type AppTone } from "../app-primitives";
@@ -27,11 +28,14 @@ import { formatUserDate, formatUserDateTime } from "../../lib/date";
 import {
   absoluteVerifyUrl,
   createVerificationLink,
+  evidencePublicLinksHref,
+  legacyVerifyLinkInventory,
   listVerificationLinks,
   revokeLegacyVerifyLink,
   revokeVerificationLink,
   rotateVerificationLink,
   type CreatedVerificationLink,
+  type LegacyVerifyLinkInventory,
   type VerificationLink,
   type VerificationLinkListing,
   type VerificationLinkState,
@@ -112,6 +116,9 @@ export function PublicVerificationLinksPanel({
   const [projection, setProjection] = useState<ProjectionChoice>("STANDARD");
   const [maxUses, setMaxUses] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  // The workspace's records still reachable by record id — read on request.
+  const [inventory, setInventory] = useState<LegacyVerifyLinkInventory | null>(null);
+  const [inventoryState, setInventoryState] = useState<"closed" | "loading" | "ready" | "error">("closed");
 
   const load = useCallback(async () => {
     try {
@@ -229,6 +236,20 @@ export function PublicVerificationLinksPanel({
     }
   };
 
+  const toggleInventory = async () => {
+    if (inventoryState !== "closed") {
+      setInventoryState("closed");
+      return;
+    }
+    setInventoryState("loading");
+    try {
+      setInventory(await legacyVerifyLinkInventory());
+      setInventoryState("ready");
+    } catch {
+      setInventoryState("error");
+    }
+  };
+
   const revokeLegacy = async () => {
     const ok = await confirm({
       title: "End the legacy link now?",
@@ -243,6 +264,8 @@ export function PublicVerificationLinksPanel({
     try {
       await revokeLegacyVerifyLink(evidenceId);
       await load();
+      // The workspace list, if open, is now one record out of date.
+      setInventoryState("closed");
       onChanged?.();
       addToast("Legacy link ended", "success");
     } catch (err) {
@@ -389,6 +412,55 @@ export function PublicVerificationLinksPanel({
                   </button>
                 </div>
               ) : null}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            className="evidence-detail-inline-link"
+            aria-expanded={inventoryState !== "closed"}
+            onClick={() => void toggleInventory()}
+            data-verification-links-toggle="legacy-inventory"
+          >
+            {inventoryState === "closed" ? "Show" : "Hide"} records in this workspace still reachable by record ID
+          </button>
+          {inventoryState === "loading" ? <p className="app-field__help">Loading…</p> : null}
+          {inventoryState === "error" ? (
+            <p className="app-field__help" role="alert" data-verification-legacy-inventory="error">
+              The list could not be loaded.
+            </p>
+          ) : null}
+          {inventoryState === "ready" && inventory ? (
+            <div data-verification-legacy-inventory={inventory.activeCount > 0 ? "some" : "none"}>
+              {inventory.activeCount === 0 ? (
+                <p className="app-field__help">
+                  No record in this workspace can be opened by its record ID. Only share links work.
+                </p>
+              ) : (
+                <>
+                  <p className="app-field__help">
+                    {inventory.activeCount} record{inventory.activeCount === 1 ? "" : "s"} can still be opened by
+                    record ID
+                    {inventory.latestExpiryUtc ? `, the last until ${formatUserDate(inventory.latestExpiryUtc)}` : ""}.
+                    Open a record to end its legacy link early.
+                    {inventory.records.length < inventory.activeCount
+                      ? ` Showing the ${inventory.records.length} that end soonest.`
+                      : ""}
+                  </p>
+                  <ul className="evidence-detail-link-list">
+                    {inventory.records.map((r) => (
+                      <li key={r.evidenceId} className="evidence-detail-link-row" data-verification-legacy-record={r.evidenceId}>
+                        <div className="evidence-detail-link-row__main">
+                          <Link className="evidence-detail-inline-link" href={evidencePublicLinksHref(r.evidenceId)}>
+                            {r.title?.trim() || "Untitled record"}
+                          </Link>
+                        </div>
+                        <p className="app-field__help">Reachable by record ID until {formatUserDate(r.expiresAtUtc)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           ) : null}
 
