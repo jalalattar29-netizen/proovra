@@ -314,9 +314,10 @@ describe("Phase 31.17 — anti-leak invariants on new domain steps", () => {
       "Phase 31.18 — EXTERNAL_REVIEW domain reconciliation",
     );
     const slice = RECONCILER_SRC.slice(idxStart, idxEnd);
-    const outerCatches =
-      slice.match(/catch\s*\{[\s\S]*?best-effort; the rest of the reconcile continues/g) ?? [];
+    // PA-02 — isolated AND reported: each stage's catch names its stage.
+    const outerCatches = slice.match(/catch\s*\(err\)\s*\{[\s\S]*?the rest of the reconcile continues[\s\S]*?fail\("stage:[A-Z_]+", err\)/g) ?? [];
     expect(outerCatches.length).toBe(3);
+    expect(slice).not.toMatch(/catch\s*\{/);
   });
 });
 

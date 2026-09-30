@@ -1,6 +1,7 @@
 import IORedis from "ioredis";
 
 import { warn as logWarn } from "../utils/logger.js";
+import { bump } from "./ops/metrics.service.js";
 
 /**
  * WHO A LIMIT IS SHARED BY.
@@ -104,7 +105,10 @@ function redisConfigured(): boolean {
 
 function markRedisUnavailable(reason: RateLimitStoreFailure) {
   const now = Date.now();
-  if (shouldUseRedis()) storeStats.unavailableTransitions += 1;
+  if (shouldUseRedis()) {
+    storeStats.unavailableTransitions += 1;
+    bump("rate_limit_store_unavailable_total");
+  }
   storeStats.lastFailure = reason;
   storeStats.lastFailureAtMs = now;
   redisUnavailableUntil = now + readRedisCooldownMs();
@@ -123,6 +127,7 @@ function markRedisUnavailable(reason: RateLimitStoreFailure) {
 /** A global bound with no trustworthy count: refused, counted nowhere. */
 function refuseForUnavailableStore(): RateLimitResult {
   storeStats.refusedForUnavailableStore += 1;
+  bump("rate_limit_refused_store_unavailable_total");
   const now = Date.now();
   return {
     allowed: false,

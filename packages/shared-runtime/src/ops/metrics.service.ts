@@ -280,6 +280,22 @@ export const COUNTER_NAMES = [
   "graph_reconcile_started_total",
   "graph_reconcile_completed_total",
   "graph_reconcile_failed_total",
+  // PA-02 (2026-09-30) — the tombstone sweeps and reconcile stages used to
+  // fail inside a bare catch. A node marked stale is counted; a sweep or a
+  // stage the database refused is counted separately, so "nothing was stale"
+  // and "the sweep could not run" are different readings.
+  "graph_node_tombstoned_total",
+  "graph_tombstone_sweep_failed_total",
+  "graph_reconcile_stage_failed_total",
+  // PA-01 (2026-09-30) — the rate limiter lost its shared store. Transitions
+  // into unavailability, and requests a GLOBAL bound refused because no
+  // trustworthy count could be established.
+  "rate_limit_store_unavailable_total",
+  "rate_limit_refused_store_unavailable_total",
+  // PA-03 (2026-09-30) — a governance policy audit row that could not be
+  // written. Evaluation audits do not fail the request they describe, so a
+  // lost row is counted here instead of vanishing in a catch.
+  "governance_policy_audit_write_failed_total",
   // Phase 31.6 — Async media intelligence orchestration counters.
   // `enqueue_*` fires from the API producer (route-side); `processor_*`
   // fires from the worker consumer. `dlq_total` is bumped when an

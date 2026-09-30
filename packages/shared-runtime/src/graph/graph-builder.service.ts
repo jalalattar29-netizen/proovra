@@ -78,12 +78,57 @@ export type GraphEdge = {
   updatedAtUtc: string;
 };
 
+/**
+ * One stage of a reconcile that did not complete, by a bounded code.
+ *
+ * `stage` comes from a closed set written in this file (`tombstone:<FAMILY>`,
+ * `stage:<FAMILY>`, `upsert:node`, `upsert:edge`, `lookup:node`, `reconcile`).
+ * `code` is the PostgreSQL SQLSTATE or the Prisma error code, never a message:
+ * a message can carry a value from the row.
+ */
+export type ReconcileFailure = { stage: string; code: string };
+
 export type ReconcileResult = {
+  /** True only when every stage completed. A partial graph is not "ok". */
   ok: boolean;
   nodesUpserted: number;
   edgesUpserted: number;
   edgesStaled: number;
+  /** Nodes marked stale by this run because their source row is gone. */
+  nodesTombstoned: number;
+  /** Distinct (stage, code) pairs, bounded. Empty when the run was whole. */
+  failures: ReconcileFailure[];
 };
+
+const MAX_RECONCILE_FAILURES = 32;
+
+/** SQLSTATE / Prisma code from whatever the driver threw; never the message. */
+function failureCode(err: unknown): string {
+  const seen = new Set<unknown>();
+  let cur: unknown = err;
+  while (cur && typeof cur === "object" && !seen.has(cur)) {
+    seen.add(cur);
+    const o = cur as { code?: unknown; originalCode?: unknown; meta?: { code?: unknown }; cause?: unknown };
+    for (const candidate of [o.originalCode, o.meta?.code, o.code]) {
+      if (typeof candidate === "string" && /^[0-9A-Z]{5}$/.test(candidate)) return candidate;
+    }
+    cur = o.cause;
+  }
+  const top = (err as { code?: unknown } | null)?.code;
+  if (typeof top === "string" && /^P\d{4}$/.test(top)) return top;
+  return "UNKNOWN";
+}
+
+type FailureRecorder = (stage: string, err: unknown) => void;
+
+function createFailureRecorder(failures: ReconcileFailure[]): FailureRecorder {
+  return (stage, err) => {
+    bump(stage.startsWith("tombstone:") ? "graph_tombstone_sweep_failed_total" : "graph_reconcile_stage_failed_total");
+    const code = failureCode(err);
+    if (failures.some((x) => x.stage === stage && x.code === code)) return;
+    if (failures.length < MAX_RECONCILE_FAILURES) failures.push({ stage, code });
+  };
+}
 
 // =============================================================================
 // Phase 14 — Stage 2 trigger #4: optional post-reconcile fan-out.
@@ -149,6 +194,57 @@ export async function reconcileTeamGraph(
   let nodesUpserted = 0;
   let edgesUpserted = 0;
   let edgesStaled = 0;
+  let nodesTombstoned = 0;
+  const failures: ReconcileFailure[] = [];
+  const fail = createFailureRecorder(failures);
+  // The three write helpers, bound to this run's failure recorder: a node or
+  // edge the database refuses is counted and named, not dropped.
+  const upsertNode = (
+    c: PrismaClient,
+    t: string,
+    nodeKind: GraphNodeKind,
+    externalId: string,
+    safeLabel: string,
+    visibility: GraphVisibilityScope,
+  ) => upsertNodeRow(c, t, nodeKind, externalId, safeLabel, visibility, fail);
+  const findNodeId = (c: PrismaClient, t: string, nodeKind: GraphNodeKind, externalId: string) =>
+    findNodeIdRow(c, t, nodeKind, externalId, fail);
+  const upsertEdge = (
+    c: PrismaClient,
+    t: string,
+    sourceNodeId: string,
+    targetNodeId: string,
+    edgeType: GraphEdgeType,
+    sourceKind: "SYSTEM" | "MANUAL",
+    confidence: "LOW" | "MEDIUM" | "HIGH",
+    safeSummary: string,
+  ) => upsertEdgeRow(c, t, sourceNodeId, targetNodeId, edgeType, sourceKind, confidence, safeSummary, fail);
+  /**
+   * THE ONE TOMBSTONE SWEEP.
+   *
+   * Marks this team's nodes of one family stale when the row they stand for
+   * is gone. Each family runs on its own: a family the database refuses is
+   * recorded (`tombstone:<FAMILY>` + SQLSTATE) and counted, and the families
+   * after it still run. Zero rows updated is the normal answer — nothing was
+   * stale — and is not a failure.
+   *
+   * Every statement is tenant-bound on BOTH sides (the node's team and the
+   * source row's team are the same `$1`), only touches nodes that are not
+   * already stale (so a second run changes nothing), and compares
+   * `external_id` — a UUID column — with a UUID.
+   */
+  const sweepStale = async (family: string, sql: string): Promise<void> => {
+    try {
+      const affected = await client.$executeRawUnsafe(sql, teamId);
+      const n = typeof affected === "number" ? affected : 0;
+      if (n > 0) {
+        nodesTombstoned += n;
+        bump("graph_node_tombstoned_total", n);
+      }
+    } catch (err) {
+      fail(`tombstone:${family}`, err);
+    }
+  };
   try {
     // 1. Materialize EVIDENCE nodes for every Evidence row in this team.
     const evidence = await client.evidence.findMany({
@@ -232,9 +328,9 @@ export async function reconcileTeamGraph(
       // the cases table for this team. Single UPDATE with a NOT
       // EXISTS clause; idempotent. Re-running on a clean state is
       // a no-op.
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "CASE",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -242,26 +338,26 @@ export async function reconcileTeamGraph(
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "cases" c
-                  WHERE c."id"::text = n."external_id"
+                  WHERE c."id" = n."external_id"
                     AND c."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
+      );
 
-      // BELONGS_TO_CASE edges for every evidence with a case_id.
-      // We re-select from the evidence table (instead of using the
-      // earlier in-memory list) so we can include case_id in the
-      // projection; case_id wasn't in the original SELECT.
+      // BELONGS_TO_CASE edges, from the canonical link table.
+      //
+      // This read `evidence.case_id`, a column dropped by migration
+      // 20271105000000_evidence_case_id_removal. The query failed on every
+      // run, inside this stage's catch, so no BELONGS_TO_CASE edge was
+      // written after that migration. `case_evidence_links` is the one
+      // authority for "this evidence is in this case"; a record in several
+      // cases (or in one case under several roles) yields one edge per case.
       type EvidenceWithCase = { id: string; case_id: string };
       const evidenceWithCase = (await client.$queryRawUnsafe(
-        `SELECT "id", "case_id"
-           FROM "evidence"
-           WHERE "team_id" = $1
-             AND "case_id" IS NOT NULL
-             AND "deleted_at" IS NULL`,
+        `SELECT DISTINCT e."id", l."case_id"
+           FROM "case_evidence_links" l
+           JOIN "evidence" e ON e."id" = l."evidence_id"
+           WHERE e."team_id" = $1
+             AND e."deleted_at" IS NULL`,
         teamId,
       )) as EvidenceWithCase[];
       for (const ev of evidenceWithCase) {
@@ -284,8 +380,9 @@ export async function reconcileTeamGraph(
         );
         if (created) edgesUpserted += 1;
       }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:CASE", err);
     }
 
     // 1c. Phase 31.16 — REPORT domain reconciliation.
@@ -316,9 +413,11 @@ export async function reconcileTeamGraph(
       )) as ReportRow[];
       const seenReportExternalIds = new Set<string>();
       for (const r of reports) {
-        // Stable external_id: evidence-scoped + version-pinned.
-        // Re-runs upsert; new versions create new nodes.
-        const externalId = `${r.evidence_id}:v${r.version}`;
+        // Stable external_id: the report row's own id — one row per
+        // version, so a new version is a new node. It was
+        // `<evidence id>:v<version>`, which is not a UUID and could never
+        // be stored in `external_id`: no REPORT node ever existed.
+        const externalId = r.id;
         seenReportExternalIds.add(externalId);
         const label = `Report v${r.version}`.slice(0, 240);
         const upserted = await upsertNode(
@@ -359,9 +458,9 @@ export async function reconcileTeamGraph(
       }
       // Stale-sweep: REPORT nodes whose external_id is no longer
       // backed by a (reports, evidence) join in this team.
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "REPORT",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -371,16 +470,13 @@ export async function reconcileTeamGraph(
                  SELECT 1
                    FROM "reports" r
                    JOIN "evidence" e ON e."id" = r."evidence_id"
-                  WHERE n."external_id" = r."evidence_id"::text || ':v' || r."version"::text
+                  WHERE r."id" = n."external_id"
                     AND e."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+      );
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:REPORT", err);
     }
 
     // 1d. Phase 31.16 — VERIFICATION_PACKAGE domain reconciliation.
@@ -405,7 +501,9 @@ export async function reconcileTeamGraph(
         teamId,
       )) as PackageRow[];
       for (const p of packages) {
-        const externalId = `${p.evidence_id}:v${p.version}`;
+        // The package row's own id (see REPORT above: the composite text
+        // id could not be stored in the UUID column).
+        const externalId = p.id;
         const label = `Verification package v${p.version}`.slice(0, 240);
         const upserted = await upsertNode(
           client,
@@ -442,9 +540,9 @@ export async function reconcileTeamGraph(
           if (created) edgesUpserted += 1;
         }
       }
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "VERIFICATION_PACKAGE",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -454,16 +552,13 @@ export async function reconcileTeamGraph(
                  SELECT 1
                    FROM "verification_packages" vp
                    JOIN "evidence" e ON e."id" = vp."evidence_id"
-                  WHERE n."external_id" = vp."evidence_id"::text || ':v' || vp."version"::text
+                  WHERE vp."id" = n."external_id"
                     AND e."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+      );
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:VERIFICATION_PACKAGE", err);
     }
 
     // 1e. Phase 31.16 — EXPORT domain reconciliation.
@@ -535,9 +630,9 @@ export async function reconcileTeamGraph(
       }
       // Stale-sweep: EXPORT nodes whose external_id is no longer
       // in governance_export_snapshots for this team.
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "EXPORT",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -545,16 +640,13 @@ export async function reconcileTeamGraph(
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "governance_export_snapshots" x
-                  WHERE x."id"::text = n."external_id"
+                  WHERE x."id" = n."external_id"
                     AND x."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+      );
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:EXPORT", err);
     }
 
     // 1f. Phase 31.17 — REVIEW_TASK domain reconciliation.
@@ -630,9 +722,9 @@ export async function reconcileTeamGraph(
       // whose external_id is no longer in evidence_review_workflows
       // for this team. Wave 1: sweep both canonical + deprecated alias
       // so legacy rows continue to tombstone cleanly.
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "REVIEW_WORKFLOW",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -640,16 +732,13 @@ export async function reconcileTeamGraph(
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "evidence_review_workflows" w
-                  WHERE w."id"::text = n."external_id"
+                  WHERE w."id" = n."external_id"
                     AND w."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+      );
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:REVIEW_WORKFLOW", err);
     }
 
     // 1g. Phase 31.17 — ESCALATION domain reconciliation.
@@ -724,9 +813,9 @@ export async function reconcileTeamGraph(
       }
       // Wave 1: sweep both canonical REVIEW_ESCALATION + deprecated
       // ESCALATION alias so legacy rows continue to tombstone cleanly.
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "REVIEW_ESCALATION",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -734,16 +823,13 @@ export async function reconcileTeamGraph(
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "review_escalations" e
-                  WHERE e."id"::text = n."external_id"
+                  WHERE e."id" = n."external_id"
                     AND e."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+      );
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:REVIEW_ESCALATION", err);
     }
 
     // 1h. Phase 31.17 — INCIDENT domain reconciliation.
@@ -816,9 +902,9 @@ export async function reconcileTeamGraph(
           }
         }
       }
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "INCIDENT",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -826,16 +912,13 @@ export async function reconcileTeamGraph(
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "operational_incidents" inc
-                  WHERE inc."id"::text = n."external_id"
+                  WHERE inc."id" = n."external_id"
                     AND inc."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+      );
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:INCIDENT", err);
     }
 
     // 1i. Phase 31.18 — EXTERNAL_REVIEW domain reconciliation.
@@ -935,9 +1018,9 @@ export async function reconcileTeamGraph(
       // Wave 1: sweep both canonical EXTERNAL_REVIEWER_GRANT + deprecated
       // EXTERNAL_REVIEW alias so legacy rows continue to tombstone
       // cleanly.
-      try {
-        await client.$executeRawUnsafe(
-          `UPDATE "investigation_graph_nodes" n
+      await sweepStale(
+        "EXTERNAL_REVIEWER_GRANT",
+        `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -945,16 +1028,13 @@ export async function reconcileTeamGraph(
                AND n."stale_at_utc" IS NULL
                AND NOT EXISTS (
                  SELECT 1 FROM "external_review_grants" g
-                  WHERE g."id"::text = n."external_id"
+                  WHERE g."id" = n."external_id"
                     AND g."team_id" = $1
                )`,
-          teamId,
-        );
-      } catch {
-        /* best-effort */
-      }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+      );
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:EXTERNAL_REVIEWER_GRANT", err);
     }
 
     // 1j. Phase 13 — ENTITY domain reconciliation.
@@ -1044,8 +1124,9 @@ export async function reconcileTeamGraph(
           if (created) edgesUpserted += 1;
         }
       }
-    } catch {
-      /* best-effort; the rest of the reconcile continues */
+    } catch (err) {
+      // Reported, not discarded — and the rest of the reconcile continues.
+      fail("stage:EXTRACTED_ENTITY", err);
     }
 
     // 2. Materialize MEDIA_SIGNAL nodes + HAS_MEDIA_SIGNAL edges,
@@ -1160,9 +1241,9 @@ export async function reconcileTeamGraph(
     // tombstoning, matching the section-2 materializer's filter.
     // Wave 1: sweep both canonical MEDIA_INTELLIGENCE_SIGNAL + deprecated
     // MEDIA_SIGNAL alias so legacy rows continue to tombstone cleanly.
-    try {
-      await client.$executeRawUnsafe(
-        `UPDATE "investigation_graph_nodes" n
+    await sweepStale(
+      "MEDIA_INTELLIGENCE_SIGNAL",
+      `UPDATE "investigation_graph_nodes" n
            SET "stale_at_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE n."team_id" = $1
@@ -1170,19 +1251,15 @@ export async function reconcileTeamGraph(
              AND n."stale_at_utc" IS NULL
              AND NOT EXISTS (
                SELECT 1 FROM "media_intelligence_signals" s
-                WHERE s."id"::text = n."external_id"
+                WHERE s."id" = n."external_id"
                   AND s."team_id" = $1
                   AND s."status" IN ('PENDING', 'ACKNOWLEDGED')
                   AND s."signal_type" NOT IN ('OCR_AVAILABLE', 'TRANSCRIPT_AVAILABLE')
              )`,
-        teamId,
-      );
-    } catch {
-      /* best-effort */
-    }
-    try {
-      await client.$executeRawUnsafe(
-        `UPDATE "investigation_graph_nodes" n
+    );
+    await sweepStale(
+      "OCR",
+      `UPDATE "investigation_graph_nodes" n
            SET "stale_at_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE n."team_id" = $1
@@ -1190,19 +1267,15 @@ export async function reconcileTeamGraph(
              AND n."stale_at_utc" IS NULL
              AND NOT EXISTS (
                SELECT 1 FROM "media_intelligence_signals" s
-                WHERE s."id"::text = n."external_id"
+                WHERE s."id" = n."external_id"
                   AND s."team_id" = $1
                   AND s."status" IN ('PENDING', 'ACKNOWLEDGED')
                   AND s."signal_type" = 'OCR_AVAILABLE'
              )`,
-        teamId,
-      );
-    } catch {
-      /* best-effort */
-    }
-    try {
-      await client.$executeRawUnsafe(
-        `UPDATE "investigation_graph_nodes" n
+    );
+    await sweepStale(
+      "TRANSCRIPT",
+      `UPDATE "investigation_graph_nodes" n
            SET "stale_at_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE n."team_id" = $1
@@ -1210,16 +1283,12 @@ export async function reconcileTeamGraph(
              AND n."stale_at_utc" IS NULL
              AND NOT EXISTS (
                SELECT 1 FROM "media_intelligence_signals" s
-                WHERE s."id"::text = n."external_id"
+                WHERE s."id" = n."external_id"
                   AND s."team_id" = $1
                   AND s."status" IN ('PENDING', 'ACKNOWLEDGED')
                   AND s."signal_type" = 'TRANSCRIPT_AVAILABLE'
              )`,
-        teamId,
-      );
-    } catch {
-      /* best-effort */
-    }
+    );
 
     // 3. Build SAME_HASH_AS edges from EvidencePart SHA-256 matches.
     // We use a self-join on the parts table, bounded to non-null
@@ -1448,9 +1517,9 @@ export async function reconcileTeamGraph(
           if (created) edgesUpserted += 1;
         }
       }
-    } catch {
-      // perceptual_phash column may not exist yet (Phase 12 migration
-      // not applied) — best-effort, never fails reconcile.
+    } catch (err) {
+      // The similarity pass does not stop the reconcile, and it is reported.
+      fail("stage:PERCEPTUAL_SIMILARITY", err);
     }
 
     // 4. Stale-edge sweep. Edges whose source or target node is
@@ -1480,16 +1549,18 @@ export async function reconcileTeamGraph(
       );
       edgesStaled = typeof result === "number" ? result : 0;
       if (edgesStaled > 0) bump("graph_edge_removed_total", edgesStaled);
-    } catch {
-      /* best-effort */
+    } catch (err) {
+      fail("tombstone:EDGES", err);
     }
 
     bump("graph_reconcile_completed_total");
     const result: ReconcileResult = {
-      ok: true,
+      ok: failures.length === 0,
       nodesUpserted,
       edgesUpserted,
       edgesStaled,
+      nodesTombstoned,
+      failures,
     };
     // Phase 14 — Stage 2 trigger #4: fire the optional post-reconcile
     // hook. The hook is best-effort; we swallow any error here so a
@@ -1505,13 +1576,16 @@ export async function reconcileTeamGraph(
       }
     }
     return result;
-  } catch {
+  } catch (err) {
     bump("graph_reconcile_failed_total");
+    fail("reconcile", err);
     return {
       ok: false,
       nodesUpserted,
       edgesUpserted,
       edgesStaled,
+      nodesTombstoned,
+      failures,
     };
   }
 }
@@ -1989,7 +2063,8 @@ export async function listGraphSeedNodes(
         });
       }
     } catch {
-      /* best-effort per kind */
+      // A kind that cannot be read contributes no seeds; the read is counted.
+      bump("graph_query_denied_total");
     }
   }
   return { nodes: collected };
@@ -2090,13 +2165,14 @@ function severityToConfidence(
   return "LOW";
 }
 
-async function upsertNode(
+async function upsertNodeRow(
   client: PrismaClient,
   teamId: string,
   nodeKind: GraphNodeKind,
   externalId: string,
   safeLabel: string,
   visibility: GraphVisibilityScope,
+  onFailure?: FailureRecorder,
 ): Promise<boolean> {
   try {
     await client.$executeRawUnsafe(
@@ -2116,16 +2192,19 @@ async function upsertNode(
     );
     bump("graph_node_created_total");
     return true;
-  } catch {
+  } catch (err) {
+    if (onFailure) onFailure("upsert:node", err);
+    else bump("graph_reconcile_stage_failed_total");
     return false;
   }
 }
 
-async function findNodeId(
+async function findNodeIdRow(
   client: PrismaClient,
   teamId: string,
   nodeKind: GraphNodeKind,
   externalId: string,
+  onFailure?: FailureRecorder,
 ): Promise<string | null> {
   try {
     const rows = (await client.$queryRawUnsafe(
@@ -2136,13 +2215,17 @@ async function findNodeId(
       nodeKind,
       externalId,
     )) as Array<{ id: string }>;
+    // No row is the ordinary answer (the node was never materialised).
     return rows[0]?.id ?? null;
-  } catch {
+  } catch (err) {
+    // A query the database refused is NOT "no such node".
+    if (onFailure) onFailure("lookup:node", err);
+    else bump("graph_reconcile_stage_failed_total");
     return null;
   }
 }
 
-async function upsertEdge(
+async function upsertEdgeRow(
   client: PrismaClient,
   teamId: string,
   sourceNodeId: string,
@@ -2151,6 +2234,7 @@ async function upsertEdge(
   sourceKind: "SYSTEM" | "MANUAL",
   confidence: "LOW" | "MEDIUM" | "HIGH",
   safeSummary: string,
+  onFailure?: FailureRecorder,
 ): Promise<boolean> {
   try {
     await client.$executeRawUnsafe(
@@ -2174,7 +2258,9 @@ async function upsertEdge(
     );
     bump("graph_edge_created_total");
     return true;
-  } catch {
+  } catch (err) {
+    if (onFailure) onFailure("upsert:edge", err);
+    else bump("graph_reconcile_stage_failed_total");
     return false;
   }
 }

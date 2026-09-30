@@ -12958,7 +12958,10 @@ model GovernancePolicyAssignment {
 
 model GovernancePolicyAudit {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  policyId      String   @map("policy_id") @db.Uuid
+  /// PA-03 — NULL = a policy EVALUATION in which no policy applied. It was
+  /// required, and no-policy evaluations were written with the all-zero UUID,
+  /// which violates the foreign key: the row was never stored.
+  policyId      String?  @map("policy_id") @db.Uuid
   teamId        String   @map("team_id") @db.Uuid
   actorUserId   String?  @map("actor_user_id") @db.Uuid
   // R7-governance: relaxed to nullable — Phase 4A governance-policy.service writes `code` (R7-additive,
@@ -12974,7 +12977,7 @@ model GovernancePolicyAudit {
   occurredAtUtc DateTime @default(now()) @map("occurred_at_utc") @db.Timestamptz(6)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  policy GovernancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  policy GovernancePolicy? @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   @@index([policyId, occurredAtUtc(sort: Desc)])
   @@index([teamId])

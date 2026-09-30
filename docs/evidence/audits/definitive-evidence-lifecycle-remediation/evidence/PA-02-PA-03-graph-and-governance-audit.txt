@@ -1,0 +1,106 @@
+POST-AUDIT PA-02 — graph tombstone sweeps, and what their silence was hiding   (2026-09-30)
+
+Defect. packages/shared-runtime/src/graph/graph-builder.service.ts, reconcileTeamGraph. Every node tombstone
+sweep compared investigation_graph_nodes.external_id (UUID) with a TEXT expression. On the schema migrated
+from empty, information_schema reports uuid for investigation_graph_nodes.external_id and for the id of
+cases, governance_export_snapshots, evidence_review_workflows, review_escalations, operational_incidents,
+external_review_grants, media_intelligence_signals, reports and verification_packages. PostgreSQL:
+
+  UPDATE "investigation_graph_nodes" n SET "stale_at_utc" = NOW() WHERE ... AND NOT EXISTS
+    (SELECT 1 FROM "cases" c WHERE c."id"::text = n."external_id" AND c."team_id" = ...)
+  -> ERROR: operator does not exist: text = uuid
+
+  INSERT INTO "investigation_graph_nodes" (..., "external_id", ...) VALUES (..., '<evidence id>:v1', ...)
+  -> ERROR: invalid input syntax for type uuid: "3b0f6f0e-1a52-4f0e-9d0e-3c1b8c1f7a10:v1"
+
+Each statement sat in `try { ... } catch { /* best-effort */ }`. Nothing was ever tombstoned, and nothing
+said so.
+
+Every `SET "stale_at_utc" = NOW()` site, audited against the resolved types (line numbers at 945e02d7):
+
+  line  family                     old comparison                                       verdict    now
+  238   CASE                       c."id"::text = n."external_id"                       text=uuid  c."id" = n."external_id"
+  365   REPORT                     n."external_id" = r."evidence_id"::text||':v'||..    uuid=text  r."id" = n."external_id"   (node id = reports.id)
+  448   VERIFICATION_PACKAGE       n."external_id" = vp."evidence_id"::text||':v'||..   uuid=text  vp."id" = n."external_id"  (node id = verification_packages.id)
+  541   EXPORT                     x."id"::text = n."external_id"                       text=uuid  x."id" = n."external_id"
+  636   REVIEW_WORKFLOW / TASK     w."id"::text = n."external_id"                       text=uuid  w."id" = n."external_id"
+  730   REVIEW_ESCALATION          e."id"::text = n."external_id"                       text=uuid  e."id" = n."external_id"
+  822   INCIDENT                   inc."id"::text = n."external_id"                     text=uuid  inc."id" = n."external_id"
+  941   EXTERNAL_REVIEWER_GRANT    g."id"::text = n."external_id"                       text=uuid  g."id" = n."external_id"
+  1166  MEDIA_INTELLIGENCE_SIGNAL  s."id"::text = n."external_id"                       text=uuid  s."id" = n."external_id"
+  1186  OCR                        s."id"::text = n."external_id"                       text=uuid  s."id" = n."external_id"
+  1206  TRANSCRIPT                 s."id"::text = n."external_id"                       text=uuid  s."id" = n."external_id"
+  1463  edges (stale endpoints)    n."id" = e."source_node_id" / "target_node_id"       uuid=uuid  unchanged (was correct); its catch now reports
+  1771  manual edge retraction     "team_id" / "source_node_id" / "target_node_id" = $n uuid=uuid  unchanged (not a sweep; answers ok:false on error)
+
+11 of 11 node sweeps were broken. Each correction was written against its own columns; there was no global
+replacement. Tenant binding is unchanged in every one: the node's team is $1 and the source row's team is $1.
+
+Two further defects surfaced once failures were recorded instead of discarded:
+  * REPORT and VERIFICATION_PACKAGE nodes used `<evidence id>:v<version>` as external_id. That is not a UUID;
+    the node INSERT failed (swallowed in upsertNode), so neither family ever existed in the graph. They are
+    now keyed by the row's own id (one row per version).
+  * BELONGS_TO_CASE edges were read from evidence.case_id, a column dropped by migration
+    20271105000000_evidence_case_id_removal (SQLSTATE 42703, swallowed by the CASE stage's catch). They are
+    now read from case_evidence_links, the canonical link table.
+
+Red — services/api/test/graph-tombstone-sweeps.integration.test.ts against the code at 945e02d7:
+
+   x an active source materialises its node — including REPORT, which never existed before
+   x a deleted or dismissed source tombstones its node; an active one keeps it; another tenant is untouched
+   x running again is a no-op: nothing new is tombstoned and no tombstone is re-stamped
+   x the dangling node in team B is tombstoned by B's own reconcile, and only then
+   x one family's sweep failing is reported with its code and does not stop the others
+   x every tombstone statement compares like with like (no ::text against the UUID external id)
+      Tests  6 failed (6)
+
+Fix. One sweep helper (sweepStale) runs each family separately. Rows tombstoned are counted
+(graph_node_tombstoned_total). A family the database refuses is recorded as tombstone:<FAMILY> + SQLSTATE and
+counted (graph_tombstone_sweep_failed_total), and the next family still runs. Every stage catch, the edge
+sweep and the three write helpers report through the same recorder (graph_reconcile_stage_failed_total).
+ReconcileResult carries nodesTombstoned and failures; ok is false when any stage did not complete; the worker
+logs graph_reconcile.incomplete with the (stage, code) list. Codes are SQLSTATE / Prisma codes, never
+messages. No bare catch remains in the file. The sweep stays idempotent: it only touches nodes whose
+stale_at_utc is NULL.
+
+Green — 6 passed (6), real PostgreSQL 16, through the canonical runner.
+
+"Text-backed external ids": there are none to support. external_id is a UUID column, so the two families
+that used a text id could not be stored at all. They are UUID-backed now, proven by the REPORT case.
+
+
+POST-AUDIT PA-03 — governance policy audit: the zero-UUID row, and mutations without an audit row
+
+Trace of the CI error `governance_policy_audits_policy_id_fkey` (run 36722142073, job build-test):
+
+  writer       services/api/src/services/governance/policy-evaluation.service.ts emitEvaluationAudit
+               -> governance-policy.service.ts emitPolicyAudit -> prisma.governancePolicyAudit.create
+  why zero     policyIdForAudit = result.policyId ?? "00000000-0000-0000-0000-000000000000" — a stand-in for
+               "no policy applied" (a clean ALLOW, or no effective policy set), because policy_id was NOT NULL
+  swallowed    yes — emitPolicyAudit: `catch { /* swallow — audit must never block ops */ }`
+  record lost  yes — every evaluation with no policy in play left no POLICY_EVALUATED row
+  mutation without audit
+               the evaluation path changes nothing, so no product mutation rode on the lost row. But the same
+               swallowing writer was called AFTER the commit by createPolicy, activatePolicy, deprecatePolicy
+               and assignPolicy: a failed audit write there left a changed policy with no record.
+
+PostgreSQL, schema migrated from empty, before the fix:
+
+  INSERT INTO "governance_policy_audits" ("policy_id", ...) VALUES ('00000000-0000-0000-0000-000000000000', ...)
+  -> insert or update on table "governance_policy_audits" violates foreign key constraint
+     "governance_policy_audits_policy_id_fkey"
+
+Fix. Migration 20280817000000_governance_policy_audit_nullable_policy relaxes policy_id to NULL (NULL = no
+policy applied; the foreign key is unchanged). One writer, writePolicyAudit, which throws. The four policy
+mutations call it inside the mutation's transaction: no audit row, no change. Evaluation audits go through
+emitPolicyAudit, which does not fail the evaluated request and counts and logs a lost row
+(governance_policy_audit_write_failed_total; event code and database code only).
+
+Green — services/api/test/governance-policy-audit.integration.test.ts, 7 passed (7), real PostgreSQL 16:
+  an evaluation with no policy in play is recorded, with no policy — and nothing is reported lost
+  the audit reader returns a no-policy row as such
+  creating, activating, deprecating and assigning a policy each leave exactly one audit row
+  a policy change whose audit row cannot be written does not happen
+  a policy cannot be created without its audit row
+  an evaluation audit the database refuses is counted, and the evaluation still answers
+  no writer of the audit table discards its error, and there is one writer

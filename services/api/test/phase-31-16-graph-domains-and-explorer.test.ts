@@ -52,10 +52,14 @@ describe("Phase 31.16 — REPORT graph domain", () => {
     );
   });
 
-  it("external_id format is evidence-scoped + version-pinned", () => {
-    expect(RECONCILER_SRC).toMatch(
-      /const externalId = `\$\{r\.evidence_id\}:v\$\{r\.version\}`/,
-    );
+  // PA-02 (2026-09-30) — this pinned `${r.evidence_id}:v${r.version}`. That
+  // text is not a UUID and `external_id` is a UUID column, so the node INSERT
+  // failed (swallowed) and no REPORT node ever existed. The node is keyed by
+  // the report row's own id: one row per version, so still version-pinned.
+  it("external_id is the report row's id (one row per version), never a composite text id", () => {
+    expect(RECONCILER_SRC).toMatch(/const externalId = r\.id;/);
+    expect(RECONCILER_SRC).not.toMatch(/\$\{r\.evidence_id\}:v\$\{r\.version\}/);
+    expect(RECONCILER_SRC).not.toMatch(/\$\{p\.evidence_id\}:v\$\{p\.version\}/);
   });
 
   it("upserts REPORT node with WORKSPACE_INTERNAL visibility", () => {
@@ -79,14 +83,16 @@ describe("Phase 31.16 — REPORT graph domain", () => {
     expect(block!).toMatch(/e\."team_id" = \$1/);
   });
 
-  it("entire REPORT step wrapped in try/catch (best-effort)", () => {
+  it("entire REPORT step is isolated, and its failure is reported rather than discarded", () => {
     // Step 1c runs until the next step's banner (1d).
     const block = betweenMarkers(
       RECONCILER_SRC,
       "Phase 31.16 — REPORT domain",
       "1d. Phase 31.16 — VERIFICATION_PACKAGE domain",
     );
-    expect(block).toMatch(/try\s*\{[\s\S]*?\}\s*catch\s*\{[\s\S]*?best-effort/);
+    expect(block).toMatch(/try\s*\{[\s\S]*?\}\s*catch\s*\(err\)\s*\{[\s\S]*?fail\("stage:REPORT", err\)/);
+    // No bare catch is left in the step.
+    expect(block).not.toMatch(/catch\s*\{/);
   });
 });
 
@@ -243,9 +249,9 @@ describe("Phase 31.16 — anti-leak invariants on new domain steps", () => {
     expect(idxEnd).toBeGreaterThan(idxStart);
     const slice = RECONCILER_SRC.slice(idxStart, idxEnd);
     // Three outer catches expected — one per Phase 31.16 domain.
-    const outerCatches =
-      slice.match(/catch\s*\{[\s\S]*?best-effort; the rest of the reconcile continues/g) ?? [];
+    const outerCatches = slice.match(/catch\s*\(err\)\s*\{[\s\S]*?the rest of the reconcile continues[\s\S]*?fail\("stage:[A-Z_]+", err\)/g) ?? [];
     expect(outerCatches.length).toBe(3);
+    expect(slice).not.toMatch(/catch\s*\{/);
   });
 });
 

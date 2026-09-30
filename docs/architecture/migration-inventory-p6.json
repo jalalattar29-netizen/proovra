@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 305,
-    "classifiedMigrations": 305,
+    "filesystemMigrations": 306,
+    "classifiedMigrations": 306,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 305,
+    "productionSnapshotUnknown": 306,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 305,
-    "classifiedMigrations": 305,
+    "filesystemMigrations": 306,
+    "classifiedMigrations": 306,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 305,
+    "productionSnapshotUnknown": 306,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 80,
+      "EXPAND": 81,
       "BACKFILL": 24,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 93,
+      "SAFE_TO_APPLY_NOW": 94,
       "WAIT_FOR_BACKFILL_READINESS": 13,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 305
+    "ProductionMigrationStateUnknown": 306
   },
   "gateFailures": [],
   "migrations": [
@@ -23344,8 +23344,69 @@
       "evidence": "EVIDENCE IS UNPUBLISHED BY DEFAULT (2026-09-30, ET-PKG-07). ALTER TABLE evidence ALTER COLUMN public_verify_state SET DEFAULT 'NOT_PUBLISHED'. WHY: the column defaulted to PUBLISHED, so every record was publicly verifiable from the moment it existed unless its workspace had opted into approval; the owner decision is that evidence is private and unpublished by default and becomes public only when its owner publishes it. WHAT: a column default only — no row is read or rewritten and existing records keep their state. The ET-PKG-07 API image finalizes every record NOT_PUBLISHED explicitly on every capture path, so the default is the floor beneath that for any other writer. WAIT_FOR_RUNTIME_CUTOVER / NOT safe before code: under the previous image a new record would finalize NOT_PUBLISHED (the old finalize relied on the default) while that image still serves record-id links only, so new records would have no public link at all until the new image arrives. Apply once the ET-PKG-07 image is live. Idempotent (setting the same default again is a no-op). ROLLBACK: SET DEFAULT 'PUBLISHED' restores the old default; the new image is unaffected either way because it never relies on it. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20280817000000_governance_policy_audit_nullable_policy",
       "order": 304,
+      "sqlPresent": true,
+      "byteLength": 1255,
+      "checksumSha256": "9ef061780bd0f4c694e7e10898d52a4e1031aa4506809d4a9cb53a836dc43119",
+      "checksumSha256Raw": "9ef061780bd0f4c694e7e10898d52a4e1031aa4506809d4a9cb53a836dc43119",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "REPAIR",
+      "sqlShapeEvidence": "alters existing objects only (defaults / nullability / constraints / indexes / type conversion); creates nothing, drops nothing, mutates no pre-existing rows",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "governance_policy_audits"
+        ],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20270101000000_phase_r3_model_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT is_nullable FROM information_schema.columns WHERE table_name='governance_policy_audits' AND column_name='policy_id'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "GOVERNANCE POLICY AUDIT WITHOUT A POLICY (2026-09-30, PA-03). Relaxes governance_policy_audits.policy_id to NULLable. WHY: a policy evaluation is audited even when no policy applied; those rows were written with the all-zero UUID as a stand-in, which violates governance_policy_audits_policy_id_fkey, so every such insert failed inside a catch that discarded the error and the evaluation record was lost (observed in the CI full-stack log, 2026-09-30). NULL = the evaluation had no policy; the foreign key is unchanged and does not constrain NULL. EXPAND / SAFE_TO_APPLY_NOW: code built before it always writes a non-null policy_id and is unaffected; code built after it writes NULL for a no-policy evaluation, so apply BEFORE the PA-03 API image (a NULL insert into a NOT NULL column fails, and is now reported rather than swallowed). Idempotent (guarded DO block). Nothing is rewritten, no backfill. ROLLBACK is code-first; re-imposing NOT NULL would require deleting the no-policy rows and is not proposed. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 305,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

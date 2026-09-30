@@ -1393,6 +1393,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280816000001_verification_share_legacy_grace",
       // Evidence is unpublished by default (2026-09-30, ET-PKG-07): one column default. EXPAND, applied after the image.
       "20280816000002_evidence_unpublished_by_default",
+      // PA-03 — governance policy audit rows may have no policy (evaluation with nothing applied).
+      "20280817000000_governance_policy_audit_nullable_policy",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

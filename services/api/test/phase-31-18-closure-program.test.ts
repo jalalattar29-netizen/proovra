@@ -190,10 +190,10 @@ describe("Phase 31.18 — EXTERNAL_REVIEW graph domain", () => {
         ? RECONCILER_SRC.indexOf("1j. Phase 13 — ENTITY domain reconciliation", idx)
         : RECONCILER_SRC.indexOf("// 2. Materialize MEDIA_SIGNAL", idx);
     const slice = RECONCILER_SRC.slice(idx, idxEnd);
-    const outerCatches =
-      slice.match(/catch\s*\{[\s\S]*?best-effort; the rest of the reconcile continues/g) ??
-      [];
+    // PA-02 — isolated AND reported.
+    const outerCatches = slice.match(/catch\s*\(err\)\s*\{[\s\S]*?the rest of the reconcile continues[\s\S]*?fail\("stage:[A-Z_]+", err\)/g) ?? [];
     expect(outerCatches.length).toBe(1);
+    expect(slice).toMatch(/fail\("stage:EXTERNAL_REVIEWER_GRANT", err\)/);
   });
 });
 
@@ -250,11 +250,13 @@ describe("Phase 31.18 — per-kind stale-sweep hardening", () => {
     );
     const idxEnd = RECONCILER_SRC.indexOf("// 3. Build SAME_HASH_AS", idx);
     const slice = RECONCILER_SRC.slice(idx, idxEnd);
-    const tryBlocks = slice.match(/try\s*\{/g) ?? [];
-    // Three independent try blocks (one per kind).
-    expect(tryBlocks.length).toBe(3);
-    const bestEffortMarkers = slice.match(/best-effort/g) ?? [];
-    expect(bestEffortMarkers.length).toBeGreaterThanOrEqual(3);
+    // PA-02 — each kind goes through the ONE sweep helper, which isolates the
+    // family and reports a failure by name. The three bare try/catch blocks
+    // this used to count were where the text = uuid error was discarded.
+    const sweeps = [...slice.matchAll(/await sweepStale\(\s*"([A-Z_]+)"/g)].map((m) => m[1]);
+    expect(sweeps).toEqual(["MEDIA_INTELLIGENCE_SIGNAL", "OCR", "TRANSCRIPT"]);
+    expect(slice).not.toMatch(/catch\s*\{/);
+    expect(RECONCILER_SRC).toMatch(/fail\(`tombstone:\$\{family\}`, err\)/);
   });
 });
 

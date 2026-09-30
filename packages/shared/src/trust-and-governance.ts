@@ -421,7 +421,8 @@ export type GovernancePolicyAssignmentProjection = {
 
 export type GovernancePolicyAuditRow = {
   id: string;
-  policyId: string;
+  /** null = a policy evaluation in which no policy applied. */
+  policyId: string | null;
   code: string;
   actorUserId: string | null;
   reason: string | null;

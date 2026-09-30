@@ -30,6 +30,8 @@ import {
 } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { error as logError } from "../../utils/logger.js";
+import { bump } from "../ops/metrics.service.js";
 
 export type CreatePolicyInput = {
   prisma?: PrismaClient;
@@ -61,28 +63,31 @@ export async function createPolicy(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
-  const policy = await prisma.governancePolicy.create({
-    data: {
+  // The policy and its audit row, or neither.
+  const policy = await prisma.$transaction(async (tx) => {
+    const created = await tx.governancePolicy.create({
+      data: {
+        teamId: input.teamId,
+        kind: input.kind,
+        slug: input.slug,
+        name: input.name.slice(0, 200),
+        summary: input.summary.slice(0, 600),
+        state: input.state ?? "DRAFT",
+        enforcementMode: input.enforcementMode,
+        version: 1,
+        rule: input.rule as never,
+        createdByUserId: input.createdByUserId,
+      },
+      select: { id: true, version: true },
+    });
+    await writePolicyAudit(tx, {
       teamId: input.teamId,
-      kind: input.kind,
-      slug: input.slug,
-      name: input.name.slice(0, 200),
-      summary: input.summary.slice(0, 600),
-      state: input.state ?? "DRAFT",
-      enforcementMode: input.enforcementMode,
-      version: 1,
-      rule: input.rule as never,
-      createdByUserId: input.createdByUserId,
-    },
-    select: { id: true, version: true },
-  });
-  await emitPolicyAudit({
-    prisma,
-    teamId: input.teamId,
-    policyId: policy.id,
-    code: "POLICY_CREATED",
-    actorUserId: input.createdByUserId,
-    reason: `kind=${input.kind}; mode=${input.enforcementMode}`,
+      policyId: created.id,
+      code: "POLICY_CREATED",
+      actorUserId: input.createdByUserId,
+      reason: `kind=${input.kind}; mode=${input.enforcementMode}`,
+    });
+    return created;
   });
   return { ok: true, policyId: policy.id, version: policy.version ?? 1 };
 }
@@ -98,17 +103,18 @@ export async function activatePolicy(input: {
     where: { id: input.policyId, teamId: input.teamId },
   });
   if (!row) return { ok: false };
-  await prisma.governancePolicy.update({
-    where: { id: row.id },
-    data: { state: "ACTIVE" },
-  });
-  await emitPolicyAudit({
-    prisma,
-    teamId: input.teamId,
-    policyId: row.id,
-    code: "POLICY_ACTIVATED",
-    actorUserId: input.actorUserId,
-    reason: null,
+  await prisma.$transaction(async (tx) => {
+    await tx.governancePolicy.update({
+      where: { id: row.id },
+      data: { state: "ACTIVE" },
+    });
+    await writePolicyAudit(tx, {
+      teamId: input.teamId,
+      policyId: row.id,
+      code: "POLICY_ACTIVATED",
+      actorUserId: input.actorUserId,
+      reason: null,
+    });
   });
   return { ok: true };
 }
@@ -124,17 +130,18 @@ export async function deprecatePolicy(input: {
     where: { id: input.policyId, teamId: input.teamId },
   });
   if (!row) return { ok: false };
-  await prisma.governancePolicy.update({
-    where: { id: row.id },
-    data: { state: "DEPRECATED" },
-  });
-  await emitPolicyAudit({
-    prisma,
-    teamId: input.teamId,
-    policyId: row.id,
-    code: "POLICY_DEPRECATED",
-    actorUserId: input.actorUserId,
-    reason: null,
+  await prisma.$transaction(async (tx) => {
+    await tx.governancePolicy.update({
+      where: { id: row.id },
+      data: { state: "DEPRECATED" },
+    });
+    await writePolicyAudit(tx, {
+      teamId: input.teamId,
+      policyId: row.id,
+      code: "POLICY_DEPRECATED",
+      actorUserId: input.actorUserId,
+      reason: null,
+    });
   });
   return { ok: true };
 }
@@ -157,7 +164,8 @@ export async function assignPolicy(
     return { ok: false, denial: "POLICY_REJECTED" };
   }
   const prisma = input.prisma ?? defaultPrisma;
-  const row = await prisma.governancePolicyAssignment.upsert({
+  const row = await prisma.$transaction(async (tx) => {
+    const assignment = await tx.governancePolicyAssignment.upsert({
     where: {
       policyId_scope_scopeTargetId: {
         policyId: input.policyId,
@@ -180,14 +188,15 @@ export async function assignPolicy(
       assignedByUserId: input.assignedByUserId,
     },
     select: { id: true },
-  });
-  await emitPolicyAudit({
-    prisma,
-    teamId: input.teamId,
-    policyId: input.policyId,
-    code: "POLICY_ASSIGNED",
-    actorUserId: input.assignedByUserId,
-    reason: `scope=${input.scope}; target=${input.scopeTargetId.slice(0, 8)}…; override=${input.isOverride ?? false}`,
+    });
+    await writePolicyAudit(tx, {
+      teamId: input.teamId,
+      policyId: input.policyId,
+      code: "POLICY_ASSIGNED",
+      actorUserId: input.assignedByUserId,
+      reason: `scope=${input.scope}; target=${input.scopeTargetId.slice(0, 8)}…; override=${input.isOverride ?? false}`,
+    });
+    return assignment;
   });
   return { ok: true, assignmentId: row.id };
 }
@@ -362,27 +371,76 @@ export async function resolveEffectivePolicies(input: {
   return Array.from(byKey.values());
 }
 
-export async function emitPolicyAudit(input: {
-  prisma?: PrismaClient;
+export type PolicyAuditInput = {
   teamId: string;
-  policyId: string;
+  /** null = an evaluation in which no policy applied. */
+  policyId: string | null;
   code: string;
   actorUserId: string | null;
   reason: string | null;
-}): Promise<void> {
+};
+
+/** The client a policy audit row is written through: the pool, or a transaction. */
+type PolicyAuditClient = Pick<PrismaClient, "governancePolicyAudit">;
+
+/**
+ * THE ONE WRITER of `governance_policy_audits`. It throws.
+ *
+ * Callers decide what a failure means:
+ *   - a policy MUTATION calls this inside the mutation's transaction, so a
+ *     policy can never be created, activated, deprecated or assigned without
+ *     its audit row — if the row cannot be written, the mutation does not
+ *     happen;
+ *   - a policy EVALUATION goes through {@link emitPolicyAudit}, which does not
+ *     fail the request being evaluated, and reports the lost row.
+ */
+export async function writePolicyAudit(client: PolicyAuditClient, input: PolicyAuditInput): Promise<void> {
+  await client.governancePolicyAudit.create({
+    data: {
+      teamId: input.teamId,
+      policyId: input.policyId,
+      code: input.code.slice(0, 60),
+      actorUserId: input.actorUserId,
+      // The column is VARCHAR(400).
+      reason: input.reason?.slice(0, 400) ?? null,
+    },
+  });
+}
+
+/** Bounded database code from a failed write; never the message. */
+function policyAuditFailureCode(err: unknown): string {
+  const seen = new Set<unknown>();
+  let cur: unknown = err;
+  while (cur && typeof cur === "object" && !seen.has(cur)) {
+    seen.add(cur);
+    const o = cur as { code?: unknown; originalCode?: unknown; meta?: { code?: unknown }; cause?: unknown };
+    for (const c of [o.originalCode, o.meta?.code, o.code]) {
+      if (typeof c === "string" && /^([0-9A-Z]{5}|P\d{4})$/.test(c)) return c;
+    }
+    cur = o.cause;
+  }
+  return "UNKNOWN";
+}
+
+/**
+ * Audit a policy EVALUATION without failing the request it evaluated.
+ *
+ * The row is still required: a write that fails is counted
+ * (`governance_policy_audit_write_failed_total`) and logged with the event code
+ * and the database's error code. It used to be discarded in a bare catch,
+ * which is how every no-policy evaluation went unrecorded (PA-03).
+ */
+export async function emitPolicyAudit(input: PolicyAuditInput & { prisma?: PrismaClient }): Promise<void> {
   const prisma = input.prisma ?? defaultPrisma;
   try {
-    await prisma.governancePolicyAudit.create({
-      data: {
-        teamId: input.teamId,
-        policyId: input.policyId,
-        code: input.code.slice(0, 60),
-        actorUserId: input.actorUserId,
-        reason: input.reason?.slice(0, 600) ?? null,
-      },
+    await writePolicyAudit(prisma, input);
+  } catch (err) {
+    bump("governance_policy_audit_write_failed_total");
+    logError("governance.policy_audit.write_failed", {
+      code: input.code.slice(0, 60),
+      hasPolicy: input.policyId !== null,
+      dbCode: policyAuditFailureCode(err),
     });
-  } catch {
-    /* swallow — audit must never block ops */
   }
 }
 

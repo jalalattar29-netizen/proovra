@@ -173,10 +173,11 @@ async function emitEvaluationAudit(
   result: PolicyEvaluationResult,
   context: string | null,
 ): Promise<void> {
-  // `policyId` is required on the audit row; when no policy is in
-  // play (no effective set, or a clean ALLOW) we anchor to a stable
-  // sentinel so the audit stream still tells the full story.
-  const policyIdForAudit = result.policyId ?? "00000000-0000-0000-0000-000000000000";
+  // When no policy is in play (no effective set, or a clean ALLOW) the
+  // evaluation is still recorded, with NO policy: `policy_id` NULL. It was
+  // anchored to the all-zero UUID, which is not a policy — the foreign key
+  // refused every such row and the refusal was swallowed (PA-03).
+  const policyIdForAudit = result.policyId ?? null;
   const baseReason = boundReason(
     `${surface}:${result.decision.toLowerCase()}${
       result.reason ? `:${result.reason}` : ""

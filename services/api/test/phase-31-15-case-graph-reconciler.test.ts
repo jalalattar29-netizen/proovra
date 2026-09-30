@@ -123,14 +123,18 @@ describe("Phase 31.15 — CASE reconciler source contract", () => {
     expect(block!).toMatch(/c\."team_id" = \$1/);
   });
 
-  it("BELONGS_TO_CASE edges emitted only for evidence with non-null caseId", () => {
-    // The evidence SELECT is unique to this step (it's the only
-    // SELECT pulling `case_id` in the reconciler). Match on the
-    // raw source rather than a captured block — the inner stale-
-    // sweep try/catch makes block-capture brittle.
+  // PA-02 (2026-09-30) — this pinned `SELECT "id", "case_id" FROM "evidence"`.
+  // `evidence.case_id` was dropped by migration
+  // 20271105000000_evidence_case_id_removal, so that query failed on every run
+  // (inside the stage's catch) and no BELONGS_TO_CASE edge was written. The
+  // edge is read from the canonical link table; runtime proof is in
+  // graph-tombstone-sweeps.integration.test.ts.
+  it("BELONGS_TO_CASE edges are read from case_evidence_links, team-anchored, for live evidence", () => {
     expect(src).toMatch(
-      /SELECT "id", "case_id"[\s\S]*?FROM "evidence"[\s\S]*?WHERE "team_id" = \$1[\s\S]*?AND "case_id" IS NOT NULL[\s\S]*?AND "deleted_at" IS NULL/,
+      /SELECT DISTINCT e\."id", l\."case_id"[\s\S]*?FROM "case_evidence_links" l[\s\S]*?JOIN "evidence" e ON e\."id" = l\."evidence_id"[\s\S]*?WHERE e\."team_id" = \$1[\s\S]*?AND e\."deleted_at" IS NULL/,
     );
+    // The dropped column is not read anywhere in the reconciler.
+    expect(src).not.toMatch(/AND "case_id" IS NOT NULL/);
   });
 
   it("BELONGS_TO_CASE edges are SYSTEM source, HIGH confidence", () => {
@@ -143,9 +147,11 @@ describe("Phase 31.15 — CASE reconciler source contract", () => {
     expect(src).toMatch(/if \(!seenCaseIds\.has\(ev\.case_id\)\) continue/);
   });
 
-  it("entire CASE step wrapped in try/catch — best-effort, never blocks the rest of reconcile", () => {
+  // PA-02 — the isolation is kept and the silence is not: the CASE step's
+  // failure is REPORTED (stage + database code) while the rest continues.
+  it("entire CASE step is isolated — its failure is reported, and never blocks the rest of reconcile", () => {
     const block = src.match(
-      /Phase 31\.15 — CASE domain reconciliation[\s\S]*?\}\s*catch\s*\{[\s\S]*?the rest of the reconcile continues[\s\S]*?\}/,
+      /Phase 31\.15 — CASE domain reconciliation[\s\S]*?\}\s*catch\s*\(err\)\s*\{[\s\S]*?the rest of the reconcile continues[\s\S]*?fail\("stage:CASE", err\);\s*\}/,
     )?.[0];
     expect(block).toBeTruthy();
   });

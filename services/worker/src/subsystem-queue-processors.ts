@@ -194,9 +194,19 @@ async function processGraphReconcileJobInner(
         nodesUpserted: result.nodesUpserted,
         edgesUpserted: result.edgesUpserted,
         edgesStaled: result.edgesStaled,
+        nodesTombstoned: result.nodesTombstoned,
+        failures: result.failures,
       },
       "graph_reconcile.completed",
     );
+    // A partial graph is not a quiet success: every stage that did not
+    // complete is named, by family and database code.
+    if (result.failures.length > 0) {
+      logger.warn(
+        { jobId: job.id ?? null, teamId: ctx.workspaceId, failures: result.failures },
+        "graph_reconcile.incomplete",
+      );
+    }
   } catch (err) {
     logger.error(
       {
