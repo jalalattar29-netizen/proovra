@@ -133,12 +133,15 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
     );
     const link = { ...minted.link, locationPolicy: "NONE", workflowTemplateSnapshot: {} } as never;
     const session = {
+      // Not a DB row: the SUBMITTED transition after finalization fails on it,
+      // which is exactly the ET-INT-13 post-commit failure.
+      id: randomUUID(),
       status: "OPEN",
       expiresAtUtc: new Date(Date.now() + 3600_000),
       consentAcceptedAtUtc: new Date(),
       evidenceId: ev.id,
     } as never;
-    return { evidenceId: ev.id, link, session };
+    return { evidenceId: ev.id, link, session, linkId: (minted.link as { id: string }).id };
   }
 
   const publicVerify = (id: string) => h.app.inject({ method: "GET", url: `/public/verify/${id}` });
@@ -155,6 +158,11 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
       );
       expect(err).toBeInstanceOf(ExternalIntakeOrchestrationError);
       expect((err as { code: string }).code).toBe("finalization_blocked_by_policy");
+      // ET-INT-13 — an anonymous contributor retrying the refused submit does
+      // not grow the chain: the refusal is recorded once while it is unchanged.
+      for (let i = 0; i < 3; i += 1) {
+        await submitExternalIntake({ link: s.link, session: s.session }).catch(() => null);
+      }
 
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: s.evidenceId },
@@ -175,11 +183,14 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
     const { submitExternalIntake } = await import("../src/services/external-intake-orchestration.service.js");
     await withPolicy({ requirePublicationApproval: true }, async () => {
       const s = await submission();
-      await submitExternalIntake({ link: s.link, session: s.session }).catch((e: unknown) => {
-        // Post-finalize bookkeeping on the plain session value may fail in this
-        // harness; finalization itself is what is asserted below.
-        return e;
-      });
+      // ET-INT-13 — the SUBMITTED transition fails on this harness's session
+      // value AFTER the record was finalized; the submission still succeeds.
+      await expect(submitExternalIntake({ link: s.link, session: s.session })).resolves.toBeTruthy();
+      // A retry finalizes nothing again and consumes no second use.
+      await expect(submitExternalIntake({ link: s.link, session: s.session })).resolves.toBeTruthy();
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: s.evidenceId, eventType: "SIGNATURE_APPLIED" } })).toBe(1);
+      expect(await prisma.custodyEvent.count({ where: { evidenceId: s.evidenceId, eventType: "EXTERNAL_INTAKE_SUBMITTED" } })).toBe(1);
+      expect((await prisma.workflowIntakeLink.findUniqueOrThrow({ where: { id: s.linkId }, select: { usedCount: true } })).usedCount).toBe(1);
       const ev = await prisma.evidence.findUniqueOrThrow({
         where: { id: s.evidenceId },
         select: { status: true, publicVerifyState: true },

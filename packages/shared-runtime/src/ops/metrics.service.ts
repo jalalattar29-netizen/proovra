@@ -199,6 +199,8 @@ export const COUNTER_NAMES = [
   "multipart_verify_failed_total",
   // ET-UPL-05 — a completed multipart object of another size than declared.
   "multipart_size_mismatch_total",
+  // ET-INT-13 — an intake submission finalized, then its SUBMITTED transition failed.
+  "external_intake_post_finalize_transition_failed_total",
   "multipart_stale_cleanup_total",
   // Phase 30.9 — client-side upload operations telemetry. The
   // orchestrator (apps/web/lib/uploads/multipart-uploader.ts) drives

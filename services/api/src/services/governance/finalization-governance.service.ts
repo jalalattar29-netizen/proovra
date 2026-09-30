@@ -88,6 +88,24 @@ export async function evaluateFinalizationGovernance(input: {
           where: { id: evidence.id, signedAtUtc: null },
           data: { publicVerifyState: "NOT_PUBLISHED" },
         });
+        // ET-INT-13 — ONE refusal event per unchanged refusal. An anonymous
+        // contributor retrying a governance-denied submit appended a new
+        // EXPORT_BLOCKED_BY_POLICY per retry, growing the chain without bound.
+        // Decided under the record lock, so concurrent retries append once.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidence.id}))`;
+        const latest = await tx.custodyEvent.findFirst({
+          where: { evidenceId: evidence.id },
+          orderBy: { sequence: "desc" },
+          select: { eventType: true, payload: true },
+        });
+        const latestPayload = (latest?.payload ?? null) as { action?: unknown; reason?: unknown } | null;
+        if (
+          latest?.eventType === prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY &&
+          latestPayload?.action === action &&
+          latestPayload?.reason === decision.reason
+        ) {
+          return;
+        }
         await appendCustodyEventTx(tx, {
           evidenceId: evidence.id,
           eventType: prismaPkg.CustodyEventType.EXPORT_BLOCKED_BY_POLICY,

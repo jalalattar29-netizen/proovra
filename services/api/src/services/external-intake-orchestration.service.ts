@@ -60,6 +60,7 @@ import { createEvidence } from "./evidence.service.js";
 import { completeEvidence } from "./evidence-complete.service.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
 import { swallowCustodyAppendError } from "./custody-events-observability.js";
+import { bump } from "./ops/metrics.service.js";
 import {
   releaseIntakeLinkUse,
   reserveIntakeLinkUse,
@@ -999,6 +1000,11 @@ export async function submitExternalIntake(
   // anchor publishing.
   // The ONE finalization governance gate (2026-09-29, audit D3), on the
   // authority of the link's owner — the same policy the web upload obeys.
+  // ET-INT-13 — a RETRY after the record was already finalized (an earlier
+  // attempt signed it and then failed a post-commit step) neither reserves a
+  // second use nor finalizes again: it only completes what is missing.
+  const alreadyFinalized = evidence.status === "SIGNED" || evidence.status === "REPORTED";
+  if (!alreadyFinalized) {
   const gate = await evaluateFinalizationGovernance({
     evidenceId: evidence.id,
     actorUserId: evidence.ownerUserId,
@@ -1037,6 +1043,7 @@ export async function submitExternalIntake(
     }
     throw err;
   }
+  }
 
   // Audit the contributor's location decision. Coordinates are NEVER
   // logged here — only the consent state and an accuracy band. The
@@ -1072,7 +1079,19 @@ export async function submitExternalIntake(
 
   // Emit external-specific custody event AFTER completion so it sits at the
   // end of the chain (the chain hashes events in order).
-  await appendCustodyEvent({
+  // ET-INT-13 — FROM HERE THE RECORD IS FINALIZED: nothing below may turn the
+  // contributor's answer into "failed, try again". Each step is idempotent
+  // (the custody event once per session; the transition only if still open)
+  // and a failure is recorded for operators, not returned to the contributor.
+  const submittedAlready = await client.custodyEvent.findFirst({
+    where: {
+      evidenceId: evidence.id,
+      eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_SUBMITTED,
+      payload: { path: ["intakeSessionId"], equals: input.session.id },
+    },
+    select: { id: true },
+  });
+  if (!submittedAlready) await appendCustodyEvent({
     evidenceId: evidence.id,
     eventType: prismaPkg.CustodyEventType.EXTERNAL_INTAKE_SUBMITTED,
     payload: {
@@ -1085,15 +1104,35 @@ export async function submitExternalIntake(
       locationProvided: shouldPersistLocation,
       locationConsentState: policy !== "NONE" ? consentState : null,
     },
-  });
+  }).catch((err: unknown) =>
+    swallowCustodyAppendError(err, {
+      surface: "externalIntake.submit",
+      evidenceId: evidence.id,
+      custodyEventType: "EXTERNAL_INTAKE_SUBMITTED",
+    }),
+  );
 
   // Transition the session. (ET-INT-09 — the link's use was reserved before
   // finalization; the transition no longer counts it again.)
-  const submitted = await transitionIntakeSession({
-    sessionId: input.session.id,
-    expectedLinkId: input.link.id,
-    to: "SUBMITTED",
-  });
+  let submitted: Awaited<ReturnType<typeof transitionIntakeSession>>;
+  try {
+    submitted = await transitionIntakeSession({
+      sessionId: input.session.id,
+      expectedLinkId: input.link.id,
+      to: "SUBMITTED",
+    });
+  } catch (err) {
+    // ET-INT-13 — already SUBMITTED (a concurrent or earlier attempt) is the
+    // state we want; anything else is recorded, and the finalized record is
+    // still the contributor's answer.
+    const current = await client.workflowIntakeSession
+      .findUnique({ where: { id: input.session.id } })
+      .catch(() => null);
+    if (current?.status !== "SUBMITTED") {
+      bump("external_intake_post_finalize_transition_failed_total");
+    }
+    submitted = current ?? input.session;
+  }
 
   // Phase 7 — if this intake link was created by an EvidenceRequest, wire
   // the response into the request domain so reviewers see a new
