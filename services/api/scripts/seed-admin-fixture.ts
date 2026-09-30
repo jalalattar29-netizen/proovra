@@ -69,6 +69,7 @@ import { REQUIRED_LEGAL_VERSIONS } from "../src/legal/legal-versioning.js";
 // own hash format would seed accounts nobody can sign in to, which is the one
 // thing this fixture must not do.
 import { hashPassword } from "../src/services/email-password-auth.service.js";
+import { localSeedDatabaseRefusal } from "./lib/local-seed-guard.js";
 
 /**
  * One password for every fixture account.
@@ -91,35 +92,15 @@ function refuse(message: string): never {
   process.exit(1);
 }
 
-if (process.env.NODE_ENV === "production") {
-  refuse("NODE_ENV is production.");
-}
-
-const DSN = process.env.DATABASE_URL ?? "";
-if (DSN === "") refuse("DATABASE_URL is not set.");
-
 /**
- * The database name must look local.
+ * The database must be local (ET-UPL-04: the ONE shared guard — name AND host).
  *
  * Not a warning, a refusal. Everything below is a write, and the cost of being
  * wrong is a seeded fixture on top of real customer data.
  */
-const DB_NAME = (() => {
-  try {
-    return new URL(DSN).pathname.replace(/^\//, "");
-  } catch {
-    refuse("DATABASE_URL is not a parseable URL.");
-  }
-})();
-
-if (!/(test|fixture|local|dev)/i.test(DB_NAME)) {
-  refuse(
-    `database "${DB_NAME}" does not look local. Name it with test/fixture/local/dev, ` +
-      `or point DATABASE_URL somewhere you are willing to have overwritten.`,
-  );
-}
-if (/(prod|production|neondb)/i.test(DB_NAME)) {
-  refuse(`database "${DB_NAME}" looks like production.`);
+{
+  const refusal = localSeedDatabaseRefusal();
+  if (refusal) refuse(refusal);
 }
 
 // -----------------------------------------------------------------------------
@@ -589,7 +570,7 @@ async function seedIncidents(): Promise<void> {
 
 async function main(): Promise<void> {
   // eslint-disable-next-line no-console
-  console.log(`seed-admin-fixture: seeding "${DB_NAME}"`);
+  console.log(`seed-admin-fixture: seeding "${new URL(process.env.DATABASE_URL ?? "").pathname.slice(1)}"`);
 
   await wipeFixture();
   await seedActors();

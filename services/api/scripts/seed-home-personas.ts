@@ -30,12 +30,14 @@ import "../src/env.js";
  * `/v1/dashboard/trust-summary` aggregate returns real counts without
  * running the worker pipeline.
  *
- * SAFE BY DESIGN: refuses to run when NODE_ENV === "production".
+ * SAFE BY DESIGN (ET-UPL-04): the shared local-seed guard refuses production,
+ * a non-local database name and any non-loopback host before the first write.
+ * No .env file is loaded — pass DATABASE_URL explicitly.
  */
 
-import "dotenv/config";
-
 import { createHash, randomBytes } from "node:crypto";
+
+import { assertLocalSeedDatabase } from "./lib/local-seed-guard.js";
 
 import { prisma } from "../src/db.js";
 import "../src/register-shared-runtime.js";
@@ -47,11 +49,7 @@ import { REQUIRED_LEGAL_VERSIONS } from "../src/legal/legal-versioning.js";
 // evidence_search_documents) finds persona fixtures. No bespoke rows.
 import { indexEvidence } from "../src/services/search/evidence-indexing.service.js";
 
-if (process.env.NODE_ENV === "production") {
-  // eslint-disable-next-line no-console
-  console.error("REFUSING to seed personas in production.");
-  process.exit(1);
-}
+assertLocalSeedDatabase("seed-home-personas");
 
 const NOW = new Date();
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3600_000);

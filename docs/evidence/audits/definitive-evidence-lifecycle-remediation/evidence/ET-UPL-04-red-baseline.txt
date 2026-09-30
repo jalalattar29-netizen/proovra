@@ -1,0 +1,15 @@
+ET-UPL-04 red — services/api/test/local-seed-guard.test.ts against HEAD (733f3992) scripts/seed-home-personas.ts + seed-admin-fixture.ts:
+   × local seed guard (ET-UPL-04) > both seeders run the one guard and neither loads dotenv/config 4ms
+     → ../scripts/seed-home-personas.ts: expected '// PHASE 12 — POINT 7 (2026-08-05): l…' to match /from "\.\/lib\/local-seed-guard\.…/lib\
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+  // Evidence with REAL trust columns set → trust-summary counts.
+  // → appears in /v1/me/inbox intake_submission_pending_review.
+  // Overdue review workflow → overdueReviewCount > 0 → Action required.
+  // The proof is the data path Capture → finalize → review-workspace
+  // → UI; without an exemplar the detail page never showed these.
+      Tests  1 failed | 5 passed (6)
+(HEAD: seed-home-personas imported dotenv/config and refused only NODE_ENV=production — no name or host guard.)
+
+Green, behavioural (PROOVRA_ENV_BOOTSTRAPPED=1, no .env loaded, DATABASE_URL on a remote host):
+  seed-home-personas: REFUSED — host "db.example.com" is not loopback or a local compose service name. (exit 1, before any connection)
+  seed-admin-fixture: REFUSED — host "db.example.com" is not loopback or a local compose service name.
