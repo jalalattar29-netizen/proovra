@@ -26,6 +26,9 @@ const H = vi.hoisted(() => ({
   derivativeRow: null as Record<string, unknown> | null,
   presigns: [] as Array<Record<string, unknown>>,
   gateOk: true,
+  // ET-SEC-26 — the byte-release gate double: its calls and its answer.
+  releases: [] as Array<Record<string, unknown>>,
+  releaseAllowed: true,
 }));
 
 vi.mock("../src/db.js", () => ({
@@ -34,6 +37,7 @@ vi.mock("../src/db.js", () => ({
       findUnique: async () => ({ currentWorkspaceId: "t1" }),
     },
     redactionVersion: { findFirst: async () => H.version },
+    redactionProject: { findFirst: async () => ({ evidenceId: "ev-1" }) },
     redactionDerivative: {
       findFirst: async () => H.derivativeRow,
       create: async (args: { data: Record<string, unknown> }) => {
@@ -81,6 +85,14 @@ vi.mock("../src/queue/redaction-derivative-queue.js", () => ({
   enqueueRedactionDerivativeRender: async (p: Record<string, unknown>) => {
     H.enqueues.push(p);
     return H.enqueueOk ? { enqueued: true, jobId: `rd-${p.derivativeId}` } : { enqueued: false, reason: "queue_unavailable" };
+  },
+}));
+vi.mock("../src/services/evidence/artifact-download-gate.service.js", () => ({
+  evaluateArtifactDownload: async (input: Record<string, unknown>) => {
+    H.releases.push({ evidenceId: input.evidenceId, kind: input.kind, actorUserId: input.actorUserId });
+    return H.releaseAllowed
+      ? { allowed: true, teamId: "t1" }
+      : { allowed: false, teamId: "t1", statusCode: 403, body: { code: "LEGAL_HOLD_ACTIVE" } };
   },
 }));
 vi.mock("../src/services/redaction/redaction-activity.service.js", () => ({
@@ -286,6 +298,28 @@ describe("MACRO-WAVE A1 — GET /v1/redaction/derivatives/:id/download-url", () 
       "DERIVATIVE_NOT_READY",
     );
     expect(H.presigns).toEqual([]);
+  });
+
+  it("ET-SEC-26: READY bytes are released only through the byte-release gate (kind redaction, the record's id)", async () => {
+    seedDerivative("READY");
+    H.releases.length = 0;
+    const res = await inject();
+    expect(res.statusCode).toBe(200);
+    expect(H.releases).toEqual([{ evidenceId: "ev-1", kind: "redaction", actorUserId: "u1" }]);
+  });
+
+  it("ET-SEC-26: a byte-release refusal (e.g. legal hold) → its status, no presign, no counter bump", async () => {
+    seedDerivative("READY");
+    H.releaseAllowed = false;
+    try {
+      const res = await inject();
+      expect(res.statusCode).toBe(403);
+      expect((res.json() as Record<string, unknown>).code).toBe("LEGAL_HOLD_ACTIVE");
+      expect(H.presigns).toEqual([]);
+      expect(H.updated).toEqual([]);
+    } finally {
+      H.releaseAllowed = true;
+    }
   });
 
   it("capability denial → 403, no presign, no counter bump", async () => {

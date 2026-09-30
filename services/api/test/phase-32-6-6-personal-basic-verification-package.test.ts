@@ -93,11 +93,13 @@ describe("Phase 32.6.6 — createVerificationPackage personal-basic branch", () 
     expect(SRC).toMatch(/PERSONAL_ACCOUNT_WORKSPACE/);
   });
 
-  it("personal mode skips the eligibility gate (gate runs only for team mode)", () => {
-    // The gate import must live inside an `if (packageMode === "team_governed")` block.
-    expect(fn).toMatch(
-      /if\s*\(\s*packageMode\s*===\s*"team_governed"\s*\)\s*\{[\s\S]{0,400}assertPackageEligibleOrDeny/,
-    );
+  it("the eligibility gate runs for every package, personal mode included (ET-PKG-08)", () => {
+    // It used to live inside `if (packageMode === "team_governed")`, so a
+    // Personal record skipped the lifecycle / destruction / drift checks.
+    expect(fn).not.toMatch(/if\s*\(\s*packageMode\s*===\s*"team_governed"\s*\)\s*\{[\s\S]{0,400}assertPackageEligibleOrDeny/);
+    expect(fn).toMatch(/teamId: \(data\.teamId as string \| null \| undefined\) \?\? null,/);
+    // An unresolved workspace kind is denied before any build.
+    expect(fn).toMatch(/"workspace_kind_unresolved"/);
   });
 
   it("throws only when evidenceId is missing (NOT when only teamId is missing)", () => {
@@ -231,7 +233,9 @@ describe("Phase 32.6.6 — route /v1/evidence/:id/verification-package 410 retir
     expect(SRC).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "package"/);
     const gate = readApi("src/services/evidence/artifact-download-gate.service.ts");
     expect(gate).toMatch(/package: "download_package"/);
-    expect(gate).toMatch(/enforceSensitiveAction\(SENSITIVE_ACTION\[kind\]/);
+    // ET-SEC-26 — the action is read once (a redacted derivative names none).
+    expect(gate).toMatch(/const sensitiveAction = SENSITIVE_ACTION\[kind\];/);
+    expect(gate).toMatch(/await enforceSensitiveAction\(sensitiveAction, \{/);
     expect(gate).toMatch(/personalOwnerVerified: personalOwner/);
   });
 });
@@ -318,12 +322,9 @@ describe("Phase 32.6.6 — package mode catalog is bounded", () => {
     expect(SRC).not.toMatch(/"enterprise_\w+"/);
   });
 
-  it("personal mode skips the package eligibility gate; team mode runs it", () => {
-    // The team-governed `if` itself — the gate must run inside it.
-    const next2k = enclosingSource(SRC, 'if (packageMode === "team_governed")', "statement", {
-      unique: true,
-      fileName: "verification-package.ts",
-    });
-    expect(next2k).toMatch(/assertPackageEligibleOrDeny/);
+  it("the package eligibility gate runs for both modes (ET-PKG-08)", () => {
+    expect(SRC).not.toContain('if (packageMode === "team_governed") {');
+    const gateCall = SRC.indexOf("await assertPackageEligibleOrDeny({");
+    expect(gateCall).toBeGreaterThan(SRC.indexOf("const packageMode"));
   });
 });

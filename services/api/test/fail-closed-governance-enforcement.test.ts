@@ -151,12 +151,14 @@ describe("Phase 28-E [worker gate] — wiring into createVerificationPackage", (
     expect(fnBody).not.toMatch(/if\s*\(\s*!data\.teamId\s*\|\|\s*!data\.evidenceId\s*\)/);
   });
 
-  it("Phase 32.6.6 — team-governed mode still runs the eligibility gate", () => {
-    // The eligibility gate (assertPackageEligibleOrDeny) must run for
-    // any package with a teamId. Personal-basic skips it.
+  it("Phase 32.6.6 / ET-PKG-08 — the eligibility gate runs for every package", () => {
+    // It ran only in team-governed mode; a Personal record skipped the
+    // lifecycle / destruction / drift checks. It now runs for both modes,
+    // and an unresolved workspace kind is denied before any build.
     const fnBody = functionSource(pkgSrc, "createVerificationPackage");
-    expect(fnBody).toMatch(/if\s*\(\s*packageMode\s*===\s*"team_governed"\s*\)/);
-    expect(fnBody).toMatch(/assertPackageEligibleOrDeny/);
+    expect(fnBody).not.toMatch(/if\s*\(\s*packageMode\s*===\s*"team_governed"\s*\)/);
+    expect(fnBody).toMatch(/await assertPackageEligibleOrDeny\(\{/);
+    expect(fnBody).toMatch(/"workspace_kind_unresolved"/);
   });
 
   it("processor.ts now passes teamId to createVerificationPackage", () => {

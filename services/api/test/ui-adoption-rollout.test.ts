@@ -512,7 +512,9 @@ describe("Download routes (authoritative governance gate)", () => {
     // runs the canonical sensitive-action gate with download_report.
     expect(src).toMatch(/assertArtifactDownloadAllowed\(req, reply, \{[\s\S]{0,120}kind: "report"/);
     expect(gate).toMatch(/report: "download_report"/);
-    expect(gate).toMatch(/enforceSensitiveAction\(SENSITIVE_ACTION\[kind\]/);
+    // ET-SEC-26 — the action is read once (a redacted derivative names none).
+    expect(gate).toMatch(/const sensitiveAction = SENSITIVE_ACTION\[kind\];/);
+    expect(gate).toMatch(/await enforceSensitiveAction\(sensitiveAction, \{/);
   });
 
   it("GET /v1/evidence/:id/verification-package exists and runs enforceSensitiveAction(\"download_package\", ...)", () => {

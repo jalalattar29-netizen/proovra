@@ -1610,6 +1610,41 @@ export async function redactionRoutes(app: FastifyInstance) {
           .code(409)
           .send({ denial: "DERIVATIVE_NOT_READY" as RedactionDenialReason });
       }
+      // ET-SEC-26 — THE byte-release gate, as for reports, packages and
+      // originals: the record open to the caller, the personal-owner rule,
+      // legal hold / lifecycle / export eligibility. A refusal is recorded on
+      // the record's custody chain and releases no URL.
+      const project = await prisma.redactionProject.findFirst({
+        where: { id: d.version.projectId, teamId: ctx.teamId },
+        select: { evidenceId: true },
+      });
+      if (!project) {
+        return reply
+          .code(404)
+          .send({ denial: "DERIVATIVE_NOT_READY" as RedactionDenialReason });
+      }
+      const { evaluateArtifactDownload } = await import(
+        "../services/evidence/artifact-download-gate.service.js"
+      );
+      const { resolveEvidenceRecordAccess } = await import(
+        "../services/evidence/evidence-record-access.service.js"
+      );
+      const release = await evaluateArtifactDownload({
+        evidenceId: project.evidenceId,
+        actorUserId: ctx.userId,
+        kind: "redaction",
+        ip: req.ip,
+        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        readAccess: async (userId, evidenceId) => {
+          const a = await resolveEvidenceRecordAccess({ userId, evidenceId, permission: "evidence.read" });
+          if (!a.allowed) {
+            throw Object.assign(new Error("Evidence not found"), { statusCode: 404 });
+          }
+        },
+      });
+      if (!release.allowed) {
+        return reply.code(release.statusCode).send(release.body);
+      }
       const expiresInSeconds = 300;
       const downloadUrl = await presignGetObject({
         bucket: d.storageBucket,

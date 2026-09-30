@@ -35,30 +35,42 @@ import { resolveEvidenceRecordAccess } from "./evidence-record-access.service.js
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
 
-export type ArtifactKind = "report" | "package" | "original";
+/**
+ * ET-SEC-26 — "redaction": a released redacted derivative is a byte release
+ * too, and was the one path outside this gate (no legal hold, lifecycle or
+ * export-eligibility check). The route keeps its own workspace capability
+ * (redaction.derivative.download); here the record must be open to the
+ * caller, the personal-owner rule applies, and export eligibility decides.
+ * No workspace download POLICY names derivatives, so none is consulted.
+ */
+export type ArtifactKind = "report" | "package" | "original" | "redaction";
 
 const DOWNLOAD_PERMISSION = {
   report: "evidence.download_report",
   package: "evidence.download_package",
   original: "evidence.download_original",
+  redaction: "evidence.read",
 } as const;
 
 const SENSITIVE_ACTION = {
   report: "download_report",
   package: "download_package",
   original: "download_original",
+  redaction: null,
 } as const;
 
 const CUSTODY_ACTION = {
   report: "report_download",
   package: "verification_package_download",
   original: "download_original",
+  redaction: "redaction_derivative_download",
 } as const;
 
 const SUBJECT = {
   report: "Report download",
   package: "Verification package download",
   original: "Original file download",
+  redaction: "Redacted derivative download",
 } as const;
 
 export type ArtifactDownloadDecision =
@@ -170,6 +182,7 @@ export async function evaluateArtifactDownload(input: {
     }
   }
 
+  const sensitiveAction = SENSITIVE_ACTION[kind];
   const { enforceSensitiveAction } = await import("../governance.service.js");
   const membership = teamId
     ? await prisma.teamMember.findUnique({
@@ -177,7 +190,7 @@ export async function evaluateArtifactDownload(input: {
         select: { role: true, status: true },
       })
     : null;
-  const decision = await enforceSensitiveAction(SENSITIVE_ACTION[kind], {
+  const decision = sensitiveAction === null ? ({ allowed: true } as const) : await enforceSensitiveAction(sensitiveAction, {
     teamId,
     role: membership?.status === "ACTIVE" ? membership.role : undefined,
     evidence: {
