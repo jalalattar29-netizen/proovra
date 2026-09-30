@@ -35,7 +35,7 @@ import {
   runWithApiAudit,
 } from "../middleware/integrations-auth.js";
 import { createEvidenceRequest } from "../services/evidence-request.service.js";
-import { createWorkflowIntakeLink } from "../services/workflow-intake-link.service.js";
+import { createWorkflowIntakeLink, WorkflowIntakeLinkError } from "../services/workflow-intake-link.service.js";
 import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 import { assertWorkspaceAllowsIntake } from "../services/billing-enforcement.service.js";
 
@@ -318,6 +318,12 @@ export async function integrationsApiRoutes(app: FastifyInstance) {
             rawToken,
           });
         } catch (err) {
+          // ET-SEC-33 — a foreign caseId answers exactly like a missing one.
+          if (err instanceof WorkflowIntakeLinkError) {
+            return reply
+              .code(err.code === "case_not_in_workspace" ? 404 : err.code === "feature_disabled" ? 503 : 400)
+              .send({ error: { code: err.code } });
+          }
           return sendIntegrationDomainError(reply, err, "intake_link_failed");
         }
       });

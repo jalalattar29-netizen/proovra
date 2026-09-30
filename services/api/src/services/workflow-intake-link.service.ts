@@ -114,6 +114,8 @@ export class WorkflowIntakeLinkError extends Error {
       | "expiry_in_past"
       | "max_uses_invalid"
       | "invalid_sender_display_name"
+      // ET-SEC-33 — the caseId names no case in this workspace.
+      | "case_not_in_workspace"
       | "internal",
     message?: string,
   ) {
@@ -210,6 +212,16 @@ export async function createWorkflowIntakeLink(
   const maxUses = input.maxUses ?? 1;
   if (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 10_000) {
     throw new WorkflowIntakeLinkError("max_uses_invalid");
+  }
+
+  // ET-SEC-33 — a caller-supplied caseId must be a case of THIS workspace. It
+  // was stored unvalidated (no FK), so a link could name another tenant's case.
+  if (input.caseId) {
+    const owned = await client.case.findFirst({
+      where: { id: input.caseId, teamId: input.teamId },
+      select: { id: true },
+    });
+    if (!owned) throw new WorkflowIntakeLinkError("case_not_in_workspace");
   }
 
   // Resolve effective template + snapshot.

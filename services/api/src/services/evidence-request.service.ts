@@ -94,7 +94,10 @@ export type EvidenceRequestErrorCode =
   // ET-INT-07 — the intake-link mint gate refused.
   | "intake_not_included"
   | "commercial_lifecycle_restricted"
-  | "intake_blocked_by_policy";
+  | "intake_blocked_by_policy"
+  // ET-SEC-33 — a caller-supplied id names nothing in this workspace.
+  | "case_not_in_workspace"
+  | "evidence_not_in_workspace";
 
 /** ET-INT-07 — the canonical mint gate's refusal, in this service's vocabulary. */
 async function assertIntakeLinkMintAllowed(
@@ -195,6 +198,22 @@ export async function createEvidenceRequest(
   client: PrismaClient = defaultPrisma,
 ): Promise<CreateEvidenceRequestResult> {
   const parsed = EvidenceRequestInputSchema.parse(input);
+
+  // ET-SEC-33 — the case and the evidence a request names must be THIS
+  // workspace's. Both were stored unvalidated (caseId has no FK; evidenceId's FK
+  // has no tenant), so a request — and every link minted from it — could point
+  // at another tenant's rows.
+  if (parsed.caseId) {
+    const owned = await client.case.findFirst({ where: { id: parsed.caseId, teamId: parsed.teamId }, select: { id: true } });
+    if (!owned) throw new EvidenceRequestError("case_not_in_workspace");
+  }
+  if (parsed.evidenceId) {
+    const owned = await client.evidence.findFirst({
+      where: { id: parsed.evidenceId, teamId: parsed.teamId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!owned) throw new EvidenceRequestError("evidence_not_in_workspace");
+  }
 
   return client.$transaction(async (tx) => {
     const created = await tx.evidenceRequest.create({

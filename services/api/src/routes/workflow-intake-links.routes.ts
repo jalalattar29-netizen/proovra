@@ -546,8 +546,8 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
           const status =
             err.code === "feature_disabled"
               ? 503
-              : err.code === "invalid_sender_display_name"
-                ? 400
+              : err.code === "case_not_in_workspace"
+                ? 404
                 : 400;
           return reply.code(status).send({
             error: { code: err.code, message: err.message },

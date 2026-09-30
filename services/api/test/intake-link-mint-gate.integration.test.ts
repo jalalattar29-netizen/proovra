@@ -120,6 +120,38 @@ describe("intake-link mint gate on the evidence-request flows (live PostgreSQL 1
     expect(sent.rawToken).toBeTruthy();
   });
 
+  it("ET-SEC-33: a request or link naming ANOTHER workspace's case or evidence is refused as missing, and nothing is stored", async () => {
+    const A = h.fixtures.teamA;
+    const B = h.fixtures.teamB;
+    const before = await prisma.evidenceRequest.count({ where: { teamId: A.teamId } });
+    const foreignCase = await svc
+      .createEvidenceRequest(
+        { teamId: A.teamId, requestType: "ADDITIONAL_EVIDENCE", title: "x", recipientMode: "EXTERNAL_CONTRIBUTOR", createIntakeLink: false, caseId: B.caseId } as never,
+        { actorUserId: A.ownerUserId },
+      )
+      .catch((e: unknown) => e);
+    expect((foreignCase as { code?: string }).code).toBe("case_not_in_workspace");
+    const foreignEvidence = await svc
+      .createEvidenceRequest(
+        { teamId: A.teamId, requestType: "ADDITIONAL_EVIDENCE", title: "x", recipientMode: "EXTERNAL_CONTRIBUTOR", createIntakeLink: false, evidenceId: B.evidenceId } as never,
+        { actorUserId: A.ownerUserId },
+      )
+      .catch((e: unknown) => e);
+    expect((foreignEvidence as { code?: string }).code).toBe("evidence_not_in_workspace");
+    expect(await prisma.evidenceRequest.count({ where: { teamId: A.teamId } })).toBe(before);
+
+    const links = await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } });
+    const res = await h.app.inject({
+      method: "POST",
+      url: "/v1/workflow/intake-links",
+      headers: { authorization: `Bearer ${A.ownerToken}` },
+      payload: { teamId: A.teamId, workflowTemplateSlug: "general-evidence-record", intakeMode: "EXTERNAL_REUSABLE", recipientLabel: "x", caseId: B.caseId, expiresAtUtc: new Date(Date.now() + 3_600_000).toISOString() },
+    });
+    expect(res.statusCode, res.body).toBe(404);
+    expect(res.json()).toMatchObject({ error: { code: "case_not_in_workspace" } });
+    expect(await prisma.workflowIntakeLink.count({ where: { teamId: A.teamId } })).toBe(links);
+  });
+
   it("ET-INT-08: cancelling a request revokes its link AND its request-more follow-up; the public token is refused", async () => {
     const A = h.fixtures.teamA;
     const id = await externalDraft();

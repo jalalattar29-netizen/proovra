@@ -1,0 +1,6 @@
+ET-SEC-33 red — services/api/test/intake-link-mint-gate.integration.test.ts -t ET-SEC-33 against HEAD (da973780) link/request services + routes (live PG16):
+   × intake-link mint gate on the evidence-request flows (live PostgreSQL 16) > ET-SEC-33: a request or link naming ANOTHER workspace's case or evidence is refused as missing, and nothing is stored 2
+     → expected undefined to be 'case_not_in_workspace' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 6 skipped (7)
+(HEAD stored an evidence request naming another workspace's case.)
