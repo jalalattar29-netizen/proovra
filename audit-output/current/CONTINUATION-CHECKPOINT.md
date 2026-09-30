@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1306
-ROUTE_ATTRIBUTED_REACHABLE                  1166
+TerminalWriters                             1309
+ROUTE_ATTRIBUTED_REACHABLE                  1169
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -593,3 +593,19 @@ node services/api/scripts/audit/index.mjs --closure-check
   and its note corrected (the url is built from `internalApiBase`).
 - ET-Q-07 is left open: wiring or retiring the five producer-less queues is an
   owner decision.
+
+### 2026-09-30 — EVIDENCE-LIFECYCLE REMEDIATION B10 + B11 (writers 1306 -> 1309)
+
+- B10 moved the facts to 1308 / 1168 and its accounting commit (c8a3e505) did
+  not rebaseline this checkpoint; the checkpoint-truth test caught it. The two
+  writers: ET-UPL-05 `completeStorageMultipart` fails the session on
+  `size_mismatch` (`evidence_upload_sessions` raw UPDATE) and ET-UPL-02
+  `createUploadSession` releases a terminal session's idempotency key (raw
+  UPDATE) — both route-attributed (+2). ET-SM-02 swapped the report commit's
+  `evidence.update` for a conditional `updateMany` (-1, +1; job-attributed).
+- B11: ET-PKG-09 claims the VERIFY_VIEWED debounce with one conditional
+  `evidence.updateMany` on the public Verify route (+1).
+- TerminalWriters 1306 -> 1309, ROUTE_ATTRIBUTED_REACHABLE 1166 -> 1169.
+  JOB_ATTRIBUTED_REACHABLE and STARTUP_OR_SCHEDULED unchanged.
+- B11's other fixes change reads, gates, projections and package content; no
+  other bucket moves.

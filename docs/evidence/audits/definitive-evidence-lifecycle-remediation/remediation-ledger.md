@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 89 |
+| FIXED_IN_THIS_TASK | 102 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 64 |
+| STILL_PRESENT | 51 |
 
-Open by severity: P0 0 · P1 0 · P2 40 · P3 24
+Open by severity: P0 0 · P1 0 · P2 35 · P3 16
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -70,15 +70,15 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 | ET-INT-07 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-08 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-09 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-10 | P2 | STILL_PRESENT |  |  |  |
+| ET-INT-10 | P2 | FIXED_IN_THIS_TASK | integrations-api.routes integrationActorAndIntakeGate (credential's createdByUserId + assertWorkspaceAllowsIntake); sendIntegrationDomainError (bounded 4xx codes only) | d3f31f99a8 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-INT-10: attributed to the creator; FREE -> 409 INTAKE_NOT_INCLUDED; no credential id as user] |
 | ET-INT-11 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-12 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-13 | P2 | STILL_PRESENT |  |  |  |
 | ET-INT-14 | P2 | FIXED_IN_THIS_TASK | writeEvidencePart refuses a soft-deleted record as not found | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-14: a soft-deleted in-progress record is not found, never reused] |
 | ET-OTS-03 | P2 | FIXED_IN_THIS_TASK | runOtsInitializationReconciler second scan (pendingWithoutProgressWhere + isOtsUpgradeScheduled over both ladder ids): re-schedule once, never a parallel ladder | 304d5c2c2a, 7c5c69713c | services/worker/test/ots-pending-recovery.integration.test.ts (live PostgreSQL + loopback Redis) |
 | ET-OTS-04 | P2 | STILL_PRESENT |  |  |  |
-| ET-PKG-03 | P2 | FIXED_IN_THIS_TASK | verification-package buildReadme: sealed packages verified by the seal (a-e) incl. key fingerprint vs Public Verify; unsealed packages state what the manifest signature cannot show | 9ae43300d1 | services/worker/test/package-readme-seal-instructions.test.ts |
-| ET-PKG-04 | P2 | STILL_PRESENT |  |  |  |
+| ET-PKG-03 | P2 | FIXED_IN_THIS_TASK | verification-package buildReadme: sealed packages verified by the seal (a-e) incl. key fingerprint vs Public Verify; unsealed packages state what the manifest signature cannot show | 9ae43300d1, 4a4affa6b7 | services/worker/test/package-readme-seal-instructions.test.ts |
+| ET-PKG-04 | P2 | FIXED_IN_THIS_TASK | verification-package buildPackageManifest contents — every flag that can be true maps to an appended entry (exhaustive test) | 4a4affa6b7 | services/worker/test/package-manifest-contents-truth.test.ts |
 | ET-PKG-05 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-06 | P2 | STILL_PRESENT |  |  |  |
 | ET-PKG-07 | P2 | STILL_PRESENT |  |  |  |
@@ -99,15 +99,15 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 | ET-SEC-14 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-15 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-16 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-17 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-18 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-17 | P2 | FIXED_IN_THIS_TASK | legal-hold.service evaluateCaseDeletionHold (clear \| held \| unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17]; services/api/test/legal-hold-tenant-spread-guard.test.ts |
+| ET-SEC-18 | P2 | FIXED_IN_THIS_TASK | middleware/authorize evaluateAuthorize / authorizeOrFail (evidence.read, antiEnumeration) for both lists; owner arm bounded to legacy NULL-team rows | 8d781d8043 | services/api/test/reports-list-authorization.integration.test.ts; services/api/test/phase-ia-self-serve-regression-fix.test.ts; services/api/test/phase-32-8-d-cases-reports.test.ts |
 | ET-SEC-19 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-20 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-21 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-22 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-23 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-24 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-25 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-25 | P2 | FIXED_IN_THIS_TASK | access-policy.service workspaceLifecycleDenial (shared by evaluateAccess and requireApiKey via loadWorkspaceLifecycleState; fail closed 503) | d3f31f99a8 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-SEC-25: SUSPENDED org key -> 403 ORGANIZATION_NOT_ACTIVE, nothing written] |
 | ET-SEC-26 | P2 | STILL_PRESENT |  |  |  |
 | ET-SEC-27 | P2 | STILL_PRESENT |  |  |  |
 | ET-SM-02 | P2 | FIXED_IN_THIS_TASK | services/worker/src/processor.ts REPORTABLE_AT_COMMIT_WHERE / isReportableAtCommit (conditional commit; REPORT_EVIDENCE_STATE_CHANGED otherwise) | e16588fb76 | services/api/test/point5/report-package-recovery.integration.test.ts [ET-SM-02: integrity rejection and trash during render] |
@@ -132,14 +132,14 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 | ET-INT-15 | P3 | STILL_PRESENT |  |  |  |
 | ET-OTS-05 | P3 | STILL_PRESENT |  |  |  |
 | ET-OTS-06 | P3 | STILL_PRESENT |  |  |  |
-| ET-OTS-07 | P3 | STILL_PRESENT |  |  |  |
-| ET-PKG-09 | P3 | STILL_PRESENT |  |  |  |
-| ET-PKG-11 | P3 | STILL_PRESENT |  |  |  |
+| ET-OTS-07 | P3 | FIXED_IN_THIS_TASK | verification-package decideOtsPackageArtifact verificationHint: `ots verify -d <hash in this file>` (the companion hash is the SHA-256 of the stamped bytes) | 4a4affa6b7 | services/worker/test/package-readme-seal-instructions.test.ts [the OTS hint names the digest] |
+| ET-PKG-09 | P3 | FIXED_IN_THIS_TASK | public verify: maskIp network prefix, no user agent; debounce = one conditional updateMany whose winner alone emits VERIFY_VIEWED | dc6ce7dbc7 | services/api/test/public-verify-view-privacy-and-debounce.integration.test.ts |
+| ET-PKG-11 | P3 | FIXED_IN_THIS_TASK | verification-package-historical-material: publicMaterialRef always null; publicKeySpkiSha256 (publicFingerprintOfPem); per-purpose extraction (PACKAGE_SIGNING_PUBLIC_KEY_PATH for verification_package) | f462ebee10 | services/worker/test/historical-verification-material.test.ts |
 | ET-PKG-12 | P3 | FIXED_IN_THIS_TASK | BasicVerification.report.sha256 (the latest report's pdfSha256) | 9ae43300d1 | public-verify-package-seal-identity.integration.test.ts [report.sha256] |
-| ET-PKG-13 | P3 | STILL_PRESENT |  |  |  |
-| ET-PKG-14 | P3 | STILL_PRESENT |  |  |  |
+| ET-PKG-13 | P3 | FIXED_IN_THIS_TASK | apps/web verify/[token]/layout.tsx robots noindex; middleware isPublicVerifyCapabilityPath + X-Robots-Tag on every secured response | 510c1ed38e | apps/web/__tests__/verify-capability-noindex.test.ts |
+| ET-PKG-14 | P3 | FIXED_IN_THIS_TASK | verification-package RESERVED_ROOT_ENTRY_NAMES + avoidReservedRootEntryName (case-folded), kept exhaustive against the appended root entries | 4a4affa6b7 | services/worker/test/package-entry-name-collision.test.ts |
 | ET-PKG-15 | P3 | FIXED_IN_THIS_TASK | services/worker verification-package: getObjectStream versionId = VerificationEvidenceFile.storageVersionId from the processor's pre-read | b560aeee10 | services/worker/test/package-sealed-version.test.ts |
-| ET-PKG-17 | P3 | STILL_PRESENT |  |  |  |
+| ET-PKG-17 | P3 | FIXED_IN_THIS_TASK | rate-limit.service enforceDistinctClientLimit (atomic Redis set, memory fallback) keyed per record over the trusted client key | dc6ce7dbc7 | services/api/test/public-verify-distinct-client-limit.integration.test.ts |
 | ET-Q-07 | P3 | STILL_PRESENT |  | 1bc4344ed4 |  |
 | ET-Q-08 | P3 | FIXED_IN_THIS_TASK | report DLQ written only by the terminal (non-retriable) branch with a bounded code; media-intelligence DLQ written on a job's final attempt (job-event-context isFinalAttempt / boundedErrorCode) | d821f1419d | services/worker/test/job-event-context.test.ts |
 | ET-Q-09 | P3 | FIXED_IN_THIS_TASK | services/worker/src/job-event-context.ts (jobCommandId, isExpectedOtsPendingError); UnprocessableJobPayload extends BullMQ UnrecoverableError | d2b0d7da95 | services/worker/test/job-event-context.test.ts |
@@ -161,9 +161,9 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 | ET-SEC-29 | P3 | STILL_PRESENT |  |  |  |
 | ET-SEC-30 | P3 | STILL_PRESENT |  |  |  |
 | ET-SEC-31 | P3 | STILL_PRESENT |  |  |  |
-| ET-SEC-32 | P3 | STILL_PRESENT |  |  |  |
+| ET-SEC-32 | P3 | FIXED_IN_THIS_TASK | evidence.routes annotationPartBelongsToEvidence — the one part-ownership check for annotation create and edit | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32] |
 | ET-SEC-33 | P3 | STILL_PRESENT |  |  |  |
-| ET-SEC-34 | P3 | STILL_PRESENT |  |  |  |
+| ET-SEC-34 | P3 | FIXED_IN_THIS_TASK | legal-hold.service (canonical hold queries always tenant-anchored) | 9d7aa0ed67 | services/api/test/legal-hold-tenant-spread-guard.test.ts [ET-SEC-34: no symbol anywhere in src; no optional tenant spread] |
 | ET-SEC-35 | P3 | STILL_PRESENT |  |  |  |
 | ET-TSA-07 | P3 | FIXED_IN_THIS_TASK | classifyTsaSubprocessError reads killed / curl exit code / HTTP status only; credentials in a 0600 curl config (-K) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-07, credentials absent from the result]; services/api/test/phase-ia-tsa-false-failed.test.ts [credentials never in argv] |
 | ET-TSA-08 | P3 | FIXED_IN_THIS_TASK | report technical-model reference notes point to the package (timestamp.tsr when validated); integrity-snapshot docblock states no parser is wired and names the validator | d263f4f61f | services/worker unit suite; grep: no 'technical verification endpoint' remains in services/apps/packages |
@@ -749,6 +749,20 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 - **productFiles:** `packages/shared-runtime/src/custody/custody-chain.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `packages/shared-runtime/src/index.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/custody-events.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/workspace-usage.service.ts`, `services/worker/src/capture-reaper.ts`, `services/worker/src/custody-events.ts`, `services/worker/src/index.ts`
 - **commits:** cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)
 
+## ET-INT-10 — Integrations-API intake-link and evidence-request routes pass an API-credential id as a User id
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The integrations evidence-request / intake-link routes passed the API credential id as the acting User (FK P2003 leaked as a raw 400) and skipped the secure-intake plan gate.
+- **canonicalAuthority:** integrations-api.routes integrationActorAndIntakeGate (credential's createdByUserId + assertWorkspaceAllowsIntake); sendIntegrationDomainError (bounded 4xx codes only)
+- **redTest:** services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-INT-10] (evidence/ET-INT-10-SEC-25-red-baseline.txt)
+- **greenTest:** services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-INT-10: attributed to the creator; FREE -> 409 INTAKE_NOT_INCLUDED; no credential id as user]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/middleware/integrations-auth.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/services/identity/access-policy.service.ts`
+- **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)
+
 ## ET-INT-14 — Soft-deleted in-progress intake Evidence is reused for new parts
 
 - **severity:** P2
@@ -788,7 +802,21 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
-- **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
+- **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12); 4a4affa6b7 fix(package): the signed manifest claims only files the package contains; a root evidence file never takes a fixed entry name (ET-PKG-04, ET-PKG-14; ET-OTS-07 proven)
+
+## ET-PKG-04 — Signed package-manifest.json asserts contents.verifyHtml and verificationScript = true but no such files are emitted
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The signed package manifest hard-coded verifyHtml and verificationScript true after both files were removed from the package.
+- **canonicalAuthority:** verification-package buildPackageManifest contents — every flag that can be true maps to an appended entry (exhaustive test)
+- **redTest:** services/worker/test/package-manifest-contents-truth.test.ts (evidence/ET-PKG-04-OTS-07-PKG-14-red-baseline.txt)
+- **greenTest:** services/worker/test/package-manifest-contents-truth.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/verification-package.ts`
+- **commits:** 4a4affa6b7 fix(package): the signed manifest claims only files the package contains; a root evidence file never takes a fixed entry name (ET-PKG-04, ET-PKG-14; ET-OTS-07 proven)
 
 ## ET-Q-03 — MediaIntelligenceRun rows for perceptual hashes, technical metadata, text-similarity and deferred kinds never leave PENDING, so the intelligence-run reconciler re-runs them every 10 minutes forever and starves genuinely stranded runs
 
@@ -977,6 +1005,50 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 - **productFiles:** `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`
 - **commits:** 32daa64b69 fix(evidence): a repeat complete on a REPORTED record is alreadyFinalized; only a live upload session completes (ET-SEC-11, ET-SEC-13)
 
+## ET-SEC-17 — Case-delete legal-hold check fails OPEN on DB error before hard-deleting the case and detaching all evidence
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The case-deletion hold check caught a store error and answered 'no hold', so the case was hard-deleted and every link detached with the hold state unknown.
+- **canonicalAuthority:** legal-hold.service evaluateCaseDeletionHold (clear \| held \| unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable
+- **obsoleteRemoved:** route-local checkCaseLegalHold in cases.routes.ts
+- **redTest:** services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17] (evidence/ET-SEC-17-32-red-baseline.txt)
+- **greenTest:** services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17]; services/api/test/legal-hold-tenant-spread-guard.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/legal-hold.service.ts`
+- **commits:** 9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)
+
+## ET-SEC-18 — GET /v1/reports skips authorizeOrFail (bare ACTIVE-status membership, no permission/expiry/org-lifecycle); fallback query drops deletedAt/lifecycle filters
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** GET /v1/reports and the /v1/reports/artifacts aggregator admitted any ACTIVE-status membership row (no expiry, permission or organization lifecycle); the unscoped owner arm spanned every team; a primary-query error fell back to a query without the deletedAt/lifecycle filters.
+- **canonicalAuthority:** middleware/authorize evaluateAuthorize / authorizeOrFail (evidence.read, antiEnumeration) for both lists; owner arm bounded to legacy NULL-team rows
+- **obsoleteRemoved:** the filter-dropping fallback evidence query; the hand-rolled membership status check in requireWorkspaceMember
+- **redTest:** services/api/test/reports-list-authorization.integration.test.ts (evidence/ET-SEC-18-red-baseline.txt)
+- **greenTest:** services/api/test/reports-list-authorization.integration.test.ts; services/api/test/phase-ia-self-serve-regression-fix.test.ts; services/api/test/phase-32-8-d-cases-reports.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/reports.routes.ts`
+- **commits:** 8d781d8043 fix(reports): both reports lists admit a workspace only through the authorization decision; no filter-dropping fallback (ET-SEC-18)
+
+## ET-SEC-25 — API-key upload path bypasses organization-lifecycle denial enforced on the user upload path
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The API-key path checked key validity only and never the organization-lifecycle rule, so a suspended organization kept ingesting through its keys.
+- **canonicalAuthority:** access-policy.service workspaceLifecycleDenial (shared by evaluateAccess and requireApiKey via loadWorkspaceLifecycleState; fail closed 503)
+- **redTest:** services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-SEC-25] (evidence/ET-INT-10-SEC-25-red-baseline.txt)
+- **greenTest:** services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-SEC-25: SUSPENDED org key -> 403 ORGANIZATION_NOT_ACTIVE, nothing written]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/middleware/integrations-auth.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/services/identity/access-policy.service.ts`
+- **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)
+
 ## ET-SM-02 — Report commit (phase C) writes status=REPORTED with WHERE id only, so it can overwrite FAILED_HASH_MISMATCH and commit a Report on a trashed/destroyed record
 
 - **severity:** P2
@@ -1133,6 +1205,49 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 - **productFiles:** `services/api/scripts/capability-authority/tenant-binding.mjs`, `services/api/src/routes/admin-security.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/audit/tenant-audit.service.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/platform-audit-log.service.ts`
 - **commits:** d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14); fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated; 98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07)
 
+## ET-OTS-07 — Package verification hint `ots verify opentimestamps-proof.ots` cannot succeed; the stamped file is fingerprint.json
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The package OTS hint told reviewers to run `ots verify opentimestamps-proof.ots`, which looks for a target file the package does not contain.
+- **canonicalAuthority:** verification-package decideOtsPackageArtifact verificationHint: `ots verify -d <hash in this file>` (the companion hash is the SHA-256 of the stamped bytes)
+- **redTest:** services/worker/test/package-readme-seal-instructions.test.ts [OTS hint] against a40ca76f (evidence/ET-PKG-04-OTS-07-PKG-14-red-baseline.txt)
+- **greenTest:** services/worker/test/package-readme-seal-instructions.test.ts [the OTS hint names the digest]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/verification-package.ts`
+- **commits:** 4a4affa6b7 fix(package): the signed manifest claims only files the package contains; a root evidence file never takes a fixed entry name (ET-PKG-04, ET-PKG-14; ET-OTS-07 proven)
+
+## ET-PKG-09 — Anonymous GET writes audit + verification_views (raw IP/UA, no retention) + evidence row + debounced custody event
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Anonymous views stored full viewer IP and user agent with no reader or retention, and the VERIFY_VIEWED debounce decided from a stale read so concurrent first views each appended.
+- **canonicalAuthority:** public verify: maskIp network prefix, no user agent; debounce = one conditional updateMany whose winner alone emits VERIFY_VIEWED
+- **redTest:** services/api/test/public-verify-view-privacy-and-debounce.integration.test.ts (evidence/ET-PKG-17-PKG-09-red-baseline.txt)
+- **greenTest:** services/api/test/public-verify-view-privacy-and-debounce.integration.test.ts
+- **concurrencyTest:** services/api/test/public-verify-view-privacy-and-debounce.integration.test.ts [5 concurrent first views -> exactly 1 VERIFY_VIEWED]
+- **migrationImpact:** 20280811000000_verification_views_anonymize: BACKFILL (user_agent -> NULL, ip_address -> masked prefix); idempotent, irreversible by intent
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/prisma/migrations/20280811000000_verification_views_anonymize/migration.sql`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/rate-limit.ts`
+- **commits:** dc6ce7dbc7 fix(verify): the per-record limit counts distinct clients; anonymous views keep no personal data; VERIFY_VIEWED debounce is one conditional write (ET-PKG-17, ET-PKG-09)
+
+## ET-PKG-11 — historical-verification-material.json leaks key path or KMS key id and lists SIGNING_PUBLIC_KEY_PATH for every purpose including the package signer
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** historical-verification-material.json shipped the server's public-key file path or the KMS key id to every recipient and extracted one key for all four purposes.
+- **canonicalAuthority:** verification-package-historical-material: publicMaterialRef always null; publicKeySpkiSha256 (publicFingerprintOfPem); per-purpose extraction (PACKAGE_SIGNING_PUBLIC_KEY_PATH for verification_package)
+- **redTest:** services/worker/test/historical-verification-material.test.ts (evidence/ET-PKG-11-red-baseline.txt)
+- **greenTest:** services/worker/test/historical-verification-material.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/verification-package-historical-material.ts`
+- **commits:** f462ebee10 fix(package): historical verification material carries no key path or KMS id and describes each purpose with its own key (ET-PKG-11)
+
 ## ET-PKG-12 — BASIC verify says a report copy "can be checked" via its recorded digest, but no digest is returned
 
 - **severity:** P3
@@ -1145,6 +1260,34 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/package-seal.ts`, `services/api/prisma/migrations/20280803000000_verification_package_seal_identity/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
 - **commits:** 9ae43300d1 fix(package): PROOVRA publishes each package's seal key and digest; README verifies the seal (ET-PKG-02, ET-PKG-03, ET-PKG-12)
+
+## ET-PKG-13 — /verify/[token] has no noindex/robots control; web error path sends the token to Sentry
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Public Verify capability URLs had no robots control, and the page's error path sent the token to Sentry.
+- **canonicalAuthority:** apps/web verify/[token]/layout.tsx robots noindex; middleware isPublicVerifyCapabilityPath + X-Robots-Tag on every secured response
+- **redTest:** apps/web/__tests__/verify-capability-noindex.test.ts (evidence/ET-PKG-13-red-baseline.txt)
+- **greenTest:** apps/web/__tests__/verify-capability-noindex.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/app/verify/[token]/layout.tsx`, `apps/web/app/verify/[token]/page.tsx`, `apps/web/middleware.ts`
+- **commits:** 510c1ed38e fix(web): public Verify capability URLs are noindex/nofollow and never reach Sentry (ET-PKG-13)
+
+## ET-PKG-14 — Single-file evidence entry at ZIP root can collide with a fixed entry name when no capture/upload timestamp exists
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** A single-file record's root name was derived from its title, so a record titled like a fixed entry (e.g. 'fingerprint') produced a second entry with the same path.
+- **canonicalAuthority:** verification-package RESERVED_ROOT_ENTRY_NAMES + avoidReservedRootEntryName (case-folded), kept exhaustive against the appended root entries
+- **redTest:** services/worker/test/package-entry-name-collision.test.ts (evidence/ET-PKG-04-OTS-07-PKG-14-red-baseline.txt)
+- **greenTest:** services/worker/test/package-entry-name-collision.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/worker/src/verification-package.ts`
+- **commits:** 4a4affa6b7 fix(package): the signed manifest claims only files the package contains; a root evidence file never takes a fixed entry name (ET-PKG-04, ET-PKG-14; ET-OTS-07 proven)
 
 ## ET-PKG-15 — Package streams originals without the pinned storageVersionId used by the integrity pre-read
 
@@ -1159,6 +1302,21 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/worker/src/processor.ts`, `services/worker/src/verification-package.ts`
 - **commits:** b560aeee10 fix(package): the verification package streams the sealed version the integrity pre-read hashed (ET-PKG-15)
+
+## ET-PKG-17 — Per-evidence public verify bucket (60/min) is shared by all viewers; two IPs can lock a record page out
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The per-evidence public Verify bucket counted requests shared by every viewer, so two clients could lock a record's page for everyone.
+- **canonicalAuthority:** rate-limit.service enforceDistinctClientLimit (atomic Redis set, memory fallback) keyed per record over the trusted client key
+- **redTest:** services/api/test/public-verify-distinct-client-limit.integration.test.ts (evidence/ET-PKG-17-PKG-09-red-baseline.txt)
+- **greenTest:** services/api/test/public-verify-distinct-client-limit.integration.test.ts
+- **concurrencyTest:** services/api/test/public-verify-distinct-client-limit.integration.test.ts (the Lua script decides admission atomically)
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/prisma/migrations/20280811000000_verification_views_anonymize/migration.sql`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/rate-limit.ts`
+- **commits:** dc6ce7dbc7 fix(verify): the per-record limit counts distinct clients; anonymous views keep no personal data; VERIFY_VIEWED debounce is one conditional write (ET-PKG-17, ET-PKG-09)
 
 ## ET-Q-08 — media-intelligence-dlq is a phantom sink (never written) shown as an operator DLQ, and report-dlq entries are written for requests that are still being retried
 
@@ -1386,6 +1544,34 @@ Open by severity: P0 0 · P1 0 · P2 40 · P3 24
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/worker/src/report-v2/truth-model.ts`
 - **commits:** 4d105329a6 fix(report): the executive conclusion does not call an unchecked OTS anchor "finalized" (ET-RPT-09)
+
+## ET-SEC-32 — Annotation PATCH accepts any evidencePartId (no ownership check, unlike POST)
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Only the annotation POST checked that evidencePartId belongs to the record; PATCH accepted any part id.
+- **canonicalAuthority:** evidence.routes annotationPartBelongsToEvidence — the one part-ownership check for annotation create and edit
+- **redTest:** services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32] (evidence/ET-SEC-17-32-red-baseline.txt)
+- **greenTest:** services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/legal-hold.service.ts`
+- **commits:** 9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)
+
+## ET-SEC-34 — Dead exported legal-hold query helpers with optional teamId spread (would be unscoped if ever called)
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Three dead exported legal-hold helpers spread teamId only when supplied, so a future caller forgetting it would read holds across every tenant.
+- **canonicalAuthority:** legal-hold.service (canonical hold queries always tenant-anchored)
+- **obsoleteRemoved:** countActiveCaseHolds, listCaseHolds, countLifecycleHolds
+- **greenTest:** services/api/test/legal-hold-tenant-spread-guard.test.ts [ET-SEC-34: no symbol anywhere in src; no optional tenant spread]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/legal-hold.service.ts`
+- **commits:** 9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)
 
 ## ET-TSA-07 — TSA failure classifier substring-matches the full execFile error (argv incl. URL and user:password, digest, temp path); real timeouts are never classified as timeouts
 
