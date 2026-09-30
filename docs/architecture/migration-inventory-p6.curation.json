@@ -3305,6 +3305,23 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM verification_views WHERE user_agent IS NOT NULL OR (ip_address IS NOT NULL AND ip_address NOT LIKE '%.x.x' AND ip_address NOT LIKE '%:…')\"",
       "evidence": "VERIFICATION VIEW ANONYMIZATION (2026-09-30, ET-PKG-09). verification_views stored every anonymous public Verify viewer's full IP address and user agent with no retention and no reader (the only readers select evidence_id / viewer_type / created_at or count rows). The write path now stores only a masked network prefix (IPv4 a.b.x.x, IPv6 the first two groups; private/reserved -> NULL) and no user agent; this migration rewrites the rows written before. CLASSIFIED BACKFILL because it writes to existing rows: user_agent -> NULL; ip_address -> the masked prefix (IPv4 and ::ffff:-mapped IPv4 -> a.b.x.x, IPv6 -> g1:g2:…, anything else -> NULL). No column, table or index changes. Both UPDATEs are conditioned (user_agent IS NOT NULL; ip_address not already masked), so the migration is idempotent and a re-run is a no-op — proven on disposable PostgreSQL 16 by test/public-verify-view-privacy-and-debounce.integration.test.ts. SAFE BEFORE CODE: the previous image keeps writing raw values until replaced, which a re-run of this migration would mask; readinessCommand must read 0 after apply and after the new image is live. ROLLBACK: none needed and none possible — the raw values are intentionally destroyed. NOT APPLIED TO PRODUCTION.",
       "rollbackDisposition": "ROLL_FORWARD — the masking is deliberately irreversible; re-running is a no-op."
+    },
+    "20280812000000_evidence_completion_fanout_marker": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": true,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name IN ('completion_fanout_claimed_at_utc','completion_fanout_done_at_utc')\"",
+      "evidence": "EVIDENCE COMPLETION FAN-OUT MARKER (2026-09-30, ET-ACQ-03). Adds two nullable TIMESTAMPTZ columns to evidence: completion_fanout_claimed_at_utc (a lease: exactly one finalize runs the one-time completion fan-out, and a crashed claim is re-driven after 10 minutes) and completion_fanout_done_at_utc. WHY: the evidence.completed webhook, the malware scan and the finalization fan-out ran after the finalize commit and only on the first finalize, so a failure between commit and fan-out (retention / lock snapshot, a crash) skipped them permanently. EXPAND / SAFE_TO_APPLY_NOW: code built before it never reads the columns; code built after it claims and marks them, so apply before the API image. The companion BACKFILL 20280812000001 marks already-signed rows done and must also be applied before the image. Idempotent (ADD COLUMN IF NOT EXISTS). ROLLBACK is code-first; the columns are inert to builds that do not read them. NOT APPLIED TO PRODUCTION."
+    },
+    "20280812000001_evidence_completion_fanout_backfill": {
+      "classification": "BACKFILL",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM evidence WHERE signed_at_utc IS NOT NULL AND completion_fanout_done_at_utc IS NULL\"",
+      "evidence": "EVIDENCE COMPLETION FAN-OUT BACKFILL (2026-09-30, ET-ACQ-03). Sets completion_fanout_done_at_utc = signed_at_utc on every row signed before the marker existed: each had its one chance at the completion fan-out, whether it ran cannot be known now, and re-running it for history would re-emit old webhooks and scans. Conditioned on the marker being unset, so idempotent; a re-run is a no-op. Apply AFTER 20280812000000 and BEFORE the ET-ACQ-03 API image; readinessCommand must read 0 just before the image goes live (a record signed by the previous image in between would otherwise be re-driven at most once, by a duplicate complete). ROLLBACK: none needed — the marker is inert to builds that do not read it. NOT APPLIED TO PRODUCTION.",
+      "rollbackDisposition": "ROLL_FORWARD — conditioned UPDATE; re-running is a no-op."
     }
   }
 }

@@ -1375,6 +1375,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280810000000_upload_part_state_hashed",
       // Verification view anonymization (2026-09-30, ET-PKG-09): conditioned UPDATEs, no schema change. BACKFILL.
       "20280811000000_verification_views_anonymize",
+      // Evidence completion fan-out marker (2026-09-30, ET-ACQ-03): two nullable columns. EXPAND.
+      "20280812000000_evidence_completion_fanout_marker",
+      // …and its backfill: already-signed rows marked done. BACKFILL.
+      "20280812000001_evidence_completion_fanout_backfill",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

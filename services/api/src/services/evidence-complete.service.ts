@@ -1511,11 +1511,56 @@ const captureMethod =
     to: "COMPLETED",
   }).catch(() => null);
 
-  // (2026-09-29, audit D11) A duplicate complete stops here: the record's
-  // one-time fan-out already ran with its first finalize. OTS and the report
-  // request above are idempotent and double as recovery for a first finalize
-  // that failed after commit.
-  if (final.alreadyFinalized) return final.result;
+  // ET-ACQ-03 — the one-time completion fan-out runs EXACTLY ONCE per record,
+  // on whichever finalize reaches it first. (2026-09-29, audit D11) stopped a
+  // duplicate complete from repeating it by returning here on
+  // alreadyFinalized — which also meant a first finalize that failed after
+  // its commit (the retention / lock-snapshot step above, a crash) never got
+  // its webhook, scan or fan-out: the retry took this early return. OTS and
+  // the report request above are idempotent and double as recovery; the
+  // fan-out is now claimed durably, so the retry runs it and a duplicate
+  // does not.
+  await runCompletionFanoutOnce({
+    evidenceId: final.result.id,
+    signingKeyVersion: final.result.signingKeyVersion ?? null,
+  });
+
+  return final.result;
+}
+
+/** A claim older than this is presumed crashed and may be re-driven. */
+const COMPLETION_FANOUT_LEASE_MS = 10 * 60_000;
+
+/**
+ * ET-ACQ-03 — THE completion fan-out, once per record: the evidence.completed
+ * webhook, the malware scan and the finalization fan-out.
+ *
+ * Claimed with one conditional write (not done, finalized, unclaimed or its
+ * lease lapsed), so concurrent finalizes run it once and a crashed claim is
+ * re-driven by the next finalize after the lease. Marked done when it has
+ * run. Each step stays best-effort, as before: it never fails completion.
+ * Records signed before the marker existed are backfilled done
+ * (migration 20280812000001).
+ */
+export async function runCompletionFanoutOnce(input: {
+  evidenceId: string;
+  signingKeyVersion: number | null;
+}): Promise<{ ran: boolean }> {
+  const claimedAt = new Date();
+  const claim = await prisma.evidence.updateMany({
+    where: {
+      id: input.evidenceId,
+      completionFanoutDoneAtUtc: null,
+      status: { in: [EvidenceStatus.SIGNED, EvidenceStatus.REPORTED] },
+      OR: [
+        { completionFanoutClaimedAtUtc: null },
+        { completionFanoutClaimedAtUtc: { lt: new Date(claimedAt.getTime() - COMPLETION_FANOUT_LEASE_MS) } },
+      ],
+    },
+    data: { completionFanoutClaimedAtUtc: claimedAt },
+  });
+  if (claim.count === 0) return { ran: false };
+  const final = { result: { id: input.evidenceId, signingKeyVersion: input.signingKeyVersion } };
 
   // Phase 10 — fire `evidence.completed` to any subscribed webhook
   // endpoints in this workspace. The dispatcher is feature-flag gated
@@ -1592,7 +1637,13 @@ const captureMethod =
     signingKeyVersion: final.result.signingKeyVersion ?? null,
   });
 
-  return final.result;
+  // Done — only for the claim this call holds (a lapsed claim re-driven by
+  // another finalize owns the marker from then on).
+  await prisma.evidence.updateMany({
+    where: { id: input.evidenceId, completionFanoutClaimedAtUtc: claimedAt },
+    data: { completionFanoutDoneAtUtc: new Date() },
+  });
+  return { ran: true };
 }
 
 /**

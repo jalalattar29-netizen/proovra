@@ -43,10 +43,16 @@ export async function intakeLinkMintRefusal(
   // otherwise need at load time.
   const { canCreateIntakeLink, loadWorkspaceGovernancePolicy } = await import("../governance.service.js");
   const policy = await loadWorkspaceGovernancePolicy(input.teamId, client);
-  const membership = await client.teamMember.findUnique({
-    where: { teamId_userId: { teamId: input.teamId, userId: input.actorUserId } },
-    select: { role: true },
-  });
-  const decision = canCreateIntakeLink({ role: membership?.role, intakeMode: input.intakeMode, policy });
+  // The role the policy decides on is the one the canonical access decision
+  // PROVES (ACTIVE, unexpired, organization active); anything else has no
+  // role, which the policy refuses. A bare membership row lent its stored
+  // role to an inactive member.
+  const { evaluateMemberAccessWithSnapshot } = await import("../identity/access-policy.service.js");
+  const access = await evaluateMemberAccessWithSnapshot(
+    { teamId: input.teamId, userId: input.actorUserId, permission: "evidence.read" },
+    client,
+  );
+  const role = access.decision.allowed ? access.snapshot?.role : undefined;
+  const decision = canCreateIntakeLink({ role, intakeMode: input.intakeMode, policy });
   return decision.allowed ? null : { kind: "policy", reason: decision.reason ?? "intake_blocked_by_policy" };
 }

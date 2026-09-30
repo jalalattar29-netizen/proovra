@@ -285,6 +285,14 @@ model Evidence {
   /// Bitcoin block attestation, chain not checked) | NULL (not recorded).
   otsAnchorCheck   String?   @map("ots_anchor_check") @db.VarChar(24)
 
+  /// ET-ACQ-03 (2026-09-30) — the one-time completion fan-out (evidence.completed
+  /// webhook, malware scan, finalization fan-out) runs exactly once per record:
+  /// claimed under a lease by whichever finalize reaches it first (a retry
+  /// included), marked done when it has run. A crash after the claim is re-driven
+  /// once the lease lapses. Rows signed before this existed are backfilled done.
+  completionFanoutClaimedAtUtc DateTime? @map("completion_fanout_claimed_at_utc") @db.Timestamptz(6)
+  completionFanoutDoneAtUtc    DateTime? @map("completion_fanout_done_at_utc") @db.Timestamptz(6)
+
   /// ATTENTION ARCHITECTURE CLOSURE PASS (2026-08-22) — the identity of the
   /// DELIBERATE MULTI-RECORD EXECUTION that last touched this record's
   /// integrity proofs (a repair run, a bulk re-anchor).
