@@ -18,6 +18,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
 export type RiskLevel = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
@@ -142,11 +143,15 @@ export async function computeCaseRisk(input: {
   let activeLegalHolds = 0;
   let reviewerPressure = 0;
 
+  // ET-SEC-20 — only records an output is OWED for count as missing, by the
+  // one owed-output narrowing every backlog aggregator uses.
+  const owed = evidenceIds.length > 0 ? await outputEntitledEvidenceWhere({ teamId: input.teamId }) : null;
   if (evidenceIds.length > 0) {
     try {
       missingReports = await prisma.evidence.count({
         where: {
           id: { in: evidenceIds },
+          ...(owed ? { AND: [owed] } : {}),
           status: "SIGNED",
           latestReportVersion: null,
         },
@@ -158,6 +163,7 @@ export async function computeCaseRisk(input: {
       missingPackages = await prisma.evidence.count({
         where: {
           id: { in: evidenceIds },
+          ...(owed ? { AND: [owed] } : {}),
           status: "REPORTED",
           verificationPackageVersion: null,
         },

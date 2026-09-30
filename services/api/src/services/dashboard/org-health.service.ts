@@ -13,6 +13,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
@@ -143,23 +144,30 @@ export async function recordOrgHealthSnapshotForWorkspace(input: {
           },
         })
         .catch(() => 0),
-      prisma.evidence
-        .count({
-          where: {
-            AND: [scope],
-            status: "SIGNED",
-            latestReportVersion: null,
-          },
-        })
+      // ET-SEC-20 — the one owed-output narrowing: a FREE record is owed no
+      // report, and a lapsed paid workspace's plan-funded records are not
+      // issued, so neither is a backlog.
+      outputEntitledEvidenceWhere({ teamId: input.teamId })
+        .then((owed) =>
+          prisma.evidence.count({
+            where: {
+              AND: [scope, ...(owed ? [owed] : [])],
+              status: "SIGNED",
+              latestReportVersion: null,
+            },
+          }),
+        )
         .catch(() => 0),
-      prisma.evidence
-        .count({
-          where: {
-            AND: [scope],
-            status: "REPORTED",
-            verificationPackageVersion: null,
-          },
-        })
+      outputEntitledEvidenceWhere({ teamId: input.teamId })
+        .then((owed) =>
+          prisma.evidence.count({
+            where: {
+              AND: [scope, ...(owed ? [owed] : [])],
+              status: "REPORTED",
+              verificationPackageVersion: null,
+            },
+          }),
+        )
         .catch(() => 0),
     ]);
 

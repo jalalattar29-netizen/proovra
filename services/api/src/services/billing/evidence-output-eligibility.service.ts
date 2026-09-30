@@ -464,8 +464,16 @@ export async function selectNonEntitledEvidenceIds(
  * foreign key. The set is small by construction: a plan that excludes reports
  * is a single-occupant plan, so there is one wallet behind it.
  *
- * Fails OPEN (`null`) on any error: an operations counter that cannot resolve
- * eligibility should report what it always reported, never crash the surface.
+ * ET-SEC-20 — decided by THE issuance rule (`resolveOutputIssuanceEntitlement`:
+ * plan AND the subscription lifecycle), the one the worker's issuance honours.
+ * It asked the plan alone, so a lapsed or cancelled paid workspace counted
+ * every record the worker refuses to issue — a backlog that never cleared.
+ * Every backlog aggregator (Home counters, Operations probes, incident
+ * generator, trust summary, org health, case risk) narrows through this.
+ *
+ * Fails OPEN (`null`) on any error or an unresolved decision: an operations
+ * counter that cannot resolve eligibility should report what it always
+ * reported, never crash the surface.
  */
 export async function outputEntitledEvidenceWhere(params: {
   ownerUserId?: string | null;
@@ -485,7 +493,20 @@ export async function outputEntitledEvidenceWhere(params: {
           })
         : null;
     if (!ctx) return null;
-    if (getPlanCapabilities(ctx.plan as PlanType).reportsIncluded) return null;
+    const lifecycle = await resolveSubjectLifecycle({
+      plan: ctx.plan as PlanType,
+      ownerUserId: ctx.ownerUserId,
+      teamId: params.teamId,
+      billingShape: String(ctx.billingShape),
+    });
+    const issuance = resolveOutputIssuanceEntitlement({
+      plan: ctx.plan as PlanType,
+      funding: "PLAN",
+      lifecycle,
+    });
+    // Plan-funded records are owed outputs: the whole population is in scope.
+    if (issuance.decision === "ENTITLED") return null;
+    if (issuance.decision === "UNRESOLVED") return null;
 
     const rows = await prisma.evidenceCreditLedgerEntry.findMany({
       where: { userId: ctx.ownerUserId, entryType: "CONSUMPTION" },

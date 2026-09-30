@@ -1,0 +1,8 @@
+ET-SEC-20 red baseline — services/api/test/owed-output-backlog-agreement.integration.test.ts
+Run against HEAD's evidence-output-eligibility.service.ts, case-risk-engine.service.ts and org-health.service.ts, live PostgreSQL 16, 2026-09-30T05:15Z. A lapsed TEAM workspace (PAST_DUE beyond grace) was not narrowed: its plan-funded records counted as a report backlog. The ACTIVE control counts them on both.
+
+   × owed-output backlog agreement (live PostgreSQL 16) > a LAPSED paid (TEAM) workspace owes no plan-funded output: the narrowing, case risk and org health agree 80ms
+     → expected null to deeply equal { id: { in: [] } }
+   ✓ owed-output backlog agreement (live PostgreSQL 16) > an ACTIVE paid (TEAM) workspace owes them: every aggregator counts the backlog (control) 121ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 1 passed (2)

@@ -34,7 +34,6 @@
  *     mutates nothing.
  */
 
-import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
 import { bump } from "@proovra/shared-runtime/ops";
 import {
   createReportGenerationRequest,
@@ -52,10 +51,7 @@ import { prisma } from "./db.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 import { recordWorkerIncident } from "./governance/incident-emitter.js";
 import { logger } from "./logger.js";
-import {
-  resolveEffectivePlanForEvidence,
-  resolveEvidenceFundingSource,
-} from "./workspace-billing.js";
+import { resolveEvidenceOutputIssuance } from "./output-issuance.js";
 
 const ENTRY = getWorkEntryOrThrow(JOB_NAMES.GENERATE_REPORT);
 
@@ -784,14 +780,16 @@ async function verificationPackageOwed(evidenceId: string): Promise<boolean> {
       select: { ownerUserId: true, teamId: true },
     });
     if (!ev) return true;
-    const plan = await resolveEffectivePlanForEvidence({
+    // ET-SEC-20 — THE issuance decision (plan, funding AND the subscription
+    // lifecycle) that issuance itself honours. Plan and funding alone said a
+    // lapsed paid workspace was still owed a package the worker then refused.
+    const issuance = await resolveEvidenceOutputIssuance({
+      id: evidenceId,
       ownerUserId: ev.ownerUserId,
       teamId: ev.teamId ?? null,
     });
-    return resolveEvidenceOutputEntitlements({
-      plan,
-      funding: await resolveEvidenceFundingSource(evidenceId),
-    }).verificationPackageIncluded;
+    if (issuance.decision === "UNRESOLVED") return true;
+    return issuance.decision === "ENTITLED" && issuance.verificationPackageIncluded;
   } catch {
     return true;
   }
