@@ -233,9 +233,14 @@ export async function reconcileTeamGraph(
    * already stale (so a second run changes nothing), and compares
    * `external_id` — a UUID column — with a UUID.
    */
-  const sweepStale = async (family: string, sql: string): Promise<void> => {
+  //
+  // The statement is passed as a thunk, not a string, so each UPDATE stays a
+  // literal at its own call site: the capability map attributes writers by
+  // reading those call sites, and eleven writes behind one string parameter
+  // would have disappeared from the mutation inventory.
+  const sweepStale = async (family: string, run: () => Promise<number>): Promise<void> => {
     try {
-      const affected = await client.$executeRawUnsafe(sql, teamId);
+      const affected = await run();
       const n = typeof affected === "number" ? affected : 0;
       if (n > 0) {
         nodesTombstoned += n;
@@ -328,9 +333,9 @@ export async function reconcileTeamGraph(
       // the cases table for this team. Single UPDATE with a NOT
       // EXISTS clause; idempotent. Re-running on a clean state is
       // a no-op.
-      await sweepStale(
-        "CASE",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("CASE", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -341,6 +346,8 @@ export async function reconcileTeamGraph(
                   WHERE c."id" = n."external_id"
                     AND c."team_id" = $1
                )`,
+          teamId,
+        ),
       );
 
       // BELONGS_TO_CASE edges, from the canonical link table.
@@ -458,9 +465,9 @@ export async function reconcileTeamGraph(
       }
       // Stale-sweep: REPORT nodes whose external_id is no longer
       // backed by a (reports, evidence) join in this team.
-      await sweepStale(
-        "REPORT",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("REPORT", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -473,6 +480,8 @@ export async function reconcileTeamGraph(
                   WHERE r."id" = n."external_id"
                     AND e."team_id" = $1
                )`,
+          teamId,
+        ),
       );
     } catch (err) {
       // Reported, not discarded — and the rest of the reconcile continues.
@@ -540,9 +549,9 @@ export async function reconcileTeamGraph(
           if (created) edgesUpserted += 1;
         }
       }
-      await sweepStale(
-        "VERIFICATION_PACKAGE",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("VERIFICATION_PACKAGE", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -555,6 +564,8 @@ export async function reconcileTeamGraph(
                   WHERE vp."id" = n."external_id"
                     AND e."team_id" = $1
                )`,
+          teamId,
+        ),
       );
     } catch (err) {
       // Reported, not discarded — and the rest of the reconcile continues.
@@ -630,9 +641,9 @@ export async function reconcileTeamGraph(
       }
       // Stale-sweep: EXPORT nodes whose external_id is no longer
       // in governance_export_snapshots for this team.
-      await sweepStale(
-        "EXPORT",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("EXPORT", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -643,6 +654,8 @@ export async function reconcileTeamGraph(
                   WHERE x."id" = n."external_id"
                     AND x."team_id" = $1
                )`,
+          teamId,
+        ),
       );
     } catch (err) {
       // Reported, not discarded — and the rest of the reconcile continues.
@@ -722,9 +735,9 @@ export async function reconcileTeamGraph(
       // whose external_id is no longer in evidence_review_workflows
       // for this team. Wave 1: sweep both canonical + deprecated alias
       // so legacy rows continue to tombstone cleanly.
-      await sweepStale(
-        "REVIEW_WORKFLOW",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("REVIEW_WORKFLOW", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -735,6 +748,8 @@ export async function reconcileTeamGraph(
                   WHERE w."id" = n."external_id"
                     AND w."team_id" = $1
                )`,
+          teamId,
+        ),
       );
     } catch (err) {
       // Reported, not discarded — and the rest of the reconcile continues.
@@ -813,9 +828,9 @@ export async function reconcileTeamGraph(
       }
       // Wave 1: sweep both canonical REVIEW_ESCALATION + deprecated
       // ESCALATION alias so legacy rows continue to tombstone cleanly.
-      await sweepStale(
-        "REVIEW_ESCALATION",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("REVIEW_ESCALATION", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -826,6 +841,8 @@ export async function reconcileTeamGraph(
                   WHERE e."id" = n."external_id"
                     AND e."team_id" = $1
                )`,
+          teamId,
+        ),
       );
     } catch (err) {
       // Reported, not discarded — and the rest of the reconcile continues.
@@ -902,9 +919,9 @@ export async function reconcileTeamGraph(
           }
         }
       }
-      await sweepStale(
-        "INCIDENT",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("INCIDENT", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -915,6 +932,8 @@ export async function reconcileTeamGraph(
                   WHERE inc."id" = n."external_id"
                     AND inc."team_id" = $1
                )`,
+          teamId,
+        ),
       );
     } catch (err) {
       // Reported, not discarded — and the rest of the reconcile continues.
@@ -1018,9 +1037,9 @@ export async function reconcileTeamGraph(
       // Wave 1: sweep both canonical EXTERNAL_REVIEWER_GRANT + deprecated
       // EXTERNAL_REVIEW alias so legacy rows continue to tombstone
       // cleanly.
-      await sweepStale(
-        "EXTERNAL_REVIEWER_GRANT",
-        `UPDATE "investigation_graph_nodes" n
+      await sweepStale("EXTERNAL_REVIEWER_GRANT", () =>
+        client.$executeRawUnsafe(
+          `UPDATE "investigation_graph_nodes" n
              SET "stale_at_utc" = NOW(),
                  "updated_at_utc" = NOW()
              WHERE n."team_id" = $1
@@ -1031,6 +1050,8 @@ export async function reconcileTeamGraph(
                   WHERE g."id" = n."external_id"
                     AND g."team_id" = $1
                )`,
+          teamId,
+        ),
       );
     } catch (err) {
       // Reported, not discarded — and the rest of the reconcile continues.
@@ -1241,9 +1262,9 @@ export async function reconcileTeamGraph(
     // tombstoning, matching the section-2 materializer's filter.
     // Wave 1: sweep both canonical MEDIA_INTELLIGENCE_SIGNAL + deprecated
     // MEDIA_SIGNAL alias so legacy rows continue to tombstone cleanly.
-    await sweepStale(
-      "MEDIA_INTELLIGENCE_SIGNAL",
-      `UPDATE "investigation_graph_nodes" n
+    await sweepStale("MEDIA_INTELLIGENCE_SIGNAL", () =>
+      client.$executeRawUnsafe(
+        `UPDATE "investigation_graph_nodes" n
            SET "stale_at_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE n."team_id" = $1
@@ -1256,10 +1277,12 @@ export async function reconcileTeamGraph(
                   AND s."status" IN ('PENDING', 'ACKNOWLEDGED')
                   AND s."signal_type" NOT IN ('OCR_AVAILABLE', 'TRANSCRIPT_AVAILABLE')
              )`,
+        teamId,
+      ),
     );
-    await sweepStale(
-      "OCR",
-      `UPDATE "investigation_graph_nodes" n
+    await sweepStale("OCR", () =>
+      client.$executeRawUnsafe(
+        `UPDATE "investigation_graph_nodes" n
            SET "stale_at_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE n."team_id" = $1
@@ -1272,10 +1295,12 @@ export async function reconcileTeamGraph(
                   AND s."status" IN ('PENDING', 'ACKNOWLEDGED')
                   AND s."signal_type" = 'OCR_AVAILABLE'
              )`,
+        teamId,
+      ),
     );
-    await sweepStale(
-      "TRANSCRIPT",
-      `UPDATE "investigation_graph_nodes" n
+    await sweepStale("TRANSCRIPT", () =>
+      client.$executeRawUnsafe(
+        `UPDATE "investigation_graph_nodes" n
            SET "stale_at_utc" = NOW(),
                "updated_at_utc" = NOW()
            WHERE n."team_id" = $1
@@ -1288,6 +1313,8 @@ export async function reconcileTeamGraph(
                   AND s."status" IN ('PENDING', 'ACKNOWLEDGED')
                   AND s."signal_type" = 'TRANSCRIPT_AVAILABLE'
              )`,
+        teamId,
+      ),
     );
 
     // 3. Build SAME_HASH_AS edges from EvidencePart SHA-256 matches.
