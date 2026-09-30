@@ -32,6 +32,7 @@ import {
   normalizeCurrency,
   type SupportedCurrency,
 } from "../../lib/currency";
+import { resolveStorageAddonEntitlement, type PlanType } from "@proovra/shared-billing";
 import { MarketingHeader } from "../../components/marketing/MarketingHeader";
 import { EnterpriseFooter } from "../../components/marketing/EnterpriseFooter";
 import { RevealSection } from "../../components/motion";
@@ -39,6 +40,11 @@ import { useAuth } from "../providers";
 import type { PricingCatalogResponse } from "./types";
 import { apiFetch } from "../../lib/api";
 import { buildBillingHref } from "../../lib/navigation/billingWorkspaceLocator";
+
+/** ET-SEC-23 — a storage add-on cell is what the server would allow for that plan. */
+function storageAddonCell(plan: PlanType, offer: string): string {
+  return resolveStorageAddonEntitlement({ plan }).storageAddonsPurchasable ? offer : "Not available";
+}
 
 type MarketingIcon = ElementType;
 
@@ -554,14 +560,15 @@ export default function MarketingPricingPage() {
     },
     {
       label: "Storage add-ons",
+      // ET-SEC-23 — every self-service cell is the SERVER's decision
+      // (`resolveStorageAddonEntitlement`, the one commercial policy): it
+      // said FREE may buy storage while this row refused it outright.
+      // The evidence-credit column is a Free account.
       values: [
-        "Not available",
-        // PRODUCT OPTION B (2026-09-10) — available to an evidence-credit
-        // customer, whose subscription stays Free. The server decides it
-        // (`resolveStorageAddonEntitlement`); this row states it.
-        "Monthly, from +10 GB",
-        "Monthly, from +10 GB",
-        "Monthly, from +100 GB",
+        storageAddonCell("FREE", "Monthly, from +10 GB"),
+        storageAddonCell("FREE", "Monthly, from +10 GB"),
+        storageAddonCell("PRO", "Monthly, from +10 GB"),
+        storageAddonCell("TEAM", "Monthly, from +100 GB"),
         "Contract storage",
       ],
     },
