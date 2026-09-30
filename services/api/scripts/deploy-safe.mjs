@@ -164,8 +164,10 @@ if (dryRun) {
   // ---------------------------------------------------------------------------
   runStage({
     name: "typecheck (services/api)",
+    // The API program needs more than V8's ~4 GB default heap; the budget
+    // lives in ONE place, the package's typecheck:program script.
     command: "pnpm",
-    args: ["exec", "tsc", "--noEmit"],
+    args: ["run", "--silent", "typecheck:program"],
   });
 
   // ---------------------------------------------------------------------------
@@ -214,8 +216,10 @@ if (dryRun) {
   // ---------------------------------------------------------------------------
   runStage({
     name: "typecheck (services/api)",
+    // The API program needs more than V8's ~4 GB default heap; the budget
+    // lives in ONE place, the package's typecheck:program script.
     command: "pnpm",
-    args: ["exec", "tsc", "--noEmit"],
+    args: ["run", "--silent", "typecheck:program"],
   });
 
   // ---------------------------------------------------------------------------
