@@ -162,6 +162,41 @@ const PROVIDER_CREDENTIAL_NAME =
 const LOCAL_HOSTS = /^(localhost|127\.0\.0\.1|\[?::1\]?|0\.0\.0\.0|host\.docker\.internal|minio|postgres|redis)$/i;
 
 /**
+ * UC-TQ-007 — REDIRECT ALLOW-LISTS ARE NOT ENDPOINTS.
+ *
+ * Some settings hold URLs the process never dials: they are strings it COMPARES
+ * an incoming value against. The extension OAuth redirect allow-list is the
+ * one that matters here — `EXTENSION_OAUTH_REDIRECT_ALLOW` lists
+ * `https://<extension id>.chromiumapp.org/<path>` URLs, and chromiumapp.org is
+ * never contacted by anyone: the browser intercepts a navigation to it inside
+ * `chrome.identity.launchWebAuthFlow` and hands the URL to the extension. The
+ * API fails CLOSED without the list (ET-DC-04), so the acceptance harness must
+ * set it — and the outbound scan, correctly, refused it as a non-local host.
+ *
+ * So these are a TYPED setting, not an exception to the scan: each name has
+ * the ONE exact shape it may hold, every entry must match it in full, and a
+ * value that does not is refused like any other leak. The scan still checks
+ * them for forbidden hosts and credential shapes. Nothing else is exempted, and
+ * `extra` cannot smuggle a URL through under one of these names — they are
+ * accepted only via `redirectAllowLists`.
+ */
+const REDIRECT_ALLOW_LIST_SHAPES = Object.freeze({
+  EXTENSION_OAUTH_REDIRECT_ALLOW: /^https:\/\/[a-p]{32}\.chromiumapp\.org\/[A-Za-z0-9._-]*$/,
+});
+
+/** Validate a redirect allow-list setting; returns problems as sentences. */
+export function redirectAllowListProblems(name, entries) {
+  const shape = REDIRECT_ALLOW_LIST_SHAPES[name];
+  if (!shape) return [`${name} → is not a known redirect allow-list setting`];
+  if (!Array.isArray(entries) || entries.length === 0) return [`${name} → must list at least one redirect`];
+  const problems = [];
+  for (const e of entries) {
+    if (typeof e !== "string" || !shape.test(e)) problems.push(`${name} → an entry is not an extension redirect of the allowed shape`);
+  }
+  return [...new Set(problems)];
+}
+
+/**
  * THE FIXTURE'S OWN SIGNING KEY.
  *
  * Evidence cannot be completed without one — the signer refuses at the moment
@@ -435,8 +470,9 @@ export function findCredentialShapes(env, { allow = [] } = {}) {
   return [...new Set(found)].sort();
 }
 
-export function findEnvironmentLeaks(env, { allow = [] } = {}) {
+export function findEnvironmentLeaks(env, { allow = [], redirectAllowListNames = [] } = {}) {
   const allowed = new Set(allow);
+  const redirectNames = new Set(redirectAllowListNames);
   const leaks = [];
 
   for (const [name, raw] of Object.entries(env)) {
@@ -452,7 +488,12 @@ export function findEnvironmentLeaks(env, { allow = [] } = {}) {
       }
     }
 
-    for (const url of value.match(/https?:\/\/[^\s,;"'<>]+/g) ?? []) {
+    // A typed redirect allow-list (see REDIRECT_ALLOW_LIST_SHAPES) is matched
+    // against its exact shape INSTEAD of the host test: it is compared, never
+    // dialled. Any entry off-shape is a leak.
+    if (redirectNames.has(name)) {
+      leaks.push(...redirectAllowListProblems(name, value.split(",").map((s) => s.trim())));
+    } else for (const url of value.match(/https?:\/\/[^\s,;"'<>]+/g) ?? []) {
       let host;
       try {
         host = new URL(url).hostname;
@@ -540,9 +581,29 @@ export function buildLocalFixtureEnv(options = {}) {
     if (process.env[key] !== undefined) env[key] = process.env[key];
   }
   Object.assign(env, buildLocalValues(settings));
-  for (const [k, v] of Object.entries(settings.extra ?? {})) env[k] = v;
+  for (const [k, v] of Object.entries(settings.extra ?? {})) {
+    // A redirect allow-list is accepted ONLY through its typed setting below.
+    if (k in REDIRECT_ALLOW_LIST_SHAPES) {
+      throw new UnsafeFixtureEnvironmentError([`${k} → must be passed as redirectAllowLists, not extra`]);
+    }
+    env[k] = v;
+  }
 
-  const leaks = findEnvironmentLeaks(env, { allow: settings.allow ?? [] });
+  // UC-TQ-007 — typed, shape-checked redirect allow-lists (never endpoints).
+  const redirectAllowListNames = [];
+  const redirectProblems = [];
+  for (const [name, entries] of Object.entries(settings.redirectAllowLists ?? {})) {
+    const problems = redirectAllowListProblems(name, entries);
+    if (problems.length > 0) {
+      redirectProblems.push(...problems);
+      continue;
+    }
+    env[name] = entries.join(",");
+    redirectAllowListNames.push(name);
+  }
+  if (redirectProblems.length > 0) throw new UnsafeFixtureEnvironmentError(redirectProblems);
+
+  const leaks = findEnvironmentLeaks(env, { allow: settings.allow ?? [], redirectAllowListNames });
   if (leaks.length > 0) throw new UnsafeFixtureEnvironmentError(leaks);
 
   return env;

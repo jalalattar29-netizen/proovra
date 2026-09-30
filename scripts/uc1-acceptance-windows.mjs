@@ -46,11 +46,15 @@ import { spawn, spawnSync } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 import { buildLocalFixtureEnv, describeLocalFixtureEnv } from "./local-fixture-env/index.mjs";
+import { E2E_EXTENSION_ID, E2E_OAUTH_REDIRECT } from "../apps/extension/scripts/manifest-plan.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+/** Per-run directory holding each stack service log (outside the repository). */
+const STACK_LOG_DIR = resolve(tmpdir(), `uc1-acceptance-${Date.now()}`);
 
 // --- disposable infra identity (kept away from the canonical dev ports) -------
 const PG_CONTAINER = "uc1-acc-pg";
@@ -83,9 +87,17 @@ function opt(name, fallback) {
 function log(msg) {
   process.stdout.write(`\x1b[36m[uc1-acceptance]\x1b[0m ${msg}\n`);
 }
+/**
+ * A fatal harness error. THROWN, never process.exit()ed: an exit from inside
+ * main() skipped its `finally`, so a failed readiness wait left the API,
+ * worker, web and fixture servers running and the uc1-acc-* containers up.
+ */
+class HarnessFatal extends Error {}
 function fail(msg) {
+  throw new HarnessFatal(msg);
+}
+function reportFatal(msg) {
   process.stderr.write(`\x1b[31m[uc1-acceptance] FATAL:\x1b[0m ${msg}\n`);
-  process.exit(1);
 }
 
 const config = {
@@ -291,20 +303,45 @@ function stopInfra() {
 const children = [];
 function startChild(name, cmd, args, { cwd, env }) {
   log(`starting ${name}: ${cmd} ${args.join(" ")}`);
+  // Each service writes to its OWN log FILE, never to a pipe this process reads.
+  // The Playwright run is a spawnSync, which blocks this process's event loop
+  // for minutes; a piped child whose output nobody drains fills the pipe buffer
+  // and then BLOCKS on its next log write. That is how the API froze mid-run
+  // (the second browser's capture hung and every later request timed out).
+  mkdirSync(STACK_LOG_DIR, { recursive: true });
+  const logPath = resolve(STACK_LOG_DIR, `${name}.log`);
+  const fd = openSync(logPath, "a");
   const child = spawn(cmd, args, {
     cwd: cwd ?? REPO_ROOT,
     env,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["ignore", fd, fd],
     shell: process.platform === "win32", // pnpm.cmd on Windows
   });
-  child.stdout.on("data", (d) => process.stdout.write(`\x1b[90m[${name}]\x1b[0m ${d}`));
-  child.stderr.on("data", (d) => process.stderr.write(`\x1b[90m[${name}]\x1b[0m ${d}`));
+  closeSync(fd);
+  log(`  ${name} log: ${logPath}`);
   child.on("exit", (code) => log(`${name} exited (${code})`));
   children.push({ name, child });
   return child;
 }
+/**
+ * After the children are stopped, nothing may still listen on the stack's ports
+ * (a `pnpm dev` wrapper can leave its node grandchild behind). The ports were
+ * verified FREE before the stack started, so any listener now is ours.
+ */
+function reapPortListeners() {
+  if (!stackStarted) return;
+  for (const port of acceptancePorts(config)) {
+    for (const pid of listenersOn(port)) {
+      log(`reaping leftover listener on :${port} (pid ${pid}) …`);
+      if (process.platform === "win32") spawnSync("taskkill", ["/pid", pid, "/T", "/F"], { stdio: "ignore" });
+      else spawnSync("kill", ["-9", pid], { stdio: "ignore" });
+    }
+  }
+}
+let stackStarted = false;
+
 function stopChildren() {
-  for (const { name, child } of children.reverse()) {
+  for (const { name, child } of children.splice(0).reverse()) {
     if (child.exitCode === null) {
       log(`stopping ${name} …`);
       try {
@@ -374,6 +411,60 @@ export function s3FixtureOverrides(config) {
   };
 }
 
+/**
+ * UC-TQ-007 — the fixture-environment options for the acceptance stack. PURE
+ * and EXPORTED so a regression proves the stack carries the same OAuth
+ * redirect allow-list the release checklist requires of operators.
+ *
+ * ET-DC-04 made the API refuse every extension redirect unless
+ * EXTENSION_OAUTH_REDIRECT_ALLOW names it, and the harness never set it: every
+ * run failed AUTH with 400 INVALID_CLIENT_OR_REDIRECT. It is passed as a TYPED
+ * redirect allow-list (shape-checked, never dialled), not as an `extra` value,
+ * so the outbound-endpoint scan is not weakened. The redirect is the E2E build's
+ * own `chrome.identity.getRedirectURL("oauth2")`, known in advance from its
+ * fixed key. The matching extension origin is offered to the API's CORS policy
+ * through EXTENSION_ALLOWED_ORIGINS (UC-SEC-002).
+ */
+export function acceptanceFixtureEnvOptions(config, { chromiumPath }) {
+  return {
+    apiPort: config.apiPort,
+    webPort: config.webPort,
+    databaseUrl: config.dbUrl,
+    redisUrl: config.redisUrl,
+    extra: {
+      ...s3FixtureOverrides(config),
+      PUPPETEER_EXECUTABLE_PATH: chromiumPath,
+      EXTENSION_ALLOWED_ORIGINS: `chrome-extension://${E2E_EXTENSION_ID}`,
+    },
+    redirectAllowLists: { EXTENSION_OAUTH_REDIRECT_ALLOW: [E2E_OAUTH_REDIRECT] },
+  };
+}
+
+/** Every TCP port the acceptance stack listens on. */
+export function acceptancePorts(config) {
+  return [
+    Number(config.apiPort),
+    Number(config.apiPort) + 1, // worker (WORKER_PORT = apiPort + 1)
+    ...(config.skipWeb ? [] : [Number(config.webPort)]),
+    Number(config.fixturePort),
+  ];
+}
+
+/** PIDs listening on `port` (Windows netstat / POSIX lsof). */
+function listenersOn(port) {
+  if (process.platform === "win32") {
+    const r = spawnSync("netstat", ["-ano", "-p", "TCP"], { encoding: "utf8" });
+    const pids = new Set();
+    for (const line of (r.stdout || "").split(/\r?\n/)) {
+      const cols = line.trim().split(/\s+/);
+      if (cols.length >= 5 && cols[3] === "LISTENING" && new RegExp(`:${port}$`).test(cols[1])) pids.add(cols[4]);
+    }
+    return [...pids].filter((p) => p !== "0");
+  }
+  const r = spawnSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" });
+  return (r.stdout || "").split(/\s+/).filter(Boolean);
+}
+
 export function planServiceChildren({ fixtureEnv, config }) {
   const children = [
     { name: "api", cmd: "pnpm", args: ["--filter", "proovra-api", "dev"], env: fixtureEnv },
@@ -426,17 +517,18 @@ async function main() {
   // The canonical safe child environment. Throws if anything is unsafe — this is
   // the hard production-safety gate. API port is chosen to match the extension's
   // default origin so the built artifact needs no rebuild per run.
-  const fixtureEnv = buildLocalFixtureEnv({
-    apiPort: config.apiPort,
-    webPort: config.webPort,
-    databaseUrl: config.dbUrl,
-    redisUrl: config.redisUrl,
-    // Override the canonical "dead storage" with the disposable MinIO (so capture
-    // upload, the worker's Report + Package writes, and public Verify's package
-    // read all work), and give the worker a Puppeteer browser. All local paths /
-    // non-credential-shaped values, so the fixture-env leak scan still passes.
-    extra: { ...s3FixtureOverrides(config), PUPPETEER_EXECUTABLE_PATH: chromiumPath },
-  });
+  // Override the canonical "dead storage" with the disposable MinIO (so capture
+  // upload, the worker's Report + Package writes, and public Verify's package
+  // read all work), give the worker a Puppeteer browser, and allow-list the E2E
+  // extension's OAuth redirect (typed, see acceptanceFixtureEnvOptions).
+  const fixtureEnv = buildLocalFixtureEnv(acceptanceFixtureEnvOptions(config, { chromiumPath }));
+
+  // Every port must be FREE before anything starts, so whatever listens on
+  // them at the end is provably ours to reap.
+  for (const port of acceptancePorts(config)) {
+    const busy = listenersOn(port);
+    if (busy.length > 0) fail(`port ${port} is already in use (pid ${busy.join(", ")}). Stop it and rerun.`);
+  }
   const apiOrigin = `http://localhost:${config.apiPort}`;
   const fixtureOrigin = `http://127.0.0.1:${config.fixturePort}`;
   log(`report PDF renderer: ${chromiumPath}`);
@@ -463,12 +555,23 @@ async function main() {
       env: fixtureEnv,
     });
 
-    // 2. Build shared packages + the extension (reproducible; local origin).
-    run("build:shared", "pnpm", ["run", "build:shared"]);
-    run("build:extension", "pnpm", ["--filter", "@proovra/extension", "build"], {
-      env: { ...process.env, PROOVRA_API_ORIGIN: apiOrigin, NODE_ENV: "production" },
+    // 2. Build shared packages + the extension's E2E TEST build (fixed key,
+    //    <all_urls>; dist-e2e/, never dist/) against the local API + MinIO.
+    // prisma generate (part of build:shared) refuses to load its config
+    // without a DATABASE_URL; it only needs one to exist, and it is the
+    // disposable one.
+    run("build:shared", "pnpm", ["run", "build:shared"], {
+      env: { ...process.env, DATABASE_URL: config.dbUrl, DIRECT_URL: config.dbUrl },
     });
-    const extDist = resolve(REPO_ROOT, "apps/extension/dist");
+    run("build:extension:e2e", "node", ["apps/extension/build.mjs", "--e2e"], {
+      env: {
+        ...process.env,
+        PROOVRA_API_ORIGIN: apiOrigin,
+        PROOVRA_STORAGE_ORIGINS: config.s3Endpoint,
+        NODE_ENV: "production",
+      },
+    });
+    const extDist = resolve(REPO_ROOT, "apps/extension/dist-e2e");
     if (!existsSync(resolve(extDist, "manifest.json"))) {
       fail(`extension build did not produce ${extDist}/manifest.json`);
     }
@@ -485,6 +588,9 @@ async function main() {
           DATABASE_URL: config.dbUrl,
           DIRECT_URL: config.dbUrl,
           AUTH_JWT_SECRET: fixtureEnv.AUTH_JWT_SECRET,
+          // The seeded web session row must hash exactly as the API will look it up.
+          IDENTITY_SECURITY_HASH_SECRET: fixtureEnv.IDENTITY_SECURITY_HASH_SECRET,
+          PROOVRA_ENV_BOOTSTRAPPED: "1",
         },
         encoding: "utf8",
         shell: process.platform === "win32",
@@ -503,6 +609,7 @@ async function main() {
     // 4. Boot API + worker + (optional) web + fixture server, each on its OWN
     //    port (see planServiceChildren — the web child must NOT inherit the
     //    API's PORT or it squats the API origin and OAuth 404s).
+    stackStarted = true;
     for (const spec of planServiceChildren({ fixtureEnv, config })) {
       startChild(spec.name, spec.cmd, spec.args, { env: spec.env });
     }
@@ -520,6 +627,11 @@ async function main() {
       PROOVRA_API_ORIGIN: apiOrigin,
       PROOVRA_E2E_SESSION_BEARER: seed.sessionBearer,
       PROOVRA_E2E_TEAM_ID: seed.teamId,
+      PROOVRA_E2E_CASE_ID: seed.caseId,
+      // services/api/scripts/e2e-verify-link.mjs mints the public verify link
+      // against the DISPOSABLE database (it refuses a non-local host).
+      DATABASE_URL: config.dbUrl,
+      PROOVRA_E2E_EXTENSION_ID: E2E_EXTENSION_ID,
       PROOVRA_OAUTH_CLIENT_ID: "proovra-extension",
       EXTENSION_DIST: extDist,
       FIXTURE_ORIGIN: fixtureOrigin,
@@ -530,13 +642,17 @@ async function main() {
     const results = {};
     for (const project of config.browsers) {
       log(`running Playwright acceptance: ${project}${config.grep ? ` (grep: ${config.grep})` : ""}`);
+      // Bounded: a project that hangs past its own stage bounds is killed and
+      // reported FAIL rather than holding the harness (and the stack) forever.
       const r = spawnSync("npx", ["playwright", "test", `--project=${project}`, ...grepArgs], {
         cwd: e2eDir,
         env: acceptanceEnv,
         stdio: "inherit",
         shell: process.platform === "win32",
+        timeout: PROJECT_TIMEOUT_MS,
+        killSignal: "SIGKILL",
       });
-      results[project] = r.status === 0 ? "PASS" : "FAIL";
+      results[project] = r.status === 0 ? "PASS" : r.error ? `FAIL (${r.error.code ?? r.error.message})` : "FAIL";
     }
 
     // 6. Report.
@@ -554,9 +670,13 @@ async function main() {
     return allPassed ? 0 : 1;
   } finally {
     stopChildren();
+    reapPortListeners();
     stopInfra();
   }
 }
+
+/** Per-browser-project wall clock bound (the spec's own stages are far smaller). */
+const PROJECT_TIMEOUT_MS = 25 * 60 * 1000;
 
 // Only run the stack when executed directly (`node scripts/uc1-acceptance-windows.mjs`).
 // When imported (e.g. by the port-wiring regression test) the pure helpers above
@@ -565,17 +685,24 @@ const invokedDirectly =
   process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
-  process.on("SIGINT", () => {
+  const teardown = () => {
     stopChildren();
+    reapPortListeners();
     stopInfra();
-    process.exit(130);
-  });
+  };
+  for (const sig of ["SIGINT", "SIGTERM", "SIGBREAK", "SIGHUP"]) {
+    process.on(sig, () => {
+      teardown();
+      process.exit(130);
+    });
+  }
 
   main()
     .then((code) => process.exit(code))
     .catch((err) => {
-      stopChildren();
-      stopInfra();
-      fail(err instanceof Error ? err.stack || err.message : String(err));
+      // main()'s `finally` already tore the stack down; teardown is idempotent.
+      teardown();
+      reportFatal(err instanceof HarnessFatal ? err.message : err instanceof Error ? err.stack || err.message : String(err));
+      process.exit(1);
     });
 }

@@ -13,34 +13,51 @@
         <p class="pv-account" id="account" data-testid="account"></p>
       </header>
 
-      <section id="signed-out" hidden>
-        <p class="pv-note">Sign in to preserve this page through a PROOVRA capture session.</p>
+      <section id="signed-out" data-testid="signed-out" hidden>
+        <p class="pv-note">Sign in to preserve this page in your PROOVRA workspace.</p>
+        <p class="pv-status" id="signed-out-note" data-testid="signed-out-note" role="status" hidden></p>
         <button class="pv-primary" id="sign-in" data-testid="sign-in" type="button">Sign in</button>
       </section>
 
-      <section id="signed-in" hidden>
+      <section id="signed-in" data-testid="signed-in" hidden>
         <label class="pv-field">
           <span>Workspace</span>
           <select id="workspace" data-testid="workspace"></select>
         </label>
 
+        <label class="pv-field">
+          <span>Case (optional)</span>
+          <select id="case" data-testid="case"></select>
+        </label>
+        <p class="pv-note" id="case-note" data-testid="case-note" hidden></p>
+
+        <div id="load-error" data-testid="load-error" hidden>
+          <p class="pv-status" id="load-error-text" data-tone="error"></p>
+          <button class="pv-link" id="reload" data-testid="reload" type="button">Try again</button>
+        </div>
+
         <p class="pv-disclosure" data-testid="disclosure">
-          PROOVRA will capture the current page (a screenshot and a sanitized copy of
-          its structure) and record how and when it was captured. It does not
-          capture passwords, other tabs, or your browsing history, and it does not
-          establish that the page's content is true.
+          PROOVRA will take screenshots of the current page and a sanitized copy of its
+          structure, and record when it received them. It is not a complete archive of
+          the page or the site. It does not capture passwords, other tabs, or your
+          browsing history, and it does not establish that the page's content is true.
         </p>
 
         <div class="pv-actions">
-          <button class="pv-primary" id="capture-viewport" data-testid="capture-viewport" type="button">
+          <button class="pv-primary" id="capture-viewport" data-testid="capture-viewport" type="button" disabled>
             Capture visible area
           </button>
-          <button class="pv-secondary" id="capture-full" data-testid="capture-full" type="button">
+          <button class="pv-secondary" id="capture-full" data-testid="capture-full" type="button" disabled>
             Capture full page
           </button>
         </div>
 
         <p class="pv-status" id="status" role="status" data-testid="status"></p>
+
+        <div class="pv-actions">
+          <button class="pv-link" id="cancel" data-testid="cancel" type="button" hidden>Cancel capture</button>
+          <button class="pv-link" id="retry" data-testid="retry" type="button" hidden>Try again</button>
+        </div>
 
         <button class="pv-link" id="sign-out" data-testid="sign-out" type="button">Sign out</button>
       </section>

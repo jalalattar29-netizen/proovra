@@ -43,12 +43,14 @@ test("builds a valid manifest and exposes domain-only, not the full URL, in page
   assert.equal(/verified|authentic|genuine|admissible/i.test(manifestJson), false);
 });
 
-test("completeness derives from artifacts, mutation and truncation", () => {
-  assert.equal(deriveCompleteness([artifact()], false, false), "CAPTURED");
-  assert.equal(deriveCompleteness([artifact()], true, false), "PARTIAL");
-  assert.equal(deriveCompleteness([artifact()], false, true), "PARTIAL");
-  assert.equal(deriveCompleteness([artifact({ completeness: "FAILED" })], false, false), "FAILED");
-  assert.equal(deriveCompleteness([artifact({ completeness: "OMITTED" })], false, false), "PARTIAL");
+test("completeness derives from artifacts, mutation and limitations", () => {
+  const clean = { pageMutated: false, limitations: [] };
+  assert.equal(deriveCompleteness([artifact()], clean), "CAPTURED");
+  assert.equal(deriveCompleteness([artifact()], { ...clean, pageMutated: true }), "PARTIAL");
+  assert.equal(deriveCompleteness([artifact()], { ...clean, limitations: ["PAGE_EXCEEDED_CAPTURE_BOUNDS"] }), "PARTIAL");
+  assert.equal(deriveCompleteness([artifact({ completeness: "FAILED" })], clean), "FAILED");
+  assert.equal(deriveCompleteness([artifact({ completeness: "OMITTED" })], clean), "PARTIAL");
+  assert.equal(deriveCompleteness([], clean), "FAILED");
 });
 
 test("a page-exceeded-bounds limitation makes the whole capture PARTIAL", () => {
@@ -58,4 +60,35 @@ test("a page-exceeded-bounds limitation makes the whole capture PARTIAL", () => 
 
 test("an invalid manifest is rejected locally before upload", () => {
   assert.throws(() => buildWebCaptureManifest(input({ artifacts: [artifact({ expectedSha256: "nothex" })] })));
+});
+
+// UC-EXT-004 — an interrupted capture (time budget / tile failure) and every
+// other detected limitation used to leave completeness=CAPTURED.
+test("CAPTURE_INTERRUPTED makes the whole capture PARTIAL", () => {
+  const { manifest } = buildWebCaptureManifest(input({ limitations: ["CAPTURE_INTERRUPTED"] }));
+  assert.equal(manifest.completeness, "PARTIAL");
+});
+
+for (const code of [
+  "CROSS_ORIGIN_IFRAME_NOT_CAPTURED",
+  "SHADOW_DOM_NOT_FULLY_REPRESENTED",
+  "PROTECTED_MEDIA_NOT_CAPTURED",
+  "DYNAMIC_CONTENT_MAY_BE_INCOMPLETE",
+]) {
+  test(`${code} makes the capture PARTIAL`, () => {
+    const { manifest } = buildWebCaptureManifest(input({ limitations: [code] }));
+    assert.equal(manifest.completeness, "PARTIAL");
+  });
+}
+
+test("a missing DOM snapshot makes the capture PARTIAL and is disclosed in the notes", () => {
+  const { manifest } = buildWebCaptureManifest(input({ domSnapshotMissing: true }));
+  assert.equal(manifest.completeness, "PARTIAL");
+  assert.ok(manifest.notes.some((n) => /DOM snapshot not produced/.test(n)));
+});
+
+test("a mutated page always carries PAGE_MUTATED_DURING_CAPTURE", () => {
+  const { manifest } = buildWebCaptureManifest(input({ pageMutatedDuringCapture: true }));
+  assert.ok(manifest.limitations.includes("PAGE_MUTATED_DURING_CAPTURE"));
+  assert.equal(manifest.completeness, "PARTIAL");
 });

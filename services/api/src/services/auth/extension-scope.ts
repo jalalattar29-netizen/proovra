@@ -41,8 +41,14 @@ const CAPTURE_DIRECT_RULES: ReadonlyArray<ScopeRule> = [
   { method: "POST", test: (p) => p === "/v1/capture/direct-sessions" || p.startsWith("/v1/capture/direct-sessions/") },
   // The canonical part presign the capture upload uses.
   { method: "POST", test: (p) => p === "/v1/evidence/:id/parts" },
-  // The popup shows the signed-in account from the platform context.
+  // The popup shows the signed-in account and its capture workspaces from the
+  // platform context.
   { method: "GET", test: (p) => p === "/v1/platform/context" },
+  // UC-EXT-010 — the popup lists the cases a capture may be filed into. READ
+  // only; the case itself is re-authorized when the session opens with it.
+  { method: "GET", test: (p) => p === "/v1/cases" },
+  // UC-EXT-009 — the extension revokes its own token on sign-out.
+  { method: "POST", test: (p) => p === "/v1/oauth/extension/revoke" },
 ];
 
 const RULES_BY_SCOPE: Readonly<Record<string, ReadonlyArray<ScopeRule>>> = {
@@ -84,4 +90,47 @@ export function isRouteAllowedForScope(
   if (!rules || !routePattern) return false;
   const m = method.toUpperCase();
   return rules.some((r) => r.method === m && r.test(routePattern));
+}
+
+/**
+ * UC-SEC-004 — the organization policy of the TARGET workspace, for an
+ * extension capture.
+ *
+ * requireAuth evaluates organization session policy against the token's session
+ * anchor (the workspace of the session that authorized the extension). A capture
+ * names its own target workspace, which can be a different Organization — so the
+ * capture authority must also ask whether THIS token's authentication satisfies
+ * the target's policy (mandatory SSO bound to that Organization, organization
+ * lifecycle, session policy). This is the same canonical evaluation requireAuth
+ * runs, applied to the target; it is a no-op for tokens without the capture
+ * scope (ordinary sessions are anchored by the context switch). FAIL CLOSED: a
+ * missing provenance is refused, and a read failure propagates to the caller
+ * (which must answer 503, never allow).
+ */
+export async function evaluateExtensionCaptureTargetPolicy(input: {
+  user: {
+    sub: string;
+    tokenScope?: string | null;
+    authMethod?: string | null;
+    authAt?: number | null;
+    ssoConnId?: string | null;
+  };
+  teamId: string;
+}): Promise<{ allowed: boolean; reason?: string }> {
+  if (!isRestrictedScope(input.user.tokenScope ?? null)) return { allowed: true };
+  const [{ provenanceToPolicyAuthMethod }, { evaluateOrgContextForSession }] = await Promise.all([
+    import("../jwt.js"),
+    import("../identity/org-security-policy.service.js"),
+  ]);
+  const method = provenanceToPolicyAuthMethod(input.user.authMethod ?? null);
+  if (!method) return { allowed: false, reason: "reauthentication_required" };
+  const authAtMs = typeof input.user.authAt === "number" && input.user.authAt > 0 ? input.user.authAt * 1000 : Date.now();
+  return evaluateOrgContextForSession({
+    userId: input.user.sub,
+    teamId: input.teamId,
+    method,
+    ssoConnId: input.user.ssoConnId ?? null,
+    authAtMs,
+    lastSeenAtMs: Date.now(),
+  });
 }

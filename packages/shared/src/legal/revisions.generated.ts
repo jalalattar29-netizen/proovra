@@ -35,5 +35,5 @@ export const LEGAL_REVISIONS: Readonly<Record<LegalSlug, string>> = {
   "privacy-requests": "2026-06-23",
   "refund-policy": "2026-06-23",
   "accessibility": "2026-06-23",
-  "direct-web-capture": "2026-09-18",
+  "direct-web-capture": "2026-10-01",
 };

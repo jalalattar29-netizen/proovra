@@ -33,6 +33,8 @@ import { createHash } from "node:crypto";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseOriginList, releaseManifestProblems } from "./scripts/manifest-plan.mjs";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, "dist");
 const RELEASE = join(HERE, "release");
@@ -68,6 +70,30 @@ execFileSync(process.execPath, [join(HERE, "build.mjs")], {
   stdio: "inherit",
   env: { ...env, NODE_ENV: "production" },
 });
+
+// UC-SEC-002 — the storage origins the presigned PUT goes to must be declared,
+// https, and never local; the built manifest must hold exactly the configured
+// PROOVRA origins and nothing test-only (UC-TQ-008).
+const storageOrigins = parseOriginList(env.PROOVRA_STORAGE_ORIGINS);
+if (storageOrigins.length === 0) {
+  fail(
+    "PROOVRA_STORAGE_ORIGINS is required for a release (the origin(s) of the presigned capture upload URLs).\n" +
+      "  e.g. PROOVRA_STORAGE_ORIGINS=https://<bucket>.s3.<region>.amazonaws.com node release.mjs",
+  );
+}
+for (const o of storageOrigins) {
+  let u;
+  try {
+    u = new URL(o);
+  } catch {
+    fail(`PROOVRA_STORAGE_ORIGINS entry is not a URL: ${o}`);
+  }
+  if (u.protocol !== "https:") fail(`PROOVRA_STORAGE_ORIGINS entries must be https:// (got ${o}).`);
+  if (/localhost|127\.0\.0\.1|0\.0\.0\.0/.test(u.hostname)) fail(`PROOVRA_STORAGE_ORIGINS must not be local (got ${o}).`);
+}
+const builtManifest = JSON.parse(readFileSync(join(DIST, "manifest.json"), "utf8"));
+const manifestProblems = releaseManifestProblems(builtManifest, { apiOrigin, storageOrigins });
+if (manifestProblems.length > 0) fail(`built manifest refused:\n  ${manifestProblems.join("\n  ")}`);
 
 // --- 3. Leak scan: no dev origin may survive into the shipped bundle ------
 const LEAK = /http:\/\/localhost|127\.0\.0\.1|localhost:\d+/;

@@ -26,3 +26,33 @@ export function s3FixtureOverrides(config: {
   s3AccessKey: string;
   s3SecretKey: string;
 }): Record<string, string>;
+
+/** UC-TQ-007 — the fixture-environment options the acceptance stack boots with. */
+export function acceptanceFixtureEnvOptions(
+  config: {
+    apiPort: string;
+    webPort: string;
+    dbUrl: string;
+    redisUrl: string;
+    s3Endpoint: string;
+    s3Bucket: string;
+    s3AccessKey: string;
+    s3SecretKey: string;
+  },
+  opts: { chromiumPath: string },
+): {
+  apiPort: string;
+  webPort: string;
+  databaseUrl: string;
+  redisUrl: string;
+  extra: Record<string, string>;
+  redirectAllowLists: Record<string, string[]>;
+};
+
+/** Every TCP port the acceptance stack listens on. */
+export function acceptancePorts(config: {
+  apiPort: string;
+  webPort: string;
+  fixturePort: string;
+  skipWeb: boolean;
+}): number[];

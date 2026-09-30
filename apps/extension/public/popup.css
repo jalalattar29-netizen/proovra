@@ -53,3 +53,4 @@ button:disabled { opacity: 0.55; cursor: default; }
   .pv-disclosure { background: rgba(255,255,255,0.05); }
   .pv-field select, .pv-secondary { background: #10201b; color: #e7efec; }
 }
+[hidden] { display: none !important; }

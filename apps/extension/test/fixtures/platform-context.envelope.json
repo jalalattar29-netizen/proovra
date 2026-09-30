@@ -1,0 +1,22 @@
+{
+  "authoritySchemaVersion": 1,
+  "capabilitySchemaVersion": 1,
+  "navigationSchemaVersion": 1,
+  "generatedAt": "2026-09-30T10:00:00.000Z",
+  "user": { "id": "0b6f3b8e-2d1c-4a55-9d7e-2f6c1c9a0001", "email": "member@example.test", "displayName": "Member" },
+  "workspace": { "id": "5d1f2a3b-0000-4c11-8a22-000000000002", "name": "Acme Investigations", "scope": "TEAM", "role": "MEMBER" },
+  "capabilities": {},
+  "availableWorkspaces": [
+    { "id": "5d1f2a3b-0000-4c11-8a22-000000000001", "name": "Personal Space", "scope": "PERSONAL", "role": "OWNER" },
+    { "id": "5d1f2a3b-0000-4c11-8a22-000000000002", "name": "Acme Investigations", "scope": "TEAM", "role": "MEMBER" },
+    { "id": "5d1f2a3b-0000-4c11-8a22-000000000003", "name": "Read-only Archive", "scope": "TEAM", "role": "VIEWER" },
+    { "id": "5d1f2a3b-0000-4c11-8a22-000000000004", "name": null, "scope": "TEAM", "role": "ADMIN" }
+  ],
+  "account": {},
+  "canonical": {},
+  "personalSpace": {},
+  "organizations": [],
+  "activeSpace": { "type": "ORGANIZATION", "id": "5d1f2a3b-0000-4c11-8a22-000000000002", "displayName": "Acme Investigations", "roleLabel": "MEMBER", "plan": null },
+  "contextOptions": {},
+  "personalSpaceAllowed": true
+}

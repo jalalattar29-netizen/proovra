@@ -10,8 +10,13 @@ import { createHash } from "node:crypto";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseOriginList, planManifest, releaseManifestProblems } from "./scripts/manifest-plan.mjs";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DIST = join(HERE, "dist");
+// UC-TQ-008 — `--e2e` builds the TEST build (fixed key + <all_urls>, see
+// scripts/manifest-plan.mjs) into dist-e2e/. It can never overwrite dist/.
+const E2E = process.argv.includes("--e2e");
+const DIST = join(HERE, E2E ? "dist-e2e" : "dist");
 const pkg = JSON.parse(readFileSync(join(HERE, "package.json"), "utf8"));
 
 const env = process.env;
@@ -56,6 +61,23 @@ await build({
 // Static assets (manifest, popup html/css, icons).
 cpSync(join(HERE, "public"), DIST, { recursive: true });
 
+// UC-SEC-002 — the built manifest declares host access to exactly the PROOVRA
+// API origin and the storage origins the presigned PUT goes to
+// (PROOVRA_STORAGE_ORIGINS, comma list), so the extension's calls are not
+// CORS-bound. The source manifest stays empty (validate-manifest.mjs).
+const apiOrigin = env.PROOVRA_API_ORIGIN ?? "http://localhost:4000";
+const storageOrigins = parseOriginList(env.PROOVRA_STORAGE_ORIGINS);
+const sourceManifest = JSON.parse(readFileSync(join(HERE, "public", "manifest.json"), "utf8"));
+const builtManifest = planManifest(sourceManifest, { apiOrigin, storageOrigins, e2e: E2E });
+if (!E2E) {
+  const problems = releaseManifestProblems(builtManifest, { apiOrigin, storageOrigins });
+  if (problems.length > 0) {
+    console.error(["built manifest refused:", ...problems].join("\n  "));
+    process.exit(1);
+  }
+}
+writeFileSync(join(DIST, "manifest.json"), `${JSON.stringify(builtManifest, null, 2)}\n`);
+
 // Build a checksum manifest so a reviewer can confirm the artifact is exactly
 // what was built (reproducible-build evidence).
 const checksums = {};
@@ -74,4 +96,4 @@ function walk(dir) {
 walk(DIST);
 writeFileSync(join(DIST, "SHA256SUMS.json"), JSON.stringify(checksums, null, 2) + "\n");
 
-console.log(`extension built: ${Object.keys(checksums).length} files in dist/`);
+console.log(`extension built${E2E ? " (E2E TEST BUILD)" : ""}: ${Object.keys(checksums).length} files in ${E2E ? "dist-e2e" : "dist"}/`);

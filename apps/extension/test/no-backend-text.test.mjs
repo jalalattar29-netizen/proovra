@@ -24,6 +24,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const popup = readFileSync(resolve(HERE, "../src/popup.ts"), "utf8");
+// The status sentences live in one pure module the popup renders from.
+const statusCopy = readFileSync(resolve(HERE, "../src/lib/status-copy.ts"), "utf8");
 
 /** Every argument the popup passes to setStatus, with comments removed. */
 function statusArguments() {
@@ -54,7 +56,7 @@ test("no status line is built from a caught exception's message", () => {
 });
 
 test("the generic capture failure says what happened to the work", () => {
-  const m = popup.match(/const CAPTURE_FAILED\s*=\s*\n?\s*"([^"]+)"/);
+  const m = statusCopy.match(/const CAPTURE_FAILED\s*=\s*\n?\s*"([^"]+)"/);
   assert.ok(m, "CAPTURE_FAILED is not declared as a single literal");
   const copy = m[1];
   assert.match(
@@ -63,4 +65,14 @@ test("the generic capture failure says what happened to the work", () => {
     "a person whose capture failed needs to know whether a half-made record " +
       "is now sitting in their workspace",
   );
+});
+
+test("the status copy module never renders a server or exception message", () => {
+  const code = statusCopy.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.equal(/\berr(or)?\.message\b/.test(code), false);
+  assert.equal(/\.error\b/.test(code), false);
+  // `detail` on a status is the background's own progress label
+  // ("artifact 2/5"); the flow's debug `detail` never reaches the registry.
+  const registry = readFileSync(resolve(HERE, "../src/lib/capture-registry.ts"), "utf8");
+  assert.equal(/detail:\s*outcome\.detail/.test(registry), false);
 });

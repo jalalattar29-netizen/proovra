@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PROOVRA Direct Web Capture",
   "version": "1.0.0",
-  "description": "Preserve a web page through a PROOVRA-authorized capture session. PROOVRA records how and when the page was captured — not that its content is true.",
+  "description": "Capture a web page in your browser and preserve it in PROOVRA. PROOVRA records what the extension captured and when it received it — not that the page content is true.",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Preserve with PROOVRA",

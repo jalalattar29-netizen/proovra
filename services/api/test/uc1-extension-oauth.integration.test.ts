@@ -161,7 +161,7 @@ describe("UC-1 extension OAuth (PKCE) — live PostgreSQL 16", () => {
     expect(ordinary.statusCode).not.toBe(403);
   });
 
-  it("authorize requires authentication", async () => {
+  it("authorize requires authentication (an API call without a credential is 401)", async () => {
     const { challenge } = pkce();
     const res = await app.inject({
       method: "GET",

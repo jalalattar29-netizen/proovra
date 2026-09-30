@@ -7,8 +7,19 @@
  * evidence-creation eligibility the commercial gate requires — there is no
  * capture-specific plan), an OWNER membership, and a real session bearer minted
  * with the production `signJwt` (provenance PASSWORD, exactly like a logged-in
- * user). Prints `{ sessionBearer, teamId, userId, email }` as a single JSON line
- * on stdout so the orchestrator can capture it.
+ * user). Prints `{ sessionBearer, teamId, caseId, userId, email }` as a single
+ * JSON line on stdout so the orchestrator can capture it.
+ *
+ * It also provisions what a real Organization always has and a real sign-in
+ * always writes, because the extension token now inherits both (UC-SEC-004):
+ *   - the Organization security policy row (requireAuth fails CLOSED on an
+ *     Organization workspace without one);
+ *   - the bearer's AuthenticatedSession row, anchored to the workspace, so the
+ *     extension token minted from it is anchored there too;
+ *   - one OPEN case, so the popup's case picker has something to offer
+ *     (UC-EXT-010).
+ * IDENTITY_SECURITY_HASH_SECRET must be the value the API runs with, or the
+ * session row's hash will not match the API's lookup.
  *
  * SAFETY: refuses to run unless DATABASE_URL is a LOCAL host whose database name
  * marks it disposable (test/fixture/local/dev). It never touches Production and
@@ -96,8 +107,16 @@ async function main(): Promise<void> {
     await tx.teamMember.create({
       data: { teamId: team.id, userId: user.id, role: "OWNER", status: "ACTIVE" },
     });
+    await tx.user.update({ where: { id: user.id }, data: { currentWorkspaceId: team.id } });
+    await tx.organizationSecurityPolicy.create({
+      data: { organizationId: org.id, teamId: team.id } as never,
+    });
+    const kase = await tx.case.create({
+      data: { name: `UC1 acceptance matter ${stamp}`, ownerUserId: user.id, teamId: team.id } as never,
+      select: { id: true },
+    });
 
-    return { userId: user.id, teamId: team.id, email: user.email ?? email };
+    return { userId: user.id, teamId: team.id, caseId: kase.id, email: user.email ?? email };
   });
 
   const sessionBearer = signJwt(
@@ -112,9 +131,34 @@ async function main(): Promise<void> {
     60 * 60 * 2, // 2 hours — long enough for a full Chrome+Edge run
   );
 
+  // The bearer is a registered session anchored to the workspace, exactly as a
+  // real sign-in records it.
+  if (!process.env.IDENTITY_SECURITY_HASH_SECRET) {
+    throw new Error("IDENTITY_SECURITY_HASH_SECRET is required (the value the API runs with)");
+  }
+  const { recordAuthenticatedSession } = await import("../src/services/access-control/session-inventory.service.js");
+  const bearerClaims = JSON.parse(Buffer.from(sessionBearer.split(".")[1] ?? "", "base64url").toString("utf8")) as {
+    sid: string;
+    iat: number;
+    exp: number;
+  };
+  await recordAuthenticatedSession({
+    userId: seeded.userId,
+    teamId: seeded.teamId,
+    sid: bearerClaims.sid,
+    iat: bearerClaims.iat,
+    exp: bearerClaims.exp,
+    uaPreview: "uc1-acceptance-seed",
+  });
+
   process.stdout.write(
-    JSON.stringify({ sessionBearer, teamId: seeded.teamId, userId: seeded.userId, email: seeded.email }) +
-      "\n",
+    JSON.stringify({
+      sessionBearer,
+      teamId: seeded.teamId,
+      caseId: seeded.caseId,
+      userId: seeded.userId,
+      email: seeded.email,
+    }) + "\n",
   );
   await prisma.$disconnect();
 }

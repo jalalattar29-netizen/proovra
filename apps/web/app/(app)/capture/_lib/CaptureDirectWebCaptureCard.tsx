@@ -62,10 +62,11 @@ export function CaptureDirectWebCaptureCard() {
         Direct Web Capture
       </h2>
       <p className="capture-direct-web__body">
-        Don&apos;t just upload a screenshot. With the PROOVRA browser extension you can
-        preserve a web page through a server-issued capture session: PROOVRA takes part in
-        the capture, independently checks the bytes it receives, and records how and when
-        the page was captured.
+        Don&apos;t just upload a screenshot. The PROOVRA browser extension captures the page
+        in your browser — screenshots and a sanitized copy of its structure — and uploads
+        it through a capture session for your account. PROOVRA independently checks the
+        bytes it receives and records when it received them, together with the limitations
+        the extension detected.
       </p>
       <p className="capture-direct-web__note">
         PROOVRA records how the page entered the evidence lifecycle. It does not establish

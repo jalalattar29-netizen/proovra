@@ -9,8 +9,13 @@
  * every sensitive operation.
  *
  * The token endpoint contract (authorize/token URLs, client id) is injected by
- * the build. The server-side registration of this public client + redirect URI
- * is the one wiring step recorded as pending in the UC-1 doc.
+ * the build. The server accepts the redirect only when the deployment
+ * allow-lists this extension's `https://<id>.chromiumapp.org/oauth2` redirect
+ * (EXTENSION_OAUTH_REDIRECT_ALLOW).
+ *
+ * Sign-in runs in the BACKGROUND service worker: the auth window takes focus,
+ * which closes the popup and would kill a flow started there before the token
+ * was stored.
  */
 import { CONFIG } from "./config.js";
 
@@ -70,7 +75,9 @@ export async function signIn(): Promise<{ account: string | null }> {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("client_id", CONFIG.oauthClientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("scope", "capture.direct offline");
+  // UC-EXT-008 — no "offline": there is no refresh token. The token lives an
+  // hour and its expiry is shown as a sign-in state.
+  authUrl.searchParams.set("scope", "capture.direct");
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
   authUrl.searchParams.set("state", state);
@@ -105,6 +112,23 @@ export async function signIn(): Promise<{ account: string | null }> {
   return { account: token.account ?? null };
 }
 
-export async function signOut(): Promise<void> {
+/**
+ * UC-EXT-009 — sign-out revokes the token's SERVER session first (so a copied
+ * token stops working at once), then forgets it locally. A failed revoke still
+ * clears the local copy; the token then dies at its one-hour expiry, and the
+ * user's own "sign out other sessions" reaches it through its session row.
+ */
+export async function signOut(revoke: (accessToken: string) => Promise<void>): Promise<{ revoked: boolean }> {
+  const t = await storageGet<StoredToken>("session", TOKEN_KEY);
+  let revoked = false;
+  if (t?.accessToken && t.expiresAtMs > Date.now()) {
+    try {
+      await revoke(t.accessToken);
+      revoked = true;
+    } catch {
+      revoked = false;
+    }
+  }
   await clearToken();
+  return { revoked };
 }

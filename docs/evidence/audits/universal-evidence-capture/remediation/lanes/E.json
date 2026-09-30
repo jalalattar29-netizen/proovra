@@ -1,0 +1,242 @@
+{
+  "lane": "E",
+  "findings": {
+    "UC-EXT-001": {
+      "decision": "The popup now parses the canonical /v1/platform/context contract (availableWorkspaces + activeSpace) through a pure module (apps/extension/src/lib/popup-context.ts). It offers only workspaces whose role grants evidence.create, using the shared roleHasPermission, and preselects activeSpace. The server still authorizes every capture call. A source contract test pins that the parsed keys exist in PlatformContextEnvelope, and the integration suite runs the popup's own parser against the REAL envelope the API returns for an extension token.",
+      "red": { "test": "apps/extension/test/popup-context.test.mjs::the popup no longer reads the invented `workspaces` / `teams` keys", "command": "HEAD lib bundled into .red/ then node --test", "observed": "HEAD popup.ts reads `body.workspaces ?? body.teams ?? []` (popup-context module absent: ERR_MODULE_NOT_FOUND); runtime probe platform-context-shape.json: hasWorkspaces=false, hasTeams=false" },
+      "green": { "tests": ["apps/extension/test/popup-context.test.mjs::lists the capture-eligible workspaces from availableWorkspaces and preselects activeSpace", "apps/extension/test/popup-context.test.mjs::the popup's parsed keys exist in the server's PlatformContextEnvelope type", "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-001: the popup's own parser finds the member's workspace in the REAL platform context", "apps/extension/e2e/direct-web-capture.spec.ts::WORKSPACE stage (real Chrome 153 + Edge 154)"], "command": "pnpm --filter @proovra/extension test; vitest integration; node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge", "result": "85/85 extension unit, 15/15 integration, 8/8 real-browser acceptance" },
+      "filesChanged": ["apps/extension/src/popup.ts", "apps/extension/src/lib/popup-context.ts", "apps/extension/public/popup.html", "apps/extension/public/popup.css", "apps/extension/test/popup-context.test.mjs", "apps/extension/test/fixtures/platform-context.envelope.json"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "extension popup lists real workspaces", "api": "none", "worker": "none", "mobile": "none", "extension": "popup rewritten on the canonical contract", "security": "none", "deployment": "store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-002": {
+      "decision": "The workspace (and case) load now returns a discriminated result (classifyContextResponse). A 401 clears the stored token and shows the signed-out section with 'Your PROOVRA sign-in has ended'. A 5xx or a network failure shows a factual 'Could not load your PROOVRA workspaces' line with a Try again button. 'No workspace' is shown only when the envelope really holds no capture-eligible workspace, and it is worded as such.",
+      "red": { "test": "apps/extension/test/popup-context.test.mjs::401 is a sign-in state, not 'no workspace'", "command": "HEAD lib bundled into .red/ then node --test", "observed": "ERR_MODULE_NOT_FOUND popup-context.js; HEAD loadWorkspaces returns [] on !res.ok and on throw" },
+      "green": { "tests": ["apps/extension/test/popup-context.test.mjs::401 is a sign-in state, not 'no workspace'", "apps/extension/test/popup-context.test.mjs::5xx and network failure are an error state, not an empty list"], "command": "pnpm --filter @proovra/extension test", "result": "85 passed" },
+      "filesChanged": ["apps/extension/src/popup.ts", "apps/extension/src/lib/popup-context.ts", "apps/extension/public/popup.html"],
+      "proofKind": "unit",
+      "impacts": { "ui": "popup sign-in/error states", "api": "none", "worker": "none", "mobile": "none", "extension": "yes", "security": "none", "deployment": "store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-003": {
+      "decision": "Every captureVisibleTab call now goes through one serialised scheduler for the whole service worker (apps/extension/src/lib/capture-scheduler.ts). Calls start at least 550 ms apart, under Chrome's 2 calls/s quota, and a quota rejection is retried with bounded exponential backoff (600 ms to 4.8 s, 4 retries) instead of aborting. The tile count stays bounded (40 tiles / 40000 px, with a truthful PAGE_EXCEEDED_CAPTURE_BOUNDS note), and the time budget was raised to fit the paced rate. A tile that still fails ends the capture PARTIAL, marked CAPTURE_INTERRUPTED and keeping the tiles already taken. The user's scroll position is restored in a finally.",
+      "red": { "test": "apps/extension/test/capture-full-page.test.mjs::a page four viewports tall is captured completely without tripping the 2/s quota", "command": "HEAD capture.ts bundled into .red/ then node --test (stub chrome enforcing the documented quota)", "observed": "Error: This request exceeds the MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota." },
+      "green": { "tests": ["apps/extension/test/capture-full-page.test.mjs::a page four viewports tall is captured completely without tripping the 2/s quota", "apps/extension/test/capture-full-page.test.mjs::a tile the browser keeps refusing ends the capture PARTIAL with the tiles taken, not a discard", "apps/extension/test/capture-scheduler.test.mjs (6 tests)", "e2e long.html (~6.3 viewports) FULL_PAGE in real Chrome + Edge"], "command": "pnpm --filter @proovra/extension test; acceptance harness", "result": "all passed; real-browser long/spa/mutating FULL_PAGE captures sealed in both browsers" },
+      "filesChanged": ["apps/extension/src/lib/capture-scheduler.ts", "apps/extension/src/lib/capture.ts", "apps/extension/src/lib/config.ts", "apps/extension/test/capture-scheduler.test.mjs", "apps/extension/test/capture-full-page.test.mjs"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "full-page capture paced + partial on persistent failure", "security": "none", "deployment": "store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-004": {
+      "decision": "Extension/manifest-builder half. deriveCompleteness now returns PARTIAL on ANY limitation (CAPTURE_INTERRUPTED included), on a mutated page and on a missing DOM snapshot, and FAILED when there are no artifacts; a mutated page always carries PAGE_MUTATED_DURING_CAPTURE. The content script now reports protected (EME) media, DOM mutations observed during capture and cross-origin frames, so the extension emits PROTECTED_MEDIA_NOT_CAPTURED and DYNAMIC_CONTENT_MAY_BE_INCOMPLETE, which it never emitted before. The cross-origin frame count was always 0 because contentDocument is null, not a throw, for cross-origin frames. A failed or empty DOM snapshot is recorded as domSnapshotMissing, with a manifest note, and the facts are still reported. The note also discloses that the sanitizer removes ALL iframes. Double content-script injection (duplicate listeners) is guarded. Persisting the projection is lane M's work and displaying it is lane T's.",
+      "red": { "test": "apps/extension/test/manifest-builder.test.mjs::CAPTURE_INTERRUPTED makes the whole capture PARTIAL", "command": "HEAD manifest-builder.ts bundled into .red/ then node --test", "observed": "AssertionError: + 'CAPTURED' - 'PARTIAL' (also CROSS_ORIGIN_IFRAME/SHADOW_DOM/PROTECTED_MEDIA/DYNAMIC_CONTENT and missing-DOM cases)" },
+      "green": { "tests": ["apps/extension/test/manifest-builder.test.mjs (10 tests)", "apps/extension/test/capture-full-page.test.mjs::a missing DOM snapshot and the page facts are recorded (UC-EXT-004)", "apps/extension/test/preserve-flow.test.mjs::success seals and reports the evidence id; a missing DOM makes the record PARTIAL"], "command": "pnpm --filter @proovra/extension test", "result": "85 passed" },
+      "filesChanged": ["apps/extension/src/lib/manifest-builder.ts", "apps/extension/src/lib/capture.ts", "apps/extension/src/content.ts", "apps/extension/test/manifest-builder.test.mjs", "apps/extension/test/capture-full-page.test.mjs"],
+      "proofKind": "unit",
+      "impacts": { "ui": "lane T displays", "api": "lane M persists/validates coherence", "worker": "none", "mobile": "none", "extension": "truthful completeness + limitations", "security": "none", "deployment": "store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-EXT-005": {
+      "decision": "The background service worker now owns capture state (apps/extension/src/lib/capture-registry.ts). It allows one in-flight capture per tab, claimed synchronously so two messages cannot both start. Each attempt gets an id, which serves as the client idempotency key. Status (step, result, evidence id) is persisted in chrome.storage.session, a reopened popup reads it through GET_CAPTURE_STATUS, and live changes are broadcast. A RUNNING status with no live attempt (the worker was stopped) reads as UNKNOWN. The popup has Cancel (aborts, then discards) and Try again. The outcome is factual: 'Nothing was saved' appears only when provable; an unconfirmed seal says 'may or may not have been saved, check your Evidence library'; a discard that finds the session sealed reports success.",
+      "red": { "test": "apps/extension/test/capture-registry.test.mjs::a second PRESERVE for the same tab while the first runs is refused", "command": "HEAD bundled into .red/ then node --test", "observed": "ERR_MODULE_NOT_FOUND (no in-flight guard/registry exists); HEAD background.ts accepts every PRESERVE" },
+      "green": { "tests": ["apps/extension/test/capture-registry.test.mjs (5 tests)", "apps/extension/test/status-copy.test.mjs::an unknown outcome never says nothing was saved", "apps/extension/test/preserve-flow.test.mjs::UC-EXT-005: a seal with no answer is UNKNOWN when the discard cannot settle it", "e2e CAPTURE stage reads the background-persisted status (data-capture-state/data-evidence-id)"], "command": "pnpm --filter @proovra/extension test; acceptance harness", "result": "passed" },
+      "filesChanged": ["apps/extension/src/lib/capture-registry.ts", "apps/extension/src/lib/preserve-flow.ts", "apps/extension/src/lib/status-copy.ts", "apps/extension/src/background.ts", "apps/extension/src/popup.ts", "apps/extension/public/popup.html"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "popup shows running/last result, cancel, retry", "api": "none (server idempotency key on open not added; per-tab lock prevents duplicates client-side)", "worker": "none", "mobile": "none", "extension": "yes", "security": "none", "deployment": "store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-006": {
+      "decision": "Server side: authorize now runs a preHandler (extensionSignInRedirect) BEFORE requireAuth. It validates client_id and the redirect allow-list first (an unregistered redirect is 400 and is never bounced through sign-in). A signed-out browser navigation (no credential, or an invalid or expired one) gets a 302 to WEB_BASE_URL/login?next=/auth/extension/continue?<the validated query>. API callers keep the 401. Sign-in now runs in the background worker, because the auth window closes the popup, and SIGN_IN_FAILED no longer blames pop-ups. The web bridge page /auth/extension/continue is not in this lane: it is a crossLaneRequest.",
+      "red": { "test": "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-006: a signed-out browser navigation is sent to sign in with a return path to authorize", "command": "HEAD routes/service/scope swapped in, vitest integration (lane E DB)", "observed": "expected 401 to be 302" },
+      "green": { "tests": ["services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-006: a signed-out browser navigation is sent to sign in with a return path to authorize", "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-006: an unregistered redirect is refused before any sign-in bounce", "e2e OAUTH_ROUTES stage (live 302 to /login?next=)"], "command": "TEST_DATABASE_URL=...proovra_ucc_e_test ... npx vitest run --config vitest.integration.config.ts test/uc1-extension-oauth-session.integration.test.ts", "result": "9 passed" },
+      "filesChanged": ["services/api/src/routes/extension-oauth.routes.ts", "apps/extension/src/background.ts", "apps/extension/src/popup.ts", "apps/extension/src/lib/auth.ts"],
+      "proofKind": "integration-real-db",
+      "impacts": { "ui": "web needs /auth/extension/continue bridge (cross-lane)", "api": "authorize redirects signed-out navigations", "worker": "none", "mobile": "none", "extension": "sign-in in background", "security": "redirect validated before any bounce; login next is relative", "deployment": "api+worker redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-EXT-007": {
+      "decision": "The sanitizer now clears the content of <meta> tags whose name, property, itemprop or http-equiv marks a secret (csrf, xsrf, authenticity, token, session, nonce, secret, api-key, auth, set-cookie). It also clears data-* token attributes and strips CSP nonce attributes. In URL attributes (href, src, srcset, action, poster, data, cite, background, xlink:href, content) it replaces credential and signature query/fragment parameter values with REDACTED (X-Amz-*, X-Goog-*, sig, Signature, Key-Pair-Id, token, access_token, id_token, code, key, session, sid, jwt …), preserving the rest of the URL verbatim. Everything it did is counted, and the counts are written as manifest notes (the capture's technical record). The snapshot header no longer claims more than it does.",
+      "red": { "test": "apps/extension/test/sanitizer.test.mjs::meta CSRF / session tokens are cleared", "command": "HEAD sanitizer.ts bundled into .red/ then node --test", "observed": "SyntaxError: The requested module './dist/sanitizer.js' does not provide an export named 'describeSanitization' (HEAD clears meta only for http-equiv=refresh)" },
+      "green": { "tests": ["apps/extension/test/sanitizer.test.mjs (9 tests incl. meta tokens, data-* tokens, signed URL/srcset/fragment redaction, disclosure notes)"], "command": "pnpm --filter @proovra/extension test", "result": "85 passed" },
+      "filesChanged": ["apps/extension/src/lib/sanitizer.ts", "apps/extension/src/content.ts", "apps/extension/src/lib/capture.ts", "apps/extension/test/sanitizer.test.mjs"],
+      "proofKind": "unit",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "snapshot sanitization + disclosure", "security": "capturer's CSRF/session/signed-URL secrets no longer shipped in evidence bundles", "deployment": "store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-008": {
+      "decision": "A 401 anywhere in the capture flow, or a missing token, is now SIGNED_OUT: the token is cleared and the popup shows the signed-out section with 'Your PROOVRA sign-in has ended … Sign in again'. A 401 on the context or case load does the same. The 'offline' scope is no longer requested, and the server narrows any requested scope to capture.direct (normalizeExtensionScope, EXTENSION_OAUTH_SCOPES), because no refresh token exists.",
+      "red": { "test": "services/api/test/uc1-extension-oauth-session.integration.test.ts (scope assertion)", "command": "HEAD routes/service swapped in, vitest integration", "observed": "offline is no longer granted (UC-EXT-008): expected 'capture.direct offline' to be 'capture.direct'" },
+      "green": { "tests": ["apps/extension/test/preserve-flow.test.mjs::UC-EXT-008: a 401 mid-capture is SIGNED_OUT and clears the token", "apps/extension/test/status-copy.test.mjs::an ended sign-in is a sign-in state (UC-EXT-008)", "services/api/test/uc1-extension-oauth-session.integration.test.ts (scope === capture.direct)"], "command": "extension unit + vitest integration", "result": "passed" },
+      "filesChanged": ["apps/extension/src/lib/preserve-flow.ts", "apps/extension/src/lib/status-copy.ts", "apps/extension/src/lib/auth.ts", "apps/extension/src/popup.ts", "services/api/src/services/auth/extension-oauth.service.ts", "services/api/src/routes/extension-oauth.routes.ts"],
+      "proofKind": "integration-real-db",
+      "impacts": { "ui": "popup sign-in state", "api": "scope narrowed", "worker": "none", "mobile": "none", "extension": "yes", "security": "no false offline grant", "deployment": "api+worker redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-009": {
+      "decision": "The extension token's sid (which signJwt always minted) is now REGISTERED as an AuthenticatedSession at token exchange. This is fail-closed: if registration fails the token is not issued (503). Sign-out calls the new POST /v1/oauth/extension/revoke, which is on the capture scope allow-list and extension-token-only. It revokes THIS session (SINGLE_SESSION via revokeSession, and mirrors revokedAtUtc on the row), so a copied token is refused at once. The token now also appears in the user's session list and is reached by 'sign out other sessions'. The local token is cleared even if the revoke fails. No schema change was needed.",
+      "red": { "test": "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-009: an ordinary web token cannot call the extension revoke", "command": "HEAD routes swapped in, vitest integration", "observed": "expected 404 to be 403 (no revoke route); HEAD token has no AuthenticatedSession row" },
+      "green": { "tests": ["services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-009: sign-out revokes the token server-side; a copied token stops working", "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-009: an ordinary web token cannot call the extension revoke"], "command": "vitest integration (lane E DB)", "result": "9 passed" },
+      "filesChanged": ["services/api/src/routes/extension-oauth.routes.ts", "services/api/src/services/auth/extension-scope.ts", "apps/extension/src/lib/auth.ts", "apps/extension/src/lib/api-client.ts", "apps/extension/src/background.ts"],
+      "proofKind": "integration-real-db",
+      "impacts": { "ui": "none", "api": "new POST /v1/oauth/extension/revoke; session row per extension token", "worker": "none", "mobile": "none", "extension": "sign-out revokes", "security": "per-session revocation reaches extension tokens", "deployment": "api+worker redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-010": {
+      "decision": "Popup and background half, coded against lane M's contract (optional caseId on POST /v1/capture/direct-sessions; lane M's openDirectCaptureSession already authorizes it through authorizeCaseEvidenceLink). The popup has a 'Case (optional)' picker listing the selected workspace's open cases from GET /v1/cases, which was added to the capture scope allow-list as READ-only; POST /v1/cases stays 403. Overlapping loads are guarded, which fixed a duplicate-options bug found in the real-browser run. caseId is sent only when the user chooses a case. The real-browser run files the static capture into the seeded case, and the CASE stage verifies it under that case after seal.",
+      "red": { "test": "apps/extension/test/preserve-flow.test.mjs::UC-EXT-010: the chosen case is sent on session open; no case sends none", "command": "HEAD bundled into .red/ then node --test", "observed": "ERR_MODULE_NOT_FOUND preserve-flow.js (HEAD openWebSession sends mode/teamId/deviceId only; popup has no case control)" },
+      "green": { "tests": ["apps/extension/test/preserve-flow.test.mjs::UC-EXT-010: the chosen case is sent on session open; no case sends none", "apps/extension/test/popup-context.test.mjs::cases: only the selected workspace's open cases are offered (UC-EXT-010)", "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-010: the extension token may read the case list the popup offers", "e2e [chromium|edge]/static CASE stage: capture filed to the chosen case at seal"], "command": "extension unit + vitest integration + acceptance harness", "result": "passed in real Chrome 153 and Edge 154" },
+      "filesChanged": ["apps/extension/src/popup.ts", "apps/extension/src/lib/popup-context.ts", "apps/extension/src/lib/api-client.ts", "apps/extension/src/lib/preserve-flow.ts", "apps/extension/src/background.ts", "apps/extension/public/popup.html", "services/api/src/services/auth/extension-scope.ts"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "popup case picker", "api": "GET /v1/cases reachable by capture-scoped token (read only)", "worker": "none", "mobile": "none", "extension": "yes", "security": "read-only widening of the scope allow-list", "deployment": "api+worker redeploy + store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-SEC-002": {
+      "decision": "Extension side: the BUILT manifest now declares host access to exactly PROOVRA's API origin and the configured storage origins (PROOVRA_STORAGE_ORIGINS; release.mjs requires https, non-local). The extension's API calls and the presigned PUT are therefore no longer CORS-bound. It never declares a wildcard or <all_urls>, and a release refuses one (scripts/manifest-plan.mjs releaseManifestProblems). The source manifest stays host-less. The server allow-list is derived fail-closed from the same pinned configuration: extensionAllowedOrigins() / isAllowedExtensionOrigin() in extension-oauth.service.ts (the ids from EXTENSION_OAUTH_REDIRECT_ALLOW plus EXTENSION_ALLOWED_ORIGINS, exact chrome-extension://<32 a-p> only). The server.ts CORS wiring belongs to lane A, and the change is in crossLaneRequests.",
+      "red": { "test": "apps/extension/test/manifest-plan.test.mjs::a release build grants host access to exactly the API and storage origins", "command": "node --test (module absent at HEAD)", "observed": "HEAD manifest host_permissions [] and no server path admits chrome-extension://<id> (finding reproduction)" },
+      "green": { "tests": ["apps/extension/test/manifest-plan.test.mjs (5 tests)", "services/api/test/uc1-extension-oauth-harness.test.ts::the acceptance stack's API env allow-lists the E2E build's real redirect (extensionAllowedOrigins)"], "command": "extension unit + vitest", "result": "passed" },
+      "filesChanged": ["apps/extension/scripts/manifest-plan.mjs", "apps/extension/scripts/manifest-plan.d.mts", "apps/extension/build.mjs", "apps/extension/release.mjs", "services/api/src/services/auth/extension-oauth.service.ts", "services/api/.env.example", "apps/web/content/legal/en/direct-web-capture.md"],
+      "proofKind": "unit",
+      "impacts": { "ui": "none", "api": "server.ts CORS (lane A)", "worker": "none", "mobile": "none", "extension": "host access to own API/storage origins", "security": "no broad host access; fail-closed origin list", "deployment": "store submission (new host permission prompt) + api redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-SEC-004": {
+      "decision": "Reuses AuthenticatedSession; no migration. Authorize captures the AUTHORIZING session's provenance: supported authMethod, authAt, ssoConnId, mfaAt, and the workspace anchor of its session row (falling back to currentWorkspaceId). The provenance rides inside the authorization code (<random>.<base64url json>); the DB stores sha256 of the whole code, so it cannot be altered. Token exchange signs the token with that real authMethod (no longer hard-coded SOCIAL_OAUTH) and registers its session row anchored to that workspace, so requireAuth now runs the org security gate, org context policy and role session-timeout against the extension token. requireAuth needed no change. For a capture TARGET different from the anchor, evaluateExtensionCaptureTargetPolicy (extension-scope.ts) runs the same canonical evaluateOrgContextForSession. Lane M must call it in authorizeDirectCapture (crossLaneRequests).",
+      "red": { "test": "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: the token is a registered session anchored to the authorizing session's workspace", "command": "HEAD routes/service/scope swapped in, vitest integration (lane E DB)", "observed": "all 9 fail at HEAD (first failing assertion: scope 'capture.direct offline'); HEAD route signs authMethod SOCIAL_OAUTH with no recordAuthenticatedSession" },
+      "green": { "tests": ["services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: the token is a registered session anchored to the authorizing session's workspace", "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: the token carries the authorizing session's real authMethod, not a hard-coded SOCIAL_OAUTH", "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: an organization that mandates SSO refuses a password-derived extension token"], "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_e_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/2 ... npx vitest run --config vitest.integration.config.ts test/uc1-extension-oauth-session.integration.test.ts test/uc1-extension-oauth.integration.test.ts", "result": "15 passed" },
+      "filesChanged": ["services/api/src/services/auth/extension-oauth.service.ts", "services/api/src/routes/extension-oauth.routes.ts", "services/api/src/services/auth/extension-scope.ts", "services/api/scripts/uc1-seed-acceptance.ts"],
+      "proofKind": "integration-real-db",
+      "impacts": { "ui": "extension token visible in session list", "api": "token exchange registers a session; fails 503 if it cannot", "worker": "none", "mobile": "none", "extension": "none", "security": "org SSO/MFA/session policy + timeouts apply to extension tokens", "deployment": "api+worker redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-TQ-002": {
+      "decision": "Each project now launches its REAL declared channel, and the spec reads project.use.channel ('chrome' / 'msedge'). Because branded Chrome 137+ ignores --load-extension, the unpacked E2E build is loaded over the browser's own CDP pipe (Extensions.loadUnpacked, --enable-unsafe-extension-debugging), with Playwright's default --disable-extensions dropped. Every test asserts the browser identity (Edge must say Edg/, Chrome must not), prints channel, version and UA, and annotates the result. The spec also no longer bypasses the extension's OAuth: it clicks the popup's Sign in. CI wiring is outside this lane's files (see crossLaneRequests).",
+      "red": { "test": "apps/extension/e2e/direct-web-capture.spec.ts (HEAD launch)", "command": "probe: chromium.launchPersistentContext({channel:'chrome', args:[--load-extension]})", "observed": "Chrome 153 stable: no extension service worker (SW NONE); HEAD spec passes no channel so both projects launched bundled Chromium 148" },
+      "green": { "tests": ["apps/extension/e2e/direct-web-capture.spec.ts x4 fixtures on project chromium (Chrome 153.0.8010.53) and edge (Edge 154.0.4258.37)"], "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge", "result": "chromium 4 passed, edge 4 passed; UC-1 CLOSED (browser gate) [PASS]; exit 0" },
+      "filesChanged": ["apps/extension/e2e/direct-web-capture.spec.ts", "apps/extension/e2e/playwright.config.ts", "apps/extension/e2e/README.md"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "acceptance runs on real Chrome + Edge", "security": "none", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "none (CI workflow wiring is a cross-lane request)",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-TQ-007": {
+      "decision": "local-fixture-env gains a TYPED redirect allow-list setting (redirectAllowLists). Each name has one exact shape; EXTENSION_OAUTH_REDIRECT_ALLOW must match https://<32 a-p>.chromiumapp.org/<path>. Off-shape entries are refused, the value still goes through the forbidden-host and credential scans, and the same URL passed via `extra` or under any other name is still refused, so the outbound scan is not weakened. The harness passes the E2E build's real redirect (known from its fixed key) this way, plus EXTENSION_ALLOWED_ORIGINS. Harness hardening: fail() now THROWS, so every failure tears the stack down; ports are verified free before start and leftovers are reaped after; build:shared gets DATABASE_URL; the seed gets the API's IDENTITY_SECURITY_HASH_SECRET; e2e-verify-link gets DATABASE_URL; each project is bounded to 25 minutes. Service output now goes to per-service log files, not undrained pipes: the API froze mid-run because the spawnSync'd Playwright run blocked the harness from reading the pipe. The seed provisions the org security policy, the bearer's session row and one open case.",
+      "red": { "test": "services/api/test/uc1-extension-oauth-harness.test.ts::the acceptance stack's API env allow-lists the E2E build's real redirect", "command": "HEAD scripts/local-fixture-env/index.mjs swapped in, npx vitest run", "observed": "expected undefined to be 'https://cifdmjicbglkaoiagjhikkglbnhib…'; via extra: 'EXTENSION_OAUTH_REDIRECT_ALLOW → resolves to cifdmjicbglkaoiagjhikkglbnhibdkd.chromiumapp.org'" },
+      "green": { "tests": ["services/api/test/uc1-extension-oauth-harness.test.ts (4 tests)", "services/api/test/uc1-acceptance-harness-oauth-routing.test.ts (6 tests)", "apps/web/__tests__/local-fixture-env-isolation.test.mjs (23, run from repo root)", "full acceptance run"], "command": "npx vitest run test/uc1-extension-oauth-harness.test.ts test/uc1-acceptance-harness-oauth-routing.test.ts; node --test apps/web/__tests__/local-fixture-env-isolation.test.mjs; harness", "result": "10 passed; 23 passed; harness exit 0" },
+      "filesChanged": ["scripts/local-fixture-env/index.mjs", "scripts/local-fixture-env/index.d.mts", "scripts/uc1-acceptance-windows.mjs", "scripts/uc1-acceptance-windows.d.mts", "services/api/scripts/uc1-seed-acceptance.ts", "services/api/test/uc1-extension-oauth-harness.test.ts"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "typed allow-list; outbound scan intact", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-TQ-008": {
+      "decision": "The spec now triggers everything through surfaces Chrome delivers. The popup page is opened in its own window with ?targetTabId=<fixture tab> (the popup resolves an explicit target only from that param, and only extension pages can open it). Sign-in is the popup button, running the background's launchWebAuthFlow with the seeded web-session cookie. Capture is the popup's Capture button, whose PRESERVE comes from an extension page; the background accepts control messages only from its own pages. activeTab cannot be granted without a real toolbar click, so `build.mjs --e2e` (dist-e2e only) adds <all_urls> host access and a fixed key; the release manifest refuses both. Every step (OAUTH_ROUTES, LAUNCH, FIXTURE, TAB, POPUP, AUTH, WORKSPACE, CAPTURE, and the trace stages) has its own bound. Surface reads use the web session, because the extension token is capture-scoped. The harness ran end to end twice more after fixes, and the final run passed in both browsers.",
+      "red": { "test": "apps/extension/e2e/direct-web-capture.spec.ts (HEAD)", "command": "runtime probe per finding (tooling/extension-step-probe.mjs)", "observed": "worker.evaluate: Error: Could not establish connection. Receiving end does not exist." },
+      "green": { "tests": ["[chromium] static/long/spa/mutating", "[edge] static/long/spa/mutating"], "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge", "result": "8/8 passed (Chrome 153.0.8010.53, Edge 154.0.4258.37); UC-1 CLOSED (browser gate) [PASS]; afterwards ports 4000/4001/3311/4599 free and no uc1-acc-* containers" },
+      "filesChanged": ["apps/extension/e2e/direct-web-capture.spec.ts", "apps/extension/scripts/manifest-plan.mjs", "apps/extension/build.mjs", "apps/extension/.gitignore", "apps/extension/src/popup.ts", "apps/extension/src/background.ts"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "test-only build variant", "security": "<all_urls> confined to dist-e2e; release refuses it", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-ARCH-009": {
+      "decision": "The same seal-or-discard rule as mobile. runPreserveFlow (apps/extension/src/lib/preserve-flow.ts) never throws. After the session opens, any failure (including cancel) calls POST /v1/capture/direct-sessions/:id/discard (apiClient.discardSession; covered by the scope allow-list prefix). The discard is idempotent and refuses a sealed session, so it is also used to SETTLE an unanswered seal: a sealed-denial reports the record as saved, and a network failure stays UNKNOWN. With a revoked token the reaper remains the backstop. Every API call is bounded by a timeout.",
+      "red": { "test": "apps/extension/test/preserve-flow.test.mjs::UC-ARCH-009: a failing upload discards the opened session", "command": "HEAD bundled into .red/ then node --test", "observed": "ERR_MODULE_NOT_FOUND preserve-flow.js; HEAD runPreserve has no try/catch and api-client has no discard call" },
+      "green": { "tests": ["apps/extension/test/preserve-flow.test.mjs (10 tests)"], "command": "pnpm --filter @proovra/extension test", "result": "85 passed" },
+      "filesChanged": ["apps/extension/src/lib/preserve-flow.ts", "apps/extension/src/lib/api-client.ts", "apps/extension/src/background.ts"],
+      "proofKind": "unit",
+      "impacts": { "ui": "none", "api": "none", "worker": "reaper no longer the only recovery", "mobile": "none", "extension": "discard on failure", "security": "none", "deployment": "store submission" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-PROV-004": {
+      "decision": "Rewrote the legal page (apps/web/content/legal/en/direct-web-capture.md, Last Updated 2026-10-01). It now says: the extension captures in the browser, then opens a capture session and uploads; PROOVRA re-hashes and records when it RECEIVED the capture (server time), alongside the device-clock start/end; the capture is client-attested; the record is not a complete archive; what the sanitizer clears; and the host-access row. It no longer claims the session opens before capture, that PROOVRA participates, that PROOVRA produces the bytes, or that the server establishes the capture time. The in-app capture card, popup disclosure and manifest description say the same. The corpus was regenerated with apps/web/scripts/generate-legal-corpus.mjs (--check fresh), and a copy guard now bans the old claims on every surface.",
+      "red": { "test": "apps/extension/test/legal-copy-guard.test.mjs", "command": "git show HEAD:<md|card> | grep", "observed": "HEAD legal md matches 3 banned sentences (before the capture begins / participates in the capture / server establishes the authoritative time); HEAD card contains 'takes part in the capture'" },
+      "green": { "tests": ["apps/extension/test/legal-copy-guard.test.mjs (6 tests)", "node apps/web/scripts/generate-legal-corpus.mjs --check"], "command": "node --test apps/extension/test/legal-copy-guard.test.mjs; generator --check", "result": "6 passed; legal corpus is fresh (25 documents, c6b2c7929285)" },
+      "filesChanged": ["apps/web/content/legal/en/direct-web-capture.md", "apps/web/app/(app)/capture/_lib/CaptureDirectWebCaptureCard.tsx", "packages/shared/src/legal/corpus.generated.ts", "packages/shared/src/legal/revisions.generated.ts", "apps/extension/public/popup.html", "apps/extension/public/manifest.json", "apps/extension/test/legal-copy-guard.test.mjs"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "legal page + capture card copy", "api": "legal corpus served by API changed", "worker": "none", "mobile": "legal corpus shared", "extension": "popup/manifest copy", "security": "none", "deployment": "web redeploy + api+worker redeploy (corpus) + store submission (manifest description)" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-LCH-005": {
+      "decision": "Documented EXTENSION_OAUTH_REDIRECT_ALLOW and EXTENSION_ALLOWED_ORIGINS (fail-closed semantics) in services/api/.env.example, and NEXT_PUBLIC_EXTENSION_INSTALL_URL (build-time inlined, unset = no install button) in apps/web/.env.example. A parity test fails if the extension OAuth/scope code or the web capture-capability hook reads a variable that is not in the matching example.",
+      "red": { "test": "apps/extension/test/env-example-parity.test.mjs", "command": "grep HEAD .env.example files", "observed": "neither variable present in services/api/.env.example or apps/web/.env.example at HEAD" },
+      "green": { "tests": ["apps/extension/test/env-example-parity.test.mjs (2 tests)"], "command": "node --test", "result": "2 passed" },
+      "filesChanged": ["services/api/.env.example", "apps/web/.env.example", "apps/extension/test/env-example-parity.test.mjs"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    }
+  },
+  "crossLaneRequests": [
+    { "finding": "UC-SEC-002", "file": "services/api/src/server.ts (lane A)", "change": "In the CORS origin callback, before the production refusal, admit an origin when `isAllowedExtensionOrigin(origin)` (import from ./services/auth/extension-oauth.service.js) is true, in every NODE_ENV. That list is the chrome-extension://<id> of each EXTENSION_OAUTH_REDIRECT_ALLOW redirect plus EXTENSION_ALLOWED_ORIGINS, exact extension origins only, and is empty when unset (fail closed). Allowed methods GET/POST and headers authorization, content-type. Test: preflight from chrome-extension://<pinned id> with NODE_ENV=production gets Access-Control-Allow-Origin echoed; an unpinned id gets none." },
+    { "finding": "UC-SEC-004", "file": "services/api/src/routes/capture-trust.routes.ts (lane M) — authorizeDirectCapture / POST /v1/capture/direct-sessions", "change": "After the workspace is authorized, call `evaluateExtensionCaptureTargetPolicy({ user: req.user, teamId })` (exported from services/api/src/services/auth/extension-scope.ts; a no-op for non-extension tokens). On `allowed:false` answer 401 { denial: 'REAUTHENTICATION_REQUIRED' } (org SSO/MFA/lifecycle policy of the TARGET workspace refuses this token). If it throws, answer 503 and never allow. Test: org with ssoRequired; a password-derived extension token anchored elsewhere opens a session for that org team and is refused." },
+    { "finding": "UC-EXT-006", "file": "apps/web/app/auth/extension/continue/page.tsx (new, web lane)", "change": "Add a client page that reads response_type, client_id, redirect_uri, code_challenge, code_challenge_method, state and scope from the query. It validates client_id === 'proovra-extension', redirect_uri matches /^https:\\/\\/[a-p]{32}\\.chromiumapp\\.org\\/[A-Za-z0-9._-]*$/, the code_challenge is 43-128 base64url, the method is S256 and state is 1-256 chars; anything else shows an error. It then calls window.location.replace(`${NEXT_PUBLIC_API_BASE}/v1/oauth/extension/authorize?${validated params}`). The API's signed-out authorize redirects to /login?next=/auth/extension/continue?<params>, and the web login already accepts that relative next. The API cookie domain must cover the API origin (production .proovra.com)." },
+    { "finding": "UC-EXT-004", "file": "packages/shared/src/web-capture-manifest.ts (lane M / shared owner)", "change": "Optional: add a DOM_SNAPSHOT_MISSING limitation code. The extension currently records a missing DOM snapshot as a manifest note plus PARTIAL completeness because the schema has no code for it. Once the code exists, push it in apps/extension/src/lib/manifest-builder.ts (buildWebCaptureManifest when domSnapshotMissing). The server validator should also enforce completeness/limitations coherence (any limitation implies PARTIAL)." },
+    { "finding": "UC-TQ-002", "file": ".github/workflows/* (CI owner)", "change": "Add a windows-latest job that installs Google Chrome and Microsoft Edge and Docker (or supplies --db-url/--redis-url/--s3-endpoint services), then runs `node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge` with a job timeout of 45 min and uploads the per-service logs (printed path under the OS temp dir) and apps/extension/e2e/test-results." },
+    { "finding": "UC-TQ-008", "file": "services/api/test/uc1-web-capture.integration.test.ts (owner of lane M's MODE_NOT_ALLOWED_FOR_CREDENTIAL change)", "change": "Observed while running neighbouring suites: 5 tests fail with {denial:'MODE_NOT_ALLOWED_FOR_CREDENTIAL'} because lane M now requires a capture.direct credential for DIRECT_WEB_CAPTURE_EXTENSION while this suite opens web sessions with ordinary tokens. The suite needs to mint an extension token (the uc1-extension-oauth-session helper `mint()` pattern) for web sessions. This is not caused by lane E files." },
+    { "finding": "UC-SEC-002", "file": "docs/admin/EXTENSION_RELEASE_CHECKLIST.md (docs owner)", "change": "Document that release.mjs now REQUIRES PROOVRA_STORAGE_ORIGINS (https origin(s) of the presigned capture upload URLs) and that the built manifest declares host access to exactly the API and storage origins. Also document EXTENSION_OAUTH_REDIRECT_ALLOW = https://<store id>.chromiumapp.org/oauth2 (chrome.identity.getRedirectURL('oauth2')) per store id, and that the redirect path is /oauth2." },
+    { "finding": "UC-EXT-010", "file": "docs/admin/audits/UC1_DIRECT_WEB_CAPTURE_IMPLEMENTATION.md (docs owner)", "change": "The claim that case selection is sent and case access is checked is now true (popup picker plus lane M's case-link authorization on open and seal). Keep it, and cite the e2e CASE stage, which verifies the static capture under the chosen case." }
+  ],
+  "migrationRequests": [],
+  "governanceFollowUps": [
+    "Capability map / route dispositions: new route POST /v1/oauth/extension/revoke (requireAuth, capture.direct scope only). GET /v1/oauth/extension/authorize preHandler is now [extensionSignInRedirect, requireAuth] (still AUTHENTICATED for issuing a code; a signed-out navigation is redirected).",
+    "Mutation-writer inventory: extension-oauth.routes.ts now writes authenticatedSession (recordAuthenticatedSession at token exchange; updateMany revokedAtUtc at revoke) and revokedSession (revokeSession). extension-oauth.service.ts createExtensionAuthCode line anchors moved.",
+    "Capture scope allow-list (extension-scope.ts) gained GET /v1/cases (read-only) and POST /v1/oauth/extension/revoke.",
+    "Legal corpus regenerated: LEGAL_CORPUS_SHA256 changed and direct-web-capture revision is now 2026-10-01 (packages/shared/src/legal/*.generated.ts). Rebuild @proovra/shared dist before API/web consumers.",
+    "services/api typecheck: 31 errors on this tree are from another lane. An API test now pulls apps/mobile code, so expo-modules-core global.d.ts is loaded and makes NodeJS.ProcessEnv.NODE_ENV required, which breaks many existing tests that assign {} to process.env. Lane E files typecheck clean.",
+    "apps/extension/e2e/test-results and apps/extension/dist-e2e are gitignored outputs of the acceptance run."
+  ],
+  "commandsRun": [
+    { "command": "pnpm --filter @proovra/extension test", "exit": 0 },
+    { "command": "pnpm --filter @proovra/extension lint", "exit": 0 },
+    { "command": "pnpm --filter @proovra/extension build && node apps/extension/build.mjs --e2e", "exit": 0 },
+    { "command": "RED: HEAD extension lib bundled to apps/extension/.red (removed) + node --test (19 of 34 failing for the stated reasons)", "exit": 1 },
+    { "command": "RED: HEAD extension-oauth routes/service/scope swapped in; vitest integration uc1-extension-oauth-session (9/9 failed); restored", "exit": 1 },
+    { "command": "RED: HEAD scripts/local-fixture-env/index.mjs swapped in; vitest uc1-extension-oauth-harness (3/4 failed); restored", "exit": 1 },
+    { "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_e_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/2 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=... PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/uc1-extension-oauth-session.integration.test.ts test/uc1-extension-oauth.integration.test.ts", "exit": 0 },
+    { "command": "same, plus test/capture-scope-and-draft-authority.integration.test.ts (3 passed) and test/uc1-web-capture.integration.test.ts (5 failed: lane M MODE_NOT_ALLOWED_FOR_CREDENTIAL, see crossLaneRequests)", "exit": 1 },
+    { "command": "npx vitest run test/uc1-extension-oauth-harness.test.ts test/uc1-acceptance-harness-oauth-routing.test.ts", "exit": 0 },
+    { "command": "npx vitest run test/production-phase2-drift-remediation.test.ts test/phase-r8-1-*.test.ts test/uc1-acceptance-harness-oauth-routing.test.ts (355 passed)", "exit": 0 },
+    { "command": "node --test apps/web/__tests__/local-fixture-env-isolation.test.mjs (from repo root; 23 passed)", "exit": 0 },
+    { "command": "node apps/web/scripts/generate-legal-corpus.mjs && node apps/web/scripts/generate-legal-corpus.mjs --check", "exit": 0 },
+    { "command": "DATABASE_URL=<lane E db> pnpm --filter proovra-api typecheck (lane E files clean; 31 foreign errors, see governanceFollowUps)", "exit": 2 },
+    { "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge (run 1: FATAL build:shared prisma needs DATABASE_URL; stack torn down cleanly)", "exit": 1 },
+    { "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium --grep=static (runs 2-3: POPUP page-event race, then mintVerifyLink DATABASE_URL; fixed)", "exit": 1 },
+    { "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge (run 4: chromium 3/4 — duplicate case options race in popup; edge — API froze on undrained stdout pipe; both fixed)", "exit": 1 },
+    { "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge (FINAL: chromium 4/4 PASS Chrome 153.0.8010.53, edge 4/4 PASS Edge 154.0.4258.37, UC-1 CLOSED (browser gate) [PASS])", "exit": 0 },
+    { "command": "post-run check: netstat LISTENING on 4000/4001/3311/4599 -> none; docker ps -a | grep uc1-acc -> none", "exit": 0 }
+  ]
+}

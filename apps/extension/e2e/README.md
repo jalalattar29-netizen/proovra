@@ -1,92 +1,60 @@
-# UC-1 browser acceptance (Chrome + Edge)
+# UC-1 browser acceptance (real Chrome + real Edge)
 
-This is the ONE UC-1 gate that cannot run in the CI/engineering sandbox (no
-Chrome/Edge automation). Run it on a Windows machine with **Chrome Stable** and
-**Edge Stable** installed. It loads the unpacked extension, obtains the token
-through the REAL OAuth PKCE journey, captures deterministic fixture pages
-(static, long/full-page, SPA, mutating) through the real pipeline, and traces
-each Evidence id through EVERY closure-required surface: Library → Detail → Case
-→ Search → Report → Verification Package → Package Validator (integrity) → Public
-Verify (`GET /public/verify/:id`). Report + package are worker-generated, so the
-spec polls until they are available.
+The UC-1 gate drives the PROOVRA extension itself in **Google Chrome** (Playwright
+channel `chrome`) and **Microsoft Edge** (channel `msedge`) — the installed
+stable browsers, never Playwright's bundled Chromium. Each test asserts the
+launched browser's identity (Edge must report `Edg/`, Chrome must not) and prints
+its version, so a project can never pass on the wrong browser.
 
-## One-time setup
+For each deterministic fixture page (static, long/full-page ≥ 6 viewports, SPA,
+mutating) it:
 
-```bash
-# From the repo root:
-pnpm --filter @proovra/extension build          # builds apps/extension/dist
-cd apps/extension/e2e
-pnpm add -D @playwright/test                     # local to e2e (not shipped)
-npx playwright install chromium msedge           # Chrome + Edge channels
-```
+1. **Signs in through the extension's own code.** The browser carries the seeded
+   user's `proovra_session` cookie (as a signed-in web session would); the popup's
+   *Sign in* button makes the background run `chrome.identity.launchWebAuthFlow`
+   against the real `/v1/oauth/extension/authorize`, which 302s to the extension's
+   `chromiumapp.org` redirect; the PKCE-bound code is exchanged at
+   `/v1/oauth/extension/token`. Nothing is written into extension storage by the test.
+2. **Captures through the popup.** The popup lists the workspace from the real
+   `/v1/platform/context` and the seeded case from `/v1/cases`; the Capture button
+   starts the capture in the background, whose persisted status the test waits on.
+   The `static` capture is filed to the seeded case at seal.
+3. **Traces the sealed record** through Library → Detail → Case → Search → Report →
+   Verification Package → Package Validator → Public Verify with the user's WEB
+   session (the extension token is capture-scoped and may not read those routes).
 
-## Bring up the local stack (disposable DB — never Production)
+Every stage is bounded and prints `PASS`/`FAIL` with its elapsed time.
 
-```bash
-# 1. Disposable Postgres + Redis (pgvector image), migrate a test DB:
-docker run -d --name uc1-pg -p 127.0.0.1:56321:5432 -e POSTGRES_USER=proovra -e POSTGRES_PASSWORD=uc0_disposable -e POSTGRES_DB=uc1 pgvector/pgvector:pg16
-docker run -d --name uc1-redis -p 127.0.0.1:56322:6379 redis:7-alpine
-# create + migrate a *_test DB via the repo wrapper (DATABASE_URL must be LOCAL):
-#   DATABASE_URL=postgresql://proovra:uc0_disposable@127.0.0.1:56321/uc1_e2e_test node services/api/scripts/safe-migrate.mjs deploy
+## Why an E2E test build
 
-# 2. Start the API + worker against that DB (NOT services/api/.env, which holds
-#    live prod creds). Seed a user + a paid workspace, and mint a bearer token.
-#    Export the token + team id for the spec.
+- Chrome grants `activeTab` only on a real toolbar click, which automation cannot
+  perform, and a service worker's `runtime.sendMessage` to itself is never
+  delivered. `node apps/extension/build.mjs --e2e` writes **`dist-e2e/`** with
+  `<all_urls>` host access and a fixed public `key` (so the extension id — and its
+  OAuth redirect — is known before the API boots). The release build (`dist/`,
+  `release.mjs`) refuses both (`scripts/manifest-plan.mjs`).
+- Branded Chrome (≥ 137) ignores `--load-extension`, so both projects load the
+  unpacked build with CDP `Extensions.loadUnpacked`
+  (`--enable-unsafe-extension-debugging`).
 
-# 3. Fixture server:
-node apps/extension/e2e/fixture-server.mjs        # http://127.0.0.1:4599
-```
-
-## Run the gate
-
-```bash
-# Windows PowerShell / bash — set the env vars, then:
-export PROOVRA_API_ORIGIN=http://localhost:4000
-export PROOVRA_E2E_SESSION_BEARER=<bearer proving the logged-in user session>
-export PROOVRA_E2E_TEAM_ID=<paid workspace id>
-export PROOVRA_E2E_REDIRECT_URI=https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/oauth
-export EXTENSION_DIST="$(pwd)/apps/extension/dist"
-
-cd apps/extension/e2e
-npx playwright test --project=chromium     # Chrome acceptance
-npx playwright test --project=edge         # Edge acceptance
-```
-
-A pass on both projects is the UC-1 CLOSED gate. Until both pass, UC-1 status is
-**IMPLEMENTATION COMPLETE — BROWSER ACCEPTANCE PENDING**.
-
-### Fail-fast focused run (debug the first failure)
-
-The orchestrated harness supports a **Chromium + static only** run so you don't
-spend minutes on all eight scenarios while one is failing. Every stage is bounded
-and prints a `PASS`/`FAIL` line (AUTH, CAPTURE, LIBRARY, DETAIL, CASE, SEARCH,
-REPORT, PACKAGE, PACKAGE_VALIDATOR, PUBLIC_VERIFY), and each async poll prints its
-evidence id, endpoint, elapsed time, last HTTP status and last state:
+## Run it (disposable stack only)
 
 ```bash
-pnpm uc1:acceptance:windows --start-infra --browsers=chromium --grep "static"
+# From the repo root. Starts disposable Postgres/Redis/MinIO containers (uc1-acc-*),
+# the API, worker, web and fixture server, runs both browsers, and tears it all down.
+node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge
+# One browser / one fixture while debugging:
+node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=edge --grep=static
 ```
 
-### Runtime dependencies the harness provides (these are why the first run hung)
+The harness builds its environment from `scripts/local-fixture-env` (an allowlist
+that is scanned for anything off this machine before a process starts). The
+extension OAuth redirect allow-list the API requires (`EXTENSION_OAUTH_REDIRECT_ALLOW`,
+fail-closed) is passed as a **typed redirect allow-list** — shape-checked as an
+extension `chromiumapp.org` redirect, never treated as an endpoint — so the scan is
+not weakened. The harness refuses to start if any stack port (API, worker, web,
+fixture) is already in use, and after the run it stops every child, reaps anything
+still listening on those ports, and removes the containers.
 
-The full lifecycle is storage- and render-backed, so the harness (`--start-infra`)
-now also:
-- runs a disposable **MinIO** and points `S3_*` at it — capture upload, the
-  worker's Report + Verification Package writes, and public Verify's package read
-  all need real object storage (the canonical fixture env deliberately has none);
-- **registers the fixture signing key** in the DB (`prisma:seed`) — evidence reads
-  verify the record's signing key and 503 `SIGNING_KEY_MISSING` without it;
-- sets **`PUPPETEER_EXECUTABLE_PATH`** to a resolved Chrome/Chromium — the worker
-  renders the Report PDF with Puppeteer and fails (RETRYABLE_FAILURE) with no
-  browser. Install Google Chrome, or set `PUPPETEER_EXECUTABLE_PATH` yourself.
-
-> **The spec obtains the extension token through the REAL OAuth journey.** It does
-> not seed a static token: each test computes a PKCE verifier/challenge, calls the
-> real `/v1/oauth/extension/authorize` endpoint (carrying the user session as a
-> bearer — the browser cookie the logged-in web app would send), reads the single-
-> use code from the 302 redirect, and exchanges it at `/v1/oauth/extension/token`.
-> The token the extension carries is the one the OAuth server issued. The only step
-> skipped is the interactive consent CLICK inside `launchWebAuthFlow` (that window
-> cannot be driven headlessly); the protocol — authorize, PKCE, single-use code,
-> code exchange — is fully exercised. `PROOVRA_E2E_SESSION_BEARER` must NEVER be a
-> production token; use the disposable seeded user only.
+`PROOVRA_E2E_SESSION_BEARER` is minted by `services/api/scripts/uc1-seed-acceptance.ts`
+against the disposable database only; it must never be a production token.

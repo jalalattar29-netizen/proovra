@@ -15,10 +15,20 @@ await build({
     sanitizer: join(HERE, "src/lib/sanitizer.ts"),
     "manifest-builder": join(HERE, "src/lib/manifest-builder.ts"),
     "denial-copy": join(HERE, "src/lib/denial-copy.ts"),
+    "capture-scheduler": join(HERE, "src/lib/capture-scheduler.ts"),
+    "popup-context": join(HERE, "src/lib/popup-context.ts"),
+    "status-copy": join(HERE, "src/lib/status-copy.ts"),
+    "capture-registry": join(HERE, "src/lib/capture-registry.ts"),
+    "preserve-flow": join(HERE, "src/lib/preserve-flow.ts"),
+    "api-client": join(HERE, "src/lib/api-client.ts"),
+    capture: join(HERE, "src/lib/capture.ts"),
   },
   outdir: join(HERE, "test/dist"),
   bundle: true,
   format: "esm",
+  // One shared chunk per module, so a class (ApiError, CaptureCancelledError)
+  // has ONE identity across the bundles a test imports together.
+  splitting: true,
   platform: "neutral",
   target: ["node20"],
   define: {

@@ -1,63 +1,71 @@
 /**
- * UC-1 — Direct Web Capture browser acceptance (Chrome + Edge).
+ * UC-1 — Direct Web Capture browser acceptance (REAL Chrome + REAL Edge).
  *
  * For each deterministic fixture page (static, long/full-page, SPA, mutating),
- * this:
- *   1. obtains the extension's access token through the REAL first-party OAuth
- *      journey (Authorization Code + PKCE S256 against the running API), then
- *   2. captures the page through the real extension pipeline (CaptureSession ->
- *      upload -> server digest verification -> Evidence), then
- *   3. traces that ONE Evidence id through EVERY closure-required surface and
- *      asserts the acquisition statement is consistent and the artifacts are
- *      real: Library -> Detail -> Case -> Search -> Report -> Verification
- *      Package -> Package Validator (integrity) -> Public Verify.
+ * this drives the EXTENSION ITSELF, through surfaces Chrome actually delivers:
+ *   1. SIGN-IN — the popup's own "Sign in" button. The background runs the
+ *      extension's real `chrome.identity.launchWebAuthFlow` against the real
+ *      /v1/oauth/extension/authorize (the browser carries the seeded user's
+ *      proovra_session cookie, as a signed-in web session would), receives the
+ *      302 to its chromiumapp.org redirect and exchanges the PKCE-bound code at
+ *      /v1/oauth/extension/token. Nothing is injected into extension storage.
+ *   2. CAPTURE — the popup lists the workspace from the real platform context
+ *      (UC-EXT-001), the case picker lists the seeded case (UC-EXT-010), and the
+ *      popup's Capture button starts the capture in the background, which owns
+ *      its status (UC-EXT-005). The popup runs in its own window, pointed at the
+ *      fixture tab with `?targetTabId=`.
+ *   3. TRACE — the sealed record is followed through Library -> Detail -> Case ->
+ *      Search -> Report -> Verification Package -> public Verify with the user's
+ *      WEB session (the extension token is capture-scoped and may not read them).
  *
- * WHY NOT launchWebAuthFlow directly: the interactive consent window that
- * chrome.identity.launchWebAuthFlow opens cannot be driven headlessly/reliably in
- * CI. So the test performs the SAME protocol the extension performs — it computes
- * a PKCE verifier/challenge, calls the real /authorize endpoint carrying the
- * user's session, receives the real 302 redirect with a single-use code, and
- * exchanges it at the real /token endpoint. Nothing is mocked and no static token
- * is seeded.
+ * WHY THE TEST BUILD (UC-TQ-008): Chrome grants `activeTab` only on a real
+ * toolbar click, which automation cannot perform, and `runtime.sendMessage` from
+ * the service worker to itself is never delivered. The E2E build
+ * (`build.mjs --e2e`, dist-e2e/) therefore carries `<all_urls>` host access and
+ * a fixed key (known id, so its OAuth redirect is allow-listed before the API
+ * boots). The release manifest never carries either (scripts/manifest-plan.mjs).
  *
- * REQUIRED ENV (see README.md):
- *   PROOVRA_API_ORIGIN         the running API origin (e.g. http://localhost:4000)
- *   PROOVRA_E2E_SESSION_BEARER a bearer proving the logged-in user session (stands
- *                              in for the browser proovra_session cookie that
- *                              /authorize runs behind); NEVER a production token
- *   PROOVRA_E2E_TEAM_ID        a workspace the user may capture into (paid plan)
- *   PROOVRA_E2E_REDIRECT_URI   the extension OAuth redirect (its chromiumapp.org
- *                              callback, or an allowlisted dev redirect)
- *   EXTENSION_DIST             absolute path to apps/extension/dist (built)
- *   FIXTURE_ORIGIN             the fixture server origin (default http://127.0.0.1:4599)
+ * WHY CDP LOADING (UC-TQ-002): branded Chrome (>= 137) ignores --load-extension.
+ * Both projects launch their REAL channel (`chrome` / `msedge`) and load the
+ * unpacked extension with `Extensions.loadUnpacked` over the browser's own CDP
+ * pipe (--enable-unsafe-extension-debugging). Each test asserts the launched
+ * browser's identity (Edge must say `Edg/`, Chrome must not) and prints it.
+ *
+ * Every step is bounded by its own stage timeout and prints PASS/FAIL.
+ *
+ * REQUIRED ENV (set by scripts/uc1-acceptance-windows.mjs):
+ *   PROOVRA_API_ORIGIN          the running API origin (http://localhost:4000)
+ *   PROOVRA_E2E_SESSION_BEARER  the seeded user's WEB session (disposable DB only)
+ *   PROOVRA_E2E_TEAM_ID         the seeded paid workspace
+ *   PROOVRA_E2E_CASE_ID         the seeded open case in that workspace
+ *   PROOVRA_E2E_EXTENSION_ID    the E2E build's fixed id
+ *   EXTENSION_DIST              absolute path to apps/extension/dist-e2e
+ *   FIXTURE_ORIGIN              the fixture server origin (http://127.0.0.1:4599)
  */
-import { test, expect, chromium, type BrowserContext, type Worker } from "@playwright/test";
+import { test, expect, chromium, type BrowserContext, type Page, type Worker } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const EXT = process.env.EXTENSION_DIST ?? join(HERE, "..", "dist");
+const EXT = process.env.EXTENSION_DIST ?? join(HERE, "..", "dist-e2e");
 const API = process.env.PROOVRA_API_ORIGIN ?? "http://localhost:4000";
 const SESSION_BEARER = process.env.PROOVRA_E2E_SESSION_BEARER ?? "";
 const TEAM = process.env.PROOVRA_E2E_TEAM_ID ?? "";
-const REDIRECT_URI =
-  process.env.PROOVRA_E2E_REDIRECT_URI ??
-  "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/oauth";
-const CLIENT_ID = process.env.PROOVRA_OAUTH_CLIENT_ID ?? "proovra-extension";
+const CASE_ID = process.env.PROOVRA_E2E_CASE_ID ?? "";
+const EXTENSION_ID = process.env.PROOVRA_E2E_EXTENSION_ID ?? "";
 const FIXTURES = process.env.FIXTURE_ORIGIN ?? "http://127.0.0.1:4599";
 
 const ACQ_MODE = "DIRECT_WEB_CAPTURE_EXTENSION";
 
-// BOUNDED, STAGE-SPECIFIC timeouts — never one opaque multi-minute wait. A stage
-// that hangs fails at its own bound with a named diagnostic, well before the
-// test-level timeout, so the FIRST failing transition is obvious.
+// BOUNDED, STAGE-SPECIFIC timeouts — never one opaque multi-minute wait.
 const STAGE_TIMEOUT = {
-  AUTH: 30_000,
-  CAPTURE: 90_000, // CaptureSession + upload + server digest verify + Evidence seal
+  LAUNCH: 60_000,
+  AUTH: 60_000,
+  POPUP: 30_000,
+  CAPTURE: 150_000, // paced full-page tiles + upload + server digest verify + seal
   LIBRARY: 20_000,
   DETAIL: 20_000,
   CASE: 30_000,
@@ -87,67 +95,9 @@ async function stage<T>(name: string, timeoutMs: number, fn: () => Promise<T>): 
   } catch (err) {
     clearTimeout(timer!);
     // eslint-disable-next-line no-console
-    console.log(
-      `  ${name.padEnd(18)} FAIL   (${secs(Date.now() - start)})   ${(err as Error).message}`,
-    );
+    console.log(`  ${name.padEnd(18)} FAIL   (${secs(Date.now() - start)})   ${(err as Error).message}`);
     throw err;
   }
-}
-
-function base64Url(buf: Buffer): string {
-  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-function pkce(): { verifier: string; challenge: string } {
-  const verifier = base64Url(randomBytes(32));
-  const challenge = base64Url(createHash("sha256").update(verifier).digest());
-  return { verifier, challenge };
-}
-
-/**
- * Run the REAL OAuth Authorization Code + PKCE (S256) journey against the running
- * API and return the freshly-issued extension access token. This exercises the
- * authorize endpoint, PKCE binding, the single-use code, and the code exchange —
- * exactly the server-side journey the extension's launchWebAuthFlow triggers.
- */
-async function obtainExtensionAccessToken(): Promise<string> {
-  const { verifier, challenge } = pkce();
-  const state = base64Url(randomBytes(9));
-
-  const authorizeUrl =
-    `${API}/v1/oauth/extension/authorize?response_type=code` +
-    `&client_id=${encodeURIComponent(CLIENT_ID)}` +
-    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-    `&code_challenge=${encodeURIComponent(challenge)}` +
-    `&code_challenge_method=S256&scope=capture.direct&state=${encodeURIComponent(state)}`;
-  const authz = await fetch(authorizeUrl, {
-    headers: { authorization: `Bearer ${SESSION_BEARER}` },
-    redirect: "manual",
-  });
-  if (authz.status !== 302) {
-    throw new Error(`authorize expected 302, got ${authz.status}: ${await authz.text()}`);
-  }
-  const loc = new URL(String(authz.headers.get("location")));
-  if (loc.searchParams.get("state") !== state) throw new Error("OAuth state mismatch");
-  const code = loc.searchParams.get("code");
-  if (!code) throw new Error("authorize returned no code");
-
-  const tok = await fetch(`${API}/v1/oauth/extension/token`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "authorization_code",
-      code,
-      code_verifier: verifier,
-      client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-    }),
-  });
-  if (!tok.ok) throw new Error(`token exchange failed ${tok.status}: ${await tok.text()}`);
-  const body = (await tok.json()) as { access_token?: string; token_type?: string };
-  if (body.token_type !== "Bearer" || !body.access_token) {
-    throw new Error("token exchange returned no usable bearer");
-  }
-  return body.access_token;
 }
 
 // --- API helpers ------------------------------------------------------------
@@ -251,10 +201,15 @@ async function pollArtifact(
 /**
  * Trace ONE Evidence id through every closure-required UC-1 surface and assert
  * the acquisition statement + real artifacts on each. Every stage is bounded and
- * prints a PASS/FAIL line. All authenticated reads use the OAuth-issued bearer
- * (proving the minted token is accepted downstream).
+ * prints a PASS/FAIL line. Authenticated reads use the user's WEB session: the
+ * extension token is capture-scoped (UC-1 §4.1) and is refused on these routes.
+ * `filedCaseId` — the case the popup filed the capture into (UC-EXT-010), or null.
  */
-async function traceEvidenceAcrossSurfaces(evidenceId: string, token: string): Promise<void> {
+async function traceEvidenceAcrossSurfaces(
+  evidenceId: string,
+  token: string,
+  filedCaseId: string | null,
+): Promise<void> {
   let verifyLink = "";
   // 1. LIBRARY — the record appears in the acquisition-filtered list.
   await stage("LIBRARY", STAGE_TIMEOUT.LIBRARY, async () => {
@@ -275,8 +230,18 @@ async function traceEvidenceAcrossSurfaces(evidenceId: string, token: string): P
     expect(detail.sourceContext?.acquisition?.mode).toBe(ACQ_MODE);
   });
 
-  // 3. CASE — create a case in the SAME workspace, link the evidence, read it back.
+  // 3. CASE — the capture the popup filed into a case is under that case at
+  //    seal (UC-EXT-010); otherwise create a case in the SAME workspace, link
+  //    the evidence, and read it back.
   await stage("CASE", STAGE_TIMEOUT.CASE, async () => {
+    if (filedCaseId) {
+      const filed = await apiGet<{ items?: Array<{ id: string }> }>(
+        `/v1/evidence?caseId=${filedCaseId}&scope=all`,
+        token,
+      );
+      expect(filed.items?.some((x) => x.id === evidenceId), "capture filed to the chosen case at seal").toBe(true);
+      return;
+    }
     const createdCase = await apiPost<{ id: string }>(`/v1/cases`, token, {
       name: `UC1 E2E ${evidenceId.slice(0, 8)}`,
       teamId: TEAM,
@@ -371,99 +336,205 @@ async function traceEvidenceAcrossSurfaces(evidenceId: string, token: string): P
   });
 }
 
-async function serviceWorker(ctx: BrowserContext): Promise<Worker> {
-  let [sw] = ctx.serviceWorkers();
-  if (!sw) sw = await ctx.waitForEvent("serviceworker");
-  return sw;
+/**
+ * Launch the project's REAL browser channel and load the unpacked E2E build over
+ * CDP. Returns the context, the extension service worker and the version string.
+ */
+async function launchWithExtension(channel: string): Promise<{
+  context: BrowserContext;
+  sw: Worker;
+  userDataDir: string;
+  version: string;
+}> {
+  const userDataDir = mkdtempSync(join(tmpdir(), "proovra-ext-"));
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    channel,
+    headless: false,
+    // Playwright disables extensions by default; the E2E build must run.
+    ignoreDefaultArgs: ["--disable-extensions"],
+    args: ["--enable-unsafe-extension-debugging"],
+  });
+  const browser = context.browser();
+  if (!browser) throw new Error("no browser handle for the persistent context");
+  const swSeen = context.waitForEvent("serviceworker", {
+    predicate: (w) => w.url().startsWith(`chrome-extension://${EXTENSION_ID}/`),
+    timeout: 30_000,
+  });
+  const cdp = await browser.newBrowserCDPSession();
+  const loaded = (await cdp.send("Extensions.loadUnpacked" as never, { path: EXT } as never)) as { id: string };
+  if (loaded.id !== EXTENSION_ID) {
+    throw new Error(`loaded extension id ${loaded.id} is not the E2E build id ${EXTENSION_ID} (wrong dist?)`);
+  }
+  const existing = context.serviceWorkers().find((w) => w.url().startsWith(`chrome-extension://${EXTENSION_ID}/`));
+  const sw = existing ?? (await swSeen);
+  return { context, sw, userDataDir, version: browser.version() };
+}
+
+/** UC-TQ-002 — refuse to report a project whose browser is not the one it names. */
+function assertBrowserIdentity(project: string, channel: string, userAgent: string): void {
+  if (channel === "msedge") {
+    expect(userAgent, `${project} must be Microsoft Edge`).toMatch(/\bEdg\/\d+/);
+  } else if (channel === "chrome") {
+    expect(userAgent, `${project} must be Google Chrome`).toMatch(/\bChrome\/\d+/);
+    expect(userAgent, `${project} must not be Edge`).not.toMatch(/\bEdg\//);
+  } else {
+    throw new Error(`project ${project} declares channel '${channel}', which this acceptance does not accept`);
+  }
+}
+
+async function openPopupFor(context: BrowserContext, sw: Worker, targetTabId: number): Promise<Page> {
+  const url = `chrome-extension://${EXTENSION_ID}/popup.html?targetTabId=${targetTabId}`;
+  await sw.evaluate(async (u: string) => {
+    await chrome.windows.create({ url: u, type: "popup", width: 420, height: 720, focused: true });
+  }, url);
+  // The page event fires while the new window is still about:blank, so find the
+  // popup by its committed URL (bounded by the POPUP stage).
+  const deadline = Date.now() + STAGE_TIMEOUT.POPUP;
+  while (Date.now() < deadline) {
+    const popup = context.pages().find((p) => p.url().startsWith(url));
+    if (popup) {
+      await popup.waitForLoadState("domcontentloaded", { timeout: STAGE_TIMEOUT.POPUP });
+      return popup;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`popup page ${url} never opened`);
+}
+
+/**
+ * The OAuth endpoints answer as the API (not the web app on the wrong port),
+ * and a SIGNED-OUT auth window is sent to sign in rather than shown 401 JSON
+ * (UC-EXT-006) — probed live on the running stack.
+ */
+async function probeOAuthRoutes(): Promise<void> {
+  const q = new URLSearchParams({
+    response_type: "code",
+    client_id: "proovra-extension",
+    redirect_uri: `https://${EXTENSION_ID}.chromiumapp.org/oauth2`,
+    code_challenge: "A".repeat(43),
+    code_challenge_method: "S256",
+    state: "probe",
+  });
+  const authz = await fetch(`${API}/v1/oauth/extension/authorize?${q}`, {
+    headers: { accept: "text/html", "sec-fetch-mode": "navigate" },
+    redirect: "manual",
+    signal: AbortSignal.timeout(10_000),
+  });
+  expect(authz.status, "signed-out authorize is a redirect to sign in").toBe(302);
+  expect(String(authz.headers.get("location"))).toContain("/login?next=");
+  const tok = await fetch(`${API}/v1/oauth/extension/token`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+    signal: AbortSignal.timeout(10_000),
+  });
+  expect(tok.status, "the token endpoint answers as the API").toBe(400);
+  expect(((await tok.json()) as { error?: string }).error).toBe("invalid_request");
 }
 
 test.beforeAll(() => {
   expect(SESSION_BEARER, "PROOVRA_E2E_SESSION_BEARER must be set").not.toBe("");
   expect(TEAM, "PROOVRA_E2E_TEAM_ID must be set").not.toBe("");
+  expect(CASE_ID, "PROOVRA_E2E_CASE_ID must be set").not.toBe("");
+  expect(EXTENSION_ID, "PROOVRA_E2E_EXTENSION_ID must be set").toMatch(/^[a-p]{32}$/);
 });
 
 for (const fixture of ["static", "long", "spa", "mutating"]) {
-  test(`captures ${fixture} and traces the record across every surface`, async () => {
-    // The test-level cap is the SUM of the bounded stage caps plus margin — it is
-    // a backstop, never the thing that fires first. A hung stage fails at its own
-    // (much smaller) bound with a named diagnostic.
-    test.setTimeout(
-      Object.values(STAGE_TIMEOUT).reduce((a, b) => a + b, 0) + 120_000,
-    );
+  test(`captures ${fixture} through the real popup and traces the record across every surface`, async () => {
+    // The test-level cap is the SUM of the bounded stage caps plus margin — a
+    // backstop, never the thing that fires first.
+    test.setTimeout(Object.values(STAGE_TIMEOUT).reduce((a, b) => a + b, 0) + 60_000);
+    const project = test.info().project.name;
+    const channel = String((test.info().project.use as { channel?: string }).channel ?? "");
     // eslint-disable-next-line no-console
-    console.log(`\n[${fixture}] ──────── UC-1 lifecycle trace ────────`);
+    console.log(`\n[${project}/${fixture}] ──────── UC-1 lifecycle trace ────────`);
 
-    // AUTH — REAL OAuth: authorize + PKCE + single-use code + token exchange.
-    const accessToken = await stage("AUTH", STAGE_TIMEOUT.AUTH, obtainExtensionAccessToken);
-
-    const userDataDir = mkdtempSync(join(tmpdir(), "proovra-ext-"));
-    const context = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
-      args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
-    });
+    await stage("OAUTH_ROUTES", 25_000, probeOAuthRoutes);
+    const launched = await stage("LAUNCH", STAGE_TIMEOUT.LAUNCH, () => launchWithExtension(channel));
+    const { context, sw } = launched;
     try {
-      const sw = await serviceWorker(context);
-      // Store the OAuth-issued token exactly where the background's real OAuth
-      // completion writes it — the ONLY difference from a hand-driven consent
-      // window is the skipped interactive click, not the protocol.
-      await sw.evaluate(async (token: string) => {
-        await chrome.storage.session.set({
-          "proovra.session.token": {
-            accessToken: token,
-            expiresAtMs: Date.now() + 3600_000,
-            account: "e2e",
-          },
-        });
-      }, accessToken);
-
       const page = await context.newPage();
-      await page.goto(`${FIXTURES}/${fixture}`);
-      await page.waitForTimeout(300);
+      await stage("FIXTURE", 30_000, async () => {
+        await page.goto(`${FIXTURES}/${fixture}`, { timeout: 20_000 });
+        await page.waitForTimeout(300);
+      });
+      const userAgent = await page.evaluate(() => navigator.userAgent);
+      // eslint-disable-next-line no-console
+      console.log(`  BROWSER            ${project} channel=${channel} version=${launched.version} ua="${userAgent}"`);
+      assertBrowserIdentity(project, channel, userAgent);
+      test.info().annotations.push({ type: "browser", description: `${channel} ${launched.version} ${userAgent}` });
 
-      const tabInfo = await sw.evaluate(async () => {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        return { tabId: tab.id, windowId: tab.windowId };
+      const fixtureTabId = await stage("TAB", 10_000, async () => {
+        const id = await sw.evaluate(async (origin: string) => {
+          const tabs = await chrome.tabs.query({ url: `${origin}/*` });
+          return tabs[0]?.id ?? null;
+        }, FIXTURES);
+        if (typeof id !== "number") throw new Error("fixture tab not found");
+        return id;
       });
 
-      // CAPTURE — the whole server-side chain (CaptureSession -> upload -> server
-      // digest verify -> Evidence seal) runs inside this one background message.
-      // A returned evidenceId is proof the entire chain succeeded; on failure the
-      // background's own error/stage is surfaced verbatim (no secrets).
+      // The browser carries the signed-in WEB session, exactly as it would for a
+      // user who is signed in to PROOVRA; the extension's own OAuth flow uses it.
+      await context.addCookies([{ name: "proovra_session", value: SESSION_BEARER, url: API }]);
+
+      const popup = await stage("POPUP", STAGE_TIMEOUT.POPUP, () => openPopupFor(context, sw, fixtureTabId));
+
+      // AUTH — the extension's REAL sign-in: popup button -> background
+      // launchWebAuthFlow -> authorize (302 to chromiumapp.org) -> token.
+      await stage("AUTH", STAGE_TIMEOUT.AUTH, async () => {
+        await popup.getByTestId("sign-out").or(popup.getByTestId("sign-in")).first().waitFor({ timeout: 10_000 });
+        if (await popup.getByTestId("sign-in").isVisible()) {
+          await popup.getByTestId("sign-in").click();
+        }
+        await popup.getByTestId("signed-in").waitFor({ state: "visible", timeout: 45_000 });
+        const redirect = await sw.evaluate(() => chrome.identity.getRedirectURL("oauth2"));
+        expect(redirect).toBe(`https://${EXTENSION_ID}.chromiumapp.org/oauth2`);
+      });
+
+      // UC-EXT-001 / UC-EXT-010 — the real workspace + case lists.
+      await stage("WORKSPACE", 20_000, async () => {
+        await expect(popup.locator(`[data-testid="workspace"] option[value="${TEAM}"]`)).toHaveCount(1, { timeout: 15_000 });
+        await popup.getByTestId("workspace").selectOption(TEAM);
+        await expect(popup.locator(`[data-testid="case"] option[value="${CASE_ID}"]`)).toHaveCount(1, { timeout: 15_000 });
+        await expect(popup.getByTestId("capture-viewport")).toBeEnabled();
+      });
+      const fileToCase = fixture === "static";
+      if (fileToCase) await popup.getByTestId("case").selectOption(CASE_ID);
+
+      // CAPTURE — the popup's own button; the background owns the capture.
       const evidenceId = await stage("CAPTURE", STAGE_TIMEOUT.CAPTURE, async () => {
-        const result = (await sw.evaluate(
-          async (arg: { tabId: number; windowId: number; teamId: string; mode: string }) => {
-            return chrome.runtime.sendMessage({
-              kind: "PRESERVE",
-              mode: arg.mode,
-              teamId: arg.teamId,
-              tabId: arg.tabId,
-              windowId: arg.windowId,
-              evidenceType: "PHOTO",
-            });
-          },
-          {
-            tabId: tabInfo.tabId!,
-            windowId: tabInfo.windowId!,
-            teamId: TEAM,
-            mode: fixture === "static" ? "VIEWPORT" : "FULL_PAGE",
-          },
-        )) as { ok: boolean; evidenceId?: string; error?: string; stage?: string };
-        expect(result.ok, `capture failed${result.stage ? ` at ${result.stage}` : ""}: ${result.error ?? "no error"}`).toBe(true);
-        expect(result.evidenceId, "capture returned an evidence id").toBeTruthy();
-        return result.evidenceId!;
+        await popup.getByTestId(fixture === "static" ? "capture-viewport" : "capture-full").click();
+        const status = popup.getByTestId("status");
+        await expect(status).toHaveAttribute("data-capture-state", /^(SUCCEEDED|FAILED)$/, {
+          timeout: STAGE_TIMEOUT.CAPTURE - 10_000,
+        });
+        const state = await status.getAttribute("data-capture-state");
+        if (state !== "SUCCEEDED") {
+          const bg = await sw.evaluate(async (tabId: number) => {
+            const all = (await chrome.storage.session.get("proovra.capture.status"))["proovra.capture.status"] ?? {};
+            return all[String(tabId)] ?? null;
+          }, fixtureTabId);
+          throw new Error(`capture ${state}: ${await status.textContent()} :: ${JSON.stringify(bg)}`);
+        }
+        const id = await status.getAttribute("data-evidence-id");
+        expect(id, "capture returned an evidence id").toBeTruthy();
+        return id!;
       });
-      // The server-side chain the returned id attests to.
       for (const derived of ["CAPTURE_SESSION", "UPLOAD", "DIGEST", "EVIDENCE"]) {
         // eslint-disable-next-line no-console
         console.log(`  ${derived.padEnd(18)} PASS   (sealed evidence ${evidenceId})`);
       }
 
-      // The SAME Evidence id, proven consistent through every closure surface.
-      await traceEvidenceAcrossSurfaces(evidenceId, accessToken);
+      await traceEvidenceAcrossSurfaces(evidenceId, SESSION_BEARER, fileToCase ? CASE_ID : null);
       // eslint-disable-next-line no-console
-      console.log(`[${fixture}] ALL SURFACES PASS — evidence ${evidenceId}\n`);
+      console.log(`[${project}/${fixture}] ALL SURFACES PASS — evidence ${evidenceId}\n`);
     } finally {
-      await context.close();
+      await context.close().catch(() => undefined);
+      try {
+        rmSync(launched.userDataDir, { recursive: true, force: true });
+      } catch {
+        /* best effort: a profile dir still locked by a closing browser */
+      }
     }
   });
 }

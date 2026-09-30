@@ -12,66 +12,105 @@ type Req =
   | { kind: "GET_SANITIZED_DOM" }
   | { kind: "RESTORE_SCROLL"; y: number };
 
-chrome.runtime.onMessage.addListener((message: Req, _sender, sendResponse) => {
-  try {
-    if (message.kind === "GET_PAGE_INFO") {
-      sendResponse({
-        ok: true,
-        url: location.href,
-        title: document.title || null,
-        scrollHeight: Math.max(
-          document.documentElement.scrollHeight,
-          document.body?.scrollHeight ?? 0,
-        ),
-        viewportW: window.innerWidth,
-        viewportH: window.innerHeight,
-        devicePixelRatio: window.devicePixelRatio || 1,
-        scrollY: window.scrollY,
-      });
-      return; // synchronous response
-    }
-    if (message.kind === "SCROLL_TO") {
-      const before = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
-      window.scrollTo({ top: message.y, left: 0, behavior: "instant" as ScrollBehavior });
-      const after = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
-      sendResponse({ ok: true, actualY: window.scrollY, heightChanged: before !== after, height: after });
-      return;
-    }
-    if (message.kind === "RESTORE_SCROLL") {
-      window.scrollTo({ top: message.y, left: 0, behavior: "instant" as ScrollBehavior });
-      sendResponse({ ok: true });
-      return;
-    }
-    if (message.kind === "GET_SANITIZED_DOM") {
-      const clone = document.documentElement.cloneNode(true) as HTMLElement;
-      const counts = sanitizeDom(clone);
-      const html = `<!DOCTYPE html>\n<!-- PROOVRA sanitized DOM snapshot; inert, secrets cleared -->\n${clone.outerHTML}`;
-      // Shadow DOM: cloneNode does NOT traverse shadow roots, so component
-      // content is not in this snapshot. We count OPEN shadow roots so the
-      // manifest can disclose the limitation truthfully (closed roots are
-      // undetectable, so this is a lower bound, never a guarantee of complete
-      // capture).
-      sendResponse({
-        ok: true,
-        html,
-        counts,
-        crossOriginFrames: countCrossOriginFrames(),
-        shadowRoots: countOpenShadowRoots(),
-      });
-      return;
-    }
-  } catch (err) {
-    sendResponse({ ok: false, error: String(err instanceof Error ? err.message : err) });
+type Guarded = typeof globalThis & { __proovraCaptureContentLoaded?: boolean };
+
+// The background injects this file before EVERY capture. Without the guard a
+// second capture on the same page registered a second listener, and both
+// answered each request.
+if (!(globalThis as Guarded).__proovraCaptureContentLoaded) {
+  (globalThis as Guarded).__proovraCaptureContentLoaded = true;
+
+  // UC-EXT-004 — observe the page while it is being captured. Started when the
+  // background asks for the page info (the first step of every capture) and
+  // read when the DOM snapshot is taken (the last step). Our own scrolling does
+  // not mutate the DOM, so a non-zero count means the page changed itself.
+  let observer: MutationObserver | null = null;
+  let mutationsObserved = 0;
+  function startObserving(): void {
+    observer?.disconnect();
+    mutationsObserved = 0;
+    observer = new MutationObserver((records) => {
+      mutationsObserved += records.length;
+    });
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
   }
-  return; // no async keep-alive needed
-});
+  function stopObserving(): number {
+    observer?.disconnect();
+    observer = null;
+    return mutationsObserved;
+  }
+
+  chrome.runtime.onMessage.addListener((message: Req, _sender, sendResponse) => {
+    try {
+      if (message.kind === "GET_PAGE_INFO") {
+        startObserving();
+        sendResponse({
+          ok: true,
+          url: location.href,
+          title: document.title || null,
+          scrollHeight: Math.max(
+            document.documentElement.scrollHeight,
+            document.body?.scrollHeight ?? 0,
+          ),
+          viewportW: window.innerWidth,
+          viewportH: window.innerHeight,
+          devicePixelRatio: window.devicePixelRatio || 1,
+          scrollY: window.scrollY,
+        });
+        return; // synchronous response
+      }
+      if (message.kind === "SCROLL_TO") {
+        const before = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
+        window.scrollTo({ top: message.y, left: 0, behavior: "instant" as ScrollBehavior });
+        const after = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
+        sendResponse({ ok: true, actualY: window.scrollY, heightChanged: before !== after, height: after });
+        return;
+      }
+      if (message.kind === "RESTORE_SCROLL") {
+        window.scrollTo({ top: message.y, left: 0, behavior: "instant" as ScrollBehavior });
+        sendResponse({ ok: true });
+        return;
+      }
+      if (message.kind === "GET_SANITIZED_DOM") {
+        const observed = stopObserving();
+        const facts = {
+          crossOriginFrames: countCrossOriginFrames(),
+          shadowRoots: countOpenShadowRoots(),
+          protectedMedia: countProtectedMedia(),
+          mutationsObserved: observed,
+        };
+        try {
+          const clone = document.documentElement.cloneNode(true) as HTMLElement;
+          const counts = sanitizeDom(clone);
+          // A structural record of the page with executable content removed and
+          // the secrets we could recognise cleared. It is NOT a complete archive
+          // of the page: frames, shadow DOM and external resources are absent.
+          const html = `<!DOCTYPE html>\n<!-- PROOVRA sanitized DOM snapshot: executable content removed, recognised secrets cleared; not a complete archive of the page -->\n${clone.outerHTML}`;
+          sendResponse({ ok: true, html, counts, ...facts });
+        } catch (err) {
+          // The page facts are still reported, so the limitation list stays
+          // truthful even though the snapshot itself is missing.
+          sendResponse({ ok: false, error: String(err instanceof Error ? err.message : err), ...facts });
+        }
+        return;
+      }
+    } catch (err) {
+      sendResponse({ ok: false, error: String(err instanceof Error ? err.message : err) });
+    }
+    return; // no async keep-alive needed
+  });
+}
 
 function countCrossOriginFrames(): number {
   let n = 0;
   for (const frame of Array.from(document.querySelectorAll("iframe"))) {
     try {
-      // Accessing contentDocument throws for cross-origin frames.
-      void (frame as HTMLIFrameElement).contentDocument;
+      // Accessing contentDocument throws (or yields null) for cross-origin frames.
+      if ((frame as HTMLIFrameElement).contentDocument === null) n += 1;
     } catch {
       n += 1;
     }
@@ -89,6 +128,15 @@ function countOpenShadowRoots(): number {
   let n = 0;
   for (const el of Array.from(document.querySelectorAll("*"))) {
     if ((el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) n += 1;
+  }
+  return n;
+}
+
+/** Media elements playing encrypted (EME/DRM) content, which screenshots cannot show. */
+function countProtectedMedia(): number {
+  let n = 0;
+  for (const el of Array.from(document.querySelectorAll("video, audio"))) {
+    if ((el as HTMLMediaElement & { mediaKeys?: MediaKeys | null }).mediaKeys) n += 1;
   }
   return n;
 }

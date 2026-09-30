@@ -1,9 +1,11 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * UC-1 browser acceptance config. Chrome-stable and Edge-stable, driven by the
- * same spec. The extension is loaded unpacked from ../dist (build it first).
- * Run on a machine with Chrome + Edge installed (see e2e/README.md).
+ * UC-1 browser acceptance config. REAL Chrome (channel "chrome") and REAL Edge
+ * (channel "msedge"), driven by the same spec. The spec launches each project's
+ * declared channel itself and asserts the browser identity (UC-TQ-002); the E2E
+ * build is loaded from ../dist-e2e over CDP. Run through
+ * scripts/uc1-acceptance-windows.mjs (see e2e/README.md).
  */
 export default defineConfig({
   testDir: ".",

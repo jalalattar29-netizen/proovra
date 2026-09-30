@@ -26,8 +26,19 @@ export const CAPTURE_LIMITS = {
   maxTiles: 40,
   /** Max full-page height (px) we will attempt to tile. */
   maxPageHeightPx: 40000,
-  /** Per-capture wall-clock budget (ms). */
-  captureTimeBudgetMs: 30000,
+  /**
+   * Per-capture wall-clock budget for the tile loop (ms). Sized for maxTiles at
+   * the paced rate below (40 x ~0.6 s) plus hashing, so a page inside the tile
+   * bound is not cut short by the budget itself.
+   */
+  captureTimeBudgetMs: 45000,
   /** Delay after each scroll so lazy content can settle (ms). */
   tileSettleMs: 250,
+  /**
+   * UC-EXT-003 — minimum interval between captureVisibleTab calls. Chrome's
+   * MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND is 2; 550 ms keeps a margin.
+   */
+  minCaptureIntervalMs: 550,
+  /** Bounded retries on the captureVisibleTab quota error (exponential backoff). */
+  quotaRetries: 4,
 } as const;
