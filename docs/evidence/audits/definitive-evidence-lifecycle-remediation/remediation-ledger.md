@@ -6,20 +6,20 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 124 |
+| FIXED_IN_THIS_TASK | 128 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 29 |
+| STILL_PRESENT | 25 |
 
-Open by severity: P0 0 · P1 0 · P2 21 · P3 8
+Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
 | ET-CUS-01 | P0 | FIXED_IN_THIS_TASK | summarizePublicPayload is an allow-list: legal-hold events carry a bounded statement; unmapped types print no payload text | 6699902371, 8babf130d1, 0699e33419 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-CUS-01] (title, internal note, actor id and hold id all absent) |
 | ET-SEC-01 | P0 | FIXED_IN_THIS_TASK | executeEvidenceDestruction: claim + reload + union hold re-read (fail closed) + eligibility in ONE transaction under the evidence lock; EVIDENCE-scope placeCanonicalLegalHold takes the same lock and refuses destruction_committed; evaluateEffectiveLegalHold now lives once in packages/shared-runtime | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-01]; services/api/test/legal-hold-destruction-serialization.integration.test.ts; phase-12b-legal-hold-convergence.test.ts ET-SEC-01 cases |
-| ET-SEC-02 | P0 | FIXED_IN_THIS_TASK | case-evidence-link.service.ts detachEvidenceFromCase — Invariant C: case linkage never changes ownership | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-02]; phase-12b-case-evidence-authority.test.ts detach matrix; runtime-proof-cases-review-a.integration.test.ts (expectation corrected from teamId null to the workspace) |
+| ET-SEC-02 | P0 | FIXED_IN_THIS_TASK | case-evidence-link.service.ts detachEvidenceFromCase — Invariant C: case linkage never changes ownership | 6699902371, 8babf130d1, 16ae55b67c | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-02]; phase-12b-case-evidence-authority.test.ts detach matrix; runtime-proof-cases-review-a.integration.test.ts (expectation corrected from teamId null to the workspace) |
 | ET-SEC-09 | P0 | FIXED_IN_THIS_TASK | attachEvidenceToCase proves tenancy itself: same workspace; with no workspace, the case owner must own the evidence; the actor must pass resolveEvidenceRecordAccess(evidence.update_metadata) | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-09]; phase-12b-case-evidence-authority.test.ts [ET-SEC-09 / ET-SEC-16] cases |
 | ET-SEC-10 | P0 | FIXED_IN_THIS_TASK | mapIntegrityHeadline: a live failure dominates and Verified requires overallIntegrity === true; both verify routes use the live trust decision when live core checks fail | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-SEC-10] |
 | ET-UPL-01 | P0 | FIXED_IN_THIS_TASK | services/api/src/services/evidence/evidence-part-writer.service.ts (writeEvidencePart / lockEvidenceForByteWrite / assertEvidenceAcceptsByteWrites) under the finalize evidence lock | 6699902371, 8babf130d1 | services/api/test/evidence-lifecycle-p0.integration.test.ts [ET-UPL-01]; services/api/test/evidence-part-writer.integration.test.ts; services/api/test/evidence-part-writer-authority.test.ts (structural guard: exactly one writer) |
@@ -96,9 +96,9 @@ Open by severity: P0 0 · P1 0 · P2 21 · P3 8
 | ET-SEC-11 | P2 | FIXED_IN_THIS_TASK | evidence-complete.service completeEvidence: SIGNED and REPORTED both answer alreadyFinalized with the existing chain | 32daa64b69, e16588fb76 | services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-11] |
 | ET-SEC-12 | P2 | FIXED_IN_THIS_TASK | lifecycle service: locked re-read + fresh capability + conditional updateMany; governance transitionLifecycle: locked conditional updateMany (no destruction claim); executor tombstone: conditional on its own claim | 8babf130d1 | services/api/test/legal-hold-destruction-serialization.integration.test.ts [ET-SEC-12 concurrent restores produce one custody event] and [ET-SEC-12 (STATEMACHINE-04) an operator transition cannot resurrect a record the executor is destroying] |
 | ET-SEC-13 | P2 | FIXED_IN_THIS_TASK | upload-session.service completeUploadSession: the atomic UPDATE admits only live (non-terminal) sessions | 32daa64b69 | services/api/test/finalize-and-session-oneshot.integration.test.ts [ET-SEC-13] |
-| ET-SEC-14 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-15 | P2 | STILL_PRESENT |  |  |  |
-| ET-SEC-16 | P2 | STILL_PRESENT |  |  |  |
+| ET-SEC-14 | P2 | FIXED_IN_THIS_TASK | finalization-governance decideGovernedOutputActions (the one output-policy decision); evaluateOutputRegenerationGovernance (generate_report + generate_package) on POST /v1/evidence/:id/reports/regenerate | ba4b8aa7cf, 02d46f0dcc | services/api/test/report-regenerate-governance.integration.test.ts |
+| ET-SEC-15 | P2 | FIXED_IN_THIS_TASK | getEvidenceWithRecordAccess(evidence.update_metadata); evaluateWorkspaceAiPolicy with the ACTIVE membership role and scopeIncludesAiOperations (billing-enforcement decideAiOperationAllowance) for the record's commercial subject | 113ae3873b | services/api/test/ai-categorization-run-authority.integration.test.ts |
+| ET-SEC-16 | P2 | FIXED_IN_THIS_TASK | case-permission.service authorizeCaseEvidenceLink (resolveCaseRecordAccess + EVIDENCE_LINK matrix + canonical record access) on every link and unlink path; detachEvidenceFromCase the one detach (teamId unchanged since ET-SEC-02) | 16ae55b67c, fe72f1d2f3 | services/api/test/case-link-authority.integration.test.ts |
 | ET-SEC-17 | P2 | FIXED_IN_THIS_TASK | legal-hold.service evaluateCaseDeletionHold (clear \| held \| unavailable); DELETE /v1/cases/:id answers 503 LEGAL_HOLD_STATE_UNAVAILABLE on unavailable | 9d7aa0ed67, 84b9c10423 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-17]; services/api/test/legal-hold-tenant-spread-guard.test.ts |
 | ET-SEC-18 | P2 | FIXED_IN_THIS_TASK | middleware/authorize evaluateAuthorize / authorizeOrFail (evidence.read, antiEnumeration) for both lists; owner arm bounded to legacy NULL-team rows | 8d781d8043, d5dacdf2db, 34571506e1 | services/api/test/reports-list-authorization.integration.test.ts; services/api/test/phase-ia-self-serve-regression-fix.test.ts; services/api/test/phase-32-8-d-cases-reports.test.ts |
 | ET-SEC-19 | P2 | FIXED_IN_THIS_TASK | evidence-exchange.service generateSignedUrl returns the URL to its minter only; the row keeps only signedUrlExpiresAtUtc; the list projection carries no URL | 8b8bef5de8 | services/api/test/exchange-signed-url-not-listed.integration.test.ts |
@@ -160,7 +160,7 @@ Open by severity: P0 0 · P1 0 · P2 21 · P3 8
 | ET-SEC-28 | P3 | FIXED_IN_THIS_TASK | billing-enforcement lockEvidenceCapacitySubject taken before assertWorkspaceAllowsStorageGrowth inside the finalize transaction | 13385d3d7d | services/api/test/storage-capacity-concurrent-finalize.integration.test.ts |
 | ET-SEC-29 | P3 | FIXED_IN_THIS_TASK | worker processor package commit: conditional updateMany (NULL or <= this version) | 0827d8b73b | services/api/test/point5/report-package-recovery.integration.test.ts [pointer stays 2] |
 | ET-SEC-30 | P3 | FIXED_IN_THIS_TASK | report-generation-authority: ResolvedReportCommand.claimedAtUtc is the fence; markRequestRetryable/markRequestTerminal(fence) and claimFenceWhere for the in-run stage writes (ReportClaimLost rolls back) | 0827d8b73b | services/api/test/phase-12-point5-report-authority.integration.test.ts [21b] |
-| ET-SEC-31 | P3 | STILL_PRESENT |  |  |  |
+| ET-SEC-31 | P3 | FIXED_IN_THIS_TASK | uniform 404: assertCaseAccess over resolveCaseRecordAccess; capture loadOwnedDraft; /public/verify/:id not-finalized branch (audit keeps the real outcome); case attach via authorizeCaseEvidenceLink | fe72f1d2f3 | services/api/test/existence-oracles-uniform-404.integration.test.ts |
 | ET-SEC-32 | P3 | FIXED_IN_THIS_TASK | evidence.routes annotationPartBelongsToEvidence — the one part-ownership check for annotation create and edit | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32] |
 | ET-SEC-33 | P3 | FIXED_IN_THIS_TASK | createWorkflowIntakeLink and createEvidenceRequest refuse ids outside the workspace (404, like a missing row) | 6b8141879d, d4b17bb727, 1078664675 | services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33] |
 | ET-SEC-34 | P3 | FIXED_IN_THIS_TASK | legal-hold.service (canonical hold queries always tenant-anchored) | 9d7aa0ed67 | services/api/test/legal-hold-tenant-spread-guard.test.ts [ET-SEC-34: no symbol anywhere in src; no optional tenant spread] |
@@ -213,8 +213,8 @@ Open by severity: P0 0 · P1 0 · P2 21 · P3 8
 - **migrationImpact:** owner-reviewed backfill recommended: evidence whose teamId was NULLed by a detach (teamId NULL with a cases.evidence_unlinked tenant audit naming a workspace); not automatic
 - **compatibilityImpact:** detach responses keep evidence.teamId
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
-- **commits:** 6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger; 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth
+- **productFiles:** `apps/web/app/(app)/evidence/lib/evidence-library-types.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/governance/effective-legal-hold.ts`, `packages/shared-runtime/src/index.ts`, `packages/shared-runtime/src/ops/metrics.service.ts`, `packages/shared/src/evidence-retention-lifecycle.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/cases/case-evidence-link.service.ts`, `services/api/src/services/cases/case-lifecycle.service.ts`, `services/api/src/services/cases/case-permission.service.ts`, `services/api/src/services/evidence/evidence-delete-eligibility.service.ts`, `services/api/src/services/evidence/evidence-lifecycle.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance-lifecycle/destruction-review.service.ts`, `services/api/src/services/governance-lifecycle/export-governance.service.ts`, `services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/legal-hold.service.ts`, `services/api/src/services/lifecycle/destruction-governance.service.ts`, `services/api/src/services/lifecycle/legal-hold.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`, `services/worker/src/derived-assets.processor.ts`, `services/worker/src/governance/destruction-orchestrator.worker.ts`, `services/worker/src/governance/effective-legal-hold.ts`, `services/worker/src/governance/retention-reconciliation.worker.ts`, `services/worker/src/governance/trash-grace-reconciler.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`, `services/worker/src/screen-intelligence.handler.ts`
+- **commits:** 6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger; 8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth; 16ae55b67c fix(cases): one case-link authority for single, bulk and case-workspace link / unlink (ET-SEC-16)
 
 ## ET-SEC-09 — NULL-team case can link another user's NULL-team evidence via /v1/cases/:id/evidence-links (no ownership check), and matter workspace then reads it without tenant predicate
 
@@ -1120,6 +1120,49 @@ Open by severity: P0 0 · P1 0 · P2 21 · P3 8
 - **productFiles:** `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/uploads/upload-session.service.ts`
 - **commits:** 32daa64b69 fix(evidence): a repeat complete on a REPORTED record is alreadyFinalized; only a live upload session completes (ET-SEC-11, ET-SEC-13)
 
+## ET-SEC-14 — Report regeneration / NEW_VERSION bypasses workspace governance policy (requireReviewBeforeReport, allowReportDownload, template overlay)
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Report regeneration checked only the evidence.generate_report permission, so review-before-report, the report/package switches and the template overlay were bypassed by a recovery or an updated version.
+- **canonicalAuthority:** finalization-governance decideGovernedOutputActions (the one output-policy decision); evaluateOutputRegenerationGovernance (generate_report + generate_package) on POST /v1/evidence/:id/reports/regenerate
+- **redTest:** services/api/test/report-regenerate-governance.integration.test.ts (evidence/ET-SEC-14-red-baseline.txt)
+- **greenTest:** services/api/test/report-regenerate-governance.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared/src/user-facing-errors.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/finalization-governance.service.ts`
+- **commits:** ba4b8aa7cf fix(reports): regeneration runs the workspace output policy of first issuance (ET-SEC-14); 02d46f0dcc fix(web): a regeneration refused by workspace or workflow policy says so (ET-SEC-14 follow-up)
+
+## ET-SEC-15 — AI categorization run (paid, budget-consuming mutation) gated by legacy READ access only; AI policy evaluated without role/plan inputs
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The paid AI categorization run loaded the record with read access and asked the AI policy with no role and no plan answer.
+- **canonicalAuthority:** getEvidenceWithRecordAccess(evidence.update_metadata); evaluateWorkspaceAiPolicy with the ACTIVE membership role and scopeIncludesAiOperations (billing-enforcement decideAiOperationAllowance) for the record's commercial subject
+- **redTest:** services/api/test/ai-categorization-run-authority.integration.test.ts (evidence/ET-SEC-15-red-baseline.txt)
+- **greenTest:** services/api/test/ai-categorization-run-authority.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`
+- **commits:** 113ae3873b fix(ai): the paid categorization run is a metadata write, asked of the AI policy with role and plan (ET-SEC-15)
+
+## ET-SEC-16 — Two case-link authorities: bulk ADD/REMOVE_FROM_CASE use a weaker case check than the single routes; case-workspace detach vs cases detach disagree on teamId reset
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Single, bulk and case-workspace link/unlink answered the case permission three ways: bulk admitted any member and checked no case on remove; the single routes ignored CaseAccess and gated on the record's creator.
+- **canonicalAuthority:** case-permission.service authorizeCaseEvidenceLink (resolveCaseRecordAccess + EVIDENCE_LINK matrix + canonical record access) on every link and unlink path; detachEvidenceFromCase the one detach (teamId unchanged since ET-SEC-02)
+- **obsoleteRemoved:** the bulk canAccessCase check; the single routes' owner shortcut and creator gate; case-workspace's per-route requireCaseAccess + gateCaseMutation for EVIDENCE_LINK
+- **redTest:** services/api/test/case-link-authority.integration.test.ts (evidence/ET-SEC-16-red-baseline.txt)
+- **greenTest:** services/api/test/case-link-authority.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared/src/user-facing-errors.ts`, `services/api/src/routes/capture.routes.ts`, `services/api/src/routes/case-workspace.routes.ts`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/cases/case-permission.service.ts`
+- **commits:** 16ae55b67c fix(cases): one case-link authority for single, bulk and case-workspace link / unlink (ET-SEC-16); fe72f1d2f3 fix(security): a resource the caller may not see answers exactly as a missing one (ET-SEC-31)
+
 ## ET-SEC-17 — Case-delete legal-hold check fails OPEN on DB error before hard-deleting the case and detaching all evidence
 
 - **severity:** P2
@@ -1833,6 +1876,21 @@ Open by severity: P0 0 · P1 0 · P2 21 · P3 8
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/worker/src/processor.ts`, `services/worker/src/report-generation-authority.ts`
 - **commits:** 0827d8b73b fix(reports): the package pointer only advances; a report run's writes are fenced by its own claim (ET-SEC-29, ET-SEC-30)
+
+## ET-SEC-31 — Existence oracles: 404-vs-403 on case access, capture sessions, cases evidence attach, evidence create with foreign teamId; public verify 409 exposes status of unfinalized records
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Case-filtered evidence lists, capture drafts and unauthenticated public verify of an unfinalized record answered differently for a hidden resource than for a missing one.
+- **canonicalAuthority:** uniform 404: assertCaseAccess over resolveCaseRecordAccess; capture loadOwnedDraft; /public/verify/:id not-finalized branch (audit keeps the real outcome); case attach via authorizeCaseEvidenceLink
+- **obsoleteRemoved:** EVIDENCE_NOT_FINALIZED response, its shared copy and web registry entry
+- **redTest:** services/api/test/existence-oracles-uniform-404.integration.test.ts (evidence/ET-SEC-31-red-baseline.txt)
+- **greenTest:** services/api/test/existence-oracles-uniform-404.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared/src/user-facing-errors.ts`, `services/api/src/routes/capture.routes.ts`, `services/api/src/routes/evidence.routes.ts`
+- **commits:** fe72f1d2f3 fix(security): a resource the caller may not see answers exactly as a missing one (ET-SEC-31)
 
 ## ET-SEC-32 — Annotation PATCH accepts any evidencePartId (no ownership check, unlike POST)
 

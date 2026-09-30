@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 404,
+    "AuditFilesInventoried": 407,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 251
+    "ProductBehaviorTestsInventoried": 254
   },
   "reportRoles": {
     "counts": {
@@ -158,7 +158,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 251,
+    "PRODUCT_BEHAVIOR_TEST": 254,
     "CONTINUATION_CHECKPOINT": 1,
     "DOMAIN_AUTHORITY": 71,
     "GENERATED_CURRENT_ARTIFACT": 3,
@@ -3237,6 +3237,21 @@
       "disposition": "RETAINED"
     },
     {
+      "path": "services/api/test/ai-categorization-run-authority.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
       "path": "services/api/test/ai-closure-invariants.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
@@ -3454,6 +3469,21 @@
     },
     {
       "path": "services/api/test/capture-finalize-checklist-gate.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/case-link-authority.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
@@ -6143,6 +6173,21 @@
     },
     {
       "path": "services/api/test/remediation-audit-outcome.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/report-regenerate-governance.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

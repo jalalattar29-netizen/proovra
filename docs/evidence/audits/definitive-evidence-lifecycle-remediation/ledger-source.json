@@ -969,6 +969,36 @@
       "canonicalAuthority": "dashboard/integrity-snapshot.service deriveIntegritySnapshot: only RECORDED_INTEGRITY_VERIFIED claims all three; FAILED is canonicalHashMatches false only; otsHashMatches compares otsHash with fingerprintHash",
       "redTest": "services/api/test/integrity-snapshot-truth.test.ts (evidence/ET-SEC-21-35-red-baseline.txt)",
       "greenTest": "services/api/test/integrity-snapshot-truth.test.ts"
+    },
+    "ET-SEC-14": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Report regeneration checked only the evidence.generate_report permission, so review-before-report, the report/package switches and the template overlay were bypassed by a recovery or an updated version.",
+      "canonicalAuthority": "finalization-governance decideGovernedOutputActions (the one output-policy decision); evaluateOutputRegenerationGovernance (generate_report + generate_package) on POST /v1/evidence/:id/reports/regenerate",
+      "redTest": "services/api/test/report-regenerate-governance.integration.test.ts (evidence/ET-SEC-14-red-baseline.txt)",
+      "greenTest": "services/api/test/report-regenerate-governance.integration.test.ts"
+    },
+    "ET-SEC-15": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The paid AI categorization run loaded the record with read access and asked the AI policy with no role and no plan answer.",
+      "canonicalAuthority": "getEvidenceWithRecordAccess(evidence.update_metadata); evaluateWorkspaceAiPolicy with the ACTIVE membership role and scopeIncludesAiOperations (billing-enforcement decideAiOperationAllowance) for the record's commercial subject",
+      "redTest": "services/api/test/ai-categorization-run-authority.integration.test.ts (evidence/ET-SEC-15-red-baseline.txt)",
+      "greenTest": "services/api/test/ai-categorization-run-authority.integration.test.ts"
+    },
+    "ET-SEC-16": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Single, bulk and case-workspace link/unlink answered the case permission three ways: bulk admitted any member and checked no case on remove; the single routes ignored CaseAccess and gated on the record's creator.",
+      "canonicalAuthority": "case-permission.service authorizeCaseEvidenceLink (resolveCaseRecordAccess + EVIDENCE_LINK matrix + canonical record access) on every link and unlink path; detachEvidenceFromCase the one detach (teamId unchanged since ET-SEC-02)",
+      "obsoleteRemoved": "the bulk canAccessCase check; the single routes' owner shortcut and creator gate; case-workspace's per-route requireCaseAccess + gateCaseMutation for EVIDENCE_LINK",
+      "redTest": "services/api/test/case-link-authority.integration.test.ts (evidence/ET-SEC-16-red-baseline.txt)",
+      "greenTest": "services/api/test/case-link-authority.integration.test.ts"
+    },
+    "ET-SEC-31": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Case-filtered evidence lists, capture drafts and unauthenticated public verify of an unfinalized record answered differently for a hidden resource than for a missing one.",
+      "canonicalAuthority": "uniform 404: assertCaseAccess over resolveCaseRecordAccess; capture loadOwnedDraft; /public/verify/:id not-finalized branch (audit keeps the real outcome); case attach via authorizeCaseEvidenceLink",
+      "obsoleteRemoved": "EVIDENCE_NOT_FINALIZED response, its shared copy and web registry entry",
+      "redTest": "services/api/test/existence-oracles-uniform-404.integration.test.ts (evidence/ET-SEC-31-red-baseline.txt)",
+      "greenTest": "services/api/test/existence-oracles-uniform-404.integration.test.ts"
     }
   }
 }

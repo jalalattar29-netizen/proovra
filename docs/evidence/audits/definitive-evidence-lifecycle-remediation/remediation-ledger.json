@@ -4,12 +4,12 @@
   "auditSchema": "proovra.audit.definitive-evidence-lifecycle-truth/v1",
   "summary": {
     "canonicalFindings": 153,
-    "FIXED_IN_THIS_TASK": 124,
+    "FIXED_IN_THIS_TASK": 128,
     "ALREADY_FIXED_ON_MAIN": 0,
     "SUPERSEDED_BY_CANONICAL_FIX": 0,
     "BLOCKED_EXTERNAL_PROOF": 0,
     "PARTIALLY_FIXED": 0,
-    "STILL_PRESENT": 29,
+    "STILL_PRESENT": 25,
     "UNKNOWN": 0,
     "NOT_REVIEWED": 0,
     "UNACCOUNTED": 0,
@@ -18,8 +18,8 @@
     "openBySeverity": {
       "P0": 0,
       "P1": 0,
-      "P2": 21,
-      "P3": 8
+      "P2": 18,
+      "P3": 7
     }
   },
   "openIds": {
@@ -40,9 +40,6 @@
       "ET-PKG-06",
       "ET-PKG-07",
       "ET-PKG-08",
-      "ET-SEC-14",
-      "ET-SEC-15",
-      "ET-SEC-16",
       "ET-SEC-20",
       "ET-SEC-24",
       "ET-SEC-26",
@@ -55,8 +52,7 @@
       "ET-COM-06",
       "ET-DC-10",
       "ET-DC-11",
-      "ET-Q-07",
-      "ET-SEC-31"
+      "ET-Q-07"
     ]
   },
   "rows": [
@@ -218,12 +214,14 @@
         "packages/shared-runtime/src/index.ts",
         "packages/shared-runtime/src/ops/metrics.service.ts",
         "packages/shared/src/evidence-retention-lifecycle.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
         "services/api/src/routes/cases.routes.ts",
         "services/api/src/routes/evidence.routes.ts",
         "services/api/src/routes/integrations-uploads.routes.ts",
         "services/api/src/routes/upload-sessions.routes.ts",
         "services/api/src/services/cases/case-evidence-link.service.ts",
         "services/api/src/services/cases/case-lifecycle.service.ts",
+        "services/api/src/services/cases/case-permission.service.ts",
         "services/api/src/services/evidence/evidence-delete-eligibility.service.ts",
         "services/api/src/services/evidence/evidence-lifecycle.service.ts",
         "services/api/src/services/evidence/evidence-part-writer.service.ts",
@@ -253,7 +251,8 @@
       "compatibilityImpact": "detach responses keep evidence.teamId",
       "commits": [
         "6699902371 test(evidence-lifecycle): P0 red reproductions and the remediation ledger",
-        "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth"
+        "8babf130d1 fix(evidence-lifecycle): close the six P0s — byte writer, tenancy, hold vs destruction, verify truth",
+        "16ae55b67c fix(cases): one case-link authority for single, bulk and case-workspace link / unlink (ET-SEC-16)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3033,20 +3032,28 @@
         "services/api/src/routes/evidence.routes.ts:10757",
         "services/api/src/services/governance.service.ts:893"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Workspace governance (enforceSensitiveAction/finalization-governance) was wired only into finalization, and the recovery/regenerate path was added later using the capability check alone.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Report regeneration checked only the evidence.generate_report permission, so review-before-report, the report/package switches and the template overlay were bypassed by a recovery or an updated version.",
+      "canonicalAuthority": "finalization-governance decideGovernedOutputActions (the one output-policy decision); evaluateOutputRegenerationGovernance (generate_report + generate_package) on POST /v1/evidence/:id/reports/regenerate",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "packages/shared/src/user-facing-errors.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/governance/finalization-governance.service.ts"
+      ],
+      "redTest": "services/api/test/report-regenerate-governance.integration.test.ts (evidence/ET-SEC-14-red-baseline.txt)",
+      "greenTest": "services/api/test/report-regenerate-governance.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "ba4b8aa7cf fix(reports): regeneration runs the workspace output policy of first issuance (ET-SEC-14)",
+        "02d46f0dcc fix(web): a regeneration refused by workspace or workflow policy says so (ET-SEC-14 follow-up)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-15",
@@ -3057,20 +3064,25 @@
         "services/api/src/routes/evidence.routes.ts:8603",
         "services/api/src/routes/evidence.routes.ts:8686"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "The route reused the read gate for a mutating, budget-consuming action and omitted role and plan inputs to the AI policy.",
-      "canonicalAuthority": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "The paid AI categorization run loaded the record with read access and asked the AI policy with no role and no plan answer.",
+      "canonicalAuthority": "getEvidenceWithRecordAccess(evidence.update_metadata); evaluateWorkspaceAiPolicy with the ACTIVE membership role and scopeIncludesAiOperations (billing-enforcement decideAiOperationAllowance) for the record's commercial subject",
       "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "productFiles": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/billing-enforcement.service.ts"
+      ],
+      "redTest": "services/api/test/ai-categorization-run-authority.integration.test.ts (evidence/ET-SEC-15-red-baseline.txt)",
+      "greenTest": "services/api/test/ai-categorization-run-authority.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "113ae3873b fix(ai): the paid categorization run is a metadata write, asked of the AI policy with role and plan (ET-SEC-15)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-16",
@@ -3081,20 +3093,31 @@
         "services/api/src/routes/evidence.routes.ts:7134",
         "services/api/src/routes/cases.routes.ts:1370"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "Bulk actions and case-workspace routes each implemented their own case authorization and detach semantics instead of calling one case-link authority.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Single, bulk and case-workspace link/unlink answered the case permission three ways: bulk admitted any member and checked no case on remove; the single routes ignored CaseAccess and gated on the record's creator.",
+      "canonicalAuthority": "case-permission.service authorizeCaseEvidenceLink (resolveCaseRecordAccess + EVIDENCE_LINK matrix + canonical record access) on every link and unlink path; detachEvidenceFromCase the one detach (teamId unchanged since ET-SEC-02)",
+      "obsoleteRemoved": "the bulk canAccessCase check; the single routes' owner shortcut and creator gate; case-workspace's per-route requireCaseAccess + gateCaseMutation for EVIDENCE_LINK",
+      "productFiles": [
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "packages/shared/src/user-facing-errors.ts",
+        "services/api/src/routes/capture.routes.ts",
+        "services/api/src/routes/case-workspace.routes.ts",
+        "services/api/src/routes/cases.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/cases/case-permission.service.ts"
+      ],
+      "redTest": "services/api/test/case-link-authority.integration.test.ts (evidence/ET-SEC-16-red-baseline.txt)",
+      "greenTest": "services/api/test/case-link-authority.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "16ae55b67c fix(cases): one case-link authority for single, bulk and case-workspace link / unlink (ET-SEC-16)",
+        "fe72f1d2f3 fix(security): a resource the caller may not see answers exactly as a missing one (ET-SEC-31)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-17",
@@ -5101,20 +5124,27 @@
         "services/api/src/routes/capture.routes.ts:154",
         "services/api/src/routes/evidence.routes.ts:12569"
       ],
-      "disposition": "STILL_PRESENT",
-      "rootCause": "These handlers predate the anti-enumeration convention and return distinct status codes for existing-but-forbidden objects.",
-      "canonicalAuthority": null,
-      "obsoleteRemoved": null,
-      "productFiles": [],
-      "redTest": null,
-      "greenTest": null,
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Case-filtered evidence lists, capture drafts and unauthenticated public verify of an unfinalized record answered differently for a hidden resource than for a missing one.",
+      "canonicalAuthority": "uniform 404: assertCaseAccess over resolveCaseRecordAccess; capture loadOwnedDraft; /public/verify/:id not-finalized branch (audit keeps the real outcome); case attach via authorizeCaseEvidenceLink",
+      "obsoleteRemoved": "EVIDENCE_NOT_FINALIZED response, its shared copy and web registry entry",
+      "productFiles": [
+        "apps/web/lib/feedback/error-code-registry.ts",
+        "packages/shared/src/user-facing-errors.ts",
+        "services/api/src/routes/capture.routes.ts",
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "redTest": "services/api/test/existence-oracles-uniform-404.integration.test.ts (evidence/ET-SEC-31-red-baseline.txt)",
+      "greenTest": "services/api/test/existence-oracles-uniform-404.integration.test.ts",
       "negativeAuthTests": null,
       "concurrencyTest": null,
       "migrationImpact": "none",
       "compatibilityImpact": "none",
-      "commits": [],
+      "commits": [
+        "fe72f1d2f3 fix(security): a resource the caller may not see answers exactly as a missing one (ET-SEC-31)"
+      ],
       "remainingExternalProof": null,
-      "finalResult": "OPEN"
+      "finalResult": "FIXED_IN_THIS_TASK"
     },
     {
       "id": "ET-SEC-32",
