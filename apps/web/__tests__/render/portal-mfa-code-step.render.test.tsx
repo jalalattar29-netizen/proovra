@@ -88,7 +88,10 @@ describe("portal sign-in — emailed code step", () => {
   it("says where the code went, focuses the code field and does not open the portal", async () => {
     await reachCodeStep();
     expect(screen.getByText(/We emailed a six-digit code to r\*\*\*@x\.test\./)).toBeTruthy();
-    expect(document.activeElement).toBe(codeInput());
+    // Focus is moved by the step's mount effect, which React may flush after
+    // the heading is already in the document. The claim is that focus LANDS on
+    // the field, so it is awaited rather than read in the same tick.
+    await waitFor(() => expect(document.activeElement).toBe(codeInput()));
     expect(push).not.toHaveBeenCalled();
     expect(authBodies()).toEqual([{ token: TOKEN }]);
     // The token cannot be edited under a code that belongs to it.
