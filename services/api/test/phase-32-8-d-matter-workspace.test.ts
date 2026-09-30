@@ -230,7 +230,10 @@ describe("Phase 32.8D — risk engine", () => {
     expect(RISK).toMatch(/prisma\.evidenceLegalHold\.count/);
     expect(RISK).toMatch(/scope: "CASE"/);
     expect(RISK).not.toMatch(/prisma\.caseLegalHold\./);
-    expect(RISK).toMatch(/prisma\.evidenceIntegritySnapshot\.findMany/);
+    // ET-SEC-21 — the integrity counters read the LIVE record state; the
+    // backfilled-once snapshot table could not see a FAILED_HASH_MISMATCH record.
+    expect(RISK).not.toMatch(/prisma\.evidenceIntegritySnapshot\./);
+    expect(RISK).toMatch(/OR: \[\{ status: "FAILED_HASH_MISMATCH" \}, \{ verificationStatus: "FAILED" \}\]/);
     expect(RISK).toMatch(/prisma\.reviewerCapacitySnapshot\.count/);
   });
 

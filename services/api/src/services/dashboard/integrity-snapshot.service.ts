@@ -137,12 +137,14 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
     vs === "RECORDED_INTEGRITY_VERIFIED" || vs === "MATERIALS_AVAILABLE";
 
   // Dashboard tri-state derivation — null when not computed.
-  const canonicalHashMatches =
-    isOk === true ? true : isFailed ? false : isReviewRequired ? false : null;
-  const signatureValid =
-    isOk === true ? true : isFailed ? false : isReviewRequired ? null : null;
-  const custodyChainValid =
-    isOk === true ? true : isFailed ? false : isReviewRequired ? null : null;
+  // ET-SEC-35 — a flag is true only for what was actually checked.
+  // MATERIALS_AVAILABLE means the materials EXIST, not that the hash,
+  // signature or chain were verified; and an integrity FAILURE is a hash
+  // mismatch — it says nothing about the signature or the custody chain.
+  const integrityVerified = vs === "RECORDED_INTEGRITY_VERIFIED";
+  const canonicalHashMatches = integrityVerified ? true : isFailed ? false : null;
+  const signatureValid = integrityVerified ? true : null;
+  const custodyChainValid = integrityVerified ? true : null;
 
   // Phase IA-digest-policy — run the canonical digest evaluator over
   // the persisted columns. The evaluator returns bounded violation
@@ -229,13 +231,20 @@ export function deriveIntegritySnapshot(input: IntegritySnapshotInput): {
   let otsHashMatches: boolean | null;
   const rawOts = (input.otsStatus ?? "").toUpperCase();
   const otsPolicyViolated = policyCodes.has("ots_anchored_without_persisted_hash");
+  // ET-SEC-35 — otsHashMatches is a COMPARISON: the stamped digest against
+  // the record's fingerprint hash (both SHA-256 of the canonical fingerprint).
+  // A status alone decides neither true nor, for a FAILED row, false.
+  const otsDigestComparison =
+    input.otsHash && input.fingerprintHash
+      ? input.otsHash.toLowerCase() === input.fingerprintHash.toLowerCase()
+      : null;
   if (rawOts === "ANCHORED" || rawOts === "VERIFIED") {
     otsStatus = otsPolicyViolated ? "REVIEW_REQUIRED" : "OK";
-    otsHashMatches = otsPolicyViolated ? false : true;
+    otsHashMatches = otsPolicyViolated ? false : otsDigestComparison;
     if (otsPolicyViolated) reasonCodes.push("OTS_DIGEST_POLICY_VIOLATED");
   } else if (rawOts === "FAILED" || rawOts === "ERRORED") {
     otsStatus = "FAILED";
-    otsHashMatches = false;
+    otsHashMatches = otsDigestComparison === false ? false : null;
     reasonCodes.push("OTS_FAILED");
   } else if (rawOts === "" || input.otsStatus == null) {
     otsStatus = "UNAVAILABLE";

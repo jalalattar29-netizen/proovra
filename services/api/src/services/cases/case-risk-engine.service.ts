@@ -176,16 +176,21 @@ export async function computeCaseRisk(input: {
       /* best-effort */
     }
     try {
-      // EvidenceIntegritySnapshot per linked evidence — bounded enum.
-      const snaps = await prisma.evidenceIntegritySnapshot.findMany({
-        where: { evidenceId: { in: evidenceIds } },
-        select: { overallStatus: true },
-        take: 500,
-      });
-      for (const s of snaps) {
-        if (s.overallStatus === "FAILED") integrityFailed += 1;
-        if (s.overallStatus === "REVIEW_REQUIRED") integrityReviewRequired += 1;
-      }
+      // ET-SEC-21 — the LIVE record state. evidence_integrity_snapshots was
+      // backfilled once for SIGNED/REPORTED rows and never refreshed, and an
+      // integrity rejection moves a record to FAILED_HASH_MISMATCH (never
+      // snapshotted), so the case risk could not see a failed record.
+      [integrityFailed, integrityReviewRequired] = await Promise.all([
+        prisma.evidence.count({
+          where: {
+            id: { in: evidenceIds },
+            OR: [{ status: "FAILED_HASH_MISMATCH" }, { verificationStatus: "FAILED" }],
+          },
+        }),
+        prisma.evidence.count({
+          where: { id: { in: evidenceIds }, verificationStatus: "REVIEW_REQUIRED" },
+        }),
+      ]);
     } catch {
       /* best-effort */
     }
