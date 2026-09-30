@@ -1,0 +1,12 @@
+ET-PKG-06 red baseline — API services/api/test/public-verify-storage-recorded.integration.test.ts, web apps/web/__tests__/verify-storage-recorded.test.ts
+Run against HEAD ed3bf70d's evidence.routes.ts and the verify page / types / BASIC view, 2026-09-30T04:23Z. A lock whose retain-until had passed was returned immutable and verified.
+
+-- api
+   × public Verify — recorded storage protection (live PostgreSQL 16, real HTTP) > a recorded COMPLIANCE lock still in force is RECORDED, not verified 175ms
+     → expected { immutable: true, …(5) } to match object { verified: false, …(3) }
+   × public Verify — recorded storage protection (live PostgreSQL 16, real HTTP) > a recorded lock whose retain-until has passed is expired and not immutable 66ms
+     → expected { immutable: true, …(5) } to match object { verified: false, …(3) }
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+-- web
+ℹ pass 0
+ℹ fail 3

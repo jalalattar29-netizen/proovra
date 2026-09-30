@@ -93,7 +93,8 @@ export default function BasicVerificationView({ data }: { data: BasicVerificatio
   const o = data.original;
   const originalDetail =
     o.state === "verified"
-      ? "The signed fingerprint matches the recorded digest, the signature is valid, and the custody chain is intact."
+      ? // ET-PKG-06 — name what was checked: PROOVRA's records, not the stored bytes.
+        "PROOVRA's signed fingerprint matches the digest recorded at finalization, the signature over it is valid, and the recorded custody chain is intact. These checks are made over PROOVRA's records; the stored original is not re-read on this page — compare the SHA-256 below with your own copy."
       : o.state === "failed"
         ? "At least one integrity check did not pass."
         : "The integrity checks could not all be performed.";

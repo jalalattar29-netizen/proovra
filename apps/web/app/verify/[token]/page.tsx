@@ -409,6 +409,29 @@ function buildStoragePresentation(
   const mode = (storage?.mode ?? "").trim().toUpperCase();
   const immutable = storage?.immutable === true;
   const verified = storage?.verified === true;
+  const recorded = storage?.source === "RECORDED";
+
+  // ET-PKG-06 — a lock whose retain-until has passed no longer protects.
+  if (storage?.expired === true) {
+    return {
+      badgeLabel: "Retention Expired",
+      badgeTone: "warning",
+      detailLabel: "Storage Protection",
+      detailText:
+        "An Object Lock retention was recorded for this evidence, but its retain-until date has passed, so it no longer prevents the stored object from being altered or deleted.",
+    };
+  }
+
+  // ET-PKG-06 — what the record says, not a check of the stored object.
+  if (immutable && mode === "COMPLIANCE" && recorded) {
+    return {
+      badgeLabel: "Immutable Storage Recorded",
+      badgeTone: "info",
+      detailLabel: "Storage Protection",
+      detailText:
+        "Object Lock COMPLIANCE retention was recorded for this evidence when it was sealed, until the date shown. This page does not re-check the stored object.",
+    };
+  }
 
   if (immutable && mode === "COMPLIANCE") {
     return {
@@ -1536,7 +1559,9 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     input.custodyChainValid === true,
     input.timestampDigestMatches === true,
     input.otsHashMatches === true,
-    input.storageVerified === true || input.immutableStorage === true,
+    // ET-PKG-06 — only a lock OBSERVED on the stored object is a passed
+    // signal; a recorded snapshot is not.
+    input.storageVerified === true,
   ].filter(Boolean).length;
 
   const knownSignals = [
@@ -3311,6 +3336,8 @@ setFullCustodyTimeline(fullTimeline);
       legalHold: storage?.legalHold ?? null,
       region: storage?.region ?? null,
       verified: normalizeBool(storage?.verified),
+      source: storage?.source ?? null,
+      expired: normalizeBool(storage?.expired),
     });
 
     setOverview(effectiveOverview);

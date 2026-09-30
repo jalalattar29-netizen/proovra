@@ -136,6 +136,9 @@ export type VerifyStorageProtection = {
   legalHold?: string | null;
   region?: string | null;
   verified?: boolean | null;
+  /** ET-PKG-06 — RECORDED at sealing, or OBSERVED on the stored object. */
+  source?: "RECORDED" | "OBSERVED" | null;
+  expired?: boolean | null;
 } | null;
 
 export type VerifyTsa = {
@@ -306,6 +309,8 @@ export type StorageProtection = {
   legalHold: string | null;
   region: string | null;
   verified: boolean | null;
+  source?: "RECORDED" | "OBSERVED" | null;
+  expired?: boolean | null;
 };
 
 export type OtsDetails = {

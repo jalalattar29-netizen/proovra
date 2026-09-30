@@ -1135,13 +1135,32 @@ type SelectedEvidence = prismaPkg.Prisma.EvidenceGetPayload<{
 }>;
 
 type StorageProtectionSummary = {
+  /** COMPLIANCE retention whose retain-until is still in the future. */
   immutable: boolean;
   mode: string | null;
   retainUntil: string | null;
   legalHold: string | null;
   region: string | null;
+  /**
+   * ET-PKG-06 — true only when the lock was OBSERVED on the stored object
+   * (a HEAD). A value copied onto the row when the record was sealed is
+   * RECORDED, not verified.
+   */
   verified: boolean;
+  source: "RECORDED" | "OBSERVED";
+  /** The retain-until date has passed: the protection it described has ended. */
+  expired: boolean;
 } | null;
+
+/** ET-PKG-06 — a lock protects only until its retain-until date. */
+function retentionState(mode: string | null, retainUntil: string | null, now: Date = new Date()) {
+  const until = retainUntil ? Date.parse(retainUntil) : NaN;
+  const inForce = Number.isFinite(until) && until > now.getTime();
+  return {
+    immutable: mode === "COMPLIANCE" && inForce,
+    expired: Number.isFinite(until) && !inForce,
+  };
+}
 
 type AnchorStatusSummary = {
   mode: "off" | "ready" | "active";
@@ -2368,13 +2387,17 @@ async function getStorageProtectionSummary(
       : process.env.S3_REGION?.trim() || null;
 
   if (snapshotMode || snapshotRetainUntil || snapshotLegalHold) {
+    // ET-PKG-06 — the row's snapshot is what was RECORDED at sealing; it is
+    // not a check of the stored object (verified: false), and it protects
+    // only until its retain-until date.
     return {
-      immutable: snapshotMode === "COMPLIANCE" && Boolean(snapshotRetainUntil),
+      ...retentionState(snapshotMode, snapshotRetainUntil),
       mode: snapshotMode,
       retainUntil: snapshotRetainUntil,
       legalHold: snapshotLegalHold,
       region: snapshotRegion,
-      verified: true,
+      verified: false,
+      source: "RECORDED",
     };
   }
 
@@ -2390,15 +2413,14 @@ async function getStorageProtectionSummary(
     const legalHold = meta.objectLockLegalHoldStatus
       ? String(meta.objectLockLegalHoldStatus)
       : null;
-    const immutable = mode === "COMPLIANCE" && Boolean(retainUntil);
-
     return {
-      immutable,
+      ...retentionState(mode, retainUntil),
       mode,
       retainUntil,
       legalHold,
       region: process.env.S3_REGION?.trim() || null,
       verified: Boolean(mode || retainUntil || legalHold),
+      source: "OBSERVED",
     };
   } catch {
     return {
@@ -2408,6 +2430,8 @@ async function getStorageProtectionSummary(
       legalHold: null,
       region: process.env.S3_REGION?.trim() || null,
       verified: false,
+      source: "OBSERVED",
+      expired: false,
     };
   }
 }
@@ -2430,13 +2454,15 @@ function getStorageProtectionSummaryFromSnapshot(snapshot: {
 
   if (!mode && !retainUntil && !legalHold) return null;
 
+  // ET-PKG-06 — a snapshot is RECORDED, never a verification of the object.
   return {
-    immutable: mode === "COMPLIANCE" && Boolean(retainUntil),
+    ...retentionState(mode, retainUntil),
     mode,
     retainUntil,
     legalHold,
     region,
-    verified: Boolean(mode || retainUntil || legalHold),
+    verified: false,
+    source: "RECORDED",
   };
 }
 
