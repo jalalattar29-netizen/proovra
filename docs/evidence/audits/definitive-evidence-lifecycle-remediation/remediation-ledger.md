@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 128 |
+| FIXED_IN_THIS_TASK | 138 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 25 |
+| STILL_PRESENT | 15 |
 
-Open by severity: P0 0 · P1 0 · P2 18 · P3 7
+Open by severity: P0 0 · P1 0 · P2 12 · P3 3
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -43,10 +43,10 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 | ET-SEC-07 | P1 | FIXED_IN_THIS_TASK | relationship-summary.service sameRelationshipWorkspace (same Team, or same owner for a personal record): enforced in createEvidenceRelationship, applied as a scope filter in listEvidenceRelationships | 86ce81e64b | services/api/test/evidence-relationship-scope.integration.test.ts; bounded-domain-errors / runtime-proof relationship suites |
 | ET-TSA-01 | P1 | FIXED_IN_THIS_TASK | services/api/src/services/timestamp/validate-tsa-token.ts validateTsaToken (openssl ts -verify -queryfile -CAfile <env anchor> -attime genTime + accepted policy); presentedTsaStatus (packages/shared) is the one read-side reading | d263f4f61f | services/api/test/tsa-token-validation.test.ts (13 cases); services/api/test/tsa-finalize-persistence.integration.test.ts (trusted STAMPED+validated, forged FAILED); services/api/test/public-verify-tsa-missing-imprint.integration.test.ts (validated -> verified, legacy -> TOKEN_RECORDED_NOT_VALIDATED); packages/shared/tests/verification-claim-consistency.test.mjs |
 | ET-TSA-03 | P1 | FIXED_IN_THIS_TASK | TimestampResult.messageImprint = parsed token imprint; requestDigestHex = digest sent; compareTimestampDigest only answers for a presented (validated) STAMPED | d263f4f61f | services/api/test/tsa-token-validation.test.ts; services/api/test/tsa-finalize-persistence.integration.test.ts [token imprint beside request digest]; services/api/test/public-verify-tsa-missing-imprint.integration.test.ts [legacy token: timestampDigestMatches null]; phase-ia-digest-policy.test.ts [ET-TSA-03] |
-| ET-ACQ-01 | P2 | STILL_PRESENT |  |  |  |
+| ET-ACQ-01 | P2 | FIXED_IN_THIS_TASK | evidence.service assertInteractiveEvidenceCreateAllowed — the canonical evaluateMemberAccess(evidence.create) before anything is written (direct capture already used authorizeOrFail(evidence.create)) | e00a9de744, fe287e2f80 | services/api/test/evidence-create-authorization.integration.test.ts |
 | ET-ACQ-02 | P2 | FIXED_IN_THIS_TASK | @proovra/shared-runtime evidence-reservation: EVIDENCE_RESERVATION_TTL_MS, countedEvidenceRecordWhere (counting), expiredEvidenceReservationWhere + releaseEvidenceReservationTx (release); the Worker capture sweep releaseExpiredReservations | bb658920ff, cb0b0bde37 | services/api/test/reservation-sweep.integration.test.ts (abandoned web reservation released + object delete requested; fresh / signed / live-session-held untouched); intake-lifecycle-remediation.integration.test.ts (counting); services/api/test/reservation-authority.test.ts (structural guard) |
-| ET-ACQ-03 | P2 | STILL_PRESENT |  |  |  |
-| ET-ACQ-04 | P2 | STILL_PRESENT |  |  |  |
+| ET-ACQ-03 | P2 | FIXED_IN_THIS_TASK | evidence-complete runCompletionFanoutOnce — a durable claim (evidence.completion_fanout_claimed_at_utc lease + _done_at_utc) reached by the first finalize and any retry; migrations 20280812000000 (EXPAND) and 20280812000001 (BACKFILL) | edfbbfb0b1 | services/api/test/completion-fanout-once.integration.test.ts |
+| ET-ACQ-04 | P2 | FIXED_IN_THIS_TASK | evidence-complete prehashCompletionObjects (HEAD sum -> 413 before any GET; hash outside the transaction) + digestOf (a pre-computed digest reused only when bound to the exact bucket/key/version/ETag/size the in-transaction HEAD describes); the in-transaction multipart path refuses the HEAD total before any read. The presigned PUT's Content-Length is not signed: completion is the authority, so an oversize object can be stored but never sealed. | ef6abab1ff | services/api/test/completion-size-and-prehash.integration.test.ts |
 | ET-COM-02 | P2 | STILL_PRESENT |  |  |  |
 | ET-COM-03 | P2 | STILL_PRESENT |  |  |  |
 | ET-COM-04 | P2 | STILL_PRESENT |  |  |  |
@@ -63,13 +63,13 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 | ET-DC-04 | P2 | STILL_PRESENT |  |  |  |
 | ET-DC-05 | P2 | FIXED_IN_THIS_TASK | capture-reaper releaseExpiredReservations (session claim under the capture-session lock) + releaseEvidenceReservationTx(CAPTURE_SESSION_EXPIRED) | cb0b0bde37 | services/api/test/reservation-sweep.integration.test.ts [ET-DC-05: session EXPIRED, reservation released with CAPTURE_SESSION_EXPIRED] |
 | ET-DC-06 | P2 | FIXED_IN_THIS_TASK | direct-capture-ingest extendDirectCaptureSessionOnActivity: expiry slides to now + 1h on each accepted reservation/declaration, capped at startedAt + MAX_SESSION_LIFETIME_SECONDS (24h) | cb0b0bde37 | services/api/test/direct-capture-session-sliding-expiry.integration.test.ts (slides; capped at the lifetime; a silent session still expires) |
-| ET-DC-07 | P2 | STILL_PRESENT |  |  |  |
-| ET-DC-08 | P2 | STILL_PRESENT |  |  |  |
-| ET-DC-09 | P2 | STILL_PRESENT |  |  |  |
+| ET-DC-07 | P2 | FIXED_IN_THIS_TASK | createEvidence({ transaction }) writes the record in the caller's transaction and returns afterCommit; the reserve runs it after its commit | f616c41e26 | services/api/test/direct-capture-reserve-atomic.integration.test.ts |
+| ET-DC-08 | P2 | FIXED_IN_THIS_TASK | stageScreenCapture / beginContinuousSession take the active workspace from the one platform-context reader, as /capture does | fe287e2f80 | apps/mobile/test/screen-capture-workspace.test.mjs |
+| ET-DC-09 | P2 | FIXED_IN_THIS_TASK | shared validateScreenContinuousManifest (timings, gaps, overlap, window, platform, completeness vs termination) + server size check against stored objects; continuousEndReasonFor / captureSessionAcquisitionComplete carry completeness past the seal to the worker | 4362781c8b | packages/shared/tests/screen-continuous-manifest.test.mjs; services/api/test/uc3-continuous-capture.integration.test.ts |
 | ET-INT-06 | P2 | FIXED_IN_THIS_TASK | workflow-intake-session assertIntakeClientAllowed via the route's validateIntakeTokenFromClient (every public call); submitExternalIntake byte cap; isValidIpAllowlistEntry at creation | 4431cb0f44, 84b9c10423 | services/api/test/intake-link-restrictions.integration.test.ts |
-| ET-INT-07 | P2 | FIXED_IN_THIS_TASK | services/intake/intake-link-mint-gate.ts intakeLinkMintRefusal — the one plan + governance gate for every workspace mint (request send, request-more, POST /v1/workflow/intake-links) | 352bc9954f | services/api/test/intake-link-mint-gate.integration.test.ts |
+| ET-INT-07 | P2 | FIXED_IN_THIS_TASK | services/intake/intake-link-mint-gate.ts intakeLinkMintRefusal — the one plan + governance gate for every workspace mint (request send, request-more, POST /v1/workflow/intake-links) | 352bc9954f, edfbbfb0b1 | services/api/test/intake-link-mint-gate.integration.test.ts |
 | ET-INT-08 | P2 | FIXED_IN_THIS_TASK | evidence-request.service transitionEvidenceRequest -> revokeRequestIntakeLinksTx (bound link + every request-more follow-up, same transaction) | 22a969a812 | services/api/test/intake-link-mint-gate.integration.test.ts [ET-INT-08] |
-| ET-INT-09 | P2 | FIXED_IN_THIS_TASK | reserveIntakeLinkUse / releaseIntakeLinkUse (conditional used_count < max_uses); createOrLoadExternalEvidence conditional session claim + releaseEvidenceReservationTx(INTAKE_SESSION_RACE_LOST); writeEvidencePart maxPartCount under the record lock | a6bab4697e | services/api/test/intake-concurrency.integration.test.ts |
+| ET-INT-09 | P2 | FIXED_IN_THIS_TASK | reserveIntakeLinkUse / releaseIntakeLinkUse (conditional used_count < max_uses); createOrLoadExternalEvidence conditional session claim + releaseEvidenceReservationTx(INTAKE_SESSION_RACE_LOST); writeEvidencePart maxPartCount under the record lock | a6bab4697e, 0fee486237 | services/api/test/intake-concurrency.integration.test.ts |
 | ET-INT-10 | P2 | FIXED_IN_THIS_TASK | integrations-api.routes integrationActorAndIntakeGate (credential's createdByUserId + assertWorkspaceAllowsIntake); sendIntegrationDomainError (bounded 4xx codes only) | d3f31f99a8, 84b9c10423 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-INT-10: attributed to the creator; FREE -> 409 INTAKE_NOT_INCLUDED; no credential id as user] |
 | ET-INT-11 | P2 | FIXED_IN_THIS_TASK | workflow-intake-session recordIntakeConsent: server time, termsAcknowledged required, the link's disclosure hash and policy version, one-shot conditional claim | 2f696feae2 | services/api/test/intake-consent-server-truth.integration.test.ts |
 | ET-INT-12 | P2 | FIXED_IN_THIS_TASK | shared INTAKE_SUBMITTED_BY_LABEL (report, custody summarizer isIntake branch, Verify overview) | fc931d470c | services/api/test/intake-verify-attribution.integration.test.ts |
@@ -121,14 +121,14 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 | ET-UPL-02 | P2 | FIXED_IN_THIS_TASK | upload-session.service: evaluateUploadSessionFinalizeGate (abandoned sessions skipped, superseded FAILED skipped, abandoned-only = applies:false); createUploadSession releases a terminal session's key; abortUploadSession limited to the session actor or record owner | 68235bdaa4, 0f49532af2 | services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02]; services/api/test/phase-30-11-unified-evidence-model.test.ts; services/api/test/phase-30-7-finalize-gate.test.ts |
 | ET-UPL-04 | P2 | FIXED_IN_THIS_TASK | services/api/scripts/lib/local-seed-guard.ts — the one refusal (name AND host) every seeder runs before its first write | 29a64fa112 | services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host |
 | ET-ACQ-05 | P3 | STILL_PRESENT |  |  |  |
-| ET-ACQ-06 | P3 | STILL_PRESENT |  |  |  |
-| ET-ACQ-07 | P3 | STILL_PRESENT |  |  |  |
+| ET-ACQ-06 | P3 | FIXED_IN_THIS_TASK | createEvidence takes lockEvidenceCapacitySubject (the completion settlement lock) in the insert transaction and re-makes assertWorkspaceAllowsEvidenceCreation under it | 0fee486237 | services/api/test/evidence-cap-admission-serialized.integration.test.ts |
+| ET-ACQ-07 | P3 | FIXED_IN_THIS_TASK | evidence-part-writer MAX_EVIDENCE_PARTS (the one bound; indexes are unique so it bounds the count; direct capture reads it too) + per-user presign rate limit | ac74edf0b5 | services/api/test/evidence-parts-bounds.integration.test.ts |
 | ET-COM-06 | P3 | STILL_PRESENT |  |  |  |
 | ET-CUS-12 | P3 | FIXED_IN_THIS_TASK | @proovra/shared REDACTION_CUSTODY_MATERIAL_CODES; emitRedactionActivity + reviewer-audit append REDACTION_RECORDED / REVIEW_DECISION_RECORDED in their transaction | 60cc9d95b0, fef4f4a8a0 | services/api/test/redaction-review-custody.integration.test.ts |
 | ET-CUS-13 | P3 | FIXED_IN_THIS_TASK | @proovra/shared custody-labels custodyEventLabel (report, web); RETENTION_POLICY_APPLIED; evidence.routes latestForDisplay + whole-chain counts (review-workspace and public verify) | 426b9bcbd3, 67664498f5, fef4f4a8a0, 0ec7406c30, 1078664675 | services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code) |
 | ET-CUS-14 | P3 | FIXED_IN_THIS_TASK | platform-audit-log appendPlatformAuditLog liftRequestContextFromMetadata (every row: address/UA to the masked columns; correlationId fills requestId); tenant/platform envelopes carry ipAddress/userAgent/requestId | d03bdd5b64, fef4f4a8a0, 98f95a99dc | services/api/test/audit-request-context-columns.integration.test.ts (route-driven row and facade row; chain verifies); phase5-audit-identity-contract.integration.test.ts |
-| ET-DC-10 | P3 | STILL_PRESENT |  |  |  |
-| ET-DC-11 | P3 | STILL_PRESENT |  |  |  |
+| ET-DC-10 | P3 | FIXED_IN_THIS_TASK | trust-event.service emitCaptureTrustEvent: sorted advisory locks on every chain the event belongs to; partial unique indexes (migration 20280813000000) as the backstop | 387924aa81 | services/api/test/capture-trust-chain-concurrency.integration.test.ts |
+| ET-DC-11 | P3 | FIXED_IN_THIS_TASK | req.user.tokenScope + extensionMayPresignPart; evaluateMemberAccess(evidence.create) on the draft route; manifest classed before completeDirectCapture | 0fb5c3b957 | services/api/test/capture-scope-and-draft-authority.integration.test.ts |
 | ET-INT-15 | P3 | FIXED_IN_THIS_TASK | external-intake route capture environment on the part's record; evidence.service intake UPLOAD_AUTHORIZED meaning | 1078664675 | services/api/test/intake-link-restrictions.integration.test.ts [ET-INT-15] |
 | ET-OTS-05 | P3 | FIXED_IN_THIS_TASK | createOpenTimestamp always returns PENDING; the upgrade ladder's classifier alone establishes an anchor | 84c612665b | services/worker/test/ots-initialization-truth.test.ts; services/worker/test/ots-upgrade-output.test.ts |
 | ET-OTS-06 | P3 | FIXED_IN_THIS_TASK | ots-upgrade.processor: hash-matching attested proof -> ANCHOR_PROVEN PROOF_STRUCTURE; getOtsProofInfo.deterministic + OTS_UNREADABLE_PROOF_STRIKES (3, counted from custody OTS_ATTEMPT_ERROR) -> MALFORMED_PROOF | 424e934ea9 | services/worker/test/ots-upgrade-processor.behaviour.test.ts |
@@ -160,7 +160,7 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 | ET-SEC-28 | P3 | FIXED_IN_THIS_TASK | billing-enforcement lockEvidenceCapacitySubject taken before assertWorkspaceAllowsStorageGrowth inside the finalize transaction | 13385d3d7d | services/api/test/storage-capacity-concurrent-finalize.integration.test.ts |
 | ET-SEC-29 | P3 | FIXED_IN_THIS_TASK | worker processor package commit: conditional updateMany (NULL or <= this version) | 0827d8b73b | services/api/test/point5/report-package-recovery.integration.test.ts [pointer stays 2] |
 | ET-SEC-30 | P3 | FIXED_IN_THIS_TASK | report-generation-authority: ResolvedReportCommand.claimedAtUtc is the fence; markRequestRetryable/markRequestTerminal(fence) and claimFenceWhere for the in-run stage writes (ReportClaimLost rolls back) | 0827d8b73b | services/api/test/phase-12-point5-report-authority.integration.test.ts [21b] |
-| ET-SEC-31 | P3 | FIXED_IN_THIS_TASK | uniform 404: assertCaseAccess over resolveCaseRecordAccess; capture loadOwnedDraft; /public/verify/:id not-finalized branch (audit keeps the real outcome); case attach via authorizeCaseEvidenceLink | fe72f1d2f3 | services/api/test/existence-oracles-uniform-404.integration.test.ts |
+| ET-SEC-31 | P3 | FIXED_IN_THIS_TASK | uniform 404: assertCaseAccess over resolveCaseRecordAccess; capture loadOwnedDraft; /public/verify/:id not-finalized branch (audit keeps the real outcome); case attach via authorizeCaseEvidenceLink | fe72f1d2f3, e00a9de744 | services/api/test/existence-oracles-uniform-404.integration.test.ts |
 | ET-SEC-32 | P3 | FIXED_IN_THIS_TASK | evidence.routes annotationPartBelongsToEvidence — the one part-ownership check for annotation create and edit | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32] |
 | ET-SEC-33 | P3 | FIXED_IN_THIS_TASK | createWorkflowIntakeLink and createEvidenceRequest refuse ids outside the workspace (404, like a missing row) | 6b8141879d, d4b17bb727, 1078664675 | services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33] |
 | ET-SEC-34 | P3 | FIXED_IN_THIS_TASK | legal-hold.service (canonical hold queries always tenant-anchored) | 9d7aa0ed67 | services/api/test/legal-hold-tenant-spread-guard.test.ts [ET-SEC-34: no symbol anywhere in src; no optional tenant spread] |
@@ -560,6 +560,20 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **productFiles:** `apps/mobile/src/product/evidence-technical-appendix.ts`, `apps/mobile/src/product/public-verify.ts`, `apps/mobile/src/ui/basic-verification-view.tsx`, `apps/web/app/(app)/evidence/[id]/_tabs/technical-appendix/sections-model.ts`, `apps/web/app/verify/[token]/BasicVerificationView.tsx`, `apps/web/components/verify-v2/_helpers.ts`, `packages/shared/src/basic-verification.ts`, `packages/shared/src/index.ts`, `packages/shared/src/tsa-validation-state.ts`, `services/api/prisma/migrations/20280802000000_evidence_tsa_validation/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/scripts/repair-tsa-failed-with-token.ts`, `services/api/src/services/ai/evidence-analysis-snapshot.service.ts`, `services/api/src/services/cases/matter-workspace.service.ts`, `services/api/src/services/dashboard/integrity-snapshot.service.ts`, `services/api/src/services/dashboard/trust-summary.service.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/timestamp.service.ts`, `services/api/src/services/timestamp/kept-token-validation.ts`, `services/api/src/services/timestamp/parse-tsa-reply.ts`, `services/api/src/services/timestamp/validate-tsa-token.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/technical-model.ts`, `services/worker/src/report-v2/truth-model.ts`, `services/worker/src/verification-package.ts`
 - **commits:** d263f4f61f fix(timestamp): RFC 3161 tokens are validated before STAMPED; imprint read from the token
 
+## ET-ACQ-01 — POST /v1/evidence authorizes by membership status only, so VIEWERs, members with expired access and members of SUSPENDED orgs can create workspace Evidence
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** POST /v1/evidence authorized a workspace capture by any ACTIVE membership row: VIEWERs, expired members and members of suspended organizations created workspace Evidence.
+- **canonicalAuthority:** evidence.service assertInteractiveEvidenceCreateAllowed — the canonical evaluateMemberAccess(evidence.create) before anything is written (direct capture already used authorizeOrFail(evidence.create))
+- **redTest:** services/api/test/evidence-create-authorization.integration.test.ts (evidence/ET-ACQ-01-red-baseline.txt)
+- **greenTest:** services/api/test/evidence-create-authorization.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/app/(stack)/continuous-capture.tsx`, `apps/mobile/app/(stack)/screen-capture.tsx`, `apps/mobile/src/continuous-capture.ts`, `apps/mobile/src/screen-capture.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence.service.ts`
+- **commits:** e00a9de744 fix(evidence): an interactive capture into a workspace takes the canonical evidence.create decision (ET-ACQ-01); fe287e2f80 fix(mobile): screen captures open their session in the active workspace (ET-DC-08)
+
 ## ET-ACQ-02 — Interrupted web captures leave Evidence in UPLOADING permanently; these rows count against record caps and are never reaped
 
 - **severity:** P2
@@ -575,6 +589,37 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared-runtime/src/custody/custody-chain.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `packages/shared-runtime/src/index.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/custody-events.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`, `services/worker/src/capture-reaper.ts`, `services/worker/src/custody-events.ts`, `services/worker/src/index.ts`
 - **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire; cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)
+
+## ET-ACQ-03 — Malware scan, the evidence.completed webhook and finalization fanout fire once after commit; a retention or lock-snapshot failure or a crash skips them permanently
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The evidence.completed webhook, malware scan and finalization fan-out ran after the commit and only on the first finalize; a failure after the commit skipped them permanently because the retry returned early.
+- **canonicalAuthority:** evidence-complete runCompletionFanoutOnce — a durable claim (evidence.completion_fanout_claimed_at_utc lease + _done_at_utc) reached by the first finalize and any retry; migrations 20280812000000 (EXPAND) and 20280812000001 (BACKFILL)
+- **obsoleteRemoved:** the alreadyFinalized early return before the fan-out
+- **redTest:** services/api/test/completion-fanout-once.integration.test.ts (evidence/ET-ACQ-03-red-baseline.txt)
+- **greenTest:** services/api/test/completion-fanout-once.integration.test.ts
+- **concurrencyTest:** services/api/test/completion-fanout-once.integration.test.ts [concurrent retries run it exactly once; a lapsed lease is re-driven]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/prisma/migrations/20280812000000_evidence_completion_fanout_marker/migration.sql`, `services/api/prisma/migrations/20280812000001_evidence_completion_fanout_backfill/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/intake/intake-link-mint-gate.ts`
+- **commits:** edfbbfb0b1 fix(evidence): the one-time completion fan-out is claimed durably and survives a failure after the finalize commit (ET-ACQ-03)
+
+## ET-ACQ-04 — The size limit is checked only after every part has been streamed and hashed inside a 120s interactive DB transaction, and the presigned PUT does not limit Content-Length
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Every part was downloaded and hashed inside the 120 s transaction before the total was compared with MAX_EVIDENCE_SIZE.
+- **canonicalAuthority:** evidence-complete prehashCompletionObjects (HEAD sum -> 413 before any GET; hash outside the transaction) + digestOf (a pre-computed digest reused only when bound to the exact bucket/key/version/ETag/size the in-transaction HEAD describes); the in-transaction multipart path refuses the HEAD total before any read. The presigned PUT's Content-Length is not signed: completion is the authority, so an oversize object can be stored but never sealed.
+- **obsoleteRemoved:** the late post-hash multipart size check
+- **redTest:** services/api/test/completion-size-and-prehash.integration.test.ts (evidence/ET-ACQ-04-red-baseline.txt)
+- **greenTest:** services/api/test/completion-size-and-prehash.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/evidence-complete.service.ts`
+- **commits:** ef6abab1ff fix(evidence): completion refuses an oversize upload before reading a byte and hashes outside the transaction (ET-ACQ-04)
 
 ## ET-CUS-02 — Chain-of-custody transfers never write a custody event: the event type does not exist in the enum and the failure is swallowed
 
@@ -749,6 +794,48 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **productFiles:** `packages/shared-runtime/src/custody/custody-chain.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `packages/shared-runtime/src/index.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/custody-events.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/workspace-usage.service.ts`, `services/worker/src/capture-reaper.ts`, `services/worker/src/custody-events.ts`, `services/worker/src/index.ts`
 - **commits:** cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)
 
+## ET-DC-07 — reserveDirectCaptureEvidence runs createEvidence on the global client inside an outer transaction, so a failed reserve leaves an unbound committed Evidence row and a retry mints a second
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** reserveDirectCaptureEvidence ran createEvidence on the global client inside its own transaction, so a failed reserve left an unbound committed record and the retry minted a second.
+- **canonicalAuthority:** createEvidence({ transaction }) writes the record in the caller's transaction and returns afterCommit; the reserve runs it after its commit
+- **redTest:** services/api/test/direct-capture-reserve-atomic.integration.test.ts (evidence/ET-DC-07-red-baseline.txt)
+- **greenTest:** services/api/test/direct-capture-reserve-atomic.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/evidence.service.ts`
+- **commits:** f616c41e26 fix(capture): a direct-capture record is written in the reserve's transaction, atomic with its session binding (ET-DC-07)
+
+## ET-DC-08 — UC-2/UC-3/UC-5 screen captures always open in the personal workspace (no teamId), misfiling team work and refusing managed identities
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** UC-2/UC-3/UC-5 opened their direct-capture session with no teamId, so every screen capture was filed in the personal workspace.
+- **canonicalAuthority:** stageScreenCapture / beginContinuousSession take the active workspace from the one platform-context reader, as /capture does
+- **redTest:** apps/mobile/test/screen-capture-workspace.test.mjs (evidence/ET-DC-08-red-baseline.txt)
+- **greenTest:** apps/mobile/test/screen-capture-workspace.test.mjs
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `apps/mobile/app/(stack)/continuous-capture.tsx`, `apps/mobile/app/(stack)/screen-capture.tsx`, `apps/mobile/src/continuous-capture.ts`, `apps/mobile/src/screen-capture.ts`
+- **commits:** fe287e2f80 fix(mobile): screen captures open their session in the active workspace (ET-DC-08)
+
+## ET-DC-09 — Continuous-capture continuity/completeness is client-asserted; the only downstream completeness check reads session status, which is always BOUND for sealed records
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Continuous-capture continuity was client-asserted beyond shape and sequence contiguity, and downstream completeness read a session status that is BOUND for every sealed record.
+- **canonicalAuthority:** shared validateScreenContinuousManifest (timings, gaps, overlap, window, platform, completeness vs termination) + server size check against stored objects; continuousEndReasonFor / captureSessionAcquisitionComplete carry completeness past the seal to the worker
+- **redTest:** packages/shared/tests/screen-continuous-manifest.test.mjs + services/api/test/uc3-continuous-capture.integration.test.ts [ET-DC-09] (evidence/ET-DC-09-red-baseline.txt)
+- **greenTest:** packages/shared/tests/screen-continuous-manifest.test.mjs; services/api/test/uc3-continuous-capture.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/screen-continuous-manifest.ts`, `services/api/src/services/capture-trust/continuous-capture.service.ts`, `services/worker/src/screen-intelligence.handler.ts`
+- **commits:** 4362781c8b fix(capture): continuous-capture continuity is checked against the server's facts, and completeness travels past the seal (ET-DC-09)
+
 ## ET-INT-06 — maxBytesPerSession and ipAllowlistCidrs are stored but never enforced
 
 - **severity:** P2
@@ -775,8 +862,8 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `services/api/src/routes/evidence-requests.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/intake/intake-link-mint-gate.ts`
-- **commits:** 352bc9954f fix(intake): every workspace intake-link mint passes one plan + governance gate; request-more refuses a terminal request (ET-INT-07)
+- **productFiles:** `services/api/prisma/migrations/20280812000000_evidence_completion_fanout_marker/migration.sql`, `services/api/prisma/migrations/20280812000001_evidence_completion_fanout_backfill/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/src/routes/evidence-requests.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/evidence-complete.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/intake/intake-link-mint-gate.ts`
+- **commits:** 352bc9954f fix(intake): every workspace intake-link mint passes one plan + governance gate; request-more refuses a terminal request (ET-INT-07); edfbbfb0b1 fix(evidence): the one-time completion fan-out is claimed durably and survives a failure after the finalize commit (ET-ACQ-03)
 
 ## ET-INT-08 — Cancelling/closing an evidence request does not revoke its link; submissions keep finalizing and attach responses to the cancelled request
 
@@ -805,8 +892,8 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workflow-intake-session.service.ts`
-- **commits:** a6bab4697e fix(intake): one-time links, per-session records and the file cap are decided by conditional writes, not check-then-write (ET-INT-09)
+- **productFiles:** `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/evidence.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workflow-intake-session.service.ts`
+- **commits:** a6bab4697e fix(intake): one-time links, per-session records and the file cap are decided by conditional writes, not check-then-write (ET-INT-09); 0fee486237 fix(billing): record-cap admission is serialized per capacity subject (ET-ACQ-06)
 
 ## ET-INT-10 — Integrations-API intake-link and evidence-request routes pass an API-credential id as a User id
 
@@ -1406,6 +1493,35 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **productFiles:** `services/api/scripts/lib/local-seed-guard.ts`, `services/api/scripts/seed-admin-fixture.ts`, `services/api/scripts/seed-home-personas.ts`
 - **commits:** 29a64fa112 fix(scripts): every seeder refuses a non-local database by name AND host before its first write (ET-UPL-04)
 
+## ET-ACQ-06 — The record-cap count is read without a lock, and SHARED workspaces are not re-checked at completion
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The record-cap count was read with no lock before the insert, so concurrent creates at cap-1 were all admitted, and SHARED workspaces were never settled again.
+- **canonicalAuthority:** createEvidence takes lockEvidenceCapacitySubject (the completion settlement lock) in the insert transaction and re-makes assertWorkspaceAllowsEvidenceCreation under it
+- **redTest:** services/api/test/evidence-cap-admission-serialized.integration.test.ts (evidence/ET-ACQ-06-red-baseline.txt)
+- **greenTest:** services/api/test/evidence-cap-admission-serialized.integration.test.ts
+- **concurrencyTest:** services/api/test/evidence-cap-admission-serialized.integration.test.ts [5 concurrent creates at cap-1 -> exactly 1, SHARED TEAM and FREE Personal]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/evidence.service.ts`
+- **commits:** 0fee486237 fix(billing): record-cap admission is serialized per capacity subject (ET-ACQ-06)
+
+## ET-ACQ-07 — POST /v1/evidence/:id/parts has no upper bound on partIndex, no cap on part count, and no rate limit
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** POST /v1/evidence/:id/parts had no upper bound on partIndex, no cap on part count and no rate limit.
+- **canonicalAuthority:** evidence-part-writer MAX_EVIDENCE_PARTS (the one bound; indexes are unique so it bounds the count; direct capture reads it too) + per-user presign rate limit
+- **redTest:** services/api/test/evidence-parts-bounds.integration.test.ts (evidence/ET-ACQ-07-red-baseline.txt)
+- **greenTest:** services/api/test/evidence-parts-bounds.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`
+- **commits:** ac74edf0b5 fix(evidence): a record's parts are bounded and part presigning is rate limited (ET-ACQ-07)
+
 ## ET-CUS-12 — Redaction publication and derivatives, and reviewer workflow decisions, never reach the evidence custody chain; they live in unhashed, mutable side tables
 
 - **severity:** P3
@@ -1449,6 +1565,36 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/scripts/capability-authority/tenant-binding.mjs`, `services/api/src/routes/admin-security.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/audit/tenant-audit.service.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/platform-audit-log.service.ts`
 - **commits:** d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14); fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated; 98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07)
+
+## ET-DC-10 — Capture trust-event sub-chain read-then-insert with no lock and no unique (session, sequence) — concurrent declarations fork the chain
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** The capture trust-event sub-chain was extended by an unlocked read of its head and an insert, with no unique (chain, sequence), so concurrent declarations forked it.
+- **canonicalAuthority:** trust-event.service emitCaptureTrustEvent: sorted advisory locks on every chain the event belongs to; partial unique indexes (migration 20280813000000) as the backstop
+- **redTest:** services/api/test/capture-trust-chain-concurrency.integration.test.ts (evidence/ET-DC-10-red-baseline.txt)
+- **greenTest:** services/api/test/capture-trust-chain-concurrency.integration.test.ts
+- **concurrencyTest:** services/api/test/capture-trust-chain-concurrency.integration.test.ts [8 concurrent events -> distinct consecutive linked sequences]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/prisma/migrations/20280813000000_capture_trust_event_chain_unique/migration.sql`, `services/api/src/services/capture-trust/trust-event.service.ts`
+- **commits:** 387924aa81 fix(capture): the capture trust-event sub-chain is extended under a lock and backed by a unique (chain, sequence) (ET-DC-10)
+
+## ET-DC-11 — CAPTURE_MANIFEST relabel happens after the seal outside the signed fingerprint; extension token can presign parts on any owned unsealed evidence; draft route uses a hand-rolled membership check; dead device-identity code
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Low-risk capture gaps: an extension token could presign parts on any owned unsealed record; the draft route used a bare membership check; the manifest part was relabelled after the seal; an uncalled device lookup.
+- **canonicalAuthority:** req.user.tokenScope + extensionMayPresignPart; evaluateMemberAccess(evidence.create) on the draft route; manifest classed before completeDirectCapture
+- **obsoleteRemoved:** device-identity findDeviceByPubkey; the post-seal CAPTURE_MANIFEST relabel
+- **redTest:** services/api/test/capture-scope-and-draft-authority.integration.test.ts (evidence/ET-DC-11-red-baseline.txt)
+- **greenTest:** services/api/test/capture-scope-and-draft-authority.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/middleware/auth.ts`, `services/api/src/routes/capture.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/auth/extension-scope.ts`, `services/api/src/services/capture-trust/continuous-capture.service.ts`, `services/api/src/services/capture-trust/device-identity.service.ts`, `services/api/src/types/fastify.d.ts`
+- **commits:** 0fb5c3b957 fix(capture): extension presign scoped to its own capture; draft takes the canonical decision; manifest classed before the seal; dead lookup removed (ET-DC-11)
 
 ## ET-INT-15 — Intake P3s: dead first-part capture-environment write, false magic-byte comment, UPLOAD_AUTHORIZED for an original URL never issued, swallowed LINK_USED/CONSENT custody failures, unvalidated caseId/evidenceId, stale citizen-capture comment
 
@@ -1889,8 +2035,8 @@ Open by severity: P0 0 · P1 0 · P2 18 · P3 7
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared/src/user-facing-errors.ts`, `services/api/src/routes/capture.routes.ts`, `services/api/src/routes/evidence.routes.ts`
-- **commits:** fe72f1d2f3 fix(security): a resource the caller may not see answers exactly as a missing one (ET-SEC-31)
+- **productFiles:** `apps/web/lib/feedback/error-code-registry.ts`, `packages/shared/src/user-facing-errors.ts`, `services/api/src/routes/capture.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence.service.ts`
+- **commits:** fe72f1d2f3 fix(security): a resource the caller may not see answers exactly as a missing one (ET-SEC-31); e00a9de744 fix(evidence): an interactive capture into a workspace takes the canonical evidence.create decision (ET-ACQ-01)
 
 ## ET-SEC-32 — Annotation PATCH accepts any evidencePartId (no ownership check, unlike POST)
 

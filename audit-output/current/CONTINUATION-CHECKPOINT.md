@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1311
-ROUTE_ATTRIBUTED_REACHABLE                  1170
+TerminalWriters                             1314
+ROUTE_ATTRIBUTED_REACHABLE                  1173
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -633,3 +633,20 @@ node services/api/scripts/audit/index.mjs --closure-check
   became conditional `updateMany` calls (swaps). The link-use reservation is
   raw SQL (`reserveIntakeLinkUse` / `releaseIntakeLinkUse`).
 - TerminalWriters 1310 -> 1311, ROUTE_ATTRIBUTED_REACHABLE 1169 -> 1170.
+
+### 2026-09-30 — EVIDENCE-LIFECYCLE REMEDIATION B14–B16: AUTHORIZATION, ACQUISITION, DIRECT CAPTURE (writers 1311 -> 1314)
+
+- B14 (SEC-21/22/23/35) and B15 (SEC-14/15/16/31) moved no writer bucket.
+- ET-ACQ-03: `runCompletionFanoutOnce` claims and completes the one-time
+  completion fan-out with two conditional `evidence.updateMany` writes (two
+  writers under one key, +2, route-attributed through completion).
+- ET-DC-07: `createEvidence`'s record writes moved into `writeRecord`, which
+  runs in the caller's transaction or its own (`evidence.create`,
+  `evidence.update` re-keyed from `createEvidence` to `writeRecord`; net 0).
+- ET-DC-09: `completeContinuousCaptureSession` records the manifest's
+  completeness on the sealed session (`captureSession.update`, +1,
+  route-attributed).
+- ET-ACQ-06, ET-DC-10 and ET-DC-11 add locks, reads and a pre-seal reorder;
+  no writer.
+- TerminalWriters 1311 -> 1314, ROUTE_ATTRIBUTED_REACHABLE 1170 -> 1173.
+  JOB_ATTRIBUTED_REACHABLE and STARTUP_OR_SCHEDULED unchanged.
