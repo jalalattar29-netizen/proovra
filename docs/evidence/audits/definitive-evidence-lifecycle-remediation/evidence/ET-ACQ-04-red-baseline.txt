@@ -1,0 +1,11 @@
+ET-ACQ-04 red baseline — services/api/test/completion-size-and-prehash.integration.test.ts
+Run against HEAD edfbbfb0's services/api/src/services/evidence-complete.service.ts, live PostgreSQL 16 + versioned in-memory store double, 2026-09-30T03:13Z.
+Oversize: both parts were read (GETs) before the 413. Pre-hash case: HEAD had no pre-transaction read. The in-limit case is the control.
+
+   × completion size gate and pre-hash (live PostgreSQL 16) > an oversize multipart upload is refused 413 without a single GET, and nothing is sealed 99ms
+     → expected [ …(2) ] to deeply equal []
+   ✓ completion size gate and pre-hash (live PostgreSQL 16) > an upload within the limit completes, each part read exactly once (hashed before the transaction) 140ms
+   × completion size gate and pre-hash (live PostgreSQL 16) > a part replaced after it was pre-hashed is re-read at the version the transaction records 91ms
+     → expected [ Array(1) ] to deeply equal [ …(2) ]
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 1 passed (3)

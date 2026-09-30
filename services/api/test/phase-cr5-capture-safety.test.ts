@@ -340,7 +340,8 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23637;
 // Rebaselined 2026-09-29: 60,529 -> 60,968 — ET-SM-03: retention targets and the lock snapshot address the sealed version
 // Rebaselined 2026-09-30: 60,968 -> 61,257 — ET-SEC-28: the storage check runs under the workspace capacity lock
 // Rebaselined 2026-09-30: 61,257 -> 63,476 — ET-ACQ-03: the one-time completion fan-out is claimed durably and re-driven on a retry
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 63476;
+// Rebaselined 2026-09-30: 63,476 -> 67,985 — ET-ACQ-04: oversize is refused from HEAD sizes before any GET; digests are computed before the transaction
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 67985;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

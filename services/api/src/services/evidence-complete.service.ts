@@ -475,6 +475,96 @@ function buildFingerprint(params: {
   };
 }
 
+/**
+ * ET-ACQ-04 — a pre-computed digest is bound to the exact object it was read
+ * from: bucket, key, version, ETag and size. An object with neither a version
+ * nor an ETag cannot be bound and is never pre-hashed.
+ */
+function prehashBinding(
+  bucket: string,
+  key: string,
+  meta: { versionId?: string | null; etag?: string | null; sizeBytes?: number | null },
+): string | null {
+  if (!meta.versionId && !meta.etag) return null;
+  return JSON.stringify([bucket, key, meta.versionId ?? null, meta.etag ?? null, meta.sizeBytes ?? null]);
+}
+
+/**
+ * The digest of the object a HEAD inside the transaction just described:
+ * the pre-computed one when it was read from exactly that object, otherwise
+ * streamed and hashed here (a part replaced since the pre-hash, a store that
+ * reports no version or ETag).
+ */
+async function digestOf(
+  prehashed: ReadonlyMap<string, string>,
+  bucket: string,
+  key: string,
+  meta: { versionId?: string | null; etag?: string | null; sizeBytes?: number | null },
+): Promise<string> {
+  const binding = prehashBinding(bucket, key, meta);
+  const known = binding ? prehashed.get(binding) : undefined;
+  if (known) return known;
+  const body = await safeGetStream(bucket, key, meta.versionId ?? null);
+  return sha256HexFromStream(body as unknown as Readable);
+}
+
+/**
+ * ET-ACQ-04 — THE pre-transaction phase of completion. For a record that can
+ * still be completed: HEAD every object, refuse an oversize total with 413
+ * before any GET, then read and hash each object OUTSIDE the interactive
+ * transaction (which ran hashing, signing and the TSA call inside a 120 s
+ * window). Anything it cannot establish is left to the transaction, which
+ * gives the canonical answer (a missing object, a finalized record, an
+ * unauthorized caller): this phase only ever saves work or refuses oversize.
+ */
+async function prehashCompletionObjects(input: {
+  evidenceId: string;
+  ownerUserId: string;
+}): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const evidence = await prisma.evidence.findFirst({
+    where: { id: input.evidenceId, ownerUserId: input.ownerUserId, deletedAt: null },
+    select: { status: true, storageBucket: true, storageKey: true },
+  });
+  if (!evidence) return out;
+  if (
+    evidence.status === EvidenceStatus.SIGNED ||
+    evidence.status === EvidenceStatus.REPORTED ||
+    evidence.status === EvidenceStatus.FAILED_HASH_MISMATCH
+  ) {
+    return out;
+  }
+  const parts = await prisma.evidencePart.findMany({
+    where: { evidenceId: input.evidenceId },
+    orderBy: { partIndex: "asc" },
+    select: { storageBucket: true, storageKey: true },
+  });
+  const objects =
+    parts.length > 0
+      ? parts.map((p) => ({ bucket: clean(p.storageBucket), key: clean(p.storageKey) }))
+      : [{ bucket: clean(evidence.storageBucket), key: clean(evidence.storageKey) }];
+  const heads: Array<{ bucket: string; key: string; meta: Awaited<ReturnType<typeof safeHead>> }> = [];
+  for (const o of objects) {
+    if (!o.bucket || !o.key) return out;
+    try {
+      heads.push({ bucket: o.bucket, key: o.key, meta: await safeHead(o.bucket, o.key) });
+    } catch {
+      return out;
+    }
+  }
+  if (heads.reduce((sum, h) => sum + (h.meta.sizeBytes ?? 0), 0) > readMaxEvidenceSizeBytes()) {
+    const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), { statusCode: 413 });
+    throw err;
+  }
+  for (const h of heads) {
+    const binding = prehashBinding(h.bucket, h.key, h.meta);
+    if (!binding || !h.meta.sizeBytes || h.meta.sizeBytes <= 0) continue;
+    const body = await safeGetStream(h.bucket, h.key, h.meta.versionId ?? null);
+    out.set(binding, await sha256HexFromStream(body as unknown as Readable));
+  }
+  return out;
+}
+
 export async function completeEvidence(params: {
   evidenceId: string;
   ownerUserId: string;
@@ -486,6 +576,15 @@ export async function completeEvidence(params: {
   captureSession?: CaptureSessionCompletion;
 }): Promise<CompleteEvidenceReturn> {
   const signer = getEvidenceSigner();
+
+  // ET-ACQ-04 — size and digests are established BEFORE the interactive
+  // transaction: an oversize upload is refused from its HEAD sizes before a
+  // single byte is read, and the bytes are hashed outside the 120 s window
+  // (bound to the exact object version, re-checked inside).
+  const prehashed = await prehashCompletionObjects({
+    evidenceId: params.evidenceId,
+    ownerUserId: params.ownerUserId,
+  });
 
   const final = await prisma.$transaction(
     async (tx): Promise<CompleteEvidenceTransactionResult> => {
@@ -761,6 +860,16 @@ export async function completeEvidence(params: {
       if (parts.length > 0) {
         const updatedParts: ProcessedPart[] = [];
 
+        // ET-ACQ-04 — every part's HEAD first, and the total refused before
+        // any part is read (it was compared only after every part had been
+        // downloaded and hashed).
+        const heads: Array<{
+          part: (typeof parts)[number];
+          bucket: string;
+          key: string;
+          meta: Awaited<ReturnType<typeof safeHead>>;
+          size: number;
+        }> = [];
         for (const part of parts) {
           const bucket = clean(part.storageBucket);
           const key = clean(part.storageKey);
@@ -782,9 +891,17 @@ export async function completeEvidence(params: {
             });
             throw err;
           }
+          heads.push({ part, bucket, key, meta, size });
+        }
+        if (heads.reduce((sum, h) => sum + h.size, 0) > readMaxEvidenceSizeBytes()) {
+          const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
+            statusCode: 413,
+          });
+          throw err;
+        }
 
-          const body = await safeGetStream(bucket, key, meta.versionId);
-          const sha256 = await sha256HexFromStream(body as unknown as Readable);
+        for (const { part, bucket, key, meta, size } of heads) {
+          const sha256 = await digestOf(prehashed, bucket, key, meta);
 
           sizeBytesNum += size;
 
@@ -837,14 +954,6 @@ export async function completeEvidence(params: {
               throw captureCompletionError("CAPTURE_DIGEST_MISMATCH");
             }
           }
-        }
-
-        const maxBytes = readMaxEvidenceSizeBytes();
-        if (sizeBytesNum > maxBytes) {
-          const err: HttpError = Object.assign(new Error("EVIDENCE_TOO_LARGE"), {
-            statusCode: 413,
-          });
-          throw err;
         }
 
         primaryBucket = updatedParts[0].bucket;
@@ -976,8 +1085,7 @@ const fingerprint = buildFingerprint({
         });
 
         primaryVersionId = meta.versionId ?? null;
-        const body = await safeGetStream(bucket, key, primaryVersionId);
-        fileSha256 = await sha256HexFromStream(body as unknown as Readable);
+        fileSha256 = await digestOf(prehashed, bucket, key, meta);
 
         const fingerprint = buildFingerprint({
           evidence: {
