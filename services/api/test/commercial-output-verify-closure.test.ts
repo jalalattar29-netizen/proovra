@@ -745,19 +745,18 @@ describe("P2-2 — a record's commercial subject is its workspace, never the rea
     expect(route).toMatch(/resolveEvidenceOutputEligibilityByRecord\(/);
     expect(route).not.toMatch(/ownerUserId:\s*userId,\s*teamId:\s*null/);
     /*
-     * The subject travels with the row on BOTH evidence select branches — the
-     * primary one, and the no-`deleted_at` fallback which is what a deployment
-     * lacking that column actually runs.
+     * The subject travels with the row on the evidence select. ET-SEC-18
+     * deleted the no-`deleted_at` fallback branch (it dropped the deletedAt and
+     * lifecycle filters), so there is exactly ONE evidence select now.
      *
-     * Asserted PER BRANCH rather than by counting occurrences: the route also
-     * selects `ownerUserId` for the personal-team lookup that builds its access
-     * clause, so a whole-file count is three and proves nothing about either
-     * select.
+     * Asserted on the select itself rather than by counting occurrences: the
+     * route also selects `ownerUserId` for the personal-team lookup that builds
+     * its access clause, so a whole-file count proves nothing about the select.
      */
     const selects = [
       ...route.matchAll(/select:\s*\{[\s\S]*?createdAt:\s*true,\s*\},/g),
     ];
-    expect(selects.length, "both evidence selects must be found").toBe(2);
+    expect(selects.length, "exactly one evidence select (the fallback is gone)").toBe(1);
     for (const select of selects) {
       expect(select[0]).toMatch(/ownerUserId:\s*true/);
       expect(select[0]).toMatch(/teamId:\s*true/);
