@@ -10879,6 +10879,43 @@ if (
         });
       }
 
+      // ---- ET-SEC-14: the workspace output policy, as at first issuance ----
+      // Review-before-report, report/package download switches and the
+      // template overlay govern a regeneration too; a refusal creates no
+      // request, job, version or object.
+      const { evaluateOutputRegenerationGovernance } = await import(
+        "../services/governance/finalization-governance.service.js"
+      );
+      const governance = await evaluateOutputRegenerationGovernance({
+        evidenceId: id,
+        actorUserId: userId,
+      });
+      if (!governance.allowed) {
+        auditEvidenceAction(req, {
+          userId,
+          action: "evidence.report.regenerate_requested",
+          outcome: "blocked",
+          resourceId: id,
+          severity: "warning",
+          teamId: evidenceRecord.teamId ?? null,
+          metadata: {
+            reason: "governance_policy",
+            governedAction: governance.action,
+            policyCode: governance.code,
+            policyReason: governance.reason,
+            requestedIntent: intent ?? null,
+          },
+        });
+        return reply.code(governance.statusCode).send({
+          code: governance.code,
+          reason: governance.reason,
+          message:
+            governance.statusCode === 503
+              ? "The workspace policy for this record could not be checked. Try again shortly."
+              : "This workspace's policy does not allow generating this record's report or verification package now.",
+        });
+      }
+
       // ---- D6: rate and concurrency limits --------------------------------
       const isNewVersion = intent === "NEW_VERSION";
       // A repeat after a lost response is answered from the first request and
