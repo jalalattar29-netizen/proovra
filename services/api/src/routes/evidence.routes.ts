@@ -89,6 +89,7 @@ import {
   boundedOtsFailureCode,
   OTS_FAILURE_CODE_LABELS,
   INTAKE_SUBMITTED_BY_LABEL,
+  PACKAGE_FORMAT_VERSION_SEALED,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -719,7 +720,35 @@ type PublicVerificationPackageIntegrity = {
   auditExportIncluded: boolean;
   custodyExportIncluded: boolean;
   accessExportIncluded: boolean;
+  /**
+   * ET-PKG-05 — the package's format and whether it is SEALED: format 5 with
+   * the seal digest and signing-key fingerprint recorded. The worker refuses
+   * to publish a seal whose signature does not verify, so sealed means a
+   * verified seal; a legacy (format <= 4) package is not sealed. Set by
+   * withPackageSealState for every response.
+   */
+  packageFormatVersion?: number | null;
+  sealed?: boolean;
 };
+
+function withPackageSealState(
+  integrity: PublicVerificationPackageIntegrity,
+  pkg:
+    | { packageFormatVersion: number | null; sealSha256: string | null; sealSigningKeySha256: string | null }
+    | null
+    | undefined,
+): PublicVerificationPackageIntegrity {
+  const packageFormatVersion = pkg?.packageFormatVersion ?? null;
+  return {
+    ...integrity,
+    packageFormatVersion,
+    sealed:
+      integrity.available &&
+      (packageFormatVersion ?? 0) >= PACKAGE_FORMAT_VERSION_SEALED &&
+      Boolean(pkg?.sealSha256) &&
+      Boolean(pkg?.sealSigningKeySha256),
+  };
+}
 
 type VerificationPackageArtifactPresence = {
   manifestPresent: boolean;
@@ -9047,6 +9076,9 @@ return {
               storageBucket: true,
               storageKey: true,
               trustDecisionSnapshot: true,
+              packageFormatVersion: true,
+              sealSha256: true,
+              sealSigningKeySha256: true,
             },
           }),
           primaryCaseIdOf(evidence)
@@ -9234,6 +9266,8 @@ return {
             accessExportIncluded: false,
           };
         }
+
+        verificationPackageIntegrity = withPackageSealState(verificationPackageIntegrity, latestVerificationPackage);
 
         const reportPreviewMap = new Map<
           string,
@@ -12920,6 +12954,9 @@ const latestVerificationPackage = await prisma.verificationPackage.findFirst({
     storageBucket: true,
     storageKey: true,
     trustDecisionSnapshot: true,
+    packageFormatVersion: true,
+    sealSha256: true,
+    sealSigningKeySha256: true,
   },
 });
 
@@ -13658,6 +13695,8 @@ const trustDecisionConsistency = buildTrustDecisionConsistency({
   currentForensicEvents: forensicCustodyEvents.length,
   accessEventsAfterSnapshot: accessEventsAfterReportGeneration.length,
 });
+
+verificationPackageIntegrity = withPackageSealState(verificationPackageIntegrity, latestVerificationPackage);
 
 const { verificationSnapshot, liveAnchoring } =
   buildPublicVerifyConsistencySections({

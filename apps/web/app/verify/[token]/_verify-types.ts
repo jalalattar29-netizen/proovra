@@ -440,6 +440,9 @@ export type VerificationPackageIntegrity = {
   auditExportIncluded: boolean;
   custodyExportIncluded: boolean;
   accessExportIncluded: boolean;
+  /** ET-PKG-05 — format 5 with a verified seal; a legacy package is not sealed. */
+  packageFormatVersion?: number | null;
+  sealed?: boolean;
 };
 
 // PHASE 12 — VerifyLifecycleTransparency REMOVED: the /public/verify/:id/lifecycle

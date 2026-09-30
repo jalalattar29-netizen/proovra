@@ -506,6 +506,9 @@ function buildVerificationPackageIntegrity(params: {
 
     accessExportIncluded:
       server?.accessExportIncluded === true || params.accessEventCount > 0,
+
+    packageFormatVersion: server?.packageFormatVersion ?? null,
+    sealed: server?.sealed === true,
   };
 }
 
@@ -2272,8 +2275,13 @@ function VerificationPackageIntegrityCard({
 }: {
   integrity: VerificationPackageIntegrity;
 }) {
+  // ET-PKG-05 — "complete" is a SEALED package (format 5, its seal verified
+  // when it was built) that carries every integrity artifact. File names alone
+  // gave an unsealed legacy package the same success badge.
+  const unsealed = integrity.available && integrity.sealed !== true;
   const complete =
     integrity.available &&
+    integrity.sealed === true &&
     integrity.manifestPresent &&
     integrity.signedManifestPresent &&
     integrity.checksumIndexPresent &&
@@ -2281,9 +2289,11 @@ function VerificationPackageIntegrityCard({
 
   const decisionLabel = complete
     ? "Package Integrity Complete"
-    : integrity.available
-      ? "Package Integrity Partial"
-      : "Package Not Generated";
+    : unsealed
+      ? "Legacy Package — Not Sealed"
+      : integrity.available
+        ? "Package Integrity Partial"
+        : "Package Not Generated";
 
   const decisionTone = complete
     ? "success"
@@ -2293,8 +2303,10 @@ function VerificationPackageIntegrityCard({
 
   const decisionText = complete
     ? "The verification package includes the complete integrity materials for independent review."
-: integrity.available
-? "A verification package version exists, but this public response has not confirmed every package artifact."
+    : unsealed
+      ? "This package predates sealed packages: its contents are not bound by a signed seal, so it is not presented as independently verifiable."
+      : integrity.available
+        ? "A verification package version exists, but this public response has not confirmed every package artifact."
         : "No generated verification package was exposed in this verification response.";
 
   const rows = [
@@ -2419,7 +2431,7 @@ function VerificationPackageIntegrityCard({
           }}
         >
           <Badge
-            label={complete ? "Independent Review Enabled" : integrity.available ? "Partial Package" : "Unavailable"}
+            label={complete ? "Independent Review Enabled" : unsealed ? "Not Sealed" : integrity.available ? "Partial Package" : "Unavailable"}
             tone={decisionTone}
           />
 
@@ -2465,7 +2477,10 @@ function VerificationPackageIntegrityCard({
           */}
           {complete
             ? "The exported forensic bundle supports independent verification of package contents, checksums, manifest integrity, custody export, and audit/access materials with standard tooling."
-            : "No downloadable package is available for this record, and its integrity assessment does not depend on one. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling."}
+            : integrity.available
+              ? // ET-PKG-05 — a package EXISTS here; the absent-package sentence said it did not.
+                "A package exists for this record, but it is not confirmed here as a complete sealed set, so the record's integrity assessment does not rest on it. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling."
+              : "No downloadable package is available for this record, and its integrity assessment does not depend on one. The fingerprint, signature, timestamp, anchoring and custody materials are published on this page and can each be checked independently with standard tooling."}
         </div>
 
         {integrity.generatedAtUtc ? (

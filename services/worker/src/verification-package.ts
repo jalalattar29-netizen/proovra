@@ -3,7 +3,7 @@ import path from "node:path";
 // Phase 4B — lifecycle + exchange manifests integration.
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
 void buildLifecycleAndExchangeManifests; // tree-shake guard
-import { createHash, createPublicKey } from "node:crypto";
+import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1113,6 +1113,30 @@ class ExpectedDigestStream extends Transform {
  * deliberately not recorded in `packageEntries`, because they seal the index
  * built from it — an index that listed its own seal would be circular.
  */
+/**
+ * ET-PKG-05 — the seal's signature must verify with the key the package ships
+ * before the seal is written; otherwise the build fails and nothing is
+ * published. Ed25519 over the 32 raw bytes of SHA-256(package-seal.json).
+ */
+export function assertSealSignatureVerifies(input: {
+  sealSha256: string;
+  signatureBase64: string;
+  publicKeyPem: string;
+}): void {
+  let ok = false;
+  try {
+    ok = verifySignature(
+      null,
+      Buffer.from(input.sealSha256, "hex"),
+      createPublicKey(input.publicKeyPem),
+      Buffer.from(input.signatureBase64, "base64"),
+    );
+  } catch {
+    ok = false;
+  }
+  if (!ok) throw new Error("PACKAGE_SEAL_SIGNATURE_DOES_NOT_VERIFY");
+}
+
 function appendSealEntries(
   archive: archiver.Archiver,
   sealBytes: Buffer,
@@ -3702,6 +3726,16 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         signatureInput:
           "Ed25519 signature over the 32 raw bytes of SHA-256(package-seal.json bytes)",
       };
+      // ET-PKG-05 — a package is never published with a seal its own verifier
+      // would refuse: the signature over the seal digest is checked with the
+      // key the package ships before the seal is written. A package the
+      // registry records as sealed (format 5, seal digest, key fingerprint)
+      // therefore carries a seal that verifies.
+      assertSealSignatureVerifies({
+        sealSha256,
+        signatureBase64: signature.signatureBase64,
+        publicKeyPem: signature.publicKeyPem,
+      });
       // Not listed in the index they seal; the verifier knows these two names.
       appendSealEntries(archive, sealBytes, jsonBuffer(sealSignature));
       sealResult = {
