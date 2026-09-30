@@ -2660,8 +2660,9 @@ export async function createVerificationPackage(data: {
   // Phase 32.6.6 — personal BASIC mode + team GOVERNED mode.
   //
   //   PERSONAL BASIC: evidence with no team context (teamId is null /
-  //     missing). No team governance policy to consult, so we do NOT
-  //     run the package-eligibility gate. The package still requires
+  //     missing). No team governance POLICY to consult — but the
+  //     package-eligibility gate still runs (ET-PKG-08: lifecycle, pending
+  //     destruction and immutable drift are not team concepts). The package still requires
   //     `evidenceId` so it can anchor a real record. The archive
   //     includes the same forensic primitives (manifest, evidence,
   //     custody, signatures, TSA, OTS, downstream tooling) but the
@@ -2690,12 +2691,27 @@ export async function createVerificationPackage(data: {
       ? "team_governed"
       : "personal_basic";
 
-  if (packageMode === "team_governed") {
+  // ET-PKG-08 — THE eligibility gate runs for EVERY package. It was run only
+  // for team_governed packages, so a Personal record — and any record whose
+  // workspace row was not loaded (isPersonalTeam null) — skipped the
+  // lifecycle, pending-destruction and immutable-drift checks, none of which
+  // is a team concept. A workspace whose kind could not be resolved is denied
+  // (fail closed); a legacy Personal record with no workspace row is gated by
+  // its own row. Plan/product limits are still enforced separately by
+  // `assertWorkspaceAllowsVerificationPackageArtifact` after the build.
+  if (data.teamId && data.isPersonalTeam !== true && data.isPersonalTeam !== false) {
+    throw new PackageGateDeniedError(
+      "GOVERNANCE_STATE_UNAVAILABLE",
+      "workspace_kind_unresolved",
+      "Package generation is paused: the record's workspace could not be resolved.",
+    );
+  }
+  {
     const { assertPackageEligibleOrDeny } = await import(
       "./governance/package-eligibility-gate.js"
     );
     const gateDecision = await assertPackageEligibleOrDeny({
-      teamId: data.teamId as string,
+      teamId: (data.teamId as string | null | undefined) ?? null,
       evidenceId: data.evidenceId,
       triggerSource: "createVerificationPackage",
     });
@@ -2707,12 +2723,6 @@ export async function createVerificationPackage(data: {
       );
     }
   }
-  // Personal-basic skips the gate above — there is no team governance
-  // context to evaluate. Access checks still happen upstream (the API
-  // route's `getEvidenceWithReadAccess` confirms the caller owns the
-  // evidence). Plan/product limits are still enforced separately by
-  // `assertWorkspaceAllowsVerificationPackageArtifact` after the
-  // package is built.
 
   // STREAMING OUTPUT SINK (UC-3 streaming closure): the archive is piped through a
   // hashing/byte-counting meter into a PRIVATE TEMP FILE — never accumulated as one

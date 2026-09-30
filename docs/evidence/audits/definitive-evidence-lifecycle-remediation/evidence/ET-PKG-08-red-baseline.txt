@@ -1,0 +1,12 @@
+ET-PKG-08 red baseline — services/worker/test/package-gate-every-package.test.ts
+Run against HEAD c1e75d06's verification-package.ts and package-eligibility-gate.ts, 2026-09-30T04:37Z. Personal and unresolved-workspace records skipped the gate and went on to build; the team path (control) was gated.
+
+   × the package eligibility gate runs for every package (ET-PKG-08) > a Personal workspace record is gated 8ms
+     → expected Error: Verification package requires at l… to be an instance of PackageGateDeniedError
+   × the package eligibility gate runs for every package (ET-PKG-08) > a legacy Personal record with no workspace row is gated by its own row 1ms
+     → expected Error: Verification package requires at l… to be an instance of PackageGateDeniedError
+   × the package eligibility gate runs for every package (ET-PKG-08) > a workspace whose kind was not resolved is denied without building (fail closed) 3ms
+     → expected Error: Verification package requires at l… to match object { …(2) }
+   ✓ the package eligibility gate runs for every package (ET-PKG-08) > a team workspace record is gated, as before 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed | 1 passed (4)

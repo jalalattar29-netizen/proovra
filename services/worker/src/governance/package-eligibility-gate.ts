@@ -76,7 +76,11 @@ export type WorkerPackageGateDecision =
     };
 
 export type AssertPackageEligibleInput = {
-  teamId: string;
+  /**
+   * The record's workspace; null for a legacy Personal record with no
+   * workspace row (ET-PKG-08: it is gated too, by its own row).
+   */
+  teamId: string | null;
   evidenceId: string;
   /** Optional caller context for the audit + incident records. */
   triggeredByUserId?: string | null;
