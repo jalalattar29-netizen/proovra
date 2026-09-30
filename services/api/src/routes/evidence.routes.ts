@@ -82,6 +82,7 @@ import {
   TSA_RECORDED_NOT_VALIDATED_LABEL,
   boundedOtsFailureCode,
   OTS_FAILURE_CODE_LABELS,
+  INTAKE_SUBMITTED_BY_LABEL,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -1869,6 +1870,8 @@ function summarizePublicPayload(
   context?: {
     itemCount?: number | null;
     structure?: "single" | "multipart" | null;
+    /** ET-INT-12 — the record came in through a secure intake link. */
+    isIntake?: boolean;
   }
 ): string | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -2068,6 +2071,11 @@ anchorHash ? `Anchor: ${anchorHash}` : null,
     }
 
     case prismaPkg.CustodyEventType.IDENTITY_SNAPSHOT_RECORDED: {
+      // ET-INT-12 — on an intake record the snapshot's account is the link's
+      // CREATOR; it is never presented as the submitter's identity.
+      if (context?.isIntake) {
+        return `Identity snapshot recorded • Submitted by: ${INTAKE_SUBMITTED_BY_LABEL}`;
+      }
       const identityLevel = normalizePublicPayloadValue(
         obj.identityLevelSnapshot
       );
@@ -4096,6 +4104,7 @@ function buildPublicVerifyOverview(params: {
 
   const reportVersion =
     params.latestReport?.version ?? params.evidence.latestReportVersion ?? null;
+  const isIntakeRecord = resolveEvidenceAcquisition(params.evidence).mode === "SECURE_INTAKE_LINK";
 
   return {
     recordStatus: mapRecordStatusLabel(params.evidence.status),
@@ -4146,18 +4155,24 @@ primaryContentLabel: buildPrimaryContentLabel(
     // callers (evidence detail, reviewer surfaces) the field is still
     // resolved via the same maskPublicEmail helper, which keeps the
     // 1-character + domain mask for low-trust internal display.
-    submittedByEmail: params.evidence.submittedByEmail
-      ? maskPublicEmail(params.evidence.submittedByEmail)
-      : null,
-    submittedByAuthProvider: mapAuthProviderLabel(
-      params.evidence.submittedByAuthProvider
-    ),
+    // ET-INT-12 — a secure-intake record's submitter is a ROLE (the same one
+    // the report and package print); the account on the row is the link's
+    // creator, whose email, provider and identity level are not the
+    // submitter's and are never presented as such.
+    submittedByEmail: isIntakeRecord
+      ? null
+      : params.evidence.submittedByEmail
+        ? maskPublicEmail(params.evidence.submittedByEmail)
+        : null,
+    submittedByAuthProvider: isIntakeRecord
+      ? INTAKE_SUBMITTED_BY_LABEL
+      : mapAuthProviderLabel(params.evidence.submittedByAuthProvider),
     // Phase 1 — `submittedByAuthProviderCode` (raw enum like "GOOGLE"
     // / "APPLE" / "GUEST" / "EMAIL_PASSWORD") was a fingerprint-able
     // leak on top of the label. The label-only is sufficient public
     // signal. Removed from the response shape.
-    identityLevel: mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
-    identityLevelCode: params.evidence.identityLevelSnapshot ?? null,
+    identityLevel: isIntakeRecord ? null : mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
+    identityLevelCode: isIntakeRecord ? null : params.evidence.identityLevelSnapshot ?? null,
     workspaceName: params.evidence.workspaceNameSnapshot ?? null,
     organizationName: params.evidence.organizationNameSnapshot ?? null,
     organizationVerified: params.evidence.organizationVerifiedSnapshot ?? null,
@@ -4421,6 +4436,7 @@ function mapPublicCustodyEvent(ev: {
 }, context?: {
   itemCount?: number | null;
   structure?: "single" | "multipart" | null;
+  isIntake?: boolean;
 }): PublicVerifyTimelineEvent {
   return {
     sequence: ev.sequence,
@@ -9428,6 +9444,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         const custodyDisplayContext = {
           itemCount: content.summary.itemCount,
           structure: content.summary.structure,
+          isIntake: resolveEvidenceAcquisition(evidence).mode === "SECURE_INTAKE_LINK",
         } as const;
 
         const mappedForensicEvents = latestForDisplay(forensicCustodyEvents).map((event) =>
@@ -13378,6 +13395,7 @@ const overallIntegrity =
     const custodyDisplayContext = {
       itemCount: content.summary.itemCount,
       structure: content.summary.structure,
+      isIntake: resolveEvidenceAcquisition(evidence).mode === "SECURE_INTAKE_LINK",
     } as const;
 
     const mappedForensicEvents = latestForDisplay(forensicCustodyEvents).map((event) =>

@@ -406,6 +406,15 @@ export function resolveEvidenceAcquisition(input: {
   };
 }
 
+/**
+ * ET-INT-12 — THE "submitted by" attribution of a secure-intake record, on
+ * every surface (report, package, public Verify). It is a ROLE: the workspace
+ * account on the record is the link's creator, not the person who submitted,
+ * so that account's email, sign-in provider and identity level are never
+ * presented as the submitter's.
+ */
+export const INTAKE_SUBMITTED_BY_LABEL = "Remote Contributor via Secure Intake Link";
+
 /** Every mode (incl. not-recorded) belonging to a filter category. */
 export function acquisitionModesForCategory(
   category: EvidenceAcquisitionCategory,

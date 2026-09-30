@@ -1,3 +1,4 @@
+import { INTAKE_SUBMITTED_BY_LABEL } from "@proovra/shared";
 import QRCode from "qrcode";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import sharp from "sharp";
@@ -362,7 +363,7 @@ function buildExecutiveRows(
   // the requester/link-creator — NOT the person who captured the evidence.
   // Never imply the workspace owner submitted it; show a contributor role.
   if (isIntake) {
-    add("Submitted By", "Remote Contributor via Secure Intake Link");
+    add("Submitted By", INTAKE_SUBMITTED_BY_LABEL);
     add("Contributor Identity", acquisition?.identityVerification ?? null);
   } else {
     add(
