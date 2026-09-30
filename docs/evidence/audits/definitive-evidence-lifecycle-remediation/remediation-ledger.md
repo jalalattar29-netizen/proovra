@@ -6,14 +6,14 @@ Baseline: `a40ca76f41f4edcd2c0898a25664ca7c5d7d5bf8` · canonical findings: **15
 
 | disposition | count |
 |---|---|
-| FIXED_IN_THIS_TASK | 110 |
+| FIXED_IN_THIS_TASK | 120 |
 | ALREADY_FIXED_ON_MAIN | 0 |
 | SUPERSEDED_BY_CANONICAL_FIX | 0 |
 | BLOCKED_EXTERNAL_PROOF | 0 |
 | PARTIALLY_FIXED | 0 |
-| STILL_PRESENT | 43 |
+| STILL_PRESENT | 33 |
 
-Open by severity: P0 0 · P1 0 · P2 32 · P3 11
+Open by severity: P0 0 · P1 0 · P2 24 · P3 9
 
 | id | sev | disposition | canonical authority | commits | green test |
 |---|---|---|---|---|---|
@@ -30,7 +30,7 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 | ET-INT-01 | P1 | FIXED_IN_THIS_TASK | SUBMITTED only via /submit (submitExternalIntake -> completeEvidence); /transition is a typed 410 compatibility tombstone | bb658920ff | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-01] |
 | ET-INT-02 | P1 | FIXED_IN_THIS_TASK | writeEvidencePart RETURN_EXISTING for a same-file retry of an unfinished index; submit maps missing objects to PART_NOT_UPLOADED; the intake page retries at the same index | bb658920ff, 3cb681ab88 | services/api/test/intake-part-retry.integration.test.ts |
 | ET-INT-03 | P1 | FIXED_IN_THIS_TASK | countedEvidenceRecordWhere (services/evidence/evidence-record-counting.ts): established records + reservations younger than 24h, used by admission, settlement and all billing meters | bb658920ff, 7c5c69713c | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-03 / ET-ACQ-02] |
-| ET-INT-04 | P1 | FIXED_IN_THIS_TASK | resolveEvidenceRequestIdForIntakeLink (request pointer, else the append-only NEEDS_MORE_INFO event naming the follow-up link) | bb658920ff | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-04] |
+| ET-INT-04 | P1 | FIXED_IN_THIS_TASK | resolveEvidenceRequestIdForIntakeLink (request pointer, else the append-only NEEDS_MORE_INFO event naming the follow-up link) | bb658920ff, 352bc9954f | services/api/test/intake-lifecycle-remediation.integration.test.ts [ET-INT-04] |
 | ET-INT-05 | P1 | FIXED_IN_THIS_TASK | writeEvidencePart with an INTAKE_SESSION principal (the same evidence lock finalize holds) | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-05: the intake principal is refused once the record is signed] |
 | ET-OTS-01 | P1 | FIXED_IN_THIS_TASK | enqueueCanonicalJob (packages/shared/src/queue-integrity/enqueue.ts) with selfJobId at every processor call site | 304d5c2c2a | services/worker/test/ots-followup-selfjobid.test.ts; services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-01 contract] |
 | ET-OTS-02 | P1 | FIXED_IN_THIS_TASK | enqueueCanonicalJob treats the derived id (selfFollowUpJobId) like the base id: joins it only while live, releases it otherwise | 304d5c2c2a | services/api/test/ots-upgrade-ladder.integration.test.ts [ET-OTS-02: 8 of 8 hops]; phase-12-point5-queue-integrity-gate.test.ts ET-OTS-02 unit cases |
@@ -66,14 +66,14 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 | ET-DC-07 | P2 | STILL_PRESENT |  |  |  |
 | ET-DC-08 | P2 | STILL_PRESENT |  |  |  |
 | ET-DC-09 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-06 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-07 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-08 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-09 | P2 | STILL_PRESENT |  |  |  |
+| ET-INT-06 | P2 | FIXED_IN_THIS_TASK | workflow-intake-session assertIntakeClientAllowed via the route's validateIntakeTokenFromClient (every public call); submitExternalIntake byte cap; isValidIpAllowlistEntry at creation | 4431cb0f44 | services/api/test/intake-link-restrictions.integration.test.ts |
+| ET-INT-07 | P2 | FIXED_IN_THIS_TASK | services/intake/intake-link-mint-gate.ts intakeLinkMintRefusal — the one plan + governance gate for every workspace mint (request send, request-more, POST /v1/workflow/intake-links) | 352bc9954f | services/api/test/intake-link-mint-gate.integration.test.ts |
+| ET-INT-08 | P2 | FIXED_IN_THIS_TASK | evidence-request.service transitionEvidenceRequest -> revokeRequestIntakeLinksTx (bound link + every request-more follow-up, same transaction) | 22a969a812 | services/api/test/intake-link-mint-gate.integration.test.ts [ET-INT-08] |
+| ET-INT-09 | P2 | FIXED_IN_THIS_TASK | reserveIntakeLinkUse / releaseIntakeLinkUse (conditional used_count < max_uses); createOrLoadExternalEvidence conditional session claim + releaseEvidenceReservationTx(INTAKE_SESSION_RACE_LOST); writeEvidencePart maxPartCount under the record lock | a6bab4697e | services/api/test/intake-concurrency.integration.test.ts |
 | ET-INT-10 | P2 | FIXED_IN_THIS_TASK | integrations-api.routes integrationActorAndIntakeGate (credential's createdByUserId + assertWorkspaceAllowsIntake); sendIntegrationDomainError (bounded 4xx codes only) | d3f31f99a8 | services/api/test/integrations-api-actor-and-lifecycle.integration.test.ts [ET-INT-10: attributed to the creator; FREE -> 409 INTAKE_NOT_INCLUDED; no credential id as user] |
-| ET-INT-11 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-12 | P2 | STILL_PRESENT |  |  |  |
-| ET-INT-13 | P2 | STILL_PRESENT |  |  |  |
+| ET-INT-11 | P2 | FIXED_IN_THIS_TASK | workflow-intake-session recordIntakeConsent: server time, termsAcknowledged required, the link's disclosure hash and policy version, one-shot conditional claim | 2f696feae2 | services/api/test/intake-consent-server-truth.integration.test.ts |
+| ET-INT-12 | P2 | FIXED_IN_THIS_TASK | shared INTAKE_SUBMITTED_BY_LABEL (report, custody summarizer isIntake branch, Verify overview) | fc931d470c | services/api/test/intake-verify-attribution.integration.test.ts |
+| ET-INT-13 | P2 | FIXED_IN_THIS_TASK | submitExternalIntake idempotent post-commit steps (already-finalized retry path; once-per-session EXTERNAL_INTAKE_SUBMITTED; SUBMITTED transition tolerant); evaluateFinalizationGovernance one event per unchanged refusal | da973780a1 | services/api/test/intake-finalization-governance.integration.test.ts |
 | ET-INT-14 | P2 | FIXED_IN_THIS_TASK | writeEvidencePart refuses a soft-deleted record as not found | 8babf130d1 | services/api/test/evidence-part-writer.integration.test.ts [ET-INT-14: a soft-deleted in-progress record is not found, never reused] |
 | ET-OTS-03 | P2 | FIXED_IN_THIS_TASK | runOtsInitializationReconciler second scan (pendingWithoutProgressWhere + isOtsUpgradeScheduled over both ladder ids): re-schedule once, never a parallel ladder | 304d5c2c2a, 7c5c69713c | services/worker/test/ots-pending-recovery.integration.test.ts (live PostgreSQL + loopback Redis) |
 | ET-OTS-04 | P2 | FIXED_IN_THIS_TASK | worker ots.service throws OtsStampCallFailed into the initializer's retry budget; shared boundedOtsFailureCode / OTS_FAILURE_CODE_LABELS is the only failure value any reader shows | 84c612665b | services/worker/test/ots-initialization-truth.test.ts; services/api/test/ots-failure-reason-bounded.integration.test.ts |
@@ -119,17 +119,17 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 | ET-TSA-05 | P2 | FIXED_IN_THIS_TASK | verification-package README timestamp.tsr section + fileSha256Label state the exact recomputation (per-part lowercase hex in partIndex order joined by '\|', SHA-256) and that it differs from multipartManifestSha256 | d263f4f61f | services/worker unit suite |
 | ET-TSA-06 | P2 | FIXED_IN_THIS_TASK | evidence.tsa_failure_code (bounded TimestampFailureCode) written at finalize and in the TIMESTAMP_* custody payload | d263f4f61f | services/api/test/tsa-finalize-persistence.integration.test.ts [tsa_token_untrusted, tsa_message_imprint_mismatch persisted] |
 | ET-UPL-02 | P2 | FIXED_IN_THIS_TASK | upload-session.service: evaluateUploadSessionFinalizeGate (abandoned sessions skipped, superseded FAILED skipped, abandoned-only = applies:false); createUploadSession releases a terminal session's key; abortUploadSession limited to the session actor or record owner | 68235bdaa4, 0f49532af2 | services/api/test/upload-session-key-and-terminal.integration.test.ts [ET-UPL-02]; services/api/test/phase-30-11-unified-evidence-model.test.ts; services/api/test/phase-30-7-finalize-gate.test.ts |
-| ET-UPL-04 | P2 | STILL_PRESENT |  |  |  |
+| ET-UPL-04 | P2 | FIXED_IN_THIS_TASK | services/api/scripts/lib/local-seed-guard.ts — the one refusal (name AND host) every seeder runs before its first write | 29a64fa112 | services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host |
 | ET-ACQ-05 | P3 | STILL_PRESENT |  |  |  |
 | ET-ACQ-06 | P3 | STILL_PRESENT |  |  |  |
 | ET-ACQ-07 | P3 | STILL_PRESENT |  |  |  |
 | ET-COM-06 | P3 | STILL_PRESENT |  |  |  |
 | ET-CUS-12 | P3 | FIXED_IN_THIS_TASK | @proovra/shared REDACTION_CUSTODY_MATERIAL_CODES; emitRedactionActivity + reviewer-audit append REDACTION_RECORDED / REVIEW_DECISION_RECORDED in their transaction | 60cc9d95b0, fef4f4a8a0 | services/api/test/redaction-review-custody.integration.test.ts |
-| ET-CUS-13 | P3 | FIXED_IN_THIS_TASK | @proovra/shared custody-labels custodyEventLabel (report, web); RETENTION_POLICY_APPLIED; evidence.routes latestForDisplay + whole-chain counts (review-workspace and public verify) | 426b9bcbd3, 67664498f5, fef4f4a8a0, 0ec7406c30 | services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code) |
+| ET-CUS-13 | P3 | FIXED_IN_THIS_TASK | @proovra/shared custody-labels custodyEventLabel (report, web); RETENTION_POLICY_APPLIED; evidence.routes latestForDisplay + whole-chain counts (review-workspace and public verify) | 426b9bcbd3, 67664498f5, fef4f4a8a0, 0ec7406c30, 1078664675 | services/api/test/custody-timeline-latest.integration.test.ts; services/api/test/custody-label-coverage.test.ts (every enum value labelled; no raw code) |
 | ET-CUS-14 | P3 | FIXED_IN_THIS_TASK | platform-audit-log appendPlatformAuditLog liftRequestContextFromMetadata (every row: address/UA to the masked columns; correlationId fills requestId); tenant/platform envelopes carry ipAddress/userAgent/requestId | d03bdd5b64, fef4f4a8a0, 98f95a99dc | services/api/test/audit-request-context-columns.integration.test.ts (route-driven row and facade row; chain verifies); phase5-audit-identity-contract.integration.test.ts |
 | ET-DC-10 | P3 | STILL_PRESENT |  |  |  |
 | ET-DC-11 | P3 | STILL_PRESENT |  |  |  |
-| ET-INT-15 | P3 | STILL_PRESENT |  |  |  |
+| ET-INT-15 | P3 | FIXED_IN_THIS_TASK | external-intake route capture environment on the part's record; evidence.service intake UPLOAD_AUTHORIZED meaning | 1078664675 | services/api/test/intake-link-restrictions.integration.test.ts [ET-INT-15] |
 | ET-OTS-05 | P3 | FIXED_IN_THIS_TASK | createOpenTimestamp always returns PENDING; the upgrade ladder's classifier alone establishes an anchor | 84c612665b | services/worker/test/ots-initialization-truth.test.ts; services/worker/test/ots-upgrade-output.test.ts |
 | ET-OTS-06 | P3 | FIXED_IN_THIS_TASK | ots-upgrade.processor: hash-matching attested proof -> ANCHOR_PROVEN PROOF_STRUCTURE; getOtsProofInfo.deterministic + OTS_UNREADABLE_PROOF_STRIKES (3, counted from custody OTS_ATTEMPT_ERROR) -> MALFORMED_PROOF | 424e934ea9 | services/worker/test/ots-upgrade-processor.behaviour.test.ts |
 | ET-OTS-07 | P3 | FIXED_IN_THIS_TASK | verification-package decideOtsPackageArtifact verificationHint: `ots verify -d <hash in this file>` (the companion hash is the SHA-256 of the stamped bytes) | 4a4affa6b7 | services/worker/test/package-readme-seal-instructions.test.ts [the OTS hint names the digest] |
@@ -162,7 +162,7 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 | ET-SEC-30 | P3 | FIXED_IN_THIS_TASK | report-generation-authority: ResolvedReportCommand.claimedAtUtc is the fence; markRequestRetryable/markRequestTerminal(fence) and claimFenceWhere for the in-run stage writes (ReportClaimLost rolls back) | 0827d8b73b | services/api/test/phase-12-point5-report-authority.integration.test.ts [21b] |
 | ET-SEC-31 | P3 | STILL_PRESENT |  |  |  |
 | ET-SEC-32 | P3 | FIXED_IN_THIS_TASK | evidence.routes annotationPartBelongsToEvidence — the one part-ownership check for annotation create and edit | 9d7aa0ed67 | services/api/test/case-delete-hold-and-annotation-part.integration.test.ts [ET-SEC-32] |
-| ET-SEC-33 | P3 | STILL_PRESENT |  |  |  |
+| ET-SEC-33 | P3 | FIXED_IN_THIS_TASK | createWorkflowIntakeLink and createEvidenceRequest refuse ids outside the workspace (404, like a missing row) | 6b8141879d, d4b17bb727, 1078664675 | services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33] |
 | ET-SEC-34 | P3 | FIXED_IN_THIS_TASK | legal-hold.service (canonical hold queries always tenant-anchored) | 9d7aa0ed67 | services/api/test/legal-hold-tenant-spread-guard.test.ts [ET-SEC-34: no symbol anywhere in src; no optional tenant spread] |
 | ET-SEC-35 | P3 | STILL_PRESENT |  |  |  |
 | ET-TSA-07 | P3 | FIXED_IN_THIS_TASK | classifyTsaSubprocessError reads killed / curl exit code / HTTP status only; credentials in a 0600 curl config (-K) | d263f4f61f | services/api/test/tsa-token-validation.test.ts [ET-TSA-07, credentials absent from the result]; services/api/test/phase-ia-tsa-false-failed.test.ts [credentials never in argv] |
@@ -374,8 +374,8 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 - **migrationImpact:** none
 - **compatibilityImpact:** none
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workspace-usage.service.ts`
-- **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire
+- **productFiles:** `apps/web/app/intake/[token]/page.tsx`, `apps/web/lib/feedback/error-code-registry.ts`, `services/api/scripts/capability-authority/manifests/route-dispositions.json`, `services/api/src/routes/evidence-requests.routes.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/intake/intake-link-mint-gate.ts`, `services/api/src/services/workspace-usage.service.ts`
+- **commits:** bb658920ff fix(intake): no link burned without finalizing; failed uploads recoverable; reservations expire; 352bc9954f fix(intake): every workspace intake-link mint passes one plan + governance gate; request-more refuses a terminal request (ET-INT-07)
 
 ## ET-INT-05 — Parts can be added to an intake record while it is being signed or after it is signed; the worker then includes them
 
@@ -749,6 +749,65 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 - **productFiles:** `packages/shared-runtime/src/custody/custody-chain.ts`, `packages/shared-runtime/src/evidence-destruction/executor.ts`, `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `packages/shared-runtime/src/index.ts`, `services/api/src/services/billing-enforcement.service.ts`, `services/api/src/services/billing/billing-account-projection.service.ts`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts`, `services/api/src/services/custody-events.service.ts`, `services/api/src/services/evidence/evidence-record-counting.ts`, `services/api/src/services/workspace-usage.service.ts`, `services/worker/src/capture-reaper.ts`, `services/worker/src/custody-events.ts`, `services/worker/src/index.ts`
 - **commits:** cb0b0bde37 fix(lifecycle): one custody appender; abandoned reservations released; session expiry slides (ET-ACQ-02, ET-DC-05, ET-DC-06)
 
+## ET-INT-06 — maxBytesPerSession and ipAllowlistCidrs are stored but never enforced
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** A link's ipAllowlistCidrs and maxBytesPerSession were stored and never enforced.
+- **canonicalAuthority:** workflow-intake-session assertIntakeClientAllowed via the route's validateIntakeTokenFromClient (every public call); submitExternalIntake byte cap; isValidIpAllowlistEntry at creation
+- **redTest:** services/api/test/intake-link-restrictions.integration.test.ts (evidence/ET-INT-06-red-baseline.txt)
+- **greenTest:** services/api/test/intake-link-restrictions.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/identity.ts`, `packages/shared/src/index.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workflow-intake-session.service.ts`
+- **commits:** 4431cb0f44 fix(intake): a link's IP allowlist and per-submission byte cap are enforced (ET-INT-06)
+
+## ET-INT-07 — Evidence-request send and request-more mint intake links without the plan and governance gates
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Evidence-request send and request-more minted intake links without the secure-intake plan gate and the governance policy.
+- **canonicalAuthority:** services/intake/intake-link-mint-gate.ts intakeLinkMintRefusal — the one plan + governance gate for every workspace mint (request send, request-more, POST /v1/workflow/intake-links)
+- **obsoleteRemoved:** the route's inline plan + governance blocks and its dead personal-account branch
+- **redTest:** services/api/test/intake-link-mint-gate.integration.test.ts (evidence/ET-INT-07-red-baseline.txt)
+- **greenTest:** services/api/test/intake-link-mint-gate.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence-requests.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/intake/intake-link-mint-gate.ts`
+- **commits:** 352bc9954f fix(intake): every workspace intake-link mint passes one plan + governance gate; request-more refuses a terminal request (ET-INT-07)
+
+## ET-INT-08 — Cancelling/closing an evidence request does not revoke its link; submissions keep finalizing and attach responses to the cancelled request
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Cancelling or closing an evidence request left its intake links live, so submissions kept finalizing into a terminal request.
+- **canonicalAuthority:** evidence-request.service transitionEvidenceRequest -> revokeRequestIntakeLinksTx (bound link + every request-more follow-up, same transaction)
+- **redTest:** services/api/test/intake-link-mint-gate.integration.test.ts [ET-INT-08] (evidence/ET-INT-08-red-baseline.txt)
+- **greenTest:** services/api/test/intake-link-mint-gate.integration.test.ts [ET-INT-08]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/services/evidence-request.service.ts`
+- **commits:** 22a969a812 fix(intake): a cancelled or closed evidence request revokes every intake link it issued (ET-INT-08)
+
+## ET-INT-09 — ONE_TIME link use and per-session Evidence creation are check-then-write races
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** ONE_TIME use, per-session record creation and the per-submission file cap were check-then-write races.
+- **canonicalAuthority:** reserveIntakeLinkUse / releaseIntakeLinkUse (conditional used_count < max_uses); createOrLoadExternalEvidence conditional session claim + releaseEvidenceReservationTx(INTAKE_SESSION_RACE_LOST); writeEvidencePart maxPartCount under the record lock
+- **obsoleteRemoved:** the SUBMITTED transition's unconditional usedCount increment; the route's pre-insert part count
+- **redTest:** services/api/test/intake-concurrency.integration.test.ts (evidence/ET-INT-09-red-baseline.txt)
+- **greenTest:** services/api/test/intake-concurrency.integration.test.ts
+- **concurrencyTest:** services/api/test/intake-concurrency.integration.test.ts [concurrent ONE_TIME submits; concurrent first parts; concurrent uploads at the cap]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/evidence-reservation/reservation.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/evidence/evidence-part-writer.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/workflow-intake-session.service.ts`
+- **commits:** a6bab4697e fix(intake): one-time links, per-session records and the file cap are decided by conditional writes, not check-then-write (ET-INT-09)
+
 ## ET-INT-10 — Integrations-API intake-link and evidence-request routes pass an API-credential id as a User id
 
 - **severity:** P2
@@ -762,6 +821,48 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/middleware/integrations-auth.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/services/identity/access-policy.service.ts`
 - **commits:** d3f31f99a8 fix(integrations): API-key calls act as the credential's creator under the intake plan gate; a suspended organization cannot act through its keys (ET-INT-10, ET-SEC-25)
+
+## ET-INT-11 — Intake consent is client-asserted: acceptedAtUtc taken from the body, termsAcknowledged/disclosure hash never checked, consent re-postable
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Intake consent was client-asserted: acceptance time from the body, termsAcknowledged and the disclosure hash unchecked, re-postable.
+- **canonicalAuthority:** workflow-intake-session recordIntakeConsent: server time, termsAcknowledged required, the link's disclosure hash and policy version, one-shot conditional claim
+- **redTest:** services/api/test/intake-consent-server-truth.integration.test.ts (evidence/ET-INT-11-red-baseline.txt)
+- **greenTest:** services/api/test/intake-consent-server-truth.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/workflow-intake-session.service.ts`
+- **commits:** 2f696feae2 fix(intake): consent is a server fact — server time, acknowledged terms, the link's own disclosure, one-shot (ET-INT-11)
+
+## ET-INT-12 — Intake submitter attribution: identity snapshot and public Verify name the link creator, not the contributor; surfaces disagree
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Public Verify presented the intake link creator's email, provider and identity level as the submitter's, while the report printed a contributor role.
+- **canonicalAuthority:** shared INTAKE_SUBMITTED_BY_LABEL (report, custody summarizer isIntake branch, Verify overview)
+- **redTest:** services/api/test/intake-verify-attribution.integration.test.ts (evidence/ET-INT-12-red-baseline.txt)
+- **greenTest:** services/api/test/intake-verify-attribution.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared/src/evidence-acquisition.ts`, `services/api/src/routes/evidence.routes.ts`, `services/worker/src/report-v2/build-view-model.ts`
+- **commits:** fc931d470c fix(verify): a secure-intake record is attributed to its contributor role on public Verify, as on the report and package (ET-INT-12)
+
+## ET-INT-13 — Intake submit can report failure after finalization; governance-denied retries append EXPORT_BLOCKED_BY_POLICY custody per anonymous retry
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Intake submit could answer failure after the record was finalized, and governance-denied retries appended a custody event each.
+- **canonicalAuthority:** submitExternalIntake idempotent post-commit steps (already-finalized retry path; once-per-session EXTERNAL_INTAKE_SUBMITTED; SUBMITTED transition tolerant); evaluateFinalizationGovernance one event per unchanged refusal
+- **redTest:** services/api/test/intake-finalization-governance.integration.test.ts (evidence/ET-INT-13-red-baseline.txt)
+- **greenTest:** services/api/test/intake-finalization-governance.integration.test.ts
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance/finalization-governance.service.ts`
+- **commits:** da973780a1 fix(intake): a finalized submission is never reported as failed; retries neither re-finalize nor grow the custody chain (ET-INT-13)
 
 ## ET-INT-14 — Soft-deleted in-progress intake Evidence is reused for new parts
 
@@ -1204,6 +1305,20 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 - **productFiles:** `packages/shared-runtime/src/ops/metrics.service.ts`, `services/api/prisma/migrations/20280810000000_upload_part_state_hashed/migration.sql`, `services/api/src/routes/integrations-uploads.routes.ts`, `services/api/src/routes/upload-sessions.routes.ts`, `services/api/src/services/uploads/upload-session.service.ts`
 - **commits:** 68235bdaa4 fix(uploads): idempotency keys stay with their record and actor; a dead session neither blocks finalization nor comes back (ET-UPL-02, ET-UPL-03); 0f49532af2 fix(uploads): declared size enforced; VERIFIED only against a declared reference; abandoned-only gate is no-session (ET-UPL-05)
 
+## ET-UPL-04 — seed-home-personas.ts writes fabricated SIGNED evidence and custody into whatever DATABASE_URL dotenv loads, guarded only by NODE_ENV
+
+- **severity:** P2
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** seed-home-personas loaded dotenv/config and refused only NODE_ENV=production, so it could write fabricated evidence into the database .env named.
+- **canonicalAuthority:** services/api/scripts/lib/local-seed-guard.ts — the one refusal (name AND host) every seeder runs before its first write
+- **redTest:** services/api/test/local-seed-guard.test.ts (evidence/ET-UPL-04-red-baseline.txt)
+- **greenTest:** services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/scripts/lib/local-seed-guard.ts`, `services/api/scripts/seed-admin-fixture.ts`, `services/api/scripts/seed-home-personas.ts`
+- **commits:** 29a64fa112 fix(scripts): every seeder refuses a non-local database by name AND host before its first write (ET-UPL-04)
+
 ## ET-CUS-12 — Redaction publication and derivatives, and reviewer workflow decisions, never reach the evidence custody chain; they live in unhashed, mutable side tables
 
 - **severity:** P3
@@ -1231,8 +1346,8 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 - **migrationImpact:** 20280808000000_custody_retention_policy_applied: enum value (EXPAND); historic duplicate EVIDENCE_CREATED rows remain (append-only)
 - **compatibilityImpact:** custodyLifecycle gains truncated/displayLimit; the lists are the latest 500 per class
 - **finalResult:** FIXED_IN_THIS_TASK
-- **productFiles:** `apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx`, `apps/web/app/(app)/evidence/[id]/review-workspace-types.ts`, `apps/web/app/verify/[token]/_verify-types.ts`, `apps/web/app/verify/[token]/page.tsx`, `packages/shared/src/custody-labels.ts`, `packages/shared/src/index.ts`, `services/api/prisma/migrations/20280808000000_custody_retention_policy_applied/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/scripts/capability-authority/tenant-binding.mjs`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/evidence-certification.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/destructive-action-gate.service.ts`, `services/api/src/services/governance/finalization-governance.service.ts`, `services/api/src/services/governance/publication.service.ts`, `services/api/src/services/governance/retention-sweeper.service.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/build-view-model.ts`, `services/worker/src/report-v2/custody-model.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/types.ts`
-- **commits:** 426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11); 67664498f5 fix(custody): one custody label, own retention-policy type, latest-first timeline with whole-chain counts (ET-CUS-13); fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated; 0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13)
+- **productFiles:** `apps/web/app/(app)/evidence/[id]/_tabs/EvidenceCustodyTab.tsx`, `apps/web/app/(app)/evidence/[id]/review-workspace-types.ts`, `apps/web/app/verify/[token]/_verify-types.ts`, `apps/web/app/verify/[token]/page.tsx`, `packages/shared/src/custody-labels.ts`, `packages/shared/src/index.ts`, `services/api/prisma/migrations/20280808000000_custody_retention_policy_applied/migration.sql`, `services/api/prisma/schema.prisma`, `services/api/scripts/capability-authority/tenant-binding.mjs`, `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/evidence-certification.service.ts`, `services/api/src/services/evidence.service.ts`, `services/api/src/services/external-intake-orchestration.service.ts`, `services/api/src/services/governance.service.ts`, `services/api/src/services/governance/destructive-action-gate.service.ts`, `services/api/src/services/governance/finalization-governance.service.ts`, `services/api/src/services/governance/publication.service.ts`, `services/api/src/services/governance/retention-sweeper.service.ts`, `services/worker/src/processor.ts`, `services/worker/src/report-v2/build-view-model.ts`, `services/worker/src/report-v2/custody-model.ts`, `services/worker/src/report-v2/normalizers.ts`, `services/worker/src/report-v2/types.ts`
+- **commits:** 426b9bcbd3 fix(custody): governance mutations commit with their custody event; no silent custody catch (ET-CUS-11); 67664498f5 fix(custody): one custody label, own retention-policy type, latest-first timeline with whole-chain counts (ET-CUS-13); fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated; 0ec7406c30 fix(report): the legal-hold line states the record's canonical hold; custody labels read bounded payload hints (ET-RPT-03, ET-CUS-13); 1078664675 fix(intake): the first part records the capture environment; intake custody and comments say what is true (ET-INT-15)
 
 ## ET-CUS-14 — Tenant audit seals raw client IP and User-Agent into hashed metadata (bypassing the masking the column path applies), and never fills the requestId column
 
@@ -1247,6 +1362,20 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/scripts/capability-authority/tenant-binding.mjs`, `services/api/src/routes/admin-security.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/audit/tenant-audit.service.ts`, `services/api/src/services/operations/remediation-executor.ts`, `services/api/src/services/operations/remediation-registry.ts`, `services/api/src/services/platform-audit-log.service.ts`
 - **commits:** d03bdd5b64 fix(audit): request address and user-agent go to masked columns, never hashed metadata; requestId filled (ET-CUS-14); fef4f4a8a0 chore(audit): ledger + checkpoint for the custody batch (ET-CUS-02..14); artifacts regenerated; 98f95a99dc fix(operations): one audit-outcome mapping for workspace and platform remediation (ET-REC-07)
+
+## ET-INT-15 — Intake P3s: dead first-part capture-environment write, false magic-byte comment, UPLOAD_AUTHORIZED for an original URL never issued, swallowed LINK_USED/CONSENT custody failures, unvalidated caseId/evidenceId, stale citizen-capture comment
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Intake P3s: a dead first-part capture-environment write, an untrue UPLOAD_AUTHORIZED meaning and magic-byte comment, stale citizen-capture comments (the custody-swallow and caseId items closed by ET-CUS-13 and ET-SEC-33).
+- **canonicalAuthority:** external-intake route capture environment on the part's record; evidence.service intake UPLOAD_AUTHORIZED meaning
+- **redTest:** services/api/test/intake-link-restrictions.integration.test.ts [ET-INT-15] (evidence/ET-INT-15-red-baseline.txt)
+- **greenTest:** services/api/test/intake-link-restrictions.integration.test.ts [ET-INT-15]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/external-intake.routes.ts`, `services/api/src/services/evidence.service.ts`
+- **commits:** 1078664675 fix(intake): the first part records the capture environment; intake custody and comments say what is true (ET-INT-15)
 
 ## ET-OTS-05 — Initializer still promotes to ANCHORED from `ots upgrade` text alone (heuristic removed elsewhere); such an anchor is never re-checked when a txid is present
 
@@ -1674,6 +1803,20 @@ Open by severity: P0 0 · P1 0 · P2 32 · P3 11
 - **finalResult:** FIXED_IN_THIS_TASK
 - **productFiles:** `services/api/src/routes/cases.routes.ts`, `services/api/src/routes/evidence.routes.ts`, `services/api/src/services/governance/legal-hold.service.ts`
 - **commits:** 9d7aa0ed67 fix(governance): case delete fails closed on an unreadable hold state; annotation edits keep part ownership; dead optional-tenant hold helpers deleted (ET-SEC-17, ET-SEC-32, ET-SEC-34)
+
+## ET-SEC-33 — Caller-supplied caseId/evidenceId on intake links and evidence requests stored without tenant validation (dangling foreign references copied to webhooks)
+
+- **severity:** P3
+- **disposition:** FIXED_IN_THIS_TASK
+- **rootCause:** Caller-supplied caseId / evidenceId on intake links and evidence requests were stored without tenant validation.
+- **canonicalAuthority:** createWorkflowIntakeLink and createEvidenceRequest refuse ids outside the workspace (404, like a missing row)
+- **redTest:** services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33] (evidence/ET-SEC-33-red-baseline.txt)
+- **greenTest:** services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33]
+- **migrationImpact:** none
+- **compatibilityImpact:** none
+- **finalResult:** FIXED_IN_THIS_TASK
+- **productFiles:** `services/api/src/routes/evidence-requests.routes.ts`, `services/api/src/routes/external-intake.routes.ts`, `services/api/src/routes/integrations-api.routes.ts`, `services/api/src/routes/workflow-intake-links.routes.ts`, `services/api/src/services/evidence-request.service.ts`, `services/api/src/services/evidence.service.ts`, `services/api/src/services/workflow-intake-link.service.ts`
+- **commits:** 6b8141879d fix(intake): a link or evidence request can only name its own workspace's case and evidence (ET-SEC-33); d4b17bb727 fix(intake): keep the explicit invalid_sender_display_name -> 400 branch beside the new case_not_in_workspace -> 404 (ET-SEC-33 follow-up; restores the pinned error mapping); 1078664675 fix(intake): the first part records the capture environment; intake custody and comments say what is true (ET-INT-15)
 
 ## ET-SEC-34 — Dead exported legal-hold query helpers with optional teamId spread (would be unscoped if ever called)
 

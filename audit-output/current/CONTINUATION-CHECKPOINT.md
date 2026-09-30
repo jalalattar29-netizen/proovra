@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1310
-ROUTE_ATTRIBUTED_REACHABLE                  1169
+TerminalWriters                             1311
+ROUTE_ATTRIBUTED_REACHABLE                  1170
 JOB_ATTRIBUTED_REACHABLE                     121
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -622,3 +622,14 @@ node services/api/scripts/audit/index.mjs --closure-check
 - TerminalWriters 1309 -> 1310. ROUTE_ATTRIBUTED_REACHABLE and
   JOB_ATTRIBUTED_REACHABLE unchanged.
 - The OTS fixes change worker classification and reader projections only.
+
+### 2026-09-30 — EVIDENCE-LIFECYCLE REMEDIATION B13: INTAKE (writers 1310 -> 1311)
+
+- ET-INT-08: `revokeRequestIntakeLinksTx` (`workflowIntakeLink.updateMany`)
+  revokes every link of a cancelled / closed request (+1, route-attributed).
+- ET-INT-09 / ET-INT-11 / ET-INT-09: the session claim in
+  `createOrLoadExternalEvidence`, the one-shot consent claim in
+  `recordIntakeConsent` and the ONE_TIME close in `transitionIntakeSession`
+  became conditional `updateMany` calls (swaps). The link-use reservation is
+  raw SQL (`reserveIntakeLinkUse` / `releaseIntakeLinkUse`).
+- TerminalWriters 1310 -> 1311, ROUTE_ATTRIBUTED_REACHABLE 1169 -> 1170.

@@ -866,6 +866,79 @@
       "redTest": "services/api/test/phase-12-point5-report-authority.integration.test.ts [21b] (evidence/ET-SEC-29-30-red-baseline.txt)",
       "greenTest": "services/api/test/phase-12-point5-report-authority.integration.test.ts [21b]",
       "concurrencyTest": "services/api/test/phase-12-point5-report-authority.integration.test.ts [late worker after re-claim writes nothing]"
+    },
+    "ET-INT-06": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "A link's ipAllowlistCidrs and maxBytesPerSession were stored and never enforced.",
+      "canonicalAuthority": "workflow-intake-session assertIntakeClientAllowed via the route's validateIntakeTokenFromClient (every public call); submitExternalIntake byte cap; isValidIpAllowlistEntry at creation",
+      "redTest": "services/api/test/intake-link-restrictions.integration.test.ts (evidence/ET-INT-06-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-link-restrictions.integration.test.ts"
+    },
+    "ET-INT-07": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Evidence-request send and request-more minted intake links without the secure-intake plan gate and the governance policy.",
+      "canonicalAuthority": "services/intake/intake-link-mint-gate.ts intakeLinkMintRefusal — the one plan + governance gate for every workspace mint (request send, request-more, POST /v1/workflow/intake-links)",
+      "obsoleteRemoved": "the route's inline plan + governance blocks and its dead personal-account branch",
+      "redTest": "services/api/test/intake-link-mint-gate.integration.test.ts (evidence/ET-INT-07-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-link-mint-gate.integration.test.ts"
+    },
+    "ET-INT-08": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Cancelling or closing an evidence request left its intake links live, so submissions kept finalizing into a terminal request.",
+      "canonicalAuthority": "evidence-request.service transitionEvidenceRequest -> revokeRequestIntakeLinksTx (bound link + every request-more follow-up, same transaction)",
+      "redTest": "services/api/test/intake-link-mint-gate.integration.test.ts [ET-INT-08] (evidence/ET-INT-08-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-link-mint-gate.integration.test.ts [ET-INT-08]"
+    },
+    "ET-INT-09": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "ONE_TIME use, per-session record creation and the per-submission file cap were check-then-write races.",
+      "canonicalAuthority": "reserveIntakeLinkUse / releaseIntakeLinkUse (conditional used_count < max_uses); createOrLoadExternalEvidence conditional session claim + releaseEvidenceReservationTx(INTAKE_SESSION_RACE_LOST); writeEvidencePart maxPartCount under the record lock",
+      "obsoleteRemoved": "the SUBMITTED transition's unconditional usedCount increment; the route's pre-insert part count",
+      "redTest": "services/api/test/intake-concurrency.integration.test.ts (evidence/ET-INT-09-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-concurrency.integration.test.ts",
+      "concurrencyTest": "services/api/test/intake-concurrency.integration.test.ts [concurrent ONE_TIME submits; concurrent first parts; concurrent uploads at the cap]"
+    },
+    "ET-INT-11": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Intake consent was client-asserted: acceptance time from the body, termsAcknowledged and the disclosure hash unchecked, re-postable.",
+      "canonicalAuthority": "workflow-intake-session recordIntakeConsent: server time, termsAcknowledged required, the link's disclosure hash and policy version, one-shot conditional claim",
+      "redTest": "services/api/test/intake-consent-server-truth.integration.test.ts (evidence/ET-INT-11-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-consent-server-truth.integration.test.ts"
+    },
+    "ET-INT-12": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Public Verify presented the intake link creator's email, provider and identity level as the submitter's, while the report printed a contributor role.",
+      "canonicalAuthority": "shared INTAKE_SUBMITTED_BY_LABEL (report, custody summarizer isIntake branch, Verify overview)",
+      "redTest": "services/api/test/intake-verify-attribution.integration.test.ts (evidence/ET-INT-12-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-verify-attribution.integration.test.ts"
+    },
+    "ET-INT-13": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Intake submit could answer failure after the record was finalized, and governance-denied retries appended a custody event each.",
+      "canonicalAuthority": "submitExternalIntake idempotent post-commit steps (already-finalized retry path; once-per-session EXTERNAL_INTAKE_SUBMITTED; SUBMITTED transition tolerant); evaluateFinalizationGovernance one event per unchanged refusal",
+      "redTest": "services/api/test/intake-finalization-governance.integration.test.ts (evidence/ET-INT-13-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-finalization-governance.integration.test.ts"
+    },
+    "ET-INT-15": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Intake P3s: a dead first-part capture-environment write, an untrue UPLOAD_AUTHORIZED meaning and magic-byte comment, stale citizen-capture comments (the custody-swallow and caseId items closed by ET-CUS-13 and ET-SEC-33).",
+      "canonicalAuthority": "external-intake route capture environment on the part's record; evidence.service intake UPLOAD_AUTHORIZED meaning",
+      "redTest": "services/api/test/intake-link-restrictions.integration.test.ts [ET-INT-15] (evidence/ET-INT-15-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-link-restrictions.integration.test.ts [ET-INT-15]"
+    },
+    "ET-SEC-33": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "Caller-supplied caseId / evidenceId on intake links and evidence requests were stored without tenant validation.",
+      "canonicalAuthority": "createWorkflowIntakeLink and createEvidenceRequest refuse ids outside the workspace (404, like a missing row)",
+      "redTest": "services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33] (evidence/ET-SEC-33-red-baseline.txt)",
+      "greenTest": "services/api/test/intake-link-mint-gate.integration.test.ts [ET-SEC-33]"
+    },
+    "ET-UPL-04": {
+      "disposition": "FIXED_IN_THIS_TASK",
+      "rootCause": "seed-home-personas loaded dotenv/config and refused only NODE_ENV=production, so it could write fabricated evidence into the database .env named.",
+      "canonicalAuthority": "services/api/scripts/lib/local-seed-guard.ts — the one refusal (name AND host) every seeder runs before its first write",
+      "redTest": "services/api/test/local-seed-guard.test.ts (evidence/ET-UPL-04-red-baseline.txt)",
+      "greenTest": "services/api/test/local-seed-guard.test.ts; both seeders exit 1 on a remote host"
     }
   }
 }
