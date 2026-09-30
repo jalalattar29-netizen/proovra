@@ -149,6 +149,8 @@ import { decodeCanonicalJob } from "./canonical-job.js";
 import {
   markRequestRetryable,
   markRequestTerminal,
+  claimFenceWhere,
+  ReportClaimLost,
   mintRequestForLegacyJob,
   resolveAndClaimReportRequest,
   type ResolvedReportCommand,
@@ -3070,16 +3072,21 @@ export async function processGenerateReport(job: Job<unknown>) {
     // Terminal vs retryable is decided by the SAME predicate the queue uses, so
     // the durable row and the queue cannot disagree about whether the intent is
     // still alive.
+    // ET-SEC-30 — both writes are fenced by this run's claim: a late worker
+    // whose lease was re-claimed changes nothing.
+    const fence = { claimedAtUtc: command.claimedAtUtc };
     if (isRetriableError(error)) {
       await markRequestRetryable({
         requestId: command.requestId,
         terminalReasonCode: toBoundedReasonCode(error),
+        fence,
       });
     } else {
       await markRequestTerminal({
         requestId: command.requestId,
         state: "FAILED_TERMINAL",
         terminalReasonCode: toBoundedReasonCode(error),
+        fence,
       });
     }
     throw error;
@@ -3101,6 +3108,7 @@ export async function processGenerateReport(job: Job<unknown>) {
     state: "SUCCEEDED",
     terminalReasonCode: run.outcome,
     resultReportId: produced?.id ?? null,
+    fence: { claimedAtUtc: command.claimedAtUtc },
   });
 }
 
@@ -3707,10 +3715,11 @@ async function runReportGeneration(
                 _max: { reportVersion: true },
               });
               reserved = Math.max(latestVersion, others._max.reportVersion ?? 0) + 1;
-              await tx.reportGenerationRequest.update({
-                where: { id: command.requestId },
+              const fenced = await tx.reportGenerationRequest.updateMany({
+                where: claimFenceWhere(command),
                 data: { reportVersion: reserved, stage: "REPORT_RESERVED" },
               });
+              if (fenced.count !== 1) throw new ReportClaimLost(command.requestId);
             }
             return {
               skipped: false as const,
@@ -4297,10 +4306,12 @@ async function runReportGeneration(
              * exactly this version; if the transaction rolls back, neither
              * exists.
              */
-            await tx.reportGenerationRequest.update({
-              where: { id: command.requestId },
+            // ET-SEC-30 — fenced: a run whose claim was taken over rolls back.
+            const fenced = await tx.reportGenerationRequest.updateMany({
+              where: claimFenceWhere(command),
               data: { reportVersion: prepared.version, stage: "REPORT_COMMITTED" },
             });
+            if (fenced.count !== 1) throw new ReportClaimLost(command.requestId);
 
             // The chain the package built by THIS run carries: everything up to
             // and including the issuance events just appended.
@@ -4966,8 +4977,19 @@ trustDecisionSnapshot:
             },
           });
 
-          await tx.evidence.update({
-            where: { id: prepared.evidenceId },
+          // ET-SEC-29 — the record's "latest package" pointer only ADVANCES. A
+          // package-only recovery of an older report version (e.g. v1 while v2
+          // is latest) attaches its own package row above but must not move the
+          // pointer (or its metadata) backwards. Equal is allowed: a rebuild of
+          // the same version refreshes its metadata.
+          await tx.evidence.updateMany({
+            where: {
+              id: prepared.evidenceId,
+              OR: [
+                { verificationPackageVersion: null },
+                { verificationPackageVersion: { lte: prepared.version } },
+              ],
+            },
             data: {
               verificationPackageGeneratedAtUtc: prepared.now,
               verificationPackageVersion: prepared.version,
@@ -5017,10 +5039,11 @@ trustDecisionSnapshot:
             } as Prisma.InputJsonValue,
           });
 
-          await tx.reportGenerationRequest.update({
-            where: { id: command.requestId },
+          const fencedPublish = await tx.reportGenerationRequest.updateMany({
+            where: claimFenceWhere(command),
             data: { reportVersion: prepared.version, stage: "PACKAGE_PUBLISHED" },
           });
+          if (fencedPublish.count !== 1) throw new ReportClaimLost(command.requestId);
         });
 
         appendWorkerAuditLog({

@@ -89,6 +89,13 @@ export const REPORT_RECONCILE_MAX_ATTEMPTS = 12;
 
 export type ResolvedReportCommand = {
   requestId: string;
+  /**
+   * ET-SEC-30 — THE FENCING TOKEN: the claimedAtUtc this worker's claim wrote.
+   * A second claim is only possible after this lease expired, so the value
+   * identifies exactly one claim; every later write by this run is conditional
+   * on it and a late worker's write matches nothing.
+   */
+  claimedAtUtc: Date;
   evidenceId: string;
   /** Loaded from the request row and cross-checked against the evidence row. */
   teamId: string;
@@ -287,6 +294,7 @@ export async function resolveAndClaimReportRequest(input: {
   // recovery IN the claim rather than in a separate sweep means a worker that
   // died mid-run cannot hold a request forever, and it costs one statement.
   const leaseFloor = new Date(Date.now() - REPORT_CLAIM_LEASE_MS);
+  const claimedAtUtc = new Date();
   const claimed = await prisma.reportGenerationRequest.updateMany({
     where: {
       id: requestId,
@@ -297,7 +305,7 @@ export async function resolveAndClaimReportRequest(input: {
     },
     data: {
       state: "PROCESSING",
-      claimedAtUtc: new Date(),
+      claimedAtUtc,
       attemptCount: { increment: 1 },
     },
   });
@@ -313,6 +321,7 @@ export async function resolveAndClaimReportRequest(input: {
     outcome: "run",
     command: {
       requestId: request.id,
+      claimedAtUtc,
       evidenceId: evidence.id,
       teamId: workspaceId,
       artifactType: request.artifactType,
@@ -342,14 +351,22 @@ export async function markRequestTerminal(input: {
   terminalReasonCode: string;
   resultReportId?: string | null;
   resultChecksum?: string | null;
+  /**
+   * ET-SEC-30 — a worker that RAN the request passes its claim; the write then
+   * lands only on that live claim. Without it (pre-claim refusals, operator
+   * repair) the non-terminal predicate alone applies.
+   */
+  fence?: { claimedAtUtc: Date };
 }): Promise<boolean> {
   const updated = await prisma.reportGenerationRequest.updateMany({
-    where: {
-      id: input.requestId,
-      state: {
-        notIn: ["SUCCEEDED", "FAILED_TERMINAL", "BLOCKED_STALE", "BLOCKED_POLICY"],
-      },
-    },
+    where: input.fence
+      ? { id: input.requestId, state: "PROCESSING", claimedAtUtc: input.fence.claimedAtUtc }
+      : {
+          id: input.requestId,
+          state: {
+            notIn: ["SUCCEEDED", "FAILED_TERMINAL", "BLOCKED_STALE", "BLOCKED_POLICY"],
+          },
+        },
     data: {
       state: input.state,
       terminalReasonCode: input.terminalReasonCode.slice(0, 64),
@@ -371,15 +388,36 @@ export async function markRequestTerminal(input: {
 export async function markRequestRetryable(input: {
   requestId: string;
   terminalReasonCode: string;
-}): Promise<void> {
-  await prisma.reportGenerationRequest.updateMany({
-    where: { id: input.requestId, state: "PROCESSING" },
+  /** ET-SEC-30 — only this worker's own live claim is released. */
+  fence: { claimedAtUtc: Date };
+}): Promise<boolean> {
+  const released = await prisma.reportGenerationRequest.updateMany({
+    where: { id: input.requestId, state: "PROCESSING", claimedAtUtc: input.fence.claimedAtUtc },
     data: {
       state: "FAILED_RETRYABLE",
       terminalReasonCode: input.terminalReasonCode.slice(0, 64),
       claimedAtUtc: null,
     },
   });
+  return released.count > 0;
+}
+
+/**
+ * ET-SEC-30 — a run whose claim was taken over (its lease expired and another
+ * worker re-claimed) must not commit anything. Thrown from a fenced in-run
+ * write so the surrounding transaction rolls back.
+ */
+export class ReportClaimLost extends Error {
+  readonly code = "REPORT_CLAIM_LOST";
+  constructor(requestId: string) {
+    super(`REPORT_CLAIM_LOST:${requestId}`);
+    this.name = "ReportClaimLost";
+  }
+}
+
+/** The WHERE of every write made by a claimed run. */
+export function claimFenceWhere(command: Pick<ResolvedReportCommand, "requestId" | "claimedAtUtc">) {
+  return { id: command.requestId, state: "PROCESSING" as const, claimedAtUtc: command.claimedAtUtc };
 }
 
 // ===========================================================================

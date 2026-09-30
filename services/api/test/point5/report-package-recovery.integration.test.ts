@@ -1017,8 +1017,19 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     });
     expect(row).toMatchObject({ artifactType: "VERIFICATION_PACKAGE", reportVersion: 1, forceRegenerate: false });
     expect(row.idempotencyKey).toBe(`VERIFICATION_PACKAGE:${evidenceId}:v1`);
+    const pointerBefore = await prisma.evidence.findUniqueOrThrow({
+      where: { id: evidenceId },
+      select: { verificationPackageVersion: true },
+    });
 
     expect(await run(idOf(r), 0)).toBeNull();
+    // ET-SEC-29 — recovering an OLDER package never moves the record's
+    // "latest package" pointer backwards.
+    expect(
+      (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { verificationPackageVersion: true } }))
+        .verificationPackageVersion,
+    ).toBe(pointerBefore.verificationPackageVersion);
+    expect(pointerBefore.verificationPackageVersion).toBe(2);
     const after = await state(evidenceId);
     expect(after.reports.map((x) => x.version), "no report is minted to repair a package").toEqual([1, 2]);
     expect(after.packages.map((p) => [p.version, p.reportVersion])).toEqual([[1, 1], [2, 2]]);

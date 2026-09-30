@@ -716,6 +716,52 @@ describe("PHASE 12 POINT 5 — ReportGenerationRequest (live PostgreSQL 16)", ()
     expect(stealAttempt.outcome).toBe("noop");
   });
 
+  it("21b. ET-SEC-30: a late worker whose lease was re-claimed writes NOTHING — retryable, terminal or stage", async () => {
+    const seeded = await seedRequest({ idempotencyKey: `REPORT:fence:${randomUUID()}` });
+    const first = await authority.resolveAndClaimReportRequest({ requestId: seeded.id, requestIdForLog: randomUUID() });
+    expect(first.outcome).toBe("run");
+    // The late worker's claim as the row recorded it.
+    const late = {
+      claimedAtUtc: (await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: seeded.id }, select: { claimedAtUtc: true } }))
+        .claimedAtUtc!,
+    };
+
+    // The first worker stalls past its lease; a second worker re-claims.
+    await prisma.reportGenerationRequest.update({
+      where: { id: seeded.id },
+      data: { claimedAtUtc: new Date(Date.now() - authority.REPORT_CLAIM_LEASE_MS - 60_000) },
+    });
+    const second = await authority.resolveAndClaimReportRequest({ requestId: seeded.id, requestIdForLog: randomUUID() });
+    expect(second.outcome).toBe("run");
+    const before = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: seeded.id } });
+    const live = { claimedAtUtc: before.claimedAtUtc! };
+
+    // The late worker's fence is its own claim time, not the live one.
+    expect(late.claimedAtUtc.getTime()).not.toBe(live.claimedAtUtc.getTime());
+    const row = () => prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: seeded.id } });
+    const released = await authority.markRequestRetryable({ requestId: seeded.id, terminalReasonCode: "late", fence: { claimedAtUtc: late.claimedAtUtc } });
+    expect(await row(), "the late release must not touch the live claim").toEqual(before);
+    expect(released).toBe(false);
+    const terminal = await authority.markRequestTerminal({ requestId: seeded.id, state: "FAILED_TERMINAL", terminalReasonCode: "late", fence: { claimedAtUtc: late.claimedAtUtc } });
+    expect(await row(), "the late terminal write must not touch the live claim").toEqual(before);
+    expect(terminal).toBe(false);
+    const stage = await prisma.reportGenerationRequest.updateMany({
+      where: authority.claimFenceWhere({ requestId: seeded.id, claimedAtUtc: late.claimedAtUtc }),
+      data: { stage: "REPORT_RESERVED" },
+    });
+    expect(stage.count).toBe(0);
+
+    const after = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: seeded.id } });
+    expect(after).toEqual(before);
+    expect(after.state).toBe("PROCESSING");
+    expect(after.claimedAtUtc?.getTime()).toBe(live.claimedAtUtc.getTime());
+
+    // The live claim's own writes land.
+    expect(await authority.markRequestTerminal({ requestId: seeded.id, state: "SUCCEEDED", terminalReasonCode: "generated", fence: { claimedAtUtc: live.claimedAtUtc } })).toBe(true);
+    // The claim hands its worker the same token the row holds.
+    expect((second as { command: { claimedAtUtc?: Date } }).command.claimedAtUtc?.getTime()).toBe(live.claimedAtUtc.getTime());
+  });
+
   // =========================================================================
   // 23 + 24. Enqueue failure and reconciliation
   // =========================================================================
