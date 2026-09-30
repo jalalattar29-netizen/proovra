@@ -43,6 +43,10 @@ describe("capture drafts have one reaper (ET-SEC-24)", () => {
     expect(claim).toBeGreaterThan(0);
     expect(guard).toBeGreaterThan(claim);
     expect(event).toBeGreaterThan(guard);
-    expect(REAPER_SRC.slice(event, event + 400)).toMatch(/CaptureSessionEventType\.EXPIRED/);
+    // The event written there is the EXPIRED one, before this run counts it.
+    const eventType = REAPER_SRC.indexOf("CaptureSessionEventType.EXPIRED", event);
+    const counted = REAPER_SRC.indexOf("expired++", event);
+    expect(eventType).toBeGreaterThan(event);
+    expect(counted).toBeGreaterThan(eventType);
   });
 });
