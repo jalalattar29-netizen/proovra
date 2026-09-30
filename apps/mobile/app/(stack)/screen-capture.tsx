@@ -19,6 +19,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
+import { usePlatformContext } from "../../src/product/platform-context";
 import { stageScreenCapture } from "../../src/screen-capture";
 import { saveCaptureSession } from "../../src/capture/capture-session-store";
 import { toScreenDraftItem } from "../../src/capture/screen-acquisition";
@@ -52,6 +53,8 @@ export default function ScreenCaptureScreen() {
   const router = useRouter();
   const toast = useToast();
   const personalSpace = usePersonalSpaceAllowed();
+  // ET-DC-08 — the capture belongs to the ACTIVE workspace, as on /capture.
+  const teamId = usePlatformContext().context?.activeTeamId ?? null;
   const [state, dispatch] = useReducer(screenFlowReducer, INITIAL_SCREEN_FLOW);
   const [busy, setBusy] = useState(false);
   const supported = Platform.OS === "android" && isScreenCaptureSupported();
@@ -133,7 +136,7 @@ export default function ScreenCaptureScreen() {
     dispatch({ type: "FINALIZE" });
     try {
       const result = await stopScreenCapture();
-      const staged = await stageScreenCapture(result);
+      const staged = await stageScreenCapture(result, { teamId });
 
       // The canonical draft — the product's record of what this session holds.
       const item = toScreenDraftItem({
@@ -178,7 +181,7 @@ export default function ScreenCaptureScreen() {
     } catch (err) {
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stage the capture." }).message });
     }
-  }, [toast]);
+  }, [toast, teamId]);
 
   if (personalSpace.loading) return <ProovraScreen scroll={false}><ProovraLoadingState /></ProovraScreen>;
   if (!personalSpace.allowed) {

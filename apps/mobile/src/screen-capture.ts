@@ -118,12 +118,22 @@ async function fileSizeBytes(uri: string): Promise<number> {
  * Finish & Sign through `completeAcquisition`. Nothing is signed here, and a
  * discard before that point releases the reservation and commits nothing.
  */
-export async function stageScreenCapture(result: ScreenCaptureResult): Promise<StagedScreenCapture> {
+export async function stageScreenCapture(
+  result: ScreenCaptureResult,
+  /**
+   * ET-DC-08 — the ACTIVE workspace, as /capture passes it. Omitted, the
+   * server files the capture in the personal workspace, misfiling team work
+   * and refusing an identity that has no personal space.
+   */
+  options: { teamId?: string | null } = {},
+): Promise<StagedScreenCapture> {
   if (result.frames.length === 0) {
     throw new Error("No screen frames were captured.");
   }
 
-  const session: DirectCaptureSession = await openDirectCaptureSession("DIRECT_SCREEN_CAPTURE_ANDROID");
+  const session: DirectCaptureSession = await openDirectCaptureSession("DIRECT_SCREEN_CAPTURE_ANDROID", {
+    teamId: options.teamId ?? null,
+  });
 
   // Everything after the reservation goes through the ONE rule: seal, or
   // release. A failure between reserving the record and completing it used to

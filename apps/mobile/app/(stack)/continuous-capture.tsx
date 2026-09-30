@@ -32,6 +32,7 @@ import {
 } from "../../src/ui";
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
+import { usePlatformContext } from "../../src/product/platform-context";
 import {
   beginContinuousSession,
   cleanupContinuousTempFiles,
@@ -73,6 +74,8 @@ export default function ContinuousCaptureScreen() {
   const router = useRouter();
   const toast = useToast();
   const personalSpace = usePersonalSpaceAllowed();
+  // ET-DC-08 — the capture belongs to the ACTIVE workspace, as on /capture.
+  const teamId = usePlatformContext().context?.activeTeamId ?? null;
   const [state, dispatch] = useReducer(continuousFlowReducer, INITIAL_CONTINUOUS_FLOW);
   const [busy, setBusy] = useState(false);
   const isIOS = Platform.OS === "ios";
@@ -229,7 +232,7 @@ export default function ContinuousCaptureScreen() {
       // Open the canonical session FIRST so segments can stream while recording.
       let step = "beginContinuousSession";
       try {
-        sessionRef.current = await beginContinuousSession();
+        sessionRef.current = await beginContinuousSession({ teamId });
         step = "startContinuousCapture";
         await startContinuousCapture();
       } catch (err) {
@@ -261,7 +264,7 @@ export default function ContinuousCaptureScreen() {
     } finally {
       setBusy(false);
     }
-  }, [resetStreamRefs]);
+  }, [resetStreamRefs, teamId]);
 
   const stop = useCallback(async () => {
     setBusy(true);

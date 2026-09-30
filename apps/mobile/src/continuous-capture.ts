@@ -177,13 +177,16 @@ export async function cleanupContinuousTempFiles(
 }
 
 /** Open the PROOVRA session + reserve ONE Evidence for the whole session. */
-export async function beginContinuousSession(): Promise<{ session: DirectCaptureSession; evidenceId: string }> {
+export async function beginContinuousSession(
+  /** ET-DC-08 — the ACTIVE workspace, as /capture passes it (see stageScreenCapture). */
+  options: { teamId?: string | null } = {},
+): Promise<{ session: DirectCaptureSession; evidenceId: string }> {
   // The server-issued session carries the platform-correct canonical mode:
   // iOS (UC-5, Apple system broadcast) vs Android (UC-3, MediaProjection). Both
   // seal through the ONE canonical continuous pipeline; the server is authoritative.
   const mode =
     Platform.OS === "ios" ? "DIRECT_SCREEN_CAPTURE_IOS" : "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS";
-  const session = await openDirectCaptureSession(mode);
+  const session = await openDirectCaptureSession(mode, { teamId: options.teamId ?? null });
   const evidenceId = await reserveDirectCaptureEvidence(session, {
     type: "VIDEO",
     mimeType: "video/mp4",
