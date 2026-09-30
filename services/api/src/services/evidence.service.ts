@@ -188,6 +188,49 @@ function resolveRootEvidenceDisplayFileName(params: {
   };
 }
 
+/**
+ * ET-ACQ-01 — THE authorization of an interactive capture into a workspace:
+ * the canonical `evidence.create` decision (role, access expiry,
+ * organization lifecycle), as direct capture already applies it. A bare
+ * ACTIVE membership row admitted a VIEWER, an expired member and a member of
+ * a suspended organization.
+ *
+ * The caller's OWN personal team keeps the personal-owner rule (and
+ * createEvidence's self-heal). Every refusal is the one createEvidence
+ * throws, so a workspace the caller may not write and one that does not
+ * exist cannot be told apart (ET-SEC-31).
+ *
+ * Secure intake does not come through here: it creates on the link's
+ * authority, which the intake gates decide.
+ */
+export async function assertInteractiveEvidenceCreateAllowed(params: {
+  ownerUserId: string;
+  teamId: string | null | undefined;
+}): Promise<void> {
+  if (!params.teamId) return;
+  const target = await prisma.team.findUnique({
+    where: { id: params.teamId },
+    select: { isPersonal: true, ownerUserId: true },
+  });
+  if (target?.isPersonal === true && target.ownerUserId === params.ownerUserId) return;
+  const { evaluateMemberAccess } = await import("./identity/access-policy.service.js");
+  const decision = target
+    ? await evaluateMemberAccess({
+        teamId: params.teamId,
+        userId: params.ownerUserId,
+        permission: "evidence.create",
+        resourceKind: "evidence",
+      })
+    : { allowed: false as const };
+  if (decision.allowed) return;
+  const err: Error & { statusCode?: number; code?: string } = new Error(
+    "Forbidden team workspace"
+  );
+  err.statusCode = 403;
+  err.code = "SHARED_WORKSPACE_FORBIDDEN";
+  throw err;
+}
+
 export async function createEvidence(params: {
   ownerUserId: string;
   teamId?: string | null;

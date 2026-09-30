@@ -206,7 +206,7 @@ import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
 // Phase G4.5 — extracted saved-view CRUD module.
 import { evidenceSavedViewsRoutes } from "./evidence.saved-views.routes.js";
-import { createEvidence } from "../services/evidence.service.js";
+import { assertInteractiveEvidenceCreateAllowed, createEvidence } from "../services/evidence.service.js";
 import {
   resolveEnforcementScopeForRequester,
   scopeIncludesAiOperations,
@@ -5375,6 +5375,9 @@ export async function evidenceRoutes(app: FastifyInstance) {
     }
 
     try {
+      // ET-ACQ-01 — the canonical evidence.create decision for the target
+      // workspace, before anything is written.
+      await assertInteractiveEvidenceCreateAllowed({ ownerUserId, teamId: body.teamId ?? null });
 const result = await createEvidence({
   ownerUserId,
   // Phase HOME-DATA-OWNERSHIP — pass the client's active workspace id
