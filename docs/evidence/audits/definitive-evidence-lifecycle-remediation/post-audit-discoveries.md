@@ -23,7 +23,7 @@ conservation.
 | PA-03 | PRODUCT_DEFECT | FIXED | Governance policy audit rows were lost, and a policy change could commit without its audit row | 1f76aeae09 |
 | PA-04 | PRODUCT_DEFECT | FIXED | One artifact-generation incident was stated twice on the Evidence Artifacts tab | aaa3c2c3bc, 7e93790b6e |
 | PA-05 | PRODUCT_DEFECT | FIXED | The Start subscription purchase action was outlined while the page's other purchases are filled | aaa3c2c3bc |
-| PA-06 | PRODUCT_DEFECT | FIXED | The intake-links table overflowed its frame by up to 75px between 1200 and 1273px | aaa3c2c3bc |
+| PA-06 | PRODUCT_DEFECT | FIXED | The intake-links table overflowed its frame by up to 75px between 1200 and 1273px | aaa3c2c3bc, 1c93a79622 |
 | PA-07 | PRODUCT_DEFECT | FIXED | At a larger text scale the intake timeline date spilled out of its cell | aaa3c2c3bc |
 | PA-08 | CI_COVERAGE_GAP | FIXED | Six of the eight layout projects ran in no workflow; 73 of their tests had drifted from the product | aaa3c2c3bc, 0b8db0e43f |
 
@@ -84,9 +84,9 @@ conservation.
 - **state:** FIXED
 - **foundBy:** intake-links-layout geometry
 - **rootCause:** The table/card cutover moved to 1199px (67368b23) but the short-label fold for the two nowrap columns stayed at 1080px, where no table renders.
-- **fix:** The same fold, scoped to the table, for 1200–1279px.
-- **proof:** intake-links-layout 112/112 (table widths 1440, 1280, 1279, 1240, 1200)
-- **commits:** aaa3c2c3bc fix(web,e2e): the eight layout projects pass — four product defects fixed, drifted specs brought to the product's decisions (PA-04..PA-08)
+- **fix:** The same fold, scoped to the table, for 1200–1439px. The first cut stopped at 1279px, where the Windows measurement said the full labels fit; CI's Linux runner (wider fonts) measured the full-label table at 1105px in a 1068px frame at 1280px, so the band was widened to 1439px (frame 1227px).
+- **proof:** intake-links-layout: every table width 1440, 1439, 1360, 1280, 1240, 1200 measured contained, locally and on the CI Linux runner
+- **commits:** aaa3c2c3bc fix(web,e2e): the eight layout projects pass — four product defects fixed, drifted specs brought to the product's decisions (PA-04..PA-08); 1c93a79622 fix(intake): the table's short-label band runs to 1439px, not 1279px (PA-06)
 
 ## PA-07 — At a larger text scale the intake timeline date spilled out of its cell
 
