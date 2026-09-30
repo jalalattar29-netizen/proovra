@@ -1,0 +1,600 @@
+{
+  "lane": "D",
+  "findings": {
+    "UC-DER-001": {
+      "decision": "Every Generate / Retry / Regenerate that may run now creates a NEW MediaIntelligenceRun whose idempotency key names a new generation (reconstruct_screen:<id> for g1, :g<N> after), so the worker's exclusive claim accepts it; settled runs are never reused, dismissed or rewritten and stay as history. The generate route answers 409 for Regenerate while a run is in flight, re-joins a live run for a plain Generate, answers 200 already_generated (nothing queued) for a plain Generate over a COMPLETED review, and records the request on custody (MEDIA_INTELLIGENCE_REFRESH_REQUESTED with generation/runId/supersedesRunId). The canonical enqueue (media-intelligence-queue) no longer puts a job on the queue for a reused run the claim can never take (COMPLETED, DISMISSED, FAILED at the attempt ceiling) and says job_run_settled instead of enqueued:true. The worker handler reads its generation from its own run row (new run-tracker getMediaIntelligenceRun). UI: DISMISSED now has a Retry action.",
+      "red": {
+        "test": "services/api/test/media-intelligence-queue-settled-run.test.ts::a reused COMPLETED run (attempts 1) is NOT reported queued and no job is created; services/worker/test/uc4-screen-intelligence-handler.test.ts::runs the generation named by the run's own idempotency key",
+        "command": "cd services/api && npx vitest run test/media-intelligence-queue-settled-run.test.ts (against HEAD media-intelligence-queue.ts); cd services/worker && npx vitest run test/uc4-screen-intelligence-handler.test.ts (against HEAD handler)",
+        "observed": "queue: 'expected true to be false' x3 (COMPLETED/DISMISSED/FAILED@5 reported enqueued); handler: 'expected undefined to be 3'; API integration vs HEAD route: 'Cannot read properties of undefined (reading 'id')' — no second run row after Regenerate"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::Generate / Retry / Regenerate create a new, claimable generation (5 tests)",
+          "services/api/test/media-intelligence-queue-settled-run.test.ts (5 tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-001 generation (2 tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::happy path → generation 1 COMPLETED, then a regeneration run produces generation 2",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-001: a DISMISSED run offers Retry"
+        ],
+        "command": "services/api: TEST_DATABASE_URL=… RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/3 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=… PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/derived-review-release-and-generations.integration.test.ts",
+        "result": "13 passed (API integration, live PG16); 5 passed (queue unit); 12 passed (handler unit); 5 passed (handler live PG16); 10 passed (web render)"
+      },
+      "filesChanged": [
+        "services/api/src/routes/media-intelligence.routes.ts",
+        "services/api/src/queue/media-intelligence-queue.ts",
+        "packages/shared-runtime/src/media-intelligence/run-tracker.service.ts",
+        "packages/shared/src/screen-intelligence-descriptor.ts",
+        "services/worker/src/screen-intelligence.handler.ts",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Retry after FAILED or DISMISSED, Regenerate after COMPLETED; honest note when nothing was started",
+        "api": "generate route: 202 {queued,reused,generation,runId} | 200 {queued:false,reason:'already_generated'} | 409 run_in_progress | 409 evidence_not_eligible; enqueueMediaIntelligenceAnalysis returns reason job_run_settled:<status> for an unclaimable reused run",
+        "worker": "handler reads generation from its run row",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-DER-002": {
+      "decision": "The canonical byte-release gate (evaluateArtifactDownload) gained kind \"derived\", released on the SAME terms as the original: evidence.download_original capability, personal-owner rule, the download_original governance action, and export eligibility (legal hold, trashed / destruction-bound lifecycle, destruction review); refusals write EXPORT_BLOCKED_BY_POLICY (custody action derived_asset_download). The bytes route asks the gate before reading any object (recordDenial true); the list route and the Derived Review GET ask it as a view (recordDenial false) and only then offer bytesUrls / the reconstructed-text projection, otherwise returning release:{allowed:false, code} and run status only. Superseded generations stay viewable through the same gate.",
+      "red": {
+        "test": "services/api/test/derived-review-release-and-generations.integration.test.ts::the Derived Review projection (reconstructed OCR text) is withheld from a VIEWER with an honest reason",
+        "command": "same integration command, run with HEAD versions of media-intelligence.routes.ts / artifact-download-gate.service.ts / media-intelligence-queue.ts swapped in",
+        "observed": "'expected undefined to match object { allowed: false }' (VIEWER received the projection path with no release decision). Bytes cases vs HEAD: VIEWER/held/trashed requests were NOT refused — they reached the storage step ('expected [ 403, 404 ] to include 503', 'expected 503 to be 403'); the 503 itself is a harness artefact (HEAD route read storage refs through the unregistered shared-runtime prisma registry), the missing refusal is the defect"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::OWNER gets the bytes; VIEWER (no download capability) is refused and sees no bytes URL",
+          "…::the reconstruction JSON (every OCR line) is refused to a VIEWER",
+          "…::a trashed record's derived bytes are refused, even to the OWNER",
+          "…::a record under an active legal hold releases no derived bytes, and the refusal is on custody",
+          "…::the Derived Review projection (reconstructed OCR text) is withheld from a VIEWER with an honest reason",
+          "services/api/test/redaction-derivative-byte-release.integration.test.ts (regression, gate shared)",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-002"
+        ],
+        "command": "integration command above + redaction-derivative-byte-release + media-intelligence-run-list",
+        "result": "30 passed across 3 live-PG16 files"
+      },
+      "filesChanged": [
+        "services/api/src/services/evidence/artifact-download-gate.service.ts",
+        "services/api/src/routes/media-intelligence.routes.ts",
+        "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "VIEWER sees run status + an honest reason instead of reconstructed text; Technical Appendix thumbnails for a VIEWER show as unavailable (bytesUrl null)",
+        "api": "GET derived-assets adds release{}, bytesUrl only when releasable; GET …/bytes goes through the gate (403 ACCESS_DENIED / PERSONAL_OWNER_REQUIRED / BLOCKED_BY_HOLD / BLOCKED_BY_LIFECYCLE); GET derived-review adds release{}",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "closes within-tenant download-capability bypass through derivatives; hold/trash/destruction now govern derived bytes",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-DER-003": {
+      "decision": "produceVideoKeyframes now decodes once and emits TWO renditions per sampled frame via filter_complex split: the persisted review keyframe (WebP ≤ reviewKeyframeMaxWidthPx 256) and a temp-only grayscale PNG at native width up to UC4_RESOURCE_BOUNDS.ocrFrameMaxWidthPx (1600), bounded per frame (8 MB) and per part (256 MB; exceeding it is a recorded bound). The orchestrator OCRs the OCR rendition (never the thumbnail) and records ocrInput {widthPx,heightPx} per keyframe in the descriptor.",
+      "red": {
+        "test": "services/worker/test/uc4-keyframe-producer.test.ts::DER-003: OCR reads a native-resolution rendition while the persisted review keyframe stays <=256px; services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-003/005: OCR reads the OCR-resolution rendition",
+        "command": "cd services/worker && npx vitest run test/uc4-keyframe-producer.test.ts (HEAD producer); persistence suite with HEAD orchestrator transpiled into shared-runtime dist",
+        "observed": "'an OCR rendition exists: expected undefined to be truthy'; orchestrator: \"expected [ 'thumbnail-256px' ] to deeply equal [ '{\\\"rows\\\":[\\\"Invoice 88213\\\"]}' ]\""
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/uc4-keyframe-producer.test.ts (real ffmpeg-static: 1080x2400 source → OCR PNG 1080x2400, review WebP ≤256)",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-003/005"
+        ],
+        "command": "cd services/worker && npx vitest run test/uc4-keyframe-producer.test.ts; TEST_DATABASE_URL=… npx vitest run test/uc4-screen-intelligence-persistence.integration.test.ts",
+        "result": "5 passed; 17 passed"
+      },
+      "filesChanged": [
+        "services/worker/src/ffmpeg-derived-assets.ts",
+        "packages/shared/src/screen-intelligence-descriptor.ts",
+        "packages/shared/src/screen-intelligence.ts",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+        "services/worker/src/screen-intelligence.handler.ts"
+      ],
+      "proofKind": "runtime",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "one extra PNG output per keyframe in the ffmpeg pass (temp only); OCR input dimensions recorded",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "OCR recall comparison (full-resolution rendition vs 256-px thumbnail) with the real tesseract engine: tesseract is not installed on this host and no local worker image contains it (proovra-worker:hardened/baseline, docker-proovra-worker, p8repro-proovra-worker all lack it); building the image needs apk network access, which the lane rules forbid. Fixture ready: services/worker/test/fixtures/uc4/chat-screen-1080.png.",
+      "status": "FIXED"
+    },
+    "UC-DER-004": {
+      "decision": "The reconstruction core (packages/shared/src/screen-reconstruction.ts) now (a) matches rows OCR-tolerantly (NFKC, zero-width/quote folding, whitespace/case; bounded edit distance ≤12% for lines ≥8 chars, exact for short lines like timestamps/'OK'); (b) recognises fixed chrome — header/composer rows pinned in the same slot and, when present, the same on-frame position — and unions them only when the CONTENT between them proves continuity (a scroll run with residual rows, or content that grew in place framed by ≥2 pinned rows); (c) accepts OCR geometry (normalised bbox) as corroboration of a static screen; (d) orders blocks by a reading-order walk so scrolled-in messages land before a pinned composer; (e) LABELS (never merges) a single-frame block whose normalised text equals an adjacent-frame block (possibleDuplicateOf + RECONSTRUCTION_POSSIBLE_DUPLICATE). The orchestrator skips keyframes byte-identical to the previous one and passes normalised Tesseract bboxes. All §29 conservative-dedup tests still pass (identical text without geometry stays distinct).",
+      "red": {
+        "test": "packages/shared/tests/screen-reconstruction.test.mjs::DER-004: fixed header/composer + one-line scroll merges each message ONCE, header and composer once",
+        "command": "cd packages/shared && node --test tests/screen-reconstruction.test.mjs (against the pre-change dist)",
+        "observed": "5 of 6 new tests failed; e.g. content-grew-in-place: actual ['Dana Reyes','Type a message','Dana Reyes','first message','Type a message'] vs expected ['Dana Reyes','first message','Type a message']"
+      },
+      "green": {
+        "tests": [
+          "packages/shared/tests/screen-reconstruction.test.mjs (18 tests incl. 6 DER-004 realistic-chat fixtures)",
+          "services/worker/test/uc4-reconstruction.test.ts",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-004"
+        ],
+        "command": "pnpm --filter @proovra/shared build && cd packages/shared && node --test tests/*.test.mjs",
+        "result": "1057 passed, 0 failed (whole shared suite)"
+      },
+      "filesChanged": [
+        "packages/shared/src/screen-reconstruction.ts",
+        "packages/shared/src/screen-intelligence-descriptor.ts",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+        "packages/shared/tests/screen-reconstruction.test.mjs",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "blocks labelled 'possible repeat of the block above (unproven)'; limitations shown in plain language",
+        "api": "projection blocks carry possibleDuplicateOf",
+        "worker": "identical keyframes skipped (stats.identicalKeyframesSkipped)",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-DER-005": {
+      "decision": "Provenance is now recorded, not constant: the descriptor carries a generation block (generation, runId, producer, probed toolVersions {ffmpeg from `ffmpeg -version`, tesseract from `tesseract --version`}, canonical parameters JSON + parametersSha256, sourceReads, supersedes, SHA-256 of the persisted OCR and reconstruction text), ocrProvider.language, and per-observation normalised bbox; extracted-text rows record language, mean confidence and extractedAtUtc. Every derived row (UC-4 keyframes/descriptor and Phase-31 thumbnails/frames/waveforms/proxy) records parameters_sha256 and the readable generation_parameters JSON (tool + version, producer parameters, source read), and engine_version is the probed tool identity (ffmpeg-<version> / sharp-<version>) with the pipeline constant only as fallback.",
+      "red": {
+        "test": "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-005/014: lineage records the source actually read …; services/worker/test/uc4-keyframe-producer.test.ts::DER-005: the ffmpeg version is PROBED; services/worker/test/derived-assets-processor-lineage.test.ts",
+        "command": "worker vitest against HEAD sources",
+        "observed": "\"expected [ 'undefined' ] to deeply equal [ 'ver-123' ]\"; '(0 , getFfmpegVersion) is not a function'; handler: 'expected undefined to deeply equal { ffmpeg: '7.0.2-static', …(1) }'; processor: 'unversioned range read must not be used' (6/6 failed)"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts (17 tests)",
+          "services/worker/test/uc4-keyframe-producer.test.ts::DER-005",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-005 tool versions",
+          "services/worker/test/derived-assets-processor-lineage.test.ts (6 tests)"
+        ],
+        "command": "cd services/worker && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_d_test P7_TEST_REDIS_URL=redis://127.0.0.1:58812/3 P7_HOST_S3_PORT=59711 npx vitest run",
+        "result": "worker full suite with DB: 94 files passed, 1189 tests passed, 5 skipped"
+      },
+      "filesChanged": [
+        "packages/shared/src/screen-intelligence-descriptor.ts",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+        "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
+        "services/worker/src/ffmpeg-derived-assets.ts",
+        "services/worker/src/tesseract-ocr-provider.ts",
+        "services/worker/src/screen-intelligence.handler.ts",
+        "services/worker/src/derived-assets.processor.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Derived Review shows generation, ffmpeg/tesseract versions and OCR language",
+        "api": "projection adds generation{}, ocrLanguage",
+        "worker": "writes generation_parameters JSON + parameters_sha256 on every derived row",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy AFTER the generation_parameters migration (expand-first)"
+      },
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION"
+    },
+    "UC-DER-006": {
+      "decision": "Regeneration never overwrites or deletes a prior generation. UC-4: each generation writes its own rows (keyframes g<N>-kf-NNNN, descriptor recon-v<N>; generation 1 keeps kf-NNNN/recon-v1) and the CURRENT pointer moves only after the new descriptor is persisted: then every other COMPLETED keyframe/descriptor row of the record (earlier generations and stale variants a new generation did not produce) is marked SUPERSEDED with its object kept; an unfinished generation's rows are marked FAILED, never current; the one reader picks the highest completed recon-v<N>. Phase-31 single-variant derivatives: the canonical upsert (recordDerivedAsset) now preserves a replaced stored artifact as its own SUPERSEDED row in the same statement, so callers have nothing to delete (removeSupersededDerivedObject removed). Superseded bytes stay viewable through the byte-release gate, are counted by storage accounting and swept by destruction. The request is on custody (see DER-001).",
+      "red": {
+        "test": "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-006: regeneration writes a NEW generation; the prior one is SUPERSEDED …",
+        "command": "persistence suite with HEAD orchestrator + HEAD derived-assets.service transpiled into shared-runtime dist (TEST_DATABASE_URL=lane D DB)",
+        "observed": "'expected undefined to be 2' (no generation); same-generation re-run: 'expected false to be true' (the replaced descriptor object had been deleted); 9 of 17 failed"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-006 + the same generation re-run is idempotent",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::happy path → … supersedes (not deletes) generation 1",
+          "services/worker/test/derived-assets-processor-lineage.test.ts::does not delete any object when a regeneration completes",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-006"
+        ],
+        "command": "worker vitest with TEST_DATABASE_URL (lane D DB with the requested SUPERSEDED CHECK applied)",
+        "result": "17 passed; 5 passed; 6 passed; 10 passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/media-intelligence/derived-assets.service.ts",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+        "packages/shared/src/screen-keyframes.ts",
+        "packages/shared/src/screen-intelligence-descriptor.ts",
+        "services/worker/src/derived-assets.processor.ts",
+        "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "'Generation N (replaces generation N-1, which is kept)'",
+        "api": "derived-asset listing includes SUPERSEDED rows (bytesUrl only for COMPLETED); bytes route serves COMPLETED and SUPERSEDED through the gate",
+        "worker": "no derived object is deleted on regeneration; storage accounting now counts superseded generations",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy AFTER the status CHECK migration"
+      },
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION"
+    },
+    "UC-DER-008": {
+      "decision": "OCR state is three facts, not a boolean: ENABLED, DISABLED_BY_POLICY, RUNTIME_UNAVAILABLE. The handler probes the engine only when policy allows OCR and passes the status; the descriptor records ocrStatus and adds RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE as a limitation; resolveScreenOcrStatus reads legacy descriptors from ocrProvider.version. The tab and the report section render 'disabled by workspace policy' only for a policy decision, 'engine unavailable' for a missing engine, and 'not run' when the reason was not recorded.",
+      "red": {
+        "test": "services/worker/test/uc4-report-section.test.ts::an OCR runtime missing on the worker is NEVER reported as a policy decision; services/worker/test/uc4-screen-intelligence-handler.test.ts::policy allows OCR but the engine is missing → RUNTIME_UNAVAILABLE",
+        "command": "cd services/worker && npx vitest run test/uc4-report-section.test.ts test/uc4-screen-intelligence-handler.test.ts (HEAD sources)",
+        "observed": "\"expected '…<section class=\\\"report-section\\\"…' not to contain 'disabled by policy'\"; \"expected undefined to be 'RUNTIME_UNAVAILABLE'\""
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/uc4-report-section.test.ts (7)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-008 (3)",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-008",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-008 (2)"
+        ],
+        "command": "worker vitest; web: npx vitest run --config vitest.render.config.ts",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "services/worker/src/screen-intelligence.handler.ts",
+        "services/worker/src/report-v2/sections/derived-review.ts",
+        "packages/shared/src/screen-intelligence-descriptor.ts",
+        "packages/shared/src/screen-reconstruction.ts",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "distinct wording for policy vs engine-missing",
+        "api": "projection.ocrStatus",
+        "worker": "report section wording; descriptor.ocrStatus",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-DER-009": {
+      "decision": "Every derived bytes URL (asset listing and Derived Review keyframes) carries v=<first 16 hex of derived_sha256>, so a regenerated derivative is a different URL; the bytes route sends 'private, max-age=86400, immutable' only when the URL's v is the row's current digest and 'private, no-cache' + ETag otherwise.",
+      "red": {
+        "test": "services/api/test/derived-review-release-and-generations.integration.test.ts::DER-009: a regenerated derivative gets a NEW bytes URL (digest-versioned), so no stale cache",
+        "command": "integration command with HEAD route swapped in",
+        "observed": "HEAD built bytesUrl as /derived-assets/<rowId>/bytes?teamId=… with no version and sent 'immutable' unconditionally; in the harness run the listing returned no rows ('Cannot read properties of undefined (reading 'bytesUrl')') because HEAD read through the unregistered shared-runtime prisma registry — the unversioned URL is visible in the HEAD source"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::DER-009",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012 (asserts &v= on keyframe src)"
+        ],
+        "command": "integration command above",
+        "result": "13 passed"
+      },
+      "filesChanged": ["services/api/src/routes/media-intelligence.routes.ts"],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "bytesUrl gains &v=; cache-control depends on v",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-DER-010": {
+      "decision": "Personal (NULL-team) records now work through the canonical workspace-of-a-record rule (resolveEvidenceWorkspaceId): every derived route binds the record to the authorised workspace when it is the record's team OR the owner's personal workspace (404 otherwise); derived rows and runs are keyed by that personal workspace; the worker handler and the Phase-31 processor read sources through the same predicate (new shared evidenceInWorkspaceSql); the byte gate applies the personal-owner rule. The tab no longer shows a dead button: it uses the review-workflow team, else the active workspace (server binds or refuses), else explains that the record's workspace is needed. The report and verification-package bridges (not owned) still skip NULL-team records — cross-lane request filed.",
+      "red": {
+        "test": "services/api/test/derived-review-release-and-generations.integration.test.ts::its owner can generate and read the Derived Review through the personal workspace",
+        "command": "integration command with HEAD route swapped in",
+        "observed": "'{\"error\":{\"code\":\"not_found\"}}: expected 404 to be 202' (HEAD required evidence.teamId === body.teamId)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::a Personal record stored with team_id NULL (2 tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::DER-010",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-010",
+          "services/worker/test/derived-assets-processor-lineage.test.ts::reads the source through the record's workspace",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-010 (2)"
+        ],
+        "command": "API + worker integration commands above; web render",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/media-intelligence.routes.ts",
+        "packages/shared-runtime/src/media-intelligence/derived-production-eligibility.ts",
+        "packages/shared-runtime/src/media-intelligence/index.ts",
+        "services/worker/src/screen-intelligence.handler.ts",
+        "services/worker/src/derived-assets.processor.ts",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Derived Review works for a personal record in the personal workspace; otherwise explains",
+        "api": "derived routes accept the owner's personal workspace id for a NULL-team record",
+        "worker": "sources read via workspace predicate",
+        "mobile": "none",
+        "extension": "none",
+        "security": "tenancy still decided server-side; cross-workspace access remains 404 (tested)",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-DER-011": {
+      "decision": "The Technical Appendix DerivedAssetsStrip excludes UC-4 Derived Review materials (video_keyframe, screen_reconstruction) and says how many are in the Derived Review tab; a non-image derivative (the WebM proxy) is never put in an <img>; humanAssetKind names the UC-4 kinds.",
+      "red": {
+        "test": "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::keyframes and the reconstruction JSON are not rendered as 'Derived preview' images",
+        "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/media-intelligence-derived-review.render.test.tsx (HEAD panel swapped in)",
+        "observed": "\"expected 'Media intelligenceDeterministic metad…' to match /Derived Review tab/\" (keyframe/JSON tiles rendered as images)"
+      },
+      "green": {
+        "tests": ["apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::Technical Appendix derived strip (DER-011)"],
+        "command": "same",
+        "result": "10 passed; full web render suite 98 files / 1593 passed"
+      },
+      "filesChanged": ["apps/web/components/media-intelligence/MediaIntelligencePanel.tsx"],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "strip shows previews only; pointer to Derived Review tab",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "web redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-DER-012": {
+      "decision": "Derived Review keyframe thumbnails render through a small component with crossOrigin=\"use-credentials\" (same as the sibling panel) and an onError state ('Keyframe unavailable') instead of a broken image.",
+      "red": {
+        "test": "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012: keyframe thumbnails are requested WITH credentials",
+        "command": "web render test with HEAD tab swapped in",
+        "observed": "'expected null to be 'use-credentials''"
+      },
+      "green": {
+        "tests": ["apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012"],
+        "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/media-intelligence-derived-review.render.test.tsx",
+        "result": "10 passed"
+      },
+      "filesChanged": ["apps/web/app/(app)/evidence/[id]/_tabs/EvidenceDerivedReviewTab.tsx"],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "credentialed keyframe loading; visible failure state",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "web redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "Playwright proof against a real cross-origin API (finding's requiredTests) not run — no long-lived servers in this lane",
+      "status": "FIXED"
+    },
+    "UC-DER-013": {
+      "decision": "One eligibility authority (shared-runtime evaluateDerivedProductionEligibility: trashed / PENDING_DESTRUCTION / DESTROYED / soft-deleted refuse; a legal hold does not stop production) is checked by the UC-4 handler before work, by the orchestrator before EVERY persist (keyframe, descriptor, supersession, text) — a record destroyed mid-run stops receiving writes and what was written is marked FAILED, never current — and by the Phase-31 processor at start and immediately before storing. The stranded-run reconciler now selects stranded PENDING runs in SQL with the lifecycle exclusion (no starvation) and never re-enqueues a run of an ineligible record; the reconciler's derived-asset list now reuses the shared constant. The generate route refuses an ineligible record (409 evidence_not_eligible).",
+      "red": {
+        "test": "services/worker/test/media-intelligence-stranded-run-lifecycle.test.ts::re-enqueues a live record's run and never a trashed / destruction-bound / destroyed record's run; persistence suite DER-013 (2 tests)",
+        "command": "cd services/worker && npx vitest run test/media-intelligence-stranded-run-lifecycle.test.ts (HEAD reconciler); persistence suite vs HEAD orchestrator",
+        "observed": "'expected [ …(6) ] to deeply equal [ …(2) ]' (all 6 runs re-enqueued); orchestrator: 'expected { ok: true, status: 'COMPLETE', …(8) } to deeply equal { ok: false, …(1) }' for trashed and destroyed-mid-run"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/media-intelligence-stranded-run-lifecycle.test.ts",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-013 (2)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::DER-013",
+          "services/worker/test/derived-assets-processor-lineage.test.ts::a trashed record gets no derived bytes",
+          "services/worker/test/et-q-07-derived-asset-reconciler.test.ts (regression)"
+        ],
+        "command": "worker vitest (with and without TEST_DATABASE_URL)",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/media-intelligence/derived-production-eligibility.ts",
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+        "services/worker/src/screen-intelligence.handler.ts",
+        "services/worker/src/derived-assets.processor.ts",
+        "services/worker/src/intelligence-run-reconciler.ts",
+        "services/api/src/routes/media-intelligence.routes.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "generate → 409 evidence_not_eligible for a trashed/destruction-bound record",
+        "worker": "runs of ineligible records settle FAILED 'evidence_ineligible:<reason>'; reconciler skips them",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-DER-014": {
+      "decision": "Both producers read each ORIGINAL at its RECORDED object version (evidence_parts.storage_version_id via getObjectStream versionId), bounded (stream abandoned at the budget), hash what they read and compare its length with the recorded size: a whole read whose digest differs from the recorded sha256 is refused (source_digest_mismatch, nothing current); a prefix read is recorded as such (sourceRead.wholeSource=false, bytesRead, readSha256) in the row's generation_parameters and, for UC-4, in the descriptor with RECONSTRUCTION_SOURCE_TRUNCATED (coverage PARTIAL). The low-res proxy's 30 s cap is recorded in its producer parameters (maxDurationSeconds).",
+      "red": {
+        "test": "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-014: a source larger than the bounded read is marked truncated …; services/worker/test/derived-assets-processor-lineage.test.ts::a source larger than the read budget is recorded as a PREFIX read",
+        "command": "worker vitest vs HEAD sources",
+        "observed": "\"expected [] to include 'RECONSTRUCTION_SOURCE_TRUNCATED'\"; digest mismatch: 'expected { ok: true, status: 'COMPLETE', …(8) } to deeply equal { ok: false, …(1) }'; processor: 'unversioned range read must not be used'"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-005/014, DER-014 (2)",
+          "services/worker/test/derived-assets-processor-lineage.test.ts (3 lineage tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-014"
+        ],
+        "command": "worker vitest with TEST_DATABASE_URL",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts",
+        "services/worker/src/screen-intelligence.handler.ts",
+        "services/worker/src/derived-assets.processor.ts",
+        "services/worker/src/ffmpeg-derived-assets.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "limitation 'only its beginning was read' shown",
+        "api": "none",
+        "worker": "versioned bounded reads; mismatching bytes refused",
+        "mobile": "none",
+        "extension": "none",
+        "security": "derivatives can no longer be produced from bytes that are not the recorded original",
+        "deployment": "api+worker redeploy AFTER the generation_parameters migration"
+      },
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION"
+    },
+    "UC-TQ-003": {
+      "decision": "processReconstructScreenJob now has behavioural proof in two layers: a DB-free unit suite that drives the REAL handler with its ports replaced (claim/fence, refused claim, structural failure, generation, OCR status, tool versions, pinned bounded read, personal scope, lifecycle) and therefore runs in CI's worker unit job with no env skip; and a live-PG16 suite (handler + run tracker + orchestrator + derived writer for real: happy path, regeneration, lease-lost fence, OCR-disabled PARTIAL, trashed, personal) plus the reworked persistence suite. The keyframe producer test now FAILS in CI when ffmpeg-static is missing instead of skipping. The tesseract test gains a present-branch assertion on real recognised text from a rendered fixture (and fails instead of skipping when UC4_REQUIRE_TESSERACT=1).",
+      "red": {
+        "test": "services/worker/test/uc4-screen-intelligence-handler.test.ts (whole suite)",
+        "command": "cd services/worker && npx vitest run test/uc4-screen-intelligence-handler.test.ts (HEAD handler)",
+        "observed": "9 of 12 failed (e.g. \"expected 'SELECT p.\\\"id\\\", p.\\\"storage_bucket\\\", p.…' to match /\\\"team_id\\\" IS NULL/\", \"expected [ { input: { …(4) }, deps: { …(7) } } ] to have a length of +0 but got 1\"); before this lane grep processReconstructScreenJob in tests had no hits"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts (12, DB-free, CI worker unit job)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts (5, live PG16)",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts (17, live PG16)",
+          "services/worker/test/uc4-keyframe-producer.test.ts (5, real ffmpeg-static)",
+          "services/worker/test/uc4-tesseract-ocr.test.ts (4 passed + 1 skipped: engine absent on host)"
+        ],
+        "command": "cd services/worker && npx vitest run (no DB: 91 files / 1165 passed / 29 skipped) and with TEST_DATABASE_URL + P7_TEST_REDIS_URL + P7_HOST_S3_PORT (94 files / 1189 passed / 5 skipped)",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "services/worker/test/uc4-screen-intelligence-handler.test.ts",
+        "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
+        "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
+        "services/worker/test/uc4-keyframe-producer.test.ts",
+        "services/worker/test/uc4-tesseract-ocr.test.ts",
+        "services/worker/test/fixtures/uc4/chat-screen-1080.png"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "tests only",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "none"
+      },
+      "migration": "none",
+      "externalProofRemaining": "(1) The two worker live-PG suites only execute where TEST_DATABASE_URL is provided — CI's 'Test — worker' job provides none (cross-lane workflow request filed). (2) Real tesseract extraction: engine absent on this host and in every local worker image; building one requires apk network access (forbidden by lane rules). Run `UC4_REQUIRE_TESSERACT=1 npx vitest run test/uc4-tesseract-ocr.test.ts` inside the worker image.",
+      "status": "NEEDS_CROSS_LANE"
+    }
+  },
+  "crossLaneRequests": [
+    {
+      "finding": "UC-DER-006",
+      "file": "services/api/test/uc0-derivative-lifecycle.integration.test.ts",
+      "change": "The regeneration contract changed from replace-and-report-the-old-pointer to preserve-the-old-artifact-as-SUPERSEDED (UC-DER-006). Exact edits (verified GREEN, 9/9, on the lane D DB with the requested migration applied): line ~318 `expect(failedFirst).toEqual({ ok: true, id: expect.any(String), previousStorage: null, supersededAssetId: null });`; replace lines ~348-352 (`expect(ok2.ok && ok2.previousStorage).toEqual({ bucket, key: \"derived-assets/proxy-v1\" }); expect(await used()).toBe(base + 12_200n);`) with `expect(ok2.ok && ok2.previousStorage).toBeNull(); expect(ok2.ok && ok2.supersededAssetId).toEqual(expect.any(String)); expect(await used()).toBe(base + 13_200n);` and update the comment to 'Regeneration keeps the replaced artifact as a SUPERSEDED row; both are counted until destruction'; in the following block add `variantKey: \"default\"` to the findFirstOrThrow where-clause for low_res_proxy and change the next `expect(await used()).toBe(base + 12_200n);` to `base + 13_200n`. The destruction assertions at the end are unchanged and pass."
+    },
+    {
+      "finding": "UC-DER-010 / UC-DER-008",
+      "file": "services/worker/src/report-v2/derived-review-bridge.ts",
+      "change": "Replace `if (!input.teamId) return null;` with resolving the record's workspace: read `evidence.ownerUserId` and use `resolveEvidenceWorkspaceId({ teamId: input.teamId, ownerUserId }, prisma)` from @proovra/shared-runtime; return null only when that is null. Pass `ocrStatus: resolveScreenOcrStatus(d)` (exported from @proovra/shared) into the section object so the report states policy-off vs engine-missing from the descriptor itself (the section already accepts optional ocrStatus and falls back to the RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE limitation)."
+    },
+    {
+      "finding": "UC-DER-010",
+      "file": "services/worker/src/verification-package-intelligence-bridge.ts",
+      "change": "Where readScreenReconstructionDescriptor(input.teamId, …) is called, use the record's workspace (resolveEvidenceWorkspaceId for a NULL-team record) so a personal record's reconstruction lineage is included in the package."
+    },
+    {
+      "finding": "UC-DER-002 / 004 / 005 / 008",
+      "file": "apps/web/lib/media-intelligence/useDerivedReview.ts",
+      "change": "Add the fields the API now projects so the tab needs no local type widening: DerivedReviewResponse.release?: { allowed: boolean; code?: string; message?: string | null }; DerivedReviewProjection.ocrStatus?: 'ENABLED'|'DISABLED_BY_POLICY'|'RUNTIME_UNAVAILABLE', ocrLanguage?: string|null, generation?: { generation: number; toolVersions: { ffmpeg: string|null; tesseract: string|null }; parametersSha256: string; supersedesGeneration: number|null; sourceTruncated: boolean } | null; DerivedReviewBlock.possibleDuplicateOf?: string|null. Also let generate() surface the response `reason` (e.g. already_generated) and `generation`."
+    },
+    {
+      "finding": "UC-DER-002",
+      "file": "apps/web/lib/media-intelligence/useDerivedAssets.ts",
+      "change": "Expose the list response's new `release` object ({allowed, code}) so the Technical Appendix strip can say why a VIEWER sees no previews instead of 'unavailable' tiles; add `SUPERSEDED` to DerivedAssetStatus and optional variantKey/sourceOffsetMs/parametersSha256 to DerivedAssetRow."
+    },
+    {
+      "finding": "UC-TQ-003",
+      "file": ".github/workflows/schema-reproducibility.yml (or ci.yml worker job)",
+      "change": "Add a worker integration step on the same Postgres service + Redis the API integration job uses: `cd services/worker && TEST_DATABASE_URL=$TEST_DATABASE_URL P7_TEST_REDIS_URL=$P7_TEST_REDIS_URL npx vitest run test/uc4-screen-intelligence-persistence.integration.test.ts test/uc4-screen-intelligence-handler.integration.test.ts` (after migrations). In the worker Docker image smoke/CI, run `UC4_REQUIRE_TESSERACT=1 npx vitest run test/uc4-tesseract-ocr.test.ts` so the real-engine branch executes and fails rather than skips."
+    },
+    {
+      "finding": "UC-DER-006",
+      "file": "services/worker/src/storage.ts",
+      "change": "Return `{ versionId: res.VersionId ?? null }` from putObjectBuffer so a derived output's object VERSION can be recorded next to its key and digest (today key + digest are recorded; version is not available to the producers)."
+    }
+  ],
+  "migrationRequests": [
+    {
+      "finding": "UC-DER-006",
+      "sql": "-- Additive, forward-only, idempotent. A strict SUPERSET of the existing status catalog; no existing row can violate it.\nALTER TABLE \"evidence_part_derived_assets\"\n  DROP CONSTRAINT IF EXISTS \"evidence_part_derived_assets_status_bounded\";\nALTER TABLE \"evidence_part_derived_assets\"\n  ADD CONSTRAINT \"evidence_part_derived_assets_status_bounded\"\n  CHECK (\"status\" IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'UNSUPPORTED', 'SUPERSEDED'));",
+      "prisma": "none (EvidencePartDerivedAsset.status is String @db.VarChar(24); CHECK constraints are invisible to prisma migrate diff)"
+    },
+    {
+      "finding": "UC-DER-005 / UC-DER-014",
+      "sql": "-- Additive, nullable. The readable generation parameters of a derivative (tool + version, producer parameters, the source read: version, bytes read, whole-or-prefix, digest read); parameters_sha256 is the SHA-256 of its canonical JSON.\nALTER TABLE \"evidence_part_derived_assets\"\n  ADD COLUMN IF NOT EXISTS \"generation_parameters\" JSONB;",
+      "prisma": "model EvidencePartDerivedAsset { … parametersSha256 String? @map(\"parameters_sha256\") @db.VarChar(64)\n+  // UC-DER-005/014 — the canonical generation parameters themselves (tool, version, producer parameters, source read).\n+  generationParameters Json? @map(\"generation_parameters\")\n  … }. Deployment order: apply BEFORE the API/worker images from this change (recordDerivedAsset writes the column); consider declaring it release-required in db:preflight Check 4. Both statements were applied to the lane D DB (proovra_ucc_d_test) to run the tests."
+    }
+  ],
+  "governanceFollowUps": [
+    "services/api/test/phase-31-13-derived-assets.test.ts 'uses bounded 4MB range fetch (no full-original pull)' pins the literal `range: `bytes=0-${SOURCE_RANGE_BYTES - 1}``; the read is still bounded by SOURCE_RANGE_BYTES but is now a VERSION-PINNED bounded stream (`readSourceForDerivation(part, SOURCE_RANGE_BYTES)`) for UC-DER-014 — update the pin to that call.",
+    "services/api/test/phase-31-13-derived-assets.test.ts 'GET route anti-enumeration: cross-team evidence id surfaces 404' and services/api/test/phase-31-14-derived-assets-bytes.test.ts 'anti-enumeration on evidence: cross-team id returns 404 `not_found`' pin `evidence.teamId !== teamId` — the defect UC-DER-010 fixes. The routes now bind through `bindDerivedRecord` (resolveEvidenceWorkspaceId), still answering reply.code(404).send({ error: { code: \"not_found\" } }); proven by derived-review-release-and-generations.integration.test.ts 'another workspace's member cannot reach it (anti-enumeration 404)'. Update the pins to `bindDerivedRecord`.",
+    "services/api/test/phase-31-20-producers-and-final-queues.test.ts 'each producer probes ffmpeg capability before spawning' counts `await detectFfmpegCapability()` = 4; getFfmpegVersion (UC-DER-005 real version probe) adds a 5th. Count moved only.",
+    "Regenerate capability-map / architecture artifacts: new exports (evaluateDerivedProductionEligibility, evidenceInWorkspaceSql, DERIVED_PRODUCTION_INELIGIBLE_LIFECYCLE_STATES, getMediaIntelligenceRun, MEDIA_INTELLIGENCE_RUN_MAX_ATTEMPTS, supersedeDerivedAssets, isClaimableRun, getFfmpegVersion, pngDimensions, FFMPEG_PRODUCER_PARAMETERS, TESSERACT_PAGE_SEGMENTATION_MODE, selectStrandedRuns) and the new 'derived' ArtifactKind; no route paths changed.",
+    "Integration harness note: bootIntegrationHarness does not import services/api/src/register-shared-runtime.ts, so any route that relies on shared-runtime's registered prisma default fails silently in integration tests (HEAD derived routes returned empty lists / 503 there). The derived routes now pass the API prisma explicitly; other routes may carry the same blind spot."
+  ],
+  "commandsRun": [
+    { "command": "cd packages/shared && node --test tests/screen-reconstruction.test.mjs (pre-change dist: RED 5 failed)", "exit": 1 },
+    { "command": "pnpm --filter @proovra/shared build && cd packages/shared && node --test tests/*.test.mjs", "exit": 0 },
+    { "command": "DATABASE_URL=<lane D loopback> pnpm --filter @proovra/shared-runtime build / exec tsc -p tsconfig.json", "exit": 0 },
+    { "command": "node (pg) against lane D DB: ALTER status CHECK + ADD COLUMN generation_parameters (the two migrationRequests, idempotent)", "exit": 0 },
+    { "command": "cd services/worker && npx vitest run test/uc4-screen-intelligence-persistence.integration.test.ts with HEAD orchestrator transpiled into dist (RED 9 failed)", "exit": 1 },
+    { "command": "cd services/worker && TEST_DATABASE_URL=… npx vitest run test/uc4-screen-intelligence-persistence.integration.test.ts", "exit": 0 },
+    { "command": "cd services/worker && npx vitest run test/uc4-keyframe-producer.test.ts (RED 2 failed, then GREEN 5 passed)", "exit": 0 },
+    { "command": "cd services/worker && npx vitest run test/uc4-screen-intelligence-handler.test.ts (RED 9 failed, then GREEN 12 passed)", "exit": 0 },
+    { "command": "cd services/worker && TEST_DATABASE_URL=… npx vitest run test/uc4-screen-intelligence-handler.integration.test.ts", "exit": 0 },
+    { "command": "cd services/worker && npx vitest run test/media-intelligence-stranded-run-lifecycle.test.ts (RED then GREEN)", "exit": 0 },
+    { "command": "cd services/worker && npx vitest run test/derived-assets-processor-lineage.test.ts (RED 6 failed, then GREEN 6 passed)", "exit": 0 },
+    { "command": "cd services/worker && npx vitest run test/uc4-report-section.test.ts (RED 3 failed, then GREEN 7 passed)", "exit": 0 },
+    { "command": "cd services/worker && npx tsc --noEmit -p tsconfig.json", "exit": 0 },
+    { "command": "cd services/worker && npx vitest run (no DB)", "exit": 0 },
+    { "command": "cd services/worker && TEST_DATABASE_URL=… P7_TEST_REDIS_URL=… P7_HOST_S3_PORT=59711 npx vitest run", "exit": 0 },
+    { "command": "cd services/api && … npx vitest run --config vitest.integration.config.ts test/derived-review-release-and-generations.integration.test.ts (HEAD route/gate/queue: RED 12 failed; new: 13 passed)", "exit": 0 },
+    { "command": "cd services/api && npx vitest run test/media-intelligence-queue-settled-run.test.ts (HEAD queue: RED 3 failed; new: 5 passed)", "exit": 0 },
+    { "command": "cd services/api && … integration: redaction-derivative-byte-release, media-intelligence-run-list, embed-owed-predicate, evidence-destruction-storage, point5/{family-intelligence-operations,family-reconciliation,intelligence-run-claim,legacy-adapter-matrix,provider-not-configured}", "exit": 0 },
+    { "command": "cd services/api && … integration: uc0-derivative-lifecycle (1 expected failure — contract change, cross-lane request; patched copy verified 9/9 then removed)", "exit": 1 },
+    { "command": "cd services/api && npx vitest run <37 unit files referencing the changed modules> (4 failures = the governance pins listed)", "exit": 1 },
+    { "command": "cd services/api && node --max-old-space-size=6144 node_modules/typescript/bin/tsc --noEmit (only errors: another lane's test/uc1-extension-oauth-harness.test.ts)", "exit": 0 },
+    { "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/media-intelligence-derived-review.render.test.tsx (HEAD tab/panel: RED 10 failed; new: 10 passed)", "exit": 0 },
+    { "command": "cd apps/web && npx vitest run --config vitest.render.config.ts (98 files / 1593 passed)", "exit": 0 },
+    { "command": "cd apps/web && npx tsc --noEmit -p tsconfig.json", "exit": 0 },
+    { "command": "cd apps/web && node ./scripts/run-tests.mjs phase13-disconnected-ui-actions | status-text-treatment | evidence-shell-cleanup", "exit": 0 },
+    { "command": "docker run --rm --network none … proovra-worker:{hardened,baseline}, docker-proovra-worker, p8repro-proovra-worker: `command -v tesseract` → not found (no image carries tesseract)", "exit": 127 }
+  ]
+}

@@ -58,6 +58,18 @@ export function keyframeVariantKey(index: number): string {
 }
 
 /**
+ * UC-DER-006 — the variant key of a keyframe WITHIN a generation. Generation 1
+ * keeps the historical `kf-NNNN` so rows written before generations existed are
+ * generation 1; later generations get their own `gN-kf-NNNN`, so a regeneration
+ * writes NEW rows and never overwrites the keyframes an earlier descriptor
+ * references.
+ */
+export function keyframeVariantKeyForGeneration(index: number, generation: number): string {
+  const g = Math.max(1, Math.trunc(generation));
+  return g === 1 ? keyframeVariantKey(index) : `g${g}-${keyframeVariantKey(index)}`;
+}
+
+/**
  * PURE: select a bounded subset of candidate frames as keyframes. Deterministic —
  * same input, same output. Always keeps the first candidate; thereafter keeps a
  * candidate when it is far enough in time from the last kept frame OR the screen

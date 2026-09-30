@@ -10,3 +10,4 @@ export * from "./ocr-transcript-indexer.service.js";
 export * from "./analyzer.service.js";
 export * from "./screen-intelligence.service.js";
 export * from "./screen-ocr-policy.js";
+export * from "./derived-production-eligibility.js";

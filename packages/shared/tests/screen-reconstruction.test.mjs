@@ -160,3 +160,126 @@ test("every reconstructed block traces to at least one source observation + ORIG
   const two = r.blocks.find((b) => b.text === "2");
   assert.deepEqual(two.sourcePartIndexes, [3, 4]);
 });
+
+// ---------------------------------------------------------------------------
+// UC-DER-004 — realistic messaging screens (fixed header + composer, one-line
+// scrolls, OCR jitter, static screens with geometry, labelled repeats).
+// ---------------------------------------------------------------------------
+
+/**
+ * A phone chat screen as local OCR returns it: a pinned header, the visible
+ * messages, a pinned composer — each row with its normalised on-frame box.
+ * `scrollPx` shifts the message rows as the conversation scrolls; the header
+ * and composer never move.
+ */
+function chatFrame(frameOrder, offsetMs, messages, { scrollRow = 0, jitter = {} } = {}) {
+  const rows = [
+    { text: "Dana Reyes", kind: "VISIBLE_LABEL", top: 0.04 },
+    ...messages.map((m, i) => ({
+      text: jitter[m] ?? m,
+      kind: "TEXT",
+      top: 0.12 + (i + scrollRow) * 0.1,
+    })),
+    { text: "Type a message", kind: "TEXT", top: 0.93 },
+  ];
+  return rows.map((r, i) => ({
+    id: `obs-${idc++}`,
+    keyframeId: `kf-${frameOrder}`,
+    sourcePartIndex: 0,
+    sourceOffsetMs: offsetMs,
+    frameOrder,
+    rowOrder: i,
+    text: r.text,
+    kind: r.kind,
+    fingerprint: null,
+    bbox: { top: r.top, left: 0.05, width: 0.6, height: 0.04 },
+  }));
+}
+
+test("DER-004: fixed header/composer + one-line scroll merges each message ONCE, header and composer once", () => {
+  idc = 0;
+  const obs = [
+    ...chatFrame(0, 0, ["are you there?", "yes, at the office", "can you send it"]),
+    ...chatFrame(1, 1500, ["yes, at the office", "can you send it", "sent it at 10:40"]),
+    ...chatFrame(2, 3000, ["can you send it", "sent it at 10:40", "got it, thanks"]),
+  ];
+  const r = reconstructScreenConversation(obs);
+  assert.deepEqual(
+    r.blocks.map((b) => b.text),
+    [
+      "Dana Reyes",
+      "are you there?",
+      "yes, at the office",
+      "can you send it",
+      "sent it at 10:40",
+      "got it, thanks",
+      "Type a message",
+    ],
+  );
+  assert.equal(r.coverage, "COMPLETE");
+  assert.ok(!r.limitations.includes("RECONSTRUCTION_POSSIBLE_GAP"));
+  assert.equal(r.blocks.find((b) => b.text === "can you send it").observedInFrames, 3);
+  assert.equal(r.blocks.find((b) => b.text === "Dana Reyes").observedInFrames, 3);
+});
+
+test("DER-004: OCR jitter on a long line between frames still merges the row (normalised + bounded edit distance)", () => {
+  idc = 0;
+  const obs = [
+    ...chatFrame(0, 0, ["the invoice number is 88213", "please confirm today"]),
+    ...chatFrame(1, 1500, ["please confirm today", "confirmed"], {
+      jitter: { "please confirm today": "p1ease confirm  today" },
+    }),
+  ];
+  const r = reconstructScreenConversation(obs);
+  assert.equal(r.blocks.filter((b) => /confirm today/.test(b.text)).length, 1);
+  assert.equal(r.coverage, "COMPLETE");
+});
+
+test("DER-004: short lines never merge on a one-character OCR difference", () => {
+  idc = 0;
+  const a = frame(0, 0, 0, ["11:02", "OK"]);
+  const b = frame(1, 0, 1500, ["11:03", "OK"]);
+  // "11:02" vs "11:03" are different timestamps, not jitter.
+  assert.equal(scrollOverlap([a[0]], [b[0]]), 0);
+});
+
+test("DER-004: STATIC screen with OCR geometry (same on-frame positions) merges into one block per row", () => {
+  idc = 0;
+  const msgs = ["hello", "how are you", "fine"];
+  const r = reconstructScreenConversation([
+    ...chatFrame(0, 0, msgs),
+    ...chatFrame(1, 1500, msgs),
+    ...chatFrame(2, 3000, msgs),
+  ]);
+  assert.equal(r.blockCount, 5);
+  assert.equal(r.coverage, "COMPLETE");
+  assert.ok(r.blocks.every((b) => b.observedInFrames === 3));
+});
+
+test("DER-004: identical text that MOVED on screen is not a static screen (a full page may have scrolled)", () => {
+  idc = 0;
+  const r = reconstructScreenConversation([
+    ...chatFrame(0, 0, ["OK", "OK"]),
+    ...chatFrame(1, 1500, ["OK", "OK"], { scrollRow: 3 }),
+  ]);
+  // Header + composer are pinned, the messages moved: continuity is not proven,
+  // the two frames' "OK" rows stay distinct and are LABELLED as possible repeats.
+  assert.equal(r.blocks.filter((b) => b.text === "OK").length, 4);
+  assert.ok(r.limitations.includes("RECONSTRUCTION_POSSIBLE_GAP"));
+  assert.ok(r.limitations.includes("RECONSTRUCTION_POSSIBLE_DUPLICATE"));
+  const labelled = r.blocks.filter((b) => b.possibleDuplicateOf);
+  assert.ok(labelled.length >= 1);
+  for (const b of labelled) {
+    assert.ok(r.blocks.some((o) => o.blockId === b.possibleDuplicateOf && o.text === b.text));
+  }
+});
+
+test("DER-004: a new message arriving without a scroll (content grew in place) is continuous", () => {
+  idc = 0;
+  const r = reconstructScreenConversation([
+    ...chatFrame(0, 0, []),
+    ...chatFrame(1, 1500, ["first message"]),
+  ]);
+  assert.deepEqual(r.blocks.map((b) => b.text), ["Dana Reyes", "first message", "Type a message"]);
+  assert.equal(r.coverage, "COMPLETE");
+});

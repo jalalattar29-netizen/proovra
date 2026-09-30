@@ -72,6 +72,9 @@ export type MediaIntelligenceRunStatus =
 
 const MAX_RETRIES = 5;
 
+/** The attempt ceiling the exclusive claim enforces (attempt_count < this). */
+export const MEDIA_INTELLIGENCE_RUN_MAX_ATTEMPTS = MAX_RETRIES;
+
 /**
  * PHASE 12 — POINT 5: the claim lease.
  *
@@ -399,6 +402,34 @@ export async function dismissRun(
     return { ok: true };
   } catch {
     return { ok: false };
+  }
+}
+
+/**
+ * UC-DER-001 — read ONE run (team-anchored). A handler reads its run's own
+ * idempotency key to know which GENERATION it produces; the queue carries only
+ * the run id. Null when absent or the tracker cannot be read.
+ */
+export async function getMediaIntelligenceRun(
+  runId: string,
+  teamId: string,
+  client: PrismaClient = getRegisteredPrisma(),
+): Promise<MediaIntelligenceRunRow | null> {
+  try {
+    const rows = (await client.$queryRawUnsafe(
+      `SELECT "id", "team_id", "evidence_id", "kind", "status",
+              "attempt_count", "idempotency_key", "last_error",
+              "started_at_utc", "completed_at_utc",
+              "created_at_utc", "updated_at_utc"
+         FROM "media_intelligence_runs"
+        WHERE "id" = $1::uuid AND "team_id" = $2::uuid
+        LIMIT 1`,
+      runId,
+      teamId,
+    )) as RawRunRow[];
+    return rows[0] ? projectRun(rows[0]) : null;
+  } catch {
+    return null;
   }
 }
 

@@ -11,6 +11,19 @@
  * PROOVRA reviewer reconstruction. A visible label is not a verified identity and
  * a displayed timestamp is not a provider-verified time.
  *
+ * Remediation (UC-DER-001/002/004/006/008/010/012):
+ *   * every settled state has an action — Retry after FAILED or DISMISSED,
+ *     Regenerate after COMPLETED — and each starts a NEW generation server-side;
+ *   * the reconstructed text is shown only when the byte-release gate would
+ *     release the material to this viewer; otherwise the tab says why;
+ *   * OCR "disabled by workspace policy" and "OCR engine unavailable" are
+ *     different facts and are shown as such;
+ *   * a Personal record (no workspace on the record) is addressed through the
+ *     active personal workspace, which the server binds or refuses;
+ *   * keyframe thumbnails load with credentials (the bytes route is
+ *     authenticated and cross-origin) and fail visibly;
+ *   * an unproven repeat of an adjacent block is labelled, never merged.
+ *
  * Presentation is class-only (evidence-detail.css / .uc4-derived-*): the route
  * forbids inline style objects and raw hex (evidence-shell-cleanup.test).
  */
@@ -24,9 +37,59 @@ import { type EvidenceDetailCtx } from "./_lib";
 import {
   useDerivedReview,
   type DerivedReviewBlock,
+  type DerivedReviewProjection,
 } from "../../../../../lib/media-intelligence/useDerivedReview";
+import { usePlatformContext } from "../../../../../lib/platform-context/PlatformContextProvider";
+import { formatUserDateTime } from "../../../../../lib/date";
 
 const PAGE_SIZE = 100;
+
+/** Fields the API now projects beyond the hook's declared shape. */
+type OcrStatus = "ENABLED" | "DISABLED_BY_POLICY" | "RUNTIME_UNAVAILABLE";
+type ProjectionExtras = {
+  ocrStatus?: OcrStatus;
+  ocrLanguage?: string | null;
+  generation?: {
+    generation: number;
+    toolVersions: { ffmpeg: string | null; tesseract: string | null };
+    parametersSha256: string;
+    supersedesGeneration: number | null;
+    sourceTruncated: boolean;
+  } | null;
+};
+type BlockExtras = { possibleDuplicateOf?: string | null };
+type ReleaseState = { allowed: boolean; code?: string; message?: string | null };
+
+/** Plain-language labels for the reconstruction's limitation codes. */
+const LIMITATION_LABELS: Record<string, string> = {
+  RECONSTRUCTION_POSSIBLE_GAP:
+    "continuity between some keyframes could not be proven — content may be missing",
+  RECONSTRUCTION_BOUNDS_REACHED: "a processing bound was reached — not every frame was reviewed",
+  RECONSTRUCTION_AMBIGUOUS_OVERLAP: "some overlaps were ambiguous",
+  RECONSTRUCTION_POSSIBLE_DUPLICATE:
+    "some blocks may repeat an adjacent block — they are labelled, not merged",
+  RECONSTRUCTION_SOURCE_TRUNCATED: "a source part was larger than the processing bound — only its beginning was read",
+  RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE: "the OCR engine was unavailable on the processing server",
+};
+
+function ocrStatusOf(projection: (DerivedReviewProjection & ProjectionExtras) | null): OcrStatus | null {
+  if (!projection) return null;
+  if (projection.ocrStatus) return projection.ocrStatus;
+  return projection.ocrEnabled ? "ENABLED" : null;
+}
+
+function ocrLabel(status: OcrStatus | null): string {
+  switch (status) {
+    case "ENABLED":
+      return "enabled";
+    case "DISABLED_BY_POLICY":
+      return "disabled by workspace policy";
+    case "RUNTIME_UNAVAILABLE":
+      return "engine unavailable";
+    default:
+      return "not run";
+  }
+}
 
 export function EvidenceDerivedReviewTab({
   ctx,
@@ -36,21 +99,35 @@ export function EvidenceDerivedReviewTab({
   onGoToArtifacts?: () => void;
 }) {
   const { evidenceId, workspace } = ctx;
-  const teamId = workspace.reviewWorkflow?.teamId ?? null;
+  const { activeWorkspaceId } = usePlatformContext();
+  // The record's workspace. The review-workflow row names it when one exists;
+  // otherwise (a Personal record, or a record with no workflow row yet) the
+  // active workspace is offered and the SERVER binds it to the record or
+  // answers 404 — the client never decides tenancy (UC-DER-010).
+  const teamId = workspace.reviewWorkflow?.teamId ?? activeWorkspaceId ?? null;
   const [offset, setOffset] = useState(0);
   const { state, generate } = useDerivedReview({ evidenceId, teamId, offset, limit: PAGE_SIZE });
   const [busy, setBusy] = useState(false);
+  const [actionNote, setActionNote] = useState<string | null>(null);
 
   const data = state.data;
   const status = data?.status.status ?? "NOT_REQUESTED";
-  const projection = data?.projection ?? null;
+  const projection = (data?.projection ?? null) as (DerivedReviewProjection & ProjectionExtras) | null;
+  const release: ReleaseState | null = data?.release ?? null;
   const keyframeUrls = data?.keyframeBytesUrls ?? {};
   const inFlight = status === "PENDING" || status === "PROCESSING";
+  const ocrStatus = ocrStatusOf(projection);
 
   const runGenerate = async (regenerate: boolean) => {
     setBusy(true);
+    setActionNote(null);
     try {
-      await generate(regenerate);
+      const res = await generate(regenerate);
+      if (!res.ok) {
+        setActionNote("The request could not be sent. Try again.");
+      } else if (!res.queued) {
+        setActionNote("Nothing new was started — the current derived review is up to date.");
+      }
     } finally {
       setBusy(false);
     }
@@ -60,6 +137,21 @@ export function EvidenceDerivedReviewTab({
     if (!projection) return null;
     return projection.coverage === "COMPLETE" ? "Complete" : "Partial";
   }, [projection]);
+
+  if (!teamId) {
+    return (
+      <div className="evidence-detail-section">
+        <h3 className="evidence-detail-section-title">
+          <Sparkles size={16} strokeWidth={2.1} aria-hidden="true" /> Derived Review
+        </h3>
+        <p className="evidence-detail-muted uc4-derived-card">
+          Derived Review runs in the workspace a record belongs to. This record&apos;s
+          workspace could not be determined from the current session — switch to the
+          workspace that holds it to generate or read its derived review.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="evidence-detail-section">
@@ -81,7 +173,7 @@ export function EvidenceDerivedReviewTab({
         <DerivedStatusRow
           status={status}
           coverageLabel={coverageLabel}
-          ocrEnabled={projection?.ocrEnabled ?? null}
+          ocrStatus={ocrStatus}
           lastError={data?.status.lastError ?? null}
           loading={state.loading}
           errorCode={state.error?.code ?? null}
@@ -91,49 +183,84 @@ export function EvidenceDerivedReviewTab({
             <button
               type="button"
               className="app-btn app-btn-primary"
-              disabled={busy || !teamId}
+              disabled={busy}
               onClick={() => void runGenerate(false)}
             >
               Generate Derived Review
             </button>
           )}
-          {status === "FAILED" && (
+          {(status === "FAILED" || status === "DISMISSED") && (
             <button
               type="button"
               className="app-btn app-btn-primary"
-              disabled={busy || !teamId}
+              disabled={busy}
               onClick={() => void runGenerate(true)}
             >
               Retry
             </button>
           )}
-          {(status === "COMPLETED" || projection) && (
+          {(status === "COMPLETED" || (projection && !inFlight && status !== "FAILED" && status !== "DISMISSED")) && (
             <button
               type="button"
               className="app-btn"
-              disabled={busy || inFlight || !teamId}
+              disabled={busy || inFlight}
               onClick={() => void runGenerate(true)}
             >
               Regenerate
             </button>
           )}
         </div>
+        {actionNote && <p className="evidence-detail-muted">{actionNote}</p>}
       </div>
+
+      {/* UC-DER-002 — the reconstructed text is the screen content itself. */}
+      {release && !release.allowed && (
+        <p className="evidence-detail-muted uc4-derived-card" role="status">
+          The derived review content is not available to you for this record
+          {release.code === "ACCESS_DENIED"
+            ? " — your role in this workspace does not include access to the original content."
+            : release.code === "PERSONAL_OWNER_REQUIRED"
+              ? " — it is available only to the owner of this personal record."
+              : release.code === "BLOCKED_BY_HOLD"
+                ? " — the record is under a legal hold."
+                : release.code === "BLOCKED_BY_LIFECYCLE"
+                  ? " — the record is in the trash or bound for destruction."
+                  : " — its release is blocked by workspace policy."}{" "}
+          The run status above is still shown.
+        </p>
+      )}
 
       {/* Coverage + limitations + transformation versions */}
       {projection && (
         <div className="evidence-detail-extract-card uc4-derived-card">
           <p className="evidence-detail-muted">
-            Coverage <strong>{coverageLabel}</strong> · OCR{" "}
-            {projection.ocrEnabled ? "enabled" : "disabled by policy"} · Acquisition{" "}
-            {projection.acquisitionComplete ? "complete" : "interrupted"} ·{" "}
+            Coverage <strong>{coverageLabel}</strong> · OCR {ocrLabel(ocrStatus)}
+            {ocrStatus === "ENABLED" && projection.ocrLanguage ? ` (${projection.ocrLanguage})` : ""} ·
+            Acquisition {projection.acquisitionComplete ? "complete" : "interrupted"} ·{" "}
             {projection.stats.keyframeCount} keyframes ·{" "}
             {projection.blockTotal} reconstructed blocks
           </p>
-          {projection.limitations.length > 0 && (
+          {projection.generation && (
             <p className="evidence-detail-muted">
-              Limitations: {projection.limitations.join(", ")}
+              Generation {projection.generation.generation}
+              {projection.generation.supersedesGeneration
+                ? ` (replaces generation ${projection.generation.supersedesGeneration}, which is kept)`
+                : ""}{" "}
+              · generated {formatUserDateTime(projection.generatedAtUtc)}
+              {projection.generation.toolVersions.ffmpeg
+                ? ` · ffmpeg ${projection.generation.toolVersions.ffmpeg}`
+                : ""}
+              {projection.generation.toolVersions.tesseract
+                ? ` · tesseract ${projection.generation.toolVersions.tesseract}`
+                : ""}
             </p>
+          )}
+          {projection.limitations.length > 0 && (
+            <ul className="evidence-detail-muted">
+              {projection.limitations.map((l) => (
+                <li key={l}>{LIMITATION_LABELS[l] ?? l}</li>
+              ))}
+            </ul>
           )}
           <p className="evidence-detail-muted uc4-derived-versions">
             {projection.transformationVersions.keyframe} ·{" "}
@@ -150,7 +277,7 @@ export function EvidenceDerivedReviewTab({
             {projection.blocks.map((b) => (
               <DerivedBlockRow
                 key={b.blockId}
-                block={b}
+                block={b as DerivedReviewBlock & BlockExtras}
                 keyframeUrls={keyframeUrls}
                 onOpenOriginal={onGoToArtifacts}
               />
@@ -183,9 +310,13 @@ export function EvidenceDerivedReviewTab({
         </>
       ) : projection && projection.blocks.length === 0 ? (
         <p className="evidence-detail-muted uc4-derived-card">
-          {projection.ocrEnabled
+          {ocrStatus === "ENABLED"
             ? "No reconstructed text — the source produced no machine-readable content."
-            : "OCR is disabled for this workspace, so no text was reconstructed. Keyframes were still derived."}
+            : ocrStatus === "RUNTIME_UNAVAILABLE"
+              ? "No text was reconstructed because the OCR engine was unavailable on the processing server. Keyframes were still derived; regenerate once OCR is available."
+              : ocrStatus === "DISABLED_BY_POLICY"
+                ? "OCR is disabled by this workspace's policy, so no text was reconstructed. Keyframes were still derived."
+                : "No text was reconstructed. Keyframes were still derived."}
         </p>
       ) : status === "NOT_REQUESTED" ? (
         <p className="evidence-detail-muted uc4-derived-card">
@@ -199,14 +330,14 @@ export function EvidenceDerivedReviewTab({
 function DerivedStatusRow({
   status,
   coverageLabel,
-  ocrEnabled,
+  ocrStatus,
   lastError,
   loading,
   errorCode,
 }: {
   status: string;
   coverageLabel: string | null;
-  ocrEnabled: boolean | null;
+  ocrStatus: OcrStatus | null;
   lastError: string | null;
   loading: boolean;
   errorCode: string | null;
@@ -221,14 +352,15 @@ function DerivedStatusRow({
         : status === "FAILED"
           ? "Failed"
           : status === "DISMISSED"
-            ? "Dismissed"
+            ? "Dismissed — retry to generate a new review"
             : "Not requested";
   return (
     <div>
       <span className="evidence-detail-muted">
         Status: <strong>{label}</strong>
         {loading ? " · refreshing…" : ""}
-        {ocrEnabled === false ? " · OCR disabled" : ""}
+        {ocrStatus === "DISABLED_BY_POLICY" ? " · OCR disabled by workspace policy" : ""}
+        {ocrStatus === "RUNTIME_UNAVAILABLE" ? " · OCR engine unavailable" : ""}
       </span>
       {status === "FAILED" && lastError && (
         <p className="evidence-detail-muted uc4-derived-error">{lastError}</p>
@@ -247,7 +379,7 @@ function DerivedBlockRow({
   keyframeUrls,
   onOpenOriginal,
 }: {
-  block: DerivedReviewBlock;
+  block: DerivedReviewBlock & BlockExtras;
   keyframeUrls: Record<string, string | null>;
   onOpenOriginal?: () => void;
 }) {
@@ -265,6 +397,7 @@ function DerivedBlockRow({
       </div>
       <div className="evidence-detail-muted uc4-derived-block-meta">
         Observed in {block.observedInFrames} frame(s) · overlap {block.confidence}
+        {block.possibleDuplicateOf ? " · possible repeat of the block above (unproven)" : ""}
         {" · "}
         <button
           type="button"
@@ -285,13 +418,7 @@ function DerivedBlockRow({
           {kfUrls.length > 0 && (
             <div className="uc4-derived-thumbs">
               {kfUrls.slice(0, 6).map((u) => (
-                <img
-                  key={u}
-                  src={u}
-                  alt="Derived source keyframe"
-                  loading="lazy"
-                  className="uc4-derived-thumb"
-                />
+                <DerivedKeyframeThumb key={u} url={u} />
               ))}
             </div>
           )}
@@ -307,5 +434,28 @@ function DerivedBlockRow({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * UC-DER-012 — the keyframe bytes route is authenticated and cross-origin;
+ * without `crossOrigin="use-credentials"` the browser omits the session cookie
+ * and the image 401s (the same fix the Technical Appendix panel carries). A
+ * failed load says so instead of leaving a broken image.
+ */
+function DerivedKeyframeThumb({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <span className="evidence-detail-muted uc4-derived-thumb">Keyframe unavailable</span>;
+  }
+  return (
+    <img
+      src={url}
+      alt="Derived source keyframe"
+      loading="lazy"
+      crossOrigin="use-credentials"
+      className="uc4-derived-thumb"
+      onError={() => setFailed(true)}
+    />
   );
 }

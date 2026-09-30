@@ -44,11 +44,12 @@ import { JOB_NAMES } from "@proovra/shared";
 import { decodeCanonicalJob } from "./canonical-job.js";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
-import { deleteObject, getObjectRange, putObjectBuffer } from "./storage.js";
-import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
+import { getObjectStream, putObjectBuffer } from "./storage.js";
 import { detectDerivedAssetCapability } from "./derived-assets-capability.js";
 // Phase 31.20 — ffmpeg-derived asset producers.
 import {
+  FFMPEG_PRODUCER_PARAMETERS,
+  getFfmpegVersion,
   produceAudioWaveform,
   produceLowResProxy,
   produceVideoFrame,
@@ -68,6 +69,94 @@ const DERIVED_ASSET_ENGINE_VERSION = "sharp-v0-phase31-v1";
 // can distinguish sharp-produced thumbnails from ffmpeg-produced
 // video frames / waveforms / low-res proxies.
 const FFMPEG_ENGINE_VERSION = "ffmpeg-v0-phase31-20";
+/** UC-DER-005 — the producer identity recorded in every generation's parameters. */
+const DERIVED_ASSETS_PRODUCER = "proovra-worker/derived-assets";
+
+/** UC-DER-005 — what the sharp thumbnail pipeline runs with. */
+const SHARP_THUMBNAIL_PARAMETERS = {
+  maxEdgePx: THUMBNAIL_MAX_EDGE_PX,
+  fit: "inside",
+  withoutEnlargement: true,
+  format: "webp",
+  quality: 80,
+} as const;
+
+type MediaIntelligenceModule = typeof import("@proovra/shared-runtime/media-intelligence");
+async function loadMediaIntelligence(): Promise<MediaIntelligenceModule> {
+  return import("@proovra/shared-runtime/media-intelligence");
+}
+
+/**
+ * UC-DER-014 — how the source was actually read for this derivative. Carried in
+ * the generation parameters so a derivative made from a bounded PREFIX of a
+ * larger original is never presented as made from the whole part.
+ */
+type SourceRead = {
+  storageVersionId: string | null;
+  recordedSha256: string | null;
+  recordedSizeBytes: number | null;
+  bytesRead: number;
+  readSha256: string;
+  wholeSource: boolean;
+  digestMatchesRecorded: boolean | null;
+};
+
+/**
+ * UC-DER-014 — read the recorded ORIGINAL object at its RECORDED version,
+ * bounded to `budget` bytes, hash what was read, and say whether it was the
+ * whole object. A whole read that does not match the recorded digest is not
+ * the ORIGINAL the row names; the caller refuses it.
+ */
+async function readSourceForDerivation(
+  part: {
+    storage_bucket: string;
+    storage_key: string;
+    storage_version_id?: string | null;
+    size_bytes?: bigint | number | null;
+    sha256: string | null;
+  },
+  budget: number,
+): Promise<{ bytes: Buffer; sourceRead: SourceRead }> {
+  const stream = (await getObjectStream({
+    bucket: part.storage_bucket,
+    key: part.storage_key,
+    versionId: part.storage_version_id ?? null,
+  })) as unknown as AsyncIterable<Buffer | string> & { destroy?: () => void };
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    const buf = typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer);
+    const room = budget - total;
+    if (buf.byteLength >= room) {
+      chunks.push(buf.subarray(0, room));
+      total += room;
+      break;
+    }
+    chunks.push(buf);
+    total += buf.byteLength;
+  }
+  try {
+    stream.destroy?.();
+  } catch {
+    /* already ended */
+  }
+  const bytes = Buffer.concat(chunks, total);
+  const recordedSize = part.size_bytes == null ? null : Number(part.size_bytes);
+  const wholeSource = recordedSize != null ? bytes.byteLength >= recordedSize : bytes.byteLength < budget;
+  const readSha256 = createHash("sha256").update(bytes).digest("hex");
+  return {
+    bytes,
+    sourceRead: {
+      storageVersionId: part.storage_version_id ?? null,
+      recordedSha256: part.sha256,
+      recordedSizeBytes: recordedSize,
+      bytesRead: bytes.byteLength,
+      readSha256,
+      wholeSource,
+      digestMatchesRecorded: wholeSource && part.sha256 ? readSha256 === part.sha256 : null,
+    },
+  };
+}
 
 // =============================================================================
 // Public surface — registered via safeRegisterWorker in index.ts
@@ -160,6 +249,23 @@ export async function processDerivedAssetJob(
 
   await tryBump("derived_assets_processor_started_total");
 
+  // UC-DER-013 — a record that left service (trashed, destruction-bound,
+  // destroyed) gets no new derived bytes. Re-checked again just before the
+  // write below, so a record trashed mid-job is refused too.
+  const mi = await loadMediaIntelligence();
+  const eligibility = await mi.evaluateDerivedProductionEligibility(evidenceId, prisma);
+  if (!eligibility.eligible) {
+    await persistFailed({
+      teamId,
+      evidenceId,
+      evidencePartId,
+      assetKind,
+      reason: `evidence_ineligible:${eligibility.reason}`,
+    });
+    await tryBump("derived_assets_processor_failed_total");
+    return { ok: true, status: "FAILED" };
+  }
+
   // Phase 31.20 — dispatch by asset_kind.
   //   * image_thumbnail → sharp pipeline (image bytes; below in this fn).
   //   * video_frame / audio_waveform / low_res_proxy → ffmpeg pipeline
@@ -209,13 +315,13 @@ export async function processDerivedAssetJob(
 
   // Look up the source part (team-anchored — anti-enumeration).
   const parts = (await prisma.$queryRawUnsafe(
-    `SELECT p."id", p."storage_bucket", p."storage_key",
-            p."mime_type", p."sha256"
+    `SELECT p."id", p."storage_bucket", p."storage_key", p."storage_version_id",
+            p."size_bytes", p."mime_type", p."sha256"
        FROM "evidence_parts" p
        JOIN "evidence" e ON e."id" = p."evidence_id"
-      WHERE e."team_id" = $1
-        AND e."id" = $2
-        AND p."id" = $3
+      WHERE ${(await loadMediaIntelligence()).evidenceInWorkspaceSql("e", "$1")}
+        AND e."id" = $2::uuid
+        AND p."id" = $3::uuid
       LIMIT 1`,
     teamId,
     evidenceId,
@@ -224,6 +330,8 @@ export async function processDerivedAssetJob(
     id: string;
     storage_bucket: string | null;
     storage_key: string | null;
+    storage_version_id: string | null;
+    size_bytes: bigint | number | null;
     mime_type: string | null;
     sha256: string | null;
   }>;
@@ -265,12 +373,13 @@ export async function processDerivedAssetJob(
   }
 
   let sourceBytes: Buffer;
+  let sourceRead: SourceRead;
   try {
-    sourceBytes = await getObjectRange({
-      bucket: part.storage_bucket,
-      key: part.storage_key,
-      range: `bytes=0-${SOURCE_RANGE_BYTES - 1}`,
-    });
+    // Bounded (SOURCE_RANGE_BYTES), pinned to the recorded version (UC-DER-014).
+    ({ bytes: sourceBytes, sourceRead } = await readSourceForDerivation(
+      { ...part, storage_bucket: part.storage_bucket, storage_key: part.storage_key },
+      SOURCE_RANGE_BYTES,
+    ));
   } catch (err) {
     await persistFailed({
       teamId,
@@ -286,6 +395,11 @@ export async function processDerivedAssetJob(
     // S3 fetch errors are typically transient — throw so BullMQ
     // retries with backoff. After max attempts the DLQ catches.
     throw err;
+  }
+  if (sourceRead.digestMatchesRecorded === false) {
+    await persistFailed({ teamId, evidenceId, evidencePartId, assetKind, reason: "source_digest_mismatch" });
+    await tryBump("derived_assets_processor_failed_total");
+    return { ok: true, status: "FAILED" };
   }
 
   let derivedBuffer: Buffer;
@@ -330,6 +444,10 @@ export async function processDerivedAssetJob(
   const derivedKey = `${DERIVED_ASSET_S3_PREFIX}/${evidenceId}/${evidencePartId}/${assetKind}-${derivedSha256.slice(0, 16)}.webp`;
   const derivedContentType = "image/webp";
 
+  if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
+    return { ok: true, status: "FAILED" };
+  }
+
   try {
     await putObjectBuffer({
       bucket: part.storage_bucket,
@@ -366,6 +484,14 @@ export async function processDerivedAssetJob(
     sourceSha256AtGeneration: part.sha256,
     storageBucket: part.storage_bucket,
     storageKey: derivedKey,
+    generationParameters: {
+      producer: DERIVED_ASSETS_PRODUCER,
+      assetKind,
+      tool: { name: "sharp", version: capability.sharp.versions?.sharp ?? null, libvips: capability.sharp.versions?.vips ?? null },
+      producerParameters: SHARP_THUMBNAIL_PARAMETERS,
+      sourceRead,
+    },
+    toolVersion: capability.sharp.versions?.sharp ? `sharp-${capability.sharp.versions.sharp}` : null,
   });
 
   if (!persistence.ok) {
@@ -415,13 +541,13 @@ async function handleFfmpegAssetKind(params: {
 
   // Look up the source part (team-anchored — anti-enumeration).
   const parts = (await prisma.$queryRawUnsafe(
-    `SELECT p."id", p."storage_bucket", p."storage_key",
-            p."mime_type", p."sha256"
+    `SELECT p."id", p."storage_bucket", p."storage_key", p."storage_version_id",
+            p."size_bytes", p."mime_type", p."sha256"
        FROM "evidence_parts" p
        JOIN "evidence" e ON e."id" = p."evidence_id"
-      WHERE e."team_id" = $1
-        AND e."id" = $2
-        AND p."id" = $3
+      WHERE ${(await loadMediaIntelligence()).evidenceInWorkspaceSql("e", "$1")}
+        AND e."id" = $2::uuid
+        AND p."id" = $3::uuid
       LIMIT 1`,
     teamId,
     evidenceId,
@@ -430,6 +556,8 @@ async function handleFfmpegAssetKind(params: {
     id: string;
     storage_bucket: string | null;
     storage_key: string | null;
+    storage_version_id: string | null;
+    size_bytes: bigint | number | null;
     mime_type: string | null;
     sha256: string | null;
   }>;
@@ -461,12 +589,12 @@ async function handleFfmpegAssetKind(params: {
   // budget (see SOURCE_READ_BUDGET in ffmpeg-derived-assets.ts).
   const readBudget = SOURCE_READ_BUDGET[assetKind];
   let sourceBytes: Buffer;
+  let sourceRead: SourceRead;
   try {
-    sourceBytes = await getObjectRange({
-      bucket: part.storage_bucket,
-      key: part.storage_key,
-      range: `bytes=0-${readBudget - 1}`,
-    });
+    ({ bytes: sourceBytes, sourceRead } = await readSourceForDerivation(
+      { ...part, storage_bucket: part.storage_bucket, storage_key: part.storage_key },
+      readBudget,
+    ));
   } catch (err) {
     await persistFailed({
       teamId,
@@ -482,6 +610,12 @@ async function handleFfmpegAssetKind(params: {
     // S3 errors are typically transient — throw so BullMQ retries.
     throw err;
   }
+  if (sourceRead.digestMatchesRecorded === false) {
+    await persistFailed({ teamId, evidenceId, evidencePartId, assetKind, reason: "source_digest_mismatch" });
+    await tryBump("derived_assets_processor_failed_total");
+    return { ok: true, status: "FAILED" };
+  }
+  const ffmpegVersion = await getFfmpegVersion();
 
   // Dispatch to the right ffmpeg producer.
   let result: FfmpegProducerResult;
@@ -511,6 +645,9 @@ async function handleFfmpegAssetKind(params: {
       derivedSha256: result.derivedSha256,
       contentType: result.contentType,
     });
+    if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
+      return { ok: true, status: "FAILED" };
+    }
     try {
       await putObjectBuffer({
         bucket: part.storage_bucket,
@@ -546,6 +683,14 @@ async function handleFfmpegAssetKind(params: {
       storageBucket: part.storage_bucket,
       storageKey: derivedKey,
       engineVersion: FFMPEG_ENGINE_VERSION,
+      toolVersion: ffmpegVersion ? `ffmpeg-${ffmpegVersion}` : null,
+      generationParameters: {
+        producer: DERIVED_ASSETS_PRODUCER,
+        assetKind,
+        tool: { name: "ffmpeg", version: ffmpegVersion },
+        producerParameters: FFMPEG_PRODUCER_PARAMETERS[assetKind],
+        sourceRead,
+      },
     });
     if (!persistence.ok) {
       await tryBump("derived_assets_processor_failed_total");
@@ -643,22 +788,32 @@ async function persistCompleted(
      *  engine version so the provenance trail can distinguish
      *  sharp- vs. ffmpeg-produced bytes. */
     engineVersion?: string;
+    /**
+     * UC-DER-005 — the PROBED tool identity (e.g. "ffmpeg-7.0.2"). When known
+     * it is what the row records; the pipeline constant is only the fallback
+     * for a runtime whose binary did not report a version.
+     */
+    toolVersion?: string | null;
+    /** UC-DER-005 / 014 — tool, parameters and the source read, as JSON. */
+    generationParameters?: Record<string, unknown>;
   },
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   try {
     const { recordDerivedAsset } = await import(
       "@proovra/shared-runtime/media-intelligence"
     );
+    const { toolVersion, ...row } = input;
+    // UC-DER-006 — a regeneration never deletes the object it replaces: the
+    // canonical writer keeps it as a SUPERSEDED row (see recordDerivedAsset).
     const r = await recordDerivedAsset(
       {
-        ...input,
+        ...row,
         status: "COMPLETED",
-        engineVersion: input.engineVersion ?? DERIVED_ASSET_ENGINE_VERSION,
+        engineVersion: (toolVersion ?? input.engineVersion ?? DERIVED_ASSET_ENGINE_VERSION).slice(0, 48),
       },
       prisma,
     );
     if (!r.ok) return { ok: false, reason: r.reason };
-    await removeSupersededDerivedObject(input, r.previousStorage);
     return { ok: true };
   } catch (err) {
     return {
@@ -672,44 +827,17 @@ async function persistCompleted(
 }
 
 /**
- * UC-0 — a regenerated derivative is written under a content-addressed key, so
- * a changed output lands at a NEW key and the row now points there. The object
- * it replaced has no other pointer: left alone it would survive destruction and
- * escape storage accounting. Remove it once the new row is committed.
- *
- * A record under an effective legal hold keeps the superseded object (holds
- * block removal of anything derived from held evidence); that is logged with
- * bounded identifiers so an operator can reconcile after release.
+ * UC-DER-013 — the lifecycle re-check immediately before a derivative is
+ * stored. False (and the request settled FAILED) when the record left service
+ * while the job was running.
  */
-async function removeSupersededDerivedObject(
-  input: PersistBaseInput & { storageBucket: string; storageKey: string },
-  previous: { bucket: string; key: string } | null,
-): Promise<void> {
-  if (!previous) return;
-  if (previous.bucket === input.storageBucket && previous.key === input.storageKey) return;
-  try {
-    const hold = await evaluateEffectiveLegalHold(prisma, {
-      teamId: input.teamId,
-      evidenceId: input.evidenceId,
-    });
-    if (hold.held) {
-      logger.warn(
-        { evidenceId: input.evidenceId, assetKind: input.assetKind },
-        "derived_assets.superseded_object_retained_under_hold",
-      );
-      return;
-    }
-    await deleteObject({ bucket: previous.bucket, key: previous.key });
-  } catch (err) {
-    logger.warn(
-      {
-        evidenceId: input.evidenceId,
-        assetKind: input.assetKind,
-        err: err instanceof Error ? err.name : "unknown",
-      },
-      "derived_assets.superseded_object_delete_failed",
-    );
-  }
+async function stillEligible(input: PersistBaseInput): Promise<boolean> {
+  const mi = await loadMediaIntelligence();
+  const eligibility = await mi.evaluateDerivedProductionEligibility(input.evidenceId, prisma);
+  if (eligibility.eligible) return true;
+  await persistFailed({ ...input, reason: `evidence_ineligible:${eligibility.reason}` });
+  await tryBump("derived_assets_processor_failed_total");
+  return false;
 }
 
 async function persistFailed(

@@ -22,8 +22,11 @@
  *     cross-check against `evidence_parts.sha256`.
  */
 
+import { createHash } from "node:crypto";
+
 import type { PrismaClient } from "@prisma/client";
 import {
+  canonicalParametersJson,
   DEFAULT_DERIVED_ASSET_VARIANT_KEY,
   derivedAssetTransformationForKind,
 } from "@proovra/shared";
@@ -56,6 +59,10 @@ export const DERIVED_ASSET_STATUSES = [
   "COMPLETED",
   "FAILED",
   "UNSUPPORTED",
+  // UC-DER-006 — a prior generation of a derivative, kept (row + object) when a
+  // newer generation replaced it. Never served as current; still counted by
+  // storage accounting and swept by destruction.
+  "SUPERSEDED",
 ] as const;
 export type DerivedAssetStatus = (typeof DERIVED_ASSET_STATUSES)[number];
 
@@ -82,6 +89,14 @@ export type DerivedAssetRecordInput = {
    */
   transformation?: string | null;
   parametersSha256?: string | null;
+  /**
+   * UC-DER-005 / UC-DER-014 — the canonical generation parameters themselves
+   * (tool + version, sampling/scale/quality, the source read: version, bytes
+   * read, whole-or-prefix, digest read). Stored as JSON so a reviewer can READ
+   * how the derivative was produced; `parametersSha256` defaults to the SHA-256
+   * of its canonical JSON.
+   */
+  generationParameters?: Record<string, unknown> | null;
   sourceOffsetMs?: number | null;
   variantKey?: string;
 };
@@ -104,6 +119,10 @@ export type DerivedAssetRow = {
   sourceSha256AtGeneration: string | null;
   lastError: string | null;
   engineVersion: string;
+  /** Variant identity (kf-NNNN, recon-vN, default, <variant>~<sha> when superseded). */
+  variantKey: string;
+  sourceOffsetMs: number | null;
+  parametersSha256: string | null;
   generatedAtUtc: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -120,12 +139,19 @@ export type DerivedAssetRow = {
  *
  * UC-0 — the row is the ONLY pointer destruction and storage accounting have
  * to a derived object, so a write must never lose one:
- *   * a COMPLETED write replaces the artifact columns, and returns the storage
- *     pointer it replaced (`previousStorage`) so the caller can remove a
- *     superseded object instead of orphaning it;
  *   * a FAILED / UNSUPPORTED write records the outcome but KEEPS any artifact
  *     already stored (bytes, digest, size, pointer) — those bytes still exist
  *     and must still be counted and destroyed.
+ *
+ * UC-DER-006 — a COMPLETED write that REPLACES a different stored artifact no
+ * longer hands the caller a pointer to delete. In the SAME statement the prior
+ * artifact is preserved as its own SUPERSEDED row (variant `<variant>~<sha12>`,
+ * same object, same digest, same generation time), so a regeneration never
+ * silently deletes or overwrites the generation it replaces: the previous bytes
+ * stay listed in lineage, counted by storage accounting and swept by
+ * destruction. `previousStorage` is therefore null whenever the prior object is
+ * still referenced — which, after this change, is always; the field remains so
+ * a caller can never mistake "nothing to clean up" for "cleanup owed".
  */
 export async function recordDerivedAsset(
   input: DerivedAssetRecordInput,
@@ -135,6 +161,8 @@ export async function recordDerivedAsset(
       ok: true;
       id: string;
       previousStorage: { bucket: string; key: string } | null;
+      /** The SUPERSEDED row that now carries the replaced artifact, if any. */
+      supersededAssetId: string | null;
     }
   | { ok: false; reason: string }
 > {
@@ -144,10 +172,37 @@ export async function recordDerivedAsset(
   try {
     const rows = (await client.$queryRawUnsafe(
       `WITH prev AS (
-         SELECT "storage_bucket", "storage_key"
+         SELECT *
            FROM "evidence_part_derived_assets"
           WHERE "team_id" = $1::uuid AND "evidence_part_id" = $3::uuid
             AND "asset_kind" = $4::varchar AND "variant_key" = $16::varchar
+       ),
+       archived AS (
+         INSERT INTO "evidence_part_derived_assets" (
+           "team_id", "evidence_id", "evidence_part_id", "asset_kind",
+           "status", "derived_sha256", "size_bytes", "content_type",
+           "width_px", "height_px", "source_sha256_at_generation",
+           "storage_bucket", "storage_key", "last_error", "engine_version",
+           "variant_key", "transformation", "parameters_sha256", "source_offset_ms",
+           "generation_parameters",
+           "generated_at_utc", "created_at_utc", "updated_at_utc"
+         )
+         SELECT p."team_id", p."evidence_id", p."evidence_part_id", p."asset_kind",
+                'SUPERSEDED', p."derived_sha256", p."size_bytes", p."content_type",
+                p."width_px", p."height_px", p."source_sha256_at_generation",
+                p."storage_bucket", p."storage_key", p."last_error", p."engine_version",
+                LEFT(p."variant_key", 50) || '~' ||
+                  COALESCE(LEFT(p."derived_sha256", 12), LEFT(p."id"::text, 8)),
+                p."transformation", p."parameters_sha256", p."source_offset_ms",
+                p."generation_parameters",
+                p."generated_at_utc", p."created_at_utc", NOW()
+           FROM prev p
+          WHERE $5::varchar = 'COMPLETED'
+            AND p."storage_key" IS NOT NULL
+            AND (p."storage_key" IS DISTINCT FROM $13::varchar
+                 OR p."storage_bucket" IS DISTINCT FROM $12::varchar)
+         ON CONFLICT ("team_id", "evidence_part_id", "asset_kind", "variant_key") DO NOTHING
+         RETURNING "id"
        )
        INSERT INTO "evidence_part_derived_assets" (
          "team_id", "evidence_id", "evidence_part_id", "asset_kind",
@@ -157,6 +212,7 @@ export async function recordDerivedAsset(
          "storage_bucket", "storage_key",
          "last_error", "engine_version",
          "variant_key", "transformation", "parameters_sha256", "source_offset_ms",
+         "generation_parameters",
          "generated_at_utc", "updated_at_utc"
        )
        VALUES (
@@ -167,6 +223,7 @@ export async function recordDerivedAsset(
          $12, $13,
          $14, $15,
          $16, $17, $18, $19,
+         $20::jsonb,
          CASE WHEN $5::varchar = 'COMPLETED' THEN NOW() ELSE NULL END,
          NOW()
        )
@@ -184,6 +241,7 @@ export async function recordDerivedAsset(
              "engine_version" = EXCLUDED."engine_version",
              "transformation" = EXCLUDED."transformation",
              "parameters_sha256" = ${keepOnFailure("parameters_sha256")},
+             "generation_parameters" = ${keepOnFailure("generation_parameters")},
              "source_offset_ms" = EXCLUDED."source_offset_ms",
              "generated_at_utc" =
                CASE WHEN EXCLUDED."status" = 'COMPLETED'
@@ -192,8 +250,7 @@ export async function recordDerivedAsset(
                END,
              "updated_at_utc" = NOW()
          RETURNING "id",
-           (SELECT "storage_bucket" FROM prev) AS "prev_bucket",
-           (SELECT "storage_key" FROM prev) AS "prev_key"`,
+           (SELECT "id" FROM archived LIMIT 1) AS "archived_id"`,
       input.teamId,
       input.evidenceId,
       input.evidencePartId,
@@ -211,18 +268,22 @@ export async function recordDerivedAsset(
       input.engineVersion ?? "sharp-v0-phase31-v1",
       input.variantKey ?? DEFAULT_DERIVED_ASSET_VARIANT_KEY,
       input.transformation ?? derivedAssetTransformationForKind(input.assetKind),
-      input.parametersSha256 ?? null,
+      input.parametersSha256 ??
+        (input.generationParameters
+          ? createHash("sha256").update(canonicalParametersJson(input.generationParameters)).digest("hex")
+          : null),
       input.sourceOffsetMs ?? null,
-    )) as Array<{ id: string; prev_bucket: string | null; prev_key: string | null }>;
+      input.generationParameters ? JSON.stringify(input.generationParameters) : null,
+    )) as Array<{ id: string; archived_id: string | null }>;
     const row = rows[0];
     if (!row) return { ok: false, reason: "upsert_returned_no_row" };
     return {
       ok: true,
       id: row.id,
-      previousStorage:
-        row.prev_bucket && row.prev_key
-          ? { bucket: row.prev_bucket, key: row.prev_key }
-          : null,
+      // The replaced object is referenced by its SUPERSEDED row (or was the
+      // same object): there is never an orphan for the caller to delete.
+      previousStorage: null,
+      supersededAssetId: row.archived_id ?? null,
     };
   } catch (err) {
     return {
@@ -255,6 +316,7 @@ export async function listDerivedAssetsForEvidence(
               "width_px", "height_px",
               "source_sha256_at_generation",
               "last_error", "engine_version",
+              "variant_key", "source_offset_ms", "parameters_sha256",
               "generated_at_utc", "created_at_utc", "updated_at_utc"
          FROM "evidence_part_derived_assets"
         WHERE "team_id" = $1 AND "evidence_id" = $2
@@ -281,7 +343,10 @@ export async function _getDerivedAssetStorageReference(
     const rows = (await client.$queryRawUnsafe(
       `SELECT "storage_bucket", "storage_key", "content_type"
          FROM "evidence_part_derived_assets"
-        WHERE "id" = $1 AND "team_id" = $2 AND "status" = 'COMPLETED'
+        WHERE "id" = $1 AND "team_id" = $2
+          -- UC-DER-006: a superseded generation stays viewable through the
+          -- same byte-release gate; only PENDING/FAILED/UNSUPPORTED never serve.
+          AND "status" IN ('COMPLETED', 'SUPERSEDED')
         LIMIT 1`,
       id,
       teamId,
@@ -302,6 +367,31 @@ export async function _getDerivedAssetStorageReference(
   }
 }
 
+/**
+ * UC-DER-006 — move rows of a previous generation out of "current" once the new
+ * generation has succeeded. Rows and objects are KEPT (SUPERSEDED): the
+ * descriptor that referenced them stays resolvable in lineage, storage
+ * accounting still counts them and destruction still sweeps them. Only
+ * COMPLETED rows move; returns how many did.
+ */
+export async function supersedeDerivedAssets(
+  input: { teamId: string; evidenceId: string; ids: ReadonlyArray<string> },
+  client: PrismaClient = getRegisteredPrisma(),
+): Promise<number> {
+  if (input.ids.length === 0) return 0;
+  const affected = await client.$executeRawUnsafe(
+    `UPDATE "evidence_part_derived_assets"
+        SET "status" = 'SUPERSEDED', "updated_at_utc" = NOW()
+      WHERE "team_id" = $1::uuid AND "evidence_id" = $2::uuid
+        AND "id" = ANY($3::uuid[])
+        AND "status" = 'COMPLETED'`,
+    input.teamId,
+    input.evidenceId,
+    [...input.ids],
+  );
+  return Number(affected);
+}
+
 // =============================================================================
 // Internals
 // =============================================================================
@@ -320,6 +410,9 @@ type RawDerivedRow = {
   source_sha256_at_generation: string | null;
   last_error: string | null;
   engine_version: string;
+  variant_key?: string | null;
+  source_offset_ms?: number | null;
+  parameters_sha256?: string | null;
   generated_at_utc: Date | null;
   created_at_utc: Date;
   updated_at_utc: Date;
@@ -340,6 +433,9 @@ function projectRow(raw: RawDerivedRow): DerivedAssetRow {
     sourceSha256AtGeneration: raw.source_sha256_at_generation,
     lastError: raw.last_error,
     engineVersion: raw.engine_version,
+    variantKey: raw.variant_key ?? "default",
+    sourceOffsetMs: raw.source_offset_ms ?? null,
+    parametersSha256: raw.parameters_sha256 ?? null,
     generatedAtUtc: raw.generated_at_utc?.toISOString() ?? null,
     createdAtUtc: raw.created_at_utc.toISOString(),
     updatedAtUtc: raw.updated_at_utc.toISOString(),

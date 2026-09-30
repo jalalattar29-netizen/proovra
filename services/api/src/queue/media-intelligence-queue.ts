@@ -31,6 +31,8 @@ import {
   type MediaIntelligenceJobKind,
 } from "@proovra/shared";
 
+import { MEDIA_INTELLIGENCE_RUN_MAX_ATTEMPTS } from "@proovra/shared-runtime/media-intelligence";
+
 import { bump } from "../services/ops/metrics.service.js";
 import {
   enqueueCanonicalWork,
@@ -264,6 +266,15 @@ export async function enqueueMediaIntelligenceAnalysis(
       bump("media_intelligence_enqueue_failed_total");
       return { enqueued: false, reason: "run_tracker_unavailable" };
     }
+    // UC-DER-001 — the idempotency key collapses repeat intent onto ONE row,
+    // whatever its status. A reused row that is settled for good (COMPLETED,
+    // DISMISSED, or FAILED at the attempt ceiling) can never be claimed again,
+    // so enqueueing a job for it would answer "queued" for work that will not
+    // run. Say so instead; a caller that wants a fresh run must create one
+    // (the Derived Review routes create a new generation).
+    if (runResult.reused && !isClaimableRun(runResult.run)) {
+      return { enqueued: false, reason: `job_run_settled:${runResult.run.status.toLowerCase()}` };
+    }
     runId = runResult.run.id;
   }
 
@@ -282,4 +293,15 @@ export async function enqueueMediaIntelligenceAnalysis(
   // the stranded-run reconciler re-enqueues it.
   bump("media_intelligence_enqueue_failed_total");
   return { enqueued: false, reason: outcome.reason };
+}
+
+/**
+ * Can the worker's exclusive claim ever take this run? Mirrors the claim
+ * predicate in run-tracker `markRunProcessing`: PENDING / FAILED below the
+ * attempt ceiling, or PROCESSING (a live or expired lease — the reconciler
+ * owns that case).
+ */
+export function isClaimableRun(run: { status: string; attemptCount: number }): boolean {
+  if (run.attemptCount >= MEDIA_INTELLIGENCE_RUN_MAX_ATTEMPTS) return false;
+  return run.status === "PENDING" || run.status === "FAILED" || run.status === "PROCESSING";
 }

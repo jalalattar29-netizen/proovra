@@ -64,13 +64,27 @@ import { noteCustodyFailure } from "../custody-events-observability.js";
  * depth; neither is sufficient alone. A derivative is never a way to the
  * original: this kind presigns only the derivative's own object.
  */
-export type ArtifactKind = "report" | "package" | "original" | "redaction";
+/*
+ * UC-DER-002 — "derived": machine-derived review material rendered FROM the
+ * original content (thumbnails, video frames, UC-4 keyframes, the low-res
+ * proxy, waveforms, and the screen-reconstruction JSON carrying every OCR'd
+ * line). It is the original's content in another form, so it is released on
+ * the SAME terms as the original: the download-original capability (a VIEWER,
+ * who is refused original bytes even for in-app viewing, is refused these
+ * too), the personal-owner rule, the original's governance action, and export
+ * eligibility (legal hold, trashed / destruction-bound lifecycle, destruction
+ * review). It was previously served on `evidence.read` alone, outside this
+ * gate. The integrity recheck stays originals-only: a derivative carries its
+ * own digest and is never the original.
+ */
+export type ArtifactKind = "report" | "package" | "original" | "redaction" | "derived";
 
 const DOWNLOAD_PERMISSION = {
   report: "evidence.download_report",
   package: "evidence.download_package",
   original: "evidence.download_original",
   redaction: "evidence.read",
+  derived: "evidence.download_original",
 } as const;
 
 const SENSITIVE_ACTION = {
@@ -78,6 +92,7 @@ const SENSITIVE_ACTION = {
   package: "download_package",
   original: "download_original",
   redaction: null,
+  derived: "download_original",
 } as const;
 
 const CUSTODY_ACTION = {
@@ -85,6 +100,7 @@ const CUSTODY_ACTION = {
   package: "verification_package_download",
   original: "download_original",
   redaction: "redaction_derivative_download",
+  derived: "derived_asset_download",
 } as const;
 
 const SUBJECT = {
@@ -92,6 +108,7 @@ const SUBJECT = {
   package: "Verification package download",
   original: "Original file download",
   redaction: "Redacted derivative download",
+  derived: "Derived review material",
 } as const;
 
 export type ArtifactDownloadDecision =
@@ -248,7 +265,8 @@ export async function evaluateArtifactDownload(input: {
       retentionUntilUtc: evidenceForGate.retentionUntilUtc ?? null,
     },
     // The original route never opted into the template overlay; unchanged.
-    consultTemplatePolicy: kind !== "original",
+    // Derived material follows the original it was rendered from.
+    consultTemplatePolicy: kind !== "original" && kind !== "derived",
     personalOwnerVerified: personalOwner,
   });
   if (!decision.allowed) {

@@ -315,7 +315,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
       { ...common, status: "FAILED", lastError: "no codec" },
       prisma,
     );
-    expect(failedFirst).toEqual({ ok: true, id: expect.any(String), previousStorage: null });
+    expect(failedFirst).toEqual({ ok: true, id: expect.any(String), previousStorage: null, supersededAssetId: null });
     expect(await used()).toBe(base + 10_700n);
 
     // Success: 1000 bytes.
@@ -333,7 +333,8 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
     expect(ok1.ok && ok1.previousStorage).toBeNull();
     expect(await used()).toBe(base + 11_700n);
 
-    // Regeneration replaces, never adds; the superseded pointer is reported.
+    // UC-DER-006 — regeneration keeps the replaced artifact as a SUPERSEDED row;
+    // both are counted until destruction.
     const ok2 = await recordDerivedAsset(
       {
         ...common,
@@ -345,17 +346,15 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
       },
       prisma,
     );
-    expect(ok2.ok && ok2.previousStorage).toEqual({
-      bucket,
-      key: "derived-assets/proxy-v1",
-    });
-    expect(await used()).toBe(base + 12_200n);
+    expect(ok2.ok && ok2.previousStorage).toBeNull();
+    expect(ok2.ok && ok2.supersededAssetId).toEqual(expect.any(String));
+    expect(await used()).toBe(base + 13_200n);
 
     // A failure AFTER success keeps the bytes that still exist — pointer,
     // digest and size — so they remain counted and destroyable.
     await recordDerivedAsset({ ...common, status: "FAILED", lastError: "retry failed" }, prisma);
     const row = await prisma.evidencePartDerivedAsset.findFirstOrThrow({
-      where: { evidencePartId: rec.partId, assetKind: "low_res_proxy" },
+      where: { evidencePartId: rec.partId, assetKind: "low_res_proxy", variantKey: "default" },
     });
     expect(row.status).toBe("FAILED");
     expect(row.storageKey).toBe("derived-assets/proxy-v2");
@@ -363,7 +362,7 @@ describe("UC-0c derivative lifecycle — live PostgreSQL 16", () => {
     expect(row.sizeBytes).toBe(1_500);
     expect(row.variantKey).toBe("default");
     expect(row.transformation).toBe("low-res-proxy/v1");
-    expect(await used()).toBe(base + 12_200n);
+    expect(await used()).toBe(base + 13_200n);
 
     // Destroyed: nothing of the record counts.
     await prisma.evidence.update({

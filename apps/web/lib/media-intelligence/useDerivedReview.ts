@@ -39,6 +39,8 @@ export type DerivedReviewBlock = {
     keyframeIds: string[];
     offsetMsRange: [number, number];
   }>;
+  /** UC-DER-004 — an unproven repeat is labelled, never merged. */
+  possibleDuplicateOf?: string | null;
 };
 
 export type DerivedReviewProjection = {
@@ -63,6 +65,17 @@ export type DerivedReviewProjection = {
   blockTotal: number;
   page: { offset: number; limit: number };
   blocks: DerivedReviewBlock[];
+  /** UC-DER-008 — policy-off and engine-unavailable are different facts. */
+  ocrStatus?: "ENABLED" | "DISABLED_BY_POLICY" | "RUNTIME_UNAVAILABLE";
+  ocrLanguage?: string | null;
+  /** UC-DER-005/006 — the generation this projection describes. */
+  generation?: {
+    generation: number;
+    toolVersions: { ffmpeg: string | null; tesseract: string | null };
+    parametersSha256: string;
+    supersedesGeneration: number | null;
+    sourceTruncated: boolean;
+  } | null;
 };
 
 export type DerivedReviewResponse = {
@@ -70,6 +83,8 @@ export type DerivedReviewResponse = {
   status: DerivedReviewStatus;
   projection: DerivedReviewProjection | null;
   keyframeBytesUrls: Record<string, string | null>;
+  /** UC-DER-002 — byte-release decision for this viewer. */
+  release?: { allowed: boolean; code?: string; message?: string | null };
 };
 
 function normalizeKeyframeUrls(
@@ -103,7 +118,10 @@ export type UseDerivedReviewApi = {
   refresh: () => Promise<void>;
   generate: (
     regenerate?: boolean,
-  ) => Promise<{ ok: true; queued: boolean } | { ok: false; reason: string }>;
+  ) => Promise<
+    | { ok: true; queued: boolean; reason: string | null; generation: number | null }
+    | { ok: false; reason: string }
+  >;
 };
 
 export function useDerivedReview(input: UseDerivedReviewInput): UseDerivedReviewApi {
@@ -148,9 +166,14 @@ export function useDerivedReview(input: UseDerivedReviewInput): UseDerivedReview
         const res = (await apiFetch(
           `/v1/evidence/${encodeURIComponent(evidenceId)}/derived-review/generate`,
           { method: "POST", body: JSON.stringify({ teamId, regenerate }) },
-        )) as { queued: boolean; reason: string | null };
+        )) as { queued: boolean; reason: string | null; generation?: number | null };
         void refresh();
-        return { ok: true as const, queued: Boolean(res.queued) };
+        return {
+          ok: true as const,
+          queued: Boolean(res.queued),
+          reason: res.reason ?? null,
+          generation: res.generation ?? null,
+        };
       } catch (err) {
         return {
           ok: false as const,

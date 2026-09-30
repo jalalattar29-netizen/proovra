@@ -45,7 +45,16 @@ export type OcrRegion = {
   confidence?: number | null;
 };
 
-export type OcrExtractResult = { regions: OcrRegion[]; language?: string | null };
+export type OcrExtractResult = {
+  regions: OcrRegion[];
+  language?: string | null;
+  /**
+   * UC-DER-003 / 005 — pixel size of the image OCR read, when known. Region
+   * boxes are in these pixels; the orchestrator normalises them to 0..1.
+   */
+  imageWidthPx?: number | null;
+  imageHeightPx?: number | null;
+};
 
 /**
  * THE canonical local-OCR provider interface. Implementations MUST be local /

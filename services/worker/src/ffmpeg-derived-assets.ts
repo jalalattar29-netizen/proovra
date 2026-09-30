@@ -51,6 +51,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { UC4_RESOURCE_BOUNDS } from "@proovra/shared";
+
 import {
   detectFfmpegCapability,
   type FfmpegCapability,
@@ -100,15 +102,99 @@ export type FfmpegProducerResult =
 
 // UC-4 — a keyframe is a bounded WebP, same output ceiling as a video frame.
 const MAX_KEYFRAME_OUTPUT_BYTES = MAX_OUTPUT_BYTES.video_frame;
+// UC-DER-003 — the temp-only OCR rendition (grayscale PNG at native width up to
+// UC4_RESOURCE_BOUNDS.ocrFrameMaxWidthPx). Never persisted; bounded per frame
+// and per part so a long segment cannot hold an unbounded set in memory.
+const MAX_OCR_FRAME_BYTES = 8 * 1024 * 1024;
+const MAX_OCR_FRAME_BYTES_PER_PART = 256 * 1024 * 1024;
+
+/**
+ * UC-DER-005 — the parameters each ffmpeg producer actually runs with. Recorded
+ * (with the probed ffmpeg version and the source read) as the derivative's
+ * generation parameters, so the derivation is reproducible and explainable.
+ */
+export const FFMPEG_PRODUCER_PARAMETERS = {
+  video_frame: { seekSeconds: 1, maxWidthPx: 256, codec: "libwebp", quality: 75 },
+  audio_waveform: { filter: "showwavespic", size: "600x80", colors: "#1e40af" },
+  low_res_proxy: {
+    maxDurationSeconds: 30,
+    heightPx: 480,
+    videoCodec: "libvpx-vp9",
+    videoBitrate: "600k",
+    audioCodec: "libopus",
+    audioBitrate: "64k",
+    deadline: "realtime",
+    cpuUsed: 5,
+  },
+} as const;
 
 export type ProducedKeyframe = {
   index: number;
   offsetMs: number;
+  /** The small REVIEW keyframe (persisted). */
   bytes: Buffer;
   contentType: string;
   derivedSha256: string;
   sizeBytes: number;
+  /** UC-DER-003 — the OCR-resolution rendition of the same frame (temp only). */
+  ocrBytes: Buffer | null;
+  ocrWidthPx: number | null;
+  ocrHeightPx: number | null;
 };
+
+let cachedFfmpegVersion: string | null | undefined;
+
+/**
+ * UC-DER-005 — the REAL ffmpeg version (`ffmpeg -version`, first line), probed
+ * once and cached. Null when ffmpeg is absent or the probe fails — never a
+ * constant pretending to be a version.
+ */
+export async function getFfmpegVersion(): Promise<string | null> {
+  if (cachedFfmpegVersion !== undefined) return cachedFfmpegVersion;
+  const cap = await detectFfmpegCapability();
+  if (!cap.ok) return (cachedFfmpegVersion = null);
+  const out = await new Promise<string>((resolve) => {
+    let text = "";
+    let child;
+    try {
+      child = spawn(cap.ffmpegPath, ["-version"], { stdio: ["ignore", "pipe", "ignore"] });
+    } catch {
+      resolve("");
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+      resolve(text);
+    }, 4000);
+    child.stdout?.on("data", (d) => {
+      if (text.length < 4096) text += String(d);
+    });
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve("");
+    });
+    child.on("exit", () => {
+      clearTimeout(timer);
+      resolve(text);
+    });
+  });
+  const m = out.match(/ffmpeg version (\S+)/);
+  cachedFfmpegVersion = m ? m[1]!.slice(0, 40) : null;
+  return cachedFfmpegVersion;
+}
+
+/** PNG IHDR width/height (the OCR rendition is always PNG). */
+export function pngDimensions(bytes: Buffer): { widthPx: number; heightPx: number } | null {
+  if (bytes.length < 24) return null;
+  if (bytes.readUInt32BE(0) !== 0x89504e47 || bytes.subarray(12, 16).toString("latin1") !== "IHDR") {
+    return null;
+  }
+  return { widthPx: bytes.readUInt32BE(16), heightPx: bytes.readUInt32BE(20) };
+}
 
 export type KeyframesProducerResult =
   | { status: "ok"; keyframes: ProducedKeyframe[]; boundsReached: boolean }
@@ -144,6 +230,9 @@ export async function produceVideoKeyframes(
   }
   const inFile = path.join(dir, `in-${randomUUID()}`);
   const pattern = path.join(dir, "kf-%04d.webp");
+  const ocrPattern = path.join(dir, "ocr-%04d.png");
+  const reviewWidth = UC4_RESOURCE_BOUNDS.reviewKeyframeMaxWidthPx;
+  const ocrWidth = UC4_RESOURCE_BOUNDS.ocrFrameMaxWidthPx;
   try {
     try {
       await writeFile(inFile, input.sourceBytes);
@@ -151,12 +240,20 @@ export async function produceVideoKeyframes(
       return { status: "failed", reason: "tmp_write_failed" };
     }
     // fps as a rational avoids float drift; extract ≤ maxKeyframes frames.
+    // UC-DER-003 — ONE decode, TWO renditions of every sampled frame: the small
+    // review keyframe (persisted) and a grayscale PNG at native width up to the
+    // OCR ceiling (temp only). OCR must never read the 256-px thumbnail: a
+    // 1080-px phone screen shrunk ~4x turns 40-px text into unreadable 9-px text.
     const spawnResult = await spawnBounded(cap.ffmpegPath, [
       "-y",
       "-i",
       inFile,
-      "-vf",
-      `fps=1000/${intervalMs},scale='min(256,iw)':-2`,
+      "-filter_complex",
+      `[0:v]fps=1000/${intervalMs},split=2[review][ocr];` +
+        `[review]scale='min(${reviewWidth},iw)':-2[reviewout];` +
+        `[ocr]scale='min(${ocrWidth},iw)':-2,format=gray[ocrout]`,
+      "-map",
+      "[reviewout]",
       "-frames:v",
       String(maxKeyframes),
       "-vcodec",
@@ -164,10 +261,19 @@ export async function produceVideoKeyframes(
       "-q:v",
       "75",
       pattern,
+      "-map",
+      "[ocrout]",
+      "-frames:v",
+      String(maxKeyframes),
+      "-vcodec",
+      "png",
+      ocrPattern,
     ]);
     if (!spawnResult.ok) return { status: "failed", reason: `ffmpeg_${spawnResult.reason}`.slice(0, 80) };
 
     const keyframes: ProducedKeyframe[] = [];
+    let ocrBytesHeld = 0;
+    let ocrBudgetReached = false;
     for (let i = 1; i <= maxKeyframes; i += 1) {
       const file = path.join(dir, `kf-${String(i).padStart(4, "0")}.webp`);
       let bytes: Buffer;
@@ -180,6 +286,22 @@ export async function produceVideoKeyframes(
       if (bytes.length > MAX_KEYFRAME_OUTPUT_BYTES) {
         return { status: "failed", reason: "keyframe_output_oversize" };
       }
+      let ocrBytes: Buffer | null = null;
+      try {
+        ocrBytes = await readFile(path.join(dir, `ocr-${String(i).padStart(4, "0")}.png`));
+      } catch {
+        ocrBytes = null;
+      }
+      if (!ocrBytes || ocrBytes.length === 0 || ocrBytes.length > MAX_OCR_FRAME_BYTES) {
+        return { status: "failed", reason: "ocr_frame_unavailable" };
+      }
+      if (ocrBytesHeld + ocrBytes.length > MAX_OCR_FRAME_BYTES_PER_PART) {
+        // The per-part OCR memory bound: stop here; the result is PARTIAL.
+        ocrBudgetReached = true;
+        break;
+      }
+      ocrBytesHeld += ocrBytes.length;
+      const dims = pngDimensions(ocrBytes);
       keyframes.push({
         index: i - 1,
         offsetMs: (i - 1) * intervalMs,
@@ -187,10 +309,17 @@ export async function produceVideoKeyframes(
         contentType: "image/webp",
         derivedSha256: createHash("sha256").update(bytes).digest("hex"),
         sizeBytes: bytes.length,
+        ocrBytes,
+        ocrWidthPx: dims?.widthPx ?? null,
+        ocrHeightPx: dims?.heightPx ?? null,
       });
     }
     if (keyframes.length === 0) return { status: "failed", reason: "no_keyframes_produced" };
-    return { status: "ok", keyframes, boundsReached: keyframes.length >= maxKeyframes };
+    return {
+      status: "ok",
+      keyframes,
+      boundsReached: ocrBudgetReached || keyframes.length >= maxKeyframes,
+    };
   } finally {
     if (dir) {
       try {

@@ -28,6 +28,7 @@
  */
 
 import {
+  DERIVED_PRODUCTION_INELIGIBLE_LIFECYCLE_STATES,
   MEDIA_INTELLIGENCE_RUN_CLAIMED_STATUS as CLAIMED_STATUS,
   MEDIA_INTELLIGENCE_RUN_LEASE_MS,
 } from "@proovra/shared-runtime";
@@ -222,16 +223,14 @@ export async function runIntelligenceRunReconciler(
     }
 
     // ---- 2. Re-enqueue stranded PENDING runs -----------------------------
+    //
+    // UC-DER-013 — a run whose record has left service (trashed, destruction-
+    // bound, destroyed) is not re-enqueued: re-running it would write new
+    // derived bytes/text onto a record that must not gain any. It stays PENDING
+    // (a restored record is served by the next tick) and the eligibility test
+    // is in SQL so such runs cannot crowd eligible ones out of the batch.
     const pendingCutoff = new Date(Date.now() - PENDING_STRANDED_MS);
-    const stranded = await prisma.mediaIntelligenceRun.findMany({
-      where: {
-        status: "PENDING",
-        updatedAtUtc: { lt: pendingCutoff },
-      },
-      select: { id: true, kind: true, evidenceId: true, attemptCount: true },
-      orderBy: { updatedAtUtc: "asc" },
-      take: batchSize,
-    });
+    const stranded = await selectStrandedRuns({ cutoff: pendingCutoff, limit: batchSize });
 
     if (stranded.length > 0) {
       const { enqueueMediaIntelligenceRunById } = await import("./queue.js");
@@ -379,11 +378,43 @@ export async function selectChunksOwingEmbedding(input: {
  * and remove again. The reconciler steps over them; if the record is restored,
  * the row is still PENDING and the next tick serves it.
  */
-export const DERIVED_ASSET_INELIGIBLE_LIFECYCLE_STATES = [
-  "TRASHED",
-  "PENDING_DESTRUCTION",
-  "DESTROYED",
-] as const;
+export const DERIVED_ASSET_INELIGIBLE_LIFECYCLE_STATES = DERIVED_PRODUCTION_INELIGIBLE_LIFECYCLE_STATES;
+
+/**
+ * UC-DER-013 — PENDING runs older than the cutoff whose record is still in
+ * service. A run whose evidence row no longer exists keeps its previous
+ * treatment (it is served and settles on its own); a run whose record is
+ * trashed / destruction-bound / destroyed is excluded.
+ */
+export async function selectStrandedRuns(input: {
+  cutoff: Date;
+  limit: number;
+}): Promise<Array<{ id: string; kind: string; evidenceId: string; attemptCount: number }>> {
+  const ineligible = DERIVED_PRODUCTION_INELIGIBLE_LIFECYCLE_STATES.map((s) => `'${s}'`).join(",");
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT r."id"::text AS id, r."kind" AS kind,
+            r."evidence_id"::text AS evidence_id, r."attempt_count" AS attempt_count
+       FROM "media_intelligence_runs" r
+       LEFT JOIN "evidence" e ON e."id" = r."evidence_id"
+      WHERE r."status" = 'PENDING'
+        AND r."updated_at_utc" < $1
+        AND (
+          e."id" IS NULL
+          OR (e."deleted_at" IS NULL
+              AND COALESCE(e."lifecycle_state"::text, 'ACTIVE') NOT IN (${ineligible}))
+        )
+      ORDER BY r."updated_at_utc" ASC
+      LIMIT $2`,
+    input.cutoff,
+    input.limit,
+  )) as Array<{ id: string; kind: string; evidence_id: string; attempt_count: number }>;
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    evidenceId: r.evidence_id,
+    attemptCount: Number(r.attempt_count),
+  }));
+}
 
 /**
  * How many times this reconciler re-enqueues one derived asset before it stops

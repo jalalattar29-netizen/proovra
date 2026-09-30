@@ -49,7 +49,9 @@ export type DerivedAssetStatus =
   | "PROCESSING"
   | "COMPLETED"
   | "FAILED"
-  | "UNSUPPORTED";
+  | "UNSUPPORTED"
+  // UC-DER-006 — a replaced generation is kept, never overwritten.
+  | "SUPERSEDED";
 
 export type DerivedAssetRow = {
   id: string;
@@ -74,7 +76,14 @@ export type DerivedAssetRow = {
   // the bytes from S3 server-side; the client NEVER sees a
   // storage_key, signed URL, or bucket name.
   bytesUrl: string | null;
+  // UC-DER-005/006 — which generation this row is (variant, point in a time-based source, parameter hash).
+  variantKey?: string | null;
+  sourceOffsetMs?: number | null;
+  parametersSha256?: string | null;
 };
+
+/** UC-DER-002 — whether this viewer may receive derived bytes, and why not (byte-release gate). */
+export type DerivedAssetRelease = { allowed: boolean; code?: string | null };
 
 export type UseDerivedAssetsInput = {
   evidenceId: string;
@@ -85,6 +94,7 @@ export type UseDerivedAssetsInput = {
 export type UseDerivedAssetsState = {
   loading: boolean;
   assets: ReadonlyArray<DerivedAssetRow>;
+  release: DerivedAssetRelease | null;
   error: { code: string } | null;
 };
 
@@ -104,6 +114,7 @@ export function useDerivedAssets(
   const [state, setState] = useState<UseDerivedAssetsState>({
     loading: false,
     assets: [],
+    release: null,
     error: null,
   });
   const mountedRef = useRef(true);
@@ -114,16 +125,21 @@ export function useDerivedAssets(
     try {
       const res = (await apiFetch(
         `/v1/evidence/${encodeURIComponent(evidenceId)}/derived-assets?teamId=${encodeURIComponent(teamId)}`,
-      )) as { evidenceId: string; assets: DerivedAssetRow[] };
+      )) as { evidenceId: string; assets: DerivedAssetRow[]; release?: DerivedAssetRelease };
       if (!mountedRef.current) return;
-      setState({ loading: false, assets: normalizeAssetUrls(res.assets ?? []), error: null });
+      setState({
+        loading: false,
+        assets: normalizeAssetUrls(res.assets ?? []),
+        release: res.release ?? null,
+        error: null,
+      });
     } catch (err) {
       if (!mountedRef.current) return;
       const code =
         err instanceof Error && "statusCode" in err
           ? `http_${(err as Error & { statusCode?: number }).statusCode ?? "unknown"}`
           : "network_error";
-      setState({ loading: false, assets: [], error: { code } });
+      setState({ loading: false, assets: [], release: null, error: { code } });
     }
   }, [evidenceId, teamId]);
 

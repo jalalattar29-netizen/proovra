@@ -4,6 +4,7 @@
  * being installed (deferred, not faked, when absent).
  */
 import { describe, it, expect } from "vitest";
+import { fileURLToPath } from "node:url";
 
 import {
   parseTesseractTsv,
@@ -61,4 +62,30 @@ describe("UC-4 tesseract TSV parser (pure, deterministic)", () => {
       expect(typeof provider.version).toBe("string");
     }
   });
+
+  // UC-TQ-003 — when the engine IS installed (the worker image), extraction is
+  // asserted on real recognised text, not merely on a version string. The
+  // fixture is a rendered 1080-px chat screen (no customer data). On a host
+  // without tesseract the branch above proves fail-closed instead; the real
+  // engine run is recorded as external proof for such hosts.
+  it("with the engine installed, recognises the text of a real rendered screen", async (ctx) => {
+    const cap = await detectTesseractCapability();
+    if (!cap.ok) {
+      if (process.env.UC4_REQUIRE_TESSERACT === "1") {
+        throw new Error(`tesseract required but unavailable: ${cap.reason}`);
+      }
+      return ctx.skip();
+    }
+    const provider = await createTesseractOcrProvider("eng");
+    const imageRef = fileURLToPath(new URL("./fixtures/uc4/chat-screen-1080.png", import.meta.url));
+    const res = await provider.extract({ imageRef });
+    const text = res.regions.map((r) => r.text).join("\n");
+    expect(text).toMatch(/Invoice\s+88213/);
+    expect(text).toMatch(/confirm\s+payment/i);
+    expect(res.language).toBe("eng");
+    // Geometry is real: every region carries a pixel box inside the 1080-px frame.
+    for (const r of res.regions) {
+      expect(r.bbox!.left + r.bbox!.width).toBeLessThanOrEqual(1080);
+    }
+  }, 60_000);
 });

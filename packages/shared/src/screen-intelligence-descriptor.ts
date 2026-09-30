@@ -24,6 +24,7 @@ import {
   DERIVED_TEXT_PROVENANCE,
 } from "./evidence-acquisition.js";
 import type {
+  NormalisedBox,
   ReconstructionBlockKind,
   ReconstructionCoverage,
   ReconstructionLimitationCode,
@@ -65,7 +66,118 @@ export const UC4_RESOURCE_BOUNDS = {
   inspectorPageSize: 100,
   /** Max descriptor object bytes (a bound on the persisted JSON itself). */
   maxDescriptorBytes: 24 * 1024 * 1024,
+  /**
+   * UC-DER-003 — the widest frame handed to OCR. Keyframes shown to a reviewer
+   * stay small (`reviewKeyframeMaxWidthPx`); OCR reads a separate, temp-only
+   * rendition at native resolution up to this width, so on-screen text is not
+   * shrunk below what the OCR engine can read.
+   */
+  ocrFrameMaxWidthPx: 1600,
+  /** The persisted review keyframe (thumbnail) width ceiling. */
+  reviewKeyframeMaxWidthPx: 256,
 } as const;
+
+/**
+ * UC-DER-001 / UC-DER-006 — GENERATIONS.
+ *
+ * Every Generate / Retry / Regenerate is a NEW generation with its own run row
+ * (idempotency key carries the generation), its own keyframe variants and its
+ * own `recon-v<N>` descriptor. A prior generation is never overwritten or
+ * deleted: once the new one succeeds its rows are marked SUPERSEDED and keep
+ * their objects. Generation 1 keeps the historical key/variant names so rows
+ * written before generations existed stay generation 1.
+ */
+export const SCREEN_RECONSTRUCTION_RUN_KIND = "reconstruct_screen" as const;
+
+export function screenReconstructionIdempotencyKey(evidenceId: string, generation: number): string {
+  const g = Math.max(1, Math.trunc(generation));
+  return g === 1
+    ? `${SCREEN_RECONSTRUCTION_RUN_KIND}:${evidenceId}`
+    : `${SCREEN_RECONSTRUCTION_RUN_KIND}:${evidenceId}:g${g}`;
+}
+
+/** The generation a run's idempotency key names (legacy key ⇒ 1). Null if not a UC-4 key. */
+export function parseScreenReconstructionGeneration(idempotencyKey: string | null | undefined): number | null {
+  if (!idempotencyKey) return null;
+  const m = /^reconstruct_screen:[0-9a-f-]{36}(?::g(\d{1,6}))?$/i.exec(idempotencyKey);
+  if (!m) return null;
+  return m[1] ? Number(m[1]) : 1;
+}
+
+/** The descriptor's derived-asset variant for a generation: recon-v1, recon-v2, … */
+export function screenReconstructionVariantKey(generation: number): string {
+  return `recon-v${Math.max(1, Math.trunc(generation))}`;
+}
+
+/** How OCR stood for a run — policy and runtime are different facts (UC-DER-008). */
+export type ScreenOcrStatus = "ENABLED" | "DISABLED_BY_POLICY" | "RUNTIME_UNAVAILABLE";
+
+/** ONE ORIGINAL part as the generation actually READ it (UC-DER-014). */
+export type ScreenSourceRead = {
+  evidencePartId: string;
+  /** The object version read, when the part records one (pinned read). */
+  storageVersionId: string | null;
+  /** Digest + size recorded for the ORIGINAL part at capture. */
+  recordedSha256: string | null;
+  recordedSizeBytes: number | null;
+  /** What the generation actually read. */
+  bytesRead: number;
+  readSha256: string;
+  /** True when the whole object was read (bytes ended before the bound). */
+  wholeSource: boolean;
+  /** Whole read: does the read digest equal the recorded one? Null when truncated. */
+  digestMatchesRecorded: boolean | null;
+};
+
+/** Lineage of ONE generation, carried in its descriptor (UC-DER-005 / 006 / 014). */
+export type ScreenIntelligenceGeneration = {
+  generation: number;
+  runId: string | null;
+  producer: string;
+  toolVersions: { ffmpeg: string | null; tesseract: string | null };
+  /** The canonical generation parameters and their SHA-256 (canonical JSON). */
+  parameters: Record<string, unknown>;
+  parametersSha256: string;
+  sourceReads: ScreenSourceRead[];
+  /** The generation this one replaced once it succeeded; null for the first. */
+  supersedes: {
+    generation: number | null;
+    descriptorAssetId: string;
+    descriptorSha256: string | null;
+  } | null;
+  /** SHA-256 of the DERIVED text persisted to the extracted-text authority. */
+  extractedTextSha256: { ocr: string | null; reconstruction: string | null };
+};
+
+/** Canonical JSON (sorted keys, no whitespace) — the input of parametersSha256. */
+export function canonicalParametersJson(value: unknown): string {
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      for (const k of Object.keys(v as Record<string, unknown>).sort()) {
+        const x = (v as Record<string, unknown>)[k];
+        if (x !== undefined) out[k] = walk(x);
+      }
+      return out;
+    }
+    return v;
+  };
+  return JSON.stringify(walk(value));
+}
+
+/**
+ * The OCR status a descriptor records, including descriptors written before the
+ * field existed: those encoded the reason only in `ocrProvider.version`
+ * ("unavailable" = runtime missing, "policy-disabled" = workspace policy).
+ */
+export function resolveScreenOcrStatus(
+  d: Pick<ScreenIntelligenceDescriptor, "ocrEnabled" | "ocrProvider"> & { ocrStatus?: ScreenOcrStatus },
+): ScreenOcrStatus {
+  if (d.ocrStatus) return d.ocrStatus;
+  if (d.ocrEnabled) return "ENABLED";
+  return d.ocrProvider?.version === "unavailable" ? "RUNTIME_UNAVAILABLE" : "DISABLED_BY_POLICY";
+}
 
 export type Uc4ResourceBounds = typeof UC4_RESOURCE_BOUNDS;
 
@@ -100,6 +212,8 @@ export type ScreenKeyframeRecord = {
   /** The derived-asset row id, so View Source resolves the private bytes proxy. */
   derivedAssetId: string | null;
   reason: "first" | "interval" | "change";
+  /** UC-DER-003 — the pixel size of the frame OCR actually read (null: not OCR'd). */
+  ocrInput?: { widthPx: number | null; heightPx: number | null } | null;
 };
 
 /** ONE machine-extracted observation with full ORIGINAL lineage. */
@@ -117,6 +231,8 @@ export type ScreenObservationRecord = {
   fingerprint: string | null;
   /** Technical OCR confidence, ADVISORY only, present iff the engine returned it. */
   confidence: number | null;
+  /** UC-DER-005 — where on the OCR frame the line was read (normalised 0..1). */
+  bbox?: NormalisedBox | null;
 };
 
 /** ONE reconstructed block (DERIVED_RECONSTRUCTED), source-linked many-to-many. */
@@ -132,6 +248,8 @@ export type ScreenBlockRecord = {
   sourceEvidencePartIds: string[];
   sourceOffsetMsRange: [number, number];
   observedInFrames: number;
+  /** UC-DER-004 — an unproven repeat of the named earlier block (labelled, not merged). */
+  possibleDuplicateOf?: string | null;
 };
 
 /**
@@ -145,9 +263,11 @@ export type ScreenIntelligenceDescriptor = {
   transformation: "screen-conversation-reconstruction/v1";
   transformationVersions: typeof SCREEN_INTELLIGENCE_TRANSFORMATION_VERSIONS;
   generatedAtUtc: string;
-  ocrProvider: { name: string; version: string; local: boolean };
-  /** False when workspace AI policy disabled OCR — a deterministic-only run. */
+  ocrProvider: { name: string; version: string; local: boolean; language?: string | null };
+  /** False when OCR did not run — see `ocrStatus` for WHY. */
   ocrEnabled: boolean;
+  /** UC-DER-008 — policy-off and engine-missing are different facts. */
+  ocrStatus?: ScreenOcrStatus;
   /** ORIGINAL acquisition completeness, carried separately from derived coverage. */
   acquisitionComplete: boolean;
   /** DERIVED reconstruction coverage — NEVER upgrades acquisition completeness. */
@@ -161,7 +281,11 @@ export type ScreenIntelligenceDescriptor = {
     observationCount: number;
     blockCount: number;
     derivedBytes: number;
+    /** UC-DER-004 — keyframes byte-identical to the previous one, not re-OCR'd. */
+    identicalKeyframesSkipped?: number;
   };
+  /** UC-DER-005/006/014 — generation lineage (absent on pre-generation descriptors). */
+  generation?: ScreenIntelligenceGeneration;
   sources: ScreenSourcePart[];
   keyframes: ScreenKeyframeRecord[];
   observations: ScreenObservationRecord[];
@@ -182,12 +306,23 @@ export type ScreenIntelligenceReviewProjection = {
     machineExtracted: typeof DERIVED_TEXT_PROVENANCE;
   };
   ocrEnabled: boolean;
+  /** UC-DER-008 — why OCR did or did not run. */
+  ocrStatus: ScreenOcrStatus;
+  ocrLanguage: string | null;
   coverage: ReconstructionCoverage;
   acquisitionComplete: boolean;
   limitations: ReconstructionLimitationCode[];
   transformationVersions: typeof SCREEN_INTELLIGENCE_TRANSFORMATION_VERSIONS;
   generatedAtUtc: string;
   stats: ScreenIntelligenceDescriptor["stats"];
+  /** UC-DER-005/006 — which generation this is and what produced it (null: legacy). */
+  generation: {
+    generation: number;
+    toolVersions: { ffmpeg: string | null; tesseract: string | null };
+    parametersSha256: string;
+    supersedesGeneration: number | null;
+    sourceTruncated: boolean;
+  } | null;
   blockTotal: number;
   page: { offset: number; limit: number };
   blocks: Array<{
@@ -197,6 +332,8 @@ export type ScreenIntelligenceReviewProjection = {
     text: string;
     confidence: OverlapConfidence;
     observedInFrames: number;
+    /** UC-DER-004 — labelled possible repeat of this earlier block, or null. */
+    possibleDuplicateOf: string | null;
     /** View Source targets: the ORIGINAL parts + keyframes this block came from. */
     sources: Array<{
       evidencePartId: string;
@@ -253,9 +390,11 @@ export function projectScreenIntelligenceForReview(
         text: b.text,
         confidence: b.confidence,
         observedInFrames: b.observedInFrames,
+        possibleDuplicateOf: b.possibleDuplicateOf ?? null,
         sources,
       };
     });
+  const g = descriptor.generation;
   return {
     schemaVersion: descriptor.schemaVersion,
     descriptorVersion: descriptor.descriptorVersion,
@@ -264,12 +403,23 @@ export function projectScreenIntelligenceForReview(
       machineExtracted: DERIVED_TEXT_PROVENANCE,
     },
     ocrEnabled: descriptor.ocrEnabled,
+    ocrStatus: resolveScreenOcrStatus(descriptor),
+    ocrLanguage: descriptor.ocrProvider?.language ?? null,
     coverage: descriptor.coverage,
     acquisitionComplete: descriptor.acquisitionComplete,
     limitations: descriptor.limitations,
     transformationVersions: descriptor.transformationVersions,
     generatedAtUtc: descriptor.generatedAtUtc,
     stats: descriptor.stats,
+    generation: g
+      ? {
+          generation: g.generation,
+          toolVersions: g.toolVersions,
+          parametersSha256: g.parametersSha256,
+          supersedesGeneration: g.supersedes?.generation ?? null,
+          sourceTruncated: g.sourceReads.some((r) => !r.wholeSource),
+        }
+      : null,
     blockTotal: descriptor.blocks.length,
     page: { offset, limit },
     blocks: pageBlocks,

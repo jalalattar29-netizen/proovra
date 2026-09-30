@@ -499,11 +499,24 @@ export default function MediaIntelligencePanel({
 // Phase 31.13 — Derived assets strip
 // ---------------------------------------------------------------------------
 
+/**
+ * UC-DER-011 — the UC-4 Derived Review materials (one keyframe row per sampled
+ * frame, and the screen-reconstruction JSON descriptor) are NOT previews: they
+ * belong to the Derived Review tab, which shows each keyframe with its offset
+ * and source part. Listing them here flooded the strip with unlabelled tiles
+ * and rendered the JSON descriptor as a broken image.
+ */
+const DERIVED_REVIEW_KINDS: ReadonlySet<string> = new Set(["video_keyframe", "screen_reconstruction"]);
+
 function DerivedAssetsStrip({
-  assets,
+  assets: allAssets,
 }: {
   assets: ReadonlyArray<DerivedAssetRow>;
 }) {
+  const reviewMaterialCount = allAssets.filter(
+    (a) => DERIVED_REVIEW_KINDS.has(a.assetKind) && a.status === "COMPLETED",
+  ).length;
+  const assets = allAssets.filter((a) => !DERIVED_REVIEW_KINDS.has(a.assetKind));
   const completed = assets.filter((a) => a.status === "COMPLETED");
   const failed = assets.filter((a) => a.status === "FAILED");
   const unsupported = assets.filter((a) => a.status === "UNSUPPORTED");
@@ -540,6 +553,13 @@ function DerivedAssetsStrip({
           Advisory aids only; never a substitute for the preserved original.
         </div>
       </div>
+
+      {reviewMaterialCount > 0 ? (
+        <div className="evd-muted evd-muted--small">
+          {reviewMaterialCount} Derived Review material{reviewMaterialCount === 1 ? "" : "s"} (keyframes
+          and the reconstruction) are shown in the Derived Review tab.
+        </div>
+      ) : null}
 
       {completed.length > 0 ? (
         <ul className="evd-grid">
@@ -589,8 +609,10 @@ function DerivedAssetThumbnail({
   asset: DerivedAssetRow;
   onOpen: () => void;
 }) {
+  // A non-image derivative (the low-res proxy video) is never put in an <img>.
+  const isImage = (asset.contentType ?? "").toLowerCase().startsWith("image/");
   const [imageState, setImageState] = useState<"loading" | "loaded" | "failed">(
-    asset.bytesUrl ? "loading" : "failed",
+    asset.bytesUrl && isImage ? "loading" : "failed",
   );
 
   return (
@@ -602,7 +624,7 @@ function DerivedAssetThumbnail({
         aria-label={`Open ${humanAssetKind(asset.assetKind)} preview`}
         className="evd-thumb-button"
       >
-        {asset.bytesUrl && imageState !== "failed" ? (
+        {asset.bytesUrl && isImage && imageState !== "failed" ? (
           <>
             {imageState === "loading" ? (
               <div className="evd-thumb-placeholder" aria-hidden="true">
@@ -638,7 +660,9 @@ function DerivedAssetThumbnail({
         ) : (
           <div className="evd-thumb-placeholder" aria-hidden="true">
             <span className="evd-muted evd-muted--small">
-              {humanAssetKind(asset.assetKind)} unavailable
+              {isImage || !asset.bytesUrl
+                ? `${humanAssetKind(asset.assetKind)} unavailable`
+                : `${humanAssetKind(asset.assetKind)} (no image preview)`}
             </span>
           </div>
         )}
@@ -748,6 +772,10 @@ function humanAssetKind(kind: string): string {
       return "Low-res proxy";
     case "compact_review_preview":
       return "Compact preview";
+    case "video_keyframe":
+      return "Derived Review keyframe";
+    case "screen_reconstruction":
+      return "Derived Review reconstruction";
     default:
       return "Derived preview";
   }

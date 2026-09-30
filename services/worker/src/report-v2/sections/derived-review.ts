@@ -15,6 +15,12 @@ import { renderCallout, renderPageSection } from "../ui.js";
 export type DerivedReviewSection = {
   coverage: "COMPLETE" | "PARTIAL";
   ocrEnabled: boolean;
+  /**
+   * UC-DER-008 — WHY OCR did or did not run, when the descriptor recorded it.
+   * Policy-off and engine-missing are different facts; absent, the section
+   * falls back to the runtime limitation and otherwise claims neither.
+   */
+  ocrStatus?: "ENABLED" | "DISABLED_BY_POLICY" | "RUNTIME_UNAVAILABLE";
   acquisitionComplete: boolean;
   sourcePartCount: number;
   keyframeCount: number;
@@ -55,6 +61,22 @@ export function renderDerivedReviewSection(
       ? `<span class="redaction-chip">Coverage: COMPLETE</span>`
       : `<span class="redaction-chip">Coverage: PARTIAL</span>`;
 
+  const ocrState =
+    section.ocrStatus ??
+    (section.ocrEnabled
+      ? "ENABLED"
+      : section.limitations.includes("RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE")
+        ? "RUNTIME_UNAVAILABLE"
+        : null);
+  const ocrLabel =
+    ocrState === "ENABLED"
+      ? "enabled"
+      : ocrState === "DISABLED_BY_POLICY"
+        ? "disabled by workspace policy"
+        : ocrState === "RUNTIME_UNAVAILABLE"
+          ? "engine unavailable"
+          : "not run";
+
   const limitationsBlock =
     section.limitations.length > 0
       ? `<p class="muted small">Limitations: ${section.limitations
@@ -68,7 +90,7 @@ export function renderDerivedReviewSection(
       ${intro}
       <p class="muted small">
         ${coverageChip}
-        <span class="redaction-chip">OCR: ${section.ocrEnabled ? "enabled" : "disabled by policy"}</span>
+        <span class="redaction-chip">OCR: ${ocrLabel}</span>
         <span class="redaction-chip">Acquisition: ${section.acquisitionComplete ? "complete" : "interrupted"}</span>
       </p>
       <p class="muted small">

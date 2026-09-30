@@ -19,6 +19,12 @@ import type { OcrProvider, OcrRegion, OcrExtractResult } from "@proovra/shared";
 import { detectTesseractCapability } from "./tesseract-capability.js";
 
 const OCR_TIMEOUT_MS = 30_000;
+/**
+ * UC-DER-005 — the page segmentation mode every extraction runs with (6 = a
+ * single uniform block of text). Exported so the generation parameters record
+ * the value that actually ran.
+ */
+export const TESSERACT_PAGE_SEGMENTATION_MODE = 6;
 /** Bound the number of regions returned per keyframe (defence against pathological input). */
 export const MAX_OCR_REGIONS_PER_FRAME = 2000;
 
@@ -104,7 +110,7 @@ function spawnTesseractTsv(bin: string, imageRef: string, lang: string): Promise
     let child;
     try {
       // argv spawn (no shell) — imageRef is a caller-controlled LOCAL temp path.
-      child = spawn(bin, [imageRef, "stdout", "-l", lang, "--psm", "6", "tsv"], {
+      child = spawn(bin, [imageRef, "stdout", "-l", lang, "--psm", String(TESSERACT_PAGE_SEGMENTATION_MODE), "tsv"], {
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (e) {

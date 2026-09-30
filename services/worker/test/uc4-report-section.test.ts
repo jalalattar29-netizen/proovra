@@ -66,3 +66,31 @@ describe("UC-4 report section", () => {
     expect(html).not.toContain("reconstructed conversation:");
   });
 });
+
+describe("UC-4 report section — OCR state is reported truthfully (UC-DER-008)", () => {
+  it("an OCR runtime missing on the worker is NEVER reported as a policy decision", () => {
+    const html = renderDerivedReviewSection({
+      ...base,
+      ocrEnabled: false,
+      limitations: ["RECONSTRUCTION_OCR_RUNTIME_UNAVAILABLE"],
+    });
+    expect(html).not.toContain("disabled by policy");
+    expect(html).toContain("OCR: engine unavailable");
+  });
+
+  it("an explicit policy decision is reported as policy", () => {
+    const html = renderDerivedReviewSection({
+      ...base,
+      ocrEnabled: false,
+      ocrStatus: "DISABLED_BY_POLICY",
+      limitations: [],
+    } as DerivedReviewSection);
+    expect(html).toContain("OCR: disabled by workspace policy");
+  });
+
+  it("when the reason was not recorded, it claims neither", () => {
+    const html = renderDerivedReviewSection({ ...base, ocrEnabled: false, limitations: [] });
+    expect(html).not.toContain("disabled by");
+    expect(html).toContain("OCR: not run");
+  });
+});

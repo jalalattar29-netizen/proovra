@@ -1257,6 +1257,102 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
   );
 
   // ---------------------------------------------------------------------------
+  // DERIVED material — shared scope + release helpers (UC-DER-002 / 009 / 010)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Bind the record to the workspace the caller was authorised in. The record
+   * belongs to `teamId` when it is that workspace's record, or — for a Personal
+   * record stored with team_id NULL — when `teamId` is its owner's personal
+   * workspace (THE workspace-of-a-record rule, `resolveEvidenceWorkspaceId`).
+   * Every other case is the anti-enumeration 404. Derived rows and runs are
+   * keyed by that workspace, so NULL-team records are no longer unreachable
+   * (UC-DER-010).
+   */
+  async function bindDerivedRecord(
+    reply: FastifyReply,
+    input: { evidenceId: string; teamId: string },
+  ): Promise<{ id: string; teamId: string | null; ownerUserId: string; deletedAt: Date | null } | null> {
+    const evidence = await prisma.evidence.findUnique({
+      where: { id: input.evidenceId },
+      select: { id: true, teamId: true, ownerUserId: true, deletedAt: true },
+    });
+    if (!evidence) {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    const { resolveEvidenceWorkspaceId } = await import("@proovra/shared-runtime");
+    const workspaceId = await resolveEvidenceWorkspaceId(
+      { teamId: evidence.teamId, ownerUserId: evidence.ownerUserId },
+      prisma as never,
+    );
+    if (workspaceId !== input.teamId) {
+      reply.code(404).send({ error: { code: "not_found" } });
+      return null;
+    }
+    return evidence;
+  }
+
+  /**
+   * UC-DER-002 — THE byte-release decision for derived material. The one gate
+   * (evaluateArtifactDownload, kind "derived") decides with the same rules as
+   * the original: download-original capability, personal-owner rule,
+   * governance, export eligibility (hold / trash / destruction). `recordDenial`
+   * false is a VIEW deciding whether to offer a URL (no custody event); an
+   * actual bytes request records its refusal.
+   */
+  async function derivedRelease(
+    req: FastifyRequest,
+    evidenceId: string,
+    actorUserId: string,
+    recordDenial: boolean,
+  ) {
+    const { evaluateArtifactDownload } = await import(
+      "../services/evidence/artifact-download-gate.service.js"
+    );
+    const { resolveEvidenceRecordAccess } = await import(
+      "../services/evidence/evidence-record-access.service.js"
+    );
+    return evaluateArtifactDownload({
+      evidenceId,
+      actorUserId,
+      kind: "derived",
+      recordDenial,
+      ip: req.ip,
+      userAgent:
+        typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+      readAccess: async (userId, id) => {
+        const a = await resolveEvidenceRecordAccess({
+          userId,
+          evidenceId: id,
+          permission: "evidence.read",
+        });
+        if (!a.allowed) {
+          throw Object.assign(new Error("Evidence not found"), { statusCode: 404 });
+        }
+      },
+    });
+  }
+
+  /**
+   * UC-DER-009 — a bytes URL names the derived DIGEST it serves (`v`), so a
+   * regenerated derivative is a different URL and can never be answered from a
+   * stale browser cache; the route only marks a response immutable when the
+   * URL's version is the row's current digest.
+   */
+  function derivedVersionParam(derivedSha256: string | null): string {
+    return derivedSha256 ? `&v=${encodeURIComponent(derivedSha256.slice(0, 16))}` : "";
+  }
+  function derivedBytesUrl(
+    evidenceId: string,
+    assetId: string,
+    teamId: string,
+    derivedSha256: string | null,
+  ): string {
+    return `/v1/evidence/${encodeURIComponent(evidenceId)}/derived-assets/${encodeURIComponent(assetId)}/bytes?teamId=${encodeURIComponent(teamId)}${derivedVersionParam(derivedSha256)}`;
+  }
+
+  // ---------------------------------------------------------------------------
   // GET /v1/evidence/:evidenceId/derived-assets?teamId=…
   //
   // Phase 31.13 — read the bounded list of derived assets for one
@@ -1265,6 +1361,9 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
   // the worker side for byte serving but the public API surface is
   // bounded by construction (the persistence service's projectRow
   // helper strips them).
+  //
+  // UC-DER-002 — a `bytesUrl` is offered only when the byte-release gate
+  // would release the bytes to THIS caller; `release` says why not.
   // ---------------------------------------------------------------------------
   app.get(
     "/v1/evidence/:evidenceId/derived-assets",
@@ -1278,55 +1377,54 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
-      // Anti-enumeration: a non-team evidence id surfaces 404 even
+      // Anti-enumeration: a record outside this workspace surfaces 404 even
       // when the row exists in another workspace.
-      const evidence = await prisma.evidence.findUnique({
-        where: { id: evidenceId },
-        select: { id: true, teamId: true },
-      });
-      if (!evidence || evidence.teamId !== teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
+      if (!(await bindDerivedRecord(reply, { evidenceId, teamId }))) return;
       const { listDerivedAssetsForEvidence } = await import(
         "../services/media-intelligence/derived-assets.service.js"
       );
-      const assets = await listDerivedAssetsForEvidence(teamId, evidenceId);
+      const assets = await listDerivedAssetsForEvidence(teamId, evidenceId, prisma as never);
+      const release = await derivedRelease(req, evidenceId, actor.actorUserId, false);
       // Phase 31.14 — attach a bounded `bytesUrl` per COMPLETED
       // asset. The URL is a workspace-internal proxy endpoint that
       // streams the bytes from S3 server-side; the client never
       // sees a storage_key, signed URL, or bucket name. PENDING /
-      // FAILED / UNSUPPORTED assets have `bytesUrl: null`.
+      // FAILED / UNSUPPORTED / SUPERSEDED assets have `bytesUrl: null`.
       const projected = assets.map((a) => ({
         ...a,
         bytesUrl:
-          a.status === "COMPLETED"
-            ? `/v1/evidence/${encodeURIComponent(evidenceId)}/derived-assets/${encodeURIComponent(a.id)}/bytes?teamId=${encodeURIComponent(teamId)}`
+          release.allowed && a.status === "COMPLETED"
+            ? `/v1/evidence/${encodeURIComponent(evidenceId)}/derived-assets/${encodeURIComponent(a.id)}/bytes?teamId=${encodeURIComponent(teamId)}${derivedVersionParam(a.derivedSha256)}`
             : null,
       }));
       return reply.code(200).send({
         evidenceId,
         assets: projected,
+        release: release.allowed
+          ? { allowed: true }
+          : { allowed: false, code: (release.body as { code?: string }).code ?? "ACCESS_DENIED" },
       });
     },
   );
 
   // ---------------------------------------------------------------------------
-  // GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes?teamId=…
+  // GET /v1/evidence/:evidenceId/derived-assets/:assetId/bytes?teamId=…&v=…
   //
   // Phase 31.14 — server-side bytes proxy. Streams the derived
   // bytes from S3 through the API so the client NEVER sees a
   // storage_bucket / storage_key / signed URL.
   //
   // Hard rules:
-  //   * Bounded auth: authorizeOrFail + evidence.read + antiEnumeration.
-  //   * Anti-enumeration: cross-team or missing asset → 404
+  //   * UC-DER-002 — released ONLY through the byte-release gate
+  //     (evaluateArtifactDownload, kind "derived"): the same capability,
+  //     personal-owner, governance and export-eligibility rules as the
+  //     original. A refusal is recorded on the record's custody chain.
+  //   * Anti-enumeration: cross-workspace or missing asset → 404
   //     `not_found` (same shape as no-row-exists).
-  //   * Status gate: only COMPLETED assets serve bytes. PENDING /
-  //     PROCESSING / FAILED / UNSUPPORTED → 404 `asset_not_ready`.
-  //   * Content-type from the DB row (the worker writes it). Bounded
-  //     cache-control: derived bytes are content-addressable
-  //     (SHA-256 in the key), so they're immutable once written —
-  //     long-lived cache is safe.
+  //   * Status gate: only COMPLETED (current) and SUPERSEDED (an earlier
+  //     generation, kept) assets serve bytes.
+  //   * UC-DER-009 — `immutable` only when the URL's `v` is the row's
+  //     current digest; otherwise revalidate against the ETag.
   //   * Storage failures → 503 `storage_unavailable`. Never leaks
   //     the bucket / key.
   // ---------------------------------------------------------------------------
@@ -1340,33 +1438,26 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           assetId: z.string().uuid(),
         })
         .parse(req.params);
-      const { teamId } = TeamQuery.parse(req.query ?? {});
+      const { teamId, v } = z
+        .object({ teamId: z.string().uuid(), v: z.string().max(64).optional() })
+        .parse(req.query ?? {});
       const actor = await authorizeOrFail(req, reply, {
         teamId,
         permission: "evidence.read",
         antiEnumeration: true,
       });
       if (!actor) return;
+      // Anti-enumeration: a record outside this workspace surfaces 404.
+      if (!(await bindDerivedRecord(reply, { evidenceId, teamId }))) return;
 
-      // Anti-enumeration: cross-team evidence id surfaces 404 even
-      // when the row exists in another workspace.
-      const evidence = await prisma.evidence.findUnique({
-        where: { id: evidenceId },
-        select: { id: true, teamId: true },
-      });
-      if (!evidence || evidence.teamId !== teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
-
-      // Verify the asset belongs to this team + evidence, and is
-      // COMPLETED. PENDING / FAILED / UNSUPPORTED ones don't serve.
+      // Verify the asset belongs to this workspace + evidence.
       const rows = (await prisma.$queryRawUnsafe(
         `SELECT "status", "content_type", "size_bytes",
                 "derived_sha256"
            FROM "evidence_part_derived_assets"
-          WHERE "id" = $1
-            AND "team_id" = $2
-            AND "evidence_id" = $3
+          WHERE "id" = $1::uuid
+            AND "team_id" = $2::uuid
+            AND "evidence_id" = $3::uuid
           LIMIT 1`,
         assetId,
         teamId,
@@ -1381,8 +1472,14 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       if (!row) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
-      if (row.status !== "COMPLETED") {
+      if (row.status !== "COMPLETED" && row.status !== "SUPERSEDED") {
         return reply.code(404).send({ error: { code: "asset_not_ready" } });
+      }
+
+      // THE byte-release decision — before any byte is read.
+      const release = await derivedRelease(req, evidenceId, actor.actorUserId, true);
+      if (!release.allowed) {
+        return reply.code(release.statusCode).send(release.body);
       }
 
       const { _getDerivedAssetStorageReference } = await import(
@@ -1391,6 +1488,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       const storageRef = await _getDerivedAssetStorageReference(
         teamId,
         assetId,
+        prisma as never,
       );
       if (!storageRef) {
         return reply
@@ -1398,10 +1496,8 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
           .send({ error: { code: "storage_unavailable" } });
       }
 
-      // Fetch + buffer the derived bytes. Thumbnails are small
-      // (sharp output is ≤256px WebP at 80%; typical real bytes are
-      // well under 100 KB). The DB row size_bytes column carries
-      // the actual recorded size; the schema caps it at 50 MB.
+      // Fetch + buffer the derived bytes. The DB row size_bytes column
+      // carries the recorded size; the schema caps it at 50 MB.
       let body: Buffer;
       try {
         const { getObjectStream } = await import("../storage.js");
@@ -1429,9 +1525,14 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
         row.content_type ?? storageRef.contentType ?? "application/octet-stream",
       );
       reply.header("content-length", String(body.byteLength));
-      // Derived asset keys include the sha256 prefix, so the bytes
-      // are content-addressable + immutable. Long cache is safe.
-      reply.header("cache-control", "private, max-age=86400, immutable");
+      // UC-DER-009 — the URL is content-addressed only when its `v` is the
+      // row's current digest; then the bytes behind it can never change.
+      const versioned =
+        !!v && !!row.derived_sha256 && row.derived_sha256.startsWith(v) && v.length >= 16;
+      reply.header(
+        "cache-control",
+        versioned ? "private, max-age=86400, immutable" : "private, no-cache",
+      );
       if (row.derived_sha256) {
         reply.header("etag", `"${row.derived_sha256}"`);
       }
@@ -1477,13 +1578,7 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       if (!actor) return;
 
       // Anti-enumeration on evidence + part.
-      const evidence = await prisma.evidence.findUnique({
-        where: { id: evidenceId },
-        select: { id: true, teamId: true },
-      });
-      if (!evidence || evidence.teamId !== body.teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
+      if (!(await bindDerivedRecord(reply, { evidenceId, teamId: body.teamId }))) return;
       const part = await prisma.evidencePart.findFirst({
         where: { id: body.evidencePartId, evidenceId },
         select: { id: true },
@@ -1520,14 +1615,23 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
   // UC-4 — DERIVED screen intelligence (Derived Review)
   // ===========================================================================
 
-  // POST /v1/evidence/:evidenceId/derived-review/generate?teamId=…
+  // POST /v1/evidence/:evidenceId/derived-review/generate
   //
-  // Enqueue (or regenerate) the DERIVED screen-intelligence run for one
-  // evidence. Reuses the durable MediaIntelligenceRun lifecycle via the
-  // `reconstruct_screen` kind on the media-intelligence queue. Idempotent: a
-  // duplicate trigger collapses on the run's `${kind}:${evidenceId}` key while a
-  // run is in flight; `regenerate=true` starts a fresh run once the prior one
-  // settled.
+  // UC-DER-001 — every Generate / Retry / Regenerate that is allowed to run
+  // creates a NEW MediaIntelligenceRun of a NEW generation (its idempotency key
+  // names the generation), which the worker's exclusive claim accepts. Settled
+  // runs are never reused or rewritten: they stay as history, and the earlier
+  // generation's derived rows stay (SUPERSEDED once the new one succeeds).
+  //
+  //   * a run in flight            → plain Generate re-joins it (202, reused);
+  //                                  Regenerate is 409 run_in_progress
+  //   * latest COMPLETED           → plain Generate answers 200 already_generated
+  //                                  (nothing queued — never a phantom 202);
+  //                                  Regenerate starts generation N+1
+  //   * latest FAILED / DISMISSED  → Generate or Regenerate starts N+1 (Retry)
+  //   * none                       → generation 1
+  //
+  // The request is recorded on the record's custody chain.
   app.post(
     "/v1/evidence/:evidenceId/derived-review/generate",
     { preHandler: requireAuth },
@@ -1546,46 +1650,128 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
-      const evidence = await prisma.evidence.findUnique({
-        where: { id: evidenceId },
-        select: { id: true, teamId: true, deletedAt: true },
-      });
-      if (!evidence || evidence.teamId !== body.teamId || evidence.deletedAt) {
+      const evidence = await bindDerivedRecord(reply, { evidenceId, teamId: body.teamId });
+      if (!evidence) return;
+      if (evidence.deletedAt) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
 
-      // Regeneration: allow a fresh run only when the prior one has settled, so
-      // a live run is never duplicated. A settled (COMPLETED/FAILED/DISMISSED)
-      // prior run is dismissed first so the idempotency key can be reused.
-      if (body.regenerate) {
-        const { listRecentRunsForEvidence, dismissRun } = await import(
-          "@proovra/shared-runtime/media-intelligence"
-        );
-        const runs = await listRecentRunsForEvidence(body.teamId, evidenceId, prisma);
-        const prior = runs.find((r) => r.kind === "reconstruct_screen");
-        if (prior && (prior.status === "PENDING" || prior.status === "PROCESSING")) {
-          return reply.code(409).send({ error: { code: "run_in_progress" } });
-        }
-        if (prior) await dismissRun(prior.id, body.teamId, prisma);
+      const mi = await import("@proovra/shared-runtime/media-intelligence");
+      const { parseScreenReconstructionGeneration, screenReconstructionIdempotencyKey } =
+        await import("@proovra/shared");
+
+      // UC-DER-013 — a record that left service gets no new derived material.
+      const eligibility = await mi.evaluateDerivedProductionEligibility(evidenceId, prisma as never);
+      if (!eligibility.eligible) {
+        return reply.code(409).send({
+          error: { code: "evidence_not_eligible", reason: eligibility.reason },
+        });
       }
+
+      const runs = (await mi.listRecentRunsForEvidence(body.teamId, evidenceId, prisma as never))
+        .filter((r) => r.kind === "reconstruct_screen")
+        .map((r) => ({ run: r, generation: parseScreenReconstructionGeneration(r.idempotencyKey) ?? 1 }))
+        .sort((a, b) => b.generation - a.generation || b.run.createdAtUtc.localeCompare(a.run.createdAtUtc));
+      const latest = runs[0] ?? null;
 
       const { enqueueMediaIntelligenceAnalysis } = await import(
         "../queue/media-intelligence-queue.js"
       );
+
+      if (latest && (latest.run.status === "PENDING" || latest.run.status === "PROCESSING")) {
+        if (body.regenerate) {
+          return reply.code(409).send({ error: { code: "run_in_progress" } });
+        }
+        // Re-join the live run (its job collapses on the run's job id).
+        const enq = await enqueueMediaIntelligenceAnalysis({
+          teamId: body.teamId,
+          evidenceId,
+          kind: "reconstruct_screen",
+          runId: latest.run.id,
+        });
+        return reply.code(202).send({
+          evidenceId,
+          queued: true,
+          reused: true,
+          generation: latest.generation,
+          runId: latest.run.id,
+          reason: enq.enqueued ? null : enq.reason,
+        });
+      }
+      if (latest && latest.run.status === "COMPLETED" && !body.regenerate) {
+        return reply.code(200).send({
+          evidenceId,
+          queued: false,
+          reason: "already_generated",
+          generation: latest.generation,
+          runId: latest.run.id,
+        });
+      }
+
+      const generation = (latest?.generation ?? 0) + 1;
+      const created = await mi.enqueueMediaIntelligenceRun(
+        {
+          teamId: body.teamId,
+          evidenceId,
+          kind: "reconstruct_screen",
+          idempotencyKey: screenReconstructionIdempotencyKey(evidenceId, generation),
+        },
+        prisma as never,
+      );
+      if (!created.ok) {
+        return reply.code(503).send({
+          error: { code: "queue_unavailable", detail: created.reason },
+        });
+      }
+      if (created.reused && created.run.status !== "PENDING") {
+        // A concurrent request created AND the worker already took this
+        // generation: it is in flight or settled — never report a new queue.
+        return reply.code(409).send({ error: { code: "run_in_progress" } });
+      }
+
       const enq = await enqueueMediaIntelligenceAnalysis({
         teamId: body.teamId,
         evidenceId,
         kind: "reconstruct_screen",
+        runId: created.run.id,
       });
       if (!enq.enqueued && !String(enq.reason ?? "").startsWith("job_")) {
+        // The PENDING run row is durable; the stranded-run reconciler will
+        // enqueue it. Say so rather than claiming it is queued now.
         return reply.code(503).send({
-          error: { code: "queue_unavailable", detail: enq.reason },
+          error: { code: "queue_unavailable", detail: enq.reason, runId: created.run.id },
         });
       }
+
+      // The request — and which generation it supersedes — on custody.
+      try {
+        const { appendCustodyEvent } = await import("../services/custody-events.service.js");
+        await appendCustodyEvent({
+          evidenceId,
+          eventType: prismaPkg.CustodyEventType.MEDIA_INTELLIGENCE_REFRESH_REQUESTED,
+          payload: {
+            kind: "reconstruct_screen",
+            generation,
+            regenerate: Boolean(body.regenerate),
+            runId: created.run.id,
+            supersedesRunId: latest?.run.id ?? null,
+            actorUserId: actor.actorUserId,
+          },
+          ip: req.ip,
+          userAgent:
+            typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
+        });
+      } catch {
+        bump("media_intelligence_enqueue_failed_total");
+      }
+
       return reply.code(202).send({
         evidenceId,
-        queued: enq.enqueued,
-        reason: enq.enqueued ? null : enq.reason,
+        queued: true,
+        reused: false,
+        generation,
+        runId: created.run.id,
+        reason: null,
       });
     },
   );
@@ -1596,6 +1782,10 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
   // response carries reconstructed blocks (DERIVED_RECONSTRUCTED) with per-block
   // source links (ORIGINAL part ids + keyframe bytes-proxy URLs) — never storage
   // keys, never OCR internals beyond the reviewed text.
+  //
+  // UC-DER-002 — the reconstructed text IS the screen content, so it is shown
+  // only to a caller the byte-release gate would release the material to; any
+  // other reader gets the run status and an honest `release` reason instead.
   app.get(
     "/v1/evidence/:evidenceId/derived-review",
     { preHandler: requireAuth },
@@ -1616,22 +1806,67 @@ export async function mediaIntelligenceRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
-      const evidence = await prisma.evidence.findUnique({
-        where: { id: evidenceId },
-        select: { id: true, teamId: true },
-      });
-      if (!evidence || evidence.teamId !== q.teamId) {
-        return reply.code(404).send({ error: { code: "not_found" } });
-      }
+      if (!(await bindDerivedRecord(reply, { evidenceId, teamId: q.teamId }))) return;
 
-      const { getScreenIntelligenceReview } = await import(
+      const { getScreenIntelligenceReview, getScreenIntelligenceStatus } = await import(
         "../services/media-intelligence/screen-intelligence-read.service.js"
       );
+      const release = await derivedRelease(req, evidenceId, actor.actorUserId, false);
+      if (!release.allowed) {
+        const status = await getScreenIntelligenceStatus(q.teamId, evidenceId);
+        const releaseBody = release.body as { code?: string; message?: string };
+        return reply.code(200).send({
+          evidenceId,
+          status,
+          projection: null,
+          keyframeBytesUrls: {},
+          release: {
+            allowed: false,
+            code: releaseBody.code ?? "ACCESS_DENIED",
+            message: releaseBody.message ?? null,
+          },
+        });
+      }
       const review = await getScreenIntelligenceReview(q.teamId, evidenceId, {
         offset: q.offset,
         limit: q.limit,
       });
-      return reply.code(200).send({ evidenceId, ...review });
+
+      // UC-DER-009 — version every keyframe URL by its digest.
+      const idByUrl = new Map<string, string>();
+      for (const [kfId, url] of Object.entries(review.keyframeBytesUrls)) {
+        const m = url ? /derived-assets\/([0-9a-f-]{36})\/bytes/.exec(url) : null;
+        if (m) idByUrl.set(kfId, m[1]!);
+      }
+      const ids = [...new Set(idByUrl.values())];
+      const shaById = new Map<string, string | null>();
+      if (ids.length > 0) {
+        const rows = (await prisma.$queryRawUnsafe(
+          `SELECT "id"::text AS id, "derived_sha256"
+             FROM "evidence_part_derived_assets"
+            WHERE "team_id" = $1::uuid AND "evidence_id" = $2::uuid
+              AND "id" = ANY($3::uuid[])`,
+          q.teamId,
+          evidenceId,
+          ids,
+        )) as Array<{ id: string; derived_sha256: string | null }>;
+        for (const r of rows) shaById.set(r.id, r.derived_sha256);
+      }
+      const keyframeBytesUrls: Record<string, string | null> = {};
+      for (const [kfId, url] of Object.entries(review.keyframeBytesUrls)) {
+        const assetId = idByUrl.get(kfId);
+        keyframeBytesUrls[kfId] =
+          url && assetId
+            ? derivedBytesUrl(evidenceId, assetId, q.teamId, shaById.get(assetId) ?? null)
+            : null;
+      }
+
+      return reply.code(200).send({
+        evidenceId,
+        ...review,
+        keyframeBytesUrls,
+        release: { allowed: true },
+      });
     },
   );
 }

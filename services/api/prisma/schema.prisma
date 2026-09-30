@@ -14304,6 +14304,10 @@ model EvidencePartDerivedAsset {
   transformation           String?   @map("transformation") @db.VarChar(64)
   // SHA-256 of the canonical JSON of the generation parameters.
   parametersSha256         String?   @map("parameters_sha256") @db.VarChar(64)
+  // UC-DER-005/014 — the canonical generation parameters themselves (tool,
+  // version, producer parameters, the source read: object version, bytes read,
+  // whole-or-prefix, digest read). parametersSha256 is their hash.
+  generationParameters     Json?     @map("generation_parameters")
   // Offset into a time-based source (video/audio), when the derivative is a
   // point in it.
   sourceOffsetMs           Int?      @map("source_offset_ms")
