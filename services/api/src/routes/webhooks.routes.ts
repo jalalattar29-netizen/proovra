@@ -58,6 +58,7 @@ import {
   parseStorageAddonKey,
   parseStripeSubscriptionStatus,
   recordStripeSessionAttemptOutcome,
+  applyStripeChargeAdverseEvent,
   settleStripeCheckoutSession,
   type StripeCheckoutSession,
 } from "../services/billing/stripe-settlement.service.js";
@@ -262,6 +263,20 @@ export async function webhooksRoutes(app: FastifyInstance) {
       req.log.info(
         { provider: "STRIPE", eventId: event.id, product: settled.product, outcome: settled.outcome, reason: settled.reason ?? null },
         "stripe.checkout_session_settled",
+      );
+    }
+
+    // ET-COM-03 — a refunded or lost-disputed credit purchase takes its
+    // credits back (PayPal's refunds already did; Stripe's were never read).
+    if (event.type === "charge.refunded" || event.type === "charge.dispute.closed") {
+      const adverse = await applyStripeChargeAdverseEvent({
+        eventType: event.type,
+        object: event.data.object,
+        log: req.log,
+      });
+      req.log.info(
+        { provider: "STRIPE", eventId: event.id, eventType: event.type, outcome: adverse.outcome },
+        "stripe.charge_adverse_event",
       );
     }
 

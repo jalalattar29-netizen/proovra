@@ -1,0 +1,11 @@
+ET-COM-03 red baseline — services/api/test/stripe-credit-refund-reversal.integration.test.ts
+Run against HEAD 4562d8fc's webhooks.routes.ts and stripe-settlement.service.ts (no charge.refunded / charge.dispute.* handling), live PostgreSQL 16, real signed webhooks, 2026-09-30T04:28Z.
+
+   × Stripe credit refunds and lost disputes (live PostgreSQL 16, real HTTP) > a full refund writes ONE reversal, takes the credits back and marks the payment REFUNDED; a redelivery is a no-op 59ms
+     → expected +0 to be 1 // Object.is equality
+   × Stripe credit refunds and lost disputes (live PostgreSQL 16, real HTTP) > a LOST dispute reverses; a won dispute does not 46ms
+     → expected +0 to be 1 // Object.is equality
+   × Stripe credit refunds and lost disputes (live PostgreSQL 16, real HTTP) > a PARTIAL refund reverses nothing and goes to billing review 25ms
+     → expected +0 to be 1 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed (3)

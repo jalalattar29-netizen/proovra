@@ -32,7 +32,8 @@ import {
   recordCheckoutAttemptProviderOutcome,
   type CheckoutState,
 } from "./checkout-attempts.service.js";
-import { grantEvidenceCredits } from "./evidence-credits.service.js";
+import { grantEvidenceCredits, reverseEvidenceCreditPurchase } from "./evidence-credits.service.js";
+import { recordBillingReviewItem } from "./billing-review.service.js";
 import { applyStorageSubscriptionObservation } from "./storage-activation.service.js";
 import { prisma } from "../../db.js";
 import { syncPlanForSubscription } from "./subscription-lifecycle.handlers.js";
@@ -326,4 +327,122 @@ export async function settleStripeCheckoutSession(input: {
   }
 
   return { product, outcome: "IGNORED", reason: "UNRECOGNISED_PRODUCT" };
+}
+
+// ===========================================================================
+// ET-COM-03 — Stripe refunds and lost disputes
+// ===========================================================================
+
+export type StripeAdverseOutcome =
+  | { outcome: "APPLIED"; product: string | null; reversed?: boolean }
+  | { outcome: "IGNORED"; reason: string }
+  | { outcome: "UNATTRIBUTED" };
+
+type StripeChargeLike = {
+  id?: string;
+  payment_intent?: string | null;
+  amount?: number;
+  amount_refunded?: number;
+  refunded?: boolean;
+};
+type StripeDisputeLike = {
+  id?: string;
+  status?: string;
+  payment_intent?: string | null;
+};
+
+/**
+ * ET-COM-03 — a refunded or charged-back Stripe credit purchase takes its
+ * credits back, as PayPal's already did: the payment reads REFUNDED and the
+ * credits it granted leave the wallet through the ONE reversal
+ * (`reverseEvidenceCreditPurchase`, keyed by the same providerRef the grant
+ * used — the Checkout Session id). A shortfall (credits already spent) and a
+ * PARTIAL refund (the credit is indivisible) go to billing review. Idempotent:
+ * a repeated delivery finds the reversal already written.
+ *
+ * Only a FULL refund (charge.refunded with the whole amount returned) and a
+ * LOST dispute (charge.dispute.closed, status lost) reverse; a won or open
+ * dispute changes nothing.
+ */
+export async function applyStripeChargeAdverseEvent(input: {
+  eventType: string;
+  object: unknown;
+  log?: { warn: (obj: object, msg: string) => void };
+}): Promise<StripeAdverseOutcome> {
+  let paymentIntentId: string | null = null;
+  let partial = false;
+  let kind: "REFUNDED" | "DISPUTE_LOST";
+  if (input.eventType === "charge.refunded") {
+    const charge = (input.object ?? {}) as StripeChargeLike;
+    paymentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : null;
+    partial =
+      charge.refunded !== true ||
+      (typeof charge.amount === "number" &&
+        typeof charge.amount_refunded === "number" &&
+        charge.amount_refunded < charge.amount);
+    kind = "REFUNDED";
+  } else if (input.eventType === "charge.dispute.closed") {
+    const dispute = (input.object ?? {}) as StripeDisputeLike;
+    if (dispute.status !== "lost") return { outcome: "IGNORED", reason: "DISPUTE_NOT_LOST" };
+    paymentIntentId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : null;
+    kind = "DISPUTE_LOST";
+  } else {
+    return { outcome: "IGNORED", reason: "UNHANDLED_EVENT" };
+  }
+  if (!paymentIntentId) return { outcome: "UNATTRIBUTED" };
+
+  // The grant was keyed by the Checkout Session; the charge names its payment
+  // intent. The provider answers which session it was.
+  let sessionId: string | null = null;
+  try {
+    const list = (await stripeGet(
+      `/checkout/sessions?payment_intent=${encodeURIComponent(paymentIntentId)}&limit=1`,
+    )) as { data?: Array<{ id?: string }> };
+    sessionId = list.data?.[0]?.id ?? null;
+  } catch {
+    sessionId = null;
+  }
+  if (!sessionId) return { outcome: "UNATTRIBUTED" };
+
+  const payment = await prisma.payment.findUnique({
+    where: { provider_providerPaymentId: { provider: STRIPE, providerPaymentId: sessionId } },
+    select: { id: true, userId: true, product: true },
+  });
+  if (!payment) return { outcome: "UNATTRIBUTED" };
+  if (payment.product !== "EVIDENCE_CREDIT") {
+    return { outcome: "IGNORED", reason: "NOT_A_CREDIT_PURCHASE" };
+  }
+
+  if (partial) {
+    await recordBillingReviewItem({
+      userId: payment.userId,
+      provider: STRIPE,
+      providerResourceId: sessionId,
+      product: "EVIDENCE_CREDIT",
+      reason: "PARTIAL_REFUND",
+      detail: { eventType: input.eventType },
+    });
+    return { outcome: "APPLIED", product: "EVIDENCE_CREDIT", reversed: false };
+  }
+
+  await prisma.payment.updateMany({
+    where: { id: payment.id, status: prismaPkg.PaymentStatus.SUCCEEDED },
+    data: { status: prismaPkg.PaymentStatus.REFUNDED },
+  });
+  const reversal = await reverseEvidenceCreditPurchase({
+    userId: payment.userId,
+    provider: STRIPE,
+    providerRef: sessionId,
+  });
+  if (reversal.reversed && reversal.shortfall > 0) {
+    await recordBillingReviewItem({
+      userId: payment.userId,
+      provider: STRIPE,
+      providerResourceId: sessionId,
+      product: "EVIDENCE_CREDIT",
+      reason: "CREDIT_REFUND_AFTER_CONSUMPTION",
+      detail: { kind, creditsNotRecovered: reversal.shortfall },
+    });
+  }
+  return { outcome: "APPLIED", product: "EVIDENCE_CREDIT", reversed: reversal.reversed };
 }
