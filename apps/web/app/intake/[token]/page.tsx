@@ -104,6 +104,9 @@ function SupportReference({ id }: { id: string }) {
 const PUBLIC_DENIAL_CODES = new Set([
   "INTAKE_NOT_ACCEPTING_EVIDENCE",
   "MAX_FILES_REACHED",
+  // ET-INT-06 — the link's network allowlist / per-submission byte cap.
+  "LINK_NOT_AVAILABLE_FROM_THIS_NETWORK",
+  "SUBMISSION_TOO_LARGE",
   "MIME_TYPE_NOT_ALLOWED",
   "FILE_VALIDATION_BLOCKED",
   "SESSION_NOT_OPEN_FOR_UPLOAD",
@@ -150,6 +153,11 @@ function friendlyIntakeError(err: {
       "This upload session is closed. Please contact the sender for a new link.",
     MAX_FILES_REACHED:
       "You've reached the file limit for this submission. Please contact the sender if you need to add more.",
+    // ET-INT-06
+    LINK_NOT_AVAILABLE_FROM_THIS_NETWORK:
+      "This link can't be used from your current network. Please contact the sender.",
+    SUBMISSION_TOO_LARGE:
+      "These files are larger than this link accepts. Remove a file or contact the sender.",
     MIME_TYPE_NOT_ALLOWED:
       "This file type isn't accepted by this upload link. Check the accepted file types and try a different file.",
     FILE_VALIDATION_BLOCKED:

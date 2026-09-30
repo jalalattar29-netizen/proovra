@@ -553,7 +553,10 @@ test("Backend delete-case route still has the legal-hold gate AND only unlinks e
   // The DELETE handler doesn't have a single-line anchor we can
   // grab; scope assertions to the whole file but anchor them on
   // the unique guard call sites + the unlink update shape.
-  assert.match(CASE_ROUTES, /const holdChk = await checkCaseLegalHold\(id, item\.teamId\);/);
+  // ET-SEC-17 — the hold decision is the legal-hold authority's
+  // evaluateCaseDeletionHold (clear | held | unavailable -> 503), fail closed.
+  assert.match(CASE_ROUTES, /const holdDecision = await evaluateCaseDeletionHold\(\{ caseId: id, teamId: item\.teamId \}\);/);
+  assert.match(CASE_ROUTES, /holdDecision\.kind === "unavailable"[\s\S]{0,600}reply\.code\(503\)/);
   assert.match(
     CASE_ROUTES,
     /const deleteGate = await resolveCaseDestructiveGate\(\{[\s\S]{0,200}?mutation: "DELETE",/,

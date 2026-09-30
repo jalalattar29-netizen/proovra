@@ -248,6 +248,15 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   SESSION_NOT_OPEN_FOR_UPLOAD: { disposition: "customer", where: PUBLIC_INTAKE },
   SESSION_NOT_FOUND: { disposition: "customer", where: PUBLIC_INTAKE },
   MAX_FILES_REACHED: { disposition: "customer", where: PUBLIC_INTAKE },
+  // ET-INT-06 — the link's IP allowlist / per-submission byte cap.
+  LINK_NOT_AVAILABLE_FROM_THIS_NETWORK: { disposition: "customer", where: PUBLIC_INTAKE },
+  SUBMISSION_TOO_LARGE: { disposition: "customer", where: PUBLIC_INTAKE },
+  // ET-INT-10 — the integrations API answers an unusable API key; its callers
+  // are API-key clients, never the web frontend.
+  UNAUTHORIZED: {
+    disposition: "internal",
+    why: "Integrations API (API-key clients) only; no browser surface calls it.",
+  },
   MIME_TYPE_NOT_ALLOWED: { disposition: "customer", where: PUBLIC_INTAKE },
   FILE_VALIDATION_BLOCKED: { disposition: "customer", where: PUBLIC_INTAKE },
   PART_INDEX_TAKEN: { disposition: "customer", where: PUBLIC_INTAKE },
