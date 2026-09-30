@@ -31,7 +31,7 @@
  */
 
 import * as prismaPkg from "@prisma/client";
-import { IN_FLIGHT_REPORT_REQUEST_STATES } from "@proovra/shared";
+import { IN_FLIGHT_REPORT_REQUEST_STATES, type PlanLapseState } from "@proovra/shared";
 import {
   EVIDENCE_CREDIT_PRODUCT,
   formatBytesHuman,
@@ -66,10 +66,11 @@ import {
 import {
   AI_USAGE_KEY,
   countPersonalEvidenceRecords,
+  evidenceCreationScope,
   startOfCurrentMonthUtc,
 } from "../billing-enforcement.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
-import { countedEvidenceRecordWhere } from "@proovra/shared-runtime";
+import { allowanceSlotEvidenceWhere } from "@proovra/shared-runtime";
 import { resolveCommercialContext } from "./commercial-context.service.js";
 import { bump } from "../ops/metrics.service.js";
 import { listStorageAddonDefinitions } from "../billing.service.js";
@@ -149,8 +150,14 @@ export type EvidenceAdmission = {
    */
   effectiveLifetimeCap: number | null;
   capSource: "PLAN_DEFAULT" | "LEGACY_RECORD_CAP_OVERRIDE";
-  /** Non-destroyed records the account holds. */
+  /**
+   * Records holding a slot of the allowance: every record not yet destroyed,
+   * INCLUDING records in Trash (ET-COM-02 — trash is reversible and releases
+   * no capacity).
+   */
   recordsHeld: number;
+  /** Of `recordsHeld`, how many are in Trash. */
+  recordsInTrash: number;
   /** Unspent purchased credits. */
   creditsAvailable: number;
   /** Plan capacity left, floored at zero. Null when the plan is uncapped. */
@@ -164,6 +171,17 @@ export type EvidenceAdmission = {
         allowed: false;
         reason: "PLAN_ALLOWANCE_EXHAUSTED_NO_CREDITS" | "CREDIT_REQUIRED_NONE_AVAILABLE";
       };
+  /**
+   * ET-COM-04 — present ONLY while the account's paid plan has lapsed. Every
+   * number above is then the FREE-equivalent creation policy (the allowance
+   * the creation gate actually applies), and this says why and which of the
+   * three states the next record is in. A lapse is not a suspension.
+   */
+  planLapse?: {
+    lapsedPlan: string;
+    lapsedPlanLabel: string;
+    state: PlanLapseState;
+  };
 };
 
 export type StorageMeter =
@@ -1319,7 +1337,7 @@ export async function buildBillingAccountProjection(input: {
     } else {
       const since = new Date(Date.now() - THIRTY_DAYS_MS);
       const used = await prisma.evidence.count({
-        where: { teamId: account.id, deletedAt: null, createdAt: { gte: since }, AND: [countedEvidenceRecordWhere()] },
+        where: { teamId: account.id, createdAt: { gte: since }, AND: [allowanceSlotEvidenceWhere()] },
       });
       evidence = {
         state: "MEASURED",
@@ -1347,9 +1365,23 @@ export async function buildBillingAccountProjection(input: {
     // The cap comes from `resolveEffectiveContractEvidenceCap` — the SAME
     // authority the gate calls — and the count is taken over the same window,
     // through the same personal counter, so the two cannot drift.
+    // ET-COM-04 — the meter is taken on the scope the creation gate decides
+    // on. A lapsed paid plan is decided as FREE, so the page shows the Free
+    // allowance and the wallet, not the allowance of a plan not in force.
+    const creationScope = evidenceCreationScope({
+      ...scope,
+      commercialLifecycle: {
+        state: ctx.lifecycle.state,
+        paidActive: ctx.lifecycle.paidActive,
+        mutationsAllowed: ctx.lifecycle.mutationsAllowed,
+        graceEndsAtUtc: ctx.lifecycle.graceEndsAtUtc,
+        providerStatus: ctx.lifecycle.providerStatus,
+      },
+    });
+    const lapsedPlan = creationScope.lapsedPaidPlan ?? null;
     const monthlyCap = resolveEffectiveContractEvidenceCap({
-      plan: scope.plan,
-      contract: scope.contractLimits,
+      plan: creationScope.plan,
+      contract: creationScope.contractLimits,
     });
 
     if (monthlyCap !== null && monthlyCap > 0) {
@@ -1364,24 +1396,44 @@ export async function buildBillingAccountProjection(input: {
       };
     } else {
       const held = await countPersonalEvidenceRecords(account.id);
-      const cap = ctx.limits.effectiveLifetimeRecordCap;
+      const cap = lapsedPlan
+        ? (creationScope.commercialLimits?.effectiveLifetimeRecordCap ?? null)
+        : ctx.limits.effectiveLifetimeRecordCap;
+      const creditsAvailable = Math.max(0, scope.credits ?? 0);
+      const nextAdmission = resolvePersonalEvidenceAdmission({
+        plan: creationScope.plan,
+        currentRecordCount: held,
+        effectiveLifetimeRecordCap: cap,
+        availableEvidenceCredits: creditsAvailable,
+      });
 
       // The parts, separately, because the single number they were collapsed
       // into could not be stated truthfully. See `EvidenceAdmission`.
       evidenceAdmission = {
-        planIncludedLifetime: caps.maxEvidenceRecords,
+        planIncludedLifetime: lapsedPlan
+          ? getPlanCapabilities(creationScope.plan).maxEvidenceRecords
+          : caps.maxEvidenceRecords,
         effectiveLifetimeCap: cap,
-        capSource: ctx.limits.source,
+        capSource: lapsedPlan ? "PLAN_DEFAULT" : ctx.limits.source,
         recordsHeld: held,
+        recordsInTrash: await countPersonalEvidenceRecords(account.id, { trashedOnly: true }),
         creditsAvailable: Math.max(0, scope.credits ?? 0),
         planCapacityRemaining: cap === null ? null : Math.max(0, cap - held),
         overCap: cap !== null && held > cap,
-        next: resolvePersonalEvidenceAdmission({
-          plan: scope.plan,
-          currentRecordCount: held,
-          effectiveLifetimeRecordCap: cap,
-          availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
-        }),
+        next: nextAdmission,
+        ...(lapsedPlan
+          ? {
+              planLapse: {
+                lapsedPlan: String(lapsedPlan),
+                lapsedPlanLabel: getPlanCapabilities(lapsedPlan).displayName,
+                state: !nextAdmission.allowed
+                  ? ("FREE_ALLOWANCE_EXHAUSTED_NO_CREDIT" as const)
+                  : nextAdmission.funding === "PLAN"
+                    ? ("FREE_ALLOWANCE_AVAILABLE" as const)
+                    : ("FREE_ALLOWANCE_EXHAUSTED_CREDIT_AVAILABLE" as const),
+              },
+            }
+          : {}),
       };
 
       evidence = {
@@ -1603,7 +1655,12 @@ export async function buildBillingAccountProjection(input: {
         : "We could not take the last payment.",
     );
   } else if (plan.lifecycle === "ACTION_REQUIRED") {
-    bannerMessages.push("Billing needs attention before paid features continue.");
+    bannerMessages.push(
+      // ET-COM-04 — a lapse is not a lockout, and the banner says what it is.
+      evidenceAdmission?.planLapse
+        ? `Your ${evidenceAdmission.planLapse.lapsedPlanLabel} plan has lapsed. Existing evidence and issued reports stay available; new records use the Free allowance or an evidence credit. Renew to restore plan features.`
+        : "Billing needs attention before paid features continue.",
+    );
   }
   if (account.billingOwnerMissing) {
     bannerMessages.push(
@@ -2046,9 +2103,8 @@ async function buildOrganizationProjection(input: {
               used: await prisma.evidence.count({
                 where: {
                   teamId: { in: workspaceIds },
-                  deletedAt: null,
                   createdAt: { gte: new Date(Date.now() - THIRTY_DAYS_MS) },
-                  AND: [countedEvidenceRecordWhere()],
+                  AND: [allowanceSlotEvidenceWhere()],
                 },
               }),
               limit: limits.evidenceRecordsPerMonth,

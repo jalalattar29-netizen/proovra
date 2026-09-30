@@ -8,8 +8,9 @@
  *     OCR_AVAILABLE / OCR_INDEXED / TRANSCRIPT_AVAILABLE /
  *     TRANSCRIPT_INDEXED signals from evidence_ocr_text +
  *     evidence_transcript_segments.
- *   * The final three isolated subsystem queues
- *     (graph-domain-sync, graph-timeline-sync, graph-search-projection).
+ *   * The isolated graph-search-projection subsystem queue. (ET-Q-07,
+ *     2026-09-30: this bullet listed three; graph-domain-sync and
+ *     graph-timeline-sync had no producer and were retired — see PART 6.)
  *
  * Goals enforced here:
  *   - bounded, capability-aware, fail-safe dispatch.
@@ -19,7 +20,7 @@
  *   - idempotent signal upsert.
  *   - new signal types registered in the catalog AND in the SQL
  *     CHECK constraint AND in the safeSummary library.
- *   - final 3 queues isolated + safeRegisterWorker + shutdown-aware.
+ *   - graph-search-projection isolated + safeRegisterWorker + shutdown-aware.
  */
 
 import { readFileSync } from "node:fs";
@@ -27,13 +28,10 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 import {
-  GRAPH_SYNC_DOMAINS,
   JOB_NAMES,
   QUEUE_NAMES,
   buildCanonicalJobId,
-  buildGraphDomainCommandId,
   getWorkEntryOrThrow,
-  parseGraphDomainCommandId,
 } from "@proovra/shared";
 
 import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
@@ -363,9 +361,24 @@ describe("Phase 31.20 — graph-reconcile invokes OCR/transcript indexer", () =>
   });
 });
 
+
 // =============================================================================
-// PART 6 — final 3 isolated queues
+// PART 6 — the isolated graph-search-projection queue
 // =============================================================================
+//
+// ET-Q-07 (2026-09-30) — this part used to be "final 3 isolated queues" and
+// pinned `graph-domain-sync`, `graph-timeline-sync` and
+// `graph-search-projection` together. The first two were RETIRED: each had a
+// registered worker and a real processor body, and no producer —
+// `enqueueGraphDomainSyncJob` / `enqueueGraphTimelineSyncJob` had zero callers
+// in every commit. The assertions that pinned their registration, their
+// WorkerKind members, their shutdown and the `GRAPH_SYNC_DOMAINS` command-id
+// catalog described wiring for queues nothing fed, and are gone with them.
+//
+// Nothing about `graph-search-projection` is loosened: every assertion that
+// covered it is kept verbatim below. That the two retired queues STAY retired
+// is pinned by the one resurrection guard,
+// `services/worker/test/et-q-07-retired-queues-resurrection-guard.test.ts`.
 
 const QUEUE_SRC = readSource("../../worker/src/queue.ts");
 const INDEX_SRC = readSource("../../worker/src/index.ts");
@@ -376,139 +389,79 @@ const INDEX_SRC = readSource("../../worker/src/index.ts");
  * The three private `buildGraph*JobId` helpers and `genericIdempotentEnqueue`
  * are deleted, so these assertions now read the values that replaced them.
  */
-describe("Phase 31.20 — final 3 isolated queues", () => {
-  const FINAL_THREE = [
-    {
-      work: JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN,
-      queue: QUEUE_NAMES.GRAPH_DOMAIN_SYNC,
-      prefix: "graph-domain-sync",
-    },
-    {
-      work: JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
-      queue: QUEUE_NAMES.GRAPH_TIMELINE_SYNC,
-      prefix: "graph-timeline-sync",
-    },
-    {
-      work: JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
-      queue: QUEUE_NAMES.GRAPH_SEARCH_PROJECTION,
-      prefix: "graph-search-projection",
-    },
-  ] as const;
+describe("Phase 31.20 — the isolated graph-search-projection queue", () => {
+  const SEARCH_PROJECTION = {
+    work: JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
+    queue: QUEUE_NAMES.GRAPH_SEARCH_PROJECTION,
+    prefix: "graph-search-projection",
+  } as const;
 
-  it("all three queues are registered with distinct names", () => {
-    for (const c of FINAL_THREE) {
-      expect(getWorkEntryOrThrow(c.work).queueName, c.work).toBe(c.queue);
-    }
-    expect(new Set(FINAL_THREE.map((c) => c.queue)).size).toBe(3);
+  it("the queue is registered under its own name", () => {
+    expect(getWorkEntryOrThrow(SEARCH_PROJECTION.work).queueName).toBe(
+      SEARCH_PROJECTION.queue,
+    );
   });
 
-  it("each queue has a deterministic idempotent job id", () => {
-    for (const c of FINAL_THREE) {
-      const entry = getWorkEntryOrThrow(c.work);
-      expect(entry.jobIdPrefix, c.work).toBe(c.prefix);
-      const prefixed = { jobIdPrefix: entry.jobIdPrefix! };
-      expect(buildCanonicalJobId(prefixed, "ws-1")).toBe(
-        buildCanonicalJobId(prefixed, "ws-1"),
-      );
-      expect(buildCanonicalJobId(prefixed, "ws-1")).toBe(`${c.prefix}-ws-1`);
-    }
+  it("the queue has a deterministic idempotent job id", () => {
+    const entry = getWorkEntryOrThrow(SEARCH_PROJECTION.work);
+    expect(entry.jobIdPrefix).toBe(SEARCH_PROJECTION.prefix);
+    const prefixed = { jobIdPrefix: entry.jobIdPrefix! };
+    expect(buildCanonicalJobId(prefixed, "ws-1")).toBe(
+      buildCanonicalJobId(prefixed, "ws-1"),
+    );
+    expect(buildCanonicalJobId(prefixed, "ws-1")).toBe(
+      `${SEARCH_PROJECTION.prefix}-ws-1`,
+    );
   });
 
-  it("each enqueue helper routes through the ONE shared enqueue authority", () => {
+  it("the enqueue helper routes through the ONE shared enqueue authority", () => {
     // `genericIdempotentEnqueue` was the worker's private copy of the
     // collapse-or-replace ladder; the api carried its own, and the two had
     // already drifted on whether a collapsed enqueue reports success.
     expect(QUEUE_SRC).not.toMatch(/genericIdempotentEnqueue/);
-    for (const name of [
-      "enqueueGraphDomainSyncJob",
-      "enqueueGraphTimelineSyncJob",
-      "enqueueGraphSearchProjectionJob",
-    ]) {
-      expect(QUEUE_SRC, name).toContain(`export async function ${name}`);
-      expect(functionSource(QUEUE_SRC, name, "queue.ts"), name).toMatch(/enqueueWork\(/);
-    }
+    const name = "enqueueGraphSearchProjectionJob";
+    expect(QUEUE_SRC, name).toContain(`export async function ${name}`);
+    expect(functionSource(QUEUE_SRC, name, "queue.ts"), name).toMatch(/enqueueWork\(/);
     expect(QUEUE_SRC).toMatch(/enqueueCanonicalJob\(/);
   });
 
-  it("graph-domain-sync's domain filter is a CLOSED catalog, validated pre-DB", () => {
-    // It used to be an optional payload field, which meant an unknown value
-    // produced a job the processor silently completed as a no-op — a request
-    // that looked accepted and did nothing. It is now half of the command id
-    // and is validated by the parser before any database access.
-    expect(GRAPH_SYNC_DOMAINS).toEqual([
-      "all",
-      "CASE",
-      "REPORT",
-      "VERIFICATION_PACKAGE",
-      "EXPORT",
-      "REVIEW_TASK",
-      "ESCALATION",
-      "INCIDENT",
-      "EXTERNAL_REVIEW",
-    ]);
-    expect(buildGraphDomainCommandId("EXPORT", "ws-1")).toBe("EXPORT:ws-1");
-    expect(parseGraphDomainCommandId("EXPORT:ws-1")).toEqual({
-      domain: "EXPORT",
-      workspaceId: "ws-1",
-    });
-    // `all` is a real member rather than a null: an absent filter and an
-    // unknown filter must not be the same value.
-    expect(buildGraphDomainCommandId(null, "ws-1")).toBe("all:ws-1");
-    expect(() =>
-      buildGraphDomainCommandId("NOT_A_DOMAIN" as never, "ws-1"),
-    ).toThrow();
-    expect(() => parseGraphDomainCommandId("NOT_A_DOMAIN:ws-1")).toThrow();
+  it("the enqueue helper HAS a producer — the graph-reconcile processor", () => {
+    // ET-Q-07. A helper with no caller is what made five queues look wired.
+    // This one is called: the reconcile processor's `onReconciled` hook.
+    const reconcile = functionSource(
+      SUBSYSTEM_PROCESSORS_SRC,
+      "processGraphReconcileJobInner",
+    );
+    expect(reconcile).toMatch(/enqueueGraphSearchProjectionJob\(/);
   });
 
-  it("index.ts registers each new worker via safeRegisterWorker", () => {
-    expect(INDEX_SRC).toMatch(/safeRegisterWorker\(\s*"graph-domain-sync"/);
-    expect(INDEX_SRC).toMatch(/safeRegisterWorker\(\s*"graph-timeline-sync"/);
+  it("index.ts registers the worker via safeRegisterWorker", () => {
     expect(INDEX_SRC).toMatch(/safeRegisterWorker\(\s*"graph-search-projection"/);
   });
 
-  it("WorkerKind union includes the 3 new kinds", () => {
+  it("WorkerKind union includes the kind", () => {
     const slice = enclosingSource(INDEX_SRC, "type WorkerKind", "statement", {
       fileName: "index.ts",
     });
-    expect(slice).toMatch(/"graph-domain-sync"/);
-    expect(slice).toMatch(/"graph-timeline-sync"/);
     expect(slice).toMatch(/"graph-search-projection"/);
   });
 
-  it("shutdown closes each new worker (null-checked) and each new queue", () => {
-    expect(INDEX_SRC).toMatch(/await graphDomainSyncQueue\.close\(\)/);
-    expect(INDEX_SRC).toMatch(/await graphTimelineSyncQueue\.close\(\)/);
+  it("shutdown closes the worker (null-checked) and the queue", () => {
     expect(INDEX_SRC).toMatch(/await graphSearchProjectionQueue\.close\(\)/);
-    expect(INDEX_SRC).toMatch(/graphDomainSyncWorker/);
-    expect(INDEX_SRC).toMatch(/graphTimelineSyncWorker/);
     expect(INDEX_SRC).toMatch(/graphSearchProjectionWorker/);
   });
 });
 
-describe("Phase 31.20 — final 3 queue processors", () => {
-  // Phase 31.21 — these processors now invoke REAL bounded work
-  // (per-domain stale sweep, timeline build + cross-edge sweep,
-  //  recent-signal-activity reindex enqueue). The Phase 31.20
-  //  tests below were updated to reflect the upgrade. The full
-  //  per-processor contract is enforced by the dedicated
-  //  phase-31-21-enterprise-closure.test.ts.
-  it("graph-domain-sync invokes the bounded per-domain stale sweep", () => {
-    const slice = delegatedBody("processGraphDomainSyncJob");
-    expect(slice).toMatch(/runDomainStaleSweep\(/);
-    expect(slice).toMatch(/DOMAIN_SYNC_DOMAINS/);
-  });
-
-  it("graph-timeline-sync invokes the real bounded timeline sync", () => {
-    const slice = delegatedBody("processGraphTimelineSyncJob");
-    expect(slice).toMatch(/runTimelineSync\(/);
-  });
-
+describe("Phase 31.20 — graph-search-projection processor", () => {
+  // Phase 31.21 — this processor invokes REAL bounded work (the
+  // recent-signal-activity reindex enqueue). The full contract is enforced by
+  // the dedicated phase-31-21-enterprise-closure.test.ts.
   it("graph-search-projection invokes the real recent-signal-activity reindex", () => {
     const slice = delegatedBody("processGraphSearchProjectionJob");
     expect(slice).toMatch(/runSearchProjectionSync\(/);
   });
 
-  it("all 3 processors import the shared prisma — no bare PrismaClient", () => {
+  it("the processors import the shared prisma — no bare PrismaClient", () => {
     const code = stripComments(SUBSYSTEM_PROCESSORS_SRC);
     expect(code).not.toMatch(/new PrismaClient\(/);
     expect(SUBSYSTEM_PROCESSORS_SRC).toMatch(/import \{ prisma \} from "\.\/db\.js"/);
@@ -522,11 +475,13 @@ describe("Phase 31.20 — final 3 queue processors", () => {
 const METRICS_SRC = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
 describe("Phase 31.20 — bounded metric names registered", () => {
-  it("registers ocr indexer + 3 new graph subsystem counters", () => {
+  it("registers the ocr indexer + graph-search-projection counters", () => {
+    // ET-Q-07 (2026-09-30) — this pinned `graph_domain_sync_executed_total` and
+    // `graph_timeline_sync_executed_total` as well. Their only bump sites were
+    // reachable solely from the two retired producerless queues, so both had
+    // read zero since they were added and left the catalog with them.
     expect(METRICS_SRC).toMatch(/"ocr_indexer_started_total"/);
     expect(METRICS_SRC).toMatch(/"ocr_indexer_completed_total"/);
-    expect(METRICS_SRC).toMatch(/"graph_domain_sync_executed_total"/);
-    expect(METRICS_SRC).toMatch(/"graph_timeline_sync_executed_total"/);
     expect(METRICS_SRC).toMatch(/"graph_search_projection_executed_total"/);
   });
 });

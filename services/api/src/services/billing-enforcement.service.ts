@@ -1,10 +1,15 @@
 import * as prismaPkg from "@prisma/client";
-import { countedEvidenceRecordWhere } from "@proovra/shared-runtime";
+import { allowanceSlotEvidenceWhere } from "@proovra/shared-runtime";
 import { prisma } from "../db.js";
 import { DomainError } from "../errors.js";
 import {
   EVIDENCE_CREDIT_PRODUCT,
+  resolveEvidenceCreationPlan,
   resolveEvidenceOutputEntitlements,
+  resolveOutputIssuanceEntitlement,
+  type OutputIssuanceEntitlement,
+  type OutputIssuanceLifecycle,
+  type PlanType,
   resolvePersonalEvidenceAdmission,
   // COMMERCIAL CLOSURE (2026-09-08) — the ONE intake rule (plan OR wallet).
   resolveWorkspaceIntakeEntitlement,
@@ -26,6 +31,7 @@ import {
   // COMMERCIAL CLOSURE (2026-09-08) — the ONE statement of "is this monthly cap
   // an included allowance a purchased credit may extend, or a negotiated hard
   // maximum a consumer purchase may not amend?"
+  NO_CONTRACT_LIMITS,
   contractEvidenceCapIsHardMaximum,
   resolveEffectiveContractAiCap,
   resolveEffectiveContractEvidenceCap,
@@ -47,15 +53,20 @@ type EvidenceCapacitySettlementClient = EvidenceCreditClient &
 
 type EvidenceCapacityCursor = { createdAt: Date; id: string };
 
-function createdBeforeEvidenceWhere(cursor: EvidenceCapacityCursor) {
+/**
+ * "Created before this record", as ONE condition to be placed inside an `AND`
+ * list. (2026-09-30) It used to return `{ AND: [...] }` for callers to spread,
+ * and a spread `AND` key overwrites the caller's own `AND` — at settlement it
+ * silently dropped the counted-record predicate. A condition is composed,
+ * never spread.
+ */
+function createdBeforeEvidenceCondition(
+  cursor: EvidenceCapacityCursor,
+): prismaPkg.Prisma.EvidenceWhereInput {
   return {
-    AND: [
-      {
-        OR: [
-          { createdAt: { lt: cursor.createdAt } },
-          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
-        ],
-      },
+    OR: [
+      { createdAt: { lt: cursor.createdAt } },
+      { createdAt: cursor.createdAt, id: { lt: cursor.id } },
     ],
   };
 }
@@ -124,8 +135,51 @@ export async function resolveEnforcementScopeForRequester(params: {
       paidActive: ctx.lifecycle.paidActive,
       mutationsAllowed: ctx.lifecycle.mutationsAllowed,
       graceEndsAtUtc: ctx.lifecycle.graceEndsAtUtc,
+      providerStatus: ctx.lifecycle.providerStatus,
     },
     authenticatedUserEmail: requesterUser?.email ?? null,
+  };
+}
+
+/**
+ * THE SCOPE EVIDENCE CREATION IS DECIDED ON (ET-COM-04, owner decision
+ * 2026-09-30) — admission and settlement both ask this, so they cannot
+ * disagree about a lapsed account.
+ *
+ * A billing lapse is not a security suspension. A personal account whose paid
+ * subscription has lapsed is decided as FREE: the FREE allowance funds
+ * included records and a purchased credit funds one past it. The returned
+ * scope carries `lapsedPaidPlan` so a refusal can say why the allowance is the
+ * FREE one. The account's plan is not changed by this.
+ *
+ * A lapsed SHARED workspace has no FREE-equivalent (FREE includes no shared
+ * workspace): its scope is returned unchanged, the ADMISSION gate refuses it
+ * with the lifecycle code as before, and a record it admitted before the lapse
+ * still settles on its own plan.
+ *
+ * Organization suspension, compliance locks and membership are decided by
+ * their own authorities before any request reaches here; nothing in this
+ * function can loosen them.
+ */
+export function evidenceCreationScope(scope: WorkspaceScope): WorkspaceScope {
+  const decision = resolveEvidenceCreationPlan({
+    plan: scope.plan,
+    billingShape: scope.billingShape,
+    lifecycleAllowsPaidMutations: scope.commercialLifecycle?.mutationsAllowed,
+  });
+  if (!decision.lapsed || decision.creationPlan === null) return scope;
+  return {
+    ...scope,
+    plan: prismaPkg.PlanType.FREE,
+    // The lapsed plan's contract and grandfathered cap belong to the plan that
+    // is no longer paid for; the FREE catalog row is the allowance now.
+    contractLimits: NO_CONTRACT_LIMITS,
+    commercialLimits: {
+      effectiveLifetimeRecordCap: getPlanCapabilities(prismaPkg.PlanType.FREE).maxEvidenceRecords,
+      effectiveMonthlyRecordCap: null,
+      source: "PLAN_DEFAULT",
+    },
+    lapsedPaidPlan: scope.plan,
   };
 }
 
@@ -174,10 +228,13 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  * accessible. This file never reads the raw override field.
  */
 export async function assertWorkspaceAllowsEvidenceCreation(
-  scope: WorkspaceScope
+  requestedScope: WorkspaceScope
 ) {
-  // §9.5 — bounded-lifecycle gate (fail closed when grace expired/cancelled/ambiguous).
-  assertCommercialLifecycleAllowsPaidMutation(scope);
+  // ET-COM-04 — a lapsed personal plan is decided as FREE (allowance, then a
+  // credit); a lapsed shared workspace is still refused here.
+  const scope = evidenceCreationScope(requestedScope);
+  // §9.5 — every other lapsed subject (a shared workspace) fails closed here.
+  if (!scope.lapsedPaidPlan) assertCommercialLifecycleAllowsPaidMutation(scope);
   const caps = getPlanCapabilities(scope.plan);
 
   // A SHARED workspace still requires a plan that PERMITS a shared workspace.
@@ -234,9 +291,8 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       ? await prisma.evidence.count({
           where: {
             teamId: scope.teamId,
-            deletedAt: null,
             createdAt: { gte: since },
-            AND: [countedEvidenceRecordWhere()],
+            AND: [allowanceSlotEvidenceWhere()],
           },
         })
       : await countPersonalEvidenceRecords(scope.ownerUserId, {
@@ -378,6 +434,24 @@ export async function assertWorkspaceAllowsEvidenceCreation(
   // current state of the resource (the workspace is at its record cap), and it
   // is the status the commercial vocabulary already uses for the report,
   // package, intake and cases gates.
+  if (scope.lapsedPaidPlan) {
+    // ET-COM-04 — the honest refusal for a lapsed account: it is the FREE
+    // allowance that is used up, because the paid plan is not in force.
+    throw new DomainError("Plan lapsed and the free allowance is used up", {
+      httpStatus: 409,
+      publicCode: "PLAN_LAPSED_ALLOWANCE_EXHAUSTED",
+      publicMessage:
+        "Your paid plan has lapsed, so the Free allowance applies and it is used up. Existing records remain available — renew your plan or use an evidence credit to add more.",
+      reportability: "EXPECTED_DENIAL",
+      severity: "info",
+      metadata: {
+        plan: String(scope.plan),
+        lapsedPlan: String(scope.lapsedPaidPlan),
+        limitKind: "evidence_records",
+      },
+    });
+  }
+
   const isFree = scope.plan === prismaPkg.PlanType.FREE;
   throw new DomainError(
     isFree
@@ -416,9 +490,11 @@ export async function assertWorkspaceAllowsEvidenceCreation(
  * `lifecycleState != DESTROYED`, so the meter could read "3 of 3" while the
  * gate still admitted a fourth record.
  *
- * The predicate is the ENFORCEMENT one — a trashed record releases its record
- * slot. (Storage accounting deliberately differs and still counts trashed
- * bytes, because those bytes are really still in the bucket.)
+ * The predicate is `allowanceSlotEvidenceWhere` (@proovra/shared-runtime), the
+ * one slot population. ET-COM-02 (2026-09-30): a TRASHED record KEEPS its slot
+ * — trash is reversible, so releasing the slot let an account trash, create
+ * and restore its way past the cap. Only governed destruction, or the release
+ * of an unsealed reservation, frees a slot.
  */
 export async function countPersonalEvidenceRecords(
   ownerUserId: string,
@@ -457,6 +533,11 @@ export async function countPersonalEvidenceRecords(
      */
     createdSince?: Date | null;
     createdBeforeEvidence?: EvidenceCapacityCursor | null;
+    /**
+     * ET-COM-02 — count only the slot-holding records that are in Trash, so a
+     * meter can say why "held" exceeds what the active library shows.
+     */
+    trashedOnly?: boolean;
     client?: Pick<prismaPkg.Prisma.TransactionClient, "team" | "evidence">;
   },
 ): Promise<number> {
@@ -471,18 +552,19 @@ export async function countPersonalEvidenceRecords(
   return db.evidence.count({
     where: {
       ownerUserId,
-      deletedAt: null,
-      lifecycleState: { not: "DESTROYED" },
       OR: [
         { teamId: null },
         ...(personalTeam ? [{ teamId: personalTeam.id }] : []),
       ],
-      AND: [countedEvidenceRecordWhere()],
+      AND: [
+        allowanceSlotEvidenceWhere(),
+        ...(options?.trashedOnly ? [{ lifecycleState: "TRASHED" as const }] : []),
+        ...(options?.createdBeforeEvidence
+          ? [createdBeforeEvidenceCondition(options.createdBeforeEvidence)]
+          : []),
+      ],
       ...(excludeEvidenceId ? { NOT: { id: excludeEvidenceId } } : {}),
       ...(options?.createdSince ? { createdAt: { gte: options.createdSince } } : {}),
-      ...(options?.createdBeforeEvidence
-        ? createdBeforeEvidenceWhere(options.createdBeforeEvidence)
-        : {}),
     },
   });
 }
@@ -645,7 +727,9 @@ export async function settleEvidenceCompletionFunding(
   },
   client: EvidenceCapacitySettlementClient,
 ): Promise<{ funding: EvidenceFundingSource }> {
-  const { scope } = params;
+  // ET-COM-04 — settled on the SAME creation scope the record was admitted on:
+  // a lapsed personal plan settles as FREE (allowance, then a credit).
+  const scope = evidenceCreationScope(params.scope);
 
   /*
    * THE SCOPE MUST BELONG TO THE RECORD IT IS ABOUT TO CHARGE.
@@ -772,10 +856,11 @@ export async function settleEvidenceCompletionFunding(
       ? await client.evidence.count({
           where: {
             teamId: scope.teamId,
-            deletedAt: null,
             createdAt: { gte: since },
-            ...createdBeforeEvidenceWhere(settlingEvidence),
-            AND: [countedEvidenceRecordWhere()],
+            AND: [
+              allowanceSlotEvidenceWhere(),
+              createdBeforeEvidenceCondition(settlingEvidence),
+            ],
           },
         })
       : await countPersonalEvidenceRecords(scope.ownerUserId, {
@@ -859,6 +944,31 @@ export async function settleEvidenceCompletionFunding(
   // `alreadyConsumed` is the idempotent-retry path: this record already paid.
   void result;
   return { funding: "EVIDENCE_CREDIT" };
+}
+
+/**
+ * THE ISSUANCE DECISION AT FINALIZATION (ET-COM-04) — the one decision the
+ * completion transaction takes, enqueues on, and stores as the record's
+ * funding fact. Plan = the plan the record was settled on (a lapsed personal
+ * plan settles as FREE); lifecycle = the subscription as it stands now. A
+ * scope without a lifecycle reading is UNRESOLVED: nothing is stored.
+ */
+export function resolveFinalizationIssuance(
+  requestedScope: WorkspaceScope,
+  funding: EvidenceFundingSource,
+): OutputIssuanceEntitlement {
+  const scope = evidenceCreationScope(requestedScope);
+  const life = scope.commercialLifecycle;
+  return resolveOutputIssuanceEntitlement({
+    plan: scope.plan as PlanType,
+    funding,
+    lifecycle: life
+      ? ({
+          state: life.state,
+          providerStatus: life.providerStatus ?? null,
+        } as OutputIssuanceLifecycle)
+      : null,
+  });
 }
 
 /**

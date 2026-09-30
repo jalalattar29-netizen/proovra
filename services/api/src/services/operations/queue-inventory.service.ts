@@ -85,8 +85,9 @@ const QUEUE_PROBE_TIMEOUT_MS = Number(process.env.QUEUE_PROBE_TIMEOUT_MS ?? 2000
 
 /**
  * A per-probe deadline alone is NOT a bound on this function. The inventory
- * walks fifteen queues SEQUENTIALLY, so fifteen timeouts is thirty seconds —
- * measured, not assumed: with the per-probe deadline in place and Redis
+ * walks every queue SEQUENTIALLY — fifteen when this was measured (twelve since
+ * ET-Q-07 retired five producerless ones, 2026-09-30) — so fifteen timeouts is
+ * thirty seconds — measured, not assumed: with the per-probe deadline in place and Redis
  * unreachable, `getQueueInventory()` was still pending after six.
  *
  * So the whole call carries a budget. When it is spent, the remaining queues
@@ -201,13 +202,13 @@ const QUEUE_LABELS: Record<string, string> = {
   "media-intelligence": "Media intelligence",
   "media-intelligence-dlq": "Media intelligence DLQ",
   "mi-derived-assets": "MI · derived assets",
-  "mi-exif": "MI · EXIF",
-  "mi-search-index": "MI · search index",
   "graph-reconcile": "Graph reconcile",
-  "graph-domain-sync": "Graph · domain sync",
-  "graph-timeline-sync": "Graph · timeline sync",
   "graph-search-projection": "Graph · search projection",
-  "org-health-refresh": "Org health refresh",
+  // ET-Q-07 (2026-09-30) — five labels were removed with their producerless
+  // queues: "MI · EXIF", "MI · search index", "Graph · domain sync",
+  // "Graph · timeline sync" and "Org health refresh". Each rendered a row in
+  // the Operations inventory that read `healthy`, zero waiting, zero failed —
+  // true, and meaningless, because nothing ever enqueued onto them.
 };
 
 function classifyHealth(item: {

@@ -14,6 +14,7 @@
  * the point of render, where the surrounding direction is known.
  */
 
+import { planLapseCopy, recordsInTrashAllowanceCopy } from "@proovra/shared";
 import { formatUserDate } from "../../../../lib/date";
 import type {
   EvidenceAdmission,
@@ -273,6 +274,10 @@ export function describeEvidenceAdmission(
     );
   }
 
+  // ET-COM-02 — why "held" can exceed what the active library shows.
+  const inTrash = recordsInTrashAllowanceCopy(a.recordsInTrash);
+  if (inTrash) parts.push(inTrash);
+
   // ---- what permits the next record --------------------------------------
   let next: string;
   if (a.next.allowed) {
@@ -293,6 +298,20 @@ export function describeEvidenceAdmission(
   } else {
     next =
       "Your included records are used up. One evidence credit covers the next record; a larger plan raises the included allowance.";
+  }
+
+  // ET-COM-04 — a lapsed plan: say so first, word the next record from the
+  // server's state, and say what stays and what needs a renewal.
+  if (a.planLapse) {
+    const lapse = planLapseCopy({
+      state: a.planLapse.state,
+      lapsedPlanLabel: a.planLapse.lapsedPlanLabel,
+      freeAllowanceRemaining: a.planCapacityRemaining ?? 0,
+      creditsAvailable: credits,
+    });
+    parts.unshift(lapse.headline);
+    parts.push(lapse.outputs);
+    next = lapse.nextRecord;
   }
 
   const ratio =

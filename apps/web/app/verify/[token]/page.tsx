@@ -41,7 +41,11 @@ import {
   Skeleton,
 } from "../../../components/ui";
 import CaptureLocationMapPanel from "../../../components/capture-location/CaptureLocationMapPanel";
-import BasicVerificationView from "./BasicVerificationView";
+import BasicVerificationView, {
+  StoredBytesNotice,
+  VerifyLinkNotice,
+  type VerifyLinkInfo,
+} from "./BasicVerificationView";
 import type { BasicVerification } from "@proovra/shared";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
@@ -2806,6 +2810,10 @@ export default function VerifyPage() {
   const [loading, setLoading] = useState(true);
   // Decision B — a BASIC answer carries only the basic projection.
   const [basicOnly, setBasicOnly] = useState<BasicVerification | null>(null);
+  // ET-PKG-07 — which kind of link was used, and when it stops working.
+  const [verifyLink, setVerifyLink] = useState<VerifyLinkInfo | null>(null);
+  // ET-SM-07 — the stored-file recheck state, shown on the rich view too.
+  const [storedBytes, setStoredBytes] = useState<BasicVerification["storedBytes"] | null>(null);
 
   const [title, setTitle] = useState<string | null>(null);
   const [evidenceId, setEvidenceId] = useState<string | null>(null);
@@ -3398,6 +3406,7 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         );
         if (cancelled || !isMountedRef.current) return;
 
+        setVerifyLink((data as { link?: VerifyLinkInfo } | null)?.link ?? null);
         const tier = (data as { tier?: unknown } | null)?.tier;
         if (tier === "BASIC") {
           setBasicOnly((data as { basicVerification: BasicVerification }).basicVerification);
@@ -3406,6 +3415,9 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
           return;
         }
         setBasicOnly(null);
+        setStoredBytes(
+          (data as { basicVerification?: BasicVerification } | null)?.basicVerification?.storedBytes ?? null,
+        );
 
         applyVerifyResponseRef.current(data as VerifyResponse);
 
@@ -4529,7 +4541,7 @@ const glassPanelStyle: CSSProperties = {
   const VERIFY_HEADER_IMAGE = "/assets/branding/report-header.png";
 
   if (basicOnly && !loading) {
-    return <BasicVerificationView data={basicOnly} />;
+    return <BasicVerificationView data={basicOnly} link={verifyLink} />;
   }
 
   const pageBackgroundStyle: CSSProperties = {
@@ -4557,6 +4569,11 @@ const glassPanelStyle: CSSProperties = {
         }}
       >
                 <div className="container" style={{ position: "relative", zIndex: 1 }}>
+          {/* ET-SM-07 — before any verdict below: whether the STORED FILE was
+              re-read against its signed hash, and when. The checks on this
+              page are made over PROOVRA's signed records. */}
+          <VerifyLinkNotice link={verifyLink} />
+          {storedBytes ? <StoredBytesNotice integrity={storedBytes} /> : null}
           <div
             style={{
               marginBottom: 28,

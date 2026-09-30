@@ -15,6 +15,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { INTAKE_SUBMITTED_BY_LABEL } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+// ET-PKG-07 — a record's id is not a public link: requests go through a share
+// link (the record is published and the link minted on first use).
+import { shareLinkFor } from "./helpers/verify-share.js";
 
 describe("ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
@@ -84,8 +87,8 @@ describe("ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16)
     });
     return row.id;
   }
-  const verify = (id: string) =>
-    h.app.inject({ method: "GET", url: `/public/verify/${id}`, remoteAddress: `198.51.100.${1 + Math.floor(Math.random() * 250)}` });
+  const verify = async (id: string) =>
+    h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, id)}`, remoteAddress: `198.51.100.${1 + Math.floor(Math.random() * 250)}` });
 
   it("an intake record shows the contributor role, not the creator's provider or identity level", async () => {
     const res = await verify(await signedRecord("SECURE_INTAKE_LINK"));

@@ -24,6 +24,8 @@ import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
 // and the ONE approval rule. The purge job is a trigger for them now.
 import {
   executeEvidenceDestruction,
+  generateVerificationShareToken,
+  mintVerificationShareTokenTx,
   resolveDestructionApproval,
 } from "@proovra/shared-runtime";
 import { workerEvidenceDestructionStorage } from "./governance/destruction-storage-port.js";
@@ -143,7 +145,7 @@ import { captureException } from "./sentry.js";
 import { createVerificationPackage, PackageGateDeniedError } from "./verification-package.js";
 import { loadProvenanceChainForPackage } from "./capture-trust/load-provenance-chain.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
-import { rejectEvidenceIntegrity } from "./integrity-rejection.service.js";
+import { recheckEvidenceIntegrity, recordIntegrityObservation } from "./integrity-recheck.js";
 // PHASE 12 — POINT 5: the payload carries a request id; the authority is a row.
 import { decodeCanonicalJob } from "./canonical-job.js";
 import {
@@ -372,6 +374,8 @@ type PreparedReportArtifacts = {
   pdfSigningOutcome: import("./pdf/signPdf.js").PdfSigningOutcome;
   verificationZip: Buffer | null;
   verifyUrl: string;
+  /** ET-PKG-07 — the share token inside `verifyUrl`; stored (hashed) when the report commits. */
+  reportShareToken: string;
   downloadUrl: string;
     packageMetadataContext: {
     caseId: string | null;
@@ -492,15 +496,21 @@ function buildPublicUrl(key: string): string | null {
 // PUBLIC_PREFIXES vocabulary in @proovra/shared's tenant-url module, so
 // it composes its base + path via `absoluteInternalUrl` (which accepts
 // any relative path) rather than `internalResourcePath`. The link
-// carries only the persisted evidence id — never a tenant/workspace id
-// from the job payload.
-function buildVerifyUrl(evidenceId: string): string {
+// carries only an opaque share token — never the evidence id, and never a
+// tenant/workspace id from the job payload.
+//
+// ET-PKG-07 (2026-09-30) — this took the EVIDENCE ID. A report's link and QR
+// code therefore carried the record's primary key as a permanent public
+// capability. It now takes the share token minted for this report version
+// (see `reportShareToken` in prepareReportArtifacts): revocable and rotatable
+// on its own, and inert until the owner publishes the record.
+function buildVerifyUrl(shareToken: string): string {
   const base = envValue(
     "REPORT_VERIFY_BASE_URL",
     "https://app.proovra.com/verify"
   ).replace(/\/+$/, "");
 
-  return absoluteInternalUrl(base, `/${encodeURIComponent(evidenceId)}`);
+  return absoluteInternalUrl(base, `/${encodeURIComponent(shareToken)}`);
 }
 
 // PHASE 11 — canonical resource-id path for the authenticated evidence
@@ -2042,6 +2052,13 @@ async function prepareReportArtifacts(
     throw createWorkerError("EVIDENCE_SIGNING_KEY_MISSING", false);
   }
 
+  // ET-SM-07 — every issuance re-reads the original bytes; what it finds is
+  // recorded through the integrity-recheck authority under the trigger that
+  // asked (a package-only run embeds an existing report).
+  const integrityTrigger = options?.skipProvisionalPdf
+    ? ("PACKAGE_ISSUANCE" as const)
+    : ("REPORT_ISSUANCE" as const);
+
   const fingerprintCanonicalJson = evidence.fingerprintCanonicalJson;
   const fingerprintHash = evidence.fingerprintHash;
   const signatureBase64 = evidence.signatureBase64;
@@ -2390,16 +2407,48 @@ if (
   // workflows can no longer accidentally promote the row. The helper
   // is idempotent — a duplicate worker run finds the terminal state
   // and short-circuits.
-  await rejectEvidenceIntegrity({
+  await recordIntegrityObservation({
     evidenceId: evidence.id,
-    expectedSha256: evidence.fileSha256 ?? null,
-    computedSha256: fileSha256,
-    source: "worker.report.multipart",
-    jobId: options?.jobId ?? null,
+    teamId: evidence.teamId ?? null,
+    expectedDigest: evidence.fileSha256 ?? null,
+    observation: {
+      outcome: "FAILED",
+      failureCode: "DIGEST_MISMATCH",
+      checkedDigest: fileSha256,
+      storageVersionId: null,
+      checkedObjects: parts.map((p, i) => ({
+        partIndex: p.partIndex,
+        versionId: p.storageVersionId ?? null,
+        sha256: hashes[i] ?? null,
+      })),
+    },
+    trigger: integrityTrigger,
+    rejectionSource: "worker.report.multipart",
+    correlationId: options?.jobId != null ? String(options.jobId) : null,
     attempt: options?.attempt ?? null,
   });
   throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
 }
+// ET-SM-07 — the bytes were read at their recorded versions and matched:
+// that IS an integrity recheck, and it is recorded as one.
+await recordIntegrityObservation({
+  evidenceId: evidence.id,
+  teamId: evidence.teamId ?? null,
+  expectedDigest: evidence.fileSha256 ?? null,
+  observation: {
+    outcome: "VERIFIED",
+    failureCode: null,
+    checkedDigest: fileSha256,
+    storageVersionId: null,
+    checkedObjects: parts.map((p, i) => ({
+      partIndex: p.partIndex,
+      versionId: p.storageVersionId ?? null,
+      sha256: hashes[i] ?? null,
+    })),
+  },
+  trigger: integrityTrigger,
+  correlationId: options?.jobId != null ? String(options.jobId) : null,
+});
   } else {
     const head = await readOriginalObject("the original file", () =>
       headObject({
@@ -2429,16 +2478,43 @@ if (
       // multipart branch above for the contract: status flip + custody
       // event + security event happen before the throw so a tampered
       // (or storage-mutated) object never produces a Report.
-      await rejectEvidenceIntegrity({
+      await recordIntegrityObservation({
         evidenceId: evidence.id,
-        expectedSha256: evidence.fileSha256 ?? null,
-        computedSha256: singleSha256,
-        source: "worker.report.single_file",
-        jobId: options?.jobId ?? null,
+        teamId: evidence.teamId ?? null,
+        expectedDigest: evidence.fileSha256 ?? null,
+        observation: {
+          outcome: "FAILED",
+          failureCode: "DIGEST_MISMATCH",
+          checkedDigest: singleSha256,
+          storageVersionId: evidence.storageVersionId ?? null,
+          checkedObjects: [
+            { partIndex: null, versionId: evidence.storageVersionId ?? null, sha256: singleSha256 },
+          ],
+        },
+        trigger: integrityTrigger,
+        rejectionSource: "worker.report.single_file",
+        correlationId: options?.jobId != null ? String(options.jobId) : null,
         attempt: options?.attempt ?? null,
       });
       throw createWorkerError("EVIDENCE_FILE_SHA256_MISMATCH", false);
     }
+    // ET-SM-07 — read at the recorded version and matched: recorded as a recheck.
+    await recordIntegrityObservation({
+      evidenceId: evidence.id,
+      teamId: evidence.teamId ?? null,
+      expectedDigest: evidence.fileSha256 ?? null,
+      observation: {
+        outcome: "VERIFIED",
+        failureCode: null,
+        checkedDigest: singleSha256,
+        storageVersionId: evidence.storageVersionId ?? null,
+        checkedObjects: [
+          { partIndex: null, versionId: evidence.storageVersionId ?? null, sha256: singleSha256 },
+        ],
+      },
+      trigger: integrityTrigger,
+      correlationId: options?.jobId != null ? String(options.jobId) : null,
+    });
 
     fileSha256 = singleSha256;
 
@@ -2602,7 +2678,12 @@ if (
   const verificationKey = `verification/${evidence.id}/v${provisionalVersion}.zip`;
   const publicUrl = storageKey ? buildPublicUrl(storageKey) : null;
   const evidenceDetailUrl = buildEvidenceDetailUrl(evidence.id);
-  const verifyUrl = buildVerifyUrl(evidence.id);
+  // ET-PKG-07 — the link this report version will carry. The token is
+  // generated now (the PDF must contain it) and its HASH is stored only when
+  // the report row commits, in the same transaction: a run that fails leaves
+  // no link behind, and a retry generates a fresh one.
+  const reportShareToken = generateVerificationShareToken();
+  const verifyUrl = buildVerifyUrl(reportShareToken);
 
   const workspaceVerified =
     workspaceTeam?.verificationState ===
@@ -2945,6 +3026,7 @@ return {
   pdfSigningOutcome,
   verificationZip,
   verifyUrl,
+  reportShareToken,
   downloadUrl: evidenceDetailUrl,
   reportKey,
   verificationKey,
@@ -3562,6 +3644,21 @@ async function runReportGeneration(
       // helper can tag any SecurityEvent / log with the originating job.
       jobId: job.id ?? null,
       attempt: job.attemptsMade + 1,
+    }).catch(async (err: unknown) => {
+      // ET-SM-07 — A STORAGE ANOMALY IS AN INTEGRITY FACT. The original was
+      // not readable at its recorded location, so nothing was issued; the
+      // recheck authority records that against the record (its state becomes
+      // "failed", not "verified") instead of leaving the last good check
+      // standing. Best-effort: the original refusal is what the job reports.
+      if ((err as { code?: string } | null)?.code === EVIDENCE_ORIGINAL_NOT_FOUND) {
+        await recheckEvidenceIntegrity({
+          evidenceId,
+          trigger: "STORAGE_ANOMALY",
+          correlationId: job.id != null ? String(job.id) : null,
+          force: true,
+        }).catch(() => undefined);
+      }
+      throw err;
     });
 
     const finalized =
@@ -4141,6 +4238,20 @@ async function runReportGeneration(
                 reviewerSummaryVersion:
                   effectiveIdentitySnapshot.reviewerSummaryVersion,
               } as Prisma.InputJsonValue,
+            });
+
+            // ET-PKG-07 — the link printed in this report (and its QR code)
+            // exists from the moment the report does, and not before. Only
+            // the hash is stored. It opens nothing until the owner publishes
+            // the record, and the owner can revoke or rotate it on its own.
+            await mintVerificationShareTokenTx(tx, {
+              evidenceId: prepared.evidenceId,
+              teamId: prepared.packageMetadataContext.teamId ?? null,
+              purpose: "REPORT",
+              reportVersion: prepared.version,
+              audience: `Report version ${prepared.version}`,
+              token: prepared.reportShareToken,
+              now: prepared.now,
             });
 
             await tx.report.create({

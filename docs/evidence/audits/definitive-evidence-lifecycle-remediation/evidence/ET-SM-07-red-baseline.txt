@@ -1,0 +1,15 @@
+ET-SM-07 red baseline (2026-09-30) — at HEAD 53aedd6e no code path rechecks a record outside report generation.
+
+$ git grep -n "rejectEvidenceIntegrity(" 53aedd6e -- services packages   (call sites)
+53aedd6e:services/worker/src/processor.ts:2393:  await rejectEvidenceIntegrity({
+53aedd6e:services/worker/src/processor.ts:2432:      await rejectEvidenceIntegrity({
+
+$ git grep -n "worker.reconciler\|api.completion" 53aedd6e -- services/worker/src services/api/src   (declared in the type only; no call site passes either)
+53aedd6e:services/worker/src/integrity-rejection.service.ts:67:  | "worker.reconciler"
+53aedd6e:services/worker/src/integrity-rejection.service.ts:68:  | "api.completion";
+
+$ git ls-tree 53aedd6e services/worker/src/integrity-recheck.ts   (does not exist)
+(empty)
+
+test/integrity-recheck.integration.test.ts cannot load at HEAD: it imports ../../worker/src/integrity-recheck.js, and evidence.integrity_* columns / evidence_integrity_checks do not exist.
+Green after the change: 13 passed (13).

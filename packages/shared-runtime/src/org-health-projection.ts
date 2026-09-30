@@ -31,6 +31,15 @@
  * counts are derived from Evidence and Case at read time, exactly as before.
  * Nothing here caches, and nothing here is authoritative over the domain
  * tables it counts.
+ *
+ * ET-Q-07 (2026-09-30) — ONE CALLER NOW, NOT TWO HOSTS
+ * ---------------------------------------------------
+ * The Worker's `processOrgHealthRefreshJob` named above is gone. It sat behind
+ * the `org-health-refresh` queue, which had a registered consumer and no
+ * producer, so it never ran in production; the queue, the processor and the
+ * registration were retired together. The live caller of this module is the
+ * api's read-time refresh (`buildProjectionSummary` in
+ * services/api/src/services/dashboard/command-center.service.ts).
  */
 
 import type { PrismaClient } from "@prisma/client";

@@ -2711,6 +2711,52 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   border: 1px solid var(--surface-translucent-border-strong);
   background: var(--surface-translucent-outer);
 }
+/* ET-PKG-07 — public verification links (owner controls). A block panel in
+   the same surface as the verify card above it; every colour is a token. */
+.evidence-detail-links-panel {
+  display: grid;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 18px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-translucent-border-strong);
+  background: var(--surface-translucent-outer);
+}
+.evidence-detail-link-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.evidence-detail-link-row {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid var(--surface-translucent-border-strong);
+}
+.evidence-detail-link-row__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--app-ink-heading);
+}
+.evidence-detail-link-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.evidence-detail-link-form {
+  display: grid;
+  gap: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--surface-translucent-border-strong);
+}
 .evidence-detail-verify-card__icon {
   display: inline-flex;
   align-items: center;

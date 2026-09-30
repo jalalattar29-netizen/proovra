@@ -210,6 +210,18 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   GENERATION_NOT_PERMITTED: { disposition: "customer", where: "global" },
   // ET-SEC-14 — the output policy refuses a regeneration as at first issuance.
   REPORT_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
+  DERIVATIVE_DOWNLOAD_NOT_PERMITTED: { disposition: "customer", where: "global" },
+  // ET-PKG-07 — public verification links.
+  VERIFICATION_LINK_REVOKED: { disposition: "customer", where: "global" },
+  VERIFICATION_LINK_EXPIRED: { disposition: "customer", where: "global" },
+  VERIFICATION_LINK_EXHAUSTED: { disposition: "customer", where: "global" },
+  VERIFICATION_LINKS_NOT_PERMITTED: { disposition: "customer", where: "global" },
+  VERIFICATION_LINK_LIMIT_REACHED: { disposition: "customer", where: "global" },
+  VERIFICATION_LINK_NOT_ACTIVE: { disposition: "customer", where: "global" },
+  RECORD_NOT_SHAREABLE: { disposition: "customer", where: "global" },
+  VERIFICATION_LINK_NOT_FOUND: { disposition: "customer", where: "global" },
+  LEGACY_LINK_NOT_ACTIVE: { disposition: "customer", where: "global" },
+  PUBLICATION_NOT_AVAILABLE: { disposition: "customer", where: "global" },
   PACKAGE_BLOCKED_BY_POLICY: { disposition: "customer", where: "global" },
   REPORT_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },
   PACKAGE_BLOCKED_BY_TEMPLATE_POLICY: { disposition: "customer", where: "global" },
@@ -299,6 +311,7 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
    */
   EVIDENCE_RECORD_LIMIT_REACHED: { disposition: "customer", where: "global" },
   FREE_LIMIT_REACHED: { disposition: "customer", where: "global" },
+  PLAN_LAPSED_ALLOWANCE_EXHAUSTED: { disposition: "customer", where: "global" },
   EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED: {
     disposition: "customer",
     where: "global",

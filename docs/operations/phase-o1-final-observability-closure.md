@@ -1,5 +1,17 @@
 # Phase O1 — Final Observability Closure (O1.5C + O1.5D + O1.5E)
 
+> **ET-Q-07 supersession (2026-09-30).** This is a dated closure record and is kept as written, but
+> the span list below names `proovra.graph.timeline.build` (`processGraphTimelineSyncJob`) and `proovra.graph.domain.sync` (`processGraphDomainSyncJob`).
+> Those queues are **not live**: each had a registered worker and no producer
+> (their enqueue helpers had zero callers in every commit), so none ever
+> carried a job. They were retired together with their processors, worker
+> registrations, registry entries, replay policies, inventory rows and spans.
+> The live BullMQ topology is 10 processed queues + 2 DLQ sinks — see
+> `packages/shared/src/queue-integrity/names.ts`. EXIF extraction runs on
+> `media-intelligence` (run kind `extract_exif`), search reindex on
+> `search-indexing`, graph stale sweeps inside `graph-reconcile`, and the
+> org-health projection is refreshed on read by the API.
+
 **Status:** **CLOSED.** Every required span has a real runtime emission, contract-enforced.
 **Date (UTC):** 2026-05-29
 **Total bounded enum entries with runtime emission:** 75 (was 50 at end of O1.5A/B; +25 new in this phase).

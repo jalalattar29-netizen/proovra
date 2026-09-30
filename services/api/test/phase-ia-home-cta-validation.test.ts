@@ -75,7 +75,8 @@ const HOME_CTAS: Cta[] = [
   { label: "Recent Reports — open", route: "/evidence/ev-1", kind: "page-dynamic" },
   { label: "Recent Reports — PDF", route: "/v1/evidence/ev-1/report/latest", kind: "api" },
   { label: "Recent Reports — package", route: "/v1/evidence/ev-1/verification-package", kind: "api" },
-  { label: "Recent Reports — verify page", route: "/verify/ev-1", kind: "verify" },
+  // ET-PKG-07 — no longer /verify/<record id>: the record's public-link controls.
+  { label: "Recent Reports — verification links", route: "/evidence/ev-1?tab=artifacts", kind: "page-dynamic" },
   { label: "Trust State — capture first", route: "/capture", kind: "page" },
   { label: "Case Health — open case", route: "/cases/c-1", kind: "page-dynamic" },
   { label: "Needs Fixing — row (evidence integrity)", route: "/evidence/ev-1", kind: "page-dynamic" },
@@ -137,9 +138,17 @@ describe("Phase IA-home-final — banned CTA targets are absent", () => {
     expect(sources).not.toMatch(/`\/v\/\$\{encodeURIComponent/);
   });
 
-  it("verify links use the canonical /verify/ path", () => {
+  // ET-PKG-07 (2026-09-30) — this pinned `/verify/${encodeURIComponent(evidenceId)}`
+  // in the Home view-model: a public link built from the record's id. An id is
+  // no longer a public link. Home sends the owner to the record's public-link
+  // controls, and builds no /verify/ URL from an id anywhere.
+  it("Home builds no public link from a record id; it opens the record's link controls", () => {
     const VM = readWeb("components/home-experience/home-view-model.ts");
-    expect(VM).toMatch(/\/verify\/\$\{encodeURIComponent\(evidenceId\)\}/);
+    expect(VM).not.toMatch(/\/verify\/\$\{/);
+    expect(VM).toMatch(/r\.package\?\.available \? evidencePublicLinksHref\(evidenceId\) : null/);
+    const HREF = readWeb("lib/verification-links-href.ts");
+    expect(HREF).toMatch(/\/evidence\/\$\{encodeURIComponent\(evidenceId\)\}\?tab=artifacts#public-verification-links/);
+    expect(pageExists("/evidence/x")).toBe(true);
   });
 });
 

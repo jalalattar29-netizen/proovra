@@ -219,7 +219,17 @@ import type { Prisma } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
-import { appendCustodyEventTx } from "@proovra/shared-runtime";
+import {
+  appendCustodyEventTx,
+  isVerificationShareTokenShape,
+  legacyVerifyLinkActive,
+  readStoredBytesIntegrity,
+  recordVerificationShareUse,
+  requestIntegrityRecheck,
+  resolveVerificationShareToken,
+  type VerificationShareRow,
+  type VerificationShareState,
+} from "@proovra/shared-runtime";
 import { loadEvidenceAnalysisSnapshots } from "../services/ai/evidence-analysis-snapshot.service.js";
 import { validateUploadedFile } from "../services/security/file-validation.service.js";
 import {
@@ -1046,6 +1056,8 @@ const SAFE_EVIDENCE_SELECT = {
   verificationPackageVersion: true,
   verificationPackageMetadata: true,
   publicVerifyState: true,
+  // ET-PKG-07 — the bounded grace of the legacy record-id link.
+  legacyVerifyUuidUntilUtc: true,
   latestReportVersion: true,
   reviewReadyAtUtc: true,
   reviewerSummaryVersion: true,
@@ -1201,6 +1213,10 @@ type ReviewWorkspacePublicVerificationSummary = {
   verificationPackageDownloadCount: number;
   analyticsAvailable: boolean;
   disabledReason: string | null;
+  /** ET-PKG-07 — share links that currently work. Never the links themselves. */
+  activeShareLinkCount: number;
+  /** ET-PKG-07 — when the legacy record-id link stops working; null when there is none. */
+  legacyLinkExpiresAtUtc: string | null;
 };
 
 type SafeEvidence = {
@@ -1365,6 +1381,34 @@ function getVerifyPerEvidenceLimit() {
 //
 // This function is the SINGLE place to consult before shaping the
 // verify response. Do not branch elsewhere.
+/**
+ * ET-PKG-07 — the ONE body for a share link that was issued and no longer
+ * works. 410, not 404: only someone who held a real link reaches it. It says
+ * which of the three it is (so the recipient knows to ask for a new link) and
+ * nothing about the record.
+ */
+// Each body is written out whole — `code: "<LITERAL>"` — because the web's
+// error-code coverage gate reads the codes a route file emits from exactly
+// that shape; a code assembled by a ternary is one the gate cannot see.
+const VERIFICATION_LINK_GONE_BODIES = {
+  REVOKED: {
+    code: "VERIFICATION_LINK_REVOKED",
+    message: "This verification link was withdrawn by the record's owner. Ask them for a new link.",
+  },
+  EXPIRED: {
+    code: "VERIFICATION_LINK_EXPIRED",
+    message: "This verification link has expired. Ask the record's owner for a new link.",
+  },
+  EXHAUSTED: {
+    code: "VERIFICATION_LINK_EXHAUSTED",
+    message: "This verification link has reached its use limit. Ask the record's owner for a new link.",
+  },
+} as const satisfies Record<Exclude<VerificationShareState, "ACTIVE">, { code: string; message: string }>;
+
+function verificationLinkGoneBody(state: Exclude<VerificationShareState, "ACTIVE">) {
+  return VERIFICATION_LINK_GONE_BODIES[state];
+}
+
 function getPublicVerifyIdentityExposure(): {
   exposeAttribution: boolean;
   exposeAuthProviderCode: boolean;
@@ -4765,13 +4809,38 @@ function buildPublicVerificationSummary(params: {
   workspaceCapabilitySnapshot: Awaited<
     ReturnType<typeof resolveWorkspaceCapabilitySnapshot>
   >;
-  sharePath: string;
+  /** The legacy record-id link, while its grace runs; null otherwise (ET-PKG-07). */
+  sharePath: string | null;
+  /** Share links that currently work (not revoked, not expired). */
+  activeShareLinkCount: number;
+  legacyLinkExpiresAtUtc: string | null;
   publicViewCount: number;
   authenticatedViewCount: number;
   lastPublicViewAt: string | null;
   reportDownloadCount: number;
   verificationPackageDownloadCount: number;
 }): ReviewWorkspacePublicVerificationSummary {
+  return {
+    ...buildPublicVerificationSummaryBase(params),
+    activeShareLinkCount: params.activeShareLinkCount,
+    legacyLinkExpiresAtUtc: params.legacyLinkExpiresAtUtc,
+  };
+}
+
+function buildPublicVerificationSummaryBase(params: {
+  evidence: SelectedEvidence;
+  anchor: AnchorStatusSummary;
+  workspaceCapabilitySnapshot: Awaited<
+    ReturnType<typeof resolveWorkspaceCapabilitySnapshot>
+  >;
+  sharePath: string | null;
+  activeShareLinkCount: number;
+  publicViewCount: number;
+  authenticatedViewCount: number;
+  lastPublicViewAt: string | null;
+  reportDownloadCount: number;
+  verificationPackageDownloadCount: number;
+}): Omit<ReviewWorkspacePublicVerificationSummary, "activeShareLinkCount" | "legacyLinkExpiresAtUtc"> {
   const publicationState =
     typeof params.evidence.publicVerifyState === "string"
       ? params.evidence.publicVerifyState.trim().toUpperCase()
@@ -4809,7 +4878,9 @@ function buildPublicVerificationSummary(params: {
         configured,
         published: true,
         sharePath: params.sharePath,
-        routeAccessible: true,
+        // Reachable only through a working link: a share token, or the legacy
+        // record-id link while its grace runs.
+        routeAccessible: params.activeShareLinkCount > 0 || params.sharePath !== null,
         publicViewCount: params.publicViewCount,
         authenticatedViewCount: params.authenticatedViewCount,
         lastPublicViewAt: params.lastPublicViewAt,
@@ -5765,6 +5836,8 @@ if (
       // there is one sentence rather than two that can drift apart.
       const recordCapCodes = new Set([
         "FREE_LIMIT_REACHED",
+        // ET-COM-04 — a lapsed plan with the Free allowance and credits used up.
+        "PLAN_LAPSED_ALLOWANCE_EXHAUSTED",
         "EVIDENCE_RECORD_LIMIT_REACHED",
         "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
       ]);
@@ -9627,12 +9700,32 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               },
             })
           : null;
-        const publicVerifyPath = `/verify/${evidence.id}`;
+        /*
+         * ET-PKG-07 — THE RECORD ID IS NOT A PUBLIC LINK. `sharePath` used to
+         * be `/verify/<id>` for every published record. It is now the LEGACY
+         * link only, and only while its bounded grace runs; a record published
+         * since has none. Share links are tokens shown once, when the owner
+         * creates them (GET /v1/evidence/:id/verify-links lists them) — the
+         * summary says how many are active and never carries one.
+         */
+        const legacyLinkActive = legacyVerifyLinkActive(evidence);
+        const publicVerifyPath = legacyLinkActive ? `/verify/${evidence.id}` : null;
+        const activeShareLinkCount = await prisma.verificationShareToken.count({
+          where: {
+            evidenceId: evidence.id,
+            revokedAtUtc: null,
+            OR: [{ expiresAtUtc: null }, { expiresAtUtc: { gt: new Date() } }],
+          },
+        });
         const publicVerificationSummary = buildPublicVerificationSummary({
           evidence,
           anchor,
           workspaceCapabilitySnapshot,
           sharePath: publicVerifyPath,
+          activeShareLinkCount,
+          legacyLinkExpiresAtUtc: legacyLinkActive
+            ? (evidence.legacyVerifyUuidUntilUtc?.toISOString() ?? null)
+            : null,
           publicViewCount: publicVerifyCount,
           authenticatedViewCount: authenticatedVerifyCount,
           lastPublicViewAt:
@@ -12496,11 +12589,55 @@ action: "evidence.certification_requested",
     // byte-indistinguishable from a valid-format-but-missing one. The prior
     // `.parse` threw Zod → global 400, revealing token-format validity to an
     // enumerating caller (caught live by the phase-37-95 runtime probe).
-    const idParse = z.string().uuid().safeParse((req.params as ParamsId).id);
-    if (!idParse.success) {
-      return reply.code(404).send({ message: "Evidence not found" });
+    /*
+     * ET-PKG-07 — THE CAPABILITY IS A SHARE TOKEN, NOT THE RECORD ID.
+     *
+     * The segment is resolved through the verification-share authority:
+     *
+     *   a share token   looked up by its hash. Never issued (or the wrong
+     *                   shape) is 404, byte-identical to every other "not
+     *                   found" here. Issued and then revoked, expired or used
+     *                   up is 410: only someone who held a real link can reach
+     *                   that answer, so it enumerates nothing — and it tells a
+     *                   legitimate recipient to ask for a new link.
+     *   a record id     a LEGACY link. It is served only for a record that was
+     *                   already published when tokens were introduced, and only
+     *                   inside that record's bounded grace (checked below,
+     *                   after the row is loaded). For every other record an id
+     *                   is not a capability at all.
+     *
+     * A token is necessary, not sufficient: the record must still be PUBLISHED
+     * by its owner and pass every gate below.
+     */
+    const presented = String((req.params as ParamsId).id ?? "");
+    let shareLink: VerificationShareRow | null = null;
+    let id: string;
+    if (isVerificationShareTokenShape(presented)) {
+      const resolved = await resolveVerificationShareToken(prisma, presented);
+      if (resolved.outcome === "UNKNOWN") {
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+      if (resolved.outcome === "GONE") {
+        auditVerificationAction(req, {
+          userId: null,
+          action: "verification.page_opened",
+          outcome: "denied",
+          denialReason: "share_link_gone",
+          resourceId: resolved.row.evidenceId,
+          teamId: resolved.row.teamId,
+          metadata: { outcome: "share_link_gone", linkState: resolved.state, linkId: resolved.row.id },
+        });
+        return reply.code(410).send(verificationLinkGoneBody(resolved.state));
+      }
+      shareLink = resolved.row;
+      id = resolved.row.evidenceId;
+    } else {
+      const idParse = z.string().uuid().safeParse(presented);
+      if (!idParse.success) {
+        return reply.code(404).send({ message: "Evidence not found" });
+      }
+      id = idParse.data;
     }
-    const id = idParse.data;
 
     // Phase 1 — second bucket, keyed by evidence id. We parse the id
     // FIRST (above) so the bucket key is only set after validation;
@@ -12567,6 +12704,14 @@ action: "evidence.certification_requested",
         // Decision B — the owner's commercial subject decides BASIC vs RICH.
         // Never surfaced in the response.
         ownerUserId: true,
+        // ET-PKG-07 — the bounded grace of a legacy record-id link.
+        legacyVerifyUuidUntilUtc: true,
+        // ET-SM-07 — the stored-bytes recheck state (the authority's columns).
+        integrityVerifiedAtUtc: true,
+        integrityCheckedAtUtc: true,
+        integrityCheckOutcome: true,
+        integrityCheckFailureCode: true,
+        integrityRecheckRequestedAtUtc: true,
         // Phase 14 — explicit publication state gate. Records that
         // are NOT_PUBLISHED / SUSPENDED / UNPUBLISHED are not
         // returned from the public verify route.
@@ -12661,6 +12806,22 @@ action: "evidence.certification_requested",
     // verification state, and produce an apparently-valid verify response
     // for an empty record. Treat as not-yet-available.
     if (!evidence) {
+      return reply.code(404).send({ message: "Evidence not found" });
+    }
+    // ET-PKG-07 — a bare record id is a capability ONLY inside the bounded
+    // legacy grace. Outside it (every record published since, and every legacy
+    // record once its grace ends or its owner ends it) the answer is the same
+    // 404 an unknown id gets.
+    if (!shareLink && !legacyVerifyLinkActive(evidence)) {
+      auditVerificationAction(req, {
+        userId: null,
+        action: "verification.page_opened",
+        outcome: "denied",
+        denialReason: "record_id_is_not_a_capability",
+        resourceId: id,
+        teamId: evidence.teamId,
+        metadata: { outcome: "record_id_is_not_a_capability" },
+      });
       return reply.code(404).send({ message: "Evidence not found" });
     }
     // Phase 14 — additive publication gate. When the evidence is not
@@ -13934,8 +14095,34 @@ const pairedPackageForBasic = latestReport
       },
     })
   : null;
+/*
+ * ET-SM-07 — THE STORED BYTES ARE A SEPARATE STATEMENT. The checks above are
+ * made over PROOVRA's signed records. Whether the stored file itself still
+ * matches its signed hash is only as fresh as the last recheck, so it is
+ * stated with its own state and date: only a recheck inside the cadence is
+ * presented as current. Anything else asks the recheck authority for one now
+ * (idempotent), and says "pending" rather than nothing.
+ */
+let storedBytes = readStoredBytesIntegrity(evidence, verifiedAt);
+if (storedBytes.state !== "verified_current" && storedBytes.state !== "failed") {
+  const requested = await requestIntegrityRecheck(prisma, evidence.id, verifiedAt).catch(() => false);
+  if (requested) {
+    storedBytes = readStoredBytesIntegrity(
+      {
+        status: evidence.status,
+        integrityVerifiedAtUtc: evidence.integrityVerifiedAtUtc,
+        integrityCheckedAtUtc: evidence.integrityCheckedAtUtc,
+        integrityCheckOutcome: evidence.integrityCheckOutcome,
+        integrityCheckFailureCode: evidence.integrityCheckFailureCode,
+        integrityRecheckRequestedAtUtc: verifiedAt,
+      },
+      verifiedAt,
+    );
+  }
+}
 const basicVerification = buildBasicVerification({
   now: verifiedAt,
+  storedBytes,
   integrity: {
     fingerprintMatches: canonicalHashMatches,
     signatureValid,
@@ -13978,17 +14165,41 @@ const richVerifyEntitled =
     .catch(() => false));
 // The answer describes the record NOW; no shared cache may hold it.
 reply.header("Cache-Control", "no-store");
-if (!richVerifyEntitled) {
+/*
+ * ET-PKG-07 — THE LINK IS USED HERE, once every gate above has passed and an
+ * answer is about to be given. The use is counted and dated; with a use limit
+ * the increment is conditional, so the request that would exceed it gets the
+ * same 410 a spent link gets. What the caller is told about the link is its
+ * kind and when it stops working — never its audience or who made it.
+ */
+if (shareLink && !(await recordVerificationShareUse(prisma, shareLink, verifiedAt))) {
+  return reply.code(410).send(verificationLinkGoneBody("EXHAUSTED"));
+}
+const link = shareLink
+  ? {
+      kind: "SHARE_TOKEN" as const,
+      expiresAtUtc: shareLink.expiresAtUtc ? shareLink.expiresAtUtc.toISOString() : null,
+    }
+  : {
+      kind: "LEGACY_RECORD_ID" as const,
+      // A legacy link says when it stops working, so its holder can ask the
+      // owner for a share link before it does.
+      expiresAtUtc: evidence.legacyVerifyUuidUntilUtc ? evidence.legacyVerifyUuidUntilUtc.toISOString() : null,
+    };
+// A link can narrow the projection, never widen it.
+if (!richVerifyEntitled || shareLink?.projection === "BASIC") {
   return reply.code(200).send({
     tier: "BASIC",
     evidenceId: evidence.id,
     basicVerification,
+    link,
   });
 }
 
 return reply.code(200).send({
   tier: "RICH",
   basicVerification,
+  link,
   evidenceId: evidence.id,
   mediaIntelligenceAdvisory,
   acquisition,

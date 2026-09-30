@@ -344,13 +344,18 @@ describe("K8 operations — platform and workspace operations mutations (live Po
     });
 
     it("cancel: a platform operator removes a pending job — the job is gone and the security event records it", async () => {
-      const q = queue("mi-exif");
+      // ET-Q-07 (2026-09-30) — this proof used the `mi-exif` queue as its
+      // subject. That queue was retired (consumer, no producer), so its name is
+      // no longer in KNOWN_QUEUE_NAMES and the route would refuse it at the
+      // schema. The cancel behaviour under test is queue-agnostic; it now runs
+      // against a queue that exists.
+      const q = queue("graph-search-projection");
       await q.obliterate({ force: true });
-      const added = await q.add("ExifExtraction", { teamId: A.teamId }, { jobId: `k8-${randomUUID()}` });
+      const added = await q.add("RefreshGraphSearchProjection", { teamId: A.teamId }, { jobId: `k8-${randomUUID()}` });
       const jobId = added.id!;
-      const url = `/v1/operations/queues/mi-exif/jobs/${jobId}/cancel`;
+      const url = `/v1/operations/queues/graph-search-projection/jobs/${jobId}/cancel`;
       // No web consumer sends cancel; the body is the route's zod schema.
-      const payload = { teamId: A.teamId, reason: "k8 duplicate extraction" };
+      const payload = { teamId: A.teamId, reason: "k8 duplicate projection refresh" };
 
       const refused = await call({ method: "POST", url, token: A.adminToken, payload });
       expect(refused.statusCode).toBe(403);
@@ -361,7 +366,7 @@ describe("K8 operations — platform and workspace operations mutations (live Po
 
       const res = await call({ method: "POST", url, token: operatorToken, payload });
       expect(res.statusCode, res.body).toBe(200);
-      expect(json(res).result).toMatchObject({ ok: true, action: "cancel", queueName: "mi-exif", jobId });
+      expect(json(res).result).toMatchObject({ ok: true, action: "cancel", queueName: "graph-search-projection", jobId });
       expect(await q.getJob(jobId)).toBeUndefined();
 
       const event = await eventually("queue cancel security event", () =>
@@ -376,7 +381,7 @@ describe("K8 operations — platform and workspace operations mutations (live Po
       expect(event.details).toMatchObject({
         actorUserId: operatorId,
         action: "cancel",
-        queueName: "mi-exif",
+        queueName: "graph-search-projection",
         reason: payload.reason,
       });
       // D26 — the cancel is in the canonical audit trail, attributed.

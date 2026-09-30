@@ -46,6 +46,7 @@
  * union) and asserted by the coverage test that imports it, not by this file
  * holding a second reference to it.
  */
+import { evidencePublicLinksHref } from "../../lib/verification-links-href";
 import {
   PLATFORM_ADVISORY_PRIORITY,
   UNRECOGNISED_SOURCE_PRIORITY,
@@ -1571,12 +1572,10 @@ function buildRecentReports(
       const packageZipApiPath = r.package?.available
         ? `/v1/evidence/${encodeURIComponent(evidenceId)}/verification-package`
         : null;
-      // Canonical public verify page is /verify/:evidenceId (the
-      // [token] route segment accepts the evidence id — matches
-      // buildVerificationUrl in evidence-library-formatters.ts).
-      const verify = r.package?.available
-        ? `/verify/${encodeURIComponent(evidenceId)}`
-        : null;
+      // ET-PKG-07 — Home no longer links to /verify/<evidence id>: a record's
+      // id is not a public link. This is the record's link controls, where a
+      // share link is created, revoked or replaced.
+      const verify = r.package?.available ? evidencePublicLinksHref(evidenceId) : null;
       return {
         evidenceId,
         evidenceTitle: r.title ?? evidenceId,

@@ -3246,7 +3246,9 @@ export async function buildCommandCenter(input: {
   ]);
 
   // Phase 37.98 — Projection-backed summary. Reads from
-  // OrgHealthProjection (refreshed by the org-health-refresh worker).
+  // OrgHealthProjection (refreshed on read by buildProjectionSummary when
+  // missing or stale; the `org-health-refresh` worker this comment used to
+  // credit never had a producer and was retired — ET-Q-07, 2026-09-30).
   // Falls back to two bounded live counts when no projection exists.
   const projectionSummary = await buildProjectionSummary(input.teamId, pop);
 
@@ -6695,8 +6697,10 @@ const PROJECTION_FRESH_THRESHOLD_SEC = 90;
  * returned two of the eight counters with the other six defaulted to zero. The
  * comment further down still said "until the refresh worker populates the row";
  * there was no refresh worker. The worker-side queue processor that would have
- * been one has no producer either — nothing ever enqueues `org-health-refresh` —
- * so neither half of the pair ran.
+ * been one had no producer either — nothing ever enqueued `org-health-refresh` —
+ * so neither half of the pair ran. (ET-Q-07, 2026-09-30: that queue, its
+ * processor and its registration are now deleted; this read-time refresh is the
+ * only writer.)
  *
  * Refresh-on-stale-read rather than a new scheduler, deliberately:
  *

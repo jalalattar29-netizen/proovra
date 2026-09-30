@@ -43,13 +43,14 @@ import {
   QUEUE_FAMILIES,
   QUEUE_NAMES,
   QueuePayloadRejected,
+  RECONCILER_PENDING,
+  RETRY_TIMEOUT_IS_ENFORCED,
   SWEEP_NAMES,
   assertDiagnosticsSafe,
   assertNoPayloadAuthorityFields,
   buildCanonicalJobId,
   selfFollowUpJobId,
   buildCanonicalJobPayload,
-  buildGraphDomainCommandId,
   buildMediaIntelligenceCommandId,
   buildSearchIndexCommandId,
   decodeCanonicalJobPayload,
@@ -67,6 +68,15 @@ import {
   isDlqQueueName,
   type WorkRegistryEntry,
 } from "@proovra/shared";
+
+import {
+  claimStateTokens,
+  prismaModelHasField,
+  prismaTableOf,
+  reconcilerReachesAuthority,
+  retryTimeoutReaders,
+  stateIsReal,
+} from "./point5/registry-source-facts.js";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const REPO = resolve(HERE, "../../..");
@@ -134,7 +144,14 @@ describe("Point 5 — topology conservation", () => {
   // the worker, the names in the shared authority, the worker registrations
   // and the registry — with the DLQ sinks as the single stated difference.
   //
-  // The measured count is 17 queue objects = 15 processed + 2 DLQ sinks.
+  // The measured count is 12 queue objects = 10 processed + 2 DLQ sinks.
+  // (ET-Q-07, 2026-09-30: was 17 = 15 + 2 until five producerless queues —
+  // mi-exif, mi-search-index, graph-domain-sync, graph-timeline-sync,
+  // org-health-refresh — were retired. No literal below changed, because the
+  // conservation is an identity: the declared Queue objects, QUEUE_NAMES,
+  // the registrations and the registry all moved by five together. That they
+  // stay out is pinned by
+  // services/worker/test/et-q-07-retired-queues-resurrection-guard.test.ts.)
   it("BullMQ Queue objects = processed queues + DLQ sinks", () => {
     const processedNames = Object.values(QUEUE_NAMES).filter(
       (q) => !isDlqQueueName(q),
@@ -283,7 +300,11 @@ describe("Point 5 — canonical registry integrity", () => {
 
   it("NonexistentRegistrySymbols = 0 — every named module exists on disk", () => {
     const missing: string[] = [];
-    const check = (spec: string, label: string) => {
+    // ET-Q-07 — `reconciler` may be `null` ("no module recovers this work",
+    // declared in RECONCILER_PENDING). There is no path to verify for a null,
+    // and the case below pins exactly which entries may carry one.
+    const check = (spec: string | null, label: string) => {
+      if (spec === null) return;
       const path = spec.split("#")[0]!;
       if (!path.includes("/") || !path.endsWith(".ts")) return;
       if (!exists(path)) missing.push(`${label}: ${path}`);
@@ -332,15 +353,207 @@ describe("Point 5 — canonical registry integrity", () => {
     expect(offenders, offenders.join(", ")).toEqual([]);
   });
 
+  it("every named reconciler REACHES its authority model (ET-Q-07)", () => {
+    /*
+     * THE CHECK THE THREE FALSE CLAIMS PASSED WAS "THE FILE EXISTS" AND THEN
+     * "THE FILE SAYS SO". Neither asks whether the module can see the work.
+     *
+     * This asks the source: the named reconciler must reference the entry's
+     * durable authority model in CODE — the model type, the Prisma accessor,
+     * or the mapped table in a SQL string — or CALL an imported function whose
+     * defining module does. One hop, through a call; see
+     * `reconcilerReachesAuthority` for why not zero and why not more.
+     *
+     * Comments cannot satisfy it, which matters: the note recording that
+     * `intelligence-run-reconciler.ts` "never reads `EvidencePartDerivedAsset`"
+     * names the model, and a text search would have read that sentence as
+     * proof of the opposite.
+     */
+    const unreached: string[] = [];
+    for (const e of CANONICAL_WORK_REGISTRY) {
+      if (e.reconciler === null) continue; // declared in RECONCILER_PENDING
+      const model = e.durableAuthority.model.split(/[\s(]/)[0]!;
+      const reach = reconcilerReachesAuthority(e.reconciler, model);
+      if (!reach.ok) {
+        unreached.push(
+          `${e.workName}: ${e.reconciler} does not reference ${model} ` +
+            `(table "${prismaTableOf(model)}") and calls nothing that does`,
+        );
+      }
+    }
+    expect(
+      unreached,
+      `RECONCILER_CANNOT_SEE_ITS_AUTHORITY:\n${unreached.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the three reconciler claims ET-Q-07 found false would FAIL that check", () => {
+    // THE NEGATIVE CONTROL, against modules that exist and are honest about
+    // OTHER work. Each pair is a mapping that shipped.
+    //
+    // `search-index-reconciler.ts` for the two graph jobs is no longer in this
+    // list: it was given the scans and reaches `Team` now. What remains false —
+    // and must stay detectably false — is every mapping to a module that has
+    // no code for the authority.
+    const stillFalse: Array<[model: string, module: string]> = [
+      // GenerateDerivedAsset -> a module that never reads derived assets.
+      ["EvidencePartDerivedAsset", "services/worker/src/search-index-reconciler.ts"],
+      ["EvidencePartDerivedAsset", "services/worker/src/lifecycle-recovery.ts"],
+      // The two graph jobs -> the intelligence reconciler, which reads no Team.
+      ["Team", "services/worker/src/intelligence-run-reconciler.ts"],
+      // DestructionOrchestratorSweep -> the module it named until this pass.
+      [
+        "DestructionExecution",
+        "services/worker/src/governance/retention-reconciliation.worker.ts",
+      ],
+      // DemoFollowUpSweep -> the worker bootstrap it named until this pass.
+      ["DemoRequest", "services/worker/src/index.ts"],
+    ];
+    for (const [model, module] of stillFalse) {
+      expect(exists(module), `${module} must exist — existence is not the point`).toBe(true);
+      expect(
+        reconcilerReachesAuthority(module, model).ok,
+        `${module} must NOT read as reaching ${model}`,
+      ).toBe(false);
+    }
+    // And the positive control: the modules that were made true.
+    expect(
+      reconcilerReachesAuthority(
+        "services/worker/src/intelligence-run-reconciler.ts",
+        "EvidencePartDerivedAsset",
+      ),
+    ).toEqual({ ok: true, how: "direct" });
+    expect(
+      reconcilerReachesAuthority("services/worker/src/search-index-reconciler.ts", "Team"),
+    ).toEqual({ ok: true, how: "direct" });
+  });
+
+  it("every declared claim names states and a lease the authority can hold (ET-Q-07)", () => {
+    /*
+     * A claim is `from -> to` on a durable row, optionally with a lease column.
+     * Four entries declared states no column can hold — `QUEUED` and `RUNNING`
+     * on a MediaIntelligenceRun (PENDING / PROCESSING), `QUEUED` /
+     * `PROCESSING` on the OTS status, `SENDING` on a NotificationDelivery and
+     * on a DemoRequest — and one declared a lease on `followUpSentAtUtc`, which
+     * is not a column of DemoRequest at all. Each read as a precise technical
+     * statement and described nothing.
+     *
+     * Mechanical rule: every STATE-SHAPED token in `from` / `to` must be a
+     * Prisma enum member of the authority model or a string literal in the
+     * code the entry names (or a module that code imports a used name from),
+     * and a non-null `leaseField` must be a field of the model. A lease field
+     * and a lease duration are declared together or not at all.
+     */
+    const offenders: string[] = [];
+    for (const e of CANONICAL_WORK_REGISTRY) {
+      if (!e.claim) continue;
+      const model = e.durableAuthority.model.split(/[\s(]/)[0]!;
+      const modules = [
+        e.canonicalProcessor,
+        e.terminalWriter,
+        e.canonicalProducer,
+        ...(e.reconciler ? [e.reconciler] : []),
+      ];
+      for (const side of ["from", "to"] as const) {
+        for (const state of claimStateTokens(e.claim[side])) {
+          if (!stateIsReal(state, model, modules)) {
+            offenders.push(
+              `${e.workName}: claim.${side} "${e.claim[side]}" names ${state}, ` +
+                `which is neither a ${model} enum value nor written by its code`,
+            );
+          }
+        }
+      }
+      if (e.claim.leaseField !== null) {
+        // The lease may live on the row that arbitrates rather than on the
+        // entry's headline authority only when the claim says so in prose;
+        // no entry does today, so the field must be on the model.
+        if (!prismaModelHasField(model, e.claim.leaseField)) {
+          offenders.push(
+            `${e.workName}: leaseField "${e.claim.leaseField}" is not a field of ${model}`,
+          );
+        }
+      }
+      if ((e.claim.leaseField === null) !== (e.claim.leaseMs === null)) {
+        offenders.push(`${e.workName}: leaseField and leaseMs must be declared together`);
+      }
+    }
+    expect(offenders, `CLAIM_DESCRIBES_NOTHING:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
+  it("the invented claim states ET-Q-07 removed would FAIL that check", () => {
+    const mi = [
+      "services/worker/src/media-intelligence.processor.ts",
+      "services/worker/src/intelligence-run-reconciler.ts",
+    ];
+    expect(stateIsReal("RUNNING", "MediaIntelligenceRun", mi)).toBe(false);
+    expect(stateIsReal("QUEUED", "MediaIntelligenceRun", mi)).toBe(false);
+    expect(stateIsReal("PROCESSING", "MediaIntelligenceRun", mi)).toBe(true);
+    expect(
+      stateIsReal("SENDING", "NotificationDelivery", [
+        "services/worker/src/mfa-recovery-digest.ts",
+      ]),
+    ).toBe(false);
+    expect(
+      stateIsReal("SENDING", "DemoRequest", [
+        "services/api/src/services/demo-follow-up.service.ts",
+      ]),
+    ).toBe(false);
+    expect(prismaModelHasField("DemoRequest", "followUpSentAtUtc")).toBe(false);
+    expect(prismaModelHasField("DemoRequest", "nextFollowUpAt")).toBe(true);
+  });
+
+  it("the retry `timeoutMs` is described as what it is: a budget nothing enforces (ET-Q-07)", () => {
+    // Every entry declares `retry.timeoutMs`, and its doc comment called it a
+    // "wall-clock ceiling for a single attempt". Nothing reads it: BullMQ has
+    // no per-job timeout and no handler wrapper races an attempt against it.
+    // The declaration now says so (`RETRY_TIMEOUT_IS_ENFORCED = false`), and
+    // this holds the statement and the code together in BOTH directions — the
+    // day something enforces the budget this fails until the constant is
+    // flipped, and until then nothing may describe it as a limit.
+    const readers = retryTimeoutReaders();
+    expect(
+      readers.length > 0,
+      `retry.timeoutMs readers in runtime source: ${readers.join(", ") || "<none>"}`,
+    ).toBe(RETRY_TIMEOUT_IS_ENFORCED);
+  });
+
   it("JobsWithoutReconciler = 0 and RECONCILER_PENDING = []", () => {
-    // The closure contract: no backlog list, no exemptions. Every unit of work
-    // names a reconciler and that reconciler exists (proved above).
-    const RECONCILER_PENDING: string[] = [];
+    /*
+     * ET-Q-07 (2026-09-30) — THIS CASE USED TO ASSERT ZERO, AND ZERO WAS FALSE.
+     *
+     * It read:
+     *
+     *     const RECONCILER_PENDING: string[] = [];
+     *     expect(missing).toEqual([]);  expect(RECONCILER_PENDING).toEqual([]);
+     *
+     * with the comment "no backlog list, no exemptions. Every unit of work
+     * names a reconciler". Every unit did NAME one — `reconciler` was a
+     * required string — and that is all this proved. Three entries named a
+     * module that cannot see their work: `ReconcileTeamGraph` and
+     * `RefreshGraphSearchProjection` named `search-index-reconciler.ts` (which
+     * re-enqueues evidence search documents and touches no graph authority),
+     * and `GenerateDerivedAsset` named `intelligence-run-reconciler.ts` (which
+     * never reads `EvidencePartDerivedAsset`). A local constant that is empty
+     * because nobody wrote to it is not a measurement.
+     *
+     * RECONCILER_PENDING is now the registry's own exported list (a unit with
+     * no recovery path declares `reconciler: null` and is listed there), and
+     * it is asserted EMPTY again — this time as a measurement. The three scans
+     * were written, each entry names its module, and the case below
+     * ("every named reconciler reaches its authority model") is what stops a
+     * module path standing in for a recovery that does not exist.
+     */
     const missing = CANONICAL_WORK_REGISTRY.filter((e) => !e.reconciler).map(
       (e) => e.workName,
     );
     expect(missing, missing.join(", ")).toEqual([]);
-    expect(RECONCILER_PENDING).toEqual([]);
+    expect([...RECONCILER_PENDING]).toEqual([]);
+    // And no entry carries an EMPTY string — neither a module nor an admission.
+    const blank = CANONICAL_WORK_REGISTRY.filter(
+      (e) => e.reconciler !== null && !e.reconciler.trim(),
+    ).map((e) => e.workName);
+    expect(blank, blank.join(", ")).toEqual([]);
   });
 
   it("JobsWithoutDeterministicId = 0 for every BullMQ job", () => {
@@ -621,8 +834,9 @@ describe("Point 5 — canonical payload contract", () => {
    * `{ enqueued: false }` which every caller is built to tolerate. So the
    * failure is completely silent.
    *
-   * Three families build composite command ids of the form `<kind>:<id>`
-   * (search projection, media intelligence, graph domain sync). Every job any
+   * Three families built composite command ids of the form `<kind>:<id>`
+   * (search projection, media intelligence, and graph domain sync — the last
+   * retired with its producerless queue, ET-Q-07). Every job any
    * of them tried to schedule was refused, from the moment the composite ids
    * were introduced. Search was the visible casualty: no rebuild could ever be
    * enqueued, so the index was only ever written by the API's inline reconcile
@@ -641,7 +855,12 @@ describe("Point 5 — canonical payload contract", () => {
         "analyze_metadata",
         "22222222-2222-2222-2222-222222222222",
       ),
-      buildGraphDomainCommandId("all", "33333333-3333-3333-3333-333333333333"),
+      // ET-Q-07 (2026-09-30) — the third REAL composite builder,
+      // `buildGraphDomainCommandId`, was deleted with the producerless
+      // `graph-domain-sync` queue. The shape it produced (`<domain>:<uuid>`) is
+      // kept here as a literal so the legality and injectivity checks below
+      // still run over three distinct composites, exactly as before.
+      "all:33333333-3333-3333-3333-333333333333",
     ];
     // The command id KEEPS its colon — it is the semantic identity the
     // processor parses. Only the transport identity is rewritten.

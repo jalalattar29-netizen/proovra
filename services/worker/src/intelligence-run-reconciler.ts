@@ -53,10 +53,23 @@ import { prisma } from "./db.js";
  * Keys, not values: the registry addresses work through `JOB_NAMES` /
  * `SWEEP_NAMES`, and a literal string here would be a second spelling of a
  * name the shared authority already owns.
+ *
+ * ET-Q-07 (2026-09-30) — two entries left this list, for two different reasons.
+ *
+ *   * `EXTRACT_EXIF` — the `mi-exif` queue was retired as producerless, so the
+ *     work name no longer exists. EXIF extraction is a `MediaIntelligenceRun`
+ *     of kind `extract_exif`, which `RUN_MEDIA_INTELLIGENCE` below covers.
+ *
+ *   * `GENERATE_DERIVED_ASSET` — THIS WAS A FALSE CLAIM, AND IS NOW A TRUE ONE.
+ *     Every scan in this file keyed on `MediaIntelligenceRun` or on the
+ *     semantic-chunk embedding; nothing read `EvidencePartDerivedAsset`, so a
+ *     derived-asset row whose enqueue was lost stayed PENDING and this module
+ *     could not see it. It left the list while that was so. It is back because
+ *     `reconcileStrandedDerivedAssets` (step 4 of the tick) now scans exactly
+ *     that table and re-enqueues through the canonical producer.
  */
 export const RECOVERED_WORK_TYPES = [
   "RUN_MEDIA_INTELLIGENCE",
-  "EXTRACT_EXIF",
   "GENERATE_DERIVED_ASSET",
   "EMBED_SEMANTIC_CHUNKS",
   "INTELLIGENCE_RUN_RECONCILER",
@@ -129,6 +142,16 @@ export type IntelligenceRunReconcileResult = {
    */
   embedChunksOwed: number;
   embedChunksReEnqueued: number;
+  /**
+   * ET-Q-07 (2026-09-30) — derived assets found stranded PENDING, and what
+   * became of each. See {@link reconcileStrandedDerivedAssets}.
+   */
+  derivedAssetsStranded: number;
+  derivedAssetsReEnqueued: number;
+  /** The asset's job was already live; the enqueue joined it. Not new work. */
+  derivedAssetsCollapsed: number;
+  /** Settled FAILED after the recovery ceiling, for an operator to re-request. */
+  derivedAssetsAbandoned: number;
   durationMs: number;
   error?: string;
 };
@@ -146,6 +169,10 @@ export async function runIntelligenceRunReconciler(
     failed: 0,
     embedChunksOwed: 0,
     embedChunksReEnqueued: 0,
+    derivedAssetsStranded: 0,
+    derivedAssetsReEnqueued: 0,
+    derivedAssetsCollapsed: 0,
+    derivedAssetsAbandoned: 0,
     durationMs: 0,
   };
 
@@ -267,6 +294,18 @@ export async function runIntelligenceRunReconciler(
       }
     }
 
+    // ---- 4. Derived assets stranded PENDING ------------------------------
+    //
+    // Fail-isolated inside the helper: a derived-asset scan that cannot run
+    // is counted and logged there, and never turns the three steps above —
+    // which have already done their work — into a failed tick.
+    const derived = await reconcileStrandedDerivedAssets({ batchSize });
+    result.derivedAssetsStranded = derived.stranded;
+    result.derivedAssetsReEnqueued = derived.reEnqueued;
+    result.derivedAssetsCollapsed = derived.collapsed;
+    result.derivedAssetsAbandoned = derived.abandoned;
+    result.failed += derived.failed;
+
     logger.info(
       {
         reconciler: "intelligence-run",
@@ -325,6 +364,234 @@ export async function selectChunksOwingEmbedding(input: {
     );
     return [];
   }
+}
+
+// ===========================================================================
+// ET-Q-07 (2026-09-30) — DERIVED ASSETS STRANDED PENDING
+// ===========================================================================
+
+/**
+ * Evidence lifecycle states whose derived assets are NOT regenerated.
+ *
+ * A trashed record is on its way out and a record in or past destruction has
+ * had — or is about to have — its bytes removed. Generating a fresh derivative
+ * for either writes a new object the destruction accounting then has to find
+ * and remove again. The reconciler steps over them; if the record is restored,
+ * the row is still PENDING and the next tick serves it.
+ */
+export const DERIVED_ASSET_INELIGIBLE_LIFECYCLE_STATES = [
+  "TRASHED",
+  "PENDING_DESTRUCTION",
+  "DESTROYED",
+] as const;
+
+/**
+ * How many times this reconciler re-enqueues one derived asset before it stops
+ * and hands the row to an operator.
+ *
+ * The row has no attempt counter, and adding a column is a migration this
+ * change does not make. The count is therefore carried in `last_error` — a
+ * column a PENDING row does not otherwise use (the producer writes NULL when
+ * it opens or re-opens a request) — as `stranded_pending_reenqueued:<n>`.
+ */
+const DERIVED_ASSET_MAX_RECOVERY_ATTEMPTS = MAX_RECOVERY_ATTEMPTS;
+export const DERIVED_ASSET_RECOVERY_MARKER = "stranded_pending_reenqueued:";
+
+/** Attempts already spent on a row, read from its recovery marker. */
+export function derivedAssetRecoveryAttempts(lastError: string | null | undefined): number {
+  if (!lastError || !lastError.startsWith(DERIVED_ASSET_RECOVERY_MARKER)) return 0;
+  const n = Number.parseInt(lastError.slice(DERIVED_ASSET_RECOVERY_MARKER.length), 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export type DerivedAssetReconcileResult = {
+  stranded: number;
+  reEnqueued: number;
+  collapsed: number;
+  abandoned: number;
+  /** Rows whose evidence turned out to be ineligible at claim time. */
+  skippedIneligible: number;
+  failed: number;
+};
+
+/**
+ * Re-enqueue `EvidencePartDerivedAsset` rows stranded PENDING.
+ *
+ * THE GAP THIS CLOSES
+ * ---------------------------------------------------------------------------
+ * The API producer (`enqueueDerivedAssetGeneration`) commits the row PENDING
+ * and THEN enqueues its id. Its own comment says a Redis outage "leaves the row
+ * PENDING, which is a recoverable and observable state" — and until now
+ * nothing recovered it. The registry named this module as the reconciler for
+ * `GenerateDerivedAsset` while no scan in it read this table, so a lost enqueue
+ * (or a job that died before its processor wrote a terminal status) left the
+ * row PENDING forever.
+ *
+ * THE AUTHORITY is the row itself: `status = 'PENDING'` with an
+ * `updated_at_utc` older than the stranded threshold. PENDING is the ONLY
+ * non-terminal status this table is ever given — `PROCESSING` is permitted by
+ * the CHECK constraint but written by nothing — so there is no lease to expire
+ * and no second state to scan.
+ *
+ * IDEMPOTENCY, in three layers:
+ *
+ *   1. THE CLAIM. Before enqueueing, the row's `updated_at_utc` is advanced
+ *      with a conditional update that still requires `status = 'PENDING'` and
+ *      the stale timestamp. Two overlapping ticks (or two worker replicas)
+ *      cannot both win it, and the winner's row leaves the stranded window
+ *      until a full threshold has passed again.
+ *   2. THE JOB ID. The re-enqueue goes through `enqueueDerivedAssetJob`, which
+ *      is the same `enqueueCanonicalJob` + registry entry the API producer
+ *      uses, with the same command id (the row id). The job id is therefore
+ *      `mi-derived-<rowId>` on both paths: an asset whose job is still queued
+ *      or running collapses onto it rather than being scheduled twice.
+ *   3. THE PROCESSOR. A replayed job for a row already COMPLETED or UNSUPPORTED
+ *      is a logged no-op, so a re-enqueue that loses a race with the original
+ *      job regenerates nothing.
+ *
+ * BOUNDED: one page of at most `batchSize` rows per tick, oldest first. The
+ * population is self-draining — a served row leaves it through the claim — so
+ * successive ticks page through a backlog without a cursor.
+ *
+ * NOT A RETRY LOOP: a row re-enqueued `DERIVED_ASSET_MAX_RECOVERY_ATTEMPTS`
+ * times and still PENDING is not suffering from a lost job. It is settled
+ * FAILED with `recovery_attempts_exhausted`, which an operator can see and
+ * re-request through the authorized route (that route re-opens the row and
+ * clears the marker). Only a NEW schedule spends an attempt: an enqueue that
+ * fails, or collapses onto a live job, does not, so a Redis outage cannot walk
+ * a healthy backlog to FAILED.
+ *
+ * It never writes COMPLETED. Success belongs to the processor.
+ */
+export async function reconcileStrandedDerivedAssets(input: {
+  batchSize: number;
+  strandedAfterMs?: number;
+}): Promise<DerivedAssetReconcileResult> {
+  const out: DerivedAssetReconcileResult = {
+    stranded: 0,
+    reEnqueued: 0,
+    collapsed: 0,
+    abandoned: 0,
+    skippedIneligible: 0,
+    failed: 0,
+  };
+  const limit = Math.max(1, Math.min(input.batchSize, 500));
+  const cutoff = new Date(
+    Date.now() - Math.max(60_000, input.strandedAfterMs ?? PENDING_STRANDED_MS),
+  );
+
+  let stranded: Array<{ id: string; evidence_id: string; last_error: string | null }>;
+  try {
+    stranded = await selectStrandedDerivedAssets({ cutoff, limit });
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message.slice(0, 200) : "unknown" },
+      "worker.intelligence_run.derived_assets_scan_unavailable",
+    );
+    out.failed += 1;
+    return out;
+  }
+  out.stranded = stranded.length;
+  if (stranded.length === 0) return out;
+
+  const { enqueueDerivedAssetJob } = await import("./queue.js");
+
+  for (const asset of stranded) {
+    try {
+      const attempts = derivedAssetRecoveryAttempts(asset.last_error);
+
+      if (attempts >= DERIVED_ASSET_MAX_RECOVERY_ATTEMPTS) {
+        const abandoned = await prisma.evidencePartDerivedAsset.updateMany({
+          where: { id: asset.id, status: "PENDING", updatedAtUtc: { lt: cutoff } },
+          data: {
+            status: "FAILED",
+            lastError: "recovery_attempts_exhausted",
+            updatedAtUtc: new Date(),
+          },
+        });
+        if (abandoned.count === 1) out.abandoned += 1;
+        continue;
+      }
+
+      // The record may have been trashed or destroyed between the scan and
+      // now. Re-read it rather than trust the page.
+      const evidence = await prisma.evidence.findFirst({
+        where: {
+          id: asset.evidence_id,
+          deletedAt: null,
+          lifecycleState: { notIn: [...DERIVED_ASSET_INELIGIBLE_LIFECYCLE_STATES] },
+        },
+        select: { id: true },
+      });
+      if (!evidence) {
+        out.skippedIneligible += 1;
+        continue;
+      }
+
+      // THE CLAIM — see the header. Zero rows means another tick has it, or
+      // the processor settled it in the meantime.
+      const claimed = await prisma.evidencePartDerivedAsset.updateMany({
+        where: { id: asset.id, status: "PENDING", updatedAtUtc: { lt: cutoff } },
+        data: { updatedAtUtc: new Date() },
+      });
+      if (claimed.count !== 1) continue;
+
+      const outcome = await enqueueDerivedAssetJob(asset.id, {
+        traceId: "reconciler",
+      });
+      if (!outcome.enqueued) {
+        out.failed += 1;
+        continue;
+      }
+      if (outcome.collapsed) {
+        out.collapsed += 1;
+        continue;
+      }
+      out.reEnqueued += 1;
+      // Only a NEW schedule spends an attempt. Still conditional on PENDING so
+      // a processor that finished first keeps its own `last_error`.
+      await prisma.evidencePartDerivedAsset.updateMany({
+        where: { id: asset.id, status: "PENDING" },
+        data: { lastError: `${DERIVED_ASSET_RECOVERY_MARKER}${attempts + 1}` },
+      });
+    } catch {
+      // Fail-isolated: one row that cannot be served is counted and stepped
+      // over. A reconciler that throws stops reconciling.
+      out.failed += 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * The stranded population: PENDING, older than the cutoff, on evidence that is
+ * still live. Oldest first, bounded.
+ *
+ * The eligibility join is in SQL rather than applied to the page afterwards:
+ * rows of trashed or destroyed evidence never leave PENDING, so filtering them
+ * out in memory would let them accumulate at the head of an oldest-first page
+ * until they starved every eligible row behind them.
+ */
+export async function selectStrandedDerivedAssets(input: {
+  cutoff: Date;
+  limit: number;
+}): Promise<Array<{ id: string; evidence_id: string; last_error: string | null }>> {
+  const ineligible = DERIVED_ASSET_INELIGIBLE_LIFECYCLE_STATES.map((s) => `'${s}'`).join(",");
+  return (await prisma.$queryRawUnsafe(
+    `SELECT d."id"::text AS id,
+            d."evidence_id"::text AS evidence_id,
+            d."last_error" AS last_error
+       FROM "evidence_part_derived_assets" d
+       JOIN "evidence" e ON e."id" = d."evidence_id"
+      WHERE d."status" = 'PENDING'
+        AND d."updated_at_utc" < $1
+        AND e."deleted_at" IS NULL
+        AND COALESCE(e."lifecycle_state"::text, 'ACTIVE') NOT IN (${ineligible})
+      ORDER BY d."updated_at_utc" ASC
+      LIMIT $2`,
+    input.cutoff,
+    input.limit,
+  )) as Array<{ id: string; evidence_id: string; last_error: string | null }>;
 }
 
 /**

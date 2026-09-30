@@ -44,10 +44,13 @@ import {
   DLQ_SINKS,
   JOB_NAMES,
   QUEUE_NAMES,
+  RECONCILER_PENDING,
   SWEEP_NAMES,
   getBullMqEntries,
   isDlqQueueName,
 } from "@proovra/shared";
+
+import { discoverProducerTopology } from "./point5/registry-source-facts.js";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -258,23 +261,31 @@ describe("Point 5 — independent topology discovery", () => {
     ).toEqual([]);
   });
 
-  it("BullMQ processed queues = 15, registrations = 15, processors = 15", () => {
+  it("BullMQ processed queues = 10, registrations = 10, processors = 10", () => {
+    // ET-Q-07 (2026-09-30) — every 15 below became 10 and the 17 became 12,
+    // for ONE reason: five queues that had a registered worker and no producer
+    // were retired — `mi-exif`, `mi-search-index`, `graph-domain-sync`,
+    // `graph-timeline-sync`, `org-health-refresh`. Each removal takes one
+    // Queue object, one registration, one processor binding, one QUEUE_NAMES
+    // value, one registry entry and one JOB_NAMES value, so all six processed
+    // counts move 15 -> 10 together and the object count moves 17 -> 12
+    // (10 processed + the same 2 DLQ sinks).
     const processed = QUEUE_OBJECTS.filter(
       (q) => q.queueName && !isDlqQueueName(q.queueName),
     );
     // Derived from discovery, then cross-checked against two independent
     // sources: the shared name authority and the registry.
-    expect(processed).toHaveLength(15);
-    expect(REGISTRATIONS).toHaveLength(15);
-    expect(REGISTRATIONS.filter((r) => r.processor).length).toBe(15);
+    expect(processed).toHaveLength(10);
+    expect(REGISTRATIONS).toHaveLength(10);
+    expect(REGISTRATIONS.filter((r) => r.processor).length).toBe(10);
     expect(
       Object.values(QUEUE_NAMES).filter((q) => !isDlqQueueName(q)),
-    ).toHaveLength(15);
-    expect(getBullMqEntries()).toHaveLength(15);
-    expect(Object.values(JOB_NAMES)).toHaveLength(15);
+    ).toHaveLength(10);
+    expect(getBullMqEntries()).toHaveLength(10);
+    expect(Object.values(JOB_NAMES)).toHaveLength(10);
     // The DLQ sinks are queues with no registration BY DESIGN, which is the
     // whole reason the object count and the registration count differ.
-    expect(QUEUE_OBJECTS).toHaveLength(17);
+    expect(QUEUE_OBJECTS).toHaveLength(12);
     expect(DLQ_SINKS).toHaveLength(2);
   });
 
@@ -382,13 +393,81 @@ describe("Point 5 — independent topology discovery", () => {
     const fromAuthority = new Set(Object.values(JOB_NAMES));
     const fromProducers = PRODUCED_WORK_NAMES;
     expect(fromAuthority).toEqual(fromRegistry);
-    // Producers must be a subset — a work name nothing enqueues is reported
-    // separately below rather than folded in here.
-    const notProduced = [...fromRegistry].filter((n) => !fromProducers.has(n));
+    // Every registered job is at least MENTIONED by a transport module. This
+    // is a naming check and nothing more — see the case below for whether
+    // anything actually enqueues it.
+    const notMentioned = [...fromRegistry].filter((n) => !fromProducers.has(n));
     expect(
-      notProduced,
-      `registered jobs no producer enqueues:\n${notProduced.join("\n")}`,
+      notMentioned,
+      `registered jobs no transport module names:\n${notMentioned.join("\n")}`,
     ).toEqual([]);
+  });
+
+  it("every CURRENT_RUNTIME job has a producer CALL SITE (ET-Q-07 acceptance gate)", () => {
+    /*
+     * THIS IS THE GATE ET-Q-07 ASKED FOR: "fails when a CURRENT_RUNTIME job has
+     * zero producer call sites".
+     *
+     * The case above was the only producer check this file had, and it passed
+     * five dead queues. Its producer set is "every `JOB_NAMES.X` that appears
+     * in `queue.ts` or the api client" — and `queue.ts` names a job to alias
+     * it, to configure its Queue object, and inside its enqueue HELPER's own
+     * body. None of those enqueues anything. `mi-exif`, `mi-search-index`,
+     * `graph-domain-sync`, `graph-timeline-sync` and `org-health-refresh` each
+     * had a helper nobody called, and each read as "produced".
+     *
+     * This one is resolved from the syntax tree across services/api/src,
+     * services/worker/src and packages/<x>/src: a job is produced only if a
+     * function that enqueues it is CALLED somewhere outside its own
+     * declaration, or the enqueue primitive is called with its name outside
+     * any helper. See `discoverProducerTopology`.
+     */
+    const topology = discoverProducerTopology();
+    const keyOf = (workName: string) =>
+      Object.entries(JOB_NAMES).find(([, v]) => v === workName)?.[0] ?? null;
+
+    const unproduced: string[] = [];
+    for (const e of getBullMqEntries()) {
+      if (e.implementation !== "CURRENT_RUNTIME") continue;
+      const key = keyOf(e.workName);
+      expect(key, `${e.workName} has no JOB_NAMES key`).not.toBeNull();
+      const sites = topology.callSites.get(key!) ?? [];
+      if (sites.length === 0) {
+        const helpers = topology.helpers
+          .filter((h) => h.jobKeys.includes(key!))
+          .map((h) => `${h.name} (${h.file})`);
+        unproduced.push(
+          `${e.workName} (${e.queueName}): 0 producer call sites — ` +
+            (helpers.length > 0
+              ? `enqueue helper(s) with no caller: ${helpers.join(", ")}`
+              : "no enqueue helper names it at all"),
+        );
+      }
+    }
+    expect(
+      unproduced,
+      `CURRENT_RUNTIME_JOB_WITH_NO_PRODUCER:\n${unproduced.join("\n")}`,
+    ).toEqual([]);
+
+    // The discovery must have found the transport at all: a scan that finds no
+    // helpers finds no dead ones either.
+    expect(topology.helpers.length).toBeGreaterThanOrEqual(getBullMqEntries().length);
+  });
+
+  it("no enqueue helper is dead: every one that names a job is called", () => {
+    // The stricter, per-helper form. A job can have one live producer and one
+    // dead helper beside it (the worker carried `enqueueGraphReconcileJob` and
+    // `enqueueDerivedAssetJob` with zero callers while the api produced both
+    // jobs). A dead helper is where the next producerless queue starts, so it
+    // is reported on its own.
+    const topology = discoverProducerTopology();
+    const calledNames = new Set(
+      [...topology.callSites.values()].flat().map((s) => s.callee),
+    );
+    const dead = topology.helpers
+      .filter((h) => !calledNames.has(h.name))
+      .map((h) => `${h.name} (${h.file}) -> ${h.jobKeys.join(", ")}`);
+    expect(dead, `ENQUEUE_HELPER_WITH_NO_CALLER:\n${dead.join("\n")}`).toEqual([]);
   });
 
   it("missing durable authorities = 0, NOT_YET_CONVERGED = [], RECONCILER_PENDING = []", () => {
@@ -405,13 +484,24 @@ describe("Point 5 — independent topology discovery", () => {
       `NOT_YET_CONVERGED:\n${notConverged.join("\n")}`,
     ).toEqual([]);
 
+    // ET-Q-07 (2026-09-30) — this asserted `[]`, and it was green while three
+    // entries named a reconciler that cannot see their work (the file existed,
+    // which was all this measured; the ownership suite below could not catch
+    // it either, because the named modules DECLARED the work they did not
+    // recover). The scans were then written, and the list is asserted EMPTY
+    // again. A unit with no recovery path would declare `reconciler: null` and
+    // appear in the registry's exported RECONCILER_PENDING — which fails here —
+    // rather than name a plausible module; and "the module reaches the
+    // authority model" is now checked from the source in the queue-integrity
+    // gate, so a path cannot stand in for a recovery.
     const reconcilerPending = CANONICAL_WORK_REGISTRY.filter(
-      (e) => !e.reconciler.trim() || !existsSync(resolve(REPO, e.reconciler)),
+      (e) => !e.reconciler?.trim() || !existsSync(resolve(REPO, e.reconciler)),
     ).map((e) => `${e.workName} -> ${e.reconciler}`);
     expect(
       reconcilerPending,
       `RECONCILER_PENDING:\n${reconcilerPending.join("\n")}`,
     ).toEqual([]);
+    expect([...RECONCILER_PENDING]).toEqual([]);
   });
 });
 
@@ -509,6 +599,18 @@ describe("Point 5 — semantic recovery ownership", () => {
       ["UPGRADE_OTS", "services/worker/src/search-index-reconciler.ts"],
       ["PURGE_DELETED_EVIDENCE", "services/worker/src/lifecycle-recovery.ts"],
       ["EMBED_SEMANTIC_CHUNKS", "services/worker/src/search-index-reconciler.ts"],
+      // ET-Q-07 (2026-09-30) — three more shipped, resolved, were DECLARED by
+      // the module they named and were still false: the module listed the work
+      // in RECOVERED_WORK_TYPES without containing any code that recovers it,
+      // so both directions of the check above agreed with each other. That is
+      // the limit of a declaration check, and it is why "the module reaches
+      // the authority model" is now measured from the source in the
+      // queue-integrity gate. Those three are TRUE now (see the next case), so
+      // what is pinned here is the cross mapping, which is still false.
+      ["RECONCILE_TEAM_GRAPH", "services/worker/src/intelligence-run-reconciler.ts"],
+      ["REFRESH_GRAPH_SEARCH_PROJECTION", "services/worker/src/intelligence-run-reconciler.ts"],
+      ["GENERATE_DERIVED_ASSET", "services/worker/src/search-index-reconciler.ts"],
+      ["DESTRUCTION_ORCHESTRATOR", "services/worker/src/governance/retention-reconciliation.worker.ts"],
     ];
     for (const [workKey, wrongModule] of historicallyFalse) {
       expect(
@@ -523,11 +625,19 @@ describe("Point 5 — semantic recovery ownership", () => {
     }
   });
 
-  it("the three previously-false mappings are now truthful", () => {
+  it("the previously-false mappings are now truthful", () => {
     const truthful: Array<[string, string]> = [
       ["UPGRADE_OTS", "services/worker/src/lifecycle-recovery.ts"],
       ["PURGE_DELETED_EVIDENCE", "services/worker/src/governance/trash-grace-reconciler.ts"],
       ["EMBED_SEMANTIC_CHUNKS", "services/worker/src/intelligence-run-reconciler.ts"],
+      // ET-Q-07 (2026-09-30) — and the five this pass made true: three by
+      // writing the scan, two by pointing the registry at the module that
+      // already held the recovery.
+      ["GENERATE_DERIVED_ASSET", "services/worker/src/intelligence-run-reconciler.ts"],
+      ["RECONCILE_TEAM_GRAPH", "services/worker/src/search-index-reconciler.ts"],
+      ["REFRESH_GRAPH_SEARCH_PROJECTION", "services/worker/src/search-index-reconciler.ts"],
+      ["DESTRUCTION_ORCHESTRATOR", "services/worker/src/governance/destruction-orchestrator.worker.ts"],
+      ["DEMO_FOLLOW_UP", "services/api/src/services/demo-follow-up.service.ts"],
     ];
     for (const [workKey, owner] of truthful) {
       const declared = declaredWorkTypes(owner) ?? [];

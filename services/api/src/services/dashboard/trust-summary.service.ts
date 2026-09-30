@@ -232,8 +232,9 @@ export async function buildTrustSummary(input: {
        */
       prisma.evidence.count({
         where: {
-          ...baseWhere,
-          ...(outputEntitledWhere ?? {}),
+          // Composed under AND, never spread: the narrowing is a general
+          // where (ET-COM-04) and a spread key could overwrite baseWhere's.
+          AND: [baseWhere, ...(outputEntitledWhere ? [outputEntitledWhere] : [])],
           status: "SIGNED" as never,
           reports: { none: {} },
         },
@@ -242,8 +243,9 @@ export async function buildTrustSummary(input: {
       // same reason.
       prisma.evidence.count({
         where: {
-          ...baseWhere,
-          ...(outputEntitledWhere ?? {}),
+          // Composed under AND, never spread: the narrowing is a general
+          // where (ET-COM-04) and a spread key could overwrite baseWhere's.
+          AND: [baseWhere, ...(outputEntitledWhere ? [outputEntitledWhere] : [])],
           status: "REPORTED" as never,
           verificationPackages: { none: {} },
         },

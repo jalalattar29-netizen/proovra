@@ -107,3 +107,9 @@ export * from "./capture-trust/public-acquisition.js";
 // authorization, no commercial truth (that stays with resolveCommercialContext
 // and resolveEnterpriseContract).
 export * from "./control-plane-population.js";
+
+// ET-SM-07 — THE integrity-recheck authority: scope, due selection, the claim,
+// the record of every attempt, on-demand requests and the presented state.
+export * from "./integrity-recheck/authority.js";
+export * from "./scheduled-sweep-health.js";
+export * from "./verification-share/authority.js";

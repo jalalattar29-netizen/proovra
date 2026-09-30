@@ -1,5 +1,13 @@
 /**
- * PHASE 12 — POINT 5, FAMILY 8: reconciliation. Twelve units, one suite.
+ * PHASE 12 — POINT 5, FAMILY 8: reconciliation. Eight units, one suite.
+ *
+ * ET-Q-07 (2026-09-30) — this was "Twelve units". Four of them —
+ * `IndexMediaIntelligence`, `SyncTeamGraphDomain`, `SyncTeamGraphTimeline` and
+ * `RefreshOrgHealthProjection` — sat on queues with a consumer and no producer
+ * and were retired. Their cases here were executed proofs of processors that
+ * never ran in production: this suite invoked each processor directly, which
+ * is precisely what nothing in the product ever did. The counts in the prose
+ * below are restated for the eight that remain.
  *
  * WHAT THIS FAMILY IS
  * ---------------------------------------------------------------------------
@@ -9,7 +17,7 @@
  * suite ends up asserting the opposite of the guarantee:
  *
  *   * These units have NO terminal state of their own. The registry records
- *     `claim: null` for eleven of the twelve. So "terminal state is not
+ *     `claim: null` for seven of the eight. So "terminal state is not
  *     overwritten" is, here, CONVERGENCE — a second execution over unchanged
  *     sources reaches the same projection. Freezing a hand-written value and
  *     demanding the real code preserve it would assert a property none of
@@ -26,7 +34,7 @@
  *
  * STRUCTURE
  * ---------------------------------------------------------------------------
- * Group A  six workspace-addressed projection jobs, one driver factory,
+ * Group A  two workspace-addressed projection jobs, one driver factory,
  *          driven through the shared conformance harness.
  * Group B  `RebuildSearchDocument`, whose subject is a source row rather than
  *          a workspace.
@@ -50,7 +58,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CANONICAL_WORK_REGISTRY,
   JOB_NAMES,
-  buildGraphDomainCommandId,
   getWorkEntryOrThrow,
 } from "@proovra/shared";
 
@@ -111,12 +118,8 @@ vi.mock("../../../worker/src/queue.js", async (importOriginal) => {
 
 const ENTRIES = {
   searchdoc: getWorkEntryOrThrow(JOB_NAMES.REBUILD_SEARCH_DOCUMENT),
-  misearch: getWorkEntryOrThrow(JOB_NAMES.INDEX_MEDIA_INTELLIGENCE),
   graphrecon: getWorkEntryOrThrow(JOB_NAMES.RECONCILE_TEAM_GRAPH),
-  graphdomain: getWorkEntryOrThrow(JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN),
-  graphtimeline: getWorkEntryOrThrow(JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE),
   graphproj: getWorkEntryOrThrow(JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION),
-  orghealth: getWorkEntryOrThrow(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION),
 } as const;
 
 describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
@@ -301,20 +304,6 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
     return `docs=${n}`;
   }
 
-  async function orgHealthSignature(teamId: string): Promise<string> {
-    const latest = await prisma.orgHealthProjection.findFirst({
-      where: { teamId },
-      orderBy: { sampledAtUtc: "desc" },
-      select: { evidenceCount: true, caseCount: true },
-    });
-    // The COUNTS, not the sample timestamp. This projection is a time series:
-    // every run writes a new sample by design, so signing the row id would
-    // measure the clock rather than convergence.
-    return latest
-      ? `evidence=${latest.evidenceCount};cases=${latest.caseCount}`
-      : "unsampled";
-  }
-
   function ctxFor(
     readWorkspace: ConformanceContext["readWorkspace"],
   ): ConformanceContext {
@@ -336,7 +325,7 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
   };
 
   // =========================================================================
-  // GROUP A — the six workspace-addressed projection units
+  // GROUP A — the two workspace-addressed projection units
   // =========================================================================
 
   it("ReconcileTeamGraph satisfies the seven non-waivable invariants", async () => {
@@ -355,47 +344,11 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
     );
   });
 
-  it("SyncTeamGraphDomain satisfies the seven non-waivable invariants", async () => {
-    queued.reset();
-    await proveCommonConformance(
-      projectionDriver({
-        slug: "graphdomain",
-        workName: ENTRIES.graphdomain.workName,
-        schemaVersion: ENTRIES.graphdomain.schemaVersion,
-        // The domain is encoded in the command id against a CLOSED catalog and
-        // re-validated before any database access — an unknown domain is a
-        // decode failure, not a job that completes as a silent no-op.
-        commandFor: (w) => buildGraphDomainCommandId("all", w),
-        // A WELL-FORMED command naming a workspace that does not exist. A bare
-        // UUID would be malformed for this unit, and refusing it would prove
-        // the decoder rather than the absence of state.
-        ghostId: buildGraphDomainCommandId(
-          "all",
-          "00000000-0000-4000-8000-0000000000ff",
-        ),
-        execute: (c) =>
-          subsystem.processGraphDomainSyncJob(job(ENTRIES.graphdomain, c)),
-        signature: graphSignature,
-      }),
-      ctxFor(readWorkspaceIdentity),
-    );
-  });
-
-  it("SyncTeamGraphTimeline satisfies the seven non-waivable invariants", async () => {
-    queued.reset();
-    await proveCommonConformance(
-      projectionDriver({
-        slug: "graphtimeline",
-        workName: ENTRIES.graphtimeline.workName,
-        schemaVersion: ENTRIES.graphtimeline.schemaVersion,
-        commandFor: (w) => w,
-        execute: (c) =>
-          subsystem.processGraphTimelineSyncJob(job(ENTRIES.graphtimeline, c)),
-        signature: graphSignature,
-      }),
-      ctxFor(readWorkspaceIdentity),
-    );
-  });
+  // ET-Q-07 (2026-09-30) — the `SyncTeamGraphDomain` and
+  // `SyncTeamGraphTimeline` conformance cases that stood here are gone with
+  // their queues. They were honest executed proofs — and of nothing that ran:
+  // the suite called each processor directly, which is the one thing no
+  // producer ever did.
 
   it("RefreshGraphSearchProjection satisfies the seven non-waivable invariants", async () => {
     queued.reset();
@@ -413,70 +366,9 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
     );
   });
 
-  it("RefreshOrgHealthProjection satisfies the seven non-waivable invariants", async () => {
-    queued.reset();
-    await proveCommonConformance(
-      projectionDriver({
-        slug: "orghealth",
-        workName: ENTRIES.orghealth.workName,
-        schemaVersion: ENTRIES.orghealth.schemaVersion,
-        commandFor: (w) => w,
-        execute: (c) =>
-          subsystem.processOrgHealthRefreshJob(job(ENTRIES.orghealth, c)),
-        signature: orgHealthSignature,
-      }),
-      ctxFor(readWorkspaceIdentity),
-    );
-  });
-
-  it("IndexMediaIntelligence satisfies the seven non-waivable invariants", async () => {
-    queued.reset();
-    // This one is addressed by EVIDENCE, not by workspace: it re-indexes one
-    // record after intelligence output lands. Its tenant comes from the
-    // evidence row and its effect is a delegated search-indexing enqueue.
-    const evidenceOf = new Map<string, string>();
-    await proveCommonConformance(
-      {
-        slug: "misearch",
-        workName: ENTRIES.misearch.workName,
-        async seed({ fixture }) {
-          const id = await newEvidence(fixture);
-          evidenceOf.set(id, fixture.teamId);
-          return id;
-        },
-        async execute(rowId) {
-          await subsystem.processMiSearchIndexJob(job(ENTRIES.misearch, rowId));
-        },
-        async readState(rowId) {
-          const ev = await prisma.evidence.findFirst({
-            where: { id: rowId, deletedAt: null },
-            select: { id: true },
-          });
-          if (!ev) return null;
-          // The observable effect: how many indexing commands this record has
-          // caused. The deterministic job id collapses repeats, so it settles
-          // at one and stays there.
-          const n = queued.searchIndex.filter((q) => q.sourceId === rowId).length;
-          return `enqueued=${Math.min(n, 1)}`;
-        },
-        async makeTerminal(rowId) {
-          await subsystem.processMiSearchIndexJob(job(ENTRIES.misearch, rowId));
-        },
-        terminalStates: [],
-        convergent: true,
-        async countInWorkspace(teamId) {
-          return prisma.evidence.count({ where: { teamId, deletedAt: null } });
-        },
-      },
-      ctxFor(async (rowId) => {
-        const ev = await prisma.evidence.findUnique({
-          where: { id: rowId },
-          select: { teamId: true },
-        });
-        return ev?.teamId ?? null;
-      }),
-    );
-  });
+  // ET-Q-07 (2026-09-30) — the `RefreshOrgHealthProjection` and
+  // `IndexMediaIntelligence` conformance cases that stood here are gone with
+  // their producerless queues, for the reason stated above.
 
   // =========================================================================
   // GROUP B — RebuildSearchDocument
@@ -1004,7 +896,7 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
   // =========================================================================
   // GROUP D — the claim-less concurrency probe
   //
-  // Eleven of the twelve units in this family declare `claim: null`. That is
+  // Seven of the eight units in this family declare `claim: null`. That is
   // acceptable ONLY when something else makes two simultaneous executions
   // safe, and "we ran it twice in sequence and got the same answer" is not
   // that: sequential repetition cannot observe two writers interleaving.
@@ -1035,28 +927,9 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
             w,
           ),
       },
-      {
-        slug: "graphdomain",
-        run: (w) =>
-          subsystem.processGraphDomainSyncJob(
-            job(ENTRIES.graphdomain, buildGraphDomainCommandId("all", w)),
-          ),
-        rows: (w) =>
-          countRows(
-            `SELECT COUNT(*)::bigint AS n FROM investigation_graph_nodes WHERE team_id = $1::uuid`,
-            w,
-          ),
-      },
-      {
-        slug: "graphtimeline",
-        run: (w) =>
-          subsystem.processGraphTimelineSyncJob(job(ENTRIES.graphtimeline, w)),
-        rows: (w) =>
-          countRows(
-            `SELECT COUNT(*)::bigint AS n FROM investigation_graph_edges WHERE team_id = $1::uuid`,
-            w,
-          ),
-      },
+      // ET-Q-07 (2026-09-30) — the `graphdomain`, `graphtimeline` and
+      // `orghealth` cases that stood in this list are gone with their
+      // producerless queues and processors.
       {
         slug: "graphproj",
         run: (w) =>
@@ -1064,15 +937,6 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
         rows: (w) =>
           countRows(
             `SELECT COUNT(*)::bigint AS n FROM evidence_search_documents WHERE team_id = $1::uuid`,
-            w,
-          ),
-      },
-      {
-        slug: "orghealth",
-        run: (w) => subsystem.processOrgHealthRefreshJob(job(ENTRIES.orghealth, w)),
-        rows: (w) =>
-          countRows(
-            `SELECT COUNT(*)::bigint AS n FROM org_health_projections WHERE team_id = $1::uuid`,
             w,
           ),
       },
@@ -1109,8 +973,8 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
   });
 
   it("claim-less record-scoped units: two concurrent executions duplicate nothing", async () => {
-    // `RebuildSearchDocument`, `IndexMediaIntelligence` and the two stranded
-    // reconcilers, driven against ONE candidate by two callers at once.
+    // `RebuildSearchDocument` and the two stranded reconcilers, driven against
+    // ONE candidate by two callers at once.
     queued.reset();
     const evidenceId = await newEvidence(own);
 
@@ -1131,18 +995,8 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
       "searchdoc: concurrent indexing produced more than one document",
     ).toBe(1);
 
-    queued.reset();
-    await Promise.all([
-      subsystem.processMiSearchIndexJob(job(ENTRIES.misearch, evidenceId)),
-      subsystem.processMiSearchIndexJob(job(ENTRIES.misearch, evidenceId)),
-    ]);
-    const targets = new Set(
-      queued.searchIndex.map((q) => `${q.kind}:${q.sourceId}`),
-    );
-    expect(
-      targets.size,
-      "misearch: concurrent ticks addressed more than one target",
-    ).toBe(1);
+    // ET-Q-07 (2026-09-30) — the `IndexMediaIntelligence` (misearch) pair that
+    // ran here is gone with its producerless queue.
 
     // The stranded reconcilers: two concurrent ticks, one accepted command.
     queued.reset();
@@ -1246,8 +1100,26 @@ describe("POINT 5 FAMILY — reconciliation (live PostgreSQL 16)", () => {
       byAuthority.set(key, [...(byAuthority.get(key) ?? []), entry.workName]);
     }
 
-    expect(missing, `stranded authorities with no live reconciler:\n${missing.join("\n")}`)
-      .toEqual([]);
+    // ET-Q-07 (2026-09-30) — THIS ASSERTED `[]`, AND `[]` WAS NOT TRUE.
+    //
+    // It was green because three entries named a reconciler that is a real
+    // registered processor and cannot see their work: `ReconcileTeamGraph` and
+    // `RefreshGraphSearchProjection` named `search-index-reconciler.ts`, and
+    // `GenerateDerivedAsset` named `intelligence-run-reconciler.ts`. "Names a
+    // module the runtime reaches" was satisfied; "that module recovers this
+    // work" was never asked.
+    //
+    // The three scans were then WRITTEN — two in `search-index-reconciler.ts`,
+    // one in `intelligence-run-reconciler.ts` — each entry names its module
+    // again, and RECONCILER_PENDING is empty. So this is back to asserting
+    // zero, and the case id below means what it says: every stranded-capable
+    // authority has a reconciler. What "has a reconciler" is held to changed:
+    // the queue-integrity gate now requires the named module's source to
+    // reference the authority model, so zero here is a measurement.
+    expect(
+      missing,
+      `stranded authorities with no live reconciler:\n${missing.join("\n")}`,
+    ).toEqual([]);
     expect(duplicated).toEqual([]);
     // And no registered unit lacks a durable authority to reconcile toward.
     const authorityless = CANONICAL_WORK_REGISTRY.filter(

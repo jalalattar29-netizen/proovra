@@ -117,18 +117,6 @@ const ENTRIES: ReadonlyArray<ReplaySafetyEntry> = [
     rationale: "S3 PUT upsert keyed by (evidenceId, assetKind).",
   },
   {
-    queueName: QUEUE_NAMES.MI_EXIF,
-    jobKind: JOB_NAMES.EXTRACT_EXIF,
-    category: "safe",
-    rationale: "Read-only EXIF extraction; result upsert.",
-  },
-  {
-    queueName: QUEUE_NAMES.MI_SEARCH_INDEX,
-    jobKind: JOB_NAMES.INDEX_MEDIA_INTELLIGENCE,
-    category: "safe",
-    rationale: "Search-projection upsert. Idempotent.",
-  },
-  {
     queueName: QUEUE_NAMES.MI_EMBED,
     jobKind: JOB_NAMES.EMBED_SEMANTIC_CHUNKS,
     category: "safe",
@@ -150,30 +138,17 @@ const ENTRIES: ReadonlyArray<ReplaySafetyEntry> = [
     rationale: "Projection upsert keyed by teamId + projection version.",
   },
   {
-    queueName: QUEUE_NAMES.GRAPH_DOMAIN_SYNC,
-    jobKind: JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN,
-    category: "safe",
-    rationale: "Projection upsert.",
-  },
-  {
-    queueName: QUEUE_NAMES.GRAPH_TIMELINE_SYNC,
-    jobKind: JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
-    category: "safe",
-    rationale: "Projection upsert.",
-  },
-  {
     queueName: QUEUE_NAMES.GRAPH_SEARCH_PROJECTION,
     jobKind: JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
     category: "safe",
     rationale: "Projection upsert.",
   },
-  // ---- org health ----
-  {
-    queueName: QUEUE_NAMES.ORG_HEALTH_REFRESH,
-    jobKind: JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION,
-    category: "safe",
-    rationale: "Bounded upsert keyed by (teamId, sampledAtUtc).",
-  },
+  // ET-Q-07 (2026-09-30) — five entries left this matrix with their
+  // producerless queues: `mi-exif`, `mi-search-index`, `graph-domain-sync`,
+  // `graph-timeline-sync` and `org-health-refresh`. Each declared a replay
+  // policy for jobs that could not exist, and — because KNOWN_QUEUE_NAMES is
+  // derived from this list — each also put a queue nothing fed into the
+  // Operations inventory and the replay route's accepted-name enum.
 ];
 
 /**

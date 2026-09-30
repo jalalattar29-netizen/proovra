@@ -11,7 +11,11 @@
  * package is described as issued or not issued — never as verified when it
  * does not exist.
  */
-import type { BasicVerification, ComponentVerificationState } from "@proovra/shared";
+import {
+  storedBytesVerificationRow,
+  type BasicVerification,
+  type ComponentVerificationState,
+} from "@proovra/shared";
 
 const STATE_LABEL: Record<ComponentVerificationState, string> = {
   verified: "Verified",
@@ -89,12 +93,69 @@ function packageCheck(p: {
     : `${digest} It is sealed by a key carried inside the package; PROOVRA did not record that key for this package, so the seal alone does not show the package came from PROOVRA.`;
 }
 
-export default function BasicVerificationView({ data }: { data: BasicVerification }) {
+/**
+ * ET-SM-07 — the stored-file recheck as a standalone notice (the rich view
+ * shows it above its verdicts). Same row, same words, as the basic view.
+ */
+export function StoredBytesNotice({ integrity }: { integrity: NonNullable<BasicVerification["storedBytes"]> }) {
+  return (
+    <div
+      data-verify-stored-bytes={integrity.state}
+      style={{
+        background: "#fff",
+        borderRadius: 16,
+        padding: "0 20px",
+        marginBottom: 16,
+        border: "1px solid rgba(15,23,42,0.08)",
+      }}
+    >
+      <Row {...storedBytesVerificationRow(integrity)} />
+    </div>
+  );
+}
+
+/** What the Verify answer says about the link that was used (ET-PKG-07). */
+export type VerifyLinkInfo = { kind: "SHARE_TOKEN" | "LEGACY_RECORD_ID"; expiresAtUtc: string | null };
+
+/**
+ * ET-PKG-07 — a LEGACY record-id link says when it stops working, so whoever
+ * holds it can ask the owner for a share link before it does. A share link
+ * that expires says when, too. Nothing is shown for a link with no end date.
+ */
+export function VerifyLinkNotice({ link }: { link: VerifyLinkInfo | null | undefined }) {
+  if (!link || !link.expiresAtUtc) return null;
+  const until = fmt(link.expiresAtUtc);
+  return (
+    <p
+      data-verify-link-kind={link.kind}
+      style={{
+        margin: "0 0 16px",
+        padding: "10px 14px",
+        borderRadius: 12,
+        fontSize: 14,
+        color: "#7a5a12",
+        background: "rgba(138,106,47,0.10)",
+      }}
+    >
+      {link.kind === "LEGACY_RECORD_ID"
+        ? `This is an older link that uses the record's ID. It stops working on ${until}. Ask the record's owner for a new verification link before then.`
+        : `This verification link stops working on ${until}.`}
+    </p>
+  );
+}
+
+export default function BasicVerificationView({
+  data,
+  link,
+}: {
+  data: BasicVerification;
+  link?: VerifyLinkInfo | null;
+}) {
   const o = data.original;
   const originalDetail =
     o.state === "verified"
       ? // ET-PKG-06 — name what was checked: PROOVRA's records, not the stored bytes.
-        "PROOVRA's signed fingerprint matches the digest recorded at finalization, the signature over it is valid, and the recorded custody chain is intact. These checks are made over PROOVRA's records; the stored original is not re-read on this page — compare the SHA-256 below with your own copy."
+        "PROOVRA's signed fingerprint matches the digest recorded at finalization, the signature over it is valid, and the recorded custody chain is intact. These checks are made over PROOVRA's records; the stored original is not re-read on this page — see the stored file recheck below, and compare the SHA-256 with your own copy."
       : o.state === "failed"
         ? "At least one integrity check did not pass."
         : "The integrity checks could not all be performed.";
@@ -138,9 +199,17 @@ export default function BasicVerificationView({ data }: { data: BasicVerificatio
         not show the evidence itself or any document about it.
       </p>
 
+      <VerifyLinkNotice link={link} />
+
       <section aria-labelledby="verify-original" style={{ background: "#fff", borderRadius: 16, padding: "8px 20px 16px", border: "1px solid rgba(15,23,42,0.08)" }}>
         <h2 id="verify-original" style={{ fontSize: 17, margin: "14px 0 4px" }}>Original evidence</h2>
         <Row label="Integrity" state={o.state} detail={originalDetail} />
+        {/* ET-SM-07 — the stored file is a separate statement, with its own date. */}
+        {data.storedBytes ? (
+          <div data-verify-stored-bytes={data.storedBytes.state}>
+            <Row {...storedBytesVerificationRow(data.storedBytes)} />
+          </div>
+        ) : null}
         <Row label="Trusted timestamp (RFC 3161)" state={data.timestamp.state} detail={tsaDetail} />
         <Row label="Bitcoin anchoring (OpenTimestamps)" state={data.anchoring.state} detail={otsDetail} />
         <div style={{ paddingTop: 14, borderTop: "1px solid rgba(15,23,42,0.08)", fontSize: 14, color: "#334155" }}>

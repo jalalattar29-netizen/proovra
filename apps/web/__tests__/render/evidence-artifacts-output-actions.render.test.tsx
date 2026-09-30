@@ -33,6 +33,7 @@ vi.mock("../../components/governance/GovernedExportAction", () => ({
 import { EvidenceArtifactsTab } from "../../app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab";
 import type { EvidenceDetailCtx } from "../../app/(app)/evidence/[id]/_tabs/_lib";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
+import { ToastProvider } from "../../components/ui";
 
 type Out = {
   state: string;
@@ -124,9 +125,13 @@ function mount(ws: ReturnType<typeof workspace>) {
     },
   } as unknown as EvidenceDetailCtx;
   const view = render(
-    <ConfirmActionProvider>
-      <EvidenceArtifactsTab ctx={ctx} />
-    </ConfirmActionProvider>,
+    // The tab also mounts the public-verification-links panel, which reports
+    // its own outcomes through the app toast — present on every real page.
+    <ToastProvider>
+      <ConfirmActionProvider>
+        <EvidenceArtifactsTab ctx={ctx} />
+      </ConfirmActionProvider>
+    </ToastProvider>,
   );
   return { ...view, calls };
 }

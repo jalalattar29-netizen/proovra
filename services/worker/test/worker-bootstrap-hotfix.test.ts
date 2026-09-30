@@ -177,7 +177,14 @@ describe("worker bootstrap — startup readiness protection", () => {
     // Every BullMQ Worker is constructed with autorun:false…
     const workers = code.match(/new Worker\(/g) ?? [];
     const autorunOff = code.match(/autorun:\s*false/g) ?? [];
-    expect(workers.length).toBeGreaterThanOrEqual(15);
+    // ET-Q-07 (2026-09-30) — this floor was 15, the number of BullMQ workers
+    // the entrypoint constructed. Five of them consumed queues nothing enqueued
+    // onto (mi-exif, mi-search-index, graph-domain-sync, graph-timeline-sync,
+    // org-health-refresh) and were retired, leaving 10. The floor exists so the
+    // `autorun:false` equality below cannot pass vacuously on an entrypoint
+    // that constructs no workers; it is restated at the new true count, and
+    // the property itself — EVERY worker is autorun:false — is unchanged.
+    expect(workers.length).toBeGreaterThanOrEqual(10);
     expect(autorunOff.length).toBe(workers.length);
     // …the only .run() is inside openConsumers()…
     const consumers = code.slice(code.indexOf("function openConsumers()"));

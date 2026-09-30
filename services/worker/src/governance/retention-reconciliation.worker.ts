@@ -58,9 +58,14 @@ import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
  * Keys, not values: the registry addresses work through `JOB_NAMES` /
  * `SWEEP_NAMES`, and a literal string here would be a second spelling of a
  * name the shared authority already owns.
+ *
+ * ET-Q-07 (2026-09-30) — `DESTRUCTION_ORCHESTRATOR` left this list. Its
+ * authority is `DestructionExecution`, which nothing in this module reads: what
+ * is repaired here is the review pointer on evidence. A stranded EXECUTION is
+ * recovered by the expired-lease takeover in
+ * `destruction-orchestrator.worker.ts`, and that module declares it now.
  */
 export const RECOVERED_WORK_TYPES = [
-  "DESTRUCTION_ORCHESTRATOR",
   "ARCHIVE_AUTO_TRANSITION",
 ] as const;
 

@@ -64,8 +64,12 @@ function hexPreview(value: string | null | undefined): string {
 export type IntegrityRejectionSource =
   | "worker.report.single_file"
   | "worker.report.multipart"
-  | "worker.reconciler"
-  | "api.completion";
+  // ET-SM-07 — the integrity recheck (scheduled sweep and on-demand). It was
+  // declared here with zero callers; it is now the live path for every record
+  // that never goes through report generation.
+  | "worker.reconciler";
+// "api.completion" was a second dead label: the API never re-hashes after
+// completion, and nothing ever passed it. Removed rather than kept as a claim.
 
 export type IntegrityRejectionResult = {
   applied: boolean;
@@ -97,8 +101,12 @@ export async function rejectEvidenceIntegrity(params: {
   // First read outside the transaction — fast path for the idempotent
   // already-rejected case so we do not open a transaction just to
   // discover the row is already terminal.
+  // ET-SM-07 — scoped by LIFECYCLE, not by the trash timestamp. A trashed
+  // record's bytes are still stored and still rechecked; rejecting it changes
+  // its status where it is and never its lifecycle state. Only a destroyed
+  // tombstone is out of reach.
   const existing = await prisma.evidence.findFirst({
-    where: { id: params.evidenceId, deletedAt: null },
+    where: { id: params.evidenceId, lifecycleState: { not: "DESTROYED" } },
     select: { id: true, status: true, teamId: true, fileSha256: true },
   });
 
@@ -152,7 +160,7 @@ export async function rejectEvidenceIntegrity(params: {
     const claim = await tx.evidence.updateMany({
       where: {
         id: params.evidenceId,
-        deletedAt: null,
+        lifecycleState: { not: "DESTROYED" },
         status: {
           in: [
             prismaPkg.EvidenceStatus.SIGNED,

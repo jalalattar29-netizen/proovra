@@ -16,6 +16,9 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+// ET-PKG-07 — a record's id is not a public link: requests go through a share
+// link (the record is published and the link minted on first use).
+import { shareLinkFor } from "./helpers/verify-share.js";
 
 describe("public Verify — TSA imprint comparison (live PostgreSQL 16, real HTTP)", () => {
   let harness: IntegrationHarness;
@@ -86,7 +89,7 @@ describe("public Verify — TSA imprint comparison (live PostgreSQL 16, real HTT
   }
 
   async function verify(id: string) {
-    const res = await harness.app.inject({ method: "GET", url: `/public/verify/${id}` });
+    const res = await harness.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, id)}` });
     expect(res.statusCode, res.body).toBe(200);
     return res.json() as {
       tier: string;

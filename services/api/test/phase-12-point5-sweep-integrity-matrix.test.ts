@@ -150,7 +150,20 @@ const DISCOVERED: Discovered[] = (() => {
             /await\s+\w+\([^)]*,\s*\(\)\s*=>\s*\n?\s*(\w+)\s*\(/,
           );
           // (d) DIRECT: `await run(...)`.
-          executor = wrapped?.[1] ?? tickBody.match(/await\s+(\w+)\s*\(/)?.[1] ?? null;
+          //
+          // ET-SM-07 (2026-09-30) — the first CALLED function, not the first
+          // `await`. The capture reaper's tick now opens with
+          // `const { deleteObject } = await import("./storage.js")` before it
+          // awaits `runCaptureReaperSweep(...)`, and the old pattern read the
+          // `import` keyword as the executor's name — so a live sweep was
+          // reported as an orphan with executor "import". `import(...)` is a
+          // module load, never an executor, so it is stepped over. Nothing is
+          // loosened: the name that remains must still resolve to a module the
+          // registry names as a processor, or the launcher fails below.
+          const direct = [...tickBody.matchAll(/await\s+(\w+)\s*\(/g)]
+            .map((d) => d[1]!)
+            .find((name) => name !== "import");
+          executor = wrapped?.[1] ?? direct ?? null;
         }
       }
     }
@@ -264,6 +277,8 @@ const PROOF_PREFIX: Record<string, string> = {
   [SWEEP_NAMES.AUTOMATION_DISPATCH]: "auto",
   // EVIDENCE LIFECYCLE CONVERGENCE (2026-08-24).
   [SWEEP_NAMES.TRASH_GRACE_RECONCILER]: "trashgrace",
+  // ET-SM-07 (2026-09-30).
+  [SWEEP_NAMES.INTEGRITY_RECHECK]: "integrity",
 };
 
 /** The five obligations that must be shown by EXECUTION, per sweep. */
@@ -460,8 +475,13 @@ describe("Point 5 — every sweep satisfies its fourteen obligations", () => {
         );
       }
       // (13) A reconciler exists and is a module the runtime reaches.
-      expect(entry.reconciler.trim()).not.toBe("");
-      expect(exists(entry.reconciler), entry.reconciler).toBe(true);
+      // ET-Q-07 (2026-09-30) — the registry field is now `string | null`,
+      // because three BullMQ JOBS honestly have no reconciler. No SWEEP does,
+      // and this matrix does not relax for them: a null fails exactly as an
+      // empty string always did (`?? ""` makes the two the same failure).
+      const reconciler = entry.reconciler ?? "";
+      expect(reconciler.trim()).not.toBe("");
+      expect(exists(reconciler), reconciler).toBe(true);
       // (12) A terminal writer is named and exists — a sweep with no single
       // terminal writer cannot promise a truthful terminal state.
       expect(entry.terminalWriter.trim()).not.toBe("");
@@ -491,7 +511,7 @@ describe("Point 5 — every sweep satisfies its fourteen obligations", () => {
       .map((e) => e.workName);
     expect(noArbitration).toEqual([]);
     const noReconciler = registered
-      .filter((e) => !e.reconciler.trim() || !exists(e.reconciler))
+      .filter((e) => !e.reconciler?.trim() || !exists(e.reconciler))
       .map((e) => e.workName);
     expect(noReconciler).toEqual([]);
   });
@@ -506,7 +526,12 @@ describe("Point 5 — every sweep satisfies its fourteen obligations", () => {
       .toEqual([]);
   });
 
-  it("SweepsBehaviorallyCovered = 17/17", () => {
+  // ET-Q-07 (2026-09-30) — the title said "17/17" while the registry held 19
+  // sweeps (AutomationDispatchSweep and TrashGraceReconciliationSweep were
+  // added after it was written). The assertion was always an identity against
+  // the registry, so only the title was stale; it states the real count now.
+  // ET-SM-07 (2026-09-30) — 19 -> 20 with IntegrityRecheckSweep.
+  it("SweepsBehaviorallyCovered = 20/20 (every registered sweep)", () => {
     const covered = registered.filter((e) => {
       const prefix = PROOF_PREFIX[e.workName];
       if (!prefix) return false;

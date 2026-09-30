@@ -312,12 +312,15 @@ export const COUNTER_NAMES = [
   // Phase 31.20 — OCR / transcript indexing producer counters.
   "ocr_indexer_started_total",
   "ocr_indexer_completed_total",
-  // Phase 31.20 — three more graph subsystem queue counters.
-  "graph_domain_sync_executed_total",
-  "graph_timeline_sync_executed_total",
+  // Phase 31.20 — graph subsystem queue counter.
+  //
+  // ET-Q-07 (2026-09-30) — `graph_domain_sync_executed_total`,
+  // `graph_timeline_sync_executed_total` and `graph_node_removed_total` were
+  // removed from this catalog. Their only bump sites were `runDomainStaleSweep`
+  // and `runTimelineSync`, reachable solely from two producerless queues, so
+  // all three had read zero since they were added — a counter that cannot move
+  // reads as "nothing to do" rather than "nothing runs".
   "graph_search_projection_executed_total",
-  // Phase 31.21 — tombstone count for the per-domain stale sweep.
-  "graph_node_removed_total",
   // Phase 31.13 — derived assets pipeline (image thumbnails this
   // phase; video frames + waveforms reserved for future ffmpeg
   // wiring). Dedicated `mi-derived-assets` BullMQ queue.

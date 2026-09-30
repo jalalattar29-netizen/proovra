@@ -219,6 +219,7 @@ test("the registry does not describe codes the API no longer emits", () => {
   for (const c of [
     "EVIDENCE_RECORD_LIMIT_REACHED",
     "FREE_LIMIT_REACHED",
+    "PLAN_LAPSED_ALLOWANCE_EXHAUSTED",
     "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
     "INSUFFICIENT_EVIDENCE_CREDITS",
   ]) {
@@ -276,6 +277,10 @@ test("the registry does not describe codes the API no longer emits", () => {
     // ET-SEC-14 — the output policy's refusal codes, answered by the report
     // regeneration route as `code: governance.code`.
     ["REPORT_BLOCKED_BY_POLICY", "services/api/src/services/governance.service.ts"],
+    [
+      "DERIVATIVE_DOWNLOAD_NOT_PERMITTED",
+      "services/api/src/services/evidence/artifact-download-gate.service.ts",
+    ],
     ["PACKAGE_BLOCKED_BY_POLICY", "services/api/src/services/governance.service.ts"],
     ["REPORT_BLOCKED_BY_TEMPLATE_POLICY", "services/api/src/services/governance/template-export-policy.service.ts"],
     ["PACKAGE_BLOCKED_BY_TEMPLATE_POLICY", "services/api/src/services/governance/template-export-policy.service.ts"],

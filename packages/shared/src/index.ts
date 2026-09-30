@@ -2505,6 +2505,9 @@ export * from "./tsa-validation-state.js";
 
 // ET-CUS-13 — THE one custody event label (report, web and mobile timelines).
 export * from "./custody-labels.js";
+export * from "./evidence-trash-copy.js";
+export * from "./plan-lapse-copy.js";
 
 // ET-SM-08 — THE one evidence record-status label and tone (web + mobile).
 export * from "./evidence-record-status.js";
+export * from "./stored-bytes-integrity.js";

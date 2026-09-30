@@ -26,7 +26,6 @@ import {
   ProovraLoadingState,
   ProovraText,
 } from "./index";
-import { CopyButton } from "./copy-button";
 import { evidenceStatusDisplay, evidenceTypeLabel, evidenceLifecycleDisplay } from "../product/domain-display";
 import {
   ARTIFACT_STATE_LABEL,
@@ -182,7 +181,7 @@ export function EvidenceLibraryInspector({
   error,
   presentation,
   actionBusy,
-  verifyUrl,
+  shareAvailable,
   onClose,
   onRetry,
   onOpenRecord,
@@ -201,8 +200,12 @@ export function EvidenceLibraryInspector({
   error: SafeError | null;
   presentation: "modal" | "rail";
   actionBusy: string | null;
-  /** The public /verify/:id link, or null when this build has no web origin. */
-  verifyUrl: string | null;
+  /**
+   * ET-PKG-07 — whether a share link can be made here (this build has a public
+   * web address). The link itself is created by the server when Share is
+   * pressed; the record's id is never turned into a link.
+   */
+  shareAvailable: boolean;
   onClose: () => void;
   onRetry: () => void;
   onOpenRecord: () => void;
@@ -246,7 +249,7 @@ export function EvidenceLibraryInspector({
     };
     const rows = buildInspectorArtifactRows(input);
     const reasons = inspectorActionReasons(input);
-    const linkReason = reasons.link ?? (verifyUrl ? null : "This build has no public web address configured.");
+    const linkReason = reasons.link ?? (shareAvailable ? null : "This build has no public web address configured.");
     const created = datePart(row.createdAt);
     const status = evidenceStatusDisplay(row.status);
     const count = typeof row.itemCount === "number" && row.itemCount > 1 ? ` · ${row.itemCount} items` : "";
@@ -350,17 +353,17 @@ export function EvidenceLibraryInspector({
           onPress={onDownloadPackage}
         />
         <View style={styles.linkRow}>
-          {linkReason || !verifyUrl ? (
-            <ProovraButton label="Copy Verification Link" variant="secondary" fullWidth={false} disabled onPress={() => undefined} />
-          ) : (
-            <CopyButton value={verifyUrl} label="Copy Verification Link" variant="secondary" />
-          )}
+          {/* ET-PKG-07 — one action: the server creates a share link (30 days,
+              labelled as made from the phone) and the share sheet opens with
+              it. There is nothing to copy beforehand: a link exists only once
+              it has been created, and the record's id is not one. */}
           <ProovraButton
-            label="Share"
-            accessibilityLabel="Share verification link"
-            variant="ghost"
+            label="Create & Share Verification Link"
+            accessibilityLabel="Create and share a verification link"
+            variant="secondary"
             fullWidth={false}
-            disabled={Boolean(linkReason)}
+            loading={actionBusy === "share"}
+            disabled={Boolean(linkReason) || actionBusy !== null}
             onPress={onShareVerification}
           />
         </View>

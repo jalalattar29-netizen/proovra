@@ -1,9 +1,8 @@
 /**
  * Phase 31.19 — subsystem queue processors.
  *
- * Each of the isolated subsystem queues (mi-search-index,
- * graph-reconcile and the workspace projection chains) gets a thin
- * processor here.
+ * Each of the isolated subsystem queues (graph-reconcile and
+ * graph-search-projection) gets a thin processor here.
  *
  * Hard contracts:
  *   - Each processor imports the SHARED Prisma instance via ./db.js;
@@ -12,12 +11,14 @@
  *   - Each processor returns within bounded time.
  *   - graph-reconcile invokes the existing `reconcileTeamGraph`
  *     service (read-only graph rebuild for one team).
- *   - mi-search-index defers to the existing Phase 24-J search
+ *   - graph-search-projection defers to the existing Phase 24-J search
  *     indexing queue so we keep a single canonical writer for the
  *     search index.
  *   - PHASE 12 POINT 5: no processor here reports completion for work
  *     it did not perform. The two that did — `mi-ocr` and
  *     `mi-transcript` — are gone; see the note below.
+ *   - ET-Q-07 (2026-09-30): no processor here sits behind a queue with
+ *     no producer. The four that did are gone; see the note below.
  */
 
 import type { Job } from "bullmq";
@@ -29,25 +30,19 @@ import { logger } from "./logger.js";
 import { PROOVRA_SPAN_NAMES, withProovraSpan } from "./otel.js";
 import { randomUUID } from "node:crypto";
 
-import {
-  JOB_NAMES,
-  parseGraphDomainCommandId,
-  type GraphSyncDomain,
-  type WorkName,
-} from "@proovra/shared";
+import { JOB_NAMES, type WorkName } from "@proovra/shared";
 
 import {
   decodeCanonicalJob,
   resolveActiveWorkspace,
   type JobLike,
 } from "./canonical-job.js";
-import { refreshOrgHealthProjection } from "@proovra/shared-runtime";
 
 /**
  * PHASE 12 — POINT 5: the shared preamble for the workspace-scoped subsystem
  * jobs.
  *
- * Five of the eight processors in this file address a WORKSPACE rather than a
+ * Both processors in this file address a WORKSPACE rather than a
  * row inside one, so their command id is a workspace id. That is a reference,
  * not an assertion: it must resolve to a live Team, and the owning
  * Organization must still be ACTIVE, before any work happens. A suspended
@@ -100,59 +95,30 @@ async function resolveWorkspaceJob(
 // `services/api/test/phase-12-point5-ocr-transcript-authority.test.ts` keeps
 // them removed.
 // =============================================================================
-// mi-search-index — bounded reindex trigger for a single evidence.
-// Defers to the existing search-indexing queue.
-// =============================================================================
-
-export async function processMiSearchIndexJob(
-  job: Job<unknown, void, string>,
-): Promise<void> {
-  const requestId = randomUUID();
-  const decoded = decodeCanonicalJob(JOB_NAMES.INDEX_MEDIA_INTELLIGENCE, job, {
-    requestId,
-  });
-  const evidence = await prisma.evidence.findFirst({
-    where: { id: decoded.commandId, deletedAt: null },
-    select: { id: true, teamId: true },
-  });
-  if (!evidence?.teamId) {
-    logger.warn(
-      { requestId, jobId: job.id ?? null, kind: "mi-search-index" },
-      "mi_search_index.evidence_unresolved",
-    );
-    return;
-  }
-  const reason = decoded.traceId || "media_intelligence_indexed";
-  logger.info(
-    {
-      requestId,
-      jobId: job.id ?? null,
-      kind: "mi-search-index",
-      teamId: evidence.teamId,
-      evidenceId: evidence.id,
-      reason,
-    },
-    "mi_search_index.received",
-  );
-  const { enqueueSearchIndexingJob } = await import("./queue.js");
-  const r = await enqueueSearchIndexingJob({
-    teamId: evidence.teamId,
-    kind: "evidence",
-    sourceId: evidence.id,
-    reason,
-  });
-  logger.info(
-    {
-      requestId,
-      jobId: job.id ?? null,
-      teamId: evidence.teamId,
-      evidenceId: evidence.id,
-      delegated: r,
-    },
-    "mi_search_index.delegated_to_search_indexing_queue",
-  );
-}
-
+// ET-Q-07 (2026-09-30): FOUR MORE PROCESSORS ARE GONE FROM THIS FILE —
+// `processMiSearchIndexJob` (`mi-search-index`), `processGraphDomainSyncJob`
+// (`graph-domain-sync`), `processGraphTimelineSyncJob` (`graph-timeline-sync`)
+// and `processOrgHealthRefreshJob` (`org-health-refresh`) — together with their
+// queues, enqueue helpers, worker registrations, registry entries and legacy
+// adapters.
+//
+// Unlike the OCR/transcript pair these had REAL bodies. What they did not have
+// was a producer: every one of their enqueue helpers had zero callers in every
+// commit, so a correct processor sat behind a queue nothing wrote to while the
+// registry called the chain CURRENT_RUNTIME. The proof is recorded in
+// `docs/evidence/audits/definitive-evidence-lifecycle-remediation/evidence/
+// ET-Q-07-no-producer-proof.txt`.
+//
+// What they wrapped is still reachable where it is actually used:
+//   * search reindex        -> `search-indexing` (`RebuildSearchDocument`);
+//   * graph stale sweeps    -> inside `reconcileTeamGraph`, on `graph-reconcile`;
+//   * org-health projection -> `refreshOrgHealthProjection`, called at read
+//                              time by the api's command-center service.
+//
+// A future feature that needs one of them must reintroduce it END TO END —
+// producer, consumer, idempotency, retries, reconciliation, DLQ and a runtime
+// proof. `services/worker/test/et-q-07-retired-queues-resurrection-guard.test.ts`
+// keeps them removed.
 // =============================================================================
 // graph-reconcile — invokes the read-only reconciler for one team.
 // =============================================================================
@@ -297,216 +263,6 @@ async function processGraphReconcileJobInner(
   }
 }
 
-// =============================================================================
-// Phase 31.20 — graph-domain-sync / graph-timeline-sync /
-// graph-search-projection
-//
-// All three queues delegate to the existing reconciler today. The
-// distinct queue names let SRE dashboards split per-queue backlog,
-// per-queue oldest-pending-age, and per-queue DLQ behavior without
-// needing a producer split. A future incremental projection writer
-// can replace each processor body without changing the queue
-// contract.
-// =============================================================================
-
-/**
- * PHASE 12 — POINT 5. The command is `<domain>:<workspaceId>`, and the domain
- * half is validated against a CLOSED catalog by the parser before any database
- * access. It used to be an optional payload field, so an unknown value produced
- * a job that completed as a silent no-op — a request that looked accepted and
- * did nothing.
- */
-export async function processGraphDomainSyncJob(
-  job: Job<unknown, void, string>,
-): Promise<void> {
-  const requestId = randomUUID();
-  const decoded = decodeCanonicalJob(JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN, job, {
-    requestId,
-  });
-  const { domain, workspaceId } = parseGraphDomainCommandId(decoded.commandId);
-  const resolved = await resolveActiveWorkspace(prisma, workspaceId);
-  if (!resolved) {
-    logger.warn(
-      { requestId, jobId: job.id ?? null, kind: "graph-domain-sync" },
-      "graph_domain_sync.workspace_unresolved_or_inactive",
-    );
-    return;
-  }
-  const ctx = {
-    workspaceId: resolved.workspaceId,
-    reason: decoded.traceId || "unspecified",
-    requestId,
-    domain,
-  };
-  return withProovraSpan(
-    PROOVRA_SPAN_NAMES.GRAPH_DOMAIN_SYNC,
-    {
-      "proovra.team_id": ctx.workspaceId,
-      "proovra.operation": "graph_domain_sync",
-    },
-    () => processGraphDomainSyncJobInner(job, ctx),
-  );
-}
-
-async function processGraphDomainSyncJobInner(
-  job: Job<unknown, void, string>,
-  ctx: {
-    workspaceId: string;
-    reason: string;
-    requestId: string;
-    domain: GraphSyncDomain;
-  },
-): Promise<void> {
-  logger.info(
-    {
-      requestId: ctx.requestId,
-      jobId: job.id ?? null,
-      kind: "graph-domain-sync",
-      teamId: ctx.workspaceId,
-      domain: ctx.domain,
-      reason: ctx.reason,
-    },
-    "graph_domain_sync.received",
-  );
-  // Phase 31.21 — real bounded domain sync. The job either targets
-  // a single named domain (preferred — incremental) or runs a sweep
-  // across all bounded catalog domains.
-  try {
-    const { DOMAIN_SYNC_DOMAINS, runDomainStaleSweep } = await import(
-      "@proovra/shared-runtime/graph"
-    );
-    // `all` is a real member of the closed catalog, not a null: an absent
-    // filter and an unknown filter must not be the same value.
-    const targets =
-      ctx.domain === "all"
-        ? (DOMAIN_SYNC_DOMAINS as readonly string[])
-        : [ctx.domain];
-    let totalTombstoned = 0;
-    const perDomain: Array<{
-      domain: string;
-      ok: boolean;
-      tombstoned: number;
-      reason?: string;
-    }> = [];
-    for (const d of targets) {
-      // Bounded vocabulary check — only the bounded catalog domains
-      // are processed; an unknown value short-circuits to a logged
-      // skip without throwing.
-      if (
-        !(DOMAIN_SYNC_DOMAINS as readonly string[]).includes(d as string)
-      ) {
-        perDomain.push({
-          domain: String(d),
-          ok: false,
-          tombstoned: 0,
-          reason: "unknown_domain",
-        });
-        continue;
-      }
-      const r = await runDomainStaleSweep(
-        ctx.workspaceId,
-        d as (typeof DOMAIN_SYNC_DOMAINS)[number],
-        prisma,
-      );
-      perDomain.push({
-        domain: r.domain,
-        ok: r.ok,
-        tombstoned: r.tombstoned,
-        reason: r.reason,
-      });
-      totalTombstoned += r.tombstoned;
-    }
-    logger.info(
-      {
-        jobId: job.id ?? null,
-        teamId: ctx.workspaceId,
-        domain: ctx.domain,
-        totalTombstoned,
-        perDomain,
-      },
-      "graph_domain_sync.completed",
-    );
-  } catch (err) {
-    // The runDomainStaleSweep helper never throws — but the import
-    // can fail (very unlikely; defense in depth).
-    logger.error(
-      {
-        jobId: job.id ?? null,
-        teamId: ctx.workspaceId,
-        err: err instanceof Error ? err.message : String(err),
-      },
-      "graph_domain_sync.failed",
-    );
-    throw err;
-  }
-}
-
-export async function processGraphTimelineSyncJob(
-  job: Job<unknown, void, string>,
-): Promise<void> {
-  const ctx = await resolveWorkspaceJob(
-    JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
-    job,
-    "graph_timeline_sync",
-  );
-  if (!ctx) return;
-  return withProovraSpan(
-    PROOVRA_SPAN_NAMES.GRAPH_TIMELINE_BUILD,
-    {
-      "proovra.team_id": ctx.workspaceId,
-      "proovra.operation": "graph_timeline_build",
-    },
-    () => processGraphTimelineSyncJobInner(job, ctx),
-  );
-}
-
-async function processGraphTimelineSyncJobInner(
-  job: Job<unknown, void, string>,
-  ctx: { workspaceId: string; reason: string; requestId: string },
-): Promise<void> {
-  logger.info(
-    {
-      requestId: ctx.requestId,
-      jobId: job.id ?? null,
-      kind: "graph-timeline-sync",
-      teamId: ctx.workspaceId,
-      reason: ctx.reason,
-    },
-    "graph_timeline_sync.received",
-  );
-  // Phase 31.21 — real bounded timeline sync. Builds the bounded
-  // timeline to record its current size + runs the cross-edge stale
-  // sweep that tombstones edges whose endpoints both went stale.
-  try {
-    const { runTimelineSync } = await import(
-      "@proovra/shared-runtime/graph"
-    );
-    const result = await runTimelineSync(ctx.workspaceId, prisma);
-    logger.info(
-      {
-        jobId: job.id ?? null,
-        teamId: ctx.workspaceId,
-        ok: result.ok,
-        eventCount: result.eventCount,
-        truncated: result.truncated,
-        edgesStaled: result.edgesStaled,
-        reason: result.reason,
-      },
-      "graph_timeline_sync.completed",
-    );
-  } catch (err) {
-    logger.error(
-      {
-        jobId: job.id ?? null,
-        teamId: ctx.workspaceId,
-        err: err instanceof Error ? err.message : String(err),
-      },
-      "graph_timeline_sync.failed",
-    );
-    throw err;
-  }
-}
-
 export async function processGraphSearchProjectionJob(
   job: Job<unknown, void, string>,
 ): Promise<void> {
@@ -588,82 +344,3 @@ async function processGraphSearchProjectionJobInner(
   }
 }
 
-// ============================================================================
-// PHASE 37.98 — Org-health projection refresh processor.
-//
-// One job payload = one teamId. The processor runs bounded count queries
-// scoped by that teamId only and upserts the latest OrgHealthProjection
-// row. Tenant safety holds:
-//
-//   - the input is a single teamId; no other tenant is touched,
-//   - every Prisma .count call carries `where: { teamId }`,
-//   - the upsert key is `(teamId, sampledAtUtc)`,
-//   - no audit/billing/legal-hold side effects.
-//
-// The processor is intentionally lean — when the API-side
-// `refresh-org-health.service.ts` grows new counters, mirror them here
-// or extract to a shared package.
-// ============================================================================
-export async function processOrgHealthRefreshJob(
-  job: Job<unknown, void, string>,
-): Promise<void> {
-  const ctx = await resolveWorkspaceJob(
-    JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION,
-    job,
-    "org_health_refresh",
-  );
-  if (!ctx) return;
-  const teamId = ctx.workspaceId;
-  logger.info(
-    {
-      requestId: ctx.requestId,
-      jobId: job.id ?? null,
-      teamId,
-      kind: "org-health-refresh",
-    },
-    "org_health_refresh.received",
-  );
-  try {
-    // WORKSPACE-SCOPE CONVERGENCE — DELEGATED, not recomputed.
-    //
-    // This job used to carry its own copy of the projection arithmetic, and
-    // the copy was WRONG in a specific way: it counted every non-deleted
-    // record with no report as "pending a report", with no pipeline-status
-    // filter, so ten stalled uploads read as ten reports outstanding. The API
-    // path filtered on SIGNED/REPORTED and did not. Which number Home showed
-    // depended on whether this row or the live path had written last.
-    //
-    // The sample bucket, the upsert key and the four zero-valued subsystem
-    // counters all live in the shared authority too — every one of them was a
-    // place the two implementations could drift apart independently.
-    const row = await refreshOrgHealthProjection({ teamId }, prisma);
-    const {
-      evidenceCount,
-      caseCount,
-      pendingReportCount,
-      pendingPackageCount,
-    } = row;
-
-    logger.info(
-      {
-        jobId: job.id ?? null,
-        teamId,
-        evidenceCount,
-        caseCount,
-        pendingReportCount,
-        pendingPackageCount,
-      },
-      "org_health_refresh.completed",
-    );
-  } catch (err) {
-    logger.error(
-      {
-        jobId: job.id ?? null,
-        teamId,
-        err: err instanceof Error ? err.message : String(err),
-      },
-      "org_health_refresh.failed",
-    );
-    throw err;
-  }
-}

@@ -21,25 +21,15 @@ import {
   enqueueRedactionDerivativeRenderWorker,
   evidencePurgeQueue,
   evidencePurgeQueueName,
-  exifQueue,
-  exifQueueName,
   generateReportJobName,
-  graphDomainSyncQueue,
-  graphDomainSyncQueueName,
   graphReconcileQueue,
   graphReconcileQueueName,
   graphSearchProjectionQueue,
   graphSearchProjectionQueueName,
-  graphTimelineSyncQueue,
-  graphTimelineSyncQueueName,
   mediaIntelligenceQueue,
   mediaIntelligenceQueueName,
   miEmbedQueue,
   miEmbedQueueName,
-  miSearchIndexQueue,
-  miSearchIndexQueueName,
-  orgHealthRefreshQueue,
-  orgHealthRefreshQueueName,
   otsUpgradeQueue,
   otsUpgradeQueueName,
   purgeDeletedEvidenceJobName,
@@ -60,20 +50,15 @@ import {
 import { processOtsUpgrade } from "./ots-upgrade.processor.js";
 import { processSearchIndexingJob } from "./search-indexing.processor.js";
 import {
-  processExifQueueJob,
   processMediaIntelligenceJob,
 } from "./media-intelligence.processor.js";
 import { processDerivedAssetJob } from "./derived-assets.processor.js";
 // Phase 16 — dedicated mi-embed worker for semantic embedding compute.
 import { processMiEmbedJob } from "./mi-embed.processor.js";
-// Phase 31.19 / 31.20 — seven isolated subsystem queue processors.
+// Phase 31.19 / 31.20 — isolated subsystem queue processors (two since ET-Q-07).
 import {
-  processGraphDomainSyncJob,
   processGraphReconcileJob,
   processGraphSearchProjectionJob,
-  processGraphTimelineSyncJob,
-  processMiSearchIndexJob,
-  processOrgHealthRefreshJob,
 } from "./subsystem-queue-processors.js";
 import { startHealthServer, type HealthServer } from "./health.js";
 import { startTelemetrySampler, type TelemetrySampler } from "./telemetry.js";
@@ -83,7 +68,8 @@ import { captureException, initSentry } from "./sentry.js";
 // parent OTEL context injected by the API at enqueue time.
 import { wrapJobHandlerWithOtelContext } from "./observability/queue-otel-context.js";
 import { PROOVRA_SPAN_NAMES } from "./otel.js";
-import { reapExpiredCaptureDrafts, releaseExpiredReservations } from "./capture-reaper.js";
+import { runCaptureReaperSweep } from "./capture-reaper.js";
+import { runIntegrityRecheckSweep } from "./integrity-recheck.js";
 import { runOrphanArtifactScan } from "./orphan-scan.js";
 import { runSearchIndexReconciler } from "./search-index-reconciler.js";
 import { runIntelligenceRunReconciler } from "./intelligence-run-reconciler.js";
@@ -131,10 +117,15 @@ import {
 /**
  * THE WORK THIS MODULE RECOVERS.
  *
- * The worker bootstrap is an unusual owner and a truthful one: the redaction
- * reconciler and the demo follow-up sweep are IMPLEMENTED here, beside the
- * timers that drive them, rather than in a module of their own. The registry
- * has always named this file for all three.
+ * The worker bootstrap is an unusual owner and a truthful one for the
+ * redaction chain: the stranded-derivative reconciler is DRIVEN from here,
+ * beside the timer, and this file calls the scan directly
+ * (`reconcileStrandedRedactionDerivatives`).
+ *
+ * ET-Q-07 (2026-09-30) — `DEMO_FOLLOW_UP` left this list. This file is only a
+ * timer and an HTTP client for that sweep; it never reads a `DemoRequest`. The
+ * recovery is the claim lease in the api's `demo-follow-up.service.ts`, which
+ * the registry names and which declares it now.
  *
  * Declared so the topology gate can check the registry against the module it
  * names instead of against the filesystem. See the ownership cases in
@@ -144,7 +135,6 @@ import {
 export const RECOVERED_WORK_TYPES = [
   "RENDER_REDACTION_DERIVATIVE",
   "REDACTION_RECONCILER",
-  "DEMO_FOLLOW_UP",
 ] as const;
 
 
@@ -616,12 +606,18 @@ async function runCaptureDraftReaper(trigger: string) {
   if (captureReaperRunning) return;
   captureReaperRunning = true;
   try {
-    await reapExpiredCaptureDrafts({ trigger });
-    // ET-DC-05 / ET-ACQ-02 — expired direct-capture sessions and abandoned
-    // reservations, released through the shared reservation authority.
+    // ONE recorded run (kind CAPTURE_REAPER): expired capture drafts, then
+    // expired direct-capture sessions and abandoned reservations (ET-DC-05 /
+    // ET-ACQ-02) through the shared reservation authority — paged, and leaving
+    // a SUCCEEDED / PARTIAL / FAILED row that the platform health snapshot
+    // reads. This worker is the only reaper; a failure here is rethrown by the
+    // run and reported below, never swallowed inside it.
     {
       const { deleteObject } = await import("./storage.js");
-      await releaseExpiredReservations({ trigger, deleteObject });
+      const sweep = await runCaptureReaperSweep({ trigger, deleteObject });
+      if (sweep.failed > 0) {
+        logger.warn({ ...sweep, trigger }, "capture.reaper.partial");
+      }
     }
     // Also reclaim any orphaned private verification-package staging objects left by
     // an interrupted publication attempt. Bounded, idempotent, best-effort: a failure
@@ -642,6 +638,9 @@ async function runCaptureDraftReaper(trigger: string) {
     }
   } catch (err) {
     logger.error({ err, trigger }, "capture.reaper.failed");
+    // The only reaper failed: an operator matter, not just a log line. The run
+    // row already says FAILED; this pages.
+    emitOperationalAlert({ requestId: randomUUID(), reason: "capture_reaper_run_failed", err });
     captureException(err, { trigger });
   } finally {
     captureReaperRunning = false;
@@ -688,6 +687,68 @@ function stopCaptureDraftReaperScheduler() {
   if (captureReaperTimer) {
     clearInterval(captureReaperTimer);
     captureReaperTimer = null;
+  }
+}
+
+// ET-SM-07 — integrity recheck scheduler.
+//
+// Integrity rechecking is a core commitment for every signed record, on every
+// plan. The sweep re-reads due records' stored bytes at their exact recorded
+// VersionId and compares them with the signed digest (see
+// integrity-recheck.ts). Defaults to a 15-minute tick of a bounded batch; the
+// 30-day cadence is INTEGRITY_RECHECK_INTERVAL_DAYS. Disable with
+// INTEGRITY_RECHECK_ENABLED=false — the platform health snapshot then reports
+// the sweep stale, because nothing else performs this check.
+const integrityRecheckEnabled = envBoolean("INTEGRITY_RECHECK_ENABLED", true);
+const integrityRecheckIntervalMs = envNumber(
+  "INTEGRITY_RECHECK_SWEEP_INTERVAL_MS",
+  15 * 60 * 1000,
+);
+const integrityRecheckBatch = envNumber("INTEGRITY_RECHECK_SWEEP_BATCH", 25);
+let integrityRecheckTimer: ReturnType<typeof setInterval> | null = null;
+let integrityRecheckRunning = false;
+
+async function runIntegrityRecheckTick(trigger: string) {
+  if (integrityRecheckRunning) return;
+  integrityRecheckRunning = true;
+  try {
+    const sweep = await runIntegrityRecheckSweep({ trigger, limit: integrityRecheckBatch });
+    if (sweep.scanned > 0) logger.info({ ...sweep, trigger }, "evidence.integrity.recheck_sweep");
+    if (sweep.failed > 0) {
+      // A record whose stored bytes no longer match, or whose recorded object
+      // version is gone, is an operator matter.
+      emitOperationalAlert({
+        requestId: randomUUID(),
+        reason: "integrity_recheck_found_failures",
+        context: { failed: sweep.failed, runId: sweep.runId },
+      });
+    }
+  } catch (err) {
+    logger.error({ err, trigger }, "evidence.integrity.recheck_sweep_failed");
+    emitOperationalAlert({ requestId: randomUUID(), reason: "integrity_recheck_run_failed", err });
+    captureException(err, { trigger });
+  } finally {
+    integrityRecheckRunning = false;
+  }
+}
+
+// ET-Q-06: started after the bootstrap chain, with the other sweeps.
+function startIntegrityRecheckScheduler() {
+  if (!integrityRecheckEnabled) {
+    logger.info({}, "evidence.integrity.recheck_scheduler.disabled");
+    return;
+  }
+  integrityRecheckTimer = setInterval(() => {
+    void runIntegrityRecheckTick("interval");
+  }, integrityRecheckIntervalMs);
+  logger.info({ intervalMs: integrityRecheckIntervalMs }, "evidence.integrity.recheck_scheduler.started");
+  void runIntegrityRecheckTick("startup");
+}
+
+function stopIntegrityRecheckScheduler() {
+  if (integrityRecheckTimer) {
+    clearInterval(integrityRecheckTimer);
+    integrityRecheckTimer = null;
   }
 }
 
@@ -1927,11 +1988,14 @@ async function sampleQueueHealthOnce() {
     // Phase Final-Worker-Visibility — heartbeat sampler now covers
     // EVERY live queue declared in `queue.ts`. Prior to this change
     // the sampler reported only `report` / `ots-upgrade` /
-    // `evidence-purge`, so the 11 newer queues (`mi-*`, `graph-*`,
-    // `org-health-refresh`, `search-indexing`, `media-intelligence`,
+    // `evidence-purge`, so the newer queues (`mi-*`, `graph-*`,
+    // `search-indexing`, `media-intelligence`,
     // `mi-derived-assets`) were invisible to ops via the heartbeat
     // signal. The dedicated `worker_telemetry_snapshots` sampler
     // already covered them but the heartbeat log line was misleading.
+    //
+    // ET-Q-07 (2026-09-30) — five producerless queues were retired and
+    // left this list with them; it samples the 12 Queue objects that exist.
     const snapshot = await snapshotQueueHealth([
       { name: reportQueueName, queue: reportQueue },
       { name: reportDlqQueueName, queue: reportDlqQueue },
@@ -1942,8 +2006,6 @@ async function sampleQueueHealthOnce() {
       { name: mediaIntelligenceDlqQueueName, queue: mediaIntelligenceDlqQueue },
       { name: derivedAssetsQueueName, queue: derivedAssetsQueue },
       { name: redactionDerivativeQueueName, queue: redactionDerivativeQueue },
-      { name: exifQueueName, queue: exifQueue },
-      { name: miSearchIndexQueueName, queue: miSearchIndexQueue },
       // PHASE 12 POINT 5 — `mi-embed` was MISSING from this list. It is a
       // live, registered BullMQ unit (`EmbedSemanticChunks`) that calls a paid
       // AI provider, and the heartbeat has never sampled it: a backlog or a
@@ -1955,13 +2017,10 @@ async function sampleQueueHealthOnce() {
       // list from `queue.ts`, which is what surfaced this.
       { name: miEmbedQueueName, queue: miEmbedQueue },
       { name: graphReconcileQueueName, queue: graphReconcileQueue },
-      { name: graphDomainSyncQueueName, queue: graphDomainSyncQueue },
-      { name: graphTimelineSyncQueueName, queue: graphTimelineSyncQueue },
       {
         name: graphSearchProjectionQueueName,
         queue: graphSearchProjectionQueue,
       },
-      { name: orgHealthRefreshQueueName, queue: orgHealthRefreshQueue },
     ]);
     lastQueueHealthSample = snapshot;
     logger.info(
@@ -2026,14 +2085,9 @@ type WorkerKind =
   | "search-indexing"
   | "media-intelligence"
   | "derived-assets"
-  | "mi-exif"
-  | "mi-search-index"
   | "mi-embed"
   | "graph-reconcile"
-  | "graph-domain-sync"
-  | "graph-timeline-sync"
   | "graph-search-projection"
-  | "org-health-refresh"
   | "redaction-derivative";
 
 function safeRegisterWorker(
@@ -2215,68 +2269,26 @@ const redactionDerivativeWorker = safeRegisterWorker("redaction-derivative", () 
 );
 void redactionDerivativeWorker;
 
-// Phase 31.18 — dedicated EXIF worker (mi-exif). ISOLATED from the
-// generic media-intelligence worker so EXIF extraction (which only
-// reads ~16KB per part and parses with `exifr`) cannot be head-of-
-// line blocked by analyzer runs. Concurrency 2 — EXIF parsing is
-// CPU-light and bounded; we can run two in parallel without
-// saturating Postgres. Reuses processMediaIntelligenceJob: the
-// processor branches on `kind`, and only `extract_exif` flows here.
-const exifWorker = safeRegisterWorker("mi-exif", () =>
-  new Worker(
-    exifQueueName,
-    wrapJobHandlerWithOtelContext(
-      "proovra.worker.mi_exif",
-      exifQueueName,
-      // PHASE 12 — POINT 5. This bound `processMediaIntelligenceJob` — the SAME
-      // function the `media-intelligence` queue uses. That sharing is why the
-      // old payload had to carry both a run id and a part id and trust
-      // whichever was present: one function, two identities. `mi-exif` now has
-      // its own entry point, decoding under its own work name against its own
-      // authority (the evidence part whose bytes it reads).
-      processExifQueueJob,
-    ),
-    {
-      connection: redisConnection,
-      concurrency: 2,
-      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
-      autorun: false,
-    },
-  ),
-);
-
-// Phase 31.19 — two more isolated subsystem workers.
+// ET-Q-07 (2026-09-30) — FIVE worker registrations that used to sit in this
+// block are gone: `mi-exif`, `mi-search-index`, `graph-domain-sync`,
+// `graph-timeline-sync` and `org-health-refresh`. Each bound a real processor
+// to a queue NOTHING enqueued onto — their enqueue helpers had zero callers in
+// every commit — so each was an idle consumer holding a Redis connection and
+// telling the health endpoint, the heartbeat and Operations that a chain was
+// live. EXIF extraction still runs, on the `media-intelligence` queue under run
+// kind `extract_exif`, as it always actually did. A future feature that needs
+// one of the five must reintroduce it end to end (producer, consumer,
+// idempotency, retries, reconciliation, DLQ, runtime proof);
+// `test/et-q-07-retired-queues-resurrection-guard.test.ts` keeps them out.
 //
 // PHASE 12 POINT 5 — the `mi-ocr` and `mi-transcript` registrations that used
 // to sit here are gone. They bound no-op processors to two queues no producer
 // has ever written to, duplicating an authority the `media-intelligence` queue
 // already owns end to end. See the note in `subsystem-queue-processors.ts`.
 //
-// mi-search-index: thin shim that delegates to the existing Phase
-// 24-J search-indexing queue. Lets the reviewer console / ops UI
-// trigger a bounded reindex per evidence without coupling to the
-// generic search-indexing producer.
-//
 // graph-reconcile: dedicated queue for ad-hoc graph rebuild
 // triggers (operator action, escalation hook, scheduled recurrence).
 // Worker invokes the read-only `reconcileTeamGraph` service.
-const miSearchIndexWorker = safeRegisterWorker("mi-search-index", () =>
-  new Worker(
-    miSearchIndexQueueName,
-    wrapJobHandlerWithOtelContext(
-      "proovra.worker.mi_search_index",
-      miSearchIndexQueueName,
-      processMiSearchIndexJob,
-    ),
-    {
-      connection: redisConnection,
-      concurrency: 2,
-      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
-      autorun: false,
-    },
-  ),
-);
-
 const graphReconcileWorker = safeRegisterWorker("graph-reconcile", () =>
   new Worker(
     graphReconcileQueueName,
@@ -2315,44 +2327,9 @@ const miEmbedWorker = safeRegisterWorker("mi-embed", () =>
   ),
 );
 
-// Phase 31.20 — final three isolated subsystem workers, completing
-// the 9-queue isolation program. graph-domain-sync delegates to the
-// existing reconciler; graph-timeline-sync and graph-search-projection
-// are observable canonical targets for future incremental writers.
-const graphDomainSyncWorker = safeRegisterWorker("graph-domain-sync", () =>
-  new Worker(
-    graphDomainSyncQueueName,
-    wrapJobHandlerWithOtelContext(
-      "proovra.worker.graph_domain_sync",
-      graphDomainSyncQueueName,
-      processGraphDomainSyncJob,
-    ),
-    {
-      connection: redisConnection,
-      concurrency: 1,
-      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
-      autorun: false,
-    },
-  ),
-);
-
-const graphTimelineSyncWorker = safeRegisterWorker("graph-timeline-sync", () =>
-  new Worker(
-    graphTimelineSyncQueueName,
-    wrapJobHandlerWithOtelContext(
-      "proovra.worker.graph_timeline_sync",
-      graphTimelineSyncQueueName,
-      processGraphTimelineSyncJob,
-    ),
-    {
-      connection: redisConnection,
-      concurrency: 2,
-      // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
-      autorun: false,
-    },
-  ),
-);
-
+// Phase 31.20 — graph-search-projection: refreshes graph-derived search
+// hints for a workspace. Its producer is the graph-reconcile processor's
+// `onReconciled` hook.
 const graphSearchProjectionWorker = safeRegisterWorker(
   "graph-search-projection",
   () =>
@@ -2366,29 +2343,6 @@ const graphSearchProjectionWorker = safeRegisterWorker(
       {
         connection: redisConnection,
         concurrency: 2,
-        // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
-        autorun: false,
-      },
-    ),
-);
-
-// Phase 37.98 — Org-health projection refresh worker. Consumes
-// `org-health-refresh` jobs (one teamId per job) and upserts the
-// projection row that the Command Center reads. Idempotent +
-// tenant-scoped by construction; see subsystem-queue-processors.ts.
-const orgHealthRefreshWorker = safeRegisterWorker(
-  "org-health-refresh",
-  () =>
-    new Worker(
-      orgHealthRefreshQueueName,
-      wrapJobHandlerWithOtelContext(
-        "proovra.worker.org_health_refresh",
-        orgHealthRefreshQueueName,
-        processOrgHealthRefreshJob,
-      ),
-      {
-        connection: redisConnection,
-        concurrency: 4,
         // ET-Q-06 — claims nothing until openConsumers() (after bootstrap).
         autorun: false,
       },
@@ -2415,14 +2369,9 @@ const REGISTERED_WORKERS: ReadonlyArray<readonly [WorkerKind, Worker | null]> = 
   ["media-intelligence", mediaIntelligenceWorker],
   ["derived-assets", derivedAssetsWorker],
   ["redaction-derivative", redactionDerivativeWorker],
-  ["mi-exif", exifWorker],
-  ["mi-search-index", miSearchIndexWorker],
   ["graph-reconcile", graphReconcileWorker],
   ["mi-embed", miEmbedWorker],
-  ["graph-domain-sync", graphDomainSyncWorker],
-  ["graph-timeline-sync", graphTimelineSyncWorker],
   ["graph-search-projection", graphSearchProjectionWorker],
-  ["org-health-refresh", orgHealthRefreshWorker],
 ];
 
 function openConsumers(): void {
@@ -2480,6 +2429,7 @@ async function shutdown(exitCode: number) {
 
   stopDemoFollowUpScheduler();
   stopCaptureDraftReaperScheduler();
+  stopIntegrityRecheckScheduler();
   stopOrphanScanScheduler();
   // PHASE 12 — POINT 5 reconcilers.
   stopSearchIndexReconcilerScheduler();
@@ -2608,29 +2558,15 @@ async function shutdown(exitCode: number) {
     }
   }
 
-  // Phase 31.18 — exif worker null-checked close.
-  if (exifWorker) {
-    try {
-      await exifWorker.close();
-    } catch (err) {
-      const requestId = randomUUID();
-      logger.error({ requestId, err }, "worker.close_exif_failed");
-      captureException(err, { requestId });
-    }
-  }
-
-  // Phase 31.19 / 31.20 — seven more isolated subsystem workers,
+  // Phase 31.19 / 31.20 — the isolated subsystem workers that remain
+  // after ET-Q-07 retired the five producerless ones (2026-09-30),
   // each null-checked. A failed safeRegisterWorker returns null so
   // a single processor regression cannot crash the shutdown path.
   for (const [name, w] of [
-    ["mi-search-index", miSearchIndexWorker] as const,
     // Phase 16 — mi-embed worker shutdown.
     ["mi-embed", miEmbedWorker] as const,
     ["graph-reconcile", graphReconcileWorker] as const,
-    ["graph-domain-sync", graphDomainSyncWorker] as const,
-    ["graph-timeline-sync", graphTimelineSyncWorker] as const,
     ["graph-search-projection", graphSearchProjectionWorker] as const,
-    ["org-health-refresh", orgHealthRefreshWorker] as const,
   ]) {
     if (!w) continue;
     try {
@@ -2652,19 +2588,11 @@ async function shutdown(exitCode: number) {
     await mediaIntelligenceQueue.close();
     // Phase 31.13 — derived assets queue.
     await derivedAssetsQueue.close();
-    // Phase 31.18 — exif queue.
-    await exifQueue.close();
-    // Phase 31.19 — four more isolated subsystem queues.
-    await miSearchIndexQueue.close();
     // Phase 16 — mi-embed queue.
     await miEmbedQueue.close();
+    // Phase 31.19 / 31.20 — the isolated subsystem queues that remain.
     await graphReconcileQueue.close();
-    // Phase 31.20 — final three isolated subsystem queues.
-    await graphDomainSyncQueue.close();
-    await graphTimelineSyncQueue.close();
     await graphSearchProjectionQueue.close();
-    // Phase 37.98 — org-health refresh queue.
-    await orgHealthRefreshQueue.close();
   } catch (err) {
     const requestId = randomUUID();
     logger.error({ requestId, err }, "worker.queue_close_failed");
@@ -2760,6 +2688,7 @@ initSecretsAuthority(logger)
     openConsumers();
     startDemoFollowUpScheduler();
     startCaptureDraftReaperScheduler();
+    startIntegrityRecheckScheduler();
     startOrphanScanScheduler();
     startLifecycleRecoveryScheduler();
     // RELIABILITY CLOSURE (2026-09-09) — the two reconcilers that existed in

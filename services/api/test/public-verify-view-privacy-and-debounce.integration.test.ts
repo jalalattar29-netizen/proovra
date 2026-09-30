@@ -12,6 +12,9 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+// ET-PKG-07 — a record's id is not a public link: requests go through a share
+// link (the record is published and the link minted on first use).
+import { shareLinkFor } from "./helpers/verify-share.js";
 
 describe("public Verify view privacy + atomic debounce (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
@@ -60,8 +63,8 @@ describe("public Verify view privacy + atomic debounce (live PostgreSQL 16)", ()
     const id = await signedRecord();
     const ips = ["81.2.69.160", "81.2.69.161", "81.2.69.162", "81.2.69.163", "81.2.69.164"];
     const responses = await Promise.all(
-      ips.map((ip) =>
-        h.app.inject({ method: "GET", url: `/public/verify/${id}`, remoteAddress: ip, headers: { "user-agent": "Mozilla/5.0 (fingerprint-me)" } }),
+      ips.map(async (ip) =>
+        h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, id)}`, remoteAddress: ip, headers: { "user-agent": "Mozilla/5.0 (fingerprint-me)" } }),
       ),
     );
     for (const r of responses) expect(r.statusCode, r.body).toBe(200);

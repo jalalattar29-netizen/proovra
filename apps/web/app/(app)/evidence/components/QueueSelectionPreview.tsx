@@ -488,7 +488,7 @@ export function QueueSelectionPreview({
   onOpenRecord,
   onDownloadReport,
   onDownloadVerificationPackage,
-  onCopyVerificationLink,
+  onManageVerificationLinks,
 }: {
   item: EvidenceListItem | null;
   detail: DetailWorkspaceState | null;
@@ -510,7 +510,8 @@ export function QueueSelectionPreview({
   onOpenRecord: () => void;
   onDownloadReport: () => void;
   onDownloadVerificationPackage: () => void;
-  onCopyVerificationLink: () => void;
+  /** ET-PKG-07 — opens the record's public-link controls; nothing is copied from the record id. */
+  onManageVerificationLinks: () => void;
 }) {
   let body: ReactNode;
   let footer: ReactNode = null;
@@ -728,13 +729,13 @@ export function QueueSelectionPreview({
         <button
           type="button"
           className="app-secondary-action"
-          onClick={onCopyVerificationLink}
+          onClick={onManageVerificationLinks}
           disabled={Boolean(linkDisabledReason)}
           title={linkDisabledReason}
-          data-evidence-inspector-copy-link
+          data-evidence-inspector-manage-links
         >
           <Copy size={16} strokeWidth={1.9} aria-hidden="true" />
-          Copy Verification Link
+          Manage Verification Links
         </button>
         {/* A disabled download states WHY as text, not only in a `title`
             attribute a keyboard or screen-reader user never reaches. */}

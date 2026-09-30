@@ -19,6 +19,7 @@
  * see amounts", never "the price is zero".
  */
 
+import type { PlanLapseState } from "@proovra/shared";
 import { apiFetch } from "../api";
 
 /*
@@ -73,6 +74,21 @@ export type EvidenceAdmission = {
   effectiveLifetimeCap: number | null;
   capSource: "PLAN_DEFAULT" | "LEGACY_RECORD_CAP_OVERRIDE";
   recordsHeld: number;
+  /**
+   * ET-COM-02 — how many of `recordsHeld` are in Trash. A trashed record keeps
+   * its allowance slot. Optional: an API older than this field omits it.
+   */
+  recordsInTrash?: number;
+  /**
+   * ET-COM-04 — present only while the paid plan has lapsed; the numbers on
+   * this object are then the Free-equivalent creation policy. Optional: an API
+   * older than this field omits it.
+   */
+  planLapse?: {
+    lapsedPlan: string;
+    lapsedPlanLabel: string;
+    state: PlanLapseState;
+  };
   creditsAvailable: number;
   planCapacityRemaining: number | null;
   overCap: boolean;

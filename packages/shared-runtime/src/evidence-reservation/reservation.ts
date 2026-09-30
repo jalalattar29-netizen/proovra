@@ -10,7 +10,7 @@
  * This module is the one place that decides:
  *   - how long a reservation is LIVE (EVIDENCE_RESERVATION_TTL_MS, measured from
  *     the record's last write);
- *   - which records occupy an allowance slot (countedEvidenceRecordWhere) — the
+ *   - which records occupy an allowance slot (allowanceSlotEvidenceWhere) — the
  *     API's admission, settlement and meters all use it;
  *   - which reservations are EXPIRED and may be released
  *     (expiredEvidenceReservationWhere) — the Worker's reservation sweep;
@@ -32,11 +32,45 @@ export const EVIDENCE_RESERVATION_TTL_MS = 24 * 60 * 60 * 1000;
 const UNSEALED = [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING];
 
 /** An evidence record occupies an allowance slot when established or while its reservation is live. */
-export function countedEvidenceRecordWhere(now: Date = new Date()): Prisma.EvidenceWhereInput {
+function countedEvidenceRecordWhere(now: Date = new Date()): Prisma.EvidenceWhereInput {
   return {
     OR: [
       { status: { notIn: UNSEALED } },
       { createdAt: { gte: new Date(now.getTime() - EVIDENCE_RESERVATION_TTL_MS) } },
+    ],
+  };
+}
+
+/**
+ * THE ALLOWANCE-SLOT POPULATION (ET-COM-02, owner decision 2026-09-30).
+ *
+ * Which records occupy a slot of a plan's record allowance. Every admission
+ * gate, settlement count and usage meter asks this one predicate, so they
+ * cannot disagree.
+ *
+ * TRASH DOES NOT RELEASE A SLOT. Trash is reversible: the bytes are still
+ * stored and the record can be restored for the whole grace period. When the
+ * count excluded trashed rows, a FREE account at 3/3 could trash one record,
+ * create a fourth, and restore the first — four plan-funded records, repeatable
+ * without limit. A trashed record therefore keeps its slot and its original
+ * funding; restoring it consumes nothing, because nothing was released.
+ *
+ * A slot is released by exactly two things:
+ *   - governed permanent destruction (`DESTROYED`) — the tombstone holds none;
+ *   - the release of an UNSEALED reservation (a soft delete of a record that
+ *     was never finalized), which is what `deletedAt` means outside trash.
+ *
+ * `PENDING_DESTRUCTION` still holds the slot: a destruction claim can be
+ * abandoned, and the slot is only free once the record is actually destroyed.
+ */
+const SLOT_HELD_WHILE_DELETED: prismaPkg.EvidenceLifecycleState[] = ["TRASHED", "PENDING_DESTRUCTION"];
+
+export function allowanceSlotEvidenceWhere(now: Date = new Date()): Prisma.EvidenceWhereInput {
+  return {
+    AND: [
+      countedEvidenceRecordWhere(now),
+      { lifecycleState: { not: "DESTROYED" } },
+      { OR: [{ deletedAt: null }, { lifecycleState: { in: SLOT_HELD_WHILE_DELETED } }] },
     ],
   };
 }

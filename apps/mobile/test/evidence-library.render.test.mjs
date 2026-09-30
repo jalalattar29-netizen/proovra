@@ -221,11 +221,34 @@ test("the Inspector is the web's queue selection, read from status — no URL is
   assert.equal(dl.props.accessibilityState.disabled, false);
   const pkg = r.byLabel("Download Verification Package").find((n) => n.props.onPress);
   assert.equal(pkg.props.accessibilityState.disabled, true);
-  // Public verification is included and configured → the link is the public /verify page.
-  const copy = r.byLabel("Copy Verification Link").find((n) => n.props.onPress);
-  assert.equal(copy.props.accessibilityState.disabled, false);
-  await r.press("Copy Verification Link");
-  assert.equal(globalThis.__CLIPBOARD__, `https://www.proovra.com/verify/${E1}`);
+  // ET-PKG-07 — this asserted "Copy Verification Link" put
+  // https://www.proovra.com/verify/<record id> on the clipboard: a public link
+  // built on the device from the record's id. An id is no longer a link. The
+  // one action CREATES a share link on the server and shares what comes back.
+  assert.equal(r.byLabel("Copy Verification Link").length, 0, "the id-built link action is still rendered");
+  const TOKEN = "pvs_" + "a".repeat(43);
+  routes[`POST /v1/evidence/${E1}/verify-links`] = () => ({
+    verifyPath: `/verify/${TOKEN}`,
+    published: true,
+    link: { id: "l-1", state: "ACTIVE", expiresAtUtc: "2026-10-30T10:00:00.000Z" },
+  });
+  globalThis.__RN_SHARED__ = [];
+  const share = r.byLabel("Create and share a verification link").find((n) => n.props.onPress);
+  assert.equal(share.props.accessibilityState.disabled, false);
+  assert.equal(requests.some((q) => q.path.includes("/verify-links")), false, "a link was created on open");
+  await r.press("Create and share a verification link");
+  await settle();
+  const created = requests.filter((q) => q.method === "POST" && q.path === `/v1/evidence/${E1}/verify-links`);
+  assert.equal(created.length, 1);
+  assert.deepEqual(created[0].body, {
+    audience: "Shared from the PROOVRA mobile app",
+    expiresInDays: 30,
+    projection: "STANDARD",
+    maxUses: null,
+  });
+  assert.equal(globalThis.__RN_SHARED__.length, 1);
+  assert.equal(globalThis.__RN_SHARED__[0].url, `https://www.proovra.com/verify/${TOKEN}`);
+  assert.equal(JSON.stringify(globalThis.__RN_SHARED__).includes(E1), false, "the shared link carries the record id");
   await r.press("Open Evidence");
   assert.deepEqual(M.calls.push, [`/evidence/${E1}`]);
 });

@@ -54,6 +54,7 @@ export {
 
 import { prisma } from "../../db.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import type { OwedOutputEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
 /** The statuses the product treats as "open work in the queue". */
 export const OPEN_REVIEW_STATUSES = [
@@ -274,7 +275,7 @@ export async function loadEvidenceCounters(
    * decision belongs to `outputEntitledEvidenceWhere` and there is one of it.
    * `null` means "no narrowing" and preserves the previous behaviour exactly.
    */
-  outputEntitledWhere: { id: { in: string[] } } | null = null,
+  outputEntitledWhere: OwedOutputEvidenceWhere | null = null,
 ): Promise<EvidenceCounters> {
   const windows = Object.keys(WINDOW_MS) as EvidenceWindow[];
   const [signedWithoutReport, reportedWithoutPackage, blockedSample, ...windowed] =

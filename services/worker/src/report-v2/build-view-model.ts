@@ -117,19 +117,24 @@ type DisplayDescriptor = {
 
 const PREVIEW_DATA_URL_RE = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i;
 
-// PHASE 11 — same public /verify/:id surface as processor.ts's
-// buildVerifyUrl (see the comment there). Composed via
-// `absoluteInternalUrl` since "verify" sits outside the canonical
-// INTERNAL_RESOURCE_TYPES vocabulary. Carries only the persisted
-// evidence id — never a tenant/workspace id.
-function buildVerifyUrl(evidenceId: string, provided?: string | null): string {
+// PHASE 11 — the public /verify surface. Composed via `absoluteInternalUrl`
+// since "verify" sits outside the canonical INTERNAL_RESOURCE_TYPES
+// vocabulary.
+//
+// ET-PKG-07 (2026-09-30) — THE EVIDENCE ID IS NEVER THE LINK. When the caller
+// supplied no usable link, this used to fall back to /verify/<evidence id>,
+// printing the record's primary key as a public capability. The only link a
+// report may carry is the share-token URL the caller supplies; without one the
+// report points at the Verify page itself, where a link is entered by whoever
+// was given one.
+function buildVerifyUrl(provided?: string | null): string {
   const base = (
     process.env.REPORT_VERIFY_BASE_URL ?? "https://app.proovra.com/verify"
   )
     .trim()
     .replace(/\/+$/, "");
 
-  const fallback = absoluteInternalUrl(base, `/${encodeURIComponent(evidenceId)}`);
+  const fallback = absoluteInternalUrl(base, "");
 
   const v = typeof provided === "string" ? provided.trim() : "";
   if (!v) return fallback;
@@ -1349,7 +1354,7 @@ export async function buildReportViewModel(
   input: ReportV2Input
 ): Promise<ReportViewModel> {
   const mode: ReportArtifactMode = input.externalMode ? "external" : "internal";
-  const verifyUrl = buildVerifyUrl(input.evidence.id, input.verifyUrl);
+  const verifyUrl = buildVerifyUrl(input.verifyUrl);
   const technicalUrl = verifyUrl.includes("?")
     ? `${verifyUrl}&tab=technical`
     : `${verifyUrl}?tab=technical`;

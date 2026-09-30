@@ -46,7 +46,7 @@ import {
   getCaseName,
 } from "./lib/evidence-library-helpers";
 import { buildReviewPriority } from "./lib/evidence-library-alerts";
-import { buildVerificationUrl } from "./lib/evidence-library-formatters";
+import { evidencePublicLinksHref } from "../../../lib/verification-links-href";
 
 const SERVER_PAGE_LIMIT = 50;
 
@@ -1133,17 +1133,11 @@ function EvidenceLibraryPageInner() {
     }
   };
 
-  const copyVerificationLink = async (evidenceId: string) => {
-    try {
-      await navigator.clipboard.writeText(buildVerificationUrl(evidenceId));
-      addToast("Verification link copied", "success");
-    } catch (copyError) {
-      captureException(copyError, {
-        feature: "web_evidence_library_copy_verify_second_pass",
-        evidenceId,
-      });
-      addToast("Failed to copy verification link", "error");
-    }
+  // ET-PKG-07 — the library no longer copies /verify/<record id>: a record's
+  // id is not a public link. It opens the record's link controls, where a
+  // share link is created (and shown once), revoked or replaced.
+  const openVerificationLinks = (evidenceId: string) => {
+    router.push(evidencePublicLinksHref(evidenceId));
   };
 
   const runBulkAction = useCallback(
@@ -1333,8 +1327,8 @@ function EvidenceLibraryPageInner() {
           onDownloadVerificationPackage={() =>
             selectedItem ? void downloadVerificationPackage(selectedItem.id) : undefined
           }
-          onCopyVerificationLink={() =>
-            selectedItem ? void copyVerificationLink(selectedItem.id) : undefined
+          onManageVerificationLinks={() =>
+            selectedItem ? openVerificationLinks(selectedItem.id) : undefined
           }
         />
       ) : null}

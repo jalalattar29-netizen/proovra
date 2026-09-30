@@ -103,7 +103,15 @@ export type WorkspaceScope = {
     paidActive: boolean;
     mutationsAllowed: boolean;
     graceEndsAtUtc: Date | null;
+    /** The Subscription.status the verdict came from (ET-COM-04: the issuance decision at finalization reads it). */
+    providerStatus?: string | null;
   };
+  /**
+   * ET-COM-04 — set ONLY by `evidenceCreationScope`: the paid plan whose
+   * subscription has lapsed, when this scope is the FREE-equivalent creation
+   * scope of that account. Absent on every other scope.
+   */
+  lapsedPaidPlan?: prismaPkg.PlanType;
 };
 
 function toBillingWorkspaceScope(scope: WorkspaceScope): BillingWorkspaceScope {

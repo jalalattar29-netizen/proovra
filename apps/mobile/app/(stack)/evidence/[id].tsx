@@ -14,7 +14,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { NEW_VERSION_ACTION, type EvidenceOutputState } from "@proovra/shared";
+import { NEW_VERSION_ACTION, TRASH_KEEPS_PLAN_CAPACITY_COPY, type EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -1848,7 +1848,7 @@ export default function EvidenceDetailScreen() {
       <ProovraConfirmSheet
         visible={trashing}
         title={TRASH_COPY.moveTitle}
-        consequence={`${TRASH_COPY.moveBody}\n\n${TRASH_COPY.moveBody2}`}
+        consequence={`${TRASH_COPY.moveBody}\n\n${TRASH_COPY.moveBody2}\n\n${TRASH_KEEPS_PLAN_CAPACITY_COPY}`}
         confirmLabel={TRASH_COPY.moveAction}
         tone="danger"
         busy={actionBusy}

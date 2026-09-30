@@ -88,12 +88,9 @@ export type InvestigationDiagnosticsQueueRow = {
 
 export type InvestigationDiagnosticsQueues = {
   graphReconcile: InvestigationDiagnosticsQueueRow;
-  graphDomainSync: InvestigationDiagnosticsQueueRow;
-  graphTimelineSync: InvestigationDiagnosticsQueueRow;
   graphSearchProjection: InvestigationDiagnosticsQueueRow;
   mediaIntelligence: InvestigationDiagnosticsQueueRow;
   miEmbed: InvestigationDiagnosticsQueueRow;
-  miSearchIndex: InvestigationDiagnosticsQueueRow;
   searchIndexing: InvestigationDiagnosticsQueueRow;
   report: InvestigationDiagnosticsQueueRow;
 };
@@ -157,12 +154,9 @@ export const INVESTIGATION_DIAGNOSTICS_RESPONSE_KEYS = Object.freeze([
   "workspace.verificationPackageCount",
   // queues.*
   "queues.graphReconcile",
-  "queues.graphDomainSync",
-  "queues.graphTimelineSync",
   "queues.graphSearchProjection",
   "queues.mediaIntelligence",
   "queues.miEmbed",
-  "queues.miSearchIndex",
   "queues.searchIndexing",
   "queues.report",
   // queue row fields
@@ -198,14 +192,19 @@ export type BuildInvestigationDiagnosticsInput = {
 // Queue name → response key map
 // ---------------------------------------------------------------------------
 
+// ET-Q-07 (2026-09-30) — `graph-domain-sync`, `graph-timeline-sync` and
+// `mi-search-index` were removed from this map, from the response type and from
+// the allow-list above, with their producerless queues. Their rows
+// (`queues.graphDomainSync`, `queues.graphTimelineSync`, `queues.miSearchIndex`)
+// always read depth 0 / no error, because nothing ever enqueued onto them — a
+// permanently healthy row for a chain that does not run. The web empty-state
+// classifier reads these keys defensively (`row && ...`), so an older client
+// sees an absent row as depth 0, which is what it always saw.
 const QUEUE_NAME_TO_KEY = {
   "graph-reconcile": "graphReconcile",
-  "graph-domain-sync": "graphDomainSync",
-  "graph-timeline-sync": "graphTimelineSync",
   "graph-search-projection": "graphSearchProjection",
   "media-intelligence": "mediaIntelligence",
   "mi-embed": "miEmbed",
-  "mi-search-index": "miSearchIndex",
   "search-indexing": "searchIndexing",
   report: "report",
 } as const;
@@ -622,12 +621,9 @@ async function buildQueueDiagnostics(
 ): Promise<InvestigationDiagnosticsQueues> {
   const empty: InvestigationDiagnosticsQueues = {
     graphReconcile: { ...EMPTY_QUEUE_ROW },
-    graphDomainSync: { ...EMPTY_QUEUE_ROW },
-    graphTimelineSync: { ...EMPTY_QUEUE_ROW },
     graphSearchProjection: { ...EMPTY_QUEUE_ROW },
     mediaIntelligence: { ...EMPTY_QUEUE_ROW },
     miEmbed: { ...EMPTY_QUEUE_ROW },
-    miSearchIndex: { ...EMPTY_QUEUE_ROW },
     searchIndexing: { ...EMPTY_QUEUE_ROW },
     report: { ...EMPTY_QUEUE_ROW },
   };

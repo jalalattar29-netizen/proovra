@@ -13,6 +13,9 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+// ET-PKG-07 — a record's id is not a public link: requests go through a share
+// link (the record is published and the link minted on first use).
+import { shareLinkFor } from "./helpers/verify-share.js";
 
 type Storage = { immutable: boolean; verified: boolean; source?: string; expired?: boolean; retainUntil: string | null };
 
@@ -78,7 +81,7 @@ describe("public Verify — recorded storage protection (live PostgreSQL 16, rea
   }
 
   async function storageOf(id: string): Promise<Storage> {
-    const res = await h.app.inject({ method: "GET", url: `/public/verify/${id}` });
+    const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, id)}` });
     expect(res.statusCode, res.body).toBe(200);
     const body = res.json() as { storage?: Storage; storageAndTimestamping?: { storage?: Storage } };
     const storage = body.storageAndTimestamping?.storage ?? body.storage;

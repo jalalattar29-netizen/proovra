@@ -100,6 +100,11 @@ import { getQueueInventory } from "./queue-inventory.service.js";
 import { getWorkerFleetHealth } from "./worker-liveness.service.js";
 import { runReadinessCheck } from "../../runtime/runtime-readiness.js";
 import { buildEvidenceHealthSnapshot } from "./evidence-health.service.js";
+import {
+  readScheduledSweepHealth,
+  type MonitoredSweepKind,
+  type ScheduledSweepHealth,
+} from "@proovra/shared-runtime";
 
 /** Bumped when the SHAPE changes, so a stale client can refuse rather than guess. */
 export const PLATFORM_HEALTH_SNAPSHOT_VERSION = 1 as const;
@@ -223,6 +228,15 @@ export type PlatformHealthSnapshot = {
   workers: SubsystemHealth;
   search: SubsystemHealth;
   evidencePipeline: SubsystemHealth;
+  /**
+   * The worker sweeps nothing else does the job of (2026-09-30): the capture
+   * reaper — the only authority that expires abandoned capture drafts and
+   * reservations — and the integrity recheck (ET-SM-07). Read from their run
+   * rows, from outside the worker: a stopped sweep cannot report its own
+   * silence. One entry per sweep, each with its last run and last success in
+   * the reason.
+   */
+  scheduledSweeps: SubsystemHealth[];
 
   evaluation: {
     /** When this evaluation was STARTED. Always present. */
@@ -266,6 +280,81 @@ export function __resetPlatformHealthSnapshotFreshness(): void {
  * difference is the `SourceReport` that goes with it, so a caller can tell
  * "measured zero" from "could not measure".
  */
+/**
+ * The sweeps this snapshot watches. Each is the ONLY thing that does its job,
+ * so silence from it is a fault, not an absence.
+ */
+const MONITORED_SWEEPS: ReadonlyArray<{
+  kind: MonitoredSweepKind;
+  id: string;
+  label: string;
+  does: string;
+  stoppedAction: string;
+}> = [
+  {
+    kind: "CAPTURE_REAPER",
+    id: "capture_reaper",
+    label: "Capture reaper",
+    does: "expires abandoned capture drafts and releases abandoned evidence reservations",
+    stoppedAction:
+      "Confirm the worker process is running and CAPTURE_DRAFT_REAPER_ENABLED is not false, then check the worker logs for capture.reaper.failed. It is the only reaper: while it is stopped, abandoned reservations keep their allowance slots.",
+  },
+  {
+    kind: "INTEGRITY_RECHECK",
+    id: "integrity_recheck",
+    label: "Integrity recheck",
+    does: "re-reads signed evidence at its recorded object version and compares it with the signed hash",
+    stoppedAction:
+      "Confirm the worker process is running and INTEGRITY_RECHECK_ENABLED is not false, then check the worker logs for evidence.integrity.recheck_sweep_failed. While it is stopped, records age out of their verified state and are shown as not currently rechecked.",
+  },
+];
+
+const minutes = (ms: number) => Math.round(ms / 60_000);
+
+/** One sweep's run history as a subsystem state with a reason and an action. */
+function sweepSubsystemHealth(
+  sweep: (typeof MONITORED_SWEEPS)[number],
+  reading: ScheduledSweepHealth | null,
+  observedAtUtc: string,
+): SubsystemHealth {
+  const base = { id: sweep.id, label: sweep.label, affectedResource: null, runbookSlug: null, observedAtUtc };
+  if (!reading) {
+    return {
+      ...base,
+      state: "UNKNOWN",
+      reason: `The run history of the ${sweep.label.toLowerCase()} could not be read, so whether it is running is unknown for this evaluation.`,
+      operatorAction: "Re-evaluate; if it keeps failing, check database reachability from the API process.",
+    };
+  }
+  const last = (d: Date | null) => (d ? d.toISOString() : "never");
+  const facts = `Last run ${last(reading.lastRunAtUtc)}; last success ${last(reading.lastSuccessAtUtc)}.`;
+  switch (reading.state) {
+    case "OK":
+      return { ...base, state: "HEALTHY", reason: `Running. ${facts}`, operatorAction: null };
+    case "FAILING":
+      return {
+        ...base,
+        state: reading.silenceMs === null || reading.silenceMs > reading.maxSilenceMs ? "CRITICAL" : "DEGRADED",
+        reason: `The latest run failed (${(reading.lastError ?? "unknown error").slice(0, 160)}). ${facts}`,
+        operatorAction: sweep.stoppedAction,
+      };
+    case "STALE":
+      return {
+        ...base,
+        state: "CRITICAL",
+        reason: `No successful run in the last ${minutes(reading.maxSilenceMs)} minutes — the sweep that ${sweep.does} appears to be stopped. ${facts}`,
+        operatorAction: sweep.stoppedAction,
+      };
+    case "NEVER_RAN":
+      return {
+        ...base,
+        state: "UNKNOWN",
+        reason: `No run of the sweep that ${sweep.does} is on record. This is expected only until the first worker tick after a deploy.`,
+        operatorAction: sweep.stoppedAction,
+      };
+  }
+}
+
 async function runSource<T>(
   id: string,
   label: string,
@@ -789,6 +878,20 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
     };
   })();
 
+  // ---- Scheduled worker sweeps ---------------------------------------------
+  const sweepReadings = await runSource(
+    "scheduled_sweeps",
+    "Scheduled worker sweeps",
+    () =>
+      Promise.all(
+        MONITORED_SWEEPS.map((sweep) => readScheduledSweepHealth(prisma, sweep.kind)),
+      ),
+    sources,
+  );
+  const scheduledSweeps: SubsystemHealth[] = MONITORED_SWEEPS.map((sweep, i) =>
+    sweepSubsystemHealth(sweep, sweepReadings ? sweepReadings[i]! : null, nowIso),
+  );
+
   // ---- Freshness ----------------------------------------------------------
   const unavailableSources = sources
     .filter((s) => s.outcome === "UNAVAILABLE")
@@ -829,6 +932,7 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
     workerHealth.state,
     searchHealth.state,
     evidencePipeline.state,
+    ...scheduledSweeps.map((d) => d.state),
     ...dependencies.map((d) => d.state),
   ]);
 
@@ -853,6 +957,7 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
       workerHealth,
       searchHealth,
       evidencePipeline,
+      ...scheduledSweeps,
       ...dependencies,
     ].filter((s) => s.state === overallState);
     if (overallState === "HEALTHY") {
@@ -878,6 +983,7 @@ export async function buildPlatformHealthSnapshot(): Promise<PlatformHealthSnaps
     workers: workerHealth,
     search: searchHealth,
     evidencePipeline,
+    scheduledSweeps,
     evaluation: {
       lastAttemptUtc,
       lastSuccessUtc,

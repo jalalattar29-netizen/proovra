@@ -1,12 +1,19 @@
 import { prisma } from "../db.js";
 import { readMaxEvidenceSizeBytes } from "@proovra/shared";
+import { recordIntegrityCheckTx } from "@proovra/shared-runtime";
 import { canonicalJson, sha256Hex } from "../crypto.js";
-import { resolveEvidenceOutputEntitlements } from "@proovra/shared-billing";
+import {
+  outputEarnedFactFromDecision,
+  resolveEvidenceOutputEntitlements,
+  type PlanType,
+} from "@proovra/shared-billing";
 import { getEvidenceSigner } from "../signing/signer.js";
 import {
   assertWorkspaceAllowsStorageGrowth,
   lockEvidenceCapacitySubject,
   resolveEnforcementScopeForRequester,
+  evidenceCreationScope,
+  resolveFinalizationIssuance,
   settleEvidenceCompletionFunding,
 } from "./billing-enforcement.service.js";
 import { resolveEvidenceFunding } from "./billing/evidence-credits.service.js";
@@ -1227,22 +1234,18 @@ const captureMethod =
       } satisfies prismaPkg.Prisma.EvidenceUpdateManyMutationInput;
 
       /*
-       * PUBLICATION APPROVAL IS HONOURED AT THE ONE FINALIZE BOUNDARY
-       * (2026-09-29, audit D3). A workspace that requires approval before a
-       * record is publicly verifiable had the flag stored and never read:
-       * every record, on every capture path, finalized PUBLISHED. The record
-       * now finalizes NOT_PUBLISHED there; an operator publishes it through
-       * the publication workflow.
+       * EVERY RECORD FINALIZES UNPUBLISHED (ET-PKG-07, owner decision
+       * 2026-09-30). Evidence is private by default: a record becomes publicly
+       * verifiable only when its owner publishes it, and then only through a
+       * share link.
+       *
+       * (2026-09-29, audit D3) finalized NOT_PUBLISHED only where the
+       * workspace required publication approval, and PUBLISHED everywhere
+       * else — by the column default. The default is no longer consulted and
+       * no policy is read here: NOT_PUBLISHED is written on every path.
+       * Publishing is an explicit action that needs the publish permission
+       * (evidence.publish_verify) and its step-up, in every workspace.
        */
-      const publicationApprovalRequired = evidence.teamId
-        ? (
-            await tx.workspaceGovernancePolicy.findUnique({
-              where: { teamId: evidence.teamId },
-              select: { requirePublicationApproval: true },
-            })
-          )?.requirePublicationApproval === true
-        : false;
-
       const finalizeClaim = await tx.evidence.updateMany({
         where: {
           // ET-DC-01: a released (soft-deleted) reservation is never signed.
@@ -1252,9 +1255,7 @@ const captureMethod =
             in: [EvidenceStatus.CREATED, EvidenceStatus.UPLOADING],
           },
         },
-        data: publicationApprovalRequired
-          ? { ...finalizeData, publicVerifyState: "NOT_PUBLISHED" }
-          : finalizeData,
+        data: { ...finalizeData, publicVerifyState: "NOT_PUBLISHED" },
       });
       if (finalizeClaim.count !== 1) {
         // Race lost — another finalize won between the early-return
@@ -1393,6 +1394,71 @@ const captureMethod =
         tx,
       );
 
+      // ET-COM-04 — THE STORED FUNDING FACT. The issuance decision is taken
+      // HERE, once, from the plan the record was settled on, how it was
+      // funded, and the subscription lifecycle as it stands at finalization.
+      // When that decision is ENTITLED on a plan basis it is written onto the
+      // record in this same transaction, so a later billing lapse cannot
+      // revoke an output the record has already earned. (A credit-funded
+      // record's fact is its ledger row; a lapsed plan settles as FREE and
+      // earns nothing plan-based.)
+      const finalizationIssuance = resolveFinalizationIssuance(scope, settlement.funding);
+      const earned = outputEarnedFactFromDecision({
+        plan: evidenceCreationScope(scope).plan as PlanType,
+        decision: finalizationIssuance,
+      });
+      if (earned) {
+        await tx.evidence.updateMany({
+          where: { id: ev.id, outputEarnedBasis: null },
+          data: {
+            outputEarnedPlan: earned.plan,
+            outputEarnedBasis: earned.basis,
+            outputEarnedAtUtc: now,
+          },
+        });
+      }
+
+      // ET-SM-07 — THE FIRST INTEGRITY CHECK. The digest just signed was
+      // computed from the stored bytes at the versions recorded above, so
+      // finalization IS a verified read of them. It is recorded through the
+      // integrity-recheck authority: a new record is "verified, current" from
+      // the moment it is signed, and the scheduled recheck takes it from here.
+      const signedRow = await tx.evidence.findUniqueOrThrow({
+        where: { id: ev.id },
+        select: { teamId: true, fileSha256: true, storageVersionId: true },
+      });
+      const signedParts = await tx.evidencePart.findMany({
+        where: { evidenceId: ev.id },
+        orderBy: { partIndex: "asc" },
+        select: { partIndex: true, storageVersionId: true, sha256: true },
+      });
+      await recordIntegrityCheckTx(tx, {
+        evidenceId: ev.id,
+        teamId: signedRow.teamId ?? null,
+        outcome: "VERIFIED",
+        failureCode: null,
+        trigger: "FINALIZATION",
+        storageVersionId: signedParts.length > 0 ? null : (signedRow.storageVersionId ?? null),
+        checkedObjects:
+          signedParts.length > 0
+            ? signedParts.map((p) => ({
+                partIndex: p.partIndex,
+                versionId: p.storageVersionId ?? null,
+                sha256: p.sha256 ?? null,
+              }))
+            : [
+                {
+                  partIndex: null,
+                  versionId: signedRow.storageVersionId ?? null,
+                  sha256: signedRow.fileSha256 ?? null,
+                },
+              ],
+        expectedDigest: signedRow.fileSha256 ?? null,
+        checkedDigest: signedRow.fileSha256 ?? null,
+        correlationId: `finalize:${ev.id}`,
+        checkedAtUtc: now,
+      });
+
       return {
         result: {
           id: ev.id,
@@ -1405,11 +1471,9 @@ const captureMethod =
         },
         // The outputs belong to the RECORD and its funding, not to the
         // account's recurring plan. A credit-funded completion earns its
-        // report even though the account is on FREE.
-        shouldEnqueueReport: resolveEvidenceOutputEntitlements({
-          plan: scope.plan,
-          funding: settlement.funding,
-        }).reportsIncluded,
+        // report even though the account is on FREE — and (ET-COM-04) a
+        // lapsed plan earns none: the decision above read the lifecycle.
+        shouldEnqueueReport: finalizationIssuance.reportsIncluded,
         retentionTargets,
       };
     },

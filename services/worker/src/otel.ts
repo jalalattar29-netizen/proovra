@@ -345,9 +345,10 @@ export const PROOVRA_SPAN_NAMES = {
   REVIEWER_CONSOLE_LOAD: "proovra.reviewer.console.load",
   REVIEWER_RECONCILE: "proovra.reviewer.reconcile",
   // Phase O1.5D — Graph.
+  // ET-Q-07 (2026-09-30) — `proovra.graph.timeline.build` and
+  // `proovra.graph.domain.sync` were removed: they wrapped the processors of
+  // two producerless queues, so neither span was ever emitted.
   GRAPH_RECONCILE: "proovra.graph.reconcile",
-  GRAPH_TIMELINE_BUILD: "proovra.graph.timeline.build",
-  GRAPH_DOMAIN_SYNC: "proovra.graph.domain.sync",
   GRAPH_SEARCH_PROJECTION: "proovra.graph.search.projection",
   // Phase O1.5D — SIU followup/timeline.
   SIU_FOLLOWUP_REQUEST: "proovra.siu.followup.request",

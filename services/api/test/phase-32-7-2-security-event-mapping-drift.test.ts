@@ -1381,6 +1381,18 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280812000001_evidence_completion_fanout_backfill",
       // Capture trust-event chain uniqueness (2026-09-30, ET-DC-10): two partial unique indexes. EXPAND.
       "20280813000000_capture_trust_event_chain_unique",
+      // Evidence output earned fact (2026-09-30, ET-COM-04): three nullable columns. EXPAND.
+      "20280814000000_evidence_output_earned_fact",
+      // Integrity recheck + capture reaper reconciliation kinds (2026-09-30, ET-SM-07): two enum values. EXPAND.
+      "20280815000000_integrity_recheck_reconciliation_kinds",
+      // Evidence integrity checks (2026-09-30, ET-SM-07): history table + six nullable evidence columns + indexes. EXPAND.
+      "20280815000001_evidence_integrity_checks",
+      // Verification share tokens (2026-09-30, ET-PKG-07): token table + one nullable evidence column. EXPAND.
+      "20280816000000_verification_share_tokens",
+      // …and the bounded grace for legacy record-id links: a first-application-only UPDATE. BACKFILL.
+      "20280816000001_verification_share_legacy_grace",
+      // Evidence is unpublished by default (2026-09-30, ET-PKG-07): one column default. EXPAND, applied after the image.
+      "20280816000002_evidence_unpublished_by_default",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

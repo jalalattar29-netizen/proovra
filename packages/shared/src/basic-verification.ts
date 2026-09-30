@@ -19,6 +19,8 @@
  */
 import { normalizeOtsAnchorCheck, resolveOtsAnchorClaim } from "./ots.js";
 
+import { storedBytesIntegrityCopy, type StoredBytesIntegrity } from "./stored-bytes-integrity.js";
+
 export const COMPONENT_VERIFICATION_STATES = [
   "verified",
   "pending",
@@ -51,6 +53,16 @@ export type BasicVerification = {
     /** Server time the record was finalized and signed. */
     finalizedAtUtc: string | null;
   };
+  /**
+   * ET-SM-07 — THE STORED BYTES, as last rechecked. `original` above is a
+   * statement about PROOVRA's signed records; this is the separate statement
+   * about the stored file itself: whether it was re-read at its exact recorded
+   * version and matched the signed hash, and how recently. Only
+   * `verified_current` may be presented as current integrity of the stored
+   * file; stale, pending and unknown are shown as what they are. Optional on
+   * the wire: a payload from before this field carries none.
+   */
+  storedBytes?: StoredBytesIntegrity;
   timestamp: {
     state: ComponentVerificationState;
     /**
@@ -142,6 +154,8 @@ export function buildBasicVerification(input: {
   };
   fileSha256: string | null;
   fingerprintHash: string | null;
+  /** ET-SM-07 — the stored-bytes recheck state, resolved by the authority. */
+  storedBytes?: StoredBytesIntegrity | null;
   capturedAtUtc: Date | string | null;
   signedAtUtc: Date | string | null;
   tsaStatus: string | null;
@@ -239,6 +253,7 @@ export function buildBasicVerification(input: {
       capturedAtUtcDeclared: iso(input.capturedAtUtc),
       finalizedAtUtc: iso(input.signedAtUtc),
     },
+    ...(input.storedBytes ? { storedBytes: input.storedBytes } : {}),
     timestamp: {
       state: timestampState,
       basis: timestampBasis,
@@ -275,4 +290,30 @@ export function buildBasicVerification(input: {
       latestReportLacksPackage: latest !== null && pkg === null,
     },
   };
+}
+
+/**
+ * ET-SM-07 — the stored-file recheck as one row of the Verify page, in the
+ * page's single vocabulary, for web and native alike. ONLY a recheck inside
+ * the cadence reads "Verified"; an out-of-date or never-made one is
+ * "Not checked" with its own badge, never a green tick.
+ */
+const STORED_BYTES_ROW: Record<
+  StoredBytesIntegrity["state"],
+  { state: ComponentVerificationState; badge: string }
+> = {
+  verified_current: { state: "verified", badge: "Verified" },
+  verified_stale: { state: "not_checked", badge: "Out of date" },
+  pending: { state: "pending", badge: "Pending" },
+  failed: { state: "failed", badge: "Failed" },
+  unknown: { state: "not_checked", badge: "Not yet rechecked" },
+};
+
+export function storedBytesVerificationRow(integrity: StoredBytesIntegrity): {
+  state: ComponentVerificationState;
+  badge: string;
+  label: string;
+  detail: string;
+} {
+  return { ...STORED_BYTES_ROW[integrity.state], ...storedBytesIntegrityCopy(integrity) };
 }

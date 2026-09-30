@@ -1,24 +1,7 @@
 /**
- * Phase 31.21 — bounded per-domain graph sync helpers.
- *
- * The full `reconcileTeamGraph` runs every domain in one pass. For
- * operators who need to RIGHT-NOW tombstone the graph projection
- * of one specific domain (after a bulk delete in the source table,
- * a domain-specific data hygiene action, etc.), waiting for the
- * full cron is wasteful and hides real bounded work behind a "no-
- * op" tag.
+ * Phase 31.21 — bounded graph search-projection sync.
  *
  * This service exposes:
- *   * `runDomainStaleSweep(teamId, domain, client)` — runs ONLY the
- *     stale-tombstone sweep for the named domain. Tombstones any
- *     node whose source row is no longer present in the upstream
- *     domain table. Bounded and idempotent.
- *
- *   * `runTimelineSync(teamId, client)` — invokes the existing
- *     timeline builder, counts events, AND runs the cross-edge
- *     stale sweep that tombstones edges whose endpoints both went
- *     stale (the same sweep the full reconciler does at section 4).
- *
  *   * `runSearchProjectionSync(teamId, client)` — finds evidence
  *     rows with recent signal activity and enqueues bounded
  *     search-indexing rebuilds for them. Real safe work: keeps the
@@ -33,8 +16,17 @@
  *     text, GPS, storage keys, reviewer-private fields, or anything
  *     other than the bounded enum/id surface the rest of the graph
  *     code uses.
- *   * Stale sweeps are write-only on graph tables; the source domain
- *     tables are NEVER mutated.
+ *
+ * ET-Q-07 (2026-09-30) — `runDomainStaleSweep`, `runTimelineSync`, the
+ * `DOMAIN_SYNC_DOMAINS` catalog and their result types were REMOVED from this
+ * module. Their only callers were the `graph-domain-sync` and
+ * `graph-timeline-sync` worker processors, and those two queues never had a
+ * producer — so neither function ever ran outside a test. Nothing is lost: the
+ * per-domain stale sweeps and the cross-edge stale sweep both run inside
+ * `reconcileTeamGraph` (graph-builder.service.ts), which is the live path on
+ * the `graph-reconcile` queue. A future "sync one domain now" feature must
+ * come back end to end (producer, consumer, idempotency, retries,
+ * reconciliation, DLQ, runtime proof), not as a helper with no caller.
  */
 
 import type { PrismaClient } from "@prisma/client";
@@ -46,230 +38,12 @@ import { bump } from "../ops/metrics.service.js";
 // Public types
 // =============================================================================
 
-export const DOMAIN_SYNC_DOMAINS = [
-  "CASE",
-  "REPORT",
-  "VERIFICATION_PACKAGE",
-  "EXPORT",
-  "REVIEW_TASK",
-  "ESCALATION",
-  "INCIDENT",
-  "EXTERNAL_REVIEW",
-] as const;
-export type DomainSyncDomain = (typeof DOMAIN_SYNC_DOMAINS)[number];
-
-export type DomainStaleSweepResult = {
-  ok: boolean;
-  domain: DomainSyncDomain;
-  /** Number of graph nodes the sweep marked stale this run. */
-  tombstoned: number;
-  /** Bounded reason code on failure paths. */
-  reason?: string;
-};
-
-export type TimelineSyncResult = {
-  ok: boolean;
-  eventCount: number;
-  truncated: boolean;
-  /** Number of cross-edge tombstones this run. */
-  edgesStaled: number;
-  reason?: string;
-};
-
 export type SearchProjectionSyncResult = {
   ok: boolean;
   /** Number of evidence ids enqueued for reindex this run. */
   enqueued: number;
   reason?: string;
 };
-
-// =============================================================================
-// Per-domain stale-sweep map
-// =============================================================================
-//
-// Each domain maps to:
-//   * The graph node_kind to sweep.
-//   * The source table to NOT EXISTS against (when its row is gone,
-//     the graph node is orphaned and should be tombstoned).
-//
-// All sweeps are team-anchored on BOTH the outer UPDATE and the
-// inner NOT EXISTS sub-select — anti-leak invariant the graph
-// invariants test enforces.
-
-type DomainSweepConfig = {
-  /** Node kinds to sweep in this domain. Wave 1 taxonomy: domains
-   *  with a rename carry BOTH the canonical name and the deprecated
-   *  alias so legacy rows continue to tombstone cleanly. */
-  nodeKinds: readonly string[];
-  sourceTable: string;
-  /** Optional extra filter on the source table's row (e.g.
-   *  `AND s."team_id" = $1`). Always team-anchored; this is for
-   *  domains where the source has additional active-row criteria
-   *  (none today, but the slot exists for future expansion). */
-};
-
-const DOMAIN_SWEEPS: Record<DomainSyncDomain, DomainSweepConfig> = {
-  CASE: { nodeKinds: ["CASE"], sourceTable: "cases" },
-  REPORT: { nodeKinds: ["REPORT"], sourceTable: "evidence_reports" },
-  VERIFICATION_PACKAGE: {
-    nodeKinds: ["VERIFICATION_PACKAGE"],
-    sourceTable: "verification_packages",
-  },
-  EXPORT: { nodeKinds: ["EXPORT"], sourceTable: "evidence_exports" },
-  REVIEW_TASK: {
-    // Wave 1: REVIEW_TASK domain key is unchanged for callers; sweeps
-    // both the canonical REVIEW_WORKFLOW + deprecated REVIEW_TASK alias.
-    nodeKinds: ["REVIEW_WORKFLOW", "REVIEW_TASK"],
-    sourceTable: "evidence_review_workflows",
-  },
-  ESCALATION: {
-    nodeKinds: ["REVIEW_ESCALATION", "ESCALATION"],
-    sourceTable: "review_escalations",
-  },
-  INCIDENT: {
-    nodeKinds: ["INCIDENT"],
-    sourceTable: "operational_incidents",
-  },
-  EXTERNAL_REVIEW: {
-    nodeKinds: ["EXTERNAL_REVIEWER_GRANT", "EXTERNAL_REVIEW"],
-    sourceTable: "external_review_grants",
-  },
-};
-
-// =============================================================================
-// runDomainStaleSweep
-// =============================================================================
-
-export async function runDomainStaleSweep(
-  teamId: string,
-  domain: DomainSyncDomain,
-  client: PrismaClient = getRegisteredPrisma(),
-): Promise<DomainStaleSweepResult> {
-  const cfg = DOMAIN_SWEEPS[domain];
-  if (!cfg) {
-    return { ok: false, domain, tombstoned: 0, reason: "unknown_domain" };
-  }
-  bump("graph_domain_sync_executed_total");
-  let tombstoned = 0;
-  try {
-    // Team-anchored on BOTH sides of the UPDATE.
-    // Wave 1 taxonomy: pass the kinds list as a text[] so domains with
-    // a rename sweep both the canonical name + the deprecated alias.
-    const result = await client.$executeRawUnsafe(
-      `UPDATE "investigation_graph_nodes" n
-         SET "stale_at_utc" = NOW(),
-             "updated_at_utc" = NOW()
-         WHERE n."team_id" = $1
-           AND n."node_kind" = ANY($2::text[])
-           AND n."stale_at_utc" IS NULL
-           AND NOT EXISTS (
-             SELECT 1 FROM "${cfg.sourceTable}" s
-              WHERE s."id"::text = n."external_id"
-                AND s."team_id" = $1
-           )`,
-      teamId,
-      [...cfg.nodeKinds],
-    );
-    tombstoned = typeof result === "number" ? result : 0;
-    if (tombstoned > 0) bump("graph_node_removed_total", tombstoned);
-    return { ok: true, domain, tombstoned };
-  } catch (err) {
-    return {
-      ok: false,
-      domain,
-      tombstoned,
-      reason:
-        err instanceof Error
-          ? `sweep_failed:${err.message.slice(0, 60)}`
-          : "sweep_failed",
-    };
-  }
-}
-
-// =============================================================================
-// runTimelineSync
-// =============================================================================
-
-export async function runTimelineSync(
-  teamId: string,
-  client: PrismaClient = getRegisteredPrisma(),
-): Promise<TimelineSyncResult> {
-  bump("graph_timeline_sync_executed_total");
-  // 1) Build the bounded timeline so we can record its current size
-  //    as a readiness signal.
-  let eventCount = 0;
-  let truncated = false;
-  try {
-    const { buildInvestigationTimeline } = await import(
-      "./graph-builder.service.js"
-    );
-    const result = await buildInvestigationTimeline(
-      { teamId, rootNodeId: null, evidenceId: null, fromUtc: null, toUtc: null },
-      client,
-    );
-    if (!result.ok) {
-      // Phase Repair (Problem 13) — the timeline projection failed.
-      // Mirror the catch-branch shape so the sync pass reports the
-      // query failure honestly rather than silently advertising
-      // eventCount:0 as a healthy snapshot.
-      return {
-        ok: false,
-        eventCount: 0,
-        truncated: false,
-        edgesStaled: 0,
-        reason: result.reason || "timeline_query_failed",
-      };
-    }
-    eventCount = result.events.length;
-    truncated = result.truncated;
-  } catch (err) {
-    return {
-      ok: false,
-      eventCount: 0,
-      truncated: false,
-      edgesStaled: 0,
-      reason:
-        err instanceof Error
-          ? `timeline_build_failed:${err.message.slice(0, 60)}`
-          : "timeline_build_failed",
-    };
-  }
-
-  // 2) Run the cross-edge stale sweep that tombstones edges whose
-  //    source or target node has gone stale. The full reconciler does
-  //    this in section 4 — running it on the dedicated timeline-sync
-  //    queue lets ops keep the timeline view fresh between full
-  //    reconciles without re-running every domain reconciler.
-  let edgesStaled = 0;
-  try {
-    const result = await client.$executeRawUnsafe(
-      `UPDATE "investigation_graph_edges" e
-         SET "stale_at_utc" = NOW(),
-             "updated_at_utc" = NOW()
-         WHERE e."team_id" = $1
-           AND e."stale_at_utc" IS NULL
-           AND (
-             EXISTS (
-               SELECT 1 FROM "investigation_graph_nodes" n
-                WHERE n."id" = e."source_node_id"
-                  AND n."stale_at_utc" IS NOT NULL
-             )
-             OR EXISTS (
-               SELECT 1 FROM "investigation_graph_nodes" n
-                WHERE n."id" = e."target_node_id"
-                  AND n."stale_at_utc" IS NOT NULL
-             )
-           )`,
-      teamId,
-    );
-    edgesStaled = typeof result === "number" ? result : 0;
-    if (edgesStaled > 0) bump("graph_edge_removed_total", edgesStaled);
-  } catch {
-    /* best-effort — the timeline build already succeeded */
-  }
-
-  return { ok: true, eventCount, truncated, edgesStaled };
-}
 
 // =============================================================================
 // runSearchProjectionSync

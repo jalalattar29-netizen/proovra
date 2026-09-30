@@ -26,6 +26,7 @@ import {
 import {
   CANONICAL_WORK_REGISTRY,
   DLQ_SINKS,
+  RECONCILER_PENDING,
   type WorkRegistryEntry,
 } from "./registry.js";
 
@@ -111,11 +112,39 @@ export function findRegistryIntegrityViolations(
       [e.canonicalProcessor, "canonicalProcessor"],
       [e.workerRegistration, "workerRegistration"],
       [e.terminalWriter, "terminalWriter"],
-      [e.reconciler, "reconciler"],
     ] as const) {
       if (!field.trim()) {
         push(e.workName, "RegistryPhantomEntries", `${label} is empty`);
       }
+    }
+
+    // -- reconciler ---------------------------------------------------------
+    // ET-Q-07 (2026-09-30). `null` means "no module recovers this work" and is
+    // only legal when the entry is ALSO listed in RECONCILER_PENDING, so the
+    // absence is a declared backlog item rather than a blank. An empty string
+    // is never legal: it is neither a module nor an admission. The two
+    // directions are checked separately because they fail differently — an
+    // undeclared null hides a gap, and a pending entry that names a module
+    // keeps a backlog item alive after somebody closed it.
+    const pending = (RECONCILER_PENDING as ReadonlyArray<string>).includes(
+      e.workName,
+    );
+    if (e.reconciler === null) {
+      if (!pending) {
+        push(
+          e.workName,
+          "JobsWithoutReconciler",
+          "reconciler is null but the work is not declared in RECONCILER_PENDING",
+        );
+      }
+    } else if (!e.reconciler.trim()) {
+      push(e.workName, "RegistryPhantomEntries", "reconciler is empty");
+    } else if (pending) {
+      push(
+        e.workName,
+        "JobsWithoutReconciler",
+        "listed in RECONCILER_PENDING but names a reconciler; remove it from the list",
+      );
     }
 
     // -- idempotency + claim ----------------------------------------------

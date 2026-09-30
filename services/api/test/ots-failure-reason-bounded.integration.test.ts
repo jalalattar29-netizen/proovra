@@ -16,6 +16,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { boundedOtsFailureCode } from "@proovra/shared";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+// ET-PKG-07 — a record's id is not a public link: requests go through a share
+// link (the record is published and the link minted on first use).
+import { shareLinkFor } from "./helpers/verify-share.js";
 
 const RAW = "Command failed: ots stamp -c https://a.pool.opentimestamps.org /tmp/ots-Xy12/fingerprint-secret.json\nTimed out";
 
@@ -68,7 +71,7 @@ describe("OTS failure reason is bounded on every reader (live PostgreSQL 16)", (
         otsFailureReason: RAW,
       } as never,
     });
-    const res = await h.app.inject({ method: "GET", url: `/public/verify/${row.id}`, remoteAddress: "81.2.69.170" });
+    const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, row.id)}`, remoteAddress: "81.2.69.170" });
     expect(res.statusCode, res.body).toBe(200);
     expect(res.body).not.toContain("Command failed");
     expect(res.body).not.toContain("/tmp/ots-");

@@ -175,6 +175,7 @@ import { automationWebhooksRoutes } from "./routes/automation-webhooks.routes.js
 // every value is source-traceable to a real Prisma model.
 import { analyticsOperationsRoutes } from "./routes/analytics-operations.routes.js";
 import { governanceRoutes } from "./routes/governance.routes.js";
+import { verificationShareRoutes } from "./routes/verification-share.routes.js";
 import { workspaceAiPolicyRoutes } from "./routes/workspace-ai-policy.routes.js";
 import { aiCaseRoutes } from "./routes/ai-case.routes.js";
 import { aiReviewerRoutes } from "./routes/ai-reviewer.routes.js";
@@ -1400,6 +1401,8 @@ allowedHeaders: [
   await app.register(analyticsOperationsRoutes);
   // Phase 9 — Governance routes (policy + legal holds; authenticated only).
   await app.register(governanceRoutes);
+  // ET-PKG-07 — owner controls for public verification links.
+  await app.register(verificationShareRoutes);
   await app.register(workspaceAiPolicyRoutes);
   await app.register(aiCaseRoutes);
   await app.register(aiReviewerRoutes);

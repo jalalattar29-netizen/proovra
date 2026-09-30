@@ -8,7 +8,7 @@
  */
 import React from "react";
 import { View } from "react-native";
-import type { BasicVerification, ComponentVerificationState } from "@proovra/shared";
+import { storedBytesVerificationRow, type BasicVerification, type ComponentVerificationState } from "@proovra/shared";
 
 import { ProovraBadge, ProovraCard, ProovraSection, ProovraText } from "./index";
 
@@ -81,6 +81,8 @@ export function BasicVerificationView({ data }: { data: BasicVerification }) {
                   : "The integrity checks could not all be performed."
             }
           />
+          {/* ET-SM-07 — the stored file is a separate statement, with its own date. */}
+          {data.storedBytes ? <Row {...storedBytesVerificationRow(data.storedBytes)} /> : null}
           <Row
             label="Trusted timestamp (RFC 3161)"
             state={data.timestamp.state}

@@ -7,8 +7,14 @@
  *     staleness metadata,
  *   - the staleness policy uses the canonical "fresh | stale | missing"
  *     vocabulary,
- *   - the BullMQ refresh queue + worker are wired in the worker entrypoint,
- *   - the refresh processor scopes every count by the input teamId.
+ *   - the projection is refreshed ON READ by the Command Center, through the
+ *     one shared authority, which scopes every count by the input teamId.
+ *
+ * ET-Q-07 (2026-09-30) — the last two bullets used to read "the BullMQ refresh
+ * queue + worker are wired in the worker entrypoint" and "the refresh processor
+ * scopes every count". The `org-health-refresh` queue had no producer and was
+ * retired with its processor; see PART 2. The five-window history below is kept
+ * as written — two of the five windows it lists belonged to that processor.
  *
  * PHASE 13 (NEW-047, 2026-08-17) — THE WINDOWS ARE GONE.
  * ---------------------------------------------------------------------------
@@ -42,11 +48,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
-import {
-  JOB_NAMES,
-  QUEUE_NAMES,
-  getWorkEntryOrThrow,
-} from "@proovra/shared";
 
 import { buildCallGraph } from "../scripts/capability-authority/call-graph.mjs";
 import { prismaAccess } from "../scripts/capability-authority/tenant-binding.mjs";
@@ -69,8 +70,6 @@ const CMD_CENTER_MODULE =
   "services/api/src/services/dashboard/command-center.service.ts";
 const PROJECTION_MODULE =
   "packages/shared-runtime/src/org-health-projection.ts";
-const WORKER_PROCESSORS_MODULE = "services/worker/src/subsystem-queue-processors.ts";
-const WORKER_INDEX_MODULE = "services/worker/src/index.ts";
 
 /** What a matched Prisma count contributes, once its `where` has been read. */
 type CountHit = {
@@ -209,7 +208,6 @@ function readWorker(rel: string): string {
 const CMD_CENTER = readApi("src/services/dashboard/command-center.service.ts");
 const WORKER_QUEUE = readWorker("src/queue.ts");
 const WORKER_PROCESSORS = readWorker("src/subsystem-queue-processors.ts");
-const WORKER_INDEX = readWorker("src/index.ts");
 
 // =============================================================================
 // PART 1 — Command Center now imports + consumes projection
@@ -402,196 +400,39 @@ describe("Phase 37.98 — Command Center consumes projection", () => {
 });
 
 // =============================================================================
-// PART 2 — Worker queue + processor + worker registration
+// PART 2 — There is NO worker refresh pipeline (ET-Q-07, 2026-09-30)
 // =============================================================================
+//
+// This part used to be "refresh pipeline wired in worker": nine cases proving
+// that an `org-health-refresh` queue, its `processOrgHealthRefreshJob`
+// processor, its registration, its WorkerKind member and its shutdown were all
+// present and correct. They were — and every one of those cases was green
+// while the pipeline did nothing, because the queue had a consumer and NO
+// producer: `enqueueOrgHealthRefreshJob` had zero callers in every commit. A
+// suite that proves a chain is wired without proving anything feeds it is how
+// a dead queue stays CURRENT_RUNTIME.
+//
+// The queue, the processor, the registration and the enqueue helper are
+// deleted. What made the projection fresh was never that pipeline; it is the
+// read-time refresh PART 1 proves (`buildProjectionSummary` ->
+// `refreshOrgHealthProjection`), and PART 3 below still proves that authority
+// refuses a missing teamId and tenant-scopes every count — the two properties
+// the processor cases were really about, asserted where the counts live.
+//
+// That the queue STAYS retired is pinned by the one resurrection guard,
+// `services/worker/test/et-q-07-retired-queues-resurrection-guard.test.ts`.
 
-describe("Phase 37.98 — refresh pipeline wired in worker", () => {
-  it("the org-health chain has ONE queue name and ONE job name", () => {
-    // PHASE 12 — POINT 5: these were three source literals in queue.ts. They
-    // are now aliases of registry values, so the assertion moved to the value.
-    const entry = getWorkEntryOrThrow(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION);
-    expect(entry.queueName).toBe(QUEUE_NAMES.ORG_HEALTH_REFRESH);
-    expect(entry.workName).toBe("RefreshOrgHealthProjection");
-    expect(WORKER_QUEUE).toMatch(/orgHealthRefreshQueue\s*=\s*new Queue\(/);
-  });
-
-  it("the payload carries a REFERENCE, not a tenant assertion", () => {
-    // `OrgHealthRefreshJobPayload = { teamId }` is deleted. The command id IS
-    // the workspace id, and it is a reference that must resolve to a live Team
-    // whose Organization is still ACTIVE before any count runs.
-    expect(WORKER_QUEUE).not.toMatch(/export type OrgHealthRefreshJobPayload/);
-    expect(
-      getWorkEntryOrThrow(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION)
-        .durableAuthority.model,
-    ).toBe("Team");
-  });
-
-  it("the queue has bounded retry config (attempts + backoff)", () => {
-    const entry = getWorkEntryOrThrow(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION);
-    expect(entry.retry.attempts).toBeGreaterThan(0);
-    expect(entry.retry.attempts).toBeLessThanOrEqual(25);
-    expect(entry.retry.backoff).toBe("exponential");
-    expect(entry.retry.backoffDelayMs).toBeGreaterThan(0);
-  });
-
-  it("subsystem-queue-processors.ts exports processOrgHealthRefreshJob", () => {
-    expect(WORKER_PROCESSORS).toMatch(
+describe("Phase 37.98 — the projection has one writer path, and it is not a queue", () => {
+  it("the worker no longer carries an org-health refresh processor", () => {
+    expect(WORKER_PROCESSORS).not.toMatch(
       /export async function processOrgHealthRefreshJob/,
     );
   });
 
-  it("processor scopes every count by the input teamId (no cross-tenant scan)", () => {
-    // Was `slice(indexOf("processOrgHealthRefreshJob"), +5000)`. A 5000-character
-    // guess at where a function ends is wrong in both directions: it truncates a
-    // body that grows past it, hiding the very count that would fail, and it
-    // spills into the NEXT function, blaming this processor for a neighbour's
-    // unscoped query. The function body is a syntactic boundary; use it.
-    const cg = callGraph();
-    const start = resolveAuthority(
-      cg,
-      WORKER_PROCESSORS_MODULE,
-      "processOrgHealthRefreshJob",
-    );
-    expect(start.ok, `processor not declared: ${start.reason}`).toBe(true);
-    expect(start.via).toBe("DECLARATION");
-
-    // `maxDepth: 1`, not 0. The processor no longer counts inline: it
-    // DELEGATES to the one shared `refreshOrgHealthProjection` authority in
-    // `@proovra/shared-runtime`. That delegation is the fix — this processor
-    // used to carry its own copy of the arithmetic and the copy omitted the
-    // pipeline-status filter, so ten stalled uploads read as ten reports
-    // outstanding while the API path said zero.
-    //
-    // Following ONE hop does not weaken the assertion. It still proves the
-    // processor reaches real counts and that every one of them is
-    // tenant-scoped; what it no longer demands is that the counts be written
-    // in this file, which is the very duplication being removed.
-    // `maxDepth: 2` — MEASURED, not guessed: processor -> the shared
-    // `refreshOrgHealthProjection` -> `computeOrgHealthCounts`, where the four
-    // counts live. Two hops is the whole delegation chain.
-    const walk = reachesFrom(cg, start, { maxDepth: 2, match: anyCount });
-    expect(walk.reached, "the refresh processor reaches no counts at all").toBe(true);
-    for (const hit of walk.evidence as CountHit[]) {
-      expect(
-        hit.where.ok,
-        `${hit.model}.count has no statically readable where clause (${hit.where.reason})`,
-      ).toBe(true);
-      expectTenantScopedCount(hit, "in the worker refresh processor");
-    }
-    // The processor DELEGATES, so the canonical scope is resolved by the
-    // shared authority it calls — not in this file. Asserting it here would
-    // demand the Worker keep resolving scopes of its own, which is the
-    // duplication being removed. Assert it where it actually happens.
-    expectResolvesCanonicalScope(
-      readFileSync(
-        fileURLToPath(
-          new URL("../../../packages/shared-runtime/src/org-health-projection.ts", import.meta.url),
-        ),
-        "utf8",
-      ),
-      "the shared org-health authority the processor delegates to",
-    );
-  });
-
-  it("processor refuses an unresolvable workspace loudly (no global refresh)", () => {
-    // PHASE 12 — POINT 5 strengthened this. The old guard was `if (!teamId)`,
-    // which only caught an EMPTY string on the wire — a non-empty tampered one
-    // sailed through and refreshed a different workspace's projection. The
-    // workspace is now resolved from a Team row and its Organization must be
-    // ACTIVE, so a deleted, unknown or suspended target is refused before any
-    // count runs.
-    const cg = callGraph();
-    const start = resolveAuthority(
-      cg,
-      WORKER_PROCESSORS_MODULE,
-      "processOrgHealthRefreshJob",
-    );
-    expect(start.ok).toBe(true);
-
-    // The resolver must be THE canonical one. A same-named local helper would
-    // satisfy a text match and resolve to a different declaration here.
-    const resolverCall = reachesFrom(cg, start, {
-      maxDepth: 0,
-      match: callTo(cg, "resolveWorkspaceJob"),
-    });
-    expect(resolverCall.reached, "the processor never resolves the workspace").toBe(true);
-    expect(
-      (resolverCall.evidence[0] as { target: string | null }).target,
-      "resolveWorkspaceJob did not resolve to a declaration — a local shadow would " +
-        "pass a text match and refuse nothing",
-    ).not.toBeNull();
-
-    // And the refusal itself, as an IfStatement rather than as the exact
-    // characters `if (!ctx) return;`.
-    const guard = reachesFrom(cg, start, {
-      maxDepth: 0,
-      match: refusalGuardOn("ctx"),
-    });
-    expect(
-      guard.reached,
-      "the processor does not refuse an unresolved workspace before counting",
-    ).toBe(true);
-
-    // A log-event NAME is a string constant, and matching it against the source
-    // is exactly right — it is a statement about the declared text.
-    expect(WORKER_PROCESSORS).toMatch(/workspace_unresolved_or_inactive/);
-  });
-
-  it("worker/index.ts registers the processor under the org-health-refresh kind", () => {
-    // The old form was /"org-health-refresh"[\s\S]{0,200}orgHealthRefreshWorker/,
-    // and it passed for the WRONG REASON: the nearest match in the file is the
-    // SHUTDOWN tuple `["org-health-refresh", orgHealthRefreshWorker]`, ~180 lines
-    // below the registration this case claims to check. The registration could
-    // have been deleted outright and this would still have been green.
-    const cg = callGraph();
-    const entry = cg.graph.get(WORKER_INDEX_MODULE) as { decls: Map<string, unknown> };
-    expect(entry, "the worker entrypoint is not indexed").toBeTruthy();
-
-    const registration = entry.decls.get("orgHealthRefreshWorker") as
-      | { arguments?: Array<{ text?: string }>; expression?: { text?: string } }
-      | undefined;
-    expect(registration, "orgHealthRefreshWorker is not declared").toBeTruthy();
-    expect(ts.isCallExpression(registration)).toBe(true);
-    expect(registration!.expression?.text).toBe("safeRegisterWorker");
-    expect(
-      registration!.arguments?.[0]?.text,
-      "the worker is registered under a different kind",
-    ).toBe("org-health-refresh");
-
-    // …and the registered factory must hand BullMQ this processor, resolved
-    // through the entrypoint's import table rather than matched by name.
-    let handlerRef: unknown = null;
-    const visit = (node: unknown): void => {
-      if (
-        handlerRef === null &&
-        ts.isIdentifier(node) &&
-        (node as { text: string }).text === "processOrgHealthRefreshJob"
-      ) {
-        handlerRef = node;
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(registration);
-    expect(handlerRef, "the registration never names the processor").not.toBeNull();
-
-    const resolved = resolveReference(handlerRef, WORKER_INDEX_MODULE, cg) as
-      | { file: string; name: string }
-      | null;
-    expect(resolved?.file, "the registered handler is not the canonical processor").toBe(
-      WORKER_PROCESSORS_MODULE,
-    );
-    expect(resolved?.name).toBe("processOrgHealthRefreshJob");
-  });
-
-  it("worker shutdown closes the org-health-refresh worker + queue", () => {
-    expect(WORKER_INDEX).toMatch(
-      /\["org-health-refresh",\s*orgHealthRefreshWorker\]/,
-    );
-    expect(WORKER_INDEX).toMatch(/orgHealthRefreshQueue\.close\(\)/);
-  });
-
-  it("WorkerKind includes the new queue", () => {
-    expect(WORKER_INDEX).toMatch(/\|\s*"org-health-refresh"/);
+  it("the payload type that carried a tenant assertion stays deleted", () => {
+    // `OrgHealthRefreshJobPayload = { teamId }` was removed in PHASE 12 POINT 5
+    // and must not come back with a resurrected queue.
+    expect(WORKER_QUEUE).not.toMatch(/export type OrgHealthRefreshJobPayload/);
   });
 });
 

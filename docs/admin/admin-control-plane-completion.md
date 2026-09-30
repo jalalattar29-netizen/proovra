@@ -13,7 +13,7 @@
   artefact that backs it.
 -->
 
-**35 routes** · 35 completed · 0 pending · 1170 API routes traced
+**35 routes** · 35 completed · 0 pending · 1176 API routes traced
 
 ## Status
 
@@ -255,7 +255,7 @@
 | `/admin/platform-health` | 568 | 3c/0t/4s |  |
 | `/admin/platform/exports` | 860 | 0c/4t/0s |  |
 | `/admin/platform/media-graph` | 1135 | 0c/1t/6s |  |
-| `/admin/platform/observability` | 1664 | 0c/2t/0s |  |
+| `/admin/platform/observability` | 1670 | 0c/2t/0s |  |
 | `/admin/platform/queues` | 869 | 0c/2t/0s |  |
 | `/admin/platform/readiness` | 624 | 8c/0t/6s |  |
 | `/admin/platform/recovery` | 653 | 0c/2t/0s |  |

@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import {
   EVIDENCE_BULK_ACTIONS,
   EVIDENCE_BULK_MAX_IDS,
+  TRASH_KEEPS_PLAN_CAPACITY_COPY,
   evidenceBulkActionRequiresCase,
   type EvidenceBulkActionName,
 } from "@proovra/shared";
@@ -497,6 +498,11 @@ export function BulkActionsToolbar({
             <p className="evidence-library-muted">
               Bulk selection applies only to the records you selected in the currently loaded pages.
             </p>
+            {action === "TRASH" ? (
+              <p className="evidence-library-muted" data-evidence-trash-capacity-note>
+                {TRASH_KEEPS_PLAN_CAPACITY_COPY}
+              </p>
+            ) : null}
             {error ? (
               <div
                 className="app-alert app-alert--danger evidence-library-bulk-error"

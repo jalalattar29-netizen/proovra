@@ -145,12 +145,20 @@ export interface ClassifierResult {
 // names registered in services/api/src/services/investigation-diagnostics.service.ts.
 // ---------------------------------------------------------------------------
 
+//
+// ET-Q-07 (2026-09-30) — `graphDomainSync` and `graphTimelineSync` were removed
+// with their queues. Both named BullMQ queues that had a worker and no
+// producer, so their depth was always 0 and their lastError always null: the
+// timeline domain in particular watched ONLY `graphTimelineSync`, which means
+// it could never report PIPELINE_PENDING or PIPELINE_FAILED. The timeline is
+// projected from the graph tables, and the one job that writes those is the
+// graph reconcile — so that is the queue it watches now.
 const DOMAIN_QUEUE_KEYS: Readonly<Record<EmptyStateDomain, string[]>> = {
-  graph: ["graphReconcile", "graphDomainSync", "graphSearchProjection"],
-  timeline: ["graphTimelineSync"],
+  graph: ["graphReconcile", "graphSearchProjection"],
+  timeline: ["graphReconcile"],
   duplicates: ["mediaIntelligence", "graphReconcile"],
   reviewers: ["mediaIntelligence"],
-  relationships: ["graphReconcile", "graphDomainSync"],
+  relationships: ["graphReconcile"],
   overview: ["graphReconcile", "mediaIntelligence", "searchIndexing"],
 };
 

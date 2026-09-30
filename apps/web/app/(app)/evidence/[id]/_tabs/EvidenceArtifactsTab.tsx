@@ -43,6 +43,7 @@ import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { RuntimeStatusBanner } from "../../../../../components/operational";
 import { formatBytes } from "./_lib";
+import { PublicVerificationLinksPanel } from "../../../../../components/evidence-outputs/PublicVerificationLinksPanel";
 
 
 /**
@@ -631,7 +632,7 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           <ShieldCheck size={20} strokeWidth={2} />
         </span>
         <h2 className="evidence-detail-verify-card__title">
-          Latest verification link
+          {shareUrl ? "Legacy verification link" : "Public verification"}
         </h2>
         <div className="evidence-detail-verify-card__action" data-latest-artifact="verify">
           {shareUrl ? (
@@ -660,6 +661,15 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           </p>
         ) : null}
       </section>
+
+      {/* ET-PKG-07 — THE public links. The card above is only the LEGACY
+          record-id link (when this record has one); a public link is a share
+          token, created, revoked and rotated here. */}
+      <PublicVerificationLinksPanel
+        evidenceId={evidenceId}
+        teamId={workspace.reviewWorkflow?.teamId ?? null}
+        onChanged={() => void loadWorkspace()}
+      />
 
       {/* Only when something is downloadable: a downloads incident is about
           the download controls below, not about the record. */}

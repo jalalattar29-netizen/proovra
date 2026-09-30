@@ -102,14 +102,15 @@ const REQUIRED_WORKSPACE_KEYS = [
   "verificationPackageCount",
 ] as const;
 
+// ET-Q-07 (2026-09-30) — 9 keys -> 6. `graphDomainSync`, `graphTimelineSync`
+// and `miSearchIndex` reported on queues that had a worker and no producer, so
+// each row was a permanent depth-0 / no-error reading for a chain that never
+// ran. The queues were retired and their rows left the response with them.
 const REQUIRED_QUEUE_KEYS = [
   "graphReconcile",
-  "graphDomainSync",
-  "graphTimelineSync",
   "graphSearchProjection",
   "mediaIntelligence",
   "miEmbed",
-  "miSearchIndex",
   "searchIndexing",
   "report",
 ] as const;
@@ -297,12 +298,9 @@ describe("Wave 1 Phase 5 — InvestigationDiagnostics type carries all required 
       },
       queues: {
         graphReconcile: { depth: 0, lastError: null, lastRunAt: null },
-        graphDomainSync: { depth: 0, lastError: null, lastRunAt: null },
-        graphTimelineSync: { depth: 0, lastError: null, lastRunAt: null },
         graphSearchProjection: { depth: 0, lastError: null, lastRunAt: null },
         mediaIntelligence: { depth: 0, lastError: null, lastRunAt: null },
         miEmbed: { depth: 0, lastError: null, lastRunAt: null },
-        miSearchIndex: { depth: 0, lastError: null, lastRunAt: null },
         searchIndexing: { depth: 0, lastError: null, lastRunAt: null },
         report: { depth: 0, lastError: null, lastRunAt: null },
       },

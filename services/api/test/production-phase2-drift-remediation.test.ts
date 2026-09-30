@@ -1214,7 +1214,19 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // This is a rebaseline, not a silenced gate: the pin exists to catch an
 // UNAUDITED route add, and this one is argued for above. It continues to
 // catch the next unexplained file.
-const ROUTE_COUNT_PHASE_2_BASELINE = 132;
+//
+// 132 -> 133 (2026-09-30, ET-PKG-07): `verification-share.routes.ts`.
+//
+// The owner controls for public verification links: list, create, revoke and
+// rotate a record's share links, end its legacy record-id link, and read the
+// workspace's legacy-link inventory. They exist because public verification
+// was reachable by the record's primary key with no expiry, rotation or
+// per-recipient revocation, and the owner decision replaced that with opaque
+// share tokens — which need somewhere to be managed. A file of its own rather
+// than six more routes in the 14,000-line evidence.routes.ts: every route
+// here asks one authority (evidence.publish_verify on the record) and owns
+// nothing else.
+const ROUTE_COUNT_PHASE_2_BASELINE = 133;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

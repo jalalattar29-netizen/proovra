@@ -34,9 +34,34 @@ const files = TREES.flatMap((t) => walk(join(ROOT, t))).map((p) => ({
 describe("evidence reservation has one authority", () => {
   it("the reservation window and the counted-record predicate are defined once", () => {
     const definers = files
-      .filter((f) => /\b(const|function)\s+(EVIDENCE_RESERVATION_TTL_MS|countedEvidenceRecordWhere|expiredEvidenceReservationWhere)\b/.test(f.source))
+      .filter((f) => /\b(const|function)\s+(EVIDENCE_RESERVATION_TTL_MS|countedEvidenceRecordWhere|allowanceSlotEvidenceWhere|expiredEvidenceReservationWhere)\b/.test(f.source))
       .map((f) => f.path);
     expect(definers).toEqual([CANONICAL]);
+  });
+
+  it("the allowance-slot population is the only counted predicate any caller can reach (ET-COM-02)", () => {
+    // The reservation half is private to the authority: a caller that could
+    // import it would have to add the lifecycle half by hand, and the defect
+    // this closes was exactly a hand-written `deletedAt: null` beside it.
+    const canonical = files.find((f) => f.path === CANONICAL)!;
+    expect(canonical.source).not.toMatch(/export function countedEvidenceRecordWhere\b/);
+    expect(canonical.source).toMatch(/export function allowanceSlotEvidenceWhere\b/);
+    const outside = files
+      .filter((f) => f.path !== CANONICAL && /\bcountedEvidenceRecordWhere\b/.test(f.source))
+      .map((f) => f.path);
+    expect(outside).toEqual([]);
+    // Every consumer composes it under AND; none spreads a population beside
+    // it (a spread `AND` key is overwritten — the meter that did so counted
+    // every record in the database).
+    const spreaders = files
+      .filter((f) => /\.\.\.[A-Za-z]+Where,\s*AND:\s*\[allowanceSlotEvidenceWhere\(/.test(f.source))
+      .map((f) => f.path);
+    expect(spreaders).toEqual([]);
+    // …and the settlement cursor is a condition inside that AND, not a spread
+    // object with an AND of its own (which dropped the predicate at settlement).
+    const enforcement = files.find((f) => f.path === "services/api/src/services/billing-enforcement.service.ts")!;
+    expect(enforcement.source).not.toMatch(/\.\.\.createdBeforeEvidence/);
+    expect(enforcement.source).toMatch(/AND: \[\s*allowanceSlotEvidenceWhere\(\),\s*createdBeforeEvidenceCondition\(settlingEvidence\),\s*\]/);
   });
 
   it("every releaser goes through releaseEvidenceReservationTx", () => {

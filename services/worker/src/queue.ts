@@ -35,14 +35,12 @@ import {
   // PHASE 12 POINT 5 — the ONE enqueue authority + the ONE job registry.
   JOB_NAMES,
   QUEUE_NAMES,
-  buildGraphDomainCommandId,
   buildSearchIndexCommandId,
   buildCanonicalJobId,
   enqueueCanonicalJob,
   getWorkEntryOrThrow,
   isLiveQueueJobState,
   selfFollowUpJobId,
-  type GraphSyncDomain,
   type QueueHandleLike,
   type SearchIndexDocumentKind,
   type WorkName,
@@ -76,24 +74,14 @@ export const derivedAssetsQueueName = QUEUE_NAMES.DERIVED_ASSETS;
 export const derivedAssetsJobName = JOB_NAMES.GENERATE_DERIVED_ASSET;
 export const redactionDerivativeQueueName = REDACTION_DERIVATIVE_QUEUE_NAME;
 export const redactionDerivativeJobName = REDACTION_DERIVATIVE_JOB_NAME;
-export const exifQueueName = QUEUE_NAMES.MI_EXIF;
-export const exifJobName = JOB_NAMES.EXTRACT_EXIF;
-export const miSearchIndexQueueName = QUEUE_NAMES.MI_SEARCH_INDEX;
-export const miSearchIndexJobName = JOB_NAMES.INDEX_MEDIA_INTELLIGENCE;
 export const miEmbedQueueName = QUEUE_NAMES.MI_EMBED;
 export const miEmbedJobName = JOB_NAMES.EMBED_SEMANTIC_CHUNKS;
 export const graphReconcileQueueName = QUEUE_NAMES.GRAPH_RECONCILE;
 export const graphReconcileJobName = JOB_NAMES.RECONCILE_TEAM_GRAPH;
-export const graphDomainSyncQueueName = QUEUE_NAMES.GRAPH_DOMAIN_SYNC;
-export const graphDomainSyncJobName = JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN;
-export const graphTimelineSyncQueueName = QUEUE_NAMES.GRAPH_TIMELINE_SYNC;
-export const graphTimelineSyncJobName = JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE;
 export const graphSearchProjectionQueueName =
   QUEUE_NAMES.GRAPH_SEARCH_PROJECTION;
 export const graphSearchProjectionJobName =
   JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION;
-export const orgHealthRefreshQueueName = QUEUE_NAMES.ORG_HEALTH_REFRESH;
-export const orgHealthRefreshJobName = JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION;
 
 /** @deprecated Import `SearchIndexDocumentKind` from `@proovra/shared`. */
 export type SearchIndexingDocumentKind = SearchIndexDocumentKind;
@@ -251,8 +239,12 @@ async function enqueueWork(
     traceparent: currentTraceparent(),
     selfJobId: options.selfJobId,
   });
+  // ET-Q-07 (2026-09-30) — carry `collapsed`, as `enqueueOtsUpgradeJob` already
+  // does (ET-REC-01). It was dropped here, so a reconciler could not tell
+  // "scheduled new work" from "joined work that was already live" and counted
+  // both as a re-enqueue.
   return outcome.enqueued
-    ? { enqueued: true, jobId: outcome.jobId }
+    ? { enqueued: true, jobId: outcome.jobId, collapsed: outcome.collapsed === true }
     : { enqueued: false, reason: outcome.reason };
 }
 
@@ -321,18 +313,18 @@ export const redactionDerivativeQueue = new Queue(
   queueOptions(JOB_NAMES.RENDER_REDACTION_DERIVATIVE),
 );
 
-export const exifQueue = new Queue(
-  exifQueueName,
-  queueOptions(JOB_NAMES.EXTRACT_EXIF),
-);
-
-export const miSearchIndexQueue = new Queue(
-  miSearchIndexQueueName,
-  queueOptions(JOB_NAMES.INDEX_MEDIA_INTELLIGENCE, {
-    removeOnComplete: 200,
-    removeOnFail: 200,
-  }),
-);
+// ET-Q-07 (2026-09-30) — FIVE Queue objects used to be declared in this block
+// that are gone: `exifQueue` (`mi-exif`), `miSearchIndexQueue`
+// (`mi-search-index`), `graphDomainSyncQueue` (`graph-domain-sync`),
+// `graphTimelineSyncQueue` (`graph-timeline-sync`) and `orgHealthRefreshQueue`
+// (`org-health-refresh`). Each had a worker bound to it and an enqueue helper
+// further down — and the helper had ZERO callers in every commit, so no job
+// ever reached any of them. They are retired together with their helpers,
+// processors, registrations and registry entries. A future feature that needs
+// one must reintroduce it end to end (producer, consumer, idempotency, retries,
+// reconciliation, DLQ, runtime proof);
+// `test/et-q-07-retired-queues-resurrection-guard.test.ts` fails on the Queue
+// object alone.
 
 export const miEmbedQueue = new Queue(
   miEmbedQueueName,
@@ -347,28 +339,10 @@ export const graphReconcileQueue = new Queue(
   queueOptions(JOB_NAMES.RECONCILE_TEAM_GRAPH, { removeOnComplete: 50 }),
 );
 
-export const graphDomainSyncQueue = new Queue(
-  graphDomainSyncQueueName,
-  queueOptions(JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN, { removeOnComplete: 50 }),
-);
-
-export const graphTimelineSyncQueue = new Queue(
-  graphTimelineSyncQueueName,
-  queueOptions(JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE, { removeOnComplete: 50 }),
-);
-
 export const graphSearchProjectionQueue = new Queue(
   graphSearchProjectionQueueName,
   queueOptions(JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION, {
     removeOnComplete: 50,
-  }),
-);
-
-export const orgHealthRefreshQueue = new Queue(
-  orgHealthRefreshQueueName,
-  queueOptions(JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION, {
-    removeOnComplete: 100,
-    removeOnFail: 100,
   }),
 );
 
@@ -584,54 +558,40 @@ export async function enqueueMediaIntelligenceRunById(
   );
 }
 
-/** Derived assets: the `MediaIntelligenceRun` row is the authority. */
+/**
+ * Derived assets: the `EvidencePartDerivedAsset` row is the authority.
+ *
+ * ET-Q-07 (2026-09-30) — this comment said "the `MediaIntelligenceRun` row is
+ * the authority" and the parameter was called `runId`. Both were wrong: the
+ * processor loads `evidencePartDerivedAsset` by the command id, exactly as the
+ * API producer (`enqueueDerivedAssetGeneration`) supplies it. The helper also
+ * had no caller. It now has one — the stranded-PENDING scan in
+ * `intelligence-run-reconciler.ts` — and because it names the same registry
+ * entry and the same command id as the API producer, both paths build the
+ * identical job id (`mi-derived-<rowId>`), which is what makes a recovery
+ * enqueue collapse onto a job that is still live.
+ */
 export async function enqueueDerivedAssetJob(
-  runId: string,
+  derivedAssetId: string,
   options: { delayMs?: number; traceId?: string } = {},
 ): Promise<WorkEnqueueResult> {
+  if (!derivedAssetId.trim()) {
+    return { enqueued: false, reason: "derived_asset_id_required" };
+  }
   return enqueueWork(
     derivedAssetsQueue,
     JOB_NAMES.GENERATE_DERIVED_ASSET,
-    runId,
+    derivedAssetId,
     { traceId: options.traceId, delayMs: options.delayMs },
   );
 }
 
-/**
- * EXIF extraction: the evidence PART is the authority.
- *
- * `mi-exif` and `media-intelligence` used to share one processor AND one
- * payload shape, which meant one function had two identities and its command
- * meant different things depending on which queue delivered it. They are now
- * separate work names with separate authorities: an EXIF job addresses the part
- * whose bytes it reads, and a media-intelligence job addresses the run row that
- * tracks its lifecycle.
- */
-export async function enqueueExifJob(
-  evidencePartId: string,
-  options: { delayMs?: number; traceId?: string } = {},
-): Promise<WorkEnqueueResult> {
-  if (!evidencePartId.trim()) {
-    return { enqueued: false, reason: "evidence_part_id_required" };
-  }
-  return enqueueWork(exifQueue, JOB_NAMES.EXTRACT_EXIF, evidencePartId, {
-    traceId: options.traceId,
-    delayMs: options.delayMs,
-  });
-}
-
-/** Media-intelligence reindex: the Evidence row is the authority. */
-export async function enqueueMiSearchIndexJob(
-  evidenceId: string,
-  options: { delayMs?: number; reason?: string } = {},
-): Promise<WorkEnqueueResult> {
-  return enqueueWork(
-    miSearchIndexQueue,
-    JOB_NAMES.INDEX_MEDIA_INTELLIGENCE,
-    evidenceId,
-    { traceId: options.reason, delayMs: options.delayMs },
-  );
-}
+// ET-Q-07 (2026-09-30) — `enqueueExifJob`, `enqueueMiSearchIndexJob`,
+// `enqueueGraphDomainSyncJob`, `enqueueGraphTimelineSyncJob` and
+// `enqueueOrgHealthRefreshJob` were DELETED from this section. Each was the
+// only way a job could reach its queue, and none had a caller in any commit.
+// A helper with no caller is not a producer; it is the reason the five queues
+// looked wired when nothing fed them.
 
 /**
  * Semantic embedding: the ANCHOR chunk is the authority.
@@ -676,46 +636,6 @@ export async function enqueueGraphReconcileJob(
   );
 }
 
-/**
- * Narrowed graph sync.
- *
- * The domain filter is encoded into the command id against a CLOSED catalog, so
- * an unknown domain fails at the producer. It used to be an optional payload
- * field, which meant an unknown value produced a job the processor silently
- * completed as a no-op — a request that looked accepted and did nothing.
- */
-export async function enqueueGraphDomainSyncJob(
-  workspaceId: string,
-  domain: GraphSyncDomain | null | undefined,
-  options: { delayMs?: number; reason?: string } = {},
-): Promise<WorkEnqueueResult> {
-  let commandId: string;
-  try {
-    commandId = buildGraphDomainCommandId(domain, workspaceId);
-  } catch {
-    return { enqueued: false, reason: "unknown_graph_domain" };
-  }
-  return enqueueWork(
-    graphDomainSyncQueue,
-    JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN,
-    commandId,
-    { traceId: options.reason, delayMs: options.delayMs, removeOnComplete: 50 },
-  );
-}
-
-/** Timeline projection refresh: the workspace row is the authority. */
-export async function enqueueGraphTimelineSyncJob(
-  workspaceId: string,
-  options: { delayMs?: number; reason?: string } = {},
-): Promise<WorkEnqueueResult> {
-  return enqueueWork(
-    graphTimelineSyncQueue,
-    JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
-    workspaceId,
-    { traceId: options.reason, delayMs: options.delayMs, removeOnComplete: 50 },
-  );
-}
-
 /** Graph-derived search hints refresh: the workspace row is the authority. */
 export async function enqueueGraphSearchProjectionJob(
   workspaceId: string,
@@ -726,24 +646,6 @@ export async function enqueueGraphSearchProjectionJob(
     JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
     workspaceId,
     { traceId: options.reason, delayMs: options.delayMs, removeOnComplete: 50 },
-  );
-}
-
-/** Organization-health projection refresh: the workspace row is the authority. */
-export async function enqueueOrgHealthRefreshJob(
-  workspaceId: string,
-  options: { delayMs?: number; reason?: string } = {},
-): Promise<WorkEnqueueResult> {
-  return enqueueWork(
-    orgHealthRefreshQueue,
-    JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION,
-    workspaceId,
-    {
-      traceId: options.reason,
-      delayMs: options.delayMs,
-      removeOnComplete: 100,
-      removeOnFail: 100,
-    },
   );
 }
 

@@ -79,7 +79,14 @@ describe("owed-output backlog agreement (live PostgreSQL 16)", () => {
     });
     const caseId = await backlog(B.teamId, B.ownerUserId);
 
-    expect(await outputEntitledEvidenceWhere({ teamId: B.teamId })).toEqual({ id: { in: [] } });
+    // No credit-funded record, and (ET-COM-04) only records that stored an
+    // earned fact at finalization remain owed — the backlog rows here have none.
+    expect(await outputEntitledEvidenceWhere({ teamId: B.teamId })).toEqual({
+      OR: [
+        { id: { in: [] } },
+        { outputEarnedBasis: { in: ["PAID_SUBSCRIPTION", "TRIAL", "PAYMENT_GRACE"] } },
+      ],
+    });
     const risk = await computeCaseRisk({ teamId: B.teamId, caseId });
     expect(risk.reasonCodes).not.toContain("REPORT_MISSING");
     expect(risk.evidenceGapCount).toBe(0);

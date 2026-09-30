@@ -17,6 +17,7 @@
  *
  * Pure: no React, no react-native, no fetch.
  */
+import { planLapseCopy, recordsInTrashAllowanceCopy, PLAN_LAPSE_STATES, type PlanLapseState } from "@proovra/shared";
 import type { ProovraStatusTone } from "@proovra/ui";
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -57,6 +58,10 @@ export interface EvidenceAdmissionModel {
   effectiveLifetimeCap: number | null;
   capSource: string;
   recordsHeld: number;
+  /** ET-COM-02 — of `recordsHeld`, how many are in Trash (null when the API omits it). */
+  recordsInTrash: number | null;
+  /** ET-COM-04 — present only while the paid plan has lapsed (null otherwise). */
+  planLapse: { lapsedPlan: string; lapsedPlanLabel: string; state: PlanLapseState } | null;
   creditsAvailable: number;
   planCapacityRemaining: number | null;
   overCap: boolean;
@@ -221,6 +226,8 @@ export function parseBillingProjection(payload: unknown): BillingProjection {
           effectiveLifetimeCap: num(adm.effectiveLifetimeCap),
           capSource: str(adm.capSource) ?? "PLAN_DEFAULT",
           recordsHeld: num(adm.recordsHeld) ?? 0,
+          recordsInTrash: num(adm.recordsInTrash),
+          planLapse: parsePlanLapse(adm.planLapse),
           creditsAvailable: num(adm.creditsAvailable) ?? 0,
           planCapacityRemaining: num(adm.planCapacityRemaining),
           overCap: adm.overCap === true,
@@ -409,6 +416,17 @@ export function describeMeter(meter: UsageMeter): { headline: string; detail: st
   }
 }
 
+/** `planLapse` from the wire: an unknown state is no lapse block, never a guessed one. */
+function parsePlanLapse(v: unknown): EvidenceAdmissionModel["planLapse"] {
+  const o = obj(v);
+  const state = str(o.state);
+  const lapsedPlan = str(o.lapsedPlan);
+  const lapsedPlanLabel = str(o.lapsedPlanLabel);
+  if (!state || !lapsedPlan || !lapsedPlanLabel) return null;
+  if (!(PLAN_LAPSE_STATES as readonly string[]).includes(state)) return null;
+  return { lapsedPlan, lapsedPlanLabel, state: state as PlanLapseState };
+}
+
 /** format.ts `describeEvidenceAdmission`. */
 export function describeEvidenceAdmission(
   a: EvidenceAdmissionModel,
@@ -430,6 +448,8 @@ export function describeEvidenceAdmission(
         : `That is ${over} more than the ${cap.toLocaleString()} your plan includes. Nothing has been removed.`,
     );
   }
+  const inTrash = recordsInTrashAllowanceCopy(a.recordsInTrash);
+  if (inTrash) parts.push(inTrash);
   let next: string;
   if (a.next.allowed) {
     if (a.next.funding === "PLAN") {
@@ -444,6 +464,17 @@ export function describeEvidenceAdmission(
     next = "This account records with credits. One evidence credit covers the next record.";
   } else {
     next = "Your included records are used up. One evidence credit covers the next record; a larger plan raises the included allowance.";
+  }
+  if (a.planLapse) {
+    const lapse = planLapseCopy({
+      state: a.planLapse.state,
+      lapsedPlanLabel: a.planLapse.lapsedPlanLabel,
+      freeAllowanceRemaining: a.planCapacityRemaining ?? 0,
+      creditsAvailable: credits,
+    });
+    parts.unshift(lapse.headline);
+    parts.push(lapse.outputs);
+    next = lapse.nextRecord;
   }
   const needsAction = !a.next.allowed || a.next.funding === "EVIDENCE_CREDIT";
   const action = !needsAction ? null : options.canBuyCredits ? "BUY_CREDITS" : options.hasPlanOffer ? "SEE_PLANS" : null;

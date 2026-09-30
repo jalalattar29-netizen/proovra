@@ -7,7 +7,12 @@
  * policy change and must be made on purpose.
  */
 import { describe, expect, it } from "vitest";
-import { resolveOutputIssuanceEntitlement } from "@proovra/shared-billing";
+import {
+  outputEarnedFactFromDecision,
+  readOutputEarnedFact,
+  resolveEvidenceCreationPlan,
+  resolveOutputIssuanceEntitlement,
+} from "@proovra/shared-billing";
 
 const lc = (state: string, providerStatus: string | null = "ACTIVE") =>
   ({ state, providerStatus }) as Parameters<typeof resolveOutputIssuanceEntitlement>[0]["lifecycle"];
@@ -65,5 +70,98 @@ describe("resolveOutputIssuanceEntitlement", () => {
       expect(d.reportsIncluded).toBe(false);
       expect(d.mayIssueHistoricalFirstOutputs).toBe(false);
     }
+  });
+});
+
+/**
+ * ET-COM-04 (owner decision 2026-09-30) — a billing lapse is not a revocation,
+ * and not a lockout.
+ */
+describe("the stored funding fact and the lapsed creation plan (ET-COM-04)", () => {
+  it("a record that earned its outputs at finalization keeps them through a lapse or an ended subscription", () => {
+    for (const lifecycle of [lc("PAST_DUE_EXPIRED", "PAST_DUE"), lc("CANCELLED", "CANCELED"), null]) {
+      const d = resolveOutputIssuanceEntitlement({
+        plan: "PRO",
+        funding: "PLAN",
+        lifecycle,
+        earned: { plan: "PRO", basis: "PAID_SUBSCRIPTION" },
+      });
+      expect(d).toMatchObject({
+        decision: "ENTITLED",
+        basis: "EARNED_AT_FINALIZATION",
+        reportsIncluded: true,
+        verificationPackageIncluded: true,
+        mayIssueHistoricalFirstOutputs: true,
+      });
+    }
+  });
+
+  it("the fact survives the account's plan being rewritten to FREE", () => {
+    const d = resolveOutputIssuanceEntitlement({
+      plan: "FREE",
+      funding: "PLAN",
+      lifecycle: lc("INACTIVE", null),
+      earned: { plan: "PRO", basis: "PAID_SUBSCRIPTION" },
+    });
+    expect(d).toMatchObject({ decision: "ENTITLED", basis: "EARNED_AT_FINALIZATION" });
+  });
+
+  it("no fact, or a fact on a plan that includes no outputs, changes nothing", () => {
+    expect(
+      resolveOutputIssuanceEntitlement({ plan: "PRO", funding: "PLAN", lifecycle: lc("PAST_DUE_EXPIRED", "PAST_DUE"), earned: null }),
+    ).toMatchObject({ decision: "NOT_ENTITLED", basis: "PAYMENT_LAPSED" });
+    expect(
+      resolveOutputIssuanceEntitlement({
+        plan: "PRO",
+        funding: "PLAN",
+        lifecycle: lc("PAST_DUE_EXPIRED", "PAST_DUE"),
+        earned: { plan: "FREE", basis: "PAID_SUBSCRIPTION" },
+      }),
+    ).toMatchObject({ decision: "NOT_ENTITLED", basis: "PAYMENT_LAPSED" });
+  });
+
+  it("only an ENTITLED plan-basis decision is stored; FREE, lapsed, unresolved and credit decisions store nothing", () => {
+    const store = (plan: "PRO" | "FREE", lifecycle: ReturnType<typeof lc>, funding: "PLAN" | "EVIDENCE_CREDIT" = "PLAN") =>
+      outputEarnedFactFromDecision({ plan, decision: resolveOutputIssuanceEntitlement({ plan, funding, lifecycle }) });
+    expect(store("PRO", lc("ACTIVE", "ACTIVE"))).toEqual({ plan: "PRO", basis: "PAID_SUBSCRIPTION" });
+    expect(store("PRO", lc("ACTIVE", "TRIALING"))).toEqual({ plan: "PRO", basis: "TRIAL" });
+    expect(store("PRO", lc("GRACE", "PAST_DUE"))).toEqual({ plan: "PRO", basis: "PAYMENT_GRACE" });
+    expect(store("PRO", lc("PAST_DUE_EXPIRED", "PAST_DUE"))).toBeNull();
+    expect(store("PRO", null)).toBeNull();
+    expect(store("FREE", lc("INACTIVE", null))).toBeNull();
+    // A credit-funded record's fact is its ledger row, not this column.
+    expect(store("FREE", lc("INACTIVE", null), "EVIDENCE_CREDIT")).toBeNull();
+  });
+
+  it("stored columns written by anything but the completion path are not a fact", () => {
+    expect(readOutputEarnedFact(null)).toBeNull();
+    expect(readOutputEarnedFact({ outputEarnedPlan: "PRO", outputEarnedBasis: null })).toBeNull();
+    expect(readOutputEarnedFact({ outputEarnedPlan: "PRO", outputEarnedBasis: "EVIDENCE_CREDIT" })).toBeNull();
+    expect(readOutputEarnedFact({ outputEarnedPlan: "PRO", outputEarnedBasis: "PAID_SUBSCRIPTION" })).toEqual({
+      plan: "PRO",
+      basis: "PAID_SUBSCRIPTION",
+    });
+  });
+
+  it("a lapsed personal plan creates on the FREE policy; a lapsed shared workspace has none; nothing else changes", () => {
+    expect(resolveEvidenceCreationPlan({ plan: "PRO", billingShape: "SINGLE_OCCUPANT", lifecycleAllowsPaidMutations: false })).toEqual({
+      lapsed: true,
+      creationPlan: "FREE",
+      lapsedPlan: "PRO",
+    });
+    expect(resolveEvidenceCreationPlan({ plan: "TEAM", billingShape: "SHARED", lifecycleAllowsPaidMutations: false })).toEqual({
+      lapsed: true,
+      creationPlan: null,
+      lapsedPlan: "TEAM",
+    });
+    for (const allows of [true, undefined]) {
+      expect(
+        resolveEvidenceCreationPlan({ plan: "PRO", billingShape: "SINGLE_OCCUPANT", lifecycleAllowsPaidMutations: allows }),
+      ).toEqual({ lapsed: false, creationPlan: "PRO" });
+    }
+    expect(resolveEvidenceCreationPlan({ plan: "FREE", billingShape: "SINGLE_OCCUPANT", lifecycleAllowsPaidMutations: false })).toEqual({
+      lapsed: false,
+      creationPlan: "FREE",
+    });
   });
 });

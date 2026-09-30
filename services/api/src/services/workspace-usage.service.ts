@@ -1,6 +1,6 @@
 import * as prismaPkg from "@prisma/client";
 import { prisma } from "../db.js";
-import { countedEvidenceRecordWhere, evidenceScopeFor } from "@proovra/shared-runtime";
+import { allowanceSlotEvidenceWhere, evidenceScopeFor } from "@proovra/shared-runtime";
 import { sumDerivedAssetStorageBytes } from "@proovra/shared-runtime";
 import type { WorkspaceScope } from "./workspace-billing.service.js";
 import {
@@ -379,10 +379,17 @@ export async function getWorkspaceUsage(
       where: verificationPackageWhere,
       _sum: { sizeBytes: true },
     }),
-    // ET-INT-03 — the record meter counts established records and live
-    // reservations only (the storage sum above still counts stored bytes).
+    // ET-INT-03 / ET-COM-02 — the record meter counts the allowance-slot
+    // population (established records and live reservations; a trashed record
+    // keeps its slot), the same predicate the admission gate counts. The
+    // storage sums above still count stored bytes.
+    //
+    // (2026-09-30) This read `{ ...evidenceWhere, AND: [counted] }`. Since
+    // ET-SEC-22 `evidenceWhere` IS an `AND`, so the spread was overwritten and
+    // the WORKSPACE POPULATION was dropped: the meter counted every record in
+    // the database. Composed, never spread.
     prisma.evidence.count({
-      where: { ...evidenceWhere, AND: [countedEvidenceRecordWhere()] },
+      where: { AND: [populationWhere, allowanceSlotEvidenceWhere()] },
     }),
     scope.teamId
       ? prisma.teamMember.count({

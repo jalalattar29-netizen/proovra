@@ -10,16 +10,38 @@
  * ---------------------------------------------------------------------------
  * THE REAL TOPOLOGY (measured from the tree, not assumed)
  * ---------------------------------------------------------------------------
- *   17 BullMQ Queue objects = 15 PROCESSED queues + 2 DLQ sinks
- *   15 job names            = one per processed queue, 1:1
- *   15 worker registrations = one per processed queue, 1:1
- *   18 DB-outbox sweeps     = scheduler + processor pairs
+ *   12 BullMQ Queue objects = 10 PROCESSED queues + 2 DLQ sinks
+ *   10 job names            = one per processed queue, 1:1
+ *   10 worker registrations = one per processed queue, 1:1
+ *   20 DB-outbox sweeps     = scheduler + processor pairs
  *                             (17 until ARCH-005 added AutomationDispatchSweep
- *                             on 2026-08-07; see SWEEP_NAMES for why Automation
- *                             is an outbox sweep and not a BullMQ queue)
+ *                             on 2026-08-07, 18 until TrashGraceReconciliationSweep
+ *                             on 2026-08-24, 19 until ET-SM-07 added
+ *                             IntegrityRecheckSweep on 2026-09-30; see
+ *                             SWEEP_NAMES for why Automation is an outbox sweep
+ *                             and not a BullMQ queue)
  *    2 telemetry samplers    (observability heartbeat, queue-health sampler —
  *                             they process no durable work and own no state,
  *                             so they are not Point-5 processors)
+ *
+ * ET-Q-07 (2026-09-30) — the counts moved from 15 to 10 processed queues when
+ * FIVE PRODUCERLESS QUEUES WERE RETIRED: `mi-exif`, `mi-search-index`,
+ * `graph-domain-sync`, `graph-timeline-sync` and `org-health-refresh`. Each had
+ * a registered worker, a registry entry marked CURRENT_RUNTIME, a legacy
+ * adapter, an Operations inventory row and a replay policy — and no producer.
+ * Their enqueue helpers had zero callers in every commit since they were
+ * introduced, so none of them ever received a job: five idle workers, five idle
+ * Redis connections, and five rows telling an operator that work was flowing
+ * through chains nothing fed. The proof is
+ * `docs/evidence/audits/definitive-evidence-lifecycle-remediation/evidence/ET-Q-07-no-producer-proof.txt`.
+ *
+ * The header above had also drifted on its own: it said 18 sweeps while
+ * SWEEP_NAMES held 19. It is recounted here from the constants below.
+ *
+ * A future feature that needs one of those five must reintroduce it END TO END
+ * — producer, consumer, idempotency, retries, reconciliation, DLQ and a runtime
+ * proof — not by re-adding a name. `services/worker/test/
+ * et-q-07-retired-queues-resurrection-guard.test.ts` fails on the name alone.
  *
  * PHASE 12 POINT 5 — the counts moved from 17 to 15 processed queues when the
  * `mi-ocr` and `mi-transcript` queues were removed. They were a SECOND
@@ -32,7 +54,7 @@
  *
  * The two DLQ sinks (`report-dlq`, `media-intelligence-dlq`) are queues with no
  * job name and no worker: failed jobs are moved into them for operator triage.
- * That is why the queue count (19) and the registration count (17) differ, and
+ * That is why the queue count (12) and the registration count (10) differ, and
  * it is the single reconciliation behind what looked like a missing-coverage
  * gap.
  */
@@ -85,14 +107,9 @@ export const QUEUE_NAMES = {
   MEDIA_INTELLIGENCE: "media-intelligence",
   MEDIA_INTELLIGENCE_DLQ: "media-intelligence-dlq",
   DERIVED_ASSETS: "mi-derived-assets",
-  MI_EXIF: "mi-exif",
-  MI_SEARCH_INDEX: "mi-search-index",
   MI_EMBED: "mi-embed",
   GRAPH_RECONCILE: "graph-reconcile",
-  GRAPH_DOMAIN_SYNC: "graph-domain-sync",
-  GRAPH_TIMELINE_SYNC: "graph-timeline-sync",
   GRAPH_SEARCH_PROJECTION: "graph-search-projection",
-  ORG_HEALTH_REFRESH: "org-health-refresh",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -100,18 +117,19 @@ export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 /**
  * The `mi-` prefix means MEDIA intelligence — not machine intelligence.
  *
- * It is recorded here because the abbreviation is genuinely ambiguous and the
- * ambiguity has already cost something: `mi-search-index` and `mi-embed` are
- * search/reconciliation work that happens to be produced by the media-
- * intelligence subsystem, while `mi-exif` and `mi-derived-assets` are
- * extraction work. Reading the prefix as a family assignment would put two
- * reconciliation jobs in the intelligence family.
+ * It is recorded here because the abbreviation is genuinely ambiguous:
+ * `mi-embed` computes embedding vectors for the search subsystem, while
+ * `mi-derived-assets` is extraction work on evidence bytes. Reading the prefix
+ * as a family assignment would be a guess.
  *
  * The prefix is retained rather than renamed because a queue name is a
- * PRODUCTION IDENTITY: renaming `mi-exif` strands every job already sitting in
+ * PRODUCTION IDENTITY: renaming `mi-embed` strands every job already sitting in
  * Redis under the old key, with no drain path that does not lose work. The
  * family mapping in `registry.ts` carries the meaning instead, and each entry
  * states its reason.
+ *
+ * ET-Q-07 (2026-09-30) — this note used to cite `mi-search-index` and `mi-exif`
+ * as its examples. Both were retired with no producer; see the header.
  */
 export const MI_PREFIX_MEANING = "media_intelligence" as const;
 
@@ -120,7 +138,11 @@ export const MI_PREFIX_MEANING = "media_intelligence" as const;
 // ===========================================================================
 
 /**
- * BullMQ job names — exactly 15, one per processed queue.
+ * BullMQ job names — exactly 10, one per processed queue.
+ *
+ * ET-Q-07 (2026-09-30) — `ExtractExif`, `IndexMediaIntelligence`,
+ * `SyncTeamGraphDomain`, `SyncTeamGraphTimeline` and
+ * `RefreshOrgHealthProjection` were removed with their producerless queues.
  */
 export const JOB_NAMES = {
   RENDER_REDACTION_DERIVATIVE: "RenderRedactionDerivative",
@@ -130,20 +152,15 @@ export const JOB_NAMES = {
   REBUILD_SEARCH_DOCUMENT: "RebuildSearchDocument",
   RUN_MEDIA_INTELLIGENCE: "RunMediaIntelligence",
   GENERATE_DERIVED_ASSET: "GenerateDerivedAsset",
-  EXTRACT_EXIF: "ExtractExif",
-  INDEX_MEDIA_INTELLIGENCE: "IndexMediaIntelligence",
   EMBED_SEMANTIC_CHUNKS: "EmbedSemanticChunks",
   RECONCILE_TEAM_GRAPH: "ReconcileTeamGraph",
-  SYNC_TEAM_GRAPH_DOMAIN: "SyncTeamGraphDomain",
-  SYNC_TEAM_GRAPH_TIMELINE: "SyncTeamGraphTimeline",
   REFRESH_GRAPH_SEARCH_PROJECTION: "RefreshGraphSearchProjection",
-  REFRESH_ORG_HEALTH_PROJECTION: "RefreshOrgHealthProjection",
 } as const;
 
 export type JobName = (typeof JOB_NAMES)[keyof typeof JOB_NAMES];
 
 /**
- * DB-outbox sweep names — exactly 17.
+ * DB-outbox sweep names — exactly 20.
  *
  * These are not BullMQ job names and never appear on a queue. They are stable
  * identities for scheduler/processor pairs so the registry, the closure gate
@@ -210,6 +227,30 @@ export const SWEEP_NAMES = {
    * projection all address a sweep exactly as they address a job.
    */
   AUTOMATION_DISPATCH: "AutomationDispatchSweep",
+  /**
+   * ET-SM-07 (2026-09-30) — INTEGRITY RECHECK OF EVERY SIGNED RECORD.
+   *
+   * The stored original bytes of a record used to be re-hashed in exactly one
+   * place: inside report generation, which is commercially gated. A record
+   * that never received a report — every record on the free plan — was never
+   * re-verified, so storage drift on it stayed invisible. This sweep re-reads
+   * each signed record's original object(s) at the recorded VersionId on a
+   * cadence, records every attempt, and applies the terminal
+   * FAILED_HASH_MISMATCH rejection when the digest no longer matches.
+   *
+   * WHY A DB-OUTBOX SWEEP AND NOT A BULLMQ QUEUE
+   * -----------------------------------------------------------------------
+   * There is nothing to enqueue. "This record is due a recheck" is not an
+   * event somebody emits; it is a FACT already on the Evidence row — signed,
+   * not destroyed, and never checked, checked longer ago than the cadence, or
+   * explicitly requested (`integrityRecheckDueWhere`). A queue would need a
+   * producer to turn that fact into messages, and a lost message would then
+   * need a reconciler to notice the fact was still true — which is this sweep.
+   * So the sweep IS the mechanism: it selects due rows, takes a per-record
+   * lease with a conditional update, and a tick that never ran is made up by
+   * the next one because due-ness never left the database.
+   */
+  INTEGRITY_RECHECK: "IntegrityRecheckSweep",
 } as const;
 
 export type SweepName = (typeof SWEEP_NAMES)[keyof typeof SWEEP_NAMES];

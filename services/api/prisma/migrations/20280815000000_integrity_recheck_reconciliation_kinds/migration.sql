@@ -1,0 +1,26 @@
+-- =============================================================================
+-- INTEGRITY RECHECK + CAPTURE REAPER RECONCILIATION KINDS (2026-09-30,
+-- ET-SM-07 and the worker-reaper operational proof). EXPAND.
+--
+-- Two scheduled worker sweeps join the one reconciliation-run authority
+-- (governance_reconciliation_runs: one durable lock per kind, a lease so a
+-- crashed run frees its slot, terminal SUCCEEDED/FAILED/PARTIAL states and
+-- append-only history):
+--
+--   INTEGRITY_RECHECK  the scheduled re-hash of signed, non-destroyed evidence
+--                      against the exact stored VersionId (ET-SM-07).
+--   CAPTURE_REAPER     the expiry of abandoned capture drafts and evidence
+--                      reservations. It has been the ONLY reaper since the API
+--                      sweep was retired (ET-SEC-24) and recorded nothing: a
+--                      stopped or failing reaper was invisible.
+--
+-- Their run rows are what "last run", "last success" and "is it stale?" are
+-- read from.
+--
+-- EXPAND-ONLY. Adding a value neither rewrites a row nor invalidates a reader:
+-- an older process that has never heard of these kinds never selects them.
+-- Kept in a migration of its own: a new enum value cannot be used in the
+-- transaction that adds it.
+-- =============================================================================
+ALTER TYPE "GovernanceReconciliationKind" ADD VALUE IF NOT EXISTS 'INTEGRITY_RECHECK';
+ALTER TYPE "GovernanceReconciliationKind" ADD VALUE IF NOT EXISTS 'CAPTURE_REAPER';

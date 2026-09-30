@@ -1,5 +1,17 @@
 # Phase O1.4 — Business Flow Instrumentation — Honest Closure Report
 
+> **ET-Q-07 supersession (2026-09-30).** This is a dated closure record and is kept as written, but
+> the propagation table below lists `mi-exif`, `mi-search-index`, `graph-domain-sync`, `graph-timeline-sync` and `org-health-refresh`, and the span list names `proovra.graph.timeline.build` and `proovra.graph.domain.sync`.
+> Those queues are **not live**: each had a registered worker and no producer
+> (their enqueue helpers had zero callers in every commit), so none ever
+> carried a job. They were retired together with their processors, worker
+> registrations, registry entries, replay policies, inventory rows and spans.
+> The live BullMQ topology is 10 processed queues + 2 DLQ sinks — see
+> `packages/shared/src/queue-integrity/names.ts`. EXIF extraction runs on
+> `media-intelligence` (run kind `extract_exif`), search reindex on
+> `search-indexing`, graph stale sweeps inside `graph-reconcile`, and the
+> org-health projection is refreshed on read by the API.
+
 **Phase:** O1.4 (full business-flow instrumentation)
 **Status:** **PARTIALLY CLOSED.** Queue propagation + the highest-leverage service-layer spans are wired and contract-enforced. ~40+ business spans from the spec's catalog remain genuinely uninstrumented and are listed explicitly in §6 below. Re-opening O1.4 to a "fully closed" state requires the per-subsystem follow-up PRs in §7.
 **Closed at (UTC):** 2026-05-29

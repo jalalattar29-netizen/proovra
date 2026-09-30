@@ -1,0 +1,336 @@
+ET-Q-07 — RED BASELINE for the resurrection guard
+recorded: 2026-09-30   branch: fix/evidence-lifecycle-remediation
+
+WHY THIS IS A MUTATION PROOF AND NOT A BEFORE/AFTER
+The guard asserts the ABSENCE of five queues. Running it against the original
+tree would need the retirement reverted, so instead one retired name was
+temporarily RE-ADDED to the shared name authority and the guard was run against
+that. If the guard could not see a resurrected name it would be worth nothing.
+
+THE MUTATION (packages/shared/src/queue-integrity/names.ts, inside QUEUE_NAMES):
+
+      DERIVED_ASSETS: "mi-derived-assets",
+    + MI_EXIF: "mi-exif",
+      MI_EMBED: "mi-embed",
+
+followed by `pnpm --filter @proovra/shared build` (the worker resolves
+@proovra/shared through dist).
+
+COMMAND
+  cd services/worker && PROOVRA_ENV_BOOTSTRAPPED=1 pnpm exec vitest run \
+     test/et-q-07-retired-queues-resurrection-guard.test.ts
+
+RESULT — exit 1, 2 failed | 6 passed (8). Two independent assertions caught it:
+the value check on QUEUE_NAMES, and the syntax-tree scan of runtime source, which
+reported the exact file, line and node kind of the re-added literal.
+
+---------------------------------------------------------------- RED OUTPUT ----
+
+ RUN  v3.2.4 D:/pv-evidence-remediation/services/worker
+
+ ❯ test/et-q-07-retired-queues-resurrection-guard.test.ts (8 tests | 2 failed) 218ms
+   ✓ ET-Q-07 — the five producerless queues stay retired > the guard itself names exactly the five 1ms
+   × ET-Q-07 — the five producerless queues stay retired > none of them is in QUEUE_NAMES, by value or by key 5ms
+     → QUEUE_NAMES still carries "mi-exif": expected [ 'redaction-derivative', …(12) ] to not include 'mi-exif'
+   ✓ ET-Q-07 — the five producerless queues stay retired > none of their job names is in JOB_NAMES, by value or by key 0ms
+   ✓ ET-Q-07 — the five producerless queues stay retired > the canonical work registry has no entry for any of them 0ms
+   ✓ ET-Q-07 — the five producerless queues stay retired > no legacy payload adapter or drain command still claims them 0ms
+   ✓ ET-Q-07 — the five producerless queues stay retired > the worker entrypoint registers no consumer for any of them 27ms
+   ✓ ET-Q-07 — the five producerless queues stay retired > the API's Operations inventory, replay matrix and diagnostics carry no label or row for them 5ms
+   × ET-Q-07 — the five producerless queues stay retired > no source file under services/*/src or packages/*/src constructs a Queue or Worker for — or otherwise names — any of them 179ms
+     → a retired queue name is a string literal in runtime source:
+packages/shared/src/queue-integrity/names.ts:108  "mi-exif"  in PropertyAssignment: expected [ { …(4) } ] to deeply equal []
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/et-q-07-retired-queues-resurrection-guard.test.ts > ET-Q-07 — the five producerless queues stay retired > none of them is in QUEUE_NAMES, by value or by key
+AssertionError: QUEUE_NAMES still carries "mi-exif": expected [ 'redaction-derivative', …(12) ] to not include 'mi-exif'
+ ❯ test/et-q-07-retired-queues-resurrection-guard.test.ts:195:68
+    193|     const keys = Object.keys(QUEUE_NAMES);
+    194|     for (const r of RETIRED) {
+    195|       expect(values, `QUEUE_NAMES still carries "${r.queue}"`).not.toC…
+       |                                                                    ^
+    196|       expect(keys, `QUEUE_NAMES still declares ${r.queueKey}`).not.toC…
+    197|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/et-q-07-retired-queues-resurrection-guard.test.ts > ET-Q-07 — the five producerless queues stay retired > no source file under services/*/src or packages/*/src constructs a Queue or Worker for — or otherwise names — any of them
+AssertionError: a retired queue name is a string literal in runtime source:
+packages/shared/src/queue-integrity/names.ts:108  "mi-exif"  in PropertyAssignment: expected [ { …(4) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "context": "PropertyAssignment",
++     "file": "packages/shared/src/queue-integrity/names.ts",
++     "line": 108,
++     "text": "mi-exif",
++   },
++ ]
+
+ ❯ test/et-q-07-retired-queues-resurrection-guard.test.ts:314:9
+    312|         hits,
+    313|         `a retired queue name is a string literal in runtime source:\n…
+    314|       ).toEqual([]);
+       |         ^
+    315|     },
+    316|     120_000,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+   Start at  11:21:48
+   Duration  1.30s (transform 253ms, setup 0ms, collect 760ms, tests 218ms, environment 0ms, prepare 86ms)
+
+------------------------------------------------------------ END RED OUTPUT ----
+
+THE MUTATION WAS THEN REMOVED, @proovra/shared was rebuilt, and the same command
+was run again:
+
+-------------------------------------------------------------- GREEN OUTPUT ----
+
+ RUN  v3.2.4 D:/pv-evidence-remediation/services/worker
+
+ ✓ test/et-q-07-retired-queues-resurrection-guard.test.ts (8 tests) 202ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  11:22:08
+   Duration  1.32s (transform 253ms, setup 0ms, collect 766ms, tests 202ms, environment 0ms, prepare 103ms)
+
+---------------------------------------------------------- END GREEN OUTPUT ----
+
+
+################################################################################
+ET-Q-07 FOLLOW-UP (2026-09-30) — RED PROOFS FOR THE TWO SOURCE-RESOLVED GATES
+################################################################################
+
+================================================================================
+PROOF A — "every named reconciler REACHES its authority model"
+          (services/api/test/phase-12-point5-queue-integrity-gate.test.ts)
+================================================================================
+WHAT WAS RESTORED
+One of the three false claims the finding named, exactly as it shipped: the
+registry entry `GenerateDerivedAsset -> services/worker/src/
+intelligence-run-reconciler.ts`, against that module WITHOUT the derived-asset
+scan. The module was temporarily replaced by its committed version
+(`git show HEAD:services/worker/src/intelligence-run-reconciler.ts`), which
+reads MediaIntelligenceRun and the semantic chunks and never reads
+EvidencePartDerivedAsset. The registry was left naming it.
+
+COMMAND
+  cd services/api && PROOVRA_ENV_BOOTSTRAPPED=1 pnpm exec vitest run \
+     test/phase-12-point5-queue-integrity-gate.test.ts -t "authority model|found false"
+
+RESULT — exit 1, 2 failed. The gate names the entry, the module, the model and
+the table, and the positive control ("the module that was made true reaches it
+directly") fails with it. The file was then restored byte-identical (sha256
+compared before and after).
+
+---------------------------------------------------------------- RED OUTPUT ----
+ RUN  v3.2.4 D:/pv-evidence-remediation/services/api
+ ❯ test/phase-12-point5-queue-integrity-gate.test.ts (65 tests | 2 failed | 63 skipped) 390ms
+   ↓ Point 5 — topology conservation > BullMQ Queue objects = processed queues + DLQ sinks
+   ↓ Point 5 — topology conservation > worker registrations pair 1:1 with registered BullMQ jobs
+   ↓ Point 5 — topology conservation > every DB sweep is registered; the 2 telemetry samplers are not work
+   ↓ Point 5 — topology conservation > RegisteredBullMqJobs = BullMqJobsWithProducerAndProcessor (no orphans)
+   ↓ Point 5 — topology conservation > RegisteredDbSweeps = DbSweepsWithSchedulerAndProcessor
+   ↓ Point 5 — topology conservation > UnregisteredBullMqQueues = 0 and UnclassifiedQueueEntries = 0
+   ↓ Point 5 — canonical registry integrity > the registry has no structural violations
+   ↓ Point 5 — canonical registry integrity > QueueFamilyCount = 9, UnmappedJobs = 0, JobsMappedToMultipleFamilies = 0
+   ↓ Point 5 — canonical registry integrity > every family assignment states a reason
+   ↓ Point 5 — canonical registry integrity > TargetOnlyEntriesInClosureRegistry = 0
+   ↓ Point 5 — canonical registry integrity > NonexistentRegistrySymbols = 0 — every named module exists on disk
+   ↓ Point 5 — canonical registry integrity > NonexistentRegistryModels = 0 — every durable authority exists in the schema
+   ↓ Point 5 — canonical registry integrity > JobsWithoutDurableAuthority = 0
+   ↓ Point 5 — canonical registry integrity > JobsWithoutIdempotency = 0
+   × Point 5 — canonical registry integrity > every named reconciler REACHES its authority model (ET-Q-07) 231ms
+     → RECONCILER_CANNOT_SEE_ITS_AUTHORITY:
+GenerateDerivedAsset: services/worker/src/intelligence-run-reconciler.ts does not reference EvidencePartDerivedAsset (table "evidence_part_derived_assets") and calls nothing that does: expected [ Array(1) ] to deeply equal []
+   × Point 5 — canonical registry integrity > the three reconciler claims ET-Q-07 found false would FAIL that check 158ms
+     → expected { ok: false } to deeply equal { ok: true, how: 'direct' }
+   ↓ Point 5 — canonical registry integrity > every declared claim names states and a lease the authority can hold (ET-Q-07)
+   ↓ Point 5 — canonical registry integrity > the invented claim states ET-Q-07 removed would FAIL that check
+   ↓ Point 5 — canonical registry integrity > the retry `timeoutMs` is described as what it is: a budget nothing enforces (ET-Q-07)
+   ↓ Point 5 — canonical registry integrity > JobsWithoutReconciler = 0 and RECONCILER_PENDING = []
+   ↓ Point 5 — canonical registry integrity > JobsWithoutDeterministicId = 0 for every BullMQ job
+   ↓ Point 5 — canonical registry integrity > every unit of work declares a bounded retry and recovery policy
+   ↓ Point 5 — canonical registry integrity > DuplicateEnqueueAuthorities = 0 — every BullMQ job enqueues through the shared helper
+   ↓ Point 5 — canonical registry integrity > DuplicateHandlerRegistrations = 0 — one queue, one entry, one registration
+   ↓ Point 5 — canonical registry integrity > DuplicateTerminalWriters = 0 — each unit of work has exactly one
+   ↓ Point 5 — canonical registry integrity > an unknown work name is refused rather than guessed at
+   ↓ Point 5 — canonical payload contract > a canonical payload carries the reference triple and nothing beyond the allowlist
+   ↓ Point 5 — canonical payload contract > a traceparent is carried when well-formed and REFUSED when not
+   ↓ Point 5 — canonical payload contract > CanonicalPayloadUnknownFieldsAccepted = 0 — strict, not sanitising
+   ↓ Point 5 — canonical payload contract > the rejection names the offending authority fields
+   ↓ Point 5 — canonical payload contract > UnknownPayloadVersionsAccepted = 0 and UnversionedPayloads = 0
+   ↓ Point 5 — canonical payload contract > malformed payloads are refused before any mutation could occur
+   ↓ Point 5 — canonical payload contract > QueuePayloadSecrets = 0 and QueuePayloadPII = 0 on the wire
+   ↓ Point 5 — canonical payload contract > the producer guard refuses an authority field, case-insensitively
+   ↓ Point 5 — canonical payload contract > deterministic job ids are stable and prefix-scoped
+   ↓ Point 5 — canonical payload contract > every canonical job id is legal for the transport that has to carry it
+   ↓ Point 5 — legacy payload compatibility > LegacyPayloadAdaptersWithoutCondition = 0
+   ↓ Point 5 — legacy payload compatibility > every adapter names a real registered job
+   ↓ Point 5 — legacy payload compatibility > a legacy payload yields the reference and reports what it discarded
+   ↓ Point 5 — legacy payload compatibility > a NEW-shape payload with a smuggled field never reaches the legacy path
+   ↓ Point 5 — legacy payload compatibility > UnclassifiedLegacyJobShapes = 0 — every changed shape has a disposition
+   ↓ Point 5 — legacy payload compatibility > an adaptable shape yields a reference and DISCARDS every authority field
+   ↓ Point 5 — legacy payload compatibility > SilentlyDroppedLegacyJobs = 0 — an unadaptable shape QUARANTINES loudly
+   ↓ Point 5 — legacy payload compatibility > an adaptable FAMILY still quarantines a job missing its durable id
+   ↓ Point 5 — legacy payload compatibility > every adapter states its old schema, owner, backlog command and deadline
+   ↓ Point 5 — legacy payload compatibility > LegacyJobsTrustingPayloadAuthority = 0 — no adapter reads an authority field
+   ↓ Point 5 — the single enqueue authority > schedules under the deterministic id with the registry's retry policy
+   ↓ Point 5 — the single enqueue authority > a duplicate enqueue is idempotent — it collapses onto the live job
+   ↓ Point 5 — the single enqueue authority > a spent job's id is released so a re-request can actually be scheduled
+   ↓ Point 5 — the single enqueue authority > enqueue failure is reported honestly and never as success
+   ↓ Point 5 — the single enqueue authority > a job re-scheduling ITSELF is not collapsed into a no-op
+   ↓ Point 5 — the single enqueue authority > ET-OTS-02: a RETAINED COMPLETED follow-up id is released before the add (BullMQ would silently ignore it)
+   ↓ Point 5 — the single enqueue authority > ET-OTS-02: a LIVE follow-up id is joined, not duplicated
+   ↓ Point 5 — the single enqueue authority > a PARALLEL producer still collapses onto the same live job
+   ↓ Point 5 — the single enqueue authority > a sweep entry cannot be enqueued as a queue job
+   ↓ Point 5 — the single enqueue authority > an unusable command id fails before the queue is touched
+   ↓ Point 5 — structural gates > InlineSensitiveJobNameLiterals = 0 in converged transport clients
+   ↓ Point 5 — structural gates > converged transport clients delegate to the one enqueue authority
+   ↓ Point 5 — structural gates > WorkerTenantPayloadTrust = 0 and NOT_YET_CONVERGED = []
+   ↓ Point 5 — structural gates > PayloadTrustedTenantAuthorities = 0 — no processor reads a tenant off job.data
+   ↓ Point 5 — structural gates > PayloadTrustedPolicyAuthorities = 0 and PayloadStorageTruthFields = 0
+   ↓ Point 5 — structural gates > every registered BullMQ job decodes UNDER ITS OWN WORK NAME
+   ↓ Point 5 — structural gates > the evidence-purge processor decodes STRICTLY, not through a tolerant parser
+   ↓ Point 5 — structural gates > no module outside the shared authority DECLARES a queue or job name
+   ↓ Point 5 — structural gates > the diagnostics projection cannot carry a secret, token or storage URL
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/phase-12-point5-queue-integrity-gate.test.ts > Point 5 — canonical registry integrity > every named reconciler REACHES its authority model (ET-Q-07)
+AssertionError: RECONCILER_CANNOT_SEE_ITS_AUTHORITY:
+GenerateDerivedAsset: services/worker/src/intelligence-run-reconciler.ts does not reference EvidencePartDerivedAsset (table "evidence_part_derived_assets") and calls nothing that does: expected [ Array(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "GenerateDerivedAsset: services/worker/src/intelligence-run-reconciler.ts does not reference EvidencePartDerivedAsset (table \"evidence_part_derived_assets\") and calls nothing that does",
++ ]
+ ❯ test/phase-12-point5-queue-integrity-gate.test.ts:387:7
+    385|       unreached,
+    386|       `RECONCILER_CANNOT_SEE_ITS_AUTHORITY:\n${unreached.join("\n")}`,
+    387|     ).toEqual([]);
+       |       ^
+    388|   });
+    389| 
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+ FAIL  test/phase-12-point5-queue-integrity-gate.test.ts > Point 5 — canonical registry integrity > the three reconciler claims ET-Q-07 found false would FAIL that check
+AssertionError: expected { ok: false } to deeply equal { ok: true, how: 'direct' }
+- Expected
++ Received
+  {
+-   "how": "direct",
+-   "ok": true,
++   "ok": false,
+  }
+ ❯ test/phase-12-point5-queue-integrity-gate.test.ts:425:7
+    423|         "EvidencePartDerivedAsset",
+    424|       ),
+    425|     ).toEqual({ ok: true, how: "direct" });
+       |       ^
+    426|     expect(
+    427|       reconcilerReachesAuthority("services/worker/src/search-index-rec…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+ Test Files  1 failed (1)
+      Tests  2 failed | 63 skipped (65)
+   Start at  11:52:06
+   Duration  1.46s (transform 295ms, setup 39ms, collect 811ms, tests 390ms, environment 0ms, prepare 67ms)
+------------------------------------------------------------ END RED OUTPUT ----
+
+================================================================================
+PROOF B — "every CURRENT_RUNTIME job has a producer CALL SITE"  (the finding's
+          acceptance gate) and "no enqueue helper is dead"
+          (services/api/test/phase-12-point5-topology-gate.test.ts)
+================================================================================
+WHAT WAS CHANGED
+`RefreshGraphSearchProjection` has exactly one producer call site: the
+graph-reconcile processor's `onReconciled` hook in
+services/worker/src/subsystem-queue-processors.ts. That one call was
+temporarily renamed —
+
+    -          enqueueGraphSearchProjectionJob(tId, {
+    +          noLongerAProducerForRedProof(tId, {
+
+— which leaves the job in the state all five retired queues were in: a
+registered consumer, an enqueue helper in queue.ts that still NAMES the job,
+and nothing that calls it. The previous check ("the job name is mentioned in
+queue.ts") stays green in that state; that is how the five passed it.
+
+COMMAND
+  cd services/api && PROOVRA_ENV_BOOTSTRAPPED=1 pnpm exec vitest run \
+     test/phase-12-point5-topology-gate.test.ts -t "producer CALL SITE|no enqueue helper is dead"
+
+RESULT — exit 1, 2 failed. Both the job-level acceptance gate and the
+per-helper gate name the job, the queue and the uncalled helper. The file was
+then restored byte-identical (sha256 compared before and after).
+
+---------------------------------------------------------------- RED OUTPUT ----
+ RUN  v3.2.4 D:/pv-evidence-remediation/services/api
+ ❯ test/phase-12-point5-topology-gate.test.ts (15 tests | 2 failed | 13 skipped) 622ms
+   ↓ Point 5 — independent topology discovery > every declared queue object resolves to a shared-authority name
+   ↓ Point 5 — independent topology discovery > BullMQ processed queues = 10, registrations = 10, processors = 10
+   ↓ Point 5 — independent topology discovery > queue-to-registration mapping is 1:1, resolved through bindings not labels
+   ↓ Point 5 — independent topology discovery > orphan producers = 0 and orphan processors = 0
+   ↓ Point 5 — independent topology discovery > duplicate workers = 0 and duplicate terminal writers = 0
+   ↓ Point 5 — independent topology discovery > job-name mismatches = 0: discovery, name authority and registry agree
+   × Point 5 — independent topology discovery > every CURRENT_RUNTIME job has a producer CALL SITE (ET-Q-07 acceptance gate) 368ms
+     → CURRENT_RUNTIME_JOB_WITH_NO_PRODUCER:
+RefreshGraphSearchProjection (graph-search-projection): 0 producer call sites — enqueue helper(s) with no caller: enqueueGraphSearchProjectionJob (services/worker/src/queue.ts): expected [ Array(1) ] to deeply equal []
+   × Point 5 — independent topology discovery > no enqueue helper is dead: every one that names a job is called 253ms
+     → ENQUEUE_HELPER_WITH_NO_CALLER:
+enqueueGraphSearchProjectionJob (services/worker/src/queue.ts) -> REFRESH_GRAPH_SEARCH_PROJECTION: expected [ Array(1) ] to deeply equal []
+   ↓ Point 5 — independent topology discovery > missing durable authorities = 0, NOT_YET_CONVERGED = [], RECONCILER_PENDING = []
+   ↓ Point 5 — semantic recovery ownership > every module the registry names DECLARES the work it is given
+   ↓ Point 5 — semantic recovery ownership > no module claims work the registry did not assign it
+   ↓ Point 5 — semantic recovery ownership > a wrong-but-existing reconciler mapping FAILS the ownership check
+   ↓ Point 5 — semantic recovery ownership > the previously-false mappings are now truthful
+   ↓ Point 5 — semantic recovery ownership > every declared reconciler that owns a SWEEP is started by the worker
+   ↓ Point 5 — semantic recovery ownership > the removed OCR/Transcript chains are absent from the RUNTIME, not just the registry
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/phase-12-point5-topology-gate.test.ts > Point 5 — independent topology discovery > every CURRENT_RUNTIME job has a producer CALL SITE (ET-Q-07 acceptance gate)
+AssertionError: CURRENT_RUNTIME_JOB_WITH_NO_PRODUCER:
+RefreshGraphSearchProjection (graph-search-projection): 0 producer call sites — enqueue helper(s) with no caller: enqueueGraphSearchProjectionJob (services/worker/src/queue.ts): expected [ Array(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "RefreshGraphSearchProjection (graph-search-projection): 0 producer call sites — enqueue helper(s) with no caller: enqueueGraphSearchProjectionJob (services/worker/src/queue.ts)",
++ ]
+ ❯ test/phase-12-point5-topology-gate.test.ts:450:7
+    448|       unproduced,
+    449|       `CURRENT_RUNTIME_JOB_WITH_NO_PRODUCER:\n${unproduced.join("\n")}…
+    450|     ).toEqual([]);
+       |       ^
+    451| 
+    452|     // The discovery must have found the transport at all: a scan that…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+ FAIL  test/phase-12-point5-topology-gate.test.ts > Point 5 — independent topology discovery > no enqueue helper is dead: every one that names a job is called
+AssertionError: ENQUEUE_HELPER_WITH_NO_CALLER:
+enqueueGraphSearchProjectionJob (services/worker/src/queue.ts) -> REFRESH_GRAPH_SEARCH_PROJECTION: expected [ Array(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "enqueueGraphSearchProjectionJob (services/worker/src/queue.ts) -> REFRESH_GRAPH_SEARCH_PROJECTION",
++ ]
+ ❯ test/phase-12-point5-topology-gate.test.ts:470:72
+    468|       .filter((h) => !calledNames.has(h.name))
+    469|       .map((h) => `${h.name} (${h.file}) -> ${h.jobKeys.join(", ")}`);
+    470|     expect(dead, `ENQUEUE_HELPER_WITH_NO_CALLER:\n${dead.join("\n")}`)…
+       |                                                                        ^
+    471|   });
+    472| 
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+ Test Files  1 failed (1)
+      Tests  2 failed | 13 skipped (15)
+   Start at  11:52:09
+   Duration  1.70s (transform 283ms, setup 39ms, collect 812ms, tests 622ms, environment 0ms, prepare 66ms)
+------------------------------------------------------------ END RED OUTPUT ----

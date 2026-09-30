@@ -361,7 +361,9 @@ describe("E10.2 Test 6 — zero code changes by E10.2", () => {
       // Rebaselined 2026-09-30: 61,257 -> 63,476 — ET-ACQ-03: the one-time completion fan-out is claimed durably and re-driven on a retry
       // Rebaselined 2026-09-30: 63,476 -> 67,985 — ET-ACQ-04: oversize is refused from HEAD sizes before any GET; digests are computed before the transaction
       // Rebaselined 2026-09-30: 67,985 -> 68,686 — ET-ACQ-05: the checklist plan comes from the owner's capture session and its template
-      { rel: "src/services/evidence-complete.service.ts", expected: 68686 },
+      // Rebaselined 2026-09-30: 68,686 -> 69,911 — ET-COM-04: the completion transaction takes the issuance decision once and stores the record's earned funding fact
+      // Rebaselined 2026-09-30: 69,911 -> 71,631 — ET-SM-07 / ET-PKG-07: the completion transaction records the first integrity check and finalizes every record NOT_PUBLISHED
+      { rel: "src/services/evidence-complete.service.ts", expected: 71631 },
       {
               // Rebaselined 2026-07-31 (PHASE 12 POINT 3): Case-Evidence physical
       // convergence. The artifact query filtered `prisma.evidence` by the legacy

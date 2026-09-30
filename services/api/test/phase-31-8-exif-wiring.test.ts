@@ -158,15 +158,21 @@ describe("Phase 31.8 — extract_exif registered in every catalog", () => {
     expect(MEDIA_INTELLIGENCE_JOB_KINDS).toContain("extract_exif");
   });
 
-  it("extract_exif addresses the evidence PART, not a run row", () => {
-    // The `mi-exif` queue used to share the media-intelligence processor, which
-    // meant one function served two queues whose commands meant different
-    // things — so the payload had to carry BOTH a run id and a part id and
-    // trust whichever was present. EXIF reads one part's bytes; that part is
-    // its authority.
-    const entry = getWorkEntryOrThrow(JOB_NAMES.EXTRACT_EXIF);
-    expect(entry.queueName).toBe(QUEUE_NAMES.MI_EXIF);
-    expect(entry.durableAuthority.model).toBe("EvidencePart");
+  it("extract_exif has ONE transport: a run kind on the media-intelligence queue", () => {
+    // ET-Q-07 (2026-09-30). This asserted that a dedicated `ExtractExif` job on
+    // a dedicated `mi-exif` queue addressed the evidence PART. That registry
+    // entry was true to its own text and false about the system: the queue had
+    // a worker and NO producer (`enqueueExifJob` had zero callers in every
+    // commit), so nothing ever travelled that path. It was retired.
+    //
+    // EXIF extraction is — and always actually was — a `MediaIntelligenceRun`
+    // of kind `extract_exif`, carried by `RunMediaIntelligence`, and the RUN
+    // row is its durable authority.
+    const entry = getWorkEntryOrThrow(JOB_NAMES.RUN_MEDIA_INTELLIGENCE);
+    expect(entry.queueName).toBe(QUEUE_NAMES.MEDIA_INTELLIGENCE);
+    expect(entry.durableAuthority.model).toBe("MediaIntelligenceRun");
+    expect(Object.keys(JOB_NAMES)).not.toContain("EXTRACT_EXIF");
+    expect(Object.keys(QUEUE_NAMES)).not.toContain("MI_EXIF");
   });
 
   it("schema-validation registers the new table + key column", () => {

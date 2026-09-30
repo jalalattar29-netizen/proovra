@@ -873,6 +873,11 @@ export const OUTPUT_ISSUANCE_BASES = [
   "FREE_PLAN",
   "PAYMENT_LAPSED",
   "SUBSCRIPTION_ENDED",
+  /**
+   * ET-COM-04 — the record was finalized while its subject was entitled, and
+   * that fact was stored on the record. A later lapse does not revoke it.
+   */
+  "EARNED_AT_FINALIZATION",
   "UNKNOWN",
 ] as const;
 export type OutputIssuanceBasis = (typeof OUTPUT_ISSUANCE_BASES)[number];
@@ -896,10 +901,57 @@ export type OutputIssuanceEntitlement = {
   mayIssueHistoricalFirstOutputs: boolean;
 };
 
+/**
+ * THE STORED FUNDING FACT (ET-COM-04, owner decision 2026-09-30).
+ *
+ * What a record EARNED when it was finalized: the plan that funded it and the
+ * basis on which that plan was in force. It is written once, inside the
+ * completion transaction, and only when the decision at that moment was
+ * ENTITLED on a plan basis (a credit-funded record's fact is its ledger row).
+ *
+ * A billing lapse is not a revocation: outputs a record earned while the plan
+ * was paid stay owed to it — a report job queued before the lapse still runs,
+ * and a lost one is still recovered — whatever the subscription does later.
+ * `null` = no fact stored (every record finalized before this existed, and
+ * every record finalized while not entitled); the current lifecycle then
+ * decides, exactly as before.
+ */
+export const OUTPUT_EARNED_BASES = ["PAID_SUBSCRIPTION", "TRIAL", "PAYMENT_GRACE"] as const;
+export type OutputEarnedBasis = (typeof OUTPUT_EARNED_BASES)[number];
+export type OutputEarnedFact = { plan: PlanType; basis: OutputEarnedBasis } | null;
+
+/** Parse the stored columns; anything not written by the completion path is no fact. */
+export function readOutputEarnedFact(row: {
+  outputEarnedPlan?: string | null;
+  outputEarnedBasis?: string | null;
+} | null | undefined): OutputEarnedFact {
+  const basis = row?.outputEarnedBasis;
+  const plan = row?.outputEarnedPlan;
+  if (!plan || !basis) return null;
+  if (!(OUTPUT_EARNED_BASES as readonly string[]).includes(basis)) return null;
+  return { plan: plan as PlanType, basis: basis as OutputEarnedBasis };
+}
+
+/**
+ * The fact to STORE for a record being finalized, from the decision taken at
+ * that moment. `null` when nothing plan-based was earned.
+ */
+export function outputEarnedFactFromDecision(input: {
+  plan: PlanType;
+  decision: OutputIssuanceEntitlement;
+}): OutputEarnedFact {
+  if (input.decision.decision !== "ENTITLED") return null;
+  const basis = input.decision.basis;
+  if (!(OUTPUT_EARNED_BASES as readonly string[]).includes(basis)) return null;
+  return { plan: input.plan, basis: basis as OutputEarnedBasis };
+}
+
 export function resolveOutputIssuanceEntitlement(input: {
   plan: PlanType | null;
   funding: EvidenceFundingSource | null;
   lifecycle: OutputIssuanceLifecycle;
+  /** The stored funding fact, when the record has one. */
+  earned?: OutputEarnedFact;
 }): OutputIssuanceEntitlement {
   if (input.funding === "EVIDENCE_CREDIT") {
     return {
@@ -909,6 +961,23 @@ export function resolveOutputIssuanceEntitlement(input: {
       verificationPackageIncluded: true,
       mayIssueHistoricalFirstOutputs: true,
     };
+  }
+  if (input.earned) {
+    const earnedOutputs = resolveEvidenceOutputEntitlements({
+      plan: input.earned.plan,
+      funding: "PLAN",
+    });
+    if (earnedOutputs.reportsIncluded || earnedOutputs.verificationPackageIncluded) {
+      return {
+        decision: "ENTITLED",
+        basis: "EARNED_AT_FINALIZATION",
+        reportsIncluded: earnedOutputs.reportsIncluded,
+        verificationPackageIncluded: earnedOutputs.verificationPackageIncluded,
+        // The first issuance was owed at finalization; recovering it is not
+        // a historical backfill.
+        mayIssueHistoricalFirstOutputs: true,
+      };
+    }
   }
   if (input.plan === null || input.funding === null) {
     return unresolvedIssuance();
@@ -970,6 +1039,42 @@ function unresolvedIssuance(): OutputIssuanceEntitlement {
     verificationPackageIncluded: false,
     mayIssueHistoricalFirstOutputs: false,
   };
+}
+
+/**
+ * THE PLAN THAT GOVERNS EVIDENCE CREATION (ET-COM-04, owner decision 2026-09-30).
+ *
+ * A billing lapse is not an account-security suspension. A paid personal
+ * account whose subscription has lapsed (past due beyond grace, ended, or
+ * ambiguous) used to be refused EVERY new record with 402 — worse than FREE,
+ * and unable to spend credits it had bought. It now falls back to the
+ * FREE-equivalent creation policy: the FREE allowance funds included records,
+ * and a purchased credit funds one past it.
+ *
+ * A SHARED workspace has no FREE-equivalent: FREE does not include a shared
+ * workspace at all, so a lapsed shared workspace still cannot record — that is
+ * the plan rule, stated as such, not a lockout.
+ *
+ * This decides only which plan's CREATION policy applies. It never changes the
+ * account's plan, and organization suspension / compliance locks are separate
+ * authorities that this function knows nothing about and cannot loosen.
+ */
+export function resolveEvidenceCreationPlan(input: {
+  plan: PlanType;
+  billingShape: "SINGLE_OCCUPANT" | "SHARED";
+  /** `mutationsAllowed` of the commercial lifecycle; undefined = not lapsed. */
+  lifecycleAllowsPaidMutations: boolean | undefined;
+}):
+  | { lapsed: false; creationPlan: PlanType }
+  | { lapsed: true; creationPlan: "FREE"; lapsedPlan: PlanType }
+  | { lapsed: true; creationPlan: null; lapsedPlan: PlanType } {
+  if (input.lifecycleAllowsPaidMutations !== false || input.plan === "FREE") {
+    return { lapsed: false, creationPlan: input.plan };
+  }
+  if (input.billingShape === "SINGLE_OCCUPANT") {
+    return { lapsed: true, creationPlan: "FREE", lapsedPlan: input.plan };
+  }
+  return { lapsed: true, creationPlan: null, lapsedPlan: input.plan };
 }
 
 /**

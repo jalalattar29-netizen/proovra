@@ -868,6 +868,30 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
           "ots.provider.unknown_outcome_non_terminal",
         ],
       },
+      {
+        // ET-SM-07 (2026-09-30) — the scheduled integrity recheck. In this
+        // family for the reason the registry entry gives: it writes the
+        // record's own integrity state and has a terminal outcome.
+        workName: "IntegrityRecheckSweep",
+        executor: "services/worker/src/integrity-recheck.ts",
+        cases: [
+          "integrity.durable.intent_before_work",
+          "integrity.tenant.workspace_reloaded",
+          "integrity.tenant.cross_workspace_denied",
+          "integrity.claim.one_winner",
+          "integrity.claim.active_not_stolen",
+          "integrity.idempotency.duplicate_is_noop",
+          "integrity.terminal.stale_cannot_overwrite",
+          // NOT waived as `no_external_provider`. Object storage is a genuine
+          // external read here, and its unknown outcome has a real consequence
+          // to get wrong: a store that cannot answer must never be recorded as
+          // a verdict on the bytes. UNAVAILABLE leaves the record non-terminal
+          // and retried after the lease, and that is proven by execution.
+          "integrity.provider.unknown_outcome_non_terminal",
+        ],
+        // A DB-outbox sweep: there is no queue payload to reject a field of.
+        inapplicable: { "payload.rejects_unknown_field": "no_queue_payload" },
+      },
     ],
   },
   {
@@ -875,13 +899,16 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
     suites: ["test/point5/family-reconciliation.integration.test.ts"],
     units: (
       [
+        // ET-Q-07 (2026-09-30) — twelve units became EIGHT. `IndexMediaIntelligence`,
+        // `SyncTeamGraphDomain`, `SyncTeamGraphTimeline` and
+        // `RefreshOrgHealthProjection` are gone from this list because they are
+        // gone from the registry: each sat on a queue with a consumer and no
+        // producer. Their cases were real executed proofs of processors that
+        // never ran in production — the suite invoked each processor directly,
+        // which is exactly what no producer ever did.
         ["RebuildSearchDocument", "services/worker/src/search-indexing.processor.ts", "searchdoc"],
-        ["IndexMediaIntelligence", "services/worker/src/subsystem-queue-processors.ts", "misearch"],
         ["ReconcileTeamGraph", "services/worker/src/subsystem-queue-processors.ts", "graphrecon"],
-        ["SyncTeamGraphDomain", "services/worker/src/subsystem-queue-processors.ts", "graphdomain"],
-        ["SyncTeamGraphTimeline", "services/worker/src/subsystem-queue-processors.ts", "graphtimeline"],
         ["RefreshGraphSearchProjection", "services/worker/src/subsystem-queue-processors.ts", "graphproj"],
-        ["RefreshOrgHealthProjection", "services/worker/src/subsystem-queue-processors.ts", "orghealth"],
         ["LifecycleRecoverySweep", "services/worker/src/lifecycle-recovery.ts", "lifecycle"],
         ["OrphanArtifactScan", "services/worker/src/orphan-scan.ts", "orphan"],
         ["ImmutableStorageReconciliationSweep", "services/worker/src/governance/immutable-storage-reconciliation.worker.ts", "immutable"],
@@ -907,8 +934,9 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
         ...(slug === "graphrecon"
           ? [
               "graphrecon.recon.authorities_reconciled",
-              // CLAIM 2 — the claim-less concurrency probe. Eleven of these
-              // twelve units declare no claim, so two simultaneous executions
+              // CLAIM 2 — the claim-less concurrency probe. Seven of these
+              // eight units declare no claim (eleven of twelve before ET-Q-07
+              // retired four producerless ones), so two simultaneous executions
               // against one candidate must be shown to duplicate nothing.
               // Sequential repetition cannot observe two writers interleaving.
               "recon.concurrent.claimless_duplicates_nothing",
@@ -942,8 +970,12 @@ export const FAMILY_COVERAGE: ReadonlyArray<FamilyCoverage> = [
         // (run kinds `extract_ocr_azure` / `extract_transcript_deepgram`). The
         // conservation assertion in the gate recomputes from the settled tree,
         // so this list cannot silently disagree with it.
+        //
+        // ET-Q-07 (2026-09-30) — `ExtractExif` left the same way and for the
+        // sibling reason: its dedicated `mi-exif` queue had a consumer and no
+        // producer. EXIF extraction is a `RunMediaIntelligence` run of kind
+        // `extract_exif`, so its durable behaviour is covered by that unit.
         ["RunMediaIntelligence", "services/worker/src/media-intelligence.processor.ts", "mirun"],
-        ["ExtractExif", "services/worker/src/media-intelligence.processor.ts", "miexif"],
         ["GenerateDerivedAsset", "services/worker/src/derived-assets.processor.ts", "miderived"],
         ["EmbedSemanticChunks", "services/worker/src/mi-embed.processor.ts", "miembed"],
         ["IntelligenceRunStrandedReconciler", "services/worker/src/intelligence-run-reconciler.ts", "mirecon"],

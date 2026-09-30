@@ -9,10 +9,22 @@
  * projection is silently stale, and nothing notices, because the only evidence
  * of the intent was the enqueue that failed.
  *
- * This reconciler closes that window for the projection family
- * (`RebuildSearchDocument`, `IndexMediaIntelligence`, and the graph/org-health
- * projections, which share the same failure shape). It compares the source row
- * against its projection and re-enqueues where they disagree.
+ * This reconciler closes that window for THREE projections, each by comparing
+ * a durable source with the projection derived from it and re-enqueueing where
+ * they disagree:
+ *
+ *   * the evidence search document (`RebuildSearchDocument`) — `evidence` vs
+ *     `evidence_search_documents`;
+ *   * the workspace graph (`ReconcileTeamGraph`) — `evidence` vs
+ *     `investigation_graph_nodes`;
+ *   * signal-derived search fields (`RefreshGraphSearchProjection`) —
+ *     `media_intelligence_signals` vs `evidence_search_documents`.
+ *
+ * ET-Q-07 (2026-09-30) — this paragraph used to claim the window was closed
+ * for "`IndexMediaIntelligence`, and the graph/org-health projections, which
+ * share the same failure shape" while the module looked at none of them. The
+ * queues with no producer were retired; the two graph projections that remain
+ * got the scans that make the claim true. See the note on RECOVERED_WORK_TYPES.
  *
  * Design properties:
  *
@@ -64,15 +76,41 @@ import { logger } from "./logger.js";
  * Keys, not values: the registry addresses work through `JOB_NAMES` /
  * `SWEEP_NAMES`, and a literal string here would be a second spelling of a
  * name the shared authority already owns.
+ *
+ * ET-Q-07 (2026-09-30) — THIS LIST OVERCLAIMED, AND THE GATE COULD NOT SEE IT.
+ *
+ * It declared eight work types. This module recovers TWO: it compares an
+ * Evidence row with its search document and re-enqueues
+ * `enqueueSearchIndexingJob({ kind: "evidence" })`, and it is its own sweep.
+ * The other six — `INDEX_MEDIA_INTELLIGENCE`, `RECONCILE_TEAM_GRAPH`,
+ * `SYNC_TEAM_GRAPH_DOMAIN`, `SYNC_TEAM_GRAPH_TIMELINE`,
+ * `REFRESH_GRAPH_SEARCH_PROJECTION` and `REFRESH_ORG_HEALTH_PROJECTION` — were
+ * listed because the registry assigned them here, and the registry assigned
+ * them here because this list said so: a declaration check that both sides
+ * satisfy by agreeing with each other proves agreement, not recovery. Nothing
+ * in this file reads a graph table, an org-health row or a media-intelligence
+ * index job.
+ *
+ * Four of the six were retired as producerless queues. The two that remain
+ * are listed again below, and this time the claim is backed by code in this
+ * file rather than by the list itself:
+ *
+ *   * `RECONCILE_TEAM_GRAPH` — `reconcileStrandedGraphProjections` compares
+ *     `evidence` with `investigation_graph_nodes` and re-enqueues a rebuild
+ *     for each active `Team` (joined through `teams` / `organizations`) whose
+ *     graph is missing a finalized record.
+ *   * `REFRESH_GRAPH_SEARCH_PROJECTION` — `reconcileStaleSignalProjections`
+ *     compares `media_intelligence_signals` with `evidence_search_documents`
+ *     and re-enqueues the rebuild that job exists to trigger.
+ *
+ * The registry gate now checks that a named reconciler's source REFERENCES the
+ * authority model of the work it is given, so a name in this list with no code
+ * behind it fails the build instead of agreeing with itself.
  */
 export const RECOVERED_WORK_TYPES = [
   "REBUILD_SEARCH_DOCUMENT",
-  "INDEX_MEDIA_INTELLIGENCE",
   "RECONCILE_TEAM_GRAPH",
-  "SYNC_TEAM_GRAPH_DOMAIN",
-  "SYNC_TEAM_GRAPH_TIMELINE",
   "REFRESH_GRAPH_SEARCH_PROJECTION",
-  "REFRESH_ORG_HEALTH_PROJECTION",
   "SEARCH_INDEX_RECONCILER",
 ] as const;
 
@@ -134,8 +172,34 @@ export type SearchIndexReconcileResult = {
   workspacesLocked: number;
   /** Workspaces whose own run failed. One failure never abandons the rest. */
   workspacesFailed: number;
+  /**
+   * ET-Q-07 (2026-09-30) — the two projection recoveries that make this module
+   * the reconciler for `ReconcileTeamGraph` and `RefreshGraphSearchProjection`
+   * in fact rather than by declaration. See {@link reconcileStrandedGraphProjections}
+   * and {@link reconcileStaleSignalProjections}.
+   */
+  graph: ProjectionRecoveryCounts;
+  signalProjection: ProjectionRecoveryCounts;
   durationMs: number;
   error?: string;
+};
+
+/** What one of the two projection recoveries did this tick. */
+export type ProjectionRecoveryCounts = {
+  /** Candidates the durable comparison found owing work. */
+  owed: number;
+  /** New jobs scheduled. */
+  reEnqueued: number;
+  /** The work was already live; the enqueue joined it. */
+  collapsed: number;
+  failed: number;
+};
+
+const NO_RECOVERY: ProjectionRecoveryCounts = {
+  owed: 0,
+  reEnqueued: 0,
+  collapsed: 0,
+  failed: 0,
 };
 
 /**
@@ -197,8 +261,25 @@ export async function runSearchIndexReconciler(
     workspacesReconciled: 0,
     workspacesLocked: 0,
     workspacesFailed: 0,
+    graph: { ...NO_RECOVERY },
+    signalProjection: { ...NO_RECOVERY },
     durationMs: 0,
   };
+
+  // ET-Q-07 (2026-09-30) — the graph and signal-projection recoveries run
+  // FIRST and on their own. They are independent of the per-workspace search
+  // claims below (they hold no run row and need none: each only re-enqueues
+  // through an idempotent canonical producer), so a search discovery failure
+  // must not stop them and they must not be able to fail the search sweep.
+  // Each helper is fail-isolated and reports what it could not do in `failed`.
+  result.graph = await reconcileStrandedGraphProjections({
+    settledBefore,
+    limit: Math.min(workspaceBatchSize, GRAPH_RECOVERY_MAX_WORKSPACES),
+  });
+  result.signalProjection = await reconcileStaleSignalProjections({
+    settledBefore,
+    limit: batchSize,
+  });
 
   try {
     const workspaces = await workspacesNeedingReconciliation(
@@ -325,6 +406,248 @@ export async function runSearchIndexReconciler(
 
   result.durationMs = Date.now() - startedAt;
   return result;
+}
+
+// ===========================================================================
+// ET-Q-07 (2026-09-30) — GRAPH AND SIGNAL-PROJECTION RECOVERY
+// ===========================================================================
+
+/** Workspaces one tick may hand a full graph rebuild to. A rebuild is heavy. */
+const GRAPH_RECOVERY_MAX_WORKSPACES = 25;
+
+/**
+ * Drift older than this is not this sweep's to chase.
+ *
+ * Both recoveries below are self-draining — a successful rebuild removes the
+ * row from the population — so a row that is STILL owed after this long is not
+ * a lost enqueue, it is a rebuild that keeps failing. Re-enqueueing it every
+ * ten minutes indefinitely would make this sweep the amplifier the retry
+ * policy exists to prevent. The next real evidence event for that workspace
+ * triggers a full rebuild through the live producers regardless.
+ */
+const PROJECTION_RECOVERY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Re-enqueue a graph rebuild for every workspace whose graph is missing a
+ * record it should hold.
+ *
+ * THE AUTHORITY, AND WHY THERE IS NO "RECONCILE REQUESTED" ROW
+ * ---------------------------------------------------------------------------
+ * `ReconcileTeamGraph` is addressed to a `Team` and its producers (evidence
+ * completion, the finalization fan-out, `POST /v1/graph/reconcile`) enqueue
+ * AFTER the evidence mutation commits, best-effort. No table records that a
+ * rebuild was asked for, so a lost enqueue leaves no request to find.
+ *
+ * What it does leave is a measurable disagreement between two durable tables.
+ * `reconcileTeamGraph` materialises one `investigation_graph_nodes` row of
+ * kind EVIDENCE for every non-deleted `evidence` row of the workspace. So a
+ * finalized record (status SIGNED or REPORTED — the point at which the live
+ * path enqueues) with no live EVIDENCE node IS "this workspace's graph is
+ * owed a rebuild". That comparison is the authority, in the same way
+ * `evidence` vs `evidence_search_documents` is the authority for search.
+ *
+ * ONLY ACTIVE WORKSPACES. The processor resolves its command through
+ * `resolveActiveWorkspace` — the Team must exist and its Organization must be
+ * ACTIVE — and completes as a no-op otherwise. A suspended organization's
+ * records would therefore stay owed forever and be re-enqueued every tick for
+ * nothing, so the same condition is applied here, in the query, by joining
+ * `teams` and `organizations`.
+ *
+ * `team_id IS NOT NULL` for the reason the search scan gives: a record with no
+ * workspace cannot be attributed to a graph at all.
+ *
+ * IDEMPOTENT. The re-enqueue is `enqueueGraphReconcileJob(teamId)`, which
+ * names the same registry entry and the same command id (the Team id) as the
+ * API producer, so both build `graph-reconcile-<teamId>`: a workspace whose
+ * rebuild is already queued or running collapses onto it. The rebuild itself
+ * is a natural-key upsert. SELF-DRAINING: a successful rebuild creates the
+ * missing node, and the workspace leaves this population.
+ *
+ * It writes nothing. Convergence is the processor's job.
+ */
+export async function reconcileStrandedGraphProjections(input: {
+  settledBefore: Date;
+  limit: number;
+}): Promise<ProjectionRecoveryCounts> {
+  const counts: ProjectionRecoveryCounts = { ...NO_RECOVERY };
+  const limit = Math.max(1, Math.min(input.limit, GRAPH_RECOVERY_MAX_WORKSPACES));
+  const notBefore = new Date(Date.now() - PROJECTION_RECOVERY_MAX_AGE_MS);
+
+  let owed: string[];
+  try {
+    owed = await workspacesOwingGraphReconcile(input.settledBefore, notBefore, limit);
+  } catch (err) {
+    counts.failed += 1;
+    logger.error(
+      { reconciler: "search-index", category: safeFailureCategory(err) },
+      "worker.search_index.graph_recovery_scan_failed",
+    );
+    return counts;
+  }
+  counts.owed = owed.length;
+  if (owed.length === 0) return counts;
+
+  const { enqueueGraphReconcileJob } = await import("./queue.js");
+  for (const teamId of owed) {
+    try {
+      const outcome = await enqueueGraphReconcileJob(teamId, {
+        reason: "reconciler_drift",
+      });
+      if (!outcome.enqueued) counts.failed += 1;
+      else if (outcome.collapsed) counts.collapsed += 1;
+      else counts.reEnqueued += 1;
+    } catch {
+      counts.failed += 1;
+    }
+  }
+  logger.info(
+    { reconciler: "search-index", ...counts },
+    "worker.search_index.graph_recovery",
+  );
+  return counts;
+}
+
+/** Active workspaces holding a finalized record with no live EVIDENCE node. */
+export async function workspacesOwingGraphReconcile(
+  settledBefore: Date,
+  notBefore: Date,
+  limit: number,
+): Promise<string[]> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT e."team_id"::text AS team_id
+       FROM "evidence" e
+       JOIN "teams" t ON t."id" = e."team_id"
+       JOIN "organizations" o ON o."id" = t."organization_id"
+      WHERE e."team_id" IS NOT NULL
+        AND e."deleted_at" IS NULL
+        AND e."status"::text IN ('SIGNED', 'REPORTED')
+        AND e."updated_at" < $1
+        AND e."updated_at" > $2
+        AND o."status"::text = 'ACTIVE'
+        AND NOT EXISTS (
+              SELECT 1
+                FROM "investigation_graph_nodes" n
+               WHERE n."team_id" = e."team_id"
+                 AND n."node_kind" = 'EVIDENCE'
+                 AND n."external_id" = e."id"
+                 AND n."stale_at_utc" IS NULL
+            )
+      GROUP BY e."team_id"
+      ORDER BY MIN(e."updated_at") ASC
+      LIMIT $3`,
+    settledBefore,
+    notBefore,
+    limit,
+  )) as Array<{ team_id: string }>;
+  return rows.map((r) => r.team_id);
+}
+
+/**
+ * Re-enqueue the search rebuild for every record whose signals changed after
+ * its search document was last written.
+ *
+ * WHAT `RefreshGraphSearchProjection` IS, AND WHAT RECOVERING IT MEANS
+ * ---------------------------------------------------------------------------
+ * That job is a FAN-OUT TRIGGER, not a writer. For one workspace it finds the
+ * records whose `media_intelligence_signals` changed in the last hour and
+ * enqueues a `RebuildSearchDocument` for each, because the search document
+ * caches signal-derived fields. Its only producer is the graph-reconcile
+ * processor's `onReconciled` hook, best-effort.
+ *
+ * Re-enqueueing the trigger would not recover a lost one: the trigger only
+ * looks back sixty minutes, and by the time a stranded threshold has passed
+ * and a sweep has run, the window it would have covered has closed. So the
+ * EFFECT is recovered instead, from the durable fact the trigger itself reads:
+ * a signal row whose `updated_at_utc` is later than the record's
+ * `evidence_search_documents.indexed_at_utc` is a document that was not
+ * rebuilt after its signals changed. No window, no dependence on the trigger
+ * having run.
+ *
+ * Records with NO document are left to the search drift scan, which already
+ * owns "missing". Eligibility is `searchIndexableLifecycleSql`, the one
+ * authority for which records the index holds.
+ *
+ * IDEMPOTENT. The rebuild goes through `enqueueSearchIndexingJob` — the same
+ * producer the trigger calls — so a record whose rebuild is already queued
+ * collapses onto it. SELF-DRAINING: a rebuild advances `indexed_at_utc` past
+ * the signal, and the record leaves this population.
+ */
+export async function reconcileStaleSignalProjections(input: {
+  settledBefore: Date;
+  limit: number;
+}): Promise<ProjectionRecoveryCounts> {
+  const counts: ProjectionRecoveryCounts = { ...NO_RECOVERY };
+  const limit = Math.max(1, Math.min(input.limit, 1000));
+  const notBefore = new Date(Date.now() - PROJECTION_RECOVERY_MAX_AGE_MS);
+
+  let owed: string[];
+  try {
+    owed = await evidenceWithSignalsNewerThanDocument(
+      input.settledBefore,
+      notBefore,
+      limit,
+    );
+  } catch (err) {
+    counts.failed += 1;
+    logger.error(
+      { reconciler: "search-index", category: safeFailureCategory(err) },
+      "worker.search_index.signal_projection_scan_failed",
+    );
+    return counts;
+  }
+  counts.owed = owed.length;
+  if (owed.length === 0) return counts;
+
+  const { enqueueSearchIndexingJob } = await import("./queue.js");
+  for (const evidenceId of owed) {
+    try {
+      const outcome = await enqueueSearchIndexingJob({
+        kind: "evidence",
+        sourceId: evidenceId,
+        reason: "reconciler_signal_drift",
+      });
+      if (!outcome.enqueued) {
+        if (outcome.reason.startsWith("job_")) counts.collapsed += 1;
+        else counts.failed += 1;
+      } else if (outcome.collapsed) counts.collapsed += 1;
+      else counts.reEnqueued += 1;
+    } catch {
+      counts.failed += 1;
+    }
+  }
+  logger.info(
+    { reconciler: "search-index", ...counts },
+    "worker.search_index.signal_projection_recovery",
+  );
+  return counts;
+}
+
+/** Records whose newest settled signal postdates their search document. */
+export async function evidenceWithSignalsNewerThanDocument(
+  settledBefore: Date,
+  notBefore: Date,
+  limit: number,
+): Promise<string[]> {
+  const rows = (await prisma.$queryRawUnsafe(
+    `SELECT s."evidence_id"::text AS evidence_id
+       FROM "media_intelligence_signals" s
+       JOIN "evidence" e ON e."id" = s."evidence_id"
+       JOIN "evidence_search_documents" d
+         ON d."source_id" = e."id"
+        AND d."document_type" = 'EVIDENCE'
+      WHERE e."team_id" IS NOT NULL
+        AND ${ELIGIBLE_SQL}
+        AND s."updated_at_utc" < $1
+        AND s."updated_at_utc" > $2
+        AND d."indexed_at_utc" < s."updated_at_utc"
+      GROUP BY s."evidence_id"
+      ORDER BY MIN(s."updated_at_utc") ASC
+      LIMIT $3`,
+    settledBefore,
+    notBefore,
+    limit,
+  )) as Array<{ evidence_id: string }>;
+  return rows.map((r) => r.evidence_id);
 }
 
 /**

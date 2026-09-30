@@ -37,6 +37,7 @@ import { dirname, join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createHash, randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EXT = process.env.EXTENSION_DIST ?? join(HERE, "..", "dist");
@@ -178,8 +179,9 @@ async function apiPost<T = any>(path: string, token: string, body: unknown): Pro
   return res.json() as Promise<T>;
 }
 
-// The public verify surface is UNAUTHENTICATED — the evidence id is the token,
-// and a third party opens exactly this URL. No Authorization header.
+// The public verify surface is UNAUTHENTICATED: a third party opens exactly
+// this URL, with no Authorization header. ET-PKG-07 — what they hold is a
+// share token (see `mintVerifyLink`); the evidence id opens nothing.
 async function apiPublicGet(path: string): Promise<{ status: number; json: any }> {
   const res = await fetch(`${API}${path}`);
   let json: any = null;
@@ -189,6 +191,26 @@ async function apiPublicGet(path: string): Promise<{ status: number; json: any }
     /* ignore */
   }
   return { status: res.status, json };
+}
+
+/**
+ * A public verification link for the captured record (ET-PKG-07). A record is
+ * private by default and the route that creates a link needs a step-up proof
+ * this harness does not hold, so the link is minted by the API package's
+ * local-only script against the disposable database (DATABASE_URL, which the
+ * script refuses unless its host is local).
+ */
+function mintVerifyLink(evidenceId: string): string {
+  const apiDir = join(HERE, "..", "..", "..", "services", "api");
+  const run = spawnSync(
+    process.execPath,
+    [join(apiDir, "scripts", "e2e-verify-link.mjs"), `--evidence=${evidenceId}`],
+    { cwd: apiDir, encoding: "utf8" },
+  );
+  if (run.status !== 0 || !/^pvs_[A-Za-z0-9_-]{43}$/.test(run.stdout.trim())) {
+    throw new Error(`mintVerifyLink failed (exit ${run.status}): ${(run.stderr || run.stdout).trim()}`);
+  }
+  return run.stdout.trim();
 }
 
 /**
@@ -233,6 +255,7 @@ async function pollArtifact(
  * (proving the minted token is accepted downstream).
  */
 async function traceEvidenceAcrossSurfaces(evidenceId: string, token: string): Promise<void> {
+  let verifyLink = "";
   // 1. LIBRARY — the record appears in the acquisition-filtered list.
   await stage("LIBRARY", STAGE_TIMEOUT.LIBRARY, async () => {
     const list = await apiGet<{
@@ -325,9 +348,13 @@ async function traceEvidenceAcrossSurfaces(evidenceId: string, token: string): P
   });
 
   // 7. PACKAGE VALIDATOR + PUBLIC VERIFY — the unauthenticated public verify route
-  //    (evidence id is the token) computes the package integrity server-side.
+  //    computes the package integrity server-side. The record's id is not a
+  //    link (ET-PKG-07): the record is published and a share link minted.
   await stage("PACKAGE_VALIDATOR", STAGE_TIMEOUT.PUBLIC_VERIFY, async () => {
-    const pub = await apiPublicGet(`/public/verify/${evidenceId}`);
+    const byId = await apiPublicGet(`/public/verify/${evidenceId}`);
+    expect(byId.status, "a record id is not a public link").toBe(404);
+    verifyLink = mintVerifyLink(evidenceId);
+    const pub = await apiPublicGet(`/public/verify/${verifyLink}`);
     expect(pub.status, "public verify reachable").toBe(200);
     // Validator: the signed manifest + checksum index prove the package is intact.
     const integrity = pub.json?.verificationPackageIntegrity;
@@ -337,7 +364,7 @@ async function traceEvidenceAcrossSurfaces(evidenceId: string, token: string): P
   });
 
   await stage("PUBLIC_VERIFY", STAGE_TIMEOUT.PUBLIC_VERIFY, async () => {
-    const pub = await apiPublicGet(`/public/verify/${evidenceId}`);
+    const pub = await apiPublicGet(`/public/verify/${verifyLink}`);
     expect(pub.status, "public verify reachable").toBe(200);
     // Public acquisition is domain-only / neutral, same mode.
     expect(pub.json?.acquisition?.acquisition?.mode).toBe(ACQ_MODE);

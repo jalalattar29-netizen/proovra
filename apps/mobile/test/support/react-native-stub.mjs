@@ -86,7 +86,14 @@ export const useColorScheme = () => "light";
 export const I18nManager = { isRTL: false };
 export const Appearance = { getColorScheme: () => "light", addChangeListener: () => ({ remove() {} }) };
 export const RefreshControl = host("RefreshControl");
-export const Share = { share: async () => ({ action: "sharedAction" }) };
+// A test reads what the system share sheet was handed from
+// globalThis.__RN_SHARED__ (array of the content objects).
+export const Share = {
+  share: async (content) => {
+    (globalThis.__RN_SHARED__ ??= []).push(content);
+    return { action: "sharedAction" };
+  },
+};
 
 export default {
   View, Text, Pressable, ScrollView, TextInput, Image, Switch, ActivityIndicator,

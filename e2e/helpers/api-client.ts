@@ -185,6 +185,36 @@ function prepareAccount(email: string, plan?: string): void {
   }
 }
 
+/**
+ * A public verification link for a record (ET-PKG-07).
+ *
+ * A record is private by default and its id is not a public link. The product
+ * route that creates a link publishes the record, and publishing needs a
+ * step-up challenge these throwaway accounts cannot pass — so the link is
+ * minted by `services/api/scripts/e2e-verify-link.mjs`, in its own process,
+ * against the stack's disposable database (it refuses any other). Returns the
+ * share token: `/verify/<token>` and `/public/verify/<token>` open the record.
+ */
+export function mintVerifyLink(evidenceId: string, projection: "STANDARD" | "BASIC" = "STANDARD"): string {
+  const root = repoRoot();
+  const run = spawnSync(
+    process.execPath,
+    [
+      join(root, "services", "api", "scripts", "e2e-verify-link.mjs"),
+      `--evidence=${evidenceId}`,
+      `--projection=${projection}`,
+    ],
+    { cwd: join(root, "services", "api"), encoding: "utf8" },
+  );
+  if (run.status !== 0 || !/^pvs_[A-Za-z0-9_-]{43}$/.test(run.stdout.trim())) {
+    throw new Error(
+      `Could not mint a verification link for ${evidenceId} (exit ${run.status}): ` +
+        `${(run.stderr || run.stdout || "").trim()}`,
+    );
+  }
+  return run.stdout.trim();
+}
+
 /** Options for the session a spec wants. */
 export type SessionOptions = {
   /**

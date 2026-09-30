@@ -340,7 +340,11 @@ function makeWorkspace(): unknown {
       enabled: true,
       configured: true,
       published: true,
+      // The LEGACY record-id link (ET-PKG-07): this fixture record predates
+      // share links and is inside its bounded grace.
       sharePath: `/verify/${EVIDENCE_ID}`,
+      activeShareLinkCount: 1,
+      legacyLinkExpiresAtUtc: iso("2027-01-06T02:22:02Z"),
       routeAccessible: true,
       publicViewCount: 1,
       authenticatedViewCount: 0,
@@ -548,6 +552,36 @@ function makeWorkspace(): unknown {
  */
 function respond(path: string): unknown {
   if (path.includes("/review-workspace")) return makeWorkspace();
+  // ET-PKG-07 — the public-links panel. The fixture record was published
+  // before share links existed, so it carries the legacy record-id link (the
+  // `sharePath` above) and one active share link.
+  if (path.includes("/verify-links")) {
+    return {
+      publicVerifyState: "PUBLISHED",
+      shareable: true,
+      legacy: { active: true, expiresAtUtc: iso("2027-01-06T02:22:02Z"), graceDays: 180 },
+      links: [
+        {
+          id: "7d0c5f0e-5d0a-4f3e-9a55-0b8f6f2d1c01",
+          purpose: "OWNER_SHARE",
+          projection: "STANDARD",
+          audience: "Opposing counsel",
+          reportVersion: null,
+          state: "ACTIVE",
+          createdAtUtc: iso("2026-07-10T02:22:02Z"),
+          createdByUserId: null,
+          expiresAtUtc: iso("2026-08-09T02:22:02Z"),
+          revokedAtUtc: null,
+          revokedByUserId: null,
+          revocationReason: null,
+          rotatedFromId: null,
+          maxUses: null,
+          useCount: 1,
+          lastUsedAtUtc: iso("2026-07-10T02:22:02Z"),
+        },
+      ],
+    };
+  }
   if (path.startsWith("/v1/cases?")) return { items: [] };
   if (path.includes("/reviewer-workflow/events")) return { items: [] };
   // ADM-P1-003 / OWN-1 — the shell reads the tenant-safe status enum.

@@ -16,9 +16,17 @@
  * The fan-out enqueue is also recorded rather than executed: what matters is
  * that it happens once, for the right record, after the durable state is
  * settled — not that Redis accepted it.
+ *
+ * ET-SM-07 (2026-09-30) — THE FAMILY HAS A SECOND UNIT: `IntegrityRecheckSweep`.
+ * Its eight cases are at the end of this file, with their own substituted
+ * boundary (an in-memory versioned object store injected through the module's
+ * `IntegrityObjectReader`). They share this suite because they share the
+ * family — both units keep a signed record's proof of integrity true — and the
+ * proof gate credits a family by the suite that executed it.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -633,6 +641,535 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
     expect(after!.otsProofBase64).toBeNull();
     expect(await custodyCount(owed)).toBe(0);
     ots.stamp = "pending";
+  });
+
+  // =========================================================================
+  // ET-SM-07 (2026-09-30) — IntegrityRecheckSweep
+  //
+  //   durable authority  Evidence (signed, not DESTROYED / PENDING_DESTRUCTION)
+  //   producer           none — due-ness is a fact on the row
+  //   executor           services/worker/src/integrity-recheck.ts
+  //   claim              a LEASE: conditional update of
+  //                      `integrityRecheckClaimedAtUtc`; the status is unchanged
+  //   terminal writer    the same module (FAILED_HASH_MISMATCH on a mismatch)
+  //   external boundary  object storage, READ ONLY, at the recorded VersionId
+  //
+  // The object store is the ONE thing substituted, through the module's own
+  // injectable `IntegrityObjectReader`: an in-memory versioned bucket that
+  // records every read, so a case can assert that a record was — or was NOT —
+  // read. The claim, the eligibility rule, the history write, the latest-state
+  // columns and the rejection are the real production code against live
+  // PostgreSQL. Prisma is not mocked.
+  // =========================================================================
+
+  type Recheck = typeof import("../../../worker/src/integrity-recheck.js");
+  type Reader = import("../../../worker/src/integrity-recheck.js").IntegrityObjectReader;
+
+  const sha256 = (b: Buffer | string) => createHash("sha256").update(b).digest("hex");
+
+  /** A versioned bucket: key -> versionId -> bytes. Every read is recorded. */
+  class VersionedStore {
+    objects = new Map<string, Map<string, Buffer>>();
+    down = false;
+    reads: Array<{ key: string; versionId: string | null }> = [];
+    put(key: string, bytes: Buffer): string {
+      const versionId = `v-${randomUUID().slice(0, 12)}`;
+      if (!this.objects.has(key)) this.objects.set(key, new Map());
+      this.objects.get(key)!.set(versionId, bytes);
+      return versionId;
+    }
+    private resolve(o: { key: string; versionId: string | null }): Buffer {
+      this.reads.push({ key: o.key, versionId: o.versionId });
+      if (this.down) {
+        throw Object.assign(new Error("SlowDown"), {
+          name: "SlowDown",
+          $metadata: { httpStatusCode: 503 },
+        });
+      }
+      const bytes = o.versionId ? this.objects.get(o.key)?.get(o.versionId) : undefined;
+      if (!bytes) {
+        throw Object.assign(new Error("NoSuchVersion"), {
+          name: "NoSuchVersion",
+          $metadata: { httpStatusCode: 404 },
+        });
+      }
+      return bytes;
+    }
+    reader: Reader = {
+      head: async (o) => ({ sizeBytes: this.resolve(o).length }),
+      stream: async (o) => Readable.from([this.resolve(o)]),
+    };
+    readsOf(key: string): number {
+      return this.reads.filter((r) => r.key === key).length;
+    }
+  }
+
+  const loadRecheck = (): Promise<Recheck> =>
+    import("../../../worker/src/integrity-recheck.js");
+
+  /** A SIGNED single-object record whose bytes are in `store` at a recorded version. */
+  async function signedRecord(
+    store: VersionedStore,
+    fixture: WorkspaceFixture,
+    overrides: Record<string, unknown> = {},
+  ) {
+    const team = await prisma.team.findUniqueOrThrow({
+      where: { id: fixture.teamId },
+      select: { organizationId: true },
+    });
+    const bytes = Buffer.from(`point5-integrity-${randomUUID()}`);
+    const key = `evidence/${randomUUID()}/original.bin`;
+    const versionId = store.put(key, bytes);
+    const fileSha256 = sha256(bytes);
+    const row = await prisma.evidence.create({
+      data: {
+        title: `point5-integrity-${randomUUID()}`,
+        type: "PHOTO",
+        status: "SIGNED",
+        teamId: fixture.teamId,
+        organizationId: team.organizationId,
+        ownerUserId: fixture.ownerUserId,
+        storageBucket: "point5-integrity-bucket",
+        storageKey: key,
+        storageVersionId: versionId,
+        fileSha256,
+        signedAtUtc: new Date(),
+        ...overrides,
+      } as never,
+      select: { id: true },
+    });
+    return { id: row.id, key, versionId, bytes, fileSha256 };
+  }
+
+  const integrityRow = (id: string) =>
+    prisma.evidence.findUniqueOrThrow({
+      where: { id },
+      select: {
+        teamId: true,
+        organizationId: true,
+        status: true,
+        lifecycleState: true,
+        integrityCheckedAtUtc: true,
+        integrityVerifiedAtUtc: true,
+        integrityCheckOutcome: true,
+        integrityCheckFailureCode: true,
+        integrityRecheckRequestedAtUtc: true,
+        integrityRecheckClaimedAtUtc: true,
+      },
+    });
+  const integrityChecks = (id: string) =>
+    prisma.evidenceIntegrityCheck.findMany({
+      where: { evidenceId: id },
+      orderBy: { checkedAtUtc: "asc" },
+    });
+  const rejectionEvents = (id: string) =>
+    prisma.custodyEvent.count({
+      where: { evidenceId: id, eventType: "INTEGRITY_REJECTED_HASH_MISMATCH" },
+    });
+
+  it("integrity: the signed Evidence row is the durable intent; nothing is enqueued and an unknown id creates nothing", async () => {
+    const recheck = await loadRecheck();
+    const { integrityRecheckDueWhere } = await import("@proovra/shared-runtime");
+    const store = new VersionedStore();
+    const ev = await signedRecord(store, own);
+
+    // The intent exists BEFORE any work and without any message: the row is
+    // due by what it is. No job, no outbox row, no history yet.
+    expect(
+      await prisma.evidence.count({
+        where: { AND: [{ id: ev.id }, integrityRecheckDueWhere(new Date())] },
+      }),
+    ).toBe(1);
+    expect(await integrityChecks(ev.id)).toHaveLength(0);
+
+    // An id that names no record is refused before storage is touched and
+    // leaves nothing behind.
+    const ghost = "00000000-0000-4000-8000-0000000000fe";
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ghost,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+      }),
+    ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+    expect(await prisma.evidenceIntegrityCheck.count({ where: { evidenceId: ghost } })).toBe(0);
+
+    // A record that is not signed has no signed digest to compare against: it
+    // is not intent, even with bytes in the store, and even when forced.
+    const unsigned = await signedRecord(store, own, { status: "CREATED", signedAtUtc: null });
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: unsigned.id,
+        trigger: "RECOVERY",
+        force: true,
+        reader: store.reader,
+      }),
+    ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+    expect(await integrityChecks(unsigned.id)).toHaveLength(0);
+    expect(store.reads).toHaveLength(0);
+
+    // And the real record is served from that durable intent alone.
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ev.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+      }),
+    ).toMatchObject({ checked: true, outcome: "VERIFIED" });
+    provenCase("integrity.durable.intent_before_work");
+  });
+
+  it("integrity: the workspace is reloaded from the Evidence row — the caller supplies none", async () => {
+    const recheck = await loadRecheck();
+    const store = new VersionedStore();
+    const mine = await signedRecord(store, own);
+    const theirs = await signedRecord(store, foreign);
+
+    // `recheckEvidenceIntegrity` takes an evidence id and NO tenant. Whatever
+    // workspace ends up on the history row can only have come from the row.
+    for (const ev of [mine, theirs]) {
+      expect(
+        await recheck.recheckEvidenceIntegrity({
+          evidenceId: ev.id,
+          trigger: "SCHEDULED",
+          reader: store.reader,
+        }),
+      ).toMatchObject({ checked: true, outcome: "VERIFIED" });
+    }
+
+    const [mineCheck] = await integrityChecks(mine.id);
+    const [theirCheck] = await integrityChecks(theirs.id);
+    expect(mineCheck!.teamId).toBe(own.teamId);
+    expect(theirCheck!.teamId).toBe(foreign.teamId);
+    expect(mineCheck!.teamId).not.toBe(theirCheck!.teamId);
+
+    // And the recheck never rewrites the record's own workspace.
+    expect((await integrityRow(mine.id)).teamId).toBe(own.teamId);
+    expect((await integrityRow(theirs.id)).teamId).toBe(foreign.teamId);
+    provenCase("integrity.tenant.workspace_reloaded");
+  });
+
+  it("integrity: a sweep scoped to one workspace never reads or writes another workspace's record", async () => {
+    const recheck = await loadRecheck();
+    const { requestIntegrityRecheck } = await import("@proovra/shared-runtime");
+    const store = new VersionedStore();
+    const mine = await signedRecord(store, own);
+    const theirs = await signedRecord(store, foreign);
+    // Both are REQUESTED, so each sorts to the head of its workspace's due
+    // population and a one-record tick is deterministic.
+    expect(await requestIntegrityRecheck(prisma, mine.id)).toBe(true);
+    expect(await requestIntegrityRecheck(prisma, theirs.id)).toBe(true);
+
+    const run = await recheck.runIntegrityRecheckSweep({
+      teamId: own.teamId,
+      reader: store.reader,
+      trigger: "point5",
+      limit: 1,
+    });
+    expect(run).toMatchObject({ scanned: 1, verified: 1 });
+
+    // The foreign record was not READ …
+    expect(store.readsOf(theirs.key)).toBe(0);
+    expect(store.readsOf(mine.key)).toBeGreaterThan(0);
+    // … and not WRITTEN: no history, no claim, its request still outstanding.
+    expect(await integrityChecks(theirs.id)).toHaveLength(0);
+    const untouched = await integrityRow(theirs.id);
+    expect(untouched.integrityRecheckClaimedAtUtc).toBeNull();
+    expect(untouched.integrityCheckedAtUtc).toBeNull();
+    expect(untouched.integrityRecheckRequestedAtUtc).not.toBeNull();
+
+    // Each history row carries ITS OWN record's workspace, whichever sweep
+    // wrote it.
+    const [mineCheck] = await integrityChecks(mine.id);
+    expect(mineCheck).toMatchObject({ teamId: own.teamId, outcome: "VERIFIED" });
+    expect(
+      await recheck.runIntegrityRecheckSweep({
+        teamId: foreign.teamId,
+        reader: store.reader,
+        trigger: "point5",
+        limit: 1,
+      }),
+    ).toMatchObject({ scanned: 1, verified: 1 });
+    const [theirCheck] = await integrityChecks(theirs.id);
+    expect(theirCheck).toMatchObject({ teamId: foreign.teamId, outcome: "VERIFIED" });
+    // No check row anywhere pairs a record with a workspace that is not its own.
+    expect(
+      await prisma.evidenceIntegrityCheck.count({
+        where: {
+          OR: [
+            { evidenceId: mine.id, NOT: { teamId: own.teamId } },
+            { evidenceId: theirs.id, NOT: { teamId: foreign.teamId } },
+          ],
+        },
+      }),
+    ).toBe(0);
+    provenCase("integrity.tenant.cross_workspace_denied");
+  });
+
+  it("integrity: N concurrent rechecks of one record — one winner, one read, one history row", async () => {
+    const recheck = await loadRecheck();
+    const store = new VersionedStore();
+    const ev = await signedRecord(store, own);
+
+    const results = await Promise.all(
+      Array.from({ length: 6 }, (_, i) =>
+        recheck.recheckEvidenceIntegrity({
+          evidenceId: ev.id,
+          trigger: "SCHEDULED",
+          correlationId: `point5-race-${i}`,
+          reader: store.reader,
+        }),
+      ),
+    );
+    expect(results.filter((r) => r.checked)).toHaveLength(1);
+    expect(results.filter((r) => !r.checked)).toHaveLength(5);
+    expect(await integrityChecks(ev.id)).toHaveLength(1);
+    // The losers never reached storage: one HEAD and one GET, from the winner.
+    expect(store.readsOf(ev.key)).toBe(2);
+    expect((await integrityRow(ev.id)).integrityRecheckClaimedAtUtc).toBeNull();
+    provenCase("integrity.claim.one_winner");
+  });
+
+  it("integrity: a record another checker holds is not read — and an EXPIRED lease is recovered", async () => {
+    const recheck = await loadRecheck();
+    const store = new VersionedStore();
+    const ev = await signedRecord(store, own);
+    const heldAt = new Date(Date.now() - 5 * 60_000); // well inside the 30-minute lease
+    await prisma.evidence.update({
+      where: { id: ev.id },
+      data: { integrityRecheckClaimedAtUtc: heldAt },
+    });
+
+    // Neither an ordinary checker nor a FORCED one may take a live claim.
+    for (const force of [false, true]) {
+      expect(
+        await recheck.recheckEvidenceIntegrity({
+          evidenceId: ev.id,
+          trigger: force ? "RECOVERY" : "SCHEDULED",
+          force,
+          reader: store.reader,
+        }),
+      ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+    }
+    expect(store.reads).toHaveLength(0);
+    expect(await integrityChecks(ev.id)).toHaveLength(0);
+    // The holder's claim is exactly as it left it.
+    expect((await integrityRow(ev.id)).integrityRecheckClaimedAtUtc!.getTime()).toBe(
+      heldAt.getTime(),
+    );
+
+    // A claim whose owner died is not held forever: past the lease it is taken.
+    await prisma.evidence.update({
+      where: { id: ev.id },
+      data: { integrityRecheckClaimedAtUtc: new Date(Date.now() - 31 * 60_000) },
+    });
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ev.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+      }),
+    ).toMatchObject({ checked: true, outcome: "VERIFIED" });
+    expect(await integrityChecks(ev.id)).toHaveLength(1);
+    provenCase("integrity.claim.active_not_stolen");
+  });
+
+  it("integrity: a duplicate recheck is a no-op, and a duplicate mismatch rejects ONCE", async () => {
+    const recheck = await loadRecheck();
+    const store = new VersionedStore();
+
+    // A verified record is not due again: the repeat reads nothing, writes nothing.
+    const ok = await signedRecord(store, own);
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ok.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+      }),
+    ).toMatchObject({ checked: true, outcome: "VERIFIED" });
+    const readsAfterFirst = store.readsOf(ok.key);
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ok.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+      }),
+    ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+    expect(store.readsOf(ok.key)).toBe(readsAfterFirst);
+    expect(await integrityChecks(ok.id)).toHaveLength(1);
+
+    // The destructive half: drift is rejected once. The repeat — even forced —
+    // finds the record out of the eligible population and appends no second
+    // custody event.
+    const drifted = await signedRecord(store, own);
+    store.objects.get(drifted.key)!.set(drifted.versionId, Buffer.from("drifted"));
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: drifted.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+      }),
+    ).toMatchObject({
+      checked: true,
+      outcome: "FAILED",
+      failureCode: "DIGEST_MISMATCH",
+      rejected: true,
+    });
+    expect((await integrityRow(drifted.id)).status).toBe("FAILED_HASH_MISMATCH");
+    expect(await rejectionEvents(drifted.id)).toBe(1);
+
+    for (const force of [false, true]) {
+      expect(
+        await recheck.recheckEvidenceIntegrity({
+          evidenceId: drifted.id,
+          trigger: "RECOVERY",
+          force,
+          reader: store.reader,
+        }),
+      ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+    }
+    expect(await rejectionEvents(drifted.id)).toBe(1);
+    expect(await integrityChecks(drifted.id)).toHaveLength(1);
+    provenCase("integrity.idempotency.duplicate_is_noop");
+  });
+
+  it("integrity: a rejected or destroyed record is never rewritten to verified by a later or a stale attempt", async () => {
+    const recheck = await loadRecheck();
+    const { readStoredBytesIntegrity } = await import("@proovra/shared-runtime");
+    const store = new VersionedStore();
+
+    // --- A record REJECTED for a digest mismatch ---------------------------
+    const rejected = await signedRecord(store, own);
+    store.objects.get(rejected.key)!.set(rejected.versionId, Buffer.from("drifted"));
+    await recheck.recheckEvidenceIntegrity({
+      evidenceId: rejected.id,
+      trigger: "SCHEDULED",
+      reader: store.reader,
+    });
+    expect((await integrityRow(rejected.id)).status).toBe("FAILED_HASH_MISMATCH");
+
+    // LATER ATTEMPT: the bytes at that version now match again (somebody put
+    // them back). A forced recheck must not be able to launder the rejection.
+    store.objects.get(rejected.key)!.set(rejected.versionId, rejected.bytes);
+    const readsBefore = store.readsOf(rejected.key);
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: rejected.id,
+        trigger: "RECOVERY",
+        force: true,
+        reader: store.reader,
+      }),
+    ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+    expect(store.readsOf(rejected.key)).toBe(readsBefore);
+
+    // STALE ATTEMPT: a reader that hashed the bytes BEFORE the rejection
+    // landed reports VERIFIED afterwards (report issuance reads every original
+    // byte and records what it saw through this same writer). The observation
+    // is recorded — history is append-only — but the terminal status is not
+    // rewritten and the state a surface may present is still "failed".
+    await recheck.recordIntegrityObservation({
+      evidenceId: rejected.id,
+      teamId: own.teamId,
+      expectedDigest: rejected.fileSha256,
+      observation: {
+        outcome: "VERIFIED",
+        failureCode: null,
+        checkedDigest: rejected.fileSha256,
+        storageVersionId: rejected.versionId,
+        checkedObjects: [
+          { partIndex: null, versionId: rejected.versionId, sha256: rejected.fileSha256 },
+        ],
+      },
+      trigger: "REPORT_ISSUANCE",
+      correlationId: "point5-stale-observation",
+    });
+    const afterStale = await prisma.evidence.findUniqueOrThrow({ where: { id: rejected.id } });
+    expect(afterStale.status).toBe("FAILED_HASH_MISMATCH");
+    expect(readStoredBytesIntegrity(afterStale).state).toBe("failed");
+    expect(await rejectionEvents(rejected.id)).toBe(1);
+
+    // --- A DESTROYED record, and one being destroyed ------------------------
+    for (const lifecycleState of ["DESTROYED", "PENDING_DESTRUCTION"]) {
+      const gone = await signedRecord(store, own, { lifecycleState, deletedAt: new Date() });
+      expect(
+        await recheck.recheckEvidenceIntegrity({
+          evidenceId: gone.id,
+          trigger: "RECOVERY",
+          force: true,
+          reader: store.reader,
+        }),
+      ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+      expect(store.readsOf(gone.key)).toBe(0);
+      expect(await integrityChecks(gone.id)).toHaveLength(0);
+      const still = await integrityRow(gone.id);
+      expect(still.lifecycleState).toBe(lifecycleState);
+      expect(still.integrityVerifiedAtUtc).toBeNull();
+      expect(still.integrityCheckOutcome).toBeNull();
+    }
+    provenCase("integrity.terminal.stale_cannot_overwrite");
+  });
+
+  it("integrity: a store that cannot answer is UNAVAILABLE — non-terminal, no verdict on the bytes, retried after the lease", async () => {
+    const recheck = await loadRecheck();
+    const { readStoredBytesIntegrity } = await import("@proovra/shared-runtime");
+    const store = new VersionedStore();
+    const ev = await signedRecord(store, own);
+    const t0 = new Date();
+
+    // The provider's outcome is UNKNOWN: it neither served the bytes nor said
+    // they were gone.
+    store.down = true;
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ev.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+        now: t0,
+      }),
+    ).toEqual({
+      checked: true,
+      outcome: "UNAVAILABLE",
+      failureCode: "STORAGE_UNAVAILABLE",
+      rejected: false,
+    });
+
+    // NON-TERMINAL, and nothing is claimed about the bytes: not rejected, not
+    // "checked", no custody event, and the presented state is not a failure.
+    const held = await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id } });
+    expect(held.status).toBe("SIGNED");
+    expect(held.integrityCheckedAtUtc).toBeNull();
+    expect(held.integrityVerifiedAtUtc).toBeNull();
+    expect(held.integrityCheckOutcome).toBe("UNAVAILABLE");
+    expect(readStoredBytesIntegrity(held).state).not.toBe("failed");
+    expect(await rejectionEvents(ev.id)).toBe(0);
+
+    // The lease is the backoff: the store is back, but a retry one minute
+    // later does not re-read the record …
+    store.down = false;
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ev.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+        now: new Date(t0.getTime() + 60_000),
+      }),
+    ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+
+    // … and after the lease it IS retried, and verifies.
+    expect(
+      await recheck.recheckEvidenceIntegrity({
+        evidenceId: ev.id,
+        trigger: "SCHEDULED",
+        reader: store.reader,
+        now: new Date(t0.getTime() + 31 * 60_000),
+      }),
+    ).toMatchObject({ checked: true, outcome: "VERIFIED" });
+    expect((await integrityChecks(ev.id)).map((c) => c.outcome)).toEqual([
+      "UNAVAILABLE",
+      "VERIFIED",
+    ]);
+    expect((await integrityRow(ev.id)).status).toBe("SIGNED");
+    provenCase("integrity.provider.unknown_outcome_non_terminal");
   });
 
 });

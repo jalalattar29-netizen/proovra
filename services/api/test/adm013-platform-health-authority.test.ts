@@ -32,6 +32,9 @@ const buildEvidenceHealthSnapshotMock = vi.fn();
 // The worker LEASE is its own source of this snapshot, so a world that claims
 // to be healthy has to include a living worker in it.
 const workerLeaseFindMany = vi.fn();
+// The scheduled worker sweeps (capture reaper, integrity recheck) are a source
+// too: a healthy world has each of them succeeding recently.
+const reconciliationRunFindFirst = vi.fn();
 
 vi.mock("../src/db.js", () => ({
   prisma: {
@@ -41,6 +44,9 @@ vi.mock("../src/db.js", () => ({
     },
     workerLease: {
       findMany: (...a: unknown[]) => workerLeaseFindMany(...a),
+    },
+    governanceReconciliationRun: {
+      findFirst: (...a: unknown[]) => reconciliationRunFindFirst(...a),
     },
   },
 }));
@@ -93,6 +99,12 @@ function healthyWorld(): void {
       disabledReason: null,
     },
   ]);
+  // Both sweeps succeeded a minute ago and have never failed.
+  reconciliationRunFindFirst.mockImplementation(async (q: { where: { status?: unknown } }) =>
+    q.where.status === "FAILED"
+      ? null
+      : { status: "SUCCEEDED", startedAtUtc: new Date(Date.now() - 61_000), finishedAtUtc: new Date(Date.now() - 60_000), errorSummary: null },
+  );
   // One LIVE lease, last seen a second ago.
   workerLeaseFindMany.mockResolvedValue([
     {
@@ -164,7 +176,7 @@ describe("ADM-013 Phase 3 — the snapshot declares itself", () => {
   it("never returns a state word without a reason", async () => {
     const s = await buildPlatformHealthSnapshot();
     expect(s.overall.reason.length).toBeGreaterThan(0);
-    for (const sub of [s.queues, s.workers, s.search, s.evidencePipeline]) {
+    for (const sub of [s.queues, s.workers, s.search, s.evidencePipeline, ...s.scheduledSweeps]) {
       expect(sub.reason.length, `${sub.id} has an empty reason`).toBeGreaterThan(0);
     }
   });
@@ -502,6 +514,7 @@ describe("a single evaluation cannot contradict itself", () => {
       s.workers,
       s.search,
       s.evidencePipeline,
+      ...s.scheduledSweeps,
       ...s.dependencies,
     ];
     const ids = all.map((x) => x.id);
@@ -517,6 +530,7 @@ describe("a single evaluation cannot contradict itself", () => {
       s.workers,
       s.search,
       s.evidencePipeline,
+      ...s.scheduledSweeps,
       ...s.dependencies,
     ]) {
       if (!byId.has(sub.id)) byId.set(sub.id, new Set());
@@ -530,9 +544,92 @@ describe("a single evaluation cannot contradict itself", () => {
 
   it("gives every non-healthy subsystem an operator action, so no state word is unactionable", async () => {
     const s = await buildPlatformHealthSnapshot();
-    const silent = [s.queues, s.workers, s.search, s.evidencePipeline, ...s.dependencies]
+    const silent = [s.queues, s.workers, s.search, s.evidencePipeline, ...s.scheduledSweeps, ...s.dependencies]
       .filter((x) => x.state !== "HEALTHY" && !x.operatorAction)
       .map((x) => `${x.id}=${x.state}`);
     expect(silent).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// Scheduled worker sweeps (2026-09-30) — a stopped sweep is a visible fault
+// ===========================================================================
+describe("scheduled worker sweeps are observed from outside the worker", () => {
+  const HOUR = 60 * 60 * 1000;
+  const run = (status: string, agoMs: number, errorSummary: string | null = null) => ({
+    status,
+    startedAtUtc: new Date(Date.now() - agoMs - 1000),
+    finishedAtUtc: new Date(Date.now() - agoMs),
+    errorSummary,
+  });
+  const sweep = async (id: string) => {
+    const s = await buildPlatformHealthSnapshot();
+    return { s, sub: s.scheduledSweeps.find((x) => x.id === id)! };
+  };
+
+  it("reports the capture reaper and the integrity recheck, each with last run and last success", async () => {
+    const s = await buildPlatformHealthSnapshot();
+    expect(s.scheduledSweeps.map((x) => x.id)).toEqual(["capture_reaper", "integrity_recheck"]);
+    for (const sub of s.scheduledSweeps) {
+      expect(sub.state).toBe("HEALTHY");
+      expect(sub.reason).toMatch(/Last run \d{4}-.*; last success \d{4}-/);
+      expect(sub.operatorAction).toBeNull();
+    }
+  });
+
+  it("a sweep with no successful run inside its allowed silence is CRITICAL, names what stopped and says what to do", async () => {
+    reconciliationRunFindFirst.mockImplementation(async (q: { where: { kind: string; status?: unknown } }) =>
+      q.where.kind !== "CAPTURE_REAPER" ? run("SUCCEEDED", 60_000) : q.where.status === "FAILED" ? null : run("SUCCEEDED", 5 * HOUR),
+    );
+    const { s, sub } = await sweep("capture_reaper");
+    expect(sub.state).toBe("CRITICAL");
+    expect(sub.reason).toMatch(/No successful run in the last 120 minutes/);
+    expect(sub.reason).toMatch(/expires abandoned capture drafts and releases abandoned evidence reservations/);
+    expect(sub.operatorAction).toMatch(/CAPTURE_DRAFT_REAPER_ENABLED/);
+    expect(sub.operatorAction).toMatch(/only reaper/);
+    // …and it decides the overall state; the healthy sweep beside it does not hide it.
+    expect(s.overall.state).toBe("CRITICAL");
+    expect(s.overall.reason).toMatch(/Capture reaper/);
+    expect(s.scheduledSweeps.find((x) => x.id === "integrity_recheck")!.state).toBe("HEALTHY");
+  });
+
+  it("a sweep whose latest run failed is DEGRADED with its error, and CRITICAL once no success is recent", async () => {
+    reconciliationRunFindFirst.mockImplementation(async (q: { where: { kind: string; status?: unknown } }) => {
+      if (q.where.kind !== "INTEGRITY_RECHECK") return q.where.status === "FAILED" ? null : run("SUCCEEDED", 60_000);
+      if (q.where.status === "FAILED") return run("FAILED", 30_000, "storage client not configured");
+      if (typeof q.where.status === "object" && q.where.status !== null && "in" in (q.where.status as object)) {
+        return run("SUCCEEDED", 20 * 60_000);
+      }
+      return run("FAILED", 30_000, "storage client not configured");
+    });
+    const recent = await sweep("integrity_recheck");
+    expect(recent.sub.state).toBe("DEGRADED");
+    expect(recent.sub.reason).toMatch(/The latest run failed \(storage client not configured\)/);
+    expect(recent.sub.operatorAction).toMatch(/INTEGRITY_RECHECK_ENABLED/);
+
+    reconciliationRunFindFirst.mockImplementation(async (q: { where: { kind: string; status?: unknown } }) => {
+      if (q.where.kind !== "INTEGRITY_RECHECK") return q.where.status === "FAILED" ? null : run("SUCCEEDED", 60_000);
+      if (typeof q.where.status === "object" && q.where.status !== null && "in" in (q.where.status as object)) return null;
+      return run("FAILED", 30_000, "storage client not configured");
+    });
+    expect((await sweep("integrity_recheck")).sub.state).toBe("CRITICAL");
+  });
+
+  it("a sweep that has never run is UNKNOWN — never healthy — and still actionable", async () => {
+    reconciliationRunFindFirst.mockResolvedValue(null);
+    const s = await buildPlatformHealthSnapshot();
+    for (const sub of s.scheduledSweeps) {
+      expect(sub.state).toBe("UNKNOWN");
+      expect(sub.operatorAction).toBeTruthy();
+    }
+    expect(s.overall.state).not.toBe("HEALTHY");
+  });
+
+  it("an unreadable run history is a named unavailable source, not a healthy absence", async () => {
+    reconciliationRunFindFirst.mockRejectedValue(new Error("connection reset"));
+    const s = await buildPlatformHealthSnapshot();
+    expect(s.evaluation.unavailableSources).toContain("scheduled_sweeps");
+    expect(s.scheduledSweeps.map((x) => x.state)).toEqual(["UNKNOWN", "UNKNOWN"]);
+    expect(s.overall.state).not.toBe("HEALTHY");
   });
 });

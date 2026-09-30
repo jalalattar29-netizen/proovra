@@ -1,19 +1,22 @@
 /**
  * PHASE 12 — POINT 5, FAMILY 9: intelligence and operations.
  *
- * FOUR UNITS, FOUR DIFFERENT DURABLE AUTHORITIES
+ * THREE UNITS, THREE DIFFERENT DURABLE AUTHORITIES
  * ---------------------------------------------------------------------------
  *   RunMediaIntelligence   MediaIntelligenceRun      claim + fence + terminal
- *   ExtractExif            EvidencePart              upsert by natural key
  *   GenerateDerivedAsset   EvidencePartDerivedAsset  claim + terminal
  *   EmbedSemanticChunks    EvidenceSemanticChunk     upsert by natural key
+ *
+ * (ET-Q-07, 2026-09-30 — this was FOUR. `ExtractExif` sat on the `mi-exif`
+ * queue, which had a consumer and no producer, and was retired. EXIF
+ * extraction is a `RunMediaIntelligence` run of kind `extract_exif`.)
  *
  * (`ExtractOcr` and `ExtractTranscript` are NOT in this list because they are
  * no longer in the registry: they were no-op processors shadowing capabilities
  * `RunMediaIntelligence` already owns. See
  * `test/phase-12-point5-ocr-transcript-authority.test.ts`.)
  *
- * The four are driven through the SHARED conformance harness rather than four
+ * The three are driven through the SHARED conformance harness rather than three
  * hand-written suites, so the seven non-waivable invariants are asserted by one
  * body of code and a copy-paste slip cannot quietly weaken one unit's tenancy
  * case. Family-specific properties are stated separately, below.
@@ -110,7 +113,6 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
 });
 
 const RUN_ENTRY = getWorkEntryOrThrow(JOB_NAMES.RUN_MEDIA_INTELLIGENCE);
-const EXIF_ENTRY = getWorkEntryOrThrow(JOB_NAMES.EXTRACT_EXIF);
 const DERIVED_ENTRY = getWorkEntryOrThrow(JOB_NAMES.GENERATE_DERIVED_ASSET);
 const EMBED_ENTRY = getWorkEntryOrThrow(JOB_NAMES.EMBED_SEMANTIC_CHUNKS);
 
@@ -284,67 +286,6 @@ describe("POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgv
     };
   }
 
-  /** ExtractExif — the evidence PART is the authority. */
-  function exifDriver(): UnitDriver {
-    return {
-      slug: "miexif",
-      workName: EXIF_ENTRY.workName,
-      async seed({ fixture }) {
-        const evidenceId = await newEvidence(fixture);
-        const part = await newPart(evidenceId);
-        return part.id;
-      },
-      async execute(rowId) {
-        await miProcessor.processExifQueueJob(job(EXIF_ENTRY, rowId));
-      },
-      async readState(rowId) {
-        // The DURABLE SUBJECT is the part; the summary is what execution
-        // writes about it. So a part with no summary yet is `NO_SUMMARY`, and
-        // `null` means the part itself does not exist — which is the
-        // distinction the "executing an unknown id creates no state" case
-        // depends on.
-        const part = await prisma.evidencePart.findUnique({
-          where: { id: rowId },
-          select: { id: true },
-        });
-        if (!part) return null;
-        const rows = await prisma.$queryRawUnsafe<Array<{ status: string }>>(
-          `SELECT "status" FROM "evidence_part_exif_summaries"
-            WHERE "evidence_part_id" = $1::uuid LIMIT 1`,
-          rowId,
-        );
-        return rows[0]?.status ?? "NO_SUMMARY";
-      },
-      /**
-       * Settle the projection by RUNNING it, not by writing a status by hand.
-       *
-       * EXIF is the one unit here with no terminal state to freeze: the
-       * summary is a projection over the part's immutable bytes, re-derivable
-       * at any time, and the registry records its idempotency as
-       * `upsert_by_natural_key` with no claim. The guarantee is therefore
-       * CONVERGENCE — a second execution over the same bytes reaches the same
-       * summary — and the harness's stale-overwrite case measures exactly
-       * that once the settled state is the one the real pipeline produced.
-       *
-       * Writing `OK` by hand instead would have asserted that a status the
-       * pipeline could never derive from these bytes must survive re-running
-       * the pipeline. That is not a guarantee this unit makes, or should.
-       */
-      async makeTerminal(rowId) {
-        await miProcessor.processExifQueueJob(job(EXIF_ENTRY, rowId));
-      },
-      terminalStates: ["OK", "PARSE_FAILED", "FETCH_FAILED", "NO_SUMMARY"],
-      async countInWorkspace(teamId) {
-        const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
-          `SELECT COUNT(*)::bigint AS n FROM "evidence_part_exif_summaries"
-            WHERE "team_id" = $1::uuid`,
-          teamId,
-        );
-        return Number(rows[0]?.n ?? 0);
-      },
-    };
-  }
-
   /** GenerateDerivedAsset — the derived-asset ROW is the authority. */
   function derivedDriver(): UnitDriver {
     return {
@@ -486,20 +427,12 @@ describe("POINT 5 FAMILY — intelligence & operations (live PostgreSQL 16 + pgv
     );
   });
 
-  it("ExtractExif satisfies the seven non-waivable invariants", async () => {
-    analyzer.reset();
-    storage.reset();
-    await proveCommonConformance(
-      exifDriver(),
-      ctxFor(async (rowId) => {
-        const part = await prisma.evidencePart.findUnique({
-          where: { id: rowId },
-          select: { evidence: { select: { teamId: true } } },
-        });
-        return part?.evidence?.teamId ?? null;
-      }),
-    );
-  });
+  // ET-Q-07 (2026-09-30) — the "ExtractExif satisfies the seven non-waivable
+  // invariants" case and its `exifDriver` are gone with the `mi-exif` queue.
+  // The case drove `processExifQueueJob` directly — the one thing no producer
+  // ever did, since `enqueueExifJob` had zero callers in every commit. EXIF
+  // extraction is a `RunMediaIntelligence` run of kind `extract_exif`, and that
+  // unit's conformance is the case immediately above.
 
   it("GenerateDerivedAsset satisfies the seven non-waivable invariants", async () => {
     analyzer.reset();

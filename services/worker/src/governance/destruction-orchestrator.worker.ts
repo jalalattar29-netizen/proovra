@@ -70,6 +70,21 @@ import {
 } from "@proovra/shared-runtime";
 import { workerEvidenceDestructionStorage } from "./destruction-storage-port.js";
 
+/**
+ * THE WORK THIS MODULE RECOVERS.
+ *
+ * ET-Q-07 (2026-09-30). The canonical work registry named
+ * `retention-reconciliation.worker.ts` as the reconciler for
+ * `DestructionOrchestratorSweep`, and that module never reads a
+ * `DestructionExecution`. The recovery of an execution whose owner died is
+ * here: `claimDestructionExecution` takes over a slot whose `startedAtUtc` is
+ * older than `DESTRUCTION_EXECUTION_LEASE_MS`, with a conditional update pinned
+ * to the observed lease stamp so two reclaimers produce one winner.
+ *
+ * Keys, not values: the registry addresses work through `SWEEP_NAMES`.
+ */
+export const RECOVERED_WORK_TYPES = ["DESTRUCTION_ORCHESTRATOR"] as const;
+
 const DEFAULT_BATCH_SIZE = 50;
 const MAX_BATCH_SIZE = 200;
 const DEDUPE_KEY_MAX = 180;

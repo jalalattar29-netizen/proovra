@@ -17,9 +17,10 @@ import { QueuePayloadRejected } from "./payload.js";
  * `{ enqueued: false, reason: "queue_unavailable:..." }` — a soft failure that
  * every caller is designed to tolerate.
  *
- * Three families build composite command ids of the shape `<kind>:<id>`:
+ * Three families built composite command ids of the shape `<kind>:<id>`:
  * `buildSearchIndexCommandId`, `buildMediaIntelligenceCommandId` and
- * `buildGraphDomainCommandId`. Every job those three families ever tried to
+ * `buildGraphDomainCommandId` (the last removed with its producerless queue,
+ * ET-Q-07, 2026-09-30). Every job those families ever tried to
  * schedule was therefore refused by the queue, silently, from the moment the
  * composite ids were introduced. Search was the visible one: no rebuild could
  * ever be enqueued, so the index was only ever written by the API's INLINE
@@ -254,80 +255,8 @@ export function parseMediaIntelligenceCommandId(commandId: string): {
   return { kind, evidenceId };
 }
 
-/**
- * The graph domain sync addresses (domain, workspaceId).
- *
- * The domain is a NARROWING filter — "re-sync only EXTERNAL_REVIEW for this
- * workspace" — so an operator can repair one misbehaving projection without
- * re-running the full reconcile. It used to ride on the payload as an optional
- * free-form field, which meant an unknown value produced a job the processor
- * silently completed as a no-op.
- *
- * Encoding it into the command id makes it validated BEFORE any database
- * access, against exactly the catalog the graph builder implements. `all` is a
- * real member of the catalog rather than a null: an absent filter and an
- * unknown filter must not be the same value.
- */
-export const GRAPH_SYNC_DOMAINS = [
-  "all",
-  "CASE",
-  "REPORT",
-  "VERIFICATION_PACKAGE",
-  "EXPORT",
-  "REVIEW_TASK",
-  "ESCALATION",
-  "INCIDENT",
-  "EXTERNAL_REVIEW",
-] as const;
-
-export type GraphSyncDomain = (typeof GRAPH_SYNC_DOMAINS)[number];
-
-export function isGraphSyncDomain(v: unknown): v is GraphSyncDomain {
-  return (
-    typeof v === "string" &&
-    (GRAPH_SYNC_DOMAINS as ReadonlyArray<string>).includes(v)
-  );
-}
-
-export function buildGraphDomainCommandId(
-  domain: GraphSyncDomain | null | undefined,
-  workspaceId: string,
-): string {
-  const id = workspaceId.trim();
-  const d = domain ?? "all";
-  if (!isGraphSyncDomain(d)) {
-    throw new QueuePayloadRejected(
-      "unknown_graph_domain",
-      `buildGraphDomainCommandId: "${String(domain)}" is not a known graph domain`,
-    );
-  }
-  if (!id) {
-    throw new QueuePayloadRejected(
-      "missing_command_id",
-      "buildGraphDomainCommandId: workspaceId is required",
-    );
-  }
-  return `${d}:${id}`;
-}
-
-export function parseGraphDomainCommandId(commandId: string): {
-  domain: GraphSyncDomain;
-  workspaceId: string;
-} {
-  const idx = commandId.indexOf(":");
-  const domain = idx === -1 ? "" : commandId.slice(0, idx);
-  const workspaceId = idx === -1 ? "" : commandId.slice(idx + 1).trim();
-  if (!isGraphSyncDomain(domain)) {
-    throw new QueuePayloadRejected(
-      "unknown_graph_domain",
-      "parseGraphDomainCommandId: unknown graph domain",
-    );
-  }
-  if (!workspaceId) {
-    throw new QueuePayloadRejected(
-      "missing_command_id",
-      "parseGraphDomainCommandId: workspaceId is required",
-    );
-  }
-  return { domain, workspaceId };
-}
+// ET-Q-07 (2026-09-30) — `GRAPH_SYNC_DOMAINS`, `isGraphSyncDomain`,
+// `buildGraphDomainCommandId` and `parseGraphDomainCommandId` were removed with
+// the `graph-domain-sync` queue. They existed only to address its command
+// (`<domain>:<workspaceId>`); the queue never had a producer, so no such
+// command id was ever built outside a test.

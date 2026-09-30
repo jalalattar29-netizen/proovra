@@ -43,31 +43,54 @@ const PROCESSOR_SRC = readSource("../src/processor.ts");
 const REJECTION_SRC = readSource("../src/integrity-rejection.service.ts");
 
 describe("Phase A0 — worker integrity hard-gate (source contract)", () => {
-  it("processor.ts imports the rejection helper", () => {
+  // ET-SM-07 (2026-09-30) — the report pipeline no longer rejects on its own.
+  // It reports what it read to the integrity-recheck authority
+  // (integrity-recheck.ts), which records the check and is the ONLY caller of
+  // the rejection helper. The guarantees this suite pinned are unchanged: a
+  // mismatch is recorded and rejected BEFORE the throw, at both sites, each
+  // naming its source.
+  it("processor.ts reports to the integrity-recheck authority, and never rejects on its own", () => {
     expect(PROCESSOR_SRC).toContain(
-      'import { rejectEvidenceIntegrity } from "./integrity-rejection.service.js";',
+      'import { recheckEvidenceIntegrity, recordIntegrityObservation } from "./integrity-recheck.js";',
+    );
+    expect(PROCESSOR_SRC).not.toMatch(/rejectEvidenceIntegrity/);
+  });
+
+  it("processor.ts records the multipart mismatch before throwing", () => {
+    expect(PROCESSOR_SRC).toMatch(
+      /recordIntegrityObservation\(\{[\s\S]*?failureCode:\s*"DIGEST_MISMATCH"[\s\S]*?rejectionSource:\s*"worker\.report\.multipart"[\s\S]*?\}\);\s*\n\s*throw createWorkerError\("EVIDENCE_FILE_SHA256_MISMATCH",\s*false\);/,
     );
   });
 
-  it("processor.ts calls rejectEvidenceIntegrity at the multipart mismatch site", () => {
-    // The multipart branch passes source "worker.report.multipart"
-    // and the throw remains in place AFTER the helper call.
+  it("processor.ts records the single-file mismatch before throwing", () => {
     expect(PROCESSOR_SRC).toMatch(
-      /rejectEvidenceIntegrity\(\{[\s\S]*?source:\s*"worker\.report\.multipart"[\s\S]*?\}\);\s*\n\s*throw createWorkerError\("EVIDENCE_FILE_SHA256_MISMATCH",\s*false\);/,
+      /recordIntegrityObservation\(\{[\s\S]*?failureCode:\s*"DIGEST_MISMATCH"[\s\S]*?rejectionSource:\s*"worker\.report\.single_file"[\s\S]*?\}\);\s*\n\s*throw createWorkerError\("EVIDENCE_FILE_SHA256_MISMATCH",\s*false\);/,
     );
   });
 
-  it("processor.ts calls rejectEvidenceIntegrity at the single-file mismatch site", () => {
-    expect(PROCESSOR_SRC).toMatch(
-      /rejectEvidenceIntegrity\(\{[\s\S]*?source:\s*"worker\.report\.single_file"[\s\S]*?\}\);\s*\n\s*throw createWorkerError\("EVIDENCE_FILE_SHA256_MISMATCH",\s*false\);/,
+  it("a successful re-hash is recorded as a VERIFIED check at both sites", () => {
+    expect(PROCESSOR_SRC.match(/outcome:\s*"VERIFIED",\s*\n\s*failureCode:\s*null,/g)?.length).toBe(2);
+  });
+
+  it("the authority is the rejection helper's only caller", () => {
+    const AUTHORITY_SRC = readSource("../src/integrity-recheck.ts");
+    expect(AUTHORITY_SRC).toMatch(
+      /observation\.failureCode === "DIGEST_MISMATCH"[\s\S]*?await rejectEvidenceIntegrity\(\{/,
     );
+    expect(AUTHORITY_SRC.match(/rejectEvidenceIntegrity\(/g)?.length).toBe(1);
   });
 
   it("helper exports the bounded IntegrityRejectionSource union", () => {
-    expect(REJECTION_SRC).toContain('"worker.report.single_file"');
-    expect(REJECTION_SRC).toContain('"worker.report.multipart"');
-    expect(REJECTION_SRC).toContain('"worker.reconciler"');
-    expect(REJECTION_SRC).toContain('"api.completion"');
+    const union = REJECTION_SRC.slice(
+      REJECTION_SRC.indexOf("export type IntegrityRejectionSource"),
+      REJECTION_SRC.indexOf("export type IntegrityRejectionResult"),
+    );
+    expect(union).toContain('"worker.report.single_file"');
+    expect(union).toContain('"worker.report.multipart"');
+    // Live since ET-SM-07: the scheduled and on-demand recheck.
+    expect(union).toContain('| "worker.reconciler";');
+    // A label nothing ever passed is not part of the vocabulary.
+    expect(union).not.toContain('| "api.completion"');
   });
 
   it("helper writes evidence.updateMany with a SIGNED/REPORTED precondition", () => {

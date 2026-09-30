@@ -12,7 +12,13 @@ import { theme } from "../../src/theme/theme";
 import { useToast } from "../../src/toast-context";
 import { usePlatformContext } from "../../src/product/platform-context";
 import { webOrigin } from "../../src/product/intake-create";
-import { publicVerifyUrl } from "../../src/product/public-verify";
+import {
+  parseCreatedVerificationLink,
+  verificationLinkCreateBody,
+  verificationLinkCreatePath,
+  verifyUrlFromPath,
+} from "../../src/product/public-verify";
+import { ChallengeStepUpSheet, useChallengeStepUp } from "../../src/ui/challenge-step-up";
 import {
   ProovraShell,
   ProovraCard,
@@ -396,15 +402,38 @@ export default function EvidenceLibraryScreen() {
     }
   }, [inspectorId, addToast]);
 
-  const verifyUrl = inspectorId ? publicVerifyUrl(webOrigin(), inspectorId) : null;
+  // ET-PKG-07 — a public link is a share token the server issues, never the
+  // record's id. Sharing CREATES a link (expiring, labelled as made from the
+  // phone) and shares that. If the record is not public yet, creating its
+  // first link publishes it — the server asks for the step-up proof first.
+  const shareOrigin = webOrigin();
+  const shareStepUp = useChallengeStepUp(platform.context?.activeTeamId ?? null);
   const shareVerification = useCallback(async () => {
-    if (!verifyUrl) return;
+    if (!inspectorId || !shareOrigin) return;
+    setInspectorBusy("share");
     try {
-      await Share.share({ url: verifyUrl, message: `Verify this PROOVRA record: ${verifyUrl}` });
-    } catch {
-      addToast("Failed to share verification link", "error");
+      const res = await shareStepUp.run((headers) =>
+        apiFetch(verificationLinkCreatePath(inspectorId), {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(headers ?? {}) },
+          body: JSON.stringify(verificationLinkCreateBody()),
+        }),
+      );
+      const created = parseCreatedVerificationLink(res);
+      const url = created ? verifyUrlFromPath(shareOrigin, created.verifyPath) : null;
+      if (!url) {
+        addToast("The verification link could not be created", "error");
+        return;
+      }
+      await Share.share({ url, message: `Verify this PROOVRA record: ${url}` });
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code !== "STEP_UP_CANCEL") {
+        addToast("Failed to share verification link", "error");
+      }
+    } finally {
+      setInspectorBusy(null);
     }
-  }, [verifyUrl, addToast]);
+  }, [inspectorId, shareOrigin, shareStepUp, addToast]);
 
   /* ------------------------------------------------------------- refresh */
 
@@ -605,7 +634,7 @@ export default function EvidenceLibraryScreen() {
       error={inspectorError}
       presentation={presentation}
       actionBusy={inspectorBusy}
-      verifyUrl={verifyUrl}
+      shareAvailable={Boolean(shareOrigin)}
       onClose={closeInspector}
       onRetry={() => inspectorId && void loadInspector(inspectorId)}
       onOpenRecord={() => {
@@ -857,6 +886,7 @@ export default function EvidenceLibraryScreen() {
       </ProovraCard>
 
       {inspectorId ? inspector("modal") : null}
+      <ChallengeStepUpSheet stepUp={shareStepUp} />
     </ProovraShell>
   );
 }

@@ -13,23 +13,18 @@
  *      dynamic-import a vendor package and NEVER spawn a subprocess.
  *
  *   2. domain-sync.service.ts:
- *      - Each per-domain stale sweep is team-anchored on BOTH the
- *        outer UPDATE and the inner NOT EXISTS sub-select.
- *      - The DOMAIN_SYNC_DOMAINS catalog is the bounded vocabulary;
- *        the worker processor only accepts catalog values.
  *      - Bounded ≤200 evidence reindex enqueues per
  *        search-projection-sync run.
  *      - Search-projection sync NEVER throws — collapses to a
  *        bounded reason on failure.
- *      - Timeline sync invokes the existing timeline builder + the
- *        cross-edge stale sweep.
+ *      (ET-Q-07, 2026-09-30: the per-domain stale sweep and the timeline
+ *      sync this section also covered were deleted with the two
+ *      producerless queues that were their only callers.)
  *
  *   3. Worker processors:
- *      - graph-domain-sync dispatches per-domain via the new service.
- *      - graph-timeline-sync invokes runTimelineSync — NOT a no-op.
  *      - graph-search-projection invokes runSearchProjectionSync —
  *        NOT a no-op.
- *      - All three import the shared prisma — never bare PrismaClient.
+ *      - They import the shared prisma — never bare PrismaClient.
  *
  *   4. Reviewer Console projection includes:
  *      - producerModes (INDEX_EXISTING_ONLY-aware).
@@ -85,44 +80,16 @@ const REVIEWERS_PAGE = readSource(
 // =============================================================================
 
 describe("Phase 31.21 — domain-sync.service.ts", () => {
-  it("exports the bounded DOMAIN_SYNC_DOMAINS catalog with 8 entries", () => {
-    const m = DOMAIN_SYNC_SRC.match(/export const DOMAIN_SYNC_DOMAINS = \[([\s\S]*?)\] as const/);
-    expect(m).toBeTruthy();
-    const entries = (m![1].match(/"[A-Z_]+"/g) ?? []);
-    expect(entries.length).toBe(8);
-    // Spot-check the bounded set.
-    expect(entries).toContain('"CASE"');
-    expect(entries).toContain('"REPORT"');
-    expect(entries).toContain('"VERIFICATION_PACKAGE"');
-    expect(entries).toContain('"EXPORT"');
-    expect(entries).toContain('"REVIEW_TASK"');
-    expect(entries).toContain('"ESCALATION"');
-    expect(entries).toContain('"INCIDENT"');
-    expect(entries).toContain('"EXTERNAL_REVIEW"');
-  });
-
-  it("runDomainStaleSweep is team-anchored on BOTH outer UPDATE and inner sub-select", () => {
-    const slice = functionSource(DOMAIN_SYNC_SRC, "runDomainStaleSweep");
-    // The UPDATE binds team_id = $1
-    expect(slice).toMatch(/UPDATE "investigation_graph_nodes" n\s*SET[\s\S]*?n\."team_id" = \$1/);
-    // The NOT EXISTS sub-select ALSO binds team_id = $1
-    expect(slice).toMatch(/NOT EXISTS \(\s*SELECT 1 FROM[\s\S]*?s\."team_id" = \$1/);
-  });
-
-  it("runDomainStaleSweep never throws — collapses to { ok: false, reason }", () => {
-    const slice = functionSource(DOMAIN_SYNC_SRC, "runDomainStaleSweep");
-    expect(slice).toMatch(/try \{[\s\S]*?\$executeRawUnsafe[\s\S]*?\} catch \(err\) \{/);
-    expect(slice).toMatch(/return \{\s*ok: false,[\s\S]*?reason:/);
-  });
-
-  it("runTimelineSync invokes buildInvestigationTimeline AND runs the cross-edge stale sweep", () => {
-    const slice = functionSource(DOMAIN_SYNC_SRC, "runTimelineSync");
-    expect(slice).toMatch(/buildInvestigationTimeline/);
-    // The cross-edge sweep tombstones edges whose source OR target
-    // node has gone stale. Anchor on the UPDATE statement.
-    expect(slice).toMatch(/UPDATE "investigation_graph_edges" e/);
-    expect(slice).toMatch(/"stale_at_utc" IS NOT NULL/);
-  });
+  // ET-Q-07 (2026-09-30) — four assertions that stood here pinned
+  // `DOMAIN_SYNC_DOMAINS`, `runDomainStaleSweep` and `runTimelineSync`. Those
+  // were reachable only from the `graph-domain-sync` / `graph-timeline-sync`
+  // worker processors, whose queues had no producer; the queues were retired
+  // and the unreachable functions deleted with them. The per-domain stale
+  // sweeps and the cross-edge sweep they duplicated still run inside
+  // `reconcileTeamGraph`, which its own suites cover. The resurrection guard
+  // (`services/worker/test/et-q-07-retired-queues-resurrection-guard.test.ts`)
+  // keeps the queues out; every `runSearchProjectionSync` assertion below is
+  // unchanged.
 
   it("runSearchProjectionSync caps enqueue at 200 per run by default and clamps to 500 max", () => {
     expect(DOMAIN_SYNC_SRC).toMatch(/MAX_REINDEX_ENQUEUES_PER_RUN = 200/);
@@ -152,8 +119,8 @@ describe("Phase 31.21 — domain-sync.service.ts", () => {
   });
 
   it("uses bumped metrics on entry", () => {
-    expect(DOMAIN_SYNC_SRC).toMatch(/bump\("graph_domain_sync_executed_total"\)/);
-    expect(DOMAIN_SYNC_SRC).toMatch(/bump\("graph_timeline_sync_executed_total"\)/);
+    // ET-Q-07 — the domain-sync / timeline-sync counters went with the
+    // functions that bumped them; the search-projection counter is live.
     expect(DOMAIN_SYNC_SRC).toMatch(/bump\("graph_search_projection_executed_total"\)/);
   });
 });
@@ -163,28 +130,9 @@ describe("Phase 31.21 — domain-sync.service.ts", () => {
 // =============================================================================
 
 describe("Phase 31.21 — graph-* worker processors are real (no no-ops)", () => {
-  it("processGraphDomainSyncJob calls runDomainStaleSweep per bounded domain", () => {
-    // The exported processor only wraps its `processGraphDomainSyncJobInner` body in the job
-    // context; the behaviour lives in the inner function, so read both.
-    const slice =
-      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphDomainSyncJob") +
-      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphDomainSyncJobInner");
-    expect(slice).toMatch(/runDomainStaleSweep\(/);
-    expect(slice).toMatch(/DOMAIN_SYNC_DOMAINS/);
-    // Unknown-domain payload values short-circuit to a logged skip
-    // (anti-leak — never executes user-supplied SQL fragments).
-    expect(slice).toMatch(/unknown_domain/);
-  });
-
-  it("processGraphTimelineSyncJob calls runTimelineSync", () => {
-    // The exported processor only wraps its `processGraphTimelineSyncJobInner` body in the job
-    // context; the behaviour lives in the inner function, so read both.
-    const slice =
-      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphTimelineSyncJob") +
-      functionSource(SUBSYSTEM_PROCESSORS_SRC, "processGraphTimelineSyncJobInner");
-    expect(slice).toMatch(/runTimelineSync\(/);
-    expect(slice).not.toMatch(/no_op_completed/);
-  });
+  // ET-Q-07 (2026-09-30) — the `processGraphDomainSyncJob` and
+  // `processGraphTimelineSyncJob` assertions that stood here are gone with
+  // those processors: real bodies behind queues nothing enqueued onto.
 
   it("processGraphSearchProjectionJob calls runSearchProjectionSync", () => {
     // The exported processor only wraps its `processGraphSearchProjectionJobInner` body in the job
@@ -196,7 +144,7 @@ describe("Phase 31.21 — graph-* worker processors are real (no no-ops)", () =>
     expect(slice).not.toMatch(/no_op_completed/);
   });
 
-  it("all three processors import the shared prisma — never bare PrismaClient", () => {
+  it("the processors import the shared prisma — never bare PrismaClient", () => {
     const code = stripComments(SUBSYSTEM_PROCESSORS_SRC);
     expect(code).not.toMatch(/new PrismaClient\(/);
     expect(SUBSYSTEM_PROCESSORS_SRC).toMatch(/import \{ prisma \} from "\.\/db\.js"/);
@@ -349,8 +297,14 @@ describe("Phase 31.21 — Reviewer Console UI", () => {
 const METRICS_SRC = readSource("../../../packages/shared-runtime/src/ops/metrics.service.ts");
 
 describe("Phase 31.21 — metric counters", () => {
-  it("graph_node_removed_total is registered", () => {
-    expect(METRICS_SRC).toMatch(/"graph_node_removed_total"/);
+  it("the tombstone counter that IS bumped is registered", () => {
+    // ET-Q-07 (2026-09-30) — this pinned `graph_node_removed_total`, whose only
+    // bump site was `runDomainStaleSweep`: reachable solely from a producerless
+    // queue, so the counter could not move. It left the catalog with that
+    // function. The edge tombstone counter is bumped by the live reconcile and
+    // is what an operator can actually read.
+    expect(METRICS_SRC).toMatch(/"graph_edge_removed_total"/);
+    expect(METRICS_SRC).not.toMatch(/"graph_node_removed_total"/);
   });
 });
 

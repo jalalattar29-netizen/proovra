@@ -16,9 +16,37 @@ export type RetryPolicy = {
   backoff: BackoffKind;
   /** Base delay; exponential policies double from here. */
   backoffDelayMs: number;
-  /** Wall-clock ceiling for a single attempt. */
+  /**
+   * The wall-clock BUDGET one attempt is expected to fit in.
+   *
+   * ET-Q-07 (2026-09-30) — THIS IS NOT AN ENFORCED CEILING, and this comment
+   * used to say it was ("Wall-clock ceiling for a single attempt"). Nothing in
+   * the runtime reads this field: BullMQ has no per-job timeout, no `Worker` is
+   * constructed with a `lockDuration` derived from it, and no processor or
+   * handler wrapper races an attempt against it. An attempt that hangs is
+   * bounded by whatever its own I/O bounds it with (provider and subprocess
+   * timeouts), and its durable row by the lease in `RecoveryPolicy` — not by
+   * this number.
+   *
+   * It is kept because it is a real statement of intent that the recovery
+   * leases are sized against, and because removing it would be read as "no
+   * budget". `RETRY_TIMEOUT_IS_ENFORCED` below states which of the two it is,
+   * and the closure gate fails if that statement and the code disagree in
+   * either direction.
+   */
   timeoutMs: number;
 };
+
+/**
+ * Whether `RetryPolicy.timeoutMs` is enforced anywhere in the runtime.
+ *
+ * `false` today. The closure gate
+ * (`services/api/test/phase-12-point5-queue-integrity-gate.test.ts`) scans the
+ * runtime source for a read of `retry.timeoutMs` and asserts it agrees with
+ * this constant, so the day a handler wrapper starts enforcing the budget this
+ * must be flipped — and until then nothing can describe the budget as a limit.
+ */
+export const RETRY_TIMEOUT_IS_ENFORCED = false as const;
 
 export type RecoveryPolicy = {
   /**

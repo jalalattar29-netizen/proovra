@@ -8,11 +8,31 @@
  * ---------------------------------------------------------------------------
  * CONSERVED SETS
  * ---------------------------------------------------------------------------
- *   15 BullMQ jobs   (one per processed queue, 1:1 with worker registrations)
- *    2 DLQ sinks     (queues with no job and no worker, by design)
- *   18 DB sweeps     (scheduler + processor pairs)
+ *   10 BullMQ jobs   (one per processed queue, 1:1 with worker registrations)
+ *   20 DB sweeps     (scheduler + processor pairs)
  *   ──
- *   35 registry entries; 33 of them process work.
+ *   30 entries in CANONICAL_WORK_REGISTRY, every one of which processes work.
+ *
+ * ET-SM-07 (2026-09-30) — 19 -> 20 sweeps and 29 -> 30 entries when
+ * `IntegrityRecheckSweep` was registered. See the entry, and the
+ * `INTEGRITY_RECHECK` note in `names.ts` for why it is a sweep and not a job.
+ *    2 DLQ sinks     (queues with no job and no worker, by design) are declared
+ *                    SEPARATELY in DLQ_SINKS and are not registry entries.
+ *
+ * ET-Q-07 (2026-09-30) — RECOUNTED, because this header had stopped being
+ * true on its own before anything was removed: it said "18 DB sweeps" and
+ * "35 registry entries; 33 of them process work" while the arrays below held
+ * 15 jobs + 19 sweeps = 34 entries, with the 2 DLQ sinks in their own array.
+ * Retiring the five producerless queues (`mi-exif`, `mi-search-index`,
+ * `graph-domain-sync`, `graph-timeline-sync`, `org-health-refresh`) then took
+ * 15 jobs to 10 and 34 entries to 29. The numbers above are counted from the
+ * arrays; `phase-12-point5-topology-gate.test.ts` pins the job and queue
+ * counts, and `phase-12-point5-queue-integrity-gate.test.ts` holds them to the
+ * worker's own declarations as an identity.
+ *
+ * The same pass found three `reconciler` fields naming a module that did not
+ * recover that work, and wrote the three scans that make them true. See
+ * RECONCILER_PENDING for the mechanism that would carry a real gap.
  *
  * PHASE 12 CORRECTIVE PASS §2 CONTINUATION (ARCH-005, 2026-08-07) — 34 -> 35
  * when `AutomationDispatchSweep` was registered. Automation had a schema, an
@@ -122,8 +142,18 @@ export type WorkRegistryEntry = {
   /** Repo-relative module owning the ONE terminal write. */
   terminalWriter: string;
   idempotency: ReadonlyArray<IdempotencyStrategy>;
-  /** Repo-relative module that recovers stranded rows. */
-  reconciler: string;
+  /**
+   * Repo-relative module that recovers stranded rows, or `null` when NO module
+   * does.
+   *
+   * ET-Q-07 (2026-09-30) — `null` is not a convenience. This field was a
+   * required string, so an entry with no recovery path still had to name
+   * SOMETHING, and what it named was the nearest plausible module. That is how
+   * three entries came to assert coverage nobody wrote. A `null` here must be
+   * matched by an entry in RECONCILER_PENDING (and vice versa); the registry
+   * self-check and the closure gates enforce both directions.
+   */
+  reconciler: string | null;
   retry: RetryPolicy;
   recovery: RecoveryPolicy;
   externalBoundary:
@@ -146,7 +176,7 @@ const WORKER_INDEX = "services/worker/src/index.ts";
 const SUBSYSTEM = "services/worker/src/subsystem-queue-processors.ts";
 
 // ===========================================================================
-// THE 17 BULLMQ JOBS
+// THE 10 BULLMQ JOBS
 // ===========================================================================
 
 const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
@@ -202,7 +232,15 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     jobIdPrefix: "evidence-purge",
     durableAuthority: {
       model: "Evidence",
-      tenantSource: "Evidence.teamId (loaded by id; null fails closed)",
+      // ET-Q-07 (2026-09-30) — this said "null fails closed". It does not, and
+      // must not: a legacy personal record has `team_id = NULL` and is still
+      // owed its purge. The processor reads the row by id and passes
+      // `teamId ?? null` to the two authorities that ARE fail-closed — the
+      // effective legal-hold evaluator and the destruction-approval resolver
+      // (a NULL-team record resolves through its owner). The refusal lives in
+      // those, not in a null check on this column.
+      tenantSource:
+        "Evidence row loaded by id; Evidence.teamId (nullable for legacy personal records) is read from that row and handed to the legal-hold and destruction-approval authorities, which fail closed. A NULL team does not by itself refuse the job",
       createdBySynchronousPath: true,
     },
     canonicalProducer: SHARED_ENQUEUE,
@@ -312,15 +350,31 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     jobIdPrefix: "ots-upgrade",
     durableAuthority: {
       model: "Evidence",
-      tenantSource: "Evidence.teamId (loaded by id; null fails closed)",
+      // ET-Q-07 (2026-09-30) — this said "null fails closed". The processor
+      // has no such refusal and needs none: it reads ONE row by id and writes
+      // only that row's OTS columns, so there is no tenant scope for a wrong
+      // value to widen. `teamId` is selected solely to scope the incident and
+      // log context, as `teamId ?? null`. A legacy personal record with a NULL
+      // team is anchored like any other — refusing it would leave it
+      // permanently unanchored for no safety gain.
+      tenantSource:
+        "Evidence row loaded by id. The job is not tenant-scoped: it reads and writes only that row's OTS columns. Evidence.teamId (nullable) is read only to scope incident and log context; a NULL team does not refuse the work",
       createdBySynchronousPath: true,
     },
     canonicalProducer: SHARED_ENQUEUE,
     canonicalProcessor: "services/worker/src/ots-upgrade.processor.ts",
     workerRegistration: WORKER_INDEX,
+    // ET-Q-07 (2026-09-30) — this declared `QUEUED -> PROCESSING`. The OTS
+    // status column has neither value (it holds DISABLED / PENDING / ANCHORED /
+    // FAILED) and nothing claims a row before working on it. What arbitrates
+    // is a COMPARE-AND-SET at the end: `applyOtsTransition` in `ots-state.ts`
+    // updates the row only `WHERE` it still holds exactly the OTS facts the
+    // decision was computed from (`otsSnapshotWhere`), so of two workers that
+    // raced, one write lands and the other matches zero rows and records
+    // nothing. There is no lease because there is no in-progress state.
     claim: {
-      from: "QUEUED",
-      to: "PROCESSING",
+      from: "PENDING",
+      to: "ANCHORED / FAILED / PENDING",
       mechanism: "conditional_update_many",
       leaseField: null,
       leaseMs: null,
@@ -386,34 +440,13 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     auditFamily: null,
     projection: "GET /v1/search",
   },
-  {
-    workName: JOB_NAMES.INDEX_MEDIA_INTELLIGENCE,
-    family: "reconciliation",
-    familyReason:
-      "Re-indexes an evidence record's search document after media-intelligence output lands. Produced by the intelligence subsystem but its effect is projection convergence.",
-    transport: "bullmq",
-    queueName: QUEUE_NAMES.MI_SEARCH_INDEX,
-    implementation: "CURRENT_RUNTIME",
-    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
-    jobIdPrefix: "mi-search-index",
-    durableAuthority: {
-      model: "Evidence",
-      tenantSource: "Evidence.teamId (loaded by id; null fails closed)",
-      createdBySynchronousPath: true,
-    },
-    canonicalProducer: SHARED_ENQUEUE,
-    canonicalProcessor: SUBSYSTEM,
-    workerRegistration: WORKER_INDEX,
-    claim: null,
-    terminalWriter: SUBSYSTEM,
-    idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
-    reconciler: "services/worker/src/search-index-reconciler.ts",
-    retry: RETRY_POLICIES.PROJECTION,
-    recovery: RECOVERY_POLICIES.PROJECTION,
-    externalBoundary: null,
-    auditFamily: null,
-    projection: "GET /v1/search",
-  },
+  // ET-Q-07 (2026-09-30) — `IndexMediaIntelligence` (`mi-search-index`) was
+  // REMOVED from this registry with its queue, enqueue helper, processor,
+  // worker registration and legacy adapter. It was a thin shim that re-enqueued
+  // onto `search-indexing`, and nothing ever enqueued IT: `enqueueMiSearchIndexJob`
+  // had zero callers in every commit. Media-intelligence output reaches the
+  // search projection through `RebuildSearchDocument` above, which is the one
+  // search-document authority and always was.
   {
     workName: JOB_NAMES.RECONCILE_TEAM_GRAPH,
     family: "reconciliation",
@@ -435,6 +468,21 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     claim: null,
     terminalWriter: SUBSYSTEM,
     idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
+    // ET-Q-07 (2026-09-30) — THIS FIELD WAS FALSE. It named
+    // `search-index-reconciler.ts`, a module whose only recovery is
+    // re-enqueueing EVIDENCE SEARCH DOCUMENTS (`enqueueSearchIndexingJob({
+    // kind: "evidence" })`). It never reads a graph table and never enqueues a
+    // graph reconcile, so a lost `graph-reconcile` enqueue is recovered by
+    // nothing: the graph stays as it was until the next evidence event or an
+    // operator's `POST /v1/graph/reconcile` happened to ask again.
+    //
+    // IT IS TRUE NOW, because the module was made to keep it rather than the
+    // field being repointed. `reconcileStrandedGraphProjections` in that file
+    // compares `evidence` with `investigation_graph_nodes`: a finalized record
+    // with no live EVIDENCE node is a workspace whose graph is owed a rebuild,
+    // and it re-enqueues one for each ACTIVE Team (joined through `teams` /
+    // `organizations`, the same condition the processor applies) through the
+    // canonical producer, under the same job id as the API.
     reconciler: "services/worker/src/search-index-reconciler.ts",
     retry: RETRY_POLICIES.SWEEP,
     recovery: RECOVERY_POLICIES.SWEEP,
@@ -442,62 +490,15 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     auditFamily: null,
     projection: "GET /v1/intelligence/graph",
   },
-  {
-    workName: JOB_NAMES.SYNC_TEAM_GRAPH_DOMAIN,
-    family: "reconciliation",
-    familyReason:
-      "Re-syncs one graph domain for a workspace; a narrowed form of the graph reconcile run.",
-    transport: "bullmq",
-    queueName: QUEUE_NAMES.GRAPH_DOMAIN_SYNC,
-    implementation: "CURRENT_RUNTIME",
-    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
-    jobIdPrefix: "graph-domain-sync",
-    durableAuthority: {
-      model: "Team",
-      tenantSource: "Team row loaded by id; missing or non-ACTIVE fails closed",
-      createdBySynchronousPath: true,
-    },
-    canonicalProducer: SHARED_ENQUEUE,
-    canonicalProcessor: SUBSYSTEM,
-    workerRegistration: WORKER_INDEX,
-    claim: null,
-    terminalWriter: SUBSYSTEM,
-    idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
-    reconciler: "services/worker/src/search-index-reconciler.ts",
-    retry: RETRY_POLICIES.SWEEP,
-    recovery: RECOVERY_POLICIES.SWEEP,
-    externalBoundary: null,
-    auditFamily: null,
-    projection: "GET /v1/intelligence/graph",
-  },
-  {
-    workName: JOB_NAMES.SYNC_TEAM_GRAPH_TIMELINE,
-    family: "reconciliation",
-    familyReason:
-      "Refreshes the workspace timeline projection; projection convergence.",
-    transport: "bullmq",
-    queueName: QUEUE_NAMES.GRAPH_TIMELINE_SYNC,
-    implementation: "CURRENT_RUNTIME",
-    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
-    jobIdPrefix: "graph-timeline-sync",
-    durableAuthority: {
-      model: "Team",
-      tenantSource: "Team row loaded by id; missing or non-ACTIVE fails closed",
-      createdBySynchronousPath: true,
-    },
-    canonicalProducer: SHARED_ENQUEUE,
-    canonicalProcessor: SUBSYSTEM,
-    workerRegistration: WORKER_INDEX,
-    claim: null,
-    terminalWriter: SUBSYSTEM,
-    idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
-    reconciler: "services/worker/src/search-index-reconciler.ts",
-    retry: RETRY_POLICIES.SWEEP,
-    recovery: RECOVERY_POLICIES.SWEEP,
-    externalBoundary: null,
-    auditFamily: null,
-    projection: "GET /v1/intelligence/graph",
-  },
+  // ET-Q-07 (2026-09-30) — `SyncTeamGraphDomain` (`graph-domain-sync`) and
+  // `SyncTeamGraphTimeline` (`graph-timeline-sync`) were REMOVED from this
+  // registry with their queues, enqueue helpers, processors, worker
+  // registrations and legacy adapters. Both were marked CURRENT_RUNTIME and
+  // both had a real processor body — and no producer: `enqueueGraphDomainSyncJob`
+  // and `enqueueGraphTimelineSyncJob` had zero callers in every commit, so the
+  // per-domain stale sweep and the timeline sync they wrapped never ran in
+  // production. The graph is rebuilt by `ReconcileTeamGraph` above, whose
+  // builder performs its own stale sweep.
   {
     workName: JOB_NAMES.REFRESH_GRAPH_SEARCH_PROJECTION,
     family: "reconciliation",
@@ -519,6 +520,22 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     claim: null,
     terminalWriter: SUBSYSTEM,
     idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
+    // ET-Q-07 (2026-09-30) — THIS FIELD WAS FALSE, for the same reason as
+    // `ReconcileTeamGraph` above: `search-index-reconciler.ts` compares an
+    // Evidence row with its search document and knows nothing about graph
+    // signals. This job's only producer is the `graph-reconcile` processor's
+    // `onReconciled` hook (best-effort, `.catch(() => null)`), so a lost enqueue
+    // was made good only by the NEXT graph reconcile of that workspace — and
+    // only for signals that changed within the trigger's sixty-minute window.
+    //
+    // IT IS TRUE NOW. This job is a fan-out trigger: for one Team it finds the
+    // records whose signals changed and enqueues their search rebuild.
+    // `reconcileStaleSignalProjections` in that file recovers the EFFECT from
+    // the durable fact the trigger reads — a `media_intelligence_signals` row
+    // newer than the record's `evidence_search_documents.indexed_at_utc` — and
+    // re-enqueues the same rebuild, with no window and no dependence on the
+    // trigger having run. The workspace is read from the record's own
+    // `team_id`.
     reconciler: "services/worker/src/search-index-reconciler.ts",
     retry: RETRY_POLICIES.SWEEP,
     recovery: RECOVERY_POLICIES.SWEEP,
@@ -526,34 +543,14 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     auditFamily: null,
     projection: "GET /v1/search",
   },
-  {
-    workName: JOB_NAMES.REFRESH_ORG_HEALTH_PROJECTION,
-    family: "reconciliation",
-    familyReason:
-      "Recomputes the organization-health projection row from bounded per-workspace counts; projection convergence, not analysis.",
-    transport: "bullmq",
-    queueName: QUEUE_NAMES.ORG_HEALTH_REFRESH,
-    implementation: "CURRENT_RUNTIME",
-    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
-    jobIdPrefix: "org-health-refresh",
-    durableAuthority: {
-      model: "Team",
-      tenantSource: "Team row loaded by id; missing or non-ACTIVE fails closed",
-      createdBySynchronousPath: true,
-    },
-    canonicalProducer: SHARED_ENQUEUE,
-    canonicalProcessor: SUBSYSTEM,
-    workerRegistration: WORKER_INDEX,
-    claim: null,
-    terminalWriter: SUBSYSTEM,
-    idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
-    reconciler: "services/worker/src/search-index-reconciler.ts",
-    retry: RETRY_POLICIES.SWEEP,
-    recovery: RECOVERY_POLICIES.SWEEP,
-    externalBoundary: null,
-    auditFamily: null,
-    projection: "GET /v1/organizations/:id/health",
-  },
+  // ET-Q-07 (2026-09-30) — `RefreshOrgHealthProjection` (`org-health-refresh`)
+  // was REMOVED from this registry with its queue, enqueue helper, processor,
+  // worker registration and legacy adapter. `enqueueOrgHealthRefreshJob` had
+  // zero callers, so the "refreshed every 30-90s by the worker" the schema
+  // comment promised never happened. The projection row is written by the
+  // read-time refresh in the api (`command-center.service.ts` ->
+  // `refreshOrgHealthProjection` in @proovra/shared-runtime), which is the one
+  // writer and is unchanged.
 
   // ---- FAMILY 9: INTELLIGENCE AND OPERATIONS -------------------------------
   {
@@ -574,9 +571,15 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     canonicalProducer: SHARED_ENQUEUE,
     canonicalProcessor: "services/worker/src/media-intelligence.processor.ts",
     workerRegistration: WORKER_INDEX,
+    // ET-Q-07 (2026-09-30) — this declared `QUEUED -> RUNNING`. A
+    // `MediaIntelligenceRun` has neither status. `markRunProcessing`
+    // (run-tracker.service.ts) claims with one conditional UPDATE from PENDING
+    // or FAILED — or from PROCESSING whose `started_at_utc` is past the lease —
+    // to PROCESSING, stamping the lease. The reconciler's sibling entry carried
+    // the same two invented names; both now use the ones the column holds.
     claim: {
-      from: "QUEUED",
-      to: "RUNNING",
+      from: "PENDING / FAILED",
+      to: "PROCESSING",
       mechanism: "conditional_update_many",
       leaseField: "startedAtUtc",
       leaseMs: 20 * 60 * 1000,
@@ -590,45 +593,14 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     auditFamily: "intelligence.media_run",
     projection: "GET /v1/evidence/:id/media-intelligence",
   },
-  {
-    workName: JOB_NAMES.EXTRACT_EXIF,
-    family: "intelligence_operations",
-    familyReason:
-      "EXIF extraction from the bytes of one evidence part. Isolated onto its own queue so a long analyzer run cannot head-of-line block it.",
-    transport: "bullmq",
-    queueName: QUEUE_NAMES.MI_EXIF,
-    implementation: "CURRENT_RUNTIME",
-    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
-    jobIdPrefix: "mi-exif",
-    durableAuthority: {
-      // PHASE 12 POINT 5 correction. This entry named `MediaIntelligenceRun`
-      // and said the job "shares the media-intelligence processor by design".
-      // It did share it — and that was the defect, not the design: ONE
-      // function served two queues whose commands meant different things, so
-      // its payload had to carry both a run id and a part id and trust
-      // whichever was present. The EXIF job addresses the PART whose bytes it
-      // reads; the media-intelligence job addresses the RUN row that tracks
-      // its lifecycle. Two authorities, two entry points.
-      model: "EvidencePart",
-      tenantSource: "EvidencePart.evidence.teamId (loaded by id)",
-      createdBySynchronousPath: true,
-    },
-    canonicalProducer: SHARED_ENQUEUE,
-    // Its OWN entry point (`processExifQueueJob`), not the shared
-    // media-intelligence handler. Binding both queues to one function is what
-    // forced the old payload to carry a run id AND a part id.
-    canonicalProcessor: "services/worker/src/media-intelligence.processor.ts",
-    workerRegistration: WORKER_INDEX,
-    claim: null,
-    terminalWriter: "services/worker/src/media-intelligence.processor.ts",
-    idempotency: ["deterministic_job_id", "upsert_by_natural_key"],
-    reconciler: "services/worker/src/intelligence-run-reconciler.ts",
-    retry: RETRY_POLICIES.HEAVY_RENDER,
-    recovery: RECOVERY_POLICIES.HEAVY_RENDER,
-    externalBoundary: null,
-    auditFamily: "intelligence.media_run",
-    projection: "GET /v1/evidence/:id/media-intelligence",
-  },
+  // ET-Q-07 (2026-09-30) — `ExtractExif` (`mi-exif`) was REMOVED from this
+  // registry with its queue, enqueue helper, dedicated entry point
+  // (`processExifQueueJob`), worker registration and legacy adapter.
+  // `enqueueExifJob` had zero callers in every commit, so the dedicated queue
+  // never carried a job. EXIF extraction is unaffected: it runs — as it always
+  // actually did — under `RunMediaIntelligence` above, on run kind
+  // `extract_exif`, against a durable `MediaIntelligenceRun`.
+  //
   // PHASE 12 POINT 5 — `ExtractOcr` (`mi-ocr`) and `ExtractTranscript`
   // (`mi-transcript`) were REMOVED from this registry, and their queues,
   // producers, processors and worker registrations were deleted.
@@ -690,6 +662,20 @@ const BULLMQ_JOBS: ReadonlyArray<WorkRegistryEntry> = [
     },
     terminalWriter: "services/worker/src/derived-assets.processor.ts",
     idempotency: ["deterministic_job_id", "unique_constraint"],
+    // ET-Q-07 (2026-09-30) — THIS FIELD WAS FALSE. It named
+    // `intelligence-run-reconciler.ts`, whose scans key on
+    // `MediaIntelligenceRun` (leases, stranded PENDING runs) and on
+    // `EvidenceSemanticChunk.embedding IS NULL`. It never reads
+    // `EvidencePartDerivedAsset`, so a derived-asset row whose enqueue was lost
+    // stays PENDING forever and the module the registry pointed an operator at
+    // could not have found it.
+    //
+    // IT IS TRUE NOW. `reconcileStrandedDerivedAssets` (step 4 of that module's
+    // tick) scans `evidence_part_derived_assets` for rows PENDING past the
+    // stranded threshold on live evidence, claims each with a conditional
+    // update and re-enqueues it through the canonical producer under the same
+    // job id the API uses. A row still PENDING after the recovery ceiling is
+    // settled FAILED for an operator rather than retried forever.
     reconciler: "services/worker/src/intelligence-run-reconciler.ts",
     retry: RETRY_POLICIES.HEAVY_RENDER,
     recovery: RECOVERY_POLICIES.HEAVY_RENDER,
@@ -757,7 +743,7 @@ export const DLQ_SINKS: ReadonlyArray<DlqSink> = [
 ];
 
 // ===========================================================================
-// THE 15 DB-OUTBOX SWEEPS
+// THE 20 DB-OUTBOX SWEEPS
 // ===========================================================================
 
 const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
@@ -881,8 +867,14 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     terminalWriter:
       "services/worker/src/governance/destruction-orchestrator.worker.ts",
     idempotency: ["unique_constraint", "conditional_state_claim"],
+    // ET-Q-07 (2026-09-30) — this named `retention-reconciliation.worker.ts`,
+    // which never reads a `DestructionExecution`: it repairs the REVIEW pointer
+    // on evidence (`activeDestructionReviewId`). The recovery of THIS entry's
+    // authority — an execution left EXECUTING by a dead owner — is the
+    // expired-lease takeover in `claimDestructionExecution`, in the orchestrator
+    // itself: a conditional update pinned to the observed `startedAtUtc`.
     reconciler:
-      "services/worker/src/governance/retention-reconciliation.worker.ts",
+      "services/worker/src/governance/destruction-orchestrator.worker.ts",
     retry: RETRY_POLICIES.DESTRUCTIVE,
     recovery: RECOVERY_POLICIES.DESTRUCTIVE,
     externalBoundary: "storage",
@@ -1031,7 +1023,7 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     workName: SWEEP_NAMES.CAPTURE_DRAFT_REAPER,
     family: "retention_destruction",
     familyReason:
-      "Expires and removes capture drafts past their expiry; bounded destruction of abandoned pre-evidence state.",
+      "Expires capture drafts past their expiry, ends direct-capture sessions that outlived theirs and releases the evidence reservations they and abandoned uploads were holding; bounded destruction of abandoned pre-evidence state.",
     transport: "db_outbox_sweep",
     queueName: null,
     implementation: "CURRENT_RUNTIME",
@@ -1051,8 +1043,27 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     // caller that gets `count === 1` is the one that writes the audit event,
     // which is what stopped two reapers appending two EXPIRED events for one
     // expiry.
+    //
+    // ET-SM-07 / ET-DC-05 (2026-09-30) — BROUGHT UP TO WHAT THE SWEEP DOES NOW.
+    // The scheduler calls ONE function, `runCaptureReaperSweep`: a recorded run
+    // (GovernanceReconciliationRun kind CAPTURE_REAPER — one run at a time, with
+    // a lease a crashed run frees) that pages two passes. The first is the draft
+    // expiry above. The second, `releaseExpiredReservations`, claims a
+    // direct-capture session still ACTIVE or INTERRUPTED past its expiry as
+    // EXPIRED under the session's advisory lock, and releases the evidence
+    // reservation it held — and the reservation of an unsealed record nothing
+    // holds open — through the shared reservation authority
+    // (`releaseEvidenceReservationTx`). So the claim has three source states,
+    // not one, and the same conditional-update mechanism for all of them.
+    //
+    // `CaptureSession` remains the headline authority: it is what is claimed.
+    // The released reservation lives on the Evidence record and is written only
+    // through that shared authority, never directly here. The storage keys of a
+    // released reservation are deleted best-effort AFTER commit through an
+    // injected deleter; the release is the record's truth whatever that delete
+    // returns, which is why storage is not declared as this unit's boundary.
     claim: {
-      from: "DRAFT",
+      from: "DRAFT / ACTIVE / INTERRUPTED",
       to: "EXPIRED",
       mechanism: "conditional_update_many",
       leaseField: null,
@@ -1260,9 +1271,15 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     canonicalProducer: WORKER_INDEX,
     canonicalProcessor: "services/worker/src/mfa-recovery-digest.ts",
     workerRegistration: WORKER_INDEX,
+    // ET-Q-07 (2026-09-30) — this declared `PENDING -> SENDING`.
+    // `NotificationDeliveryStatus` has no SENDING. The lease is a conditional
+    // `updateMany` that matches a delivery in PENDING or RETRY_SCHEDULED whose
+    // `nextAttemptAtUtc` is due, and writes PENDING with `nextAttemptAtUtc`
+    // pushed forward by `ATTEMPT_LEASE_MS` (5 min). "In flight" is that future
+    // timestamp, not a status.
     claim: {
-      from: "PENDING",
-      to: "SENDING",
+      from: "PENDING / RETRY_SCHEDULED",
+      to: "PENDING",
       mechanism: "conditional_update_many",
       leaseField: "nextAttemptAtUtc",
       leaseMs: 5 * 60 * 1000,
@@ -1301,21 +1318,121 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     canonicalProducer: WORKER_INDEX,
     canonicalProcessor: "services/api/src/services/demo-follow-up.service.ts",
     workerRegistration: WORKER_INDEX,
+    // ET-Q-07 (2026-09-30) — EVERY FIELD OF THIS CLAIM WAS INVENTED. It
+    // declared `PENDING -> SENDING` with a 30-minute lease on
+    // `followUpSentAtUtc`. `DemoRequest` has no such column, and its
+    // `followUpStatus` is ACTIVE / PAUSED / COMPLETED / REPLIED / STOPPED — no
+    // PENDING, no SENDING. The real claim (`processDueDemoFollowUps`) is a
+    // conditional `updateMany` on a request that is ACTIVE with `nextFollowUpAt`
+    // due, which pushes `nextFollowUpAt` forward by `FOLLOW_UP_CLAIM_LEASE_MS`
+    // (10 minutes). The status does not change; the future timestamp is the
+    // lease, and only the caller that matched one row may send.
     claim: {
-      from: "PENDING",
-      to: "SENDING",
+      from: "ACTIVE",
+      to: "ACTIVE",
       mechanism: "conditional_update_many",
-      leaseField: "followUpSentAtUtc",
-      leaseMs: 30 * 60 * 1000,
+      leaseField: "nextFollowUpAt",
+      leaseMs: 10 * 60 * 1000,
     },
     terminalWriter: "services/api/src/services/demo-follow-up.service.ts",
     idempotency: ["conditional_state_claim", "provider_idempotency_key"],
-    reconciler: WORKER_INDEX,
+    // ET-Q-07 (2026-09-30) — this named the worker bootstrap. The note above
+    // already says why that is wrong for the PROCESSOR — the bootstrap is an
+    // HTTP client and a timer — and it is wrong for the reconciler for the same
+    // reason: `index.ts` never reads a `DemoRequest`. What recovers a follow-up
+    // whose sender died is the lease above expiring, after which the same
+    // function selects the request again. That is this module.
+    reconciler: "services/api/src/services/demo-follow-up.service.ts",
     retry: RETRY_POLICIES.EMAIL_DELIVERY,
     recovery: RECOVERY_POLICIES.EXTERNAL_DELIVERY,
     externalBoundary: "email",
     auditFamily: "notifications.delivery",
     projection: "GET /v1/admin/demo-requests",
+  },
+
+  // ---- FAMILY 7: EVIDENCE FINALIZATION -------------------------------------
+  {
+    /**
+     * ET-SM-07 (2026-09-30) — the scheduled integrity recheck.
+     *
+     * WHY THIS FAMILY. It was a choice between two, and the family definitions
+     * decide it. `reconciliation` is for work that CONVERGES a projection
+     * toward an authority and has no terminal state of its own — the storage
+     * sibling there, `ImmutableStorageReconciliationSweep`, is described as
+     * "convergence, not mutation of evidence". This sweep is the opposite on
+     * both counts: what it writes is the Evidence record's own integrity state
+     * (the last-checked / last-verified columns and an append-only check
+     * history), and it has a terminal outcome — a digest mismatch makes the
+     * record FAILED_HASH_MISMATCH and appends a custody event. That is the
+     * `evidence_finalization` definition ("mutates Evidence integrity state,
+     * not derived intelligence"), the family `UpgradeOts` is in for the same
+     * reason: both keep the record's proof of integrity true after signing.
+     */
+    workName: SWEEP_NAMES.INTEGRITY_RECHECK,
+    family: "evidence_finalization",
+    familyReason:
+      "Re-reads every signed record's original bytes at their recorded object version on a cadence and records what was found on the Evidence record itself; a digest mismatch is terminal (FAILED_HASH_MISMATCH plus a custody event). It maintains the record's integrity state rather than converging a projection.",
+    transport: "db_outbox_sweep",
+    queueName: null,
+    implementation: "CURRENT_RUNTIME",
+    schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
+    jobIdPrefix: null,
+    // The Evidence row IS the work item: signed, not DESTROYED and not
+    // PENDING_DESTRUCTION, and due (never checked, older than the cadence, or
+    // requested). There is no outbox table because there is no separate fact.
+    // The workspace is read from the row and carried onto each history row; a
+    // recheck never rewrites it, and a legacy personal record with a NULL team
+    // is checked like any other and recorded with a NULL team.
+    durableAuthority: {
+      model: "Evidence",
+      tenantSource: "Evidence.teamId",
+      createdBySynchronousPath: true,
+    },
+    canonicalProducer: WORKER_INDEX,
+    canonicalProcessor: "services/worker/src/integrity-recheck.ts",
+    workerRegistration: WORKER_INDEX,
+    // THE CLAIM IS A LEASE, NOT A STATUS CHANGE, and the from/to say exactly
+    // that. `claimIntegrityRecheck` is a conditional `updateMany` that matches
+    // a record whose status is SIGNED or REPORTED (and which is due and not
+    // held) and stamps `integrityRecheckClaimedAtUtc`. The status it matched
+    // is the status it leaves: a recheck that VERIFIES changes no status at
+    // all. So both sides name the two statuses the claim is restricted to —
+    // they are the precondition and the postcondition — and the lease column
+    // is what distinguishes "claimed" from "not claimed". The terminal move to
+    // FAILED_HASH_MISMATCH on a mismatch belongs to the rejection writer, not
+    // to the claim, and is named by `terminalWriter` below.
+    //
+    // The lease is 30 minutes (`INTEGRITY_RECHECK_CLAIM_LEASE_MS`). VERIFIED
+    // and FAILED release it; UNAVAILABLE restarts it, which is the retry
+    // backoff for a store that could not be read.
+    claim: {
+      from: "SIGNED / REPORTED",
+      to: "SIGNED / REPORTED",
+      mechanism: "conditional_update_many",
+      leaseField: "integrityRecheckClaimedAtUtc",
+      leaseMs: 30 * 60 * 1000,
+    },
+    // One module records the attempt and, on a mismatch, calls the rejection
+    // (`recordIntegrityObservation`); `rejectEvidenceIntegrity` has no other
+    // caller in the recheck path.
+    terminalWriter: "services/worker/src/integrity-recheck.ts",
+    // The lease claim is the arbiter: of N concurrent checkers one matches the
+    // row. The rejection is idempotent on status — a record already
+    // FAILED_HASH_MISMATCH is out of the eligible population, so a duplicate
+    // observation of the same drift writes one rejection.
+    idempotency: ["conditional_state_claim"],
+    // It is its own recovery. A claim whose owner died expires after the
+    // lease and the record is due again; a tick that never ran is made up by
+    // the next, because due-ness is a fact on the row.
+    reconciler: "services/worker/src/integrity-recheck.ts",
+    retry: RETRY_POLICIES.SWEEP,
+    recovery: RECOVERY_POLICIES.SWEEP,
+    // Object storage, READ ONLY: each object is fetched at its recorded
+    // VersionId. A store that cannot answer is UNAVAILABLE — never a verdict
+    // on the bytes — and the record stays non-terminal and is retried.
+    externalBoundary: "storage",
+    auditFamily: "evidence.integrity_recheck",
+    projection: "GET /public/verify/:id",
   },
 
   // ---- FAMILY 8: RECONCILIATION --------------------------------------------
@@ -1432,9 +1549,17 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     implementation: "CURRENT_RUNTIME",
     schemaVersion: CANONICAL_PAYLOAD_SCHEMA_VERSION,
     jobIdPrefix: null,
+    // ET-Q-07 (2026-09-30) — this named `Team` and said "Team row loaded by id;
+    // missing or non-ACTIVE fails closed". Neither half describes the code. The
+    // engine never loads a Team and checks no organization status: the route
+    // enumerates the teams that own at least one review workflow, and
+    // `runReconcile` reads and repairs `EvidenceReviewWorkflow` rows (SLA
+    // state, escalations) scoped by that team id. The workflow row is what is
+    // reconciled.
     durableAuthority: {
-      model: "Team",
-      tenantSource: "Team row loaded by id; missing or non-ACTIVE fails closed",
+      model: "EvidenceReviewWorkflow",
+      tenantSource:
+        "EvidenceReviewWorkflow.teamId — the sweep enumerates teams owning at least one workflow row and scopes every read and write by that team id",
       createdBySynchronousPath: true,
     },
     // POINT 5 — corrected, same reason as `DemoFollowUpSweep`. The worker
@@ -1492,7 +1617,7 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     workName: SWEEP_NAMES.INTELLIGENCE_RUN_RECONCILER,
     family: "intelligence_operations",
     familyReason:
-      "Releases expired RUNNING leases and re-enqueues stranded PENDING intelligence runs; without it a run whose worker died stays RUNNING forever and every retry no-ops on arrival.",
+      "Releases expired PROCESSING leases and re-enqueues stranded PENDING intelligence runs, stranded PENDING derived assets and chunks still owing an embedding; without it a run whose worker died stays PROCESSING forever and every retry no-ops on arrival.",
     transport: "db_outbox_sweep",
     queueName: null,
     implementation: "CURRENT_RUNTIME",
@@ -1506,8 +1631,10 @@ const DB_SWEEPS: ReadonlyArray<WorkRegistryEntry> = [
     canonicalProducer: WORKER_INDEX,
     canonicalProcessor: "services/worker/src/intelligence-run-reconciler.ts",
     workerRegistration: WORKER_INDEX,
+    // ET-Q-07 (2026-09-30) — was `RUNNING -> PENDING`; the claimed status is
+    // PROCESSING (`MEDIA_INTELLIGENCE_RUN_CLAIMED_STATUS`). No RUNNING exists.
     claim: {
-      from: "RUNNING",
+      from: "PROCESSING",
       to: "PENDING",
       mechanism: "conditional_update_many",
       leaseField: "startedAtUtc",
@@ -1532,6 +1659,38 @@ export const CANONICAL_WORK_REGISTRY: ReadonlyArray<WorkRegistryEntry> = [
   ...BULLMQ_JOBS,
   ...DB_SWEEPS,
 ];
+
+/**
+ * ET-Q-07 (2026-09-30) — WORK THAT HAS NO RECONCILER, STATED OUT LOUD.
+ *
+ * `RECONCILER_PENDING` is the name the Point-5 closure gates have always used
+ * for this list; until now it existed only as an empty local inside two tests,
+ * which made "every unit of work names a reconciler" true by construction of
+ * the field type rather than by anything a reconciler did. Three entries
+ * satisfied it by naming a module that cannot see their work:
+ *
+ *   * `ReconcileTeamGraph` and `RefreshGraphSearchProjection` named
+ *     `search-index-reconciler.ts`, which re-enqueues evidence search documents
+ *     and touches no graph authority;
+ *   * `GenerateDerivedAsset` named `intelligence-run-reconciler.ts`, which
+ *     never reads `EvidencePartDerivedAsset`.
+ *
+ * Each was set to `reconciler: null` and listed here while that was the truth.
+ *
+ * THE LIST IS EMPTY AGAIN, AND THIS TIME IT IS A MEASUREMENT. The three scans
+ * were written — two in `search-index-reconciler.ts`, one in
+ * `intelligence-run-reconciler.ts` — and each entry names its module again.
+ * What changed is what "names a reconciler" is held to: the closure gate now
+ * requires the named module's SOURCE to reference the authority model of the
+ * work it is given, so the three claims above would fail it if they were put
+ * back.
+ *
+ * The mechanism stays. A unit of work with no recovery path declares
+ * `reconciler: null` AND is listed here; the registry self-check enforces both
+ * directions and the gates assert this list is `[]`, so a new gap is a red
+ * build with a name on it rather than a plausible-looking module path.
+ */
+export const RECONCILER_PENDING: ReadonlyArray<WorkName> = [];
 
 export function getWorkEntry(workName: string): WorkRegistryEntry | null {
   return (

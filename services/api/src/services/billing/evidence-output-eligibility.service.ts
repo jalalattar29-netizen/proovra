@@ -31,8 +31,11 @@
  */
 
 import {
+  OUTPUT_EARNED_BASES,
   getPlanCapabilities,
+  readOutputEarnedFact,
   resolveEvidenceOutputEntitlements,
+  type OutputEarnedFact,
   resolveOutputIssuanceEntitlement,
   type EvidenceFundingSource,
   type OutputIssuanceEntitlement,
@@ -105,11 +108,14 @@ function project(input: {
   /** null = the funding read FAILED: unresolved, never assumed to be PLAN. */
   funding: EvidenceFundingSource | null;
   lifecycle: OutputIssuanceLifecycle;
+  /** ET-COM-04 — the record's stored funding fact, when it has one. */
+  earned: OutputEarnedFact;
 }): EvidenceOutputEligibility {
   const issuance = resolveOutputIssuanceEntitlement({
     plan: input.plan,
     funding: input.funding,
     lifecycle: input.lifecycle,
+    earned: input.earned,
   });
   // Public verification is never gated on the subscription (Decision B).
   const publicVerifyIncluded = input.plan
@@ -247,8 +253,9 @@ export async function resolveEvidenceOutputEligibility(input: {
    */
   plan?: PlanType | null;
 }): Promise<EvidenceOutputEligibility> {
-  const [subject, funding] = await Promise.all([
+  const [subject, earnedById, funding] = await Promise.all([
     resolveSubject({ ownerUserId: input.ownerUserId, teamId: input.teamId }),
+    readEarnedFacts([input.evidenceId]),
     /*
      * A FAILED FUNDING READ IS UNRESOLVED, NOT PLAN (2026-09-29). It used to
      * default to PLAN, so a credit-funded record on a FREE account read
@@ -262,7 +269,27 @@ export async function resolveEvidenceOutputEligibility(input: {
   const lifecycle = await resolveSubjectLifecycle(
     subject && plan ? { ...subject, plan } : null,
   );
-  return project({ plan, funding, lifecycle });
+  return project({ plan, funding, lifecycle, earned: earnedById.get(input.evidenceId) ?? null });
+}
+
+/**
+ * ET-COM-04 — the stored funding facts of a set of records. A failed read is
+ * "no fact" for every record: the current lifecycle then decides, which can
+ * only be the stricter answer.
+ */
+async function readEarnedFacts(evidenceIds: readonly string[]): Promise<Map<string, OutputEarnedFact>> {
+  const out = new Map<string, OutputEarnedFact>();
+  if (evidenceIds.length === 0) return out;
+  try {
+    const rows = await prisma.evidence.findMany({
+      where: { id: { in: [...evidenceIds] }, outputEarnedBasis: { not: null } },
+      select: { id: true, outputEarnedPlan: true, outputEarnedBasis: true },
+    });
+    for (const row of rows) out.set(row.id, readOutputEarnedFact(row));
+  } catch {
+    // no facts
+  }
+  return out;
 }
 
 /**
@@ -290,8 +317,9 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
   const out = new Map<string, EvidenceOutputEligibility>();
   if (input.evidenceIds.length === 0) return out;
 
-  const [subject, fundingById] = await Promise.all([
+  const [subject, earnedById, fundingById] = await Promise.all([
     resolveSubject({ ownerUserId: input.ownerUserId, teamId: input.teamId }),
+    readEarnedFacts(input.evidenceIds),
     // A failed read is unresolved for every record (see the single variant).
     resolveEvidenceFundingMany(input.evidenceIds).catch(() => null),
   ]);
@@ -308,6 +336,7 @@ export async function resolveEvidenceOutputEligibilityMany(input: {
         // No ledger consumption row = PLAN; a failed read = unresolved.
         funding: fundingById === null ? null : (fundingById.get(evidenceId) ?? "PLAN"),
         lifecycle,
+        earned: earnedById.get(evidenceId) ?? null,
       }),
     );
   }
@@ -455,8 +484,10 @@ export async function selectNonEntitledEvidenceIds(
  * Returns:
  *   `null`  the plan includes the outputs, so the whole population is in scope
  *           and nothing is added to the query.
- *   a where the plan EXCLUDES them, so only records funded by a purchased
- *           evidence credit remain — those genuinely are owed an artifact.
+ *   a where the plan EXCLUDES them (or has lapsed), so only records funded
+ *           by a purchased evidence credit, or that earned their outputs at
+ *           finalization (ET-COM-04), remain — those genuinely are owed an
+ *           artifact.
  *
  * Expressed as an id set rather than a relation test because
  * `EvidenceCreditLedgerEntry` carries `evidence_id` as a plain column with no
@@ -478,7 +509,7 @@ export async function selectNonEntitledEvidenceIds(
 export async function outputEntitledEvidenceWhere(params: {
   ownerUserId?: string | null;
   teamId: string | null;
-}): Promise<{ id: { in: string[] } } | null> {
+}): Promise<OwedOutputEvidenceWhere | null> {
   try {
     const ctx = params.teamId
       ? await resolveCommercialPlan({
@@ -515,11 +546,23 @@ export async function outputEntitledEvidenceWhere(params: {
     const ids = rows
       .map((r) => r.evidenceId)
       .filter((v): v is string => typeof v === "string" && v.length > 0);
-    return { id: { in: ids } };
+    // ET-COM-04 — a record that EARNED its outputs at finalization is still
+    // owed them after the plan lapses; its stored fact says so.
+    return {
+      OR: [
+        { id: { in: ids } },
+        { outputEarnedBasis: { in: [...OUTPUT_EARNED_BASES] } },
+      ],
+    };
   } catch {
     return null;
   }
 }
+
+/** The narrowing `outputEntitledEvidenceWhere` returns: compose it under `AND`. */
+export type OwedOutputEvidenceWhere = {
+  OR: [{ id: { in: string[] } }, { outputEarnedBasis: { in: string[] } }];
+};
 
 /**
  * Does this workspace's PLAN include reports at all, ignoring per-record

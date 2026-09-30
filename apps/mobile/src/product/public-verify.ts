@@ -259,6 +259,63 @@ export function publicVerifyUrl(origin: string | null, token: string): string | 
 }
 
 // ---------------------------------------------------------------------------
+// ET-PKG-07 — a public link is a SHARE TOKEN the server issues, never the
+// record's id. The native library used to build /verify/<evidence id> locally
+// and share that. It now asks the server for a link (POST
+// /v1/evidence/:id/verify-links — the same route the web's owner controls
+// use) and shares what comes back. The token is in that one response only;
+// revoking, replacing and listing links are on the web record page.
+// ---------------------------------------------------------------------------
+
+/** The owner's label for a link made from the phone. Only the owner ever sees it. */
+export const NATIVE_SHARE_LINK_AUDIENCE = "Shared from the PROOVRA mobile app";
+/** A link made from the phone expires; the web controls offer other choices. */
+export const NATIVE_SHARE_LINK_EXPIRY_DAYS = 30;
+
+export function verificationLinkCreatePath(evidenceId: string): string {
+  return `/v1/evidence/${encodeURIComponent(evidenceId)}/verify-links`;
+}
+
+export function verificationLinkCreateBody(): {
+  audience: string;
+  expiresInDays: number;
+  projection: "STANDARD";
+  maxUses: null;
+} {
+  return {
+    audience: NATIVE_SHARE_LINK_AUDIENCE,
+    expiresInDays: NATIVE_SHARE_LINK_EXPIRY_DAYS,
+    projection: "STANDARD",
+    maxUses: null,
+  };
+}
+
+/**
+ * The create response, read by its real keys (`verifyPath`, `published`,
+ * `link.expiresAtUtc`). Anything that is not a share-token path is no link.
+ */
+export function parseCreatedVerificationLink(
+  res: unknown,
+): { verifyPath: string; published: boolean; expiresAtUtc: string | null } | null {
+  if (!res || typeof res !== "object") return null;
+  const r = res as Record<string, unknown>;
+  const verifyPath = typeof r["verifyPath"] === "string" ? (r["verifyPath"] as string) : "";
+  if (!verifyPath.startsWith("/verify/pvs_")) return null;
+  const link = r["link"] && typeof r["link"] === "object" ? (r["link"] as Record<string, unknown>) : {};
+  return {
+    verifyPath,
+    published: r["published"] === true,
+    expiresAtUtc: typeof link["expiresAtUtc"] === "string" ? (link["expiresAtUtc"] as string) : null,
+  };
+}
+
+/** The absolute link on the public web origin, or null when this build has none. */
+export function verifyUrlFromPath(origin: string | null, verifyPath: string): string | null {
+  if (!origin) return null;
+  return `${origin.replace(/\/+$/, "")}${verifyPath.startsWith("/") ? verifyPath : `/${verifyPath}`}`;
+}
+
+// ---------------------------------------------------------------------------
 // T-14 — "How this record was acquired" (web VerifyCaptureIntegritySection),
 // from the verify response's top-level `acquisition` (PublicVerifyAcquisition).
 // Accepted only at its schema version; anything else renders nothing rather

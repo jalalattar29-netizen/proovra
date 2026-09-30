@@ -11,6 +11,9 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+// ET-PKG-07 — a record's id is not a public link: requests go through a share
+// link (the record is published and the link minted on first use).
+import { shareLinkFor } from "./helpers/verify-share.js";
 
 describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
   let h: IntegrationHarness;
@@ -91,7 +94,7 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
       const NOTE = `INTERNAL-ONLY-NOTE-${randomUUID().slice(0, 6)}`;
       const hold = await placeCanonicalLegalHold({ teamId: A.teamId, scope: "EVIDENCE", evidenceId: ev.id, actorUserId: A.ownerUserId, title: TITLE });
       await releaseCanonicalLegalHold({ teamId: A.teamId, holdId: hold.id, actorUserId: A.ownerUserId, releaseNote: NOTE });
-      const res = await h.app.inject({ method: "GET", url: `/public/verify/${ev.id}` });
+      const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
       expect(res.statusCode).toBe(200);
       expect(res.body).not.toContain(TITLE);
       expect(res.body).not.toContain(NOTE);
@@ -176,7 +179,7 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
     it("a stored 'passed' snapshot does not override a failing live signature check", async () => {
       const A = h.fixtures.teamA;
       const ev = await signedTeamRecord(A.ownerUserId, { verificationStatus: "RECORDED_INTEGRITY_VERIFIED" });
-      const before = (await h.app.inject({ method: "GET", url: `/public/verify/${ev.id}` })).json();
+      const before = (await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` })).json();
       const findDecision = (o: unknown): unknown => {
         if (!o || typeof o !== "object") return null;
         const r = o as Record<string, unknown>;
@@ -188,7 +191,7 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
         data: { evidenceId: ev.id, version: 1, storageBucket: "fixture-bucket", storageKey: `reports/${ev.id}/v1.pdf`, generatedAtUtc: new Date(), trustDecisionSnapshot: findDecision(before) as never } as never,
       });
       await prisma.evidence.update({ where: { id: ev.id }, data: { signatureBase64: sign(null, Buffer.from("00".repeat(32), "hex"), privateKey).toString("base64") } as never });
-      const res = await h.app.inject({ method: "GET", url: `/public/verify/${ev.id}` });
+      const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
       const body = res.body;
       expect(body).toContain('"signatureValid":false');
       expect(body).not.toMatch(/Core Integrity Verified/);

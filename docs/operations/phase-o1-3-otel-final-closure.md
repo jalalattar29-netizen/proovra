@@ -1,5 +1,17 @@
 # Phase O1.3 — OpenTelemetry Final Closure
 
+> **ET-Q-07 supersession (2026-09-30).** This is a dated closure record and is kept as written, but
+> the queue list below names `mi-exif`, `mi-search-index`, `graph-domain-sync`, `graph-timeline-sync` and `org-health-refresh`.
+> Those queues are **not live**: each had a registered worker and no producer
+> (their enqueue helpers had zero callers in every commit), so none ever
+> carried a job. They were retired together with their processors, worker
+> registrations, registry entries, replay policies, inventory rows and spans.
+> The live BullMQ topology is 10 processed queues + 2 DLQ sinks — see
+> `packages/shared/src/queue-integrity/names.ts`. EXIF extraction runs on
+> `media-intelligence` (run kind `extract_exif`), search reindex on
+> `search-indexing`, graph stale sweeps inside `graph-reconcile`, and the
+> org-health projection is refreshed on read by the API.
+
 **Phase:** O1.3 (closes the Observability O1 line)
 **Status:** CLOSED in code; production verification requires container rebuild + Grafana sanity check.
 **Predecessors:** O1.1 (OTEL runtime wiring), O1.2 (observability coverage), Sentry coexistence fix.

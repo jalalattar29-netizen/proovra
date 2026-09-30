@@ -10,7 +10,12 @@
  */
 import React, { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { EVIDENCE_BULK_MAX_IDS, evidenceBulkActionRequiresCase, type EvidenceBulkActionName } from "@proovra/shared";
+import {
+  EVIDENCE_BULK_MAX_IDS,
+  TRASH_KEEPS_PLAN_CAPACITY_COPY,
+  evidenceBulkActionRequiresCase,
+  type EvidenceBulkActionName,
+} from "@proovra/shared";
 
 import { theme } from "../theme/theme";
 import { toSafeUserError } from "../errors/safe-error";
@@ -220,6 +225,11 @@ export function EvidenceLibraryBulkToolbar({
                 <ProovraText variant="label" color={theme.color.ink.secondary}>
                   Bulk selection applies only to the records you selected in the currently loaded pages.
                 </ProovraText>
+                {action === "TRASH" ? (
+                  <ProovraText variant="label" color={theme.color.ink.secondary} testID="bulk-trash-capacity-note">
+                    {TRASH_KEEPS_PLAN_CAPACITY_COPY}
+                  </ProovraText>
+                ) : null}
                 {error ? (
                   <View style={[styles.helper, styles.danger]} accessibilityRole="alert" testID="bulk-error">
                     <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>

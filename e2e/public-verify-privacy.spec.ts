@@ -22,6 +22,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   disposeSession,
+  mintVerifyLink,
 } from "./helpers/api-client";
 
 // Phase 1 — clear shared rate-limit buckets between tests so the
@@ -84,7 +85,12 @@ test.describe("public verify privacy @critical", () => {
     try {
       const id = await signedEvidence(session);
 
-      const res = await request.get(`${API_BASE}/public/verify/${id}`);
+      // ET-PKG-07 — a freshly signed record is private, and its id opens
+      // nothing: the public page is reached only through a share link.
+      const byId = await request.get(`${API_BASE}/public/verify/${id}`);
+      expect(byId.status(), "a record's id is not a public link").toBe(404);
+
+      const res = await request.get(`${API_BASE}/public/verify/${mintVerifyLink(id)}`);
       expect(res.status()).toBe(200);
       const text = await res.text();
       const body = JSON.parse(text) as Record<string, unknown>;
@@ -108,7 +114,13 @@ test.describe("public verify privacy @critical", () => {
       ]) {
         expect(text, `public verify must not carry ${key}`).not.toContain(`"${key}"`);
       }
-      expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "tier"]);
+      expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "link", "tier"]);
+      // About the link, only its kind and when it ends — never who it was for.
+      expect(Object.keys(body.link as object).sort()).toEqual(["expiresAtUtc", "kind"]);
+      expect((body.link as { kind: string }).kind).toBe("SHARE_TOKEN");
+      for (const key of ["audience", "createdByUserId", "tokenHash", "revokedByUserId"]) {
+        expect(text, `public verify must not carry ${key}`).not.toContain(`"${key}"`);
+      }
     } finally {
       await disposeSession(session);
     }
@@ -118,12 +130,13 @@ test.describe("public verify privacy @critical", () => {
     const session = await createGuestSession();
     try {
       const id = await signedEvidence(session);
-      const res = await request.get(`${API_BASE}/public/verify/${id}`);
+      const res = await request.get(`${API_BASE}/public/verify/${mintVerifyLink(id)}`);
       expect(res.ok()).toBe(true);
       const body = (await res.json()) as {
         tier?: string;
         basicVerification?: {
           schema?: string;
+          storedBytes?: { state?: string; lastVerifiedAtUtc?: string | null };
           original?: {
             state?: string;
             basis?: string | null;
@@ -150,6 +163,11 @@ test.describe("public verify privacy @critical", () => {
       expect(checks?.fingerprintMatchesSignedHash).toBe(true);
       expect(typeof checks?.custodyChainValid).toBe("boolean");
       expect(basic?.original?.fileSha256).toMatch(/^[0-9a-f]{64}$/);
+      // ET-SM-07 — finalization read the stored bytes, so a record this stack
+      // just signed is "verified, current" with a date; it is never silently
+      // assumed.
+      expect(basic?.storedBytes?.state).toBe("verified_current");
+      expect(basic?.storedBytes?.lastVerifiedAtUtc).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       // The headline is honest: it is "verified" exactly when every check
       // passed, and "failed" when any check failed.
       const all = [checks?.fingerprintMatchesSignedHash, checks?.signatureValid, checks?.custodyChainValid];
@@ -228,14 +246,14 @@ test.describe("public verify privacy @critical", () => {
   test("per-IP rate limit returns 429 + Retry-After", async ({ request }) => {
     const session = await createGuestSession();
     try {
-      const id = await signedEvidence(session);
+      const link = mintVerifyLink(await signedEvidence(session));
 
       // The Phase 1 default is 30/min/IP. Fire 40 times rapidly; at
       // least one must come back 429.
       let saw429 = false;
       let retryAfter: string | null = null;
       for (let i = 0; i < 40; i++) {
-        const res = await request.get(`${API_BASE}/public/verify/${id}`);
+        const res = await request.get(`${API_BASE}/public/verify/${link}`);
         if (res.status() === 429) {
           saw429 = true;
           retryAfter = res.headers()["retry-after"] ?? null;

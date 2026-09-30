@@ -640,12 +640,18 @@ describe("BILLING — personal evidence funding boundary (live PostgreSQL 16)", 
   });
 
   // =========================================================================
-  // A trashed record releases its slot — the exclusion must not change that
+  // What releases a slot, and what does not (ET-COM-02, 2026-09-30)
   // =========================================================================
-  it("a trashed record frees a slot and the freed slot is plan-funded", async () => {
+  //
+  // This block was one test, "a trashed record frees a slot and the freed slot
+  // is plan-funded". Its fixture was never a trashed record: it is a row with
+  // `deletedAt` set and the default ACTIVE lifecycle — a RELEASED RESERVATION.
+  // That still frees its slot. A record in TRASH does not: trash is reversible,
+  // so the owner decided it keeps its slot and its funding.
+  it("a released reservation frees its slot and the freed slot is plan-funded", async () => {
     const t = await seedPersonalTenant(deps, "FREE", { credits: 0 });
     await seedHeldRecords(t, 2);
-    const trashed = await prisma.evidence.create({
+    await prisma.evidence.create({
       data: {
         ownerUserId: t.owner.userId,
         teamId: t.personalTeamId,
@@ -654,11 +660,32 @@ describe("BILLING — personal evidence funding boundary (live PostgreSQL 16)", 
         deletedAt: new Date(),
       },
     });
-    void trashed;
+
+    const next = await createRecord(t, "after-release");
+    const settled = await settleOne(t.owner.userId, next);
+    expect(settled.funding).toBe("PLAN");
+    expect(await creditsOf(t.owner.userId)).toBe(0);
+  });
+
+  it("a TRASHED record keeps its slot: the record after it is funded by a credit, not by the plan", async () => {
+    const t = await seedPersonalTenant(deps, "FREE", { credits: 1 });
+    await seedHeldRecords(t, 2);
+    await prisma.evidence.create({
+      data: {
+        ownerUserId: t.owner.userId,
+        teamId: t.personalTeamId,
+        organizationId: t.personalOrganizationId,
+        type: "PHOTO",
+        status: "SIGNED",
+        lifecycleState: "TRASHED",
+        deletedAt: new Date(),
+        createdAt: new Date(Date.now() - 60_000),
+      },
+    });
 
     const next = await createRecord(t, "after-trash");
     const settled = await settleOne(t.owner.userId, next);
-    expect(settled.funding).toBe("PLAN");
+    expect(settled.funding).toBe("EVIDENCE_CREDIT");
     expect(await creditsOf(t.owner.userId)).toBe(0);
   });
 });

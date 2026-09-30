@@ -1,6 +1,14 @@
 /**
- * Phase 31.19 — contract tests for the isolated subsystem queues
- * (mi-search-index, graph-reconcile).
+ * Phase 31.19 — contract tests for the isolated subsystem queue
+ * (graph-reconcile).
+ *
+ * ET-Q-07 (2026-09-30) removed `mi-search-index` (and the `mi-exif` enqueue
+ * helper case) from this file because it removed them from the runtime. Both
+ * queues had a registered worker and NO producer — `enqueueMiSearchIndexJob`
+ * and `enqueueExifJob` had zero callers in every commit — so the cases here
+ * proved the wiring of chains nothing fed. Nothing about `graph-reconcile` is
+ * loosened: every assertion that covered it is kept. A stays-removed guard
+ * lives in `./et-q-07-retired-queues-resurrection-guard.test.ts`.
  *
  * PHASE 12 — POINT 5 removed `mi-ocr` and `mi-transcript` from this file
  * because it removed them from the runtime. They were a second authority for
@@ -60,11 +68,6 @@ const PROCESSORS_SRC = readSource("../src/subsystem-queue-processors.ts");
 
 const SUBSYSTEM_CHAINS = [
   {
-    work: JOB_NAMES.INDEX_MEDIA_INTELLIGENCE,
-    queue: QUEUE_NAMES.MI_SEARCH_INDEX,
-    prefix: "mi-search-index",
-  },
-  {
     work: JOB_NAMES.RECONCILE_TEAM_GRAPH,
     queue: QUEUE_NAMES.GRAPH_RECONCILE,
     prefix: "graph-reconcile",
@@ -115,12 +118,13 @@ describe("Phase 31.19 — queue declarations", () => {
     }
   });
 
-  it("the part-addressed enqueue helper requires an evidence part (anti-leak)", () => {
-    // `mi-exif` is now the only part-addressed extraction chain: the OCR and
-    // transcript helpers this case also covered were deleted with their
-    // queues, having never had a caller in any commit.
-    expect(functionSource(QUEUE_SRC, "enqueueExifJob")).toMatch(
-      /evidence_part_id_required/,
+  it("the graph-reconcile enqueue helper routes through enqueueWork", () => {
+    // ET-Q-07 — this slot held "the part-addressed enqueue helper requires an
+    // evidence part", pinning `enqueueExifJob`. That helper had no caller in
+    // any commit and was deleted with the `mi-exif` queue, as the OCR and
+    // transcript helpers it once shared the case with were before it.
+    expect(functionSource(QUEUE_SRC, "enqueueGraphReconcileJob")).toMatch(
+      /enqueueWork\(/,
     );
   });
 
@@ -138,37 +142,31 @@ describe("Phase 31.19 — queue declarations", () => {
 // =============================================================================
 
 describe("Phase 31.19 — worker registrations", () => {
-  it("registers each new worker via safeRegisterWorker (failure isolation)", () => {
-    expect(INDEX_SRC).toMatch(/safeRegisterWorker\("mi-search-index"/);
+  it("registers the worker via safeRegisterWorker (failure isolation)", () => {
     expect(INDEX_SRC).toMatch(/safeRegisterWorker\("graph-reconcile"/);
   });
 
-  it("WorkerKind union includes the subsystem kinds", () => {
+  it("WorkerKind union includes the subsystem kind", () => {
     const slice = enclosingSource(INDEX_SRC, "type WorkerKind", "statement", {
       unique: true,
       fileName: "index.ts",
     });
-    expect(slice).toMatch(/"mi-search-index"/);
     expect(slice).toMatch(/"graph-reconcile"/);
   });
 
-  it("shutdown closes each worker (null-checked) and each queue", () => {
-    expect(INDEX_SRC).toMatch(/miSearchIndexWorker/);
+  it("shutdown closes the worker (null-checked) and the queue", () => {
     expect(INDEX_SRC).toMatch(/graphReconcileWorker/);
-    expect(INDEX_SRC).toMatch(/await miSearchIndexQueue\.close\(\)/);
     expect(INDEX_SRC).toMatch(/await graphReconcileQueue\.close\(\)/);
   });
 
-  it("each worker is bounded — concurrency 1 or 2", () => {
-    // mi-search-index: 2 (lightweight delegate).
-    // Each read is that worker's whole `safeRegisterWorker(…)` call, so the
+  it("the worker is bounded — concurrency 1", () => {
+    // The read is that worker's whole `safeRegisterWorker(…)` call, so a
     // neighbouring registration's concurrency can never satisfy it.
     const registration = (kind: string) =>
       enclosingSource(INDEX_SRC, `safeRegisterWorker("${kind}"`, "call", {
         unique: true,
         fileName: "index.ts",
       });
-    expect(registration("mi-search-index")).toMatch(/concurrency: 2/);
     // graph-reconcile: 1 (Postgres-heavy).
     expect(registration("graph-reconcile")).toMatch(/concurrency: 1/);
   });
@@ -204,7 +202,11 @@ describe("Phase 31.19 — subsystem processor source contract", () => {
     expect(code).not.toMatch(/processOcrJob|processTranscriptJob/);
   });
 
-  it("mi-search-index delegates to the existing search-indexing queue", () => {
+  it("search-projection work delegates to the existing search-indexing queue", () => {
+    // ET-Q-07 — was "mi-search-index delegates …". That shim is gone; the
+    // property it stated (ONE canonical writer for the search index) is still
+    // true of the processor that remains, `graph-search-projection`, and is
+    // asserted against the same two facts.
     expect(PROCESSORS_SRC).toMatch(/enqueueSearchIndexingJob/);
     expect(PROCESSORS_SRC).toMatch(/kind: "evidence"/);
   });

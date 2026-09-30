@@ -370,22 +370,6 @@ export const LEGACY_PAYLOAD_ADAPTERS: ReadonlyArray<LegacyPayloadAdapter> = [
     removalCondition: removalCondition("media-intelligence"),
     owner: "platform-intelligence",
   },
-  {
-    jobName: "ExtractExif",
-    disposition: "adaptable",
-    oldSchema: "{ teamId, evidenceId, kind, evidencePartId?, runId? }",
-    acceptedVersions: [0],
-    // The EXIF job reads ONE part's bytes, so the part is its authority. A job
-    // without `evidencePartId` never named the thing it was going to read.
-    readReference: (raw) => str(raw, "evidencePartId"),
-    discardsAuthorityFields: ["teamId"],
-    maxQueueRetentionMs: LEGACY_QUEUE_RETENTION_MS,
-    backlogCommand: backlogCommand("mi-exif"),
-    drainCommand:
-      "pnpm --filter proovra-api queue:drain-check -- --queue=mi-exif",
-    removalCondition: removalCondition("mi-exif"),
-    owner: "platform-intelligence",
-  },
   // PHASE 12 POINT 5 — the `ExtractOcr` and `ExtractTranscript` adapters were
   // removed with their queues. An adapter exists to decode jobs ALREADY IN
   // REDIS when the converged build deploys; `enqueueOcrJob` and
@@ -441,26 +425,12 @@ export const LEGACY_PAYLOAD_ADAPTERS: ReadonlyArray<LegacyPayloadAdapter> = [
 
   // ---- Family 8: reconciliation (workspace projections) ---------------------
   //
-  // All five carry `{ teamId, reason }` (graph-domain-sync adds `domain`). The
+  // Both carry `{ teamId, reason }`. The
   // `teamId` here is not an assertion to be believed — it is a Team ROW ID, and
   // the processor resolves it to a live workspace whose Organization must still
   // be ACTIVE before anything runs. A tampered value causes another workspace's
   // own projection to be rebuilt from that workspace's own rows: bounded,
   // non-escalating, idempotent, and refused outright if the org is suspended.
-  {
-    jobName: "IndexMediaIntelligence",
-    disposition: "adaptable",
-    oldSchema: "{ teamId, evidenceId, reason }",
-    acceptedVersions: [0],
-    readReference: (raw) => str(raw, "evidenceId"),
-    discardsAuthorityFields: ["teamId"],
-    maxQueueRetentionMs: LEGACY_QUEUE_RETENTION_MS,
-    backlogCommand: backlogCommand("mi-search-index"),
-    drainCommand:
-      "pnpm --filter proovra-api queue:drain-check -- --queue=mi-search-index",
-    removalCondition: removalCondition("mi-search-index"),
-    owner: "platform-search",
-  },
   {
     jobName: "ReconcileTeamGraph",
     disposition: "adaptable",
@@ -473,43 +443,6 @@ export const LEGACY_PAYLOAD_ADAPTERS: ReadonlyArray<LegacyPayloadAdapter> = [
     drainCommand:
       "pnpm --filter proovra-api queue:drain-check -- --queue=graph-reconcile",
     removalCondition: removalCondition("graph-reconcile"),
-    owner: "platform-intelligence",
-  },
-  {
-    jobName: "SyncTeamGraphDomain",
-    disposition: "adaptable",
-    oldSchema: "{ teamId, domain?, reason? }",
-    acceptedVersions: [0],
-    // The domain becomes the first half of the composite command id and is
-    // re-validated against the closed catalog. An unknown legacy domain
-    // therefore fails at decode instead of producing a job the processor
-    // silently completes as a no-op, which is what used to happen.
-    readReference: (raw) => {
-      const teamId = str(raw, "teamId");
-      if (!teamId) return null;
-      const domain = str(raw, "domain") ?? "all";
-      return `${domain}:${teamId}`;
-    },
-    discardsAuthorityFields: [],
-    maxQueueRetentionMs: LEGACY_QUEUE_RETENTION_MS,
-    backlogCommand: backlogCommand("graph-domain-sync"),
-    drainCommand:
-      "pnpm --filter proovra-api queue:drain-check -- --queue=graph-domain-sync",
-    removalCondition: removalCondition("graph-domain-sync"),
-    owner: "platform-intelligence",
-  },
-  {
-    jobName: "SyncTeamGraphTimeline",
-    disposition: "adaptable",
-    oldSchema: "{ teamId, reason? }",
-    acceptedVersions: [0],
-    readReference: (raw) => str(raw, "teamId"),
-    discardsAuthorityFields: [],
-    maxQueueRetentionMs: LEGACY_QUEUE_RETENTION_MS,
-    backlogCommand: backlogCommand("graph-timeline-sync"),
-    drainCommand:
-      "pnpm --filter proovra-api queue:drain-check -- --queue=graph-timeline-sync",
-    removalCondition: removalCondition("graph-timeline-sync"),
     owner: "platform-intelligence",
   },
   {
@@ -526,20 +459,13 @@ export const LEGACY_PAYLOAD_ADAPTERS: ReadonlyArray<LegacyPayloadAdapter> = [
     removalCondition: removalCondition("graph-search-projection"),
     owner: "platform-search",
   },
-  {
-    jobName: "RefreshOrgHealthProjection",
-    disposition: "adaptable",
-    oldSchema: "{ teamId }",
-    acceptedVersions: [0],
-    readReference: (raw) => str(raw, "teamId"),
-    discardsAuthorityFields: [],
-    maxQueueRetentionMs: LEGACY_QUEUE_RETENTION_MS,
-    backlogCommand: backlogCommand("org-health-refresh"),
-    drainCommand:
-      "pnpm --filter proovra-api queue:drain-check -- --queue=org-health-refresh",
-    removalCondition: removalCondition("org-health-refresh"),
-    owner: "platform-operations",
-  },
+  // ET-Q-07 (2026-09-30) — the `ExtractExif`, `IndexMediaIntelligence`,
+  // `SyncTeamGraphDomain`, `SyncTeamGraphTimeline` and
+  // `RefreshOrgHealthProjection` adapters were removed with their queues, for
+  // the reason the OCR/transcript adapters were: an adapter decodes jobs
+  // ALREADY IN REDIS when the converged build deploys, and none of those five
+  // queues ever had a producer — every one of their enqueue helpers had zero
+  // callers in every commit — so no payload of those shapes can exist.
 ];
 
 export function getLegacyAdapter(

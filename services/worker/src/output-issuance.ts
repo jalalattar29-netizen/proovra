@@ -4,7 +4,8 @@
  * A thin input adapter, not a second authority: it loads the three inputs —
  * the record's effective plan (this host's scope resolver), how the record's
  * completion was funded (the credit ledger), and the subject's commercial
- * lifecycle (the SHARED reader the API also uses) — and hands them to
+ * lifecycle (the SHARED reader the API also uses), plus the record's stored
+ * funding fact (ET-COM-04) — and hands them to
  * `resolveOutputIssuanceEntitlement` in @proovra/shared-billing.
  *
  * Every worker producer and gate asks this instead of `plan` alone:
@@ -14,7 +15,9 @@
  * nothing and retries later, instead of guessing (the old guard failed OPEN).
  */
 import {
+  readOutputEarnedFact,
   resolveOutputIssuanceEntitlement,
+  type OutputEarnedFact,
   type OutputIssuanceEntitlement,
   type OutputIssuanceLifecycle,
 } from "@proovra/shared-billing";
@@ -41,6 +44,22 @@ export async function resolveEvidenceOutputIssuance(record: {
     return resolveOutputIssuanceEntitlement({ plan: null, funding, lifecycle: null });
   }
 
+  // ET-COM-04 — THE STORED FUNDING FACT. A record that earned its outputs when
+  // it was finalized keeps them: a report job queued before the plan lapsed
+  // still runs. A failed read is "no fact" — the current lifecycle then
+  // decides, which can only be the stricter answer.
+  let earned: OutputEarnedFact = null;
+  try {
+    earned = readOutputEarnedFact(
+      await prisma.evidence.findUnique({
+        where: { id: record.id },
+        select: { outputEarnedPlan: true, outputEarnedBasis: true },
+      }),
+    );
+  } catch {
+    earned = null;
+  }
+
   let plan: string | null = null;
   let lifecycle: OutputIssuanceLifecycle = null;
   try {
@@ -63,6 +82,7 @@ export async function resolveEvidenceOutputIssuance(record: {
     plan: plan as Parameters<typeof resolveOutputIssuanceEntitlement>[0]["plan"],
     funding,
     lifecycle,
+    earned,
   });
 }
 

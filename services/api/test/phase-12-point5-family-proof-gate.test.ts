@@ -342,6 +342,19 @@ describe("Point 5 — family behavioural proof gate", () => {
     const unproven = unitsWithoutExecutedProof();
     const proven = registeredUnitCount() - unproven.length;
 
+    // ET-SM-07 (2026-09-30) — 30 of 30 once `IntegrityRecheckSweep` is proven
+    // (its eight cases are in family-evidence-finalization). The note below was
+    // written at 29.
+    //
+    // ET-Q-07 (2026-09-30) — 29 of 29, once the integration project has been
+    // re-run. The registered total fell from 34 (15 jobs + 19 sweeps; the "32"
+    // below predates the AutomationDispatch and TrashGrace sweeps) when five
+    // producerless queues were retired: `ExtractExif`, `IndexMediaIntelligence`,
+    // `SyncTeamGraphDomain`, `SyncTeamGraphTimeline`,
+    // `RefreshOrgHealthProjection`. Removing units changes the proof binding,
+    // so every record in the artifact is stale until ONE fresh full run
+    // rewrites it — this gate is expected to be red between the two.
+    //
     // PHASE 12 POINT 5 — 32 of 32.
     //
     // The registered total fell from 34 when `ExtractOcr` and

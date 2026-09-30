@@ -10,6 +10,23 @@ import { prisma } from "../db.js";
 import { getEmailService } from "./email.service.js";
 import { getDemoRequestQuickLinks } from "./demo-request-links.service.js";
 
+/**
+ * THE WORK THIS MODULE RECOVERS.
+ *
+ * ET-Q-07 (2026-09-30). The canonical work registry named the worker bootstrap
+ * (`services/worker/src/index.ts`) as the reconciler for `DemoFollowUpSweep`.
+ * The bootstrap is a timer and an HTTP client of this service's route; it
+ * never reads a `DemoRequest`. What recovers a follow-up whose sender died is
+ * the claim in `processDueDemoFollowUps` below: the conditional update pushes
+ * `nextFollowUpAt` forward by `FOLLOW_UP_CLAIM_LEASE_MS`, and when that lease
+ * expires the same function selects the request again. The registry now names
+ * this module, and the topology gate checks the declaration in both
+ * directions.
+ *
+ * Keys, not values: the registry addresses work through `SWEEP_NAMES`.
+ */
+export const RECOVERED_WORK_TYPES = ["DEMO_FOLLOW_UP"] as const;
+
 /** `eventType` under which demo follow-up attempts are recorded. */
 export const DEMO_FOLLOW_UP_EVENT_TYPE = "demo_request_follow_up";
 

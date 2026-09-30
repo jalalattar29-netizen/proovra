@@ -182,7 +182,14 @@ model Evidence {
   // PUBLISHED preserves pre-Phase-14 behavior exactly. UNPUBLISHED /
   // SUSPENDED return 404 from the public verify route; NOT_PUBLISHED
   // is the safe pre-state for governance-required workflows.
-  publicVerifyState             PublicVerifyState @default(PUBLISHED) @map("public_verify_state")
+  /// ET-PKG-07 (2026-09-30) — UNPUBLISHED BY DEFAULT. A record becomes public
+  /// only when its owner publishes it; and even then it is reachable only
+  /// through a share token (VerificationShareToken), never by its id.
+  publicVerifyState             PublicVerifyState @default(NOT_PUBLISHED) @map("public_verify_state")
+  /// ET-PKG-07 — until when a record published BEFORE share tokens existed
+  /// may still be verified by its id (the bounded transition; set once by the
+  /// 20280816000001 backfill). NULL = never by id. An owner can end it early.
+  legacyVerifyUuidUntilUtc      DateTime?         @map("legacy_verify_uuid_until_utc") @db.Timestamptz(6)
   publicVerifyPublishedAtUtc    DateTime?         @map("public_verify_published_at_utc") @db.Timestamptz(6)
   publicVerifyPublishedByUserId String?           @map("public_verify_published_by_user_id") @db.Uuid
   publicVerifySuspendedAtUtc    DateTime?         @map("public_verify_suspended_at_utc") @db.Timestamptz(6)
@@ -293,6 +300,30 @@ model Evidence {
   completionFanoutClaimedAtUtc DateTime? @map("completion_fanout_claimed_at_utc") @db.Timestamptz(6)
   completionFanoutDoneAtUtc    DateTime? @map("completion_fanout_done_at_utc") @db.Timestamptz(6)
 
+  /// ET-COM-04 (2026-09-30) — THE STORED FUNDING FACT: what this record earned
+  /// when it was finalized. Written once in the completion transaction, only
+  /// when the issuance decision at that moment was ENTITLED on a plan basis
+  /// (PAID_SUBSCRIPTION / TRIAL / PAYMENT_GRACE). A later billing lapse does not
+  /// revoke it. NULL = no stored fact; the current lifecycle decides.
+  outputEarnedPlan  String?   @map("output_earned_plan") @db.VarChar(24)
+  outputEarnedBasis String?   @map("output_earned_basis") @db.VarChar(32)
+  outputEarnedAtUtc DateTime? @map("output_earned_at_utc") @db.Timestamptz(6)
+
+  /// ET-SM-07 (2026-09-30) — THE LATEST STORED-BYTES INTEGRITY STATE. Written
+  /// only by the integrity-recheck authority (@proovra/shared-runtime
+  /// integrity-recheck). integrityVerifiedAtUtc is the last time the stored
+  /// bytes, read at their exact recorded VersionId, matched the signed digest;
+  /// integrityCheckedAtUtc / integrityCheckOutcome are the last ATTEMPT
+  /// (VERIFIED | FAILED | UNAVAILABLE). NULL = never checked: UNKNOWN, never
+  /// presented as verified. "requested" asks the sweep for an on-demand
+  /// recheck; "claimed" is a lease so one checker holds a record at a time.
+  integrityVerifiedAtUtc         DateTime? @map("integrity_verified_at_utc") @db.Timestamptz(6)
+  integrityCheckedAtUtc          DateTime? @map("integrity_checked_at_utc") @db.Timestamptz(6)
+  integrityCheckOutcome          String?   @map("integrity_check_outcome") @db.VarChar(16)
+  integrityCheckFailureCode      String?   @map("integrity_check_failure_code") @db.VarChar(48)
+  integrityRecheckRequestedAtUtc DateTime? @map("integrity_recheck_requested_at_utc") @db.Timestamptz(6)
+  integrityRecheckClaimedAtUtc   DateTime? @map("integrity_recheck_claimed_at_utc") @db.Timestamptz(6)
+
   /// ATTENTION ARCHITECTURE CLOSURE PASS (2026-08-22) — the identity of the
   /// DELIBERATE MULTI-RECORD EXECUTION that last touched this record's
   /// integrity proofs (a repair run, a bulk re-anchor).
@@ -312,6 +343,8 @@ model Evidence {
   guestIdentity               GuestIdentity?                       @relation(fields: [guestIdentityId], references: [id])
   parts                       EvidencePart[]
   reports                     Report[]
+  integrityChecks             EvidenceIntegrityCheck[]
+  verificationShareTokens     VerificationShareToken[]
   certifications              EvidenceCertification[]
   annotations                 EvidenceAnnotation[]
   aiCategorizations           EvidenceAiCategorization[]
@@ -420,6 +453,8 @@ model Evidence {
   // Phase T — non-unique per-workspace template lookups.
   @@index([teamId, templateSlug])
   @@index([teamId, intakeCustomerId])
+  @@index([integrityCheckedAtUtc], map: "evidence_integrity_checked_at_utc_idx")
+  @@index([integrityRecheckRequestedAtUtc], map: "evidence_integrity_recheck_requested_at_utc_idx")
   @@map("evidence")
 }
 
@@ -2329,6 +2364,80 @@ model Entitlement {
 /// the same record can never burn a second credit. Postgres allows unlimited
 /// NULLs in a unique column, so PURCHASE rows (which carry no evidence id)
 /// are unconstrained.
+/// ET-PKG-07 (2026-09-30) — ONE PUBLIC VERIFICATION LINK. Only the SHA-256 of
+/// the token is stored: a database read cannot recover a link. Scoped to one
+/// evidence record and one projection; revocable and rotatable on its own.
+/// Written only by the verification-share authority (@proovra/shared-runtime).
+model VerificationShareToken {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId       String    @map("evidence_id") @db.Uuid
+  /// The record's workspace when the link was created (tenant-bound reads).
+  teamId           String?   @map("team_id") @db.Uuid
+  /// SHA-256 (hex) of the full token. The token itself is never stored.
+  tokenHash        String    @unique @map("token_hash") @db.VarChar(64)
+  /// OWNER_SHARE | REPORT | PACKAGE
+  purpose          String    @db.VarChar(24)
+  /// BASIC | STANDARD — what this link may show. It can narrow, never widen.
+  projection       String    @default("STANDARD") @db.VarChar(16)
+  /// Who the link was made for (an owner's label). Never shown publicly.
+  audience         String?   @db.VarChar(120)
+  /// The report version a REPORT / PACKAGE link belongs to.
+  reportVersion    Int?      @map("report_version")
+  createdByUserId  String?   @map("created_by_user_id") @db.Uuid
+  createdAtUtc     DateTime  @default(now()) @map("created_at_utc") @db.Timestamptz(6)
+  expiresAtUtc     DateTime? @map("expires_at_utc") @db.Timestamptz(6)
+  revokedAtUtc     DateTime? @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId  String?   @map("revoked_by_user_id") @db.Uuid
+  /// OWNER_REVOKED | ROTATED | ...
+  revocationReason String?   @map("revocation_reason") @db.VarChar(64)
+  /// The link this one replaced, when it came from a rotation.
+  rotatedFromId    String?   @map("rotated_from_id") @db.Uuid
+  maxUses          Int?      @map("max_uses")
+  useCount         Int       @default(0) @map("use_count")
+  lastUsedAtUtc    DateTime? @map("last_used_at_utc") @db.Timestamptz(6)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+
+  @@index([evidenceId, createdAtUtc])
+  @@index([teamId])
+  @@map("verification_share_tokens")
+}
+
+/// ET-SM-07 (2026-09-30) — append-only history of stored-bytes integrity
+/// rechecks. One row per attempt: the exact object versions read, the digest
+/// computed, the outcome and what triggered it. Written only by the
+/// integrity-recheck authority; never updated.
+model EvidenceIntegrityCheck {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evidenceId       String   @map("evidence_id") @db.Uuid
+  /// The record's workspace at check time (tenant-bound reads).
+  teamId           String?  @map("team_id") @db.Uuid
+  /// The exact VersionId read for a single-object record; NULL for a
+  /// multipart record (see checkedObjects) and for a legacy row with none.
+  storageVersionId String?  @map("storage_version_id") @db.VarChar(1024)
+  /// [{ partIndex, versionId, sha256 }] — every object read, by exact version.
+  checkedObjects   Json     @default("[]") @map("checked_objects")
+  expectedDigest   String?  @map("expected_digest") @db.VarChar(64)
+  checkedDigest    String?  @map("checked_digest") @db.VarChar(64)
+  checkedAtUtc     DateTime @default(now()) @map("checked_at_utc") @db.Timestamptz(6)
+  /// VERIFIED | FAILED | UNAVAILABLE
+  outcome          String   @db.VarChar(16)
+  /// DIGEST_MISMATCH | OBJECT_VERSION_MISSING | STORAGE_UNAVAILABLE | ...
+  failureCode      String?  @map("failure_code") @db.VarChar(48)
+  /// FINALIZATION | REPORT_ISSUANCE | PACKAGE_ISSUANCE | PUBLIC_VERIFY |
+  /// ORIGINAL_RELEASE | RECOVERY | STORAGE_ANOMALY | SCHEDULED
+  trigger          String   @db.VarChar(32)
+  checkerVersion   String   @map("checker_version") @db.VarChar(48)
+  /// The job id or reconciliation run id this check belongs to.
+  correlationId    String?  @map("correlation_id") @db.VarChar(128)
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+
+  @@index([evidenceId, checkedAtUtc])
+  @@index([teamId, checkedAtUtc])
+  @@map("evidence_integrity_checks")
+}
+
 model EvidenceCreditLedgerEntry {
   id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId       String                  @map("user_id") @db.Uuid
@@ -9454,6 +9563,16 @@ enum GovernanceReconciliationKind {
   /// and append-only history. A second run table would be a second lock, and
   /// two locks over one workspace exclude nothing.
   WORKSPACE_OPERATIONS
+
+  /// ET-SM-07 — the scheduled re-hash of signed, non-destroyed evidence
+  /// against its exact stored VersionId. Joins this authority for the lock,
+  /// the lease and the run history "last run / last success" are read from.
+  INTEGRITY_RECHECK
+
+  /// The worker's capture-draft and reservation reaper — the ONLY reaper since
+  /// the API sweep was retired (ET-SEC-24). Recorded here so a stopped or
+  /// failing reaper is observable.
+  CAPTURE_REAPER
 }
 
 enum GovernanceReconciliationStatus {
@@ -10816,13 +10935,19 @@ model OrganizationalHealthSnapshot {
 //   - Tenant-scoped (`teamId`). One row per (teamId) for the latest
 //     snapshot. History is preserved in `OrgHealthProjection.sampledAtUtc`
 //     time series.
-//   - Refreshed by the `org-health-refresh` queue worker every 30-90s.
-//   - Read-only from the dashboard surface. NEVER cross-tenant joined.
+//   - Refreshed ON READ by the api when the latest row is missing or older
+//     than 90s (`buildProjectionSummary` in command-center.service.ts ->
+//     `refreshOrgHealthProjection` in @proovra/shared-runtime). There is NO
+//     background refresher: this comment used to say the row was "refreshed
+//     by the `org-health-refresh` queue worker every 30-90s", but nothing
+//     ever enqueued onto that queue, and it was retired as producerless
+//     (ET-Q-07, 2026-09-30).
+//   - Never cross-tenant joined.
 //   - Optional — the dashboard may still fall back to a live aggregate
 //     if no projection row exists (e.g. immediately after team creation).
 //
-// Tenant safety: the refresh worker only writes the row for the
-// `teamId` it was scheduled with; a runtime test asserts this.
+// Tenant safety: the refresh writes only the row for the `teamId` it was
+// called with.
 // =============================================================================
 
 model OrgHealthProjection {

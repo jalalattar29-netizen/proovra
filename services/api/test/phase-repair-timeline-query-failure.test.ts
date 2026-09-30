@@ -27,8 +27,9 @@
  *   6. Runtime exercise — when the prisma raw query throws, the
  *      function returns the new failure shape.
  *   7. Runtime exercise — happy path still returns `ok:true`.
- *   8. Runtime exercise — `domain-sync.runTimelineSync` propagates
- *      the failure shape as `ok:false`.
+ *   (8. removed — ET-Q-07, 2026-09-30: `domain-sync.runTimelineSync` was
+ *      deleted with the producerless `graph-timeline-sync` queue that was its
+ *      only caller; see the note where the exercise stood.)
  */
 
 import { readFileSync } from "node:fs";
@@ -40,7 +41,6 @@ import {
   buildInvestigationTimeline,
   type TimelineQueryResult,
 } from "@proovra/shared-runtime/graph";
-import { runTimelineSync } from "@proovra/shared-runtime/graph";
 
 function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -290,32 +290,13 @@ describe("Phase Repair Problem 13 — Runtime: buildInvestigationTimeline failur
   });
 });
 
-describe("Phase Repair Problem 13 — Runtime: runTimelineSync propagates failure", () => {
-  it("returns ok:false when the timeline projection fails", async () => {
-    // runTimelineSync builds the timeline as its first step. When
-    // buildInvestigationTimeline returns the new failure shape,
-    // the sync helper must mirror that honestly — NOT report
-    // eventCount:0 as a healthy snapshot.
-    const fakeClient = {
-      $queryRawUnsafe: async () => {
-        throw new Error("simulated projection failure");
-      },
-      $executeRawUnsafe: async () => 0,
-    } as unknown as Parameters<typeof runTimelineSync>[1];
-
-    const result = await runTimelineSync(
-      "00000000-0000-0000-0000-000000000003",
-      fakeClient,
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.eventCount).toBe(0);
-      expect(result.truncated).toBe(false);
-      expect(result.reason).toContain("timeline_query_failed");
-    }
-  });
-});
+// ET-Q-07 (2026-09-30) — the "Runtime: runTimelineSync propagates failure"
+// exercise that stood here is removed with `runTimelineSync` itself. That
+// helper's only caller was the `graph-timeline-sync` worker processor, whose
+// queue had no producer, so the path it proved never ran in production. The
+// failure shape it mirrored is the one `buildInvestigationTimeline` returns,
+// and that is exercised directly by the runtime cases above and consumed by
+// the route + diagnostics locks in PART 1.
 
 // ---------------------------------------------------------------------------
 // PART 3 — Empty-state classifier behaviour on the new envelope

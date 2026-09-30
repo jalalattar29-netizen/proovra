@@ -28,13 +28,9 @@ import { logger } from "./logger.js";
 import {
   derivedAssetsQueue,
   evidencePurgeQueue,
-  exifQueue,
-  graphDomainSyncQueue,
   graphReconcileQueue,
   graphSearchProjectionQueue,
-  graphTimelineSyncQueue,
   mediaIntelligenceQueue,
-  miSearchIndexQueue,
   otsUpgradeQueue,
   reportDlqQueue,
   reportQueue,
@@ -65,11 +61,7 @@ function buildSampledQueues(): SampledQueue[] {
     { queue: searchIndexingQueue, name: "search.indexing", domain: "WORKER" },
     { queue: mediaIntelligenceQueue, name: "media.intelligence", domain: "WORKER" },
     { queue: derivedAssetsQueue, name: "derived.assets", domain: "WORKER" },
-    { queue: exifQueue, name: "exif", domain: "WORKER" },
-    { queue: miSearchIndexQueue, name: "mi.search.index", domain: "WORKER" },
     { queue: graphReconcileQueue, name: "graph.reconcile", domain: "WORKER" },
-    { queue: graphDomainSyncQueue, name: "graph.domain.sync", domain: "WORKER" },
-    { queue: graphTimelineSyncQueue, name: "graph.timeline.sync", domain: "WORKER" },
     { queue: graphSearchProjectionQueue, name: "graph.search.projection", domain: "WORKER" },
   ];
 }

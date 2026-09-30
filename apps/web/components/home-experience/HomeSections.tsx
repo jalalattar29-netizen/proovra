@@ -976,9 +976,9 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setMenuOpen(false)}
                     className="home-menu-item" style={overflowItemStyle}
-                    data-report-action="open-verify"
+                    data-report-action="manage-verify-links"
                   >
-                    Verify page
+                    Verification links
                   </a>
                 ) : null}
               </div>
@@ -1118,8 +1118,8 @@ export function VerificationHealthCard({ health }: { health: VerificationHealth 
                     </span>
                     <span style={{ ...successTextStyle, flexShrink: 0 }}>Live</span>
                   </span>
-                  <OpsActionLink href={v.verifyHref} external extraProps={{ "data-verify-open": true }} style={{ flexShrink: 0 }}>
-                    Open verify →
+                  <OpsActionLink href={v.verifyHref} extraProps={{ "data-verify-links": true }} style={{ flexShrink: 0 }}>
+                    Verification links →
                   </OpsActionLink>
                 </li>
               );

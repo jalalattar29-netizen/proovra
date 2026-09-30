@@ -123,7 +123,7 @@ test.describe("Home V2 acceptance", () => {
     const reportRow = page.locator("[data-report-evidence-id]").first();
     await expect(reportRow).toBeVisible();
     await expect(reportRow.locator("[data-report-action='download-pdf']")).toBeVisible();
-    await expect(reportRow.locator("[data-report-action='open-verify']")).toBeVisible();
+    await expect(reportRow.locator("[data-report-action='manage-verify-links']")).toBeVisible();
 
     // C. Recent Evidence shows a real trust/readiness chip.
     await expect(page.locator("[data-self-serve-section='recent-evidence']")).toContainText(
@@ -204,11 +204,15 @@ test.describe("Home V2 acceptance", () => {
 
     await assertNoBannedLinks(page);
 
-    // B. Verify-page CTA (back on Home) opens /verify/<id>, not /v/.
-    const verifyLink = page.locator("[data-report-action='open-verify']").first();
+    // B. ET-PKG-07 — Home never links to /verify/<record id>: an id is not a
+    // public link. The CTA opens the record's own public-link controls.
+    const verifyLink = page.locator("[data-report-action='manage-verify-links']").first();
     if (await verifyLink.count()) {
       const href = await verifyLink.getAttribute("href");
-      expect(href, "verify link must use /verify/").toMatch(/^\/verify\//);
+      expect(href, "must open the record's link controls").toMatch(
+        /^\/evidence\/[0-9a-f-]{36}\?tab=artifacts#public-verification-links$/,
+      );
     }
+    await expect(page.locator("a[href^='/verify/']")).toHaveCount(0);
   });
 });

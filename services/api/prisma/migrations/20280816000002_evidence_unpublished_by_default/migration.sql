@@ -1,0 +1,24 @@
+-- =============================================================================
+-- EVIDENCE IS UNPUBLISHED BY DEFAULT (2026-09-30, ET-PKG-07). EXPAND.
+--
+-- evidence.public_verify_state defaulted to PUBLISHED, so every record was
+-- publicly verifiable from the moment it existed unless its workspace had
+-- opted into approval. The owner decision is the opposite: evidence is private
+-- and unpublished by default, and a record becomes public only when its owner
+-- publishes it.
+--
+-- The ET-PKG-07 API image already finalizes every record NOT_PUBLISHED
+-- explicitly, so this default is the floor beneath it: a row written by any
+-- other path (a fixture, a repair script, a future writer) is unpublished
+-- unless it says otherwise.
+--
+-- A column default only; no row is read or rewritten. Existing records keep
+-- their state.
+--
+-- Apply AFTER the ET-PKG-07 API image is live. Applied under the previous
+-- image it would finalize new records NOT_PUBLISHED while that image still
+-- serves record-id links only — new records would have no public link at all
+-- until the new image arrives. (Fail-closed, but avoidable: cut over first.)
+-- =============================================================================
+
+ALTER TABLE "evidence" ALTER COLUMN "public_verify_state" SET DEFAULT 'NOT_PUBLISHED';

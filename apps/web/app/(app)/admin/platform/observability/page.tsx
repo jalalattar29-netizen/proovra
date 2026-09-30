@@ -106,6 +106,11 @@ type PlatformHealthSnapshot = {
   workers: SnapshotSubsystem;
   search: SnapshotSubsystem;
   evidencePipeline: SnapshotSubsystem;
+  /**
+   * The worker sweeps nothing else does the job of (capture reaper, integrity
+   * recheck). Optional: an API older than this field omits it.
+   */
+  scheduledSweeps?: SnapshotSubsystem[];
   evaluation: {
     lastAttemptUtc: string;
     lastSuccessUtc: string | null;
@@ -504,6 +509,7 @@ function PlatformPostureBlock({
           snapshot.workers,
           snapshot.search,
           snapshot.evidencePipeline,
+          ...(snapshot.scheduledSweeps ?? []),
         ].map((sub) => (
           <li key={sub.id} style={postureSubsystemRowStyle}>
             <span style={postureStateStyle(sub.state)}>{identifierLabel(sub.state)}</span>

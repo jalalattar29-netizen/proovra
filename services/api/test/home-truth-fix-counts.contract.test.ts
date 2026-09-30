@@ -317,13 +317,16 @@ describe("HOME-TRUTH-FIX — projection no longer counts pre-SIGNED rows as pend
       resolve(REPO_ROOT, "services", "worker", "src", "subsystem-queue-processors.ts"),
       "utf8",
     );
-    const start = worker.indexOf("export async function processOrgHealthRefreshJob");
-    expect(start).toBeGreaterThan(0);
-    const end = worker.indexOf("\nexport async function ", start + 1);
-    const body = worker.slice(start, end > 0 ? end : worker.length);
-    expect(body).toMatch(/refreshOrgHealthProjection\(\s*\{\s*teamId\s*\}/);
-    expect(body).not.toMatch(/prisma\.evidence\.count/);
-    expect(body).not.toMatch(/prisma\.case\.count/);
-    expect(body).not.toMatch(/orgHealthProjection\.upsert/);
+    // ET-Q-07 (2026-09-30) — this used to slice `processOrgHealthRefreshJob`
+    // out of the file and prove it DELEGATED to `refreshOrgHealthProjection`.
+    // That processor is deleted: it sat behind the `org-health-refresh` queue,
+    // which had a consumer and no producer, so it never ran. The property this
+    // case protects is unchanged and is now asserted over the WHOLE module
+    // rather than one function body — which is strictly stronger: no processor
+    // in the worker counts evidence or cases, or writes the projection, at all.
+    expect(worker).not.toMatch(/export async function processOrgHealthRefreshJob/);
+    expect(worker).not.toMatch(/prisma\.evidence\.count/);
+    expect(worker).not.toMatch(/prisma\.case\.count/);
+    expect(worker).not.toMatch(/orgHealthProjection\.upsert/);
   });
 });

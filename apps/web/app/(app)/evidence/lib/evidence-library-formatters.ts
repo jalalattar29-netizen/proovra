@@ -52,14 +52,11 @@ export function safeText(
   return text || fallback;
 }
 
-export function buildVerificationUrl(evidenceId: string): string {
-  const appBase =
-    process.env.NEXT_PUBLIC_APP_BASE?.trim() ||
-    process.env.NEXT_PUBLIC_WEB_BASE?.trim() ||
-    "https://app.proovra.com";
-
-  return `${appBase.replace(/\/+$/, "")}/verify/${evidenceId}`;
-}
+// ET-PKG-07 (2026-09-30) — `buildVerificationUrl(evidenceId)` was DELETED. It
+// built /verify/<evidence id> in the browser: a public link made from the
+// record's id. A public link is a share token the server issues once
+// (lib/api/verification-links.ts); the library sends the owner to the
+// record's link controls instead of inventing a link.
 
 /**
  * Part 3 — the reference renders CREATED as a bold date with the UTC clock

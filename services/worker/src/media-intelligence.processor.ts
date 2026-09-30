@@ -161,70 +161,12 @@ async function enqueueTextSimilarityPass(input: {
   }
 }
 
-/**
- * PHASE 12 — POINT 5: the `mi-exif` queue's OWN entry point.
- *
- * `mi-exif` and `media-intelligence` used to share `processMediaIntelligenceJob`
- * outright. That is why the old payload had to carry BOTH a run id and a part
- * id and trust whichever was present: one function had two identities, and its
- * command meant different things depending on which queue delivered it.
- *
- * They are now separate work names with separate authorities, so they need
- * separate entry points. An EXIF job addresses the PART whose bytes it reads;
- * a media-intelligence job addresses the RUN row that tracks its lifecycle.
- * Binding `mi-exif` to the run-shaped handler would make every EXIF job fail
- * its job-name check — which is exactly what the closure gate caught.
- */
-export async function processExifQueueJob(
-  job: Job<unknown>,
-): Promise<{ ok: true; signalsEmitted: number; deferred?: boolean }> {
-  const requestId = randomUUID();
-  const decoded = decodeCanonicalJob(JOB_NAMES.EXTRACT_EXIF, job, { requestId });
-
-  // The part is the authority, and its workspace comes from the evidence row it
-  // hangs off — an `EvidencePart` has no `team_id` column of its own.
-  const part = await prisma.evidencePart.findFirst({
-    where: { id: decoded.commandId, evidence: { deletedAt: null } },
-    select: {
-      id: true,
-      evidenceId: true,
-      evidence: { select: { teamId: true } },
-    },
-  });
-  if (!part?.evidence?.teamId) {
-    logger.warn(
-      { requestId, jobId: job.id, kind: "mi-exif" },
-      "media_intelligence.exif_part_unresolved",
-    );
-    return { ok: true, signalsEmitted: 0 };
-  }
-
-  await tryBump("media_intelligence_processor_started_total");
-
-  // The run row is OPTIONAL here and that is correct: an EXIF extraction is
-  // addressed by its part, and the run row — when the producer created one —
-  // only tracks lifecycle. Looked up rather than trusted.
-  const run = await prisma.mediaIntelligenceRun.findFirst({
-    where: {
-      evidenceId: part.evidenceId,
-      teamId: part.evidence.teamId,
-      kind: "extract_exif",
-      status: { in: ["PENDING", "PROCESSING"] },
-    },
-    orderBy: { createdAtUtc: "desc" },
-    select: { id: true },
-  });
-
-  return processExtractExifJob({
-    jobId: job.id,
-    teamId: part.evidence.teamId,
-    evidenceId: part.evidenceId,
-    evidencePartId: part.id,
-    runId: run?.id ?? null,
-    attemptsMade: job.attemptsMade ?? 0,
-    attemptsAllowed: job.opts?.attempts ?? 1,
-  });
-}
+// ET-Q-07 (2026-09-30) — `processExifQueueJob`, the dedicated entry point for
+// the `mi-exif` queue, was REMOVED with that queue. Nothing ever enqueued onto
+// it (`enqueueExifJob` had zero callers in every commit), so the function was
+// reachable only from tests. EXIF extraction itself is untouched: it runs
+// through `processMediaIntelligenceJob` below, on run kind `extract_exif`,
+// which dispatches to `processExtractExifJob`.
 
 /**
  * PHASE 12 — POINT 5: the media-intelligence entry point.

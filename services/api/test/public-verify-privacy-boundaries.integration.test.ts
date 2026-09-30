@@ -18,6 +18,9 @@ import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
+// ET-PKG-07 — a record's id is not a public link: requests go through a share
+// link (the record is published and the link minted on first use).
+import { shareLinkFor } from "./helpers/verify-share.js";
 
 describe("verify / byte-serving privacy boundaries (live PostgreSQL 16, real HTTP)", () => {
   let h: IntegrationHarness;
@@ -91,7 +94,7 @@ describe("verify / byte-serving privacy boundaries (live PostgreSQL 16, real HTT
     return row.id;
   }
 
-  const verify = (id: string) => h.app.inject({ method: "GET", url: `/public/verify/${id}` });
+  const verify = async (id: string) => h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, id)}` });
   const viewUrls = (body: unknown): unknown[] =>
     JSON.stringify(body).match(/"viewUrl":("[^"]*"|null)/g)?.map((m) => m.slice(10)) ?? [];
 
@@ -135,7 +138,8 @@ describe("verify / byte-serving privacy boundaries (live PostgreSQL 16, real HTT
     const res = await verify(id);
     expect(res.statusCode).toBe(404);
     expect(String(res.headers["cache-control"])).toContain("no-store");
-    const missing = await verify(randomUUID());
+    // No record, so no link to mint: a bare unknown id, and an unknown token.
+    const missing = await h.app.inject({ method: "GET", url: `/public/verify/${randomUUID()}` });
     expect(missing.statusCode).toBe(404);
     expect(String(missing.headers["cache-control"])).toContain("no-store");
   });

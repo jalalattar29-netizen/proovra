@@ -24,6 +24,7 @@ import { shouldExpireCaptureDraft } from "./capture-draft-governance.js";
 import {
   expiredEvidenceReservationWhere,
   releaseEvidenceReservationTx,
+  runGovernanceReconciliation,
 } from "@proovra/shared-runtime";
 
 /**
@@ -58,6 +59,8 @@ export interface ReapExpiredCaptureDraftsOptions {
   batchSize?: number;
   /** Calling context label for logs (e.g. "interval", "startup"). */
   trigger?: string;
+  /** Rows a previous page of THIS run could not process; skipped so paging moves on. */
+  excludeIds?: readonly string[];
 }
 
 export interface ReapExpiredCaptureDraftsResult {
@@ -65,6 +68,8 @@ export interface ReapExpiredCaptureDraftsResult {
   expired: number;
   failed: number;
   skipped: number;
+  /** The rows that threw, so the caller can page past them. */
+  failedIds: string[];
 }
 
 export async function reapExpiredCaptureDrafts(
@@ -82,6 +87,7 @@ export async function reapExpiredCaptureDrafts(
     where: {
       status: prismaPkg.CaptureSessionStatus.DRAFT,
       expiresAtUtc: { not: null, lt: now },
+      ...(options.excludeIds?.length ? { id: { notIn: [...options.excludeIds] } } : {}),
     },
     orderBy: { expiresAtUtc: "asc" },
     take: batchSize,
@@ -96,6 +102,7 @@ export async function reapExpiredCaptureDrafts(
   let expired = 0;
   let failed = 0;
   let skipped = 0;
+  const failedIds: string[] = [];
 
   for (const draft of candidates) {
     try {
@@ -159,6 +166,7 @@ export async function reapExpiredCaptureDrafts(
       });
     } catch (err) {
       failed++;
+      failedIds.push(draft.id);
       logger.warn(
         {
           requestId,
@@ -188,6 +196,7 @@ export async function reapExpiredCaptureDrafts(
     expired,
     failed,
     skipped,
+    failedIds,
   };
 }
 
@@ -201,6 +210,10 @@ export interface ReleaseExpiredReservationsResult {
   objectDeletesRequested: number;
   objectDeletesFailed: number;
   failed: number;
+  /** Rows selected by this pass (sessions + reservations). */
+  scanned: number;
+  /** The rows that threw, so the caller can page past them. */
+  failedIds: string[];
 }
 
 /**
@@ -229,7 +242,14 @@ export type ReservationObjectDeleter = (p: { bucket: string; key: string }) => P
  * release each record once.
  */
 export async function releaseExpiredReservations(
-  options: { batchSize?: number; trigger?: string; deleteObject?: ReservationObjectDeleter; now?: Date } = {},
+  options: {
+    batchSize?: number;
+    trigger?: string;
+    deleteObject?: ReservationObjectDeleter;
+    now?: Date;
+    /** Rows a previous page of THIS run could not process; skipped so paging moves on. */
+    excludeIds?: readonly string[];
+  } = {},
 ): Promise<ReleaseExpiredReservationsResult> {
   const trigger = options.trigger ?? "manual";
   const now = options.now ?? new Date();
@@ -240,16 +260,20 @@ export async function releaseExpiredReservations(
     objectDeletesRequested: 0,
     objectDeletesFailed: 0,
     failed: 0,
+    scanned: 0,
+    failedIds: [],
   };
+  const exclude = options.excludeIds?.length ? { id: { notIn: [...options.excludeIds] } } : {};
   const released: string[] = [];
   const LIVE = [prismaPkg.CaptureSessionStatus.ACTIVE, prismaPkg.CaptureSessionStatus.INTERRUPTED];
 
   const sessions = await prisma.captureSession.findMany({
-    where: { status: { in: LIVE }, expiresAtUtc: { not: null, lt: now } },
+    where: { status: { in: LIVE }, expiresAtUtc: { not: null, lt: now }, ...exclude },
     orderBy: { expiresAtUtc: "asc" },
     take: batchSize,
     select: { id: true },
   });
+  result.scanned += sessions.length;
   for (const s of sessions) {
     try {
       await prisma.$transaction(async (tx) => {
@@ -276,16 +300,18 @@ export async function releaseExpiredReservations(
       });
     } catch (err) {
       result.failed++;
+      result.failedIds.push(s.id);
       logger.warn({ captureSessionId: s.id, err, trigger }, "capture.reaper.session_expire_failed");
     }
   }
 
   const reservations = await prisma.evidence.findMany({
-    where: expiredEvidenceReservationWhere(now),
+    where: { AND: [expiredEvidenceReservationWhere(now), exclude] },
     orderBy: { createdAt: "asc" },
     take: batchSize,
     select: { id: true },
   });
+  result.scanned += reservations.length;
   for (const e of reservations) {
     try {
       const ok = await prisma.$transaction((tx) =>
@@ -297,6 +323,7 @@ export async function releaseExpiredReservations(
       }
     } catch (err) {
       result.failed++;
+      result.failedIds.push(e.id);
       logger.warn({ evidenceId: e.id, err, trigger }, "capture.reaper.reservation_release_failed");
     }
   }
@@ -328,4 +355,103 @@ export async function releaseExpiredReservations(
 
   logger.info({ ...result, trigger }, "capture.reaper.reservations_completed");
   return result;
+}
+
+// =============================================================================
+// THE ONE REAPER RUN (2026-09-30) — recorded, paged, observable.
+// =============================================================================
+
+/** Pages one run may take per pass. A larger backlog drains over the following ticks. */
+export const CAPTURE_REAPER_MAX_PAGES = 20;
+
+export interface CaptureReaperSweepResult {
+  runId: string | null;
+  status: string;
+  pages: number;
+  draftsExpired: number;
+  sessionsExpired: number;
+  reservationsReleased: number;
+  failed: number;
+}
+
+/**
+ * The worker reaper is the ONLY authority that expires abandoned capture
+ * drafts and releases abandoned evidence reservations (the API sweep was
+ * retired, ET-SEC-24). It ran on a bare timer: each pass took one page of 100,
+ * swallowed its own failure and recorded nothing, so a stopped, disabled or
+ * always-failing reaper was indistinguishable from a healthy one.
+ *
+ * This is the run the scheduler calls:
+ *
+ *   - RECORDED under the reconciliation-run authority (kind CAPTURE_REAPER):
+ *     one run at a time across workers, a lease a crashed run frees, and a
+ *     SUCCEEDED / PARTIAL / FAILED row per tick. readScheduledSweepHealth
+ *     reads last-run, last-success and failure from those rows — from outside
+ *     the worker, because a stopped sweep cannot report its own silence.
+ *   - PAGED: each pass repeats, oldest first, until a page comes back short,
+ *     up to CAPTURE_REAPER_MAX_PAGES. Rows that threw are excluded from the
+ *     next page, so a poison row at the head cannot stop the rows behind it
+ *     from being reached.
+ *   - IDEMPOTENT: every expiry and release is a conditional claim on the row,
+ *     so an overlapping or repeated run releases each record once.
+ *   - RECOVERABLE without a queue: what is expired is a fact in the database,
+ *     so a tick that never ran is made up by the next one.
+ *
+ * A failure of the run itself is NOT swallowed here: it fails the run row and
+ * is rethrown to the scheduler, which logs and reports it.
+ */
+export async function runCaptureReaperSweep(
+  options: { trigger?: string; batchSize?: number; deleteObject?: ReservationObjectDeleter; now?: Date } = {},
+): Promise<CaptureReaperSweepResult> {
+  const trigger = options.trigger ?? "manual";
+  const batchSize = Math.max(1, Math.min(options.batchSize ?? DEFAULT_BATCH_SIZE, MAX_BATCH_SIZE));
+  const tally = { pages: 0, draftsExpired: 0, sessionsExpired: 0, reservationsReleased: 0, failed: 0 };
+
+  const run = await runGovernanceReconciliation(prisma, {
+    kind: prismaPkg.GovernanceReconciliationKind.CAPTURE_REAPER,
+    trigger,
+    body: async (ctx) => {
+      const failedDrafts: string[] = [];
+      for (let page = 0; page < CAPTURE_REAPER_MAX_PAGES; page++) {
+        const res = await reapExpiredCaptureDrafts({ trigger, batchSize, excludeIds: failedDrafts });
+        tally.pages++;
+        tally.draftsExpired += res.expired;
+        tally.failed += res.failed;
+        failedDrafts.push(...res.failedIds);
+        ctx.reportProgress({ scanned: res.scanned, created: res.expired, skipped: res.skipped, failed: res.failed });
+        if (res.scanned < batchSize) break;
+      }
+
+      const failedReservations: string[] = [];
+      for (let page = 0; page < CAPTURE_REAPER_MAX_PAGES; page++) {
+        const res = await releaseExpiredReservations({
+          trigger,
+          batchSize,
+          deleteObject: options.deleteObject,
+          now: options.now,
+          excludeIds: failedReservations,
+        });
+        tally.pages++;
+        tally.sessionsExpired += res.sessionsExpired;
+        tally.reservationsReleased += res.reservationsReleased;
+        tally.failed += res.failed;
+        failedReservations.push(...res.failedIds);
+        ctx.reportProgress({
+          scanned: res.scanned,
+          created: res.sessionsExpired + res.reservationsReleased,
+          failed: res.failed,
+        });
+        // Two populations share the page size; stop only when neither filled it.
+        if (res.scanned < batchSize) break;
+      }
+      ctx.setMetadata("pages", tally.pages);
+      ctx.setMetadata("draftsExpired", tally.draftsExpired);
+      ctx.setMetadata("sessionsExpired", tally.sessionsExpired);
+      ctx.setMetadata("reservationsReleased", tally.reservationsReleased);
+      return tally;
+    },
+  });
+
+  if (run.error) throw run.error;
+  return { runId: run.runId || null, status: String(run.status), ...tally };
 }

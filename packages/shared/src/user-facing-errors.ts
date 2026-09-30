@@ -333,6 +333,19 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     actionLabel: "View plans",
     actionHref: "/billing",
   },
+  /**
+   * ET-COM-04 — a LAPSED paid plan. A lapse is not a lockout: the account
+   * falls back to the Free allowance and its credits. This is the refusal when
+   * both are used up, and it says why the allowance is the Free one.
+   */
+  PLAN_LAPSED_ALLOWANCE_EXHAUSTED: {
+    title: "Plan lapsed — Free allowance used up",
+    message:
+      "Your paid plan has lapsed, so the Free allowance applies and it is used up. Your existing records remain available — renew your plan or use an evidence credit to add more.",
+    severity: "warning",
+    actionLabel: "Open billing",
+    actionHref: "/billing",
+  },
   EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED: {
     title: "Monthly record limit reached",
     message:
@@ -446,6 +459,68 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
     message:
       "The record has been sealed and can no longer be edited. You can still view, verify and export it.",
     severity: "info",
+  },
+  // ET-PKG-07 — a public verification link that was issued and no longer
+  // works. Shown on the public Verify page to whoever holds the old link.
+  VERIFICATION_LINK_REVOKED: {
+    title: "This verification link was withdrawn",
+    message:
+      "The record's owner withdrew this link. Ask them for a new verification link.",
+    severity: "warning",
+  },
+  VERIFICATION_LINK_EXPIRED: {
+    title: "This verification link has expired",
+    message: "Ask the record's owner for a new verification link.",
+    severity: "warning",
+  },
+  VERIFICATION_LINK_EXHAUSTED: {
+    title: "This verification link has reached its use limit",
+    message: "Ask the record's owner for a new verification link.",
+    severity: "warning",
+  },
+  VERIFICATION_LINKS_NOT_PERMITTED: {
+    title: "You can't manage this record's public links",
+    message:
+      "You can view this record, but creating, revoking or replacing its public verification links needs a role with the publish permission. Ask a workspace admin.",
+    severity: "warning",
+  },
+  VERIFICATION_LINK_LIMIT_REACHED: {
+    title: "This record has the maximum number of active links",
+    message: "Revoke a link that is no longer needed, then create the new one.",
+    severity: "warning",
+  },
+  VERIFICATION_LINK_NOT_ACTIVE: {
+    title: "This link no longer works",
+    message: "It has been revoked, has expired or has reached its use limit. Create a new link instead.",
+    severity: "warning",
+  },
+  VERIFICATION_LINK_NOT_FOUND: {
+    title: "That link isn't on this record",
+    message: "It may already have been replaced. Refresh the list of links and try again.",
+    severity: "warning",
+  },
+  LEGACY_LINK_NOT_ACTIVE: {
+    title: "This record has no older-style link to end",
+    message: "Its record-ID link has already ended. Only the links listed here can open its verification page.",
+    severity: "info",
+  },
+  PUBLICATION_NOT_AVAILABLE: {
+    title: "Public verification can't be changed for this record",
+    message: "The record isn't in a state that allows a public link right now. Refresh the page and check its status.",
+    severity: "warning",
+  },
+  RECORD_NOT_SHAREABLE: {
+    title: "This record can't be shared yet",
+    message: "A public verification link can be created once the record is finalized, and not while it is in Trash.",
+    severity: "warning",
+  },
+  // Release review (2026-09-30) — viewing a record is not exporting its
+  // redacted derivative; the byte-release authority requires the capability.
+  DERIVATIVE_DOWNLOAD_NOT_PERMITTED: {
+    title: "You can't download this redacted copy",
+    message:
+      "You can view this record, but downloading its redacted copy needs a role with the derivative-download permission. Ask a workspace admin.",
+    severity: "warning",
   },
   // Report / package generation and recovery (2026-09-26).
   GENERATION_NOT_PERMITTED: {

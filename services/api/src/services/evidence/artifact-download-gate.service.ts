@@ -12,6 +12,8 @@
  *   2. SENSITIVE ACTION       workspace governance (role, retention, template)
  *   3. PACKAGE PUBLISH GATE   packages only
  *   4. EXPORT ELIGIBILITY     legal hold, lifecycle states that forbid export
+ *   5. INTEGRITY RECHECK      originals only (ET-SM-07): a release of bytes
+ *                             not rechecked inside the cadence requests one
  *
  * Commercial state is deliberately absent: downloading an artifact that EXISTS
  * is not a commercial question (see the route-level notes). Every denial writes
@@ -29,19 +31,38 @@
  * and export eligibility still applies to it.
  */
 import * as prismaPkg from "@prisma/client";
+import type { StoredBytesIntegrity } from "@proovra/shared";
+import {
+  STORED_BYTES_INTEGRITY_SELECT,
+  readStoredBytesIntegrity,
+  requestIntegrityRecheck,
+} from "@proovra/shared-runtime";
 
 import { prisma } from "../../db.js";
 import { resolveEvidenceRecordAccess } from "./evidence-record-access.service.js";
+import { assertRedactionCapability } from "../redaction/redaction-rbac.service.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
 
 /**
  * ET-SEC-26 — "redaction": a released redacted derivative is a byte release
  * too, and was the one path outside this gate (no legal hold, lifecycle or
- * export-eligibility check). The route keeps its own workspace capability
- * (redaction.derivative.download); here the record must be open to the
- * caller, the personal-owner rule applies, and export eligibility decides.
- * No workspace download POLICY names derivatives, so none is consulted.
+ * export-eligibility check). Here the record must be open to the caller, the
+ * personal-owner rule applies, and export eligibility decides. No workspace
+ * download POLICY names derivatives, so none is consulted.
+ *
+ * VIEWING IS NOT EXPORTING (release review, 2026-09-30). The gate asked only
+ * `evidence.read` for a derivative and relied on the ROUTE to have checked the
+ * explicit `redaction.derivative.download` capability first. That made the
+ * byte-release authority itself answer "allowed" to any reader: a second
+ * caller of the gate — or a route change — would have released redacted bytes
+ * on read access alone. The authority now requires the explicit
+ * derivative-download capability ITSELF, resolved from the caller's CURRENT
+ * workspace membership (an ACTIVE member whose role grants it), after the
+ * record-access decision (membership, access expiry, organization lifecycle)
+ * and before export eligibility. The route's own check stays, as defence in
+ * depth; neither is sufficient alone. A derivative is never a way to the
+ * original: this kind presigns only the derivative's own object.
  */
 export type ArtifactKind = "report" | "package" | "original" | "redaction";
 
@@ -74,7 +95,12 @@ const SUBJECT = {
 } as const;
 
 export type ArtifactDownloadDecision =
-  | { allowed: true; teamId: string | null }
+  | {
+      allowed: true;
+      teamId: string | null;
+      /** ET-SM-07 — originals only: the stored-bytes recheck state at release. */
+      storedBytes?: StoredBytesIntegrity;
+    }
   | {
       allowed: false;
       teamId: string | null;
@@ -182,6 +208,29 @@ export async function evaluateArtifactDownload(input: {
     }
   }
 
+  if (kind === "redaction") {
+    const capability = teamId
+      ? await assertRedactionCapability({
+          userId: actorUserId,
+          teamId,
+          capability: "redaction.derivative.download",
+        })
+      : ({ ok: false } as const);
+    if (!capability.ok) {
+      return denied(
+        teamId,
+        403,
+        {
+          code: "DERIVATIVE_DOWNLOAD_NOT_PERMITTED",
+          reason: "redaction_derivative_download_capability_required",
+          message:
+            "Redacted derivative download requires the derivative-download capability in this workspace; read access to the record does not include it.",
+        },
+        { action, reason: "redaction_derivative_download_capability_required" },
+      );
+    }
+  }
+
   const sensitiveAction = SENSITIVE_ACTION[kind];
   const { enforceSensitiveAction } = await import("../governance.service.js");
   const membership = teamId
@@ -258,6 +307,31 @@ export async function evaluateArtifactDownload(input: {
       },
       { action, reason: eligibility.outcome },
     );
+  }
+
+  // ET-SM-07 — BEFORE ORIGINAL BYTES LEAVE. The release itself is decided
+  // above. What this adds is the integrity commitment: bytes that were not
+  // rechecked inside the cadence are about to be handed to someone, so the
+  // recheck authority is asked to re-read them now (idempotent; the sweep
+  // takes requested records first). The state travels on the decision so a
+  // caller can say "last rechecked …" and never imply more. Best-effort: a
+  // failed request does not withhold a release that governance allowed.
+  if (kind === "original") {
+    try {
+      const row = await prisma.evidence.findUnique({
+        where: { id: evidenceId },
+        select: STORED_BYTES_INTEGRITY_SELECT,
+      });
+      if (row) {
+        const storedBytes = readStoredBytesIntegrity(row);
+        if (storedBytes.state !== "verified_current" && storedBytes.state !== "failed") {
+          await requestIntegrityRecheck(prisma, evidenceId);
+        }
+        return { allowed: true, teamId, storedBytes };
+      }
+    } catch {
+      // The release decision stands; the scheduled recheck still reaches it.
+    }
   }
 
   return { allowed: true, teamId };

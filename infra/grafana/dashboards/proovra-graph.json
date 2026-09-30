@@ -1,7 +1,7 @@
 {
   "uid": "proovra-graph",
   "title": "PROOVRA — Graph",
-  "description": "Phase O1.6 — Graph reconcile / timeline build / domain sync / search projection. Bounded spans only.",
+  "description": "Phase O1.6 — Graph reconcile / search projection. Bounded spans only. (ET-Q-07, 2026-09-30: the timeline.build and domain.sync series were removed — their spans wrapped two producerless queues that were retired, so both series were always flat zero.)",
   "tags": ["proovra", "graph", "o1.6"],
   "schemaVersion": 37,
   "version": 1,
@@ -16,8 +16,6 @@
       "datasource": "prometheus",
       "targets": [
         { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.reconcile\"}[5m]))", "legendFormat": "reconcile" },
-        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.timeline.build\"}[5m]))", "legendFormat": "timeline.build" },
-        { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.domain.sync\"}[5m]))", "legendFormat": "domain.sync" },
         { "expr": "sum(rate(traces_spanmetrics_calls_total{span_name=\"proovra.graph.search.projection\"}[5m]))", "legendFormat": "search.projection" }
       ]
     },

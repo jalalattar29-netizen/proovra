@@ -11,7 +11,6 @@ export type AnchorSemanticsInput = {
   otsProofPresent?: boolean | null;
   /** How the anchor was established: BITCOIN_VERIFIED | PROOF_STRUCTURE | null (not recorded). */
   otsAnchorCheck?: string | null;
-  publicVerificationBaseUrl?: string | null;
   evidenceId?: string | null;
 };
 
@@ -25,7 +24,6 @@ export type AnchorSemantics = {
   anchoringStatus: "verified" | "anchored_not_checked" | "pending" | "failed" | "unavailable";
   anchoringLabel: string;
   anchorMode: "anchored" | "bitcoin_anchoring_pending" | "failed" | "not_configured";
-  publicVerificationUrl: string | null;
 };
 
 function normalizeString(value: string | null | undefined): string | null {
@@ -34,26 +32,11 @@ function normalizeString(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
-function normalizeUrl(value: string | null | undefined): string | null {
-  const url = normalizeString(value);
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-}
-
-function buildPublicVerificationUrl(
-  baseUrl: string | null | undefined,
-  evidenceId: string | null | undefined
-): string | null {
-  const base = normalizeUrl(baseUrl);
-  const id = normalizeString(evidenceId);
-  if (!base || !id) return null;
-  return `${base.replace(/\/+$/, "")}/verify/${encodeURIComponent(id)}`;
-}
+// ET-PKG-07 (2026-09-30) — `buildPublicVerificationUrl(base, evidenceId)` and
+// the `publicVerificationUrl` field it fed were DELETED. No caller supplied the
+// base and nothing read the result; what it built was /verify/<evidence id>, a
+// record id presented as a public link. A public link is a share token, minted
+// by the verification-share authority.
 
 export function deriveAnchorSemantics(
   input: AnchorSemanticsInput
@@ -120,9 +103,5 @@ export function deriveAnchorSemantics(
     anchoringStatus,
     anchoringLabel,
     anchorMode,
-    publicVerificationUrl: buildPublicVerificationUrl(
-      input.publicVerificationBaseUrl,
-      input.evidenceId
-    ),
   };
 }

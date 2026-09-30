@@ -159,6 +159,7 @@ describe("public intake error contract", () => {
     for (const code of [
       "EVIDENCE_RECORD_LIMIT_REACHED",
       "FREE_LIMIT_REACHED",
+      "PLAN_LAPSED_ALLOWANCE_EXHAUSTED",
       "EVIDENCE_RECORD_MONTHLY_LIMIT_REACHED",
       "INSUFFICIENT_EVIDENCE_CREDITS",
       "TEAM_PLAN_REQUIRED",
