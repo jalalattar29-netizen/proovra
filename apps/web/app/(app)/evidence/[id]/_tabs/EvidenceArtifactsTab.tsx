@@ -467,6 +467,8 @@ function PackageRecoveryPanel({
   pkg: EvidenceOutputProjection;
 }) {
   if (report.state !== "READY") return null;
+  const { workspace } = ctx;
+  const newVersionOffer = workspace.artifactStatus.outputs.newVersion;
   const reasonCopy = outputNoteCopy(pkg);
   const inFlight = pkg.state === "QUEUED" || pkg.state === "GENERATING";
   if (!inFlight && pkg.action === "NONE" && reasonCopy === null) return null;
@@ -531,10 +533,7 @@ function PackageRecoveryPanel({
       ) : null}
       {older}
       {pkg.action !== "NONE" &&
-      !reportPanelStatesGenerationIncident(
-        report,
-        ctx.workspace.artifactStatus.outputs.newVersion,
-      ) ? (
+      !reportPanelStatesGenerationIncident(report, newVersionOffer) ? (
         <RuntimeStatusBanner requires={["artifactGeneration"]} />
       ) : null}
       <OutputActionButton ctx={ctx} kind="verificationPackage" output={pkg} />
