@@ -363,6 +363,22 @@ export function isIpAddressAllowed(
   return false;
 }
 
+/**
+ * ET-INT-06 — an allowlist entry this matcher can actually use: an IPv4
+ * address, an IPv4 CIDR (a.b.c.d/0-32), or an IPv6 literal (matched exactly).
+ * Anything else would silently never match, so it is refused where entered.
+ */
+export function isValidIpAllowlistEntry(entry: string): boolean {
+  const e = entry.trim();
+  if (e.length === 0 || e.length > 64) return false;
+  const slash = e.indexOf("/");
+  if (slash >= 0) {
+    const bits = e.slice(slash + 1);
+    return /^\d{1,2}$/.test(bits) && Number(bits) <= 32 && ipv4ToInt(e.slice(0, slash)) !== null;
+  }
+  return ipv4ToInt(e) !== null || /^[0-9a-f:]+$/i.test(e) && e.includes(":");
+}
+
 function matchesCidr(address: string, cidr: string): boolean {
   if (cidr.length === 0) return false;
   // Exact-match shortcut (covers IPv6 + non-CIDR entries).

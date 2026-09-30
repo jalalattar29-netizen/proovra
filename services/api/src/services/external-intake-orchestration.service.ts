@@ -55,7 +55,7 @@ import {
   EvidencePartWriteRefused,
   writeEvidencePart,
 } from "./evidence/evidence-part-writer.service.js";
-import { presignPutObject } from "../storage.js";
+import { headObject, presignPutObject } from "../storage.js";
 import { createEvidence } from "./evidence.service.js";
 import { completeEvidence } from "./evidence-complete.service.js";
 import { appendCustodyEvent } from "./custody-events.service.js";
@@ -118,6 +118,8 @@ export type ExternalIntakeOrchestrationErrorCode =
   | "finalization_blocked_by_policy"
   // ET-INT-09 — the link's per-submission file cap (checked under the record lock).
   | "max_files_reached"
+  // ET-INT-06 — the stored parts exceed the link's maxBytesPerSession.
+  | "session_bytes_exceeded"
   | "internal_error";
 
 export class ExternalIntakeOrchestrationError extends Error {
@@ -911,6 +913,24 @@ export async function submitExternalIntake(
 
   // Readiness against the workflow template snapshot.
   assertSubmissionReady(input.link, parts);
+
+  // ET-INT-06 — the link's per-submission byte cap (stored, never enforced).
+  // The stored objects are the truth; a part not yet written is left to the
+  // finalization's own not-uploaded answer.
+  if (input.link.maxBytesPerSession != null) {
+    const max = BigInt(input.link.maxBytesPerSession);
+    let total = 0n;
+    for (const p of parts) {
+      const head = await headObject({ bucket: p.storageBucket, key: p.storageKey }).catch(() => null);
+      if (head) total += BigInt(head.sizeBytes ?? 0);
+    }
+    if (total > max) {
+      throw new ExternalIntakeOrchestrationError("session_bytes_exceeded", {
+        maxBytes: max.toString(),
+        totalBytes: total.toString(),
+      });
+    }
+  }
 
   // Persist contributor-provided location onto the Evidence row BEFORE
   // completion. completeEvidence enqueues the report-v2 + verification-

@@ -49,6 +49,7 @@ import {
   hmacForIntake,
   lookupHashForIntakeToken,
 } from "./workflow-intake-token.service.js";
+import { isIpAddressAllowed } from "@proovra/shared";
 
 // -----------------------------------------------------------------------------
 // Errors
@@ -67,6 +68,8 @@ export type WorkflowIntakeSessionErrorCode =
   // a generic "this link no longer works" error. Triggered when
   // usedCount >= 1 AND maxUses === 1 AND link.status === EXPIRED.
   | "link_already_submitted"
+  // ET-INT-06 — the link's IP allowlist does not include this client.
+  | "link_client_not_allowed"
   | "session_not_found"
   | "session_link_mismatch"
   | "session_expired"
@@ -556,6 +559,27 @@ export async function transitionIntakeSession(
     where: { id: session.id },
     data,
   });
+}
+
+// -----------------------------------------------------------------------------
+// ET-INT-06 — the link's IP allowlist
+// -----------------------------------------------------------------------------
+
+/**
+ * Operators could set ipAllowlistCidrs on a link and it was never checked.
+ * Every public call that validates the token now checks the client too. An
+ * empty list admits every client; an unresolvable client address is refused
+ * when a list is set (fail closed).
+ */
+export function assertIntakeClientAllowed(
+  link: Pick<DbWorkflowIntakeLink, "ipAllowlistCidrs">,
+  clientIp: string | null,
+): void {
+  const list = link.ipAllowlistCidrs ?? [];
+  if (list.length === 0) return;
+  if (!clientIp || !isIpAddressAllowed(clientIp, list)) {
+    throw new WorkflowIntakeSessionError("link_client_not_allowed");
+  }
 }
 
 // -----------------------------------------------------------------------------

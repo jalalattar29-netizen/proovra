@@ -40,6 +40,7 @@ import {
   projectIntakeLinkForExternalView,
   projectIntakeSessionForExternalView,
   recordIntakeConsent,
+  assertIntakeClientAllowed,
   validateIntakeToken,
   WorkflowIntakeSessionError,
   recordIntakeSubmitterIdentity,
@@ -57,7 +58,7 @@ import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { classifyReportability, isDomainError } from "../errors.js";
 import { prisma } from "../db.js";
 // PHASE1-003 — the one trusted-client-IP binding; see `clientIp` below.
-import { trustedClientIpKey } from "../middleware/client-ip.js";
+import { trustedClientIp, trustedClientIpKey } from "../middleware/client-ip.js";
 
 // -----------------------------------------------------------------------------
 // Schemas
@@ -267,6 +268,12 @@ function orchestrationErrorToReply(
   // like `{"error":{"code":"X"}}` to recipients.
   const friendly = friendlyPublicIntakeMessage;
   switch (err.code) {
+    case "session_bytes_exceeded":
+      // ET-INT-06 — the link's per-submission byte cap.
+      reply.code(413).send({
+        error: { code: "SUBMISSION_TOO_LARGE", message: friendly("SUBMISSION_TOO_LARGE") },
+      });
+      return;
     case "max_files_reached": {
       const max = typeof err.details?.max === "number" ? err.details.max : null;
       reply.code(409).send({
@@ -388,6 +395,11 @@ function friendlyPublicIntakeMessage(code: string): string {
       return "This intake can't accept evidence right now. Nothing is wrong with your file — please contact the sender.";
     case "CONSENT_REQUIRED":
       return "Please accept the consent disclosure before uploading.";
+    // ET-INT-06
+    case "LINK_NOT_AVAILABLE_FROM_THIS_NETWORK":
+      return "This link can't be used from your current network. Please contact the sender.";
+    case "SUBMISSION_TOO_LARGE":
+      return "These files are larger than this link accepts. Remove a file or contact the sender.";
     case "SESSION_TERMINAL":
       return "This submission has already been completed. Please contact the sender if you need to add more files.";
     case "LINK_NO_LONGER_AVAILABLE":
@@ -457,6 +469,16 @@ function sendFeatureDisabled(reply: FastifyReply): void {
   });
 }
 
+/**
+ * ET-INT-06 — every public call validates the token AND that the client is on
+ * the link's IP allowlist (when it has one).
+ */
+async function validateIntakeTokenFromClient(req: FastifyRequest, rawToken: string) {
+  const validated = await validateIntakeToken(rawToken);
+  assertIntakeClientAllowed(validated.link, trustedClientIp(req));
+  return validated;
+}
+
 function intakeErrorToReply(
   err: WorkflowIntakeSessionError,
   reply: FastifyReply,
@@ -483,6 +505,15 @@ function intakeErrorToReply(
         error: {
           code: "LINK_NO_LONGER_AVAILABLE",
           message: friendly("LINK_NO_LONGER_AVAILABLE"),
+        },
+      });
+      return;
+    case "link_client_not_allowed":
+      // ET-INT-06 — the link's IP allowlist does not include this client.
+      reply.code(403).send({
+        error: {
+          code: "LINK_NOT_AVAILABLE_FROM_THIS_NETWORK",
+          message: friendly("LINK_NOT_AVAILABLE_FROM_THIS_NETWORK"),
         },
       });
       return;
@@ -793,7 +824,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
       if (!okRate) return;
 
       try {
-        const { link } = await validateIntakeToken(token);
+        const { link } = await validateIntakeTokenFromClient(req, token);
 
         // For multi-use links, create a fresh session per HTTP redemption
         // (the contributor is starting a new session). For single-use,
@@ -857,7 +888,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
       if (!okRate) return;
 
       try {
-        const { link } = await validateIntakeToken(params.token);
+        const { link } = await validateIntakeTokenFromClient(req, params.token);
         const body = SubmitterIdentityBody.parse(req.body ?? {});
 
         const updated = await recordIntakeSubmitterIdentity({
@@ -900,7 +931,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
       if (!okRate) return;
 
       try {
-        const { link } = await validateIntakeToken(params.token);
+        const { link } = await validateIntakeTokenFromClient(req, params.token);
         const body = ConsentBody.parse(req.body ?? {});
 
         const updated = await recordIntakeConsent({
@@ -992,7 +1023,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
       let denialContext: IntakeDenialContext | undefined;
 
       try {
-        const { link } = await validateIntakeToken(params.token);
+        const { link } = await validateIntakeTokenFromClient(req, params.token);
         denialContext = {
           workspaceId: link.teamId,
           actorUserId: link.createdByUserId,
@@ -1152,7 +1183,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         .parse(req.body ?? {});
 
       try {
-        const { link } = await validateIntakeToken(params.token);
+        const { link } = await validateIntakeTokenFromClient(req, params.token);
         const session = await getIntakeSession(params.sid);
         if (!session || session.intakeLinkId !== link.id) {
           return reply
@@ -1201,7 +1232,7 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
       let denialContext: IntakeDenialContext | undefined;
 
       try {
-        const { link } = await validateIntakeToken(params.token);
+        const { link } = await validateIntakeTokenFromClient(req, params.token);
         denialContext = {
           workspaceId: link.teamId,
           actorUserId: link.createdByUserId,

@@ -1158,6 +1158,7 @@ export {
   isAllowedTeamMemberStatusTransition,
   isEmailDomainAllowed,
   isIpAddressAllowed,
+  isValidIpAllowlistEntry,
   isTerminalAccessReviewStatus,
   listAllowedTeamMemberStatusTransitions,
   listPermissionsForDelegatedAdminScope,

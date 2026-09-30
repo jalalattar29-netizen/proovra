@@ -64,6 +64,7 @@ import {
   workflowIntakeFeatureDisabledReason,
 } from "../services/workflow-intake-token.service.js";
 import { intakeLinkMintRefusal } from "../services/intake/intake-link-mint-gate.js";
+import { isValidIpAllowlistEntry } from "@proovra/shared";
 
 // -----------------------------------------------------------------------------
 // Zod schemas
@@ -142,7 +143,14 @@ const CreateBody = z
     consentPolicyVersion: z.string().max(40).nullable().optional(),
     consentDisclosureText: z.string().max(4000).nullable().optional(),
     expiresAtUtc: z.string().datetime(),
-    ipAllowlistCidrs: z.array(z.string().max(64)).max(32).optional(),
+    ipAllowlistCidrs: z
+      .array(
+        // ET-INT-06 — an entry the matcher cannot use would silently lock
+        // every contributor out; refuse it where it is entered.
+        z.string().max(64).refine(isValidIpAllowlistEntry, { message: "invalid_ip_allowlist_entry" }),
+      )
+      .max(32)
+      .optional(),
     // Intake-links-e2e (Phase 2/4) — explicit delivery channel.
     deliveryMethod: z.enum(DELIVERY_METHODS).default("MANUAL"),
     // The PUBLIC origin the contributor's link should point at. Only
