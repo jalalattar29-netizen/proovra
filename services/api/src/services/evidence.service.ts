@@ -261,6 +261,14 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
    * binding itself is the session's `finalizedEvidenceId`.
    */
   captureSessionId?: string | null;
+  /**
+   * ET-DC-07 — the CALLER's transaction. When given, the record, its custody
+   * and its automation trigger are written in it (no inner transaction), so
+   * they commit or roll back with the caller's own writes; the post-commit
+   * steps are returned as `afterCommit` for the caller to run once its
+   * transaction has committed.
+   */
+  transaction?: prismaPkg.Prisma.TransactionClient;
 })
 {
   // Fail closed on a caller that bypasses the type system: an unrecorded or
@@ -468,7 +476,7 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     workspaceTeam?.name?.trim() ||
     null;
 
-  const created = await prisma.$transaction(async (tx) => {
+  const writeRecord = async (tx: prismaPkg.Prisma.TransactionClient) => {
     // ET-ACQ-06 — record-cap ADMISSION is serialized per capacity subject
     // (workspace, or the Personal owner). The check above read the count
     // with no lock, so concurrent creates at cap-1 were all admitted, and a
@@ -658,7 +666,10 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
       id: evidence.id,
       key,
     };
-  });
+  };
+  const created = params.transaction
+    ? await writeRecord(params.transaction)
+    : await prisma.$transaction(writeRecord);
 
   const putUrl = await presignPutObject({
     bucket,
@@ -669,50 +680,57 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
     expiresInSeconds: 600,
   });
 
-  // Phase 12 — open the operations-side UploadSession and move it to
-  // PRESIGNED. Best-effort: this row is purely observational and any
-  // failure here MUST NOT fail evidence creation.
-  ensureUploadSession({
-    evidenceId: created.id,
-    // Mirror the Evidence row's stamped team id (personal Team id for
-    // personal captures) so the observational session and the evidence
-    // row never disagree about workspace ownership.
-    teamId: effectiveTeamId,
-  })
-    .then(() =>
-      safeTransitionUploadSession({
-        evidenceId: created.id,
-        to: "PRESIGNED",
-      }),
-    )
-    .catch(() => null);
-
   const publicUrl = publicBase
     ? `${publicBase.replace(/\/+$/, "")}/${created.key}`
     : null;
 
-  // Phase 10 — fire `evidence.created` to any subscribed webhook
-  // endpoints in this workspace. Feature-flag gated and best-effort.
-  if (scope.teamId) {
-    try {
-      await emitWebhookEvent({
-        teamId: scope.teamId,
-        eventType: "evidence.created",
-        payload: {
+  // Post-commit steps: they describe a record that exists, so they run only
+  // once the record's writes have committed (ET-DC-07: the caller's commit,
+  // when the record was written in the caller's transaction).
+  const afterCommit = async (): Promise<void> => {
+    // Phase 12 — open the operations-side UploadSession and move it to
+    // PRESIGNED. Best-effort: this row is purely observational and any
+    // failure here MUST NOT fail evidence creation.
+    ensureUploadSession({
+      evidenceId: created.id,
+      // Mirror the Evidence row's stamped team id (personal Team id for
+      // personal captures) so the observational session and the evidence
+      // row never disagree about workspace ownership.
+      teamId: effectiveTeamId,
+    })
+      .then(() =>
+        safeTransitionUploadSession({
           evidenceId: created.id,
-          type: params.type,
-          status: EvidenceStatus.UPLOADING,
-          mimeType: normalizedMimeType,
-          captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
-        },
-        attemptInline: true,
-      });
-    } catch {
-      // never fail evidence creation on webhook delivery
+          to: "PRESIGNED",
+        }),
+      )
+      .catch(() => null);
+
+    // Phase 10 — fire `evidence.created` to any subscribed webhook
+    // endpoints in this workspace. Feature-flag gated and best-effort.
+    if (scope.teamId) {
+      try {
+        await emitWebhookEvent({
+          teamId: scope.teamId,
+          eventType: "evidence.created",
+          payload: {
+            evidenceId: created.id,
+            type: params.type,
+            status: EvidenceStatus.UPLOADING,
+            mimeType: normalizedMimeType,
+            captureMethod: prismaPkg.CaptureMethod.UPLOADED_FILE,
+          },
+          attemptInline: true,
+        });
+      } catch {
+        // never fail evidence creation on webhook delivery
+      }
     }
-  }
+  };
+  if (!params.transaction) await afterCommit();
 
   return {
+    ...(params.transaction ? { afterCommit } : {}),
     id: created.id,
     // Phase 30.12 — expose teamId so the capture page can drive
     // resumable upload session creation (which requires teamId in

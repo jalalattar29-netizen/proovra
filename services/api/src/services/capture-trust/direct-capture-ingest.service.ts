@@ -407,7 +407,12 @@ export async function reserveDirectCaptureEvidence(
   // Serialise reservations of ONE session: the advisory lock is held by this
   // transaction while createEvidence runs, so a concurrent reserve for the same
   // session waits, re-reads, and is refused instead of minting a second record.
-  return db.$transaction(
+  //
+  // ET-DC-07 — the record is written IN this transaction: it used to commit on
+  // the global client, so a reserve that failed after it (the binding, the
+  // session extension) left an unbound committed record and the retry minted a
+  // second one. Its post-commit steps run after this transaction commits.
+  const reserved = await db.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${input.sessionId}`}))`;
       const session = await loadOwnedDirectCaptureSession(
@@ -434,6 +439,7 @@ export async function reserveDirectCaptureEvidence(
         gps: input.gps,
         acquisitionMode: session.acquisitionMode,
         captureSessionId: session.id,
+        transaction: tx,
       });
 
       await tx.captureSession.update({
@@ -446,10 +452,17 @@ export async function reserveDirectCaptureEvidence(
         evidenceId: created.id,
         teamId: created.teamId,
         acquisitionMode: session.acquisitionMode,
+        afterCommit: created.afterCommit,
       };
     },
     { timeout: 30_000, maxWait: 10_000 },
   );
+  await reserved.afterCommit?.();
+  return {
+    evidenceId: reserved.evidenceId,
+    teamId: reserved.teamId,
+    acquisitionMode: reserved.acquisitionMode,
+  };
 }
 
 // -----------------------------------------------------------------------------
