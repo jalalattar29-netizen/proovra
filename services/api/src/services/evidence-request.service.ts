@@ -49,6 +49,7 @@ import {
   renderEvidenceRequestSmsBody,
   appendStopFooter,
 } from "@proovra/shared";
+import { intakeLinkMintRefusal } from "./intake/intake-link-mint-gate.js";
 
 // -----------------------------------------------------------------------------
 // Feature flag — Phase 7.5
@@ -88,7 +89,26 @@ export type EvidenceRequestErrorCode =
   | "deliverable_not_found"
   | "deliverable_already_resolved"
   | "response_not_found"
-  | "response_already_reviewed";
+  | "response_already_reviewed"
+  // ET-INT-07 — the intake-link mint gate refused.
+  | "intake_not_included"
+  | "commercial_lifecycle_restricted"
+  | "intake_blocked_by_policy";
+
+/** ET-INT-07 — the canonical mint gate's refusal, in this service's vocabulary. */
+async function assertIntakeLinkMintAllowed(
+  input: { teamId: string; actorUserId: string; intakeMode: string },
+  client: PrismaClient,
+): Promise<void> {
+  const refusal = await intakeLinkMintRefusal(input, client);
+  if (!refusal) return;
+  if (refusal.kind === "plan") {
+    throw new EvidenceRequestError(
+      refusal.code === "INTAKE_NOT_INCLUDED" ? "intake_not_included" : "commercial_lifecycle_restricted",
+    );
+  }
+  throw new EvidenceRequestError("intake_blocked_by_policy", { reason: refusal.reason });
+}
 
 export class EvidenceRequestError extends Error {
   constructor(
@@ -645,6 +665,25 @@ export async function sendEvidenceRequest(
     !existing.assignedReviewerUserId
   ) {
     throw new EvidenceRequestError("internal_recipient_requires_assignee");
+  }
+
+  // ET-INT-07 — an external send that will mint a link passes the plan and
+  // governance gate BEFORE anything changes (no DRAFT → OPEN on a refusal).
+  if (
+    isExternalRecipientMode(existing.recipientMode as "EXTERNAL_CONTRIBUTOR") &&
+    !existing.intakeLinkId
+  ) {
+    if (workflowIntakeFeatureDisabledReason()) {
+      throw new EvidenceRequestError("intake_disabled");
+    }
+    await assertIntakeLinkMintAllowed(
+      {
+        teamId: existing.teamId,
+        actorUserId: input.actorUserId,
+        intakeMode: mapRecipientModeToIntakeMode(existing.recipientMode),
+      },
+      client,
+    );
   }
 
   // First transition: DRAFT → OPEN (if needed).
@@ -1211,10 +1250,19 @@ export async function requestMoreEvidenceForResponse(
   if (!response || response.evidenceRequestId !== input.requestId) {
     throw new EvidenceRequestError("response_not_found");
   }
+  // ET-INT-07 / ET-INT-08 — a cancelled or closed request mints nothing.
+  if (isTerminalEvidenceRequestStatus(request.status as EvidenceRequestStatus)) {
+    throw new EvidenceRequestError("request_terminal");
+  }
 
   // Reuse the same template + recipient identity from the original request
   // so the new link continues the same thread for the same contributor.
   const intakeMode = mapRecipientModeToIntakeMode(request.recipientMode);
+  // ET-INT-07 — the same plan + governance gate every other mint passes.
+  await assertIntakeLinkMintAllowed(
+    { teamId: request.teamId, actorUserId: input.actorUserId, intakeMode },
+    client,
+  );
   const expiresAtUtc = new Date(
     Date.now() + (input.expiresInHours ?? 72) * 3600 * 1000,
   );

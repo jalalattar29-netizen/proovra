@@ -113,6 +113,16 @@ function errorToReply(err: EvidenceRequestError, reply: FastifyReply): void {
     case "request_team_mismatch":
       reply.code(403).send({ error: { code: err.code } });
       return;
+    // ET-INT-07 — the intake-link mint gate refused.
+    case "intake_not_included":
+      reply.code(409).send({ error: { code: err.code } });
+      return;
+    case "commercial_lifecycle_restricted":
+      reply.code(402).send({ error: { code: err.code } });
+      return;
+    case "intake_blocked_by_policy":
+      reply.code(403).send({ error: { code: err.code, details: err.details } });
+      return;
     case "request_not_editable":
     case "request_terminal":
     case "deliverable_already_resolved":

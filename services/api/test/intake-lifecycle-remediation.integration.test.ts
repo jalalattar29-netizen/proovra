@@ -74,6 +74,9 @@ describe("intake lifecycle remediation (live PostgreSQL 16)", () => {
 
   it("ET-INT-04: a 'request more' follow-up submission reaches the originating evidence request", async () => {
     const A = h.fixtures.teamA;
+    // ET-INT-07 — a follow-up link is a mint like any other: the workspace's
+    // plan must include secure intake (TEAM does; the fixture default does not).
+    await prisma.team.update({ where: { id: A.teamId }, data: { billingPlan: "TEAM", billingStatus: "ACTIVE" } as never });
     const svc = await import("../src/services/evidence-request.service.js");
     const { openIntakeSession } = await import("../src/services/workflow-intake-session.service.js");
     const created = await svc.createEvidenceRequest(

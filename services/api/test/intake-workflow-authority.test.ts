@@ -181,6 +181,10 @@ describe("no privilege expanded outside intake", () => {
      * workspace still cannot create an intake link at all, and that refusal
      * comes from the plan catalog rather than from anybody's role.
      */
-    expect(ROUTES).toContain("assertWorkspaceAllowsIntake(scope)");
+    // ET-INT-07 — the route now reaches the plan gate through THE intake-link
+    // mint gate (plan + governance), shared with the evidence-request flows.
+    expect(ROUTES).toContain("await intakeLinkMintRefusal({");
+    const GATE = readFileSync(new URL("../src/services/intake/intake-link-mint-gate.ts", import.meta.url), "utf8");
+    expect(GATE).toContain("await assertWorkspaceAllowsIntake(scope);");
   });
 });

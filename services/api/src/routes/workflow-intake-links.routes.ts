@@ -1,4 +1,3 @@
-import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
 /**
  * Phase 4 — Authenticated admin routes for workflow intake links.
  *
@@ -41,9 +40,6 @@ import { safeEmitSecurityEvent } from "../services/security/security-event.servi
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
-  assertWorkspaceAllowsIntake,
-} from "../services/billing-enforcement.service.js";
-import {
   archiveWorkflowIntakeLink,
   createWorkflowIntakeLink,
   getWorkflowIntakeLink,
@@ -67,6 +63,7 @@ import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   workflowIntakeFeatureDisabledReason,
 } from "../services/workflow-intake-token.service.js";
+import { intakeLinkMintRefusal } from "../services/intake/intake-link-mint-gate.js";
 
 // -----------------------------------------------------------------------------
 // Zod schemas
@@ -343,36 +340,22 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
       const ok = await requireIntakeWorkflowActor(req, reply, body.teamId, "workflow.intake_link.create");
       if (!ok) return;
 
-      // Secure-intake plan gate (2026-07-15) — intake links are excluded
-      // from FREE per the Pricing contract. Enforced before any DB write;
-      // a known plan restriction surfaced as a stable code.
+      // ET-INT-07 — THE intake-link mint gate (plan + governance), the same
+      // one the evidence-request send / request-more flows pass. Enforced
+      // before any DB write; the response shapes are unchanged.
       {
-        // §9.7 — explicit subject: workspace when the request targets one,
-        // else the requester's personal account.
-        const scope = body.teamId
-          ? (
-              await resolveCommercialContext({
-                type: "WORKSPACE",
-                teamId: body.teamId,
-                requesterUserId: ok.userId,
-              })
-            ).scope
-          : (
-              await resolveCommercialContext({
-                type: "PERSONAL_ACCOUNT",
-                userId: ok.userId,
-              })
-            ).scope;
-        try {
-          await assertWorkspaceAllowsIntake(scope);
-        } catch (err) {
-          const e = err as { statusCode?: number; code?: string; message?: string };
-          if (e?.code === "INTAKE_NOT_INCLUDED") {
-            return reply
-              .code(e.statusCode ?? 409)
-              .send({ error: { code: e.code, message: e.message } });
-          }
-          throw err;
+        const refusal = await intakeLinkMintRefusal({
+          teamId: body.teamId,
+          actorUserId: ok.userId,
+          intakeMode: body.intakeMode,
+        });
+        if (refusal?.kind === "plan") {
+          return reply
+            .code(refusal.code === "INTAKE_NOT_INCLUDED" ? 409 : 402)
+            .send({ error: { code: refusal.code, message: refusal.message } });
+        }
+        if (refusal?.kind === "policy") {
+          return reply.code(403).send({ error: { code: refusal.reason } });
         }
       }
 
@@ -389,28 +372,6 @@ export async function workflowIntakeLinksRoutes(app: FastifyInstance) {
         return reply
           .code(429)
           .send({ error: { code: "rate_limited", message: "Too many intake links — try again in a minute." } });
-      }
-
-      // Phase 9 — governance gate. Workspace policy can restrict
-      // external / anonymous intake. Additive: workspaces without a
-      // policy row continue to allow both.
-      {
-        const { canCreateIntakeLink, loadWorkspaceGovernancePolicy } =
-          await import("../services/governance.service.js");
-        const policy = await loadWorkspaceGovernancePolicy(body.teamId);
-        const membership = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: body.teamId, userId: ok.userId } },
-        });
-        const decision = canCreateIntakeLink({
-          role: membership?.role,
-          intakeMode: body.intakeMode,
-          policy,
-        });
-        if (!decision.allowed) {
-          return reply.code(403).send({
-            error: { code: decision.reason },
-          });
-        }
       }
 
       try {
