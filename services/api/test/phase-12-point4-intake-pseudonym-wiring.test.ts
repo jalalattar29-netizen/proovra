@@ -370,7 +370,9 @@ describe("Intake pseudonym §5 — the public entry point is a token-bound POST"
       routes.indexOf('"/v1/external-intake/:token/sessions/:sid/identity"'),
       routes.indexOf('"/v1/external-intake/:token/sessions/:sid/consent"'),
     );
-    expect(handler).toMatch(/validateIntakeToken\(params\.token\)/);
+    // ET-INT-06 — the token is validated WITH the caller's network (the
+    // link's IP allowlist) by the one wrapper every public intake route uses.
+    expect(handler).toMatch(/validateIntakeTokenFromClient\(req, params\.token\)/);
     expect(handler).toMatch(/recordIntakeSubmitterIdentity\(/);
     // The workspace/link identity is never read off the body.
     expect(handler).not.toMatch(/body\.(teamId|workspaceId|organizationId|linkId)/);

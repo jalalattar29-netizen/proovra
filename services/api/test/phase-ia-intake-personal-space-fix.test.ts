@@ -214,8 +214,9 @@ describe("Phase IA-intake-personal-space-fix — backend works for PERSONAL", ()
     expect(guardBody).toContain("authorizeOrFail(req, reply, {");
     expect(guardBody).toContain("teamId,");
     expect(guardBody).toContain("permission,");
-    // The informational role read is keyed by teamId + the authorized actor.
-    expect(ROUTE).toContain("teamId_userId: { teamId: body.teamId, userId: ok.userId }");
+    // ET-INT-07 — the role the policy decides on is read by THE mint gate
+    // (from the canonical access decision), keyed by teamId + the authorized actor.
+    expect(ROUTE).toMatch(/intakeLinkMintRefusal\(\{\s*teamId: body\.teamId,\s*actorUserId: ok\.userId,/);
     // No path filters out PERSONAL scope.
     expect(ROUTE).not.toMatch(/scope:\s*"PERSONAL"/);
     expect(ROUTE).not.toMatch(/scope:\s*"TEAM"/);
