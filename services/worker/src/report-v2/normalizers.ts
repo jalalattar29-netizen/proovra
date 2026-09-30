@@ -3,7 +3,7 @@ import { OTS_ANCHOR_CLAIM_LABELS, resolveOtsAnchorClaim } from "@proovra/shared"
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 import { ReportEvidenceAssetKind } from "./types.js";
-import { normalizeEnumText, safe } from "./formatters.js";
+import { safe } from "./formatters.js";
 
 // ---------------------------------------------------------------------------
 // Custody capture-method presentation.

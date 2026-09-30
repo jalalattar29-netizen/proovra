@@ -105,10 +105,10 @@ function intakeUrlFromToken(rawToken: string | null): string | null {
 
 function errorToReply(err: EvidenceRequestError, reply: FastifyReply): void {
   switch (err.code) {
+    // ET-SEC-33 — a foreign case / evidence answers exactly like a missing one.
     case "request_not_found":
     case "deliverable_not_found":
     case "response_not_found":
-    // ET-SEC-33 — a foreign case / evidence answers exactly like a missing one.
     case "case_not_in_workspace":
     case "evidence_not_in_workspace":
       reply.code(404).send({ error: { code: err.code } });

@@ -109,7 +109,7 @@ export async function emitCaptureTrustEvent(
   ]
     .filter((k): k is string => k !== null)
     .sort();
-  const { record, nextSequence, prevEventHash, eventHash } = await prisma.$transaction(async (tx) => {
+  const { record, nextSequence, eventHash } = await prisma.$transaction(async (tx) => {
     for (const k of chainKeys) {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${k}))`;
     }
@@ -172,7 +172,7 @@ export async function emitCaptureTrustEvent(
       },
       select: { id: true },
     });
-    return { record, nextSequence, prevEventHash, eventHash };
+    return { record, nextSequence, eventHash };
   });
 
   // Mirror to the canonical custody chain when the evidence row is

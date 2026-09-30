@@ -148,8 +148,6 @@ export const RECOVERED_WORK_TYPES = [
 ] as const;
 
 
-type JobData = { evidenceId?: string };
-
 function envString(name: string): string | undefined {
   const value = process.env[name];
   const trimmed = typeof value === "string" ? value.trim() : "";

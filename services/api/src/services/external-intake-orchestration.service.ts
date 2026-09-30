@@ -1121,7 +1121,7 @@ export async function submitExternalIntake(
       expectedLinkId: input.link.id,
       to: "SUBMITTED",
     });
-  } catch (err) {
+  } catch {
     // ET-INT-13 — already SUBMITTED (a concurrent or earlier attempt) is the
     // state we want; anything else is recorded, and the finalized record is
     // still the contributor's answer.
