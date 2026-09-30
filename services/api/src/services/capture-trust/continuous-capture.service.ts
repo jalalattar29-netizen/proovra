@@ -161,19 +161,22 @@ export async function completeContinuousCaptureSession(
     }
   }
 
-  // 4. Seal through the canonical direct-capture completion FIRST — ONE Evidence
-  //    for the whole continuous session.
+  // 4. ET-DC-11 — class the manifest part BEFORE the seal: relabelling a part
+  //    of a sealed record changed it after its fingerprint was signed.
+  if (session.finalizedEvidenceId) {
+    await db.evidencePart.updateMany({
+      where: { evidenceId: session.finalizedEvidenceId, partIndex: manifestPartIndex },
+      data: { artifactClass: "CAPTURE_MANIFEST" },
+    });
+  }
+
+  // 5. Seal through the canonical direct-capture completion — ONE Evidence for
+  //    the whole continuous session.
   const result = await completeDirectCapture({
     prisma: db,
     sessionId: input.sessionId,
     ownerUserId: input.ownerUserId,
     now: input.now,
-  });
-
-  // 5. Class the manifest part now that the record is sealed.
-  await db.evidencePart.updateMany({
-    where: { evidenceId: result.evidenceId, partIndex: manifestPartIndex },
-    data: { artifactClass: "CAPTURE_MANIFEST" },
   });
 
   // 6. ET-DC-09 — the completeness travels with the sealed session. Its status

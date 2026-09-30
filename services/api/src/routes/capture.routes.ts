@@ -26,6 +26,7 @@ import {
 } from "../observability/otel.js";
 // PHASE 10 §13.2 STEP 6 (2026-07-23) — managed-identity no-personal guard.
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
+import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 
 /*
  * Capture routes.
@@ -270,12 +271,16 @@ export async function captureRoutes(app: FastifyInstance) {
       //
       // Same gate `POST /v1/cases` already applies to its own `body.teamId`:
       // the membership must exist and be ACTIVE.
+      // ET-DC-11 — the canonical evidence.create decision (role, access
+      // expiry, organization lifecycle), not a bare ACTIVE membership row.
       if (body.teamId) {
-        const member = await prisma.teamMember.findUnique({
-          where: { teamId_userId: { teamId: body.teamId, userId: ownerUserId } },
-          select: { status: true },
+        const decision = await evaluateMemberAccess({
+          teamId: body.teamId,
+          userId: ownerUserId,
+          permission: "evidence.create",
+          resourceKind: "capture_session",
         });
-        if (!member || member.status !== "ACTIVE") {
+        if (!decision.allowed) {
           return reply.code(403).send({
             code: "WORKSPACE_MEMBERSHIP_REQUIRED",
             message: "You are not an active member of this workspace.",

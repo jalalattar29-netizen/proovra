@@ -25,6 +25,8 @@ declare module "fastify" {
       ssoConnId?: string | null;
       /** Epoch seconds MFA was satisfied (augments the primary method). */
       mfaAt?: number | null;
+      /** ET-DC-11 — a restricted token's scope (the extension's capture.direct); null for ordinary tokens. */
+      tokenScope?: string | null;
     };
     apiCredential?: {
       credentialId: string;

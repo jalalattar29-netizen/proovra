@@ -6,6 +6,7 @@ import {
   writeEvidencePart,
 } from "../services/evidence/evidence-part-writer.service.js";
 import { getSecret } from "../config/runtime-secrets.js";
+import { EXTENSION_CAPTURE_SCOPE, extensionMayPresignPart } from "../services/auth/extension-scope.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { resolveRecipientContactDisclosure } from "../services/privacy/recipient-contact-disclosure.js";
 import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
@@ -5946,6 +5947,14 @@ const storage = await getStorageProtectionSummary(
 
       (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
       req.log = req.log.child({ evidenceId: id });
+
+      // ET-DC-11 — an extension token presigns only for its own capture's record.
+      if (
+        req.user?.tokenScope === EXTENSION_CAPTURE_SCOPE &&
+        !(await extensionMayPresignPart({ evidenceId: id, userId: ownerUserId }, prisma))
+      ) {
+        return reply.code(403).send({ code: "FORBIDDEN", message: "Forbidden" });
+      }
 
       // ET-ACQ-07 — each call mints a presigned upload URL; bounded per user.
       const partRate = await enforceRateLimit({

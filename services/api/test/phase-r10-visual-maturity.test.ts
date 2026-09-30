@@ -555,7 +555,8 @@ describe("R10 Group 13 — CR4 + CR5 cross-phase pins respected (R10 must not re
   // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 — ACTIVE-membership check on
   // the caller-supplied `body.teamId` before the CaptureSession row is written.
     // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23637);
+    // Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23876);
   });
 
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {

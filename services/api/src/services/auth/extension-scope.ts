@@ -50,6 +50,28 @@ const RULES_BY_SCOPE: Readonly<Record<string, ReadonlyArray<ScopeRule>>> = {
 };
 
 /**
+ * ET-DC-11 — the part presign is on the extension's route allowlist, but an
+ * extension token may presign ONLY for the record its own capture reserved: a
+ * record bound to the owner's ACTIVE extension capture session. It could
+ * presign parts on any unsealed record the user owned.
+ */
+export async function extensionMayPresignPart(
+  input: { evidenceId: string; userId: string },
+  client: Pick<import("@prisma/client").PrismaClient, "captureSession">,
+): Promise<boolean> {
+  const session = await client.captureSession.findFirst({
+    where: {
+      finalizedEvidenceId: input.evidenceId,
+      ownerUserId: input.userId,
+      acquisitionMode: "DIRECT_WEB_CAPTURE_EXTENSION",
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  return session !== null;
+}
+
+/**
  * True when a token carrying `scope` is permitted to reach `method routePattern`.
  * A restricted scope with no rules, or a route off its allowlist, is refused.
  */

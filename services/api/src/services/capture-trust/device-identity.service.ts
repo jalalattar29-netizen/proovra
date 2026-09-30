@@ -14,7 +14,6 @@
  *                         verifier rejects future assertions.
  *   - rotateDeviceKey   — Convenience: revokes the old Device and
  *                         registers a new Device under the same owner.
- *   - findDeviceByPubkey — Lookup by fingerprint for ingest hot path.
  *   - getDevice          — Workspace-anchored single read.
  *   - listDevicesForTeam — Workspace-anchored list with revocation
  *                          status filter.
@@ -225,18 +224,6 @@ export async function revokeDevice(
 // -----------------------------------------------------------------------------
 // Lookups
 // -----------------------------------------------------------------------------
-
-export async function findDeviceByPubkey(
-  teamId: string,
-  publicKeyHex: string,
-  client: PrismaClient = defaultPrisma,
-): Promise<{ id: string; revokedAtUtc: Date | null } | null> {
-  const fp = createHash("sha256").update(publicKeyHex.toLowerCase()).digest("hex");
-  return client.device.findFirst({
-    where: { teamId, publicKeyFingerprint: fp },
-    select: { id: true, revokedAtUtc: true },
-  });
-}
 
 export async function getDevice(
   teamId: string,

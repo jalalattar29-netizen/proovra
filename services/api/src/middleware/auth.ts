@@ -336,6 +336,7 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
       authAt: typeof payload.authAt === "number" ? payload.authAt : null,
       ssoConnId: typeof payload.ssoConnId === "string" ? payload.ssoConnId : null,
       mfaAt: typeof payload.mfaAt === "number" ? payload.mfaAt : null,
+      tokenScope: (() => { const s = (payload as { scope?: unknown }).scope; return typeof s === "string" ? s : null; })(),
     };
     req.log = req.log.child({ userId: payload.sub });
 

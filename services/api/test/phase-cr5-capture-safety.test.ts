@@ -257,7 +257,8 @@ const SESSION_READINESS_BYTES_EXACT = 9559;
   // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 — ACTIVE-membership check on
   // the caller-supplied `body.teamId` before the CaptureSession row is written.
 // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
-const CAPTURE_ROUTES_BYTES_EXACT = 23637;
+// Rebaselined 2026-09-30: 23,637 -> 23,876 — ET-DC-11: the capture draft takes the canonical evidence.create decision
+const CAPTURE_ROUTES_BYTES_EXACT = 23876;
 // Baseline grows with documented phases (G3.x/G4/G5). The
 // "no shrink/regression" guarantee is the spirit; the constant
 // is rebaselined as the file legitimately grows.

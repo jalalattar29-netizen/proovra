@@ -278,16 +278,15 @@ describe("Phase 1B — services", () => {
     );
   });
 
-  it("device identity service exposes registerDevice + revokeDevice + lookups", () => {
+  it("device identity service exposes registerDevice + revokeDevice + lookups (ET-DC-11: the uncalled pubkey lookup is retired)", () => {
     expect(SERVICE_DEVICE_IDENTITY).toMatch(
       /export\s+async\s+function\s+registerDevice/,
     );
     expect(SERVICE_DEVICE_IDENTITY).toMatch(
       /export\s+async\s+function\s+revokeDevice/,
     );
-    expect(SERVICE_DEVICE_IDENTITY).toMatch(
-      /export\s+async\s+function\s+findDeviceByPubkey/,
-    );
+    expect(SERVICE_DEVICE_IDENTITY).toMatch(/export\s+async\s+function\s+getDevice/);
+    expect(SERVICE_DEVICE_IDENTITY).not.toMatch(/function\s+findDeviceByPubkey/);
   });
 
   it("device identity uniqueness gate by public key fingerprint", () => {
