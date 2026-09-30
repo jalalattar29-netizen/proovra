@@ -2042,7 +2042,8 @@
       "compatibilityImpact": "none",
       "commits": [
         "4431cb0f44 fix(intake): a link's IP allowlist and per-submission byte cap are enforced (ET-INT-06)",
-        "84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof"
+        "84b9c10423 fix(web): the web side of ET-INT-06 / ET-INT-10 / ET-SEC-17 — intake copy and dispositions for the new codes, the case-delete pin, a regenerated deletion proof",
+        "61fecebbac test(intake): two source pins follow the ET-INT-06 / ET-INT-07 authorities"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -2078,7 +2079,8 @@
       "compatibilityImpact": "none",
       "commits": [
         "352bc9954f fix(intake): every workspace intake-link mint passes one plan + governance gate; request-more refuses a terminal request (ET-INT-07)",
-        "edfbbfb0b1 fix(evidence): the one-time completion fan-out is claimed durably and survives a failure after the finalize commit (ET-ACQ-03)"
+        "edfbbfb0b1 fix(evidence): the one-time completion fan-out is claimed durably and survives a failure after the finalize commit (ET-ACQ-03)",
+        "61fecebbac test(intake): two source pins follow the ET-INT-06 / ET-INT-07 authorities"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3263,7 +3265,8 @@
       "migrationImpact": "none",
       "compatibilityImpact": "none",
       "commits": [
-        "8b8bef5de8 fix(exchange): a signed package URL is handed to its minter only — never stored, never listed (ET-SEC-19)"
+        "8b8bef5de8 fix(exchange): a signed package URL is handed to its minter only — never stored, never listed (ET-SEC-19)",
+        "1b172f5d5e chore(point5): ledger from one fresh full integration run; the exchange sign-url runtime proof follows ET-SEC-19"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
@@ -3415,7 +3418,8 @@
       "compatibilityImpact": "none",
       "commits": [
         "5159a8b40c fix(capture): capture drafts are expired by one reaper; the API sweep and its CLI are retired (ET-SEC-24)",
-        "c1e75d0664 test(seed): the persona seed pin asserts no dotenv import, not the word in a comment (ET-UPL-04 / ET-SEC-24 follow-up)"
+        "c1e75d0664 test(seed): the persona seed pin asserts no dotenv import, not the word in a comment (ET-UPL-04 / ET-SEC-24 follow-up)",
+        "6f6f87ff68 test(capture): the one-reaper contract bounds by structure, not a character window (ET-SEC-24 follow-up)"
       ],
       "remainingExternalProof": null,
       "finalResult": "FIXED_IN_THIS_TASK"
