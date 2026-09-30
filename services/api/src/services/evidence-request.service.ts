@@ -50,6 +50,7 @@ import {
   appendStopFooter,
 } from "@proovra/shared";
 import { intakeLinkMintRefusal } from "./intake/intake-link-mint-gate.js";
+import { indexIntakeLinkBestEffort } from "./search/evidence-indexing.service.js";
 
 // -----------------------------------------------------------------------------
 // Feature flag — Phase 7.5
@@ -507,10 +508,48 @@ export type TransitionEvidenceRequestInput = {
   payload?: Prisma.InputJsonValue;
 };
 
+/**
+ * ET-INT-08 — every intake link a request issued: the one bound to it and each
+ * request-more follow-up (recorded only on EVIDENCE_REQUEST_NEEDS_MORE_INFO
+ * events). Revoked conditionally, so an already-revoked link keeps its record.
+ */
+async function revokeRequestIntakeLinksTx(
+  tx: Prisma.TransactionClient,
+  input: { requestId: string; teamId: string; primaryLinkId: string | null; actorUserId: string; reason: string },
+): Promise<string[]> {
+  const followUps = await tx.evidenceRequestEvent.findMany({
+    where: { evidenceRequestId: input.requestId, eventType: "EVIDENCE_REQUEST_NEEDS_MORE_INFO" },
+    select: { payload: true },
+  });
+  const ids = new Set<string>();
+  if (input.primaryLinkId) ids.add(input.primaryLinkId);
+  for (const e of followUps) {
+    const id = (e.payload as { followUpIntakeLinkId?: unknown } | null)?.followUpIntakeLinkId;
+    if (typeof id === "string" && id) ids.add(id);
+  }
+  if (ids.size === 0) return [];
+  const live = await tx.workflowIntakeLink.findMany({
+    where: { id: { in: [...ids] }, teamId: input.teamId, status: { not: "REVOKED" } },
+    select: { id: true },
+  });
+  if (live.length === 0) return [];
+  await tx.workflowIntakeLink.updateMany({
+    where: { id: { in: live.map((l) => l.id) }, teamId: input.teamId, status: { not: "REVOKED" } },
+    data: {
+      status: "REVOKED",
+      revokedAtUtc: new Date(),
+      revokedByUserId: input.actorUserId,
+      revokedReason: input.reason,
+    },
+  });
+  return live.map((l) => l.id);
+}
+
 export async function transitionEvidenceRequest(
   input: TransitionEvidenceRequestInput,
   client: PrismaClient = defaultPrisma,
 ): Promise<RequestRow> {
+  let revokedLinkIds: string[] = [];
   return client.$transaction(async (tx) => {
     const existing = await tx.evidenceRequest.findUnique({
       where: { id: input.id },
@@ -590,8 +629,23 @@ export async function transitionEvidenceRequest(
       input.payload,
     );
 
+    // ET-INT-08 — a CANCELLED or CLOSED request revokes every intake link it
+    // issued (its own and each request-more follow-up), in this transaction.
+    // Before, the links stayed live: contributors kept submitting, records
+    // kept finalizing and responses attached to the terminal request.
+    if (isTerminalEvidenceRequestStatus(input.to)) {
+      revokedLinkIds = await revokeRequestIntakeLinksTx(tx, {
+        requestId: input.id,
+        teamId: input.teamId,
+        primaryLinkId: existing.intakeLinkId,
+        actorUserId: input.actorUserId,
+        reason: `evidence_request_${input.to.toLowerCase()}`,
+      });
+    }
+
     return loadRequest(tx, input.id);
   }).then(async (result) => {
+    for (const intakeLinkId of revokedLinkIds) indexIntakeLinkBestEffort({ teamId: input.teamId, intakeLinkId }, client);
     // Phase 8 — fire-and-forget notifications for sensitive transitions.
     // Outside the transaction so a failure here cannot roll back the
     // state change. The reviewer note has already been validated as

@@ -119,4 +119,26 @@ describe("intake-link mint gate on the evidence-request flows (live PostgreSQL 1
     const sent = await svc.sendEvidenceRequest({ id, teamId: A.teamId, actorUserId: A.ownerUserId });
     expect(sent.rawToken).toBeTruthy();
   });
+
+  it("ET-INT-08: cancelling a request revokes its link AND its request-more follow-up; the public token is refused", async () => {
+    const A = h.fixtures.teamA;
+    const id = await externalDraft();
+    const sent = await svc.sendEvidenceRequest({ id, teamId: A.teamId, actorUserId: A.ownerUserId });
+    const response = await prisma.evidenceRequestResponse.create({ data: { evidenceRequestId: id, status: "RECEIVED" } as never, select: { id: true } });
+    await svc.requestMoreEvidenceForResponse({ requestId: id, teamId: A.teamId, responseId: response.id, actorUserId: A.ownerUserId, notifyContributor: false });
+    const primary = (await prisma.evidenceRequest.findUniqueOrThrow({ where: { id }, select: { intakeLinkId: true } })).intakeLinkId!;
+    const followUp = (
+      (await prisma.evidenceRequestEvent.findFirstOrThrow({ where: { evidenceRequestId: id, eventType: "EVIDENCE_REQUEST_NEEDS_MORE_INFO" }, select: { payload: true } }))
+        .payload as { followUpIntakeLinkId: string }
+    ).followUpIntakeLinkId;
+
+    await svc.transitionEvidenceRequest({ id, teamId: A.teamId, actorUserId: A.ownerUserId, to: "CANCELLED", reviewerNote: "withdrawn" } as never);
+
+    const rows = await prisma.workflowIntakeLink.findMany({ where: { id: { in: [primary, followUp] } }, select: { id: true, status: true, revokedReason: true, revokedByUserId: true } });
+    expect(rows).toHaveLength(2);
+    for (const r of rows) expect(r).toMatchObject({ status: "REVOKED", revokedReason: "evidence_request_cancelled", revokedByUserId: A.ownerUserId });
+    const { validateIntakeToken } = await import("../src/services/workflow-intake-session.service.js");
+    const refused = await validateIntakeToken(sent.rawToken!).catch((e: unknown) => e);
+    expect((refused as { code?: string }).code).toBe("link_revoked");
+  });
 });
