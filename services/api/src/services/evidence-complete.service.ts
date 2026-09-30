@@ -39,7 +39,8 @@ import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.serv
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { warn as logWarn } from "../utils/logger.js";
 import { AppError, ErrorCode } from "../errors.js";
-import { validateRequiredChecklistMapping } from "./capture-checklist-gate.js";
+import { effectiveChecklistPlan, validateRequiredChecklistMapping } from "./capture-checklist-gate.js";
+import { getIntakeTemplate } from "./capture-intake-templates.js";
 
 type HttpError = Error & { statusCode: number; code?: string };
 
@@ -808,8 +809,19 @@ export async function completeEvidence(params: {
       // Runs BEFORE signature / TSA / Object Lock / report enqueue, so
       // a rejected finalize never produces a custody / signature /
       // package artifact. See validateRequiredChecklistMapping JSDoc.
+      // ET-ACQ-05 — the plan comes from the server when it can: the capture
+      // session the owner opened (its plan mode) and the template it named.
+      const planSession = await tx.captureSession.findFirst({
+        where: { finalizedEvidenceId: evidence.id, ownerUserId: evidence.ownerUserId },
+        select: { planMode: true, templateId: true },
+      });
+      const planTemplate = planSession?.templateId ? getIntakeTemplate(planSession.templateId) : null;
       const checklistVerdict = validateRequiredChecklistMapping({
-        intakePlanJson: evidence.intakePlanJson,
+        intakePlanJson: effectiveChecklistPlan({
+          clientPlan: evidence.intakePlanJson,
+          serverSession: planSession,
+          serverTemplate: planTemplate,
+        }),
         parts: parts.map((p) => ({ checklistStepId: p.checklistStepId })),
       });
       if (checklistVerdict.enforced && checklistVerdict.missing.length > 0) {

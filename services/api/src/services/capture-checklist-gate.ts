@@ -83,3 +83,36 @@ export function validateRequiredChecklistMapping(args: {
   }
   return { missing, enforced: true };
 }
+
+/**
+ * ET-ACQ-05 — THE checklist plan the server enforces. The client wrote
+ * `intakePlanJson`, so a raw API caller could omit it (skipping the gate) or
+ * rewrite its required steps. When the record came from a server-issued
+ * capture session that chose CHECKLIST_REQUIRED against a known template, the
+ * required steps are the TEMPLATE's own; a client-supplied plan can only add
+ * requirements, never remove them. Pure: the caller loads the session's plan
+ * mode and the template.
+ */
+export function effectiveChecklistPlan(args: {
+  clientPlan: unknown;
+  serverSession: { planMode: string | null } | null;
+  serverTemplate: { steps: Array<{ id: string; title: string; required: boolean }> } | null;
+}): unknown {
+  if (args.serverSession?.planMode !== "CHECKLIST_REQUIRED" || !args.serverTemplate) {
+    return args.clientPlan;
+  }
+  const serverRequired = args.serverTemplate.steps
+    .filter((s) => s.required)
+    .map((s) => ({ id: s.id, title: s.title }));
+  const client =
+    args.clientPlan && typeof args.clientPlan === "object"
+      ? (args.clientPlan as Record<string, unknown>)
+      : null;
+  const clientRequired =
+    client?.mode === "CHECKLIST_REQUIRED" ? readChecklistSteps(client.requiredSteps) : [];
+  const seen = new Set(serverRequired.map((s) => s.id));
+  const extra = clientRequired.filter(
+    (s) => typeof s.id === "string" && !seen.has(s.id),
+  );
+  return { mode: "CHECKLIST_REQUIRED", requiredSteps: [...serverRequired, ...extra] };
+}

@@ -244,7 +244,8 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Rebaselined 2026-09-30: 60,968 -> 61,257 — ET-SEC-28: the storage check runs under the workspace capacity lock
     // Rebaselined 2026-09-30: 61,257 -> 63,476 — ET-ACQ-03: the one-time completion fan-out is claimed durably and re-driven on a retry
     // Rebaselined 2026-09-30: 63,476 -> 67,985 — ET-ACQ-04: oversize is refused from HEAD sizes before any GET; digests are computed before the transaction
-    expect(sz).toBe(67985);
+    // Rebaselined 2026-09-30: 67,985 -> 68,686 — ET-ACQ-05: the checklist plan comes from the owner's capture session and its template
+    expect(sz).toBe(68686);
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

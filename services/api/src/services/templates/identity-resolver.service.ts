@@ -82,8 +82,8 @@ export const EMPTY_TEMPLATE_IDENTITY_TRIO: TemplateIdentityTrio = {
 
 type CaptureSessionLookupClient = {
   captureSession: {
-    findUnique: (args: {
-      where: { id: string };
+    findFirst: (args: {
+      where: { id: string; ownerUserId: string };
       select: {
         id?: true;
         templateId?: true;
@@ -141,6 +141,11 @@ export async function resolveTemplateDbIdForSlug(
 export async function resolveTemplateTrioForCaptureSession(params: {
   captureSessionId: string | null | undefined;
   /**
+   * ET-ACQ-05 — the record's owner. The template identity is copied only from
+   * a capture session THIS user owns; any session id used to be accepted.
+   */
+  ownerUserId: string;
+  /**
    * Workspace context for the DB-id lookup. When the Evidence is being
    * created in a TEAM workspace, pass the teamId so the resolver can
    * find workspace-scoped overrides. PERSONAL evidence passes null and
@@ -154,8 +159,8 @@ export async function resolveTemplateTrioForCaptureSession(params: {
   const client = params.client ?? (defaultPrisma as unknown as CaptureSessionLookupClient);
 
   try {
-    const session = await client.captureSession.findUnique({
-      where: { id: params.captureSessionId },
+    const session = await client.captureSession.findFirst({
+      where: { id: params.captureSessionId, ownerUserId: params.ownerUserId },
       select: {
         id: true,
         templateId: true,

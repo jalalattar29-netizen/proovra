@@ -138,3 +138,45 @@ describe("validateRequiredChecklistMapping", () => {
     expect(verdict.missing).toEqual([]);
   });
 });
+
+// ---- ET-ACQ-05 — the server's plan, not only the client's --------------------
+import { effectiveChecklistPlan } from "../src/services/capture-checklist-gate.js";
+
+describe("ET-ACQ-05 — effectiveChecklistPlan", () => {
+  const template = {
+    steps: [
+      { id: "a", title: "A", required: true },
+      { id: "b", title: "B", required: false },
+    ],
+  };
+
+  it("a CHECKLIST_REQUIRED session with a known template enforces the template's required steps when the client sent no plan", () => {
+    const plan = effectiveChecklistPlan({ clientPlan: null, serverSession: { planMode: "CHECKLIST_REQUIRED" }, serverTemplate: template });
+    expect(validateRequiredChecklistMapping({ intakePlanJson: plan, parts: [] })).toEqual({
+      enforced: true,
+      missing: [{ stepId: "a", label: "A" }],
+    });
+  });
+
+  it("a client plan can add requirements but not remove the template's", () => {
+    const plan = effectiveChecklistPlan({
+      clientPlan: { mode: "FLEXIBLE", requiredSteps: [] },
+      serverSession: { planMode: "CHECKLIST_REQUIRED" },
+      serverTemplate: template,
+    });
+    expect(validateRequiredChecklistMapping({ intakePlanJson: plan, parts: [] }).missing.map((m) => m.stepId)).toEqual(["a"]);
+    const stricter = effectiveChecklistPlan({
+      clientPlan: { mode: "CHECKLIST_REQUIRED", requiredSteps: [{ id: "x", title: "X" }] },
+      serverSession: { planMode: "CHECKLIST_REQUIRED" },
+      serverTemplate: template,
+    });
+    expect(validateRequiredChecklistMapping({ intakePlanJson: stricter, parts: [] }).missing.map((m) => m.stepId)).toEqual(["a", "x"]);
+  });
+
+  it("with no server plan (FLEXIBLE session, no session, unknown template) the client plan stands, as before", () => {
+    const clientPlan = { mode: "CHECKLIST_REQUIRED", requiredSteps: [{ id: "c", title: "C" }] };
+    expect(effectiveChecklistPlan({ clientPlan, serverSession: { planMode: "FLEXIBLE" }, serverTemplate: template })).toBe(clientPlan);
+    expect(effectiveChecklistPlan({ clientPlan, serverSession: null, serverTemplate: null })).toBe(clientPlan);
+    expect(effectiveChecklistPlan({ clientPlan, serverSession: { planMode: "CHECKLIST_REQUIRED" }, serverTemplate: null })).toBe(clientPlan);
+  });
+});

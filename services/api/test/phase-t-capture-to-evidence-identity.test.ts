@@ -111,6 +111,8 @@ function makeTemplateRow(overrides: Partial<TemplateRow> = {}): TemplateRow {
   };
 }
 
+const OWNER = "owner-1";
+
 function makeFakeClient(opts: {
   sessions?: Record<string, CaptureSessionRow>;
   workspaceRows?: TemplateRow[];
@@ -124,11 +126,15 @@ function makeFakeClient(opts: {
 
   return {
     captureSession: {
-      findUnique: async ({ where }: { where: { id: string } }) => {
+      // ET-ACQ-05 — the lookup is owner-bound; fixture sessions belong to
+      // OWNER unless they say otherwise.
+      findFirst: async ({ where }: { where: { id: string; ownerUserId: string } }) => {
         if (opts.sessionLookupThrows) {
           throw new Error("BOOM_SESSION");
         }
-        return sessions[where.id] ?? null;
+        const s = sessions[where.id] ?? null;
+        const owner = (s as { ownerUserId?: string } | null)?.ownerUserId ?? OWNER;
+        return s && owner === where.ownerUserId ? s : null;
       },
     },
     evidenceWorkflowTemplate: {
@@ -148,8 +154,28 @@ function makeFakeClient(opts: {
 // ---------------------------------------------------------------------------
 
 describe("Phase T — resolveTemplateTrioForCaptureSession", () => {
+  it("ET-ACQ-05: a session owned by someone else stamps nothing", async () => {
+    const client = makeFakeClient({
+      sessions: {
+        "55555555-5555-5555-5555-555555555555": {
+          id: "55555555-5555-5555-5555-555555555555",
+          templateId: "general-evidence-record",
+          templateVersion: 1,
+          ownerUserId: "someone-else",
+        } as never,
+      },
+    });
+    const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
+      captureSessionId: "55555555-5555-5555-5555-555555555555",
+      client: client as never,
+    });
+    expect(trio).toEqual(EMPTY_TEMPLATE_IDENTITY_TRIO);
+  });
+
   it("returns the empty trio when captureSessionId is missing", async () => {
     const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
       captureSessionId: null,
     });
     expect(trio).toEqual(EMPTY_TEMPLATE_IDENTITY_TRIO);
@@ -158,6 +184,7 @@ describe("Phase T — resolveTemplateTrioForCaptureSession", () => {
   it("returns the empty trio when the session row is not found", async () => {
     const client = makeFakeClient({ sessions: {} });
     const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
       captureSessionId: "11111111-1111-1111-1111-111111111111",
       client: client as never,
     });
@@ -175,6 +202,7 @@ describe("Phase T — resolveTemplateTrioForCaptureSession", () => {
       },
     });
     const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
       captureSessionId: "11111111-1111-1111-1111-111111111111",
       client: client as never,
     });
@@ -195,6 +223,7 @@ describe("Phase T — resolveTemplateTrioForCaptureSession", () => {
       },
     });
     const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
       captureSessionId: "22222222-2222-2222-2222-222222222222",
       teamId: null,
       client: client as never,
@@ -225,6 +254,7 @@ describe("Phase T — resolveTemplateTrioForCaptureSession", () => {
       ],
     });
     const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
       captureSessionId: "44444444-4444-4444-4444-444444444444",
       teamId,
       client: client as never,
@@ -237,6 +267,7 @@ describe("Phase T — resolveTemplateTrioForCaptureSession", () => {
   it("never throws — a resolver error returns the empty trio", async () => {
     const client = makeFakeClient({ sessionLookupThrows: true });
     const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
       captureSessionId: "55555555-5555-5555-5555-555555555555",
       client: client as never,
     });
@@ -255,6 +286,7 @@ describe("Phase T — resolveTemplateTrioForCaptureSession", () => {
       templateLookupThrows: true,
     });
     const trio = await resolveTemplateTrioForCaptureSession({
+      ownerUserId: OWNER,
       captureSessionId: "66666666-6666-6666-6666-666666666666",
       teamId: null,
       client: client as never,

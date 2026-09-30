@@ -5593,6 +5593,7 @@ intakePlanJson:
           const trio: TemplateIdentityTrio =
             await resolveTemplateTrioForCaptureSession({
               captureSessionId: body.captureSessionId,
+              ownerUserId,
               teamId: createdForTrio?.teamId ?? null,
             });
           if (trio.templateSlug) {
