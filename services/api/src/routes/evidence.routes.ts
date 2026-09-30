@@ -10,7 +10,11 @@ import { resolveRecipientContactDisclosure } from "../services/privacy/recipient
 import { evidenceIntakeIdentityArms } from "../services/search/intake-identity-search.js";
 // PHASE 6 §9.3 (2026-07-22) — canonical cross-team attach gate (same
 // single source of truth the single-record case-attach route uses).
-import { authorizeCaseEvidenceLink, evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js";
+import {
+  authorizeCaseEvidenceLink,
+  evaluateCrossTeamAttach,
+  resolveCaseRecordAccess,
+} from "../services/cases/case-permission.service.js";
 // Track 1B — CANONICAL case ↔ evidence relationship authority (link row
 // + audit in one transaction; the link table is the only truth).
 import {
@@ -2404,31 +2408,15 @@ function getStorageProtectionSummaryFromSnapshot(snapshot: {
 }
 
 async function assertCaseAccess(userId: string, caseId: string) {
-  const item = await prisma.case.findUnique({
-    where: { id: caseId },
-    include: { access: true },
-  });
-
-  if (!item) {
-    const err: Error & { statusCode?: number } = new Error("Case not found");
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (item.ownerUserId === userId) return;
-  if (item.access.some((a) => a.userId === userId)) return;
-
-  if (item.teamId && item.access.length === 0) {
-    const member = await prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId: item.teamId, userId } },
-      select: { status: true },
-    });
-    // P0 remediation (2026-07-21) — ACTIVE-only membership authorizes.
-    if (member?.status === "ACTIVE") return;
-  }
-
-  const err: Error & { statusCode?: number } = new Error("Forbidden");
-  err.statusCode = 403;
+  // ET-SEC-31 — ONE answer for a case the caller may not open: the same 404
+  // as a missing case (a 403 confirmed that the id exists). And the ONE
+  // case-access rule (ET-SEC-04, Invariant D): current workspace authority
+  // first; a case ownership or a CaseAccess row only narrows it and never
+  // stands in for membership, as this copy let them.
+  const access = await resolveCaseRecordAccess({ userId, caseId });
+  if (access.allowed) return;
+  const err: Error & { statusCode?: number } = new Error("Case not found");
+  err.statusCode = 404;
   throw err;
 }
 
@@ -12681,12 +12669,11 @@ action: "evidence.certification_requested",
             status: evidenceStatus ?? null,
           },
         });
-        return reply.code(409).send({
-          code: "EVIDENCE_NOT_FINALIZED",
-          message:
-            "This evidence record has not been finalized yet. A verification response is not available for pre-finalized records.",
-          status: evidenceStatus ?? null,
-        });
+        // ET-SEC-31 — a record that is not finalized has no public
+        // verification, and says nothing about itself: the same 404 as a
+        // missing record. The 409 disclosed that the record exists and its
+        // status. The audit row above keeps the real outcome.
+        return reply.code(404).send({ message: "Evidence not found" });
       }
     }
 

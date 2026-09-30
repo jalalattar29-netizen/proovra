@@ -249,14 +249,14 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
       expect(event.payload).toEqual({ templateChangedTo: draft.templateId, itemCount: 1 });
     });
 
-    it("PATCH refuses another user's draft (403) and leaves it unchanged", async () => {
+    it("PATCH refuses another user's draft (404, as a missing one — ET-SEC-31) and leaves it unchanged", async () => {
       const { teamA } = harness.fixtures;
       const draft = await createDraft(teamA.ownerToken);
       const res = await call("PATCH", `/v1/capture/sessions/${draft.id}`, teamA.adminToken, {
         internalNotes: "hijack",
       });
-      expect(res.statusCode).toBe(403);
-      expect(json(res)).toEqual({ message: "Forbidden" });
+      expect(res.statusCode).toBe(404);
+      expect(json(res)).toEqual({ message: "Capture session not found" });
       const row = await prisma.captureSession.findUniqueOrThrow({ where: { id: draft.id } });
       expect(row.internalNotes).toBeNull();
       expect(await prisma.captureSessionEvent.count({ where: { sessionId: draft.id, actorUserId: teamA.adminUserId } })).toBe(0);
@@ -267,7 +267,8 @@ describe("K3 runtime proof — evidence capture (part A)", () => {
       const draft = await createDraft(teamA.ownerToken);
 
       const foreign = await call("DELETE", `/v1/capture/sessions/${draft.id}`, teamB.ownerToken);
-      expect(foreign.statusCode).toBe(403);
+      // ET-SEC-31 — another user's draft is answered as a missing one.
+      expect(foreign.statusCode).toBe(404);
       expect((await prisma.captureSession.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe("DRAFT");
 
       const res = await call("DELETE", `/v1/capture/sessions/${draft.id}`, teamA.ownerToken);

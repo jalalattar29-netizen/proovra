@@ -228,7 +228,6 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   AI_WORKSPACE_POLICY_DENIED: { disposition: "customer", where: "global" },
 
   // -- Evidence lifecycle ---------------------------------------------------
-  EVIDENCE_NOT_FINALIZED: { disposition: "customer", where: "global" },
   EVIDENCE_NOT_LOCKED: { disposition: "customer", where: "global" },
   EVIDENCE_INTEGRITY_FAILED: { disposition: "customer", where: "global" },
   FINALIZE_BLOCKED_BY_UPLOAD_SESSION: { disposition: "customer", where: "global" },

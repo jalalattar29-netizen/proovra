@@ -132,7 +132,8 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // Rebaselined 2026-07-23: PHASE 10 §13.2 Step 6 no-personal guard added.
   // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 — ACTIVE-membership check on
   // the caller-supplied `body.teamId` before the CaptureSession row is written.
-    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23490);
+    // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
+    expect(statSync(apiSrcPath("routes/capture.routes.ts")).size).toBe(23637);
   });
   it("Phase 31 byte-exact pin on evidence-complete.service.ts holds (44,078 bytes after fan-out extraction)", () => {
     // Baseline moves with documented phase growth (G3.x/G4/G5/Phase 11/14)

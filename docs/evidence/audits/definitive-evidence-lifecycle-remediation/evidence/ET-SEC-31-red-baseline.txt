@@ -1,0 +1,16 @@
+ET-SEC-31 red baseline — services/api/test/existence-oracles-uniform-404.integration.test.ts
+Run against HEAD 16ae55b6's services/api/src/routes/evidence.routes.ts and capture.routes.ts, live PostgreSQL 16, 2026-09-30T02:49Z.
+The evidence-create case passes on HEAD: a foreign teamId already answered the same 403 as a nonexistent one; it is held as a guard.
+
+   × existence oracles answer a uniform 404 (live PostgreSQL 16, real HTTP) > evidence list and library summary: a foreign case is answered as a missing one 47ms
+     → /v1/evidence: {"error":{"code":"REQUEST_REFUSED","message":"Request refused.","requestId":"46175af7-a9f4-4a91-bb00-b4a11171d3ad"}}: expected 403 to be 404 // Object.is equality
+   × existence oracles answer a uniform 404 (live PostgreSQL 16, real HTTP) > capture drafts: another user's draft is answered as a missing one 17ms
+     → {"message":"Forbidden"}: expected 403 to be 404 // Object.is equality
+   × existence oracles answer a uniform 404 (live PostgreSQL 16, real HTTP) > public verify: a record that is not finalized is answered as a missing one, with no status 26ms
+     → {"code":"EVIDENCE_NOT_FINALIZED","message":"This evidence record has not been finalized yet. A verification response is not available for pre-finalized records.","status":"UPLOADED"}: expected 409 to be 404 // Object.is equality
+   ✓ existence oracles answer a uniform 404 (live PostgreSQL 16, real HTTP) > evidence create: a foreign workspace id is answered as a nonexistent one 69ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: /v1/evidence: {"error":{"code":"REQUEST_REFUSED","message":"Request refused.","requestId":"46175af7-a9f4-4a91-bb00-b4a11171d3ad"}}: expected 403 to be 404 // Object.is equality
+AssertionError: {"message":"Forbidden"}: expected 403 to be 404 // Object.is equality
+AssertionError: {"code":"EVIDENCE_NOT_FINALIZED","message":"This evidence record has not been finalized yet. A verification response is not available for pre-finalized records.","status":"UPLOADED"}: expected 409 to be 404 // Object.is equality
+      Tests  3 failed | 1 passed (4)

@@ -84,14 +84,14 @@ describe("Phase A0 — integrity hard-gate (API contract)", () => {
     expect(enumBlock!).toContain("INTEGRITY_REJECTED_HASH_MISMATCH");
   });
 
-  it("public verify handler hard-404s FAILED_HASH_MISMATCH BEFORE the 409 not-finalized branch", () => {
+  it("public verify handler hard-404s FAILED_HASH_MISMATCH BEFORE the not-finalized branch (itself a 404 since ET-SEC-31)", () => {
     // We expect the FAILED_HASH_MISMATCH branch to appear FIRST inside
     // the public-verify status guard block. Anti-enumeration requires
     // the FAILED case to look identical to "Evidence not found".
     const handlerSlice = routeSource(EVIDENCE_ROUTES, "GET", "/public/verify/:id");
 
     const failedIdx = handlerSlice.indexOf("FAILED_HASH_MISMATCH");
-    const notFinalizedIdx = handlerSlice.indexOf("EVIDENCE_NOT_FINALIZED");
+    const notFinalizedIdx = handlerSlice.indexOf('denialReason: "not_finalized"');
     expect(failedIdx).toBeGreaterThan(0);
     expect(notFinalizedIdx).toBeGreaterThan(0);
     expect(failedIdx).toBeLessThan(notFinalizedIdx);

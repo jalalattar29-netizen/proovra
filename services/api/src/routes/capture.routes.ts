@@ -158,9 +158,13 @@ async function loadOwnedDraft(
     err.statusCode = 404;
     throw err;
   }
+  // ET-SEC-31 — another user's draft is answered exactly as a missing one;
+  // a 403 confirmed that the id exists.
   if (session.ownerUserId !== userId) {
-    const err: Error & { statusCode?: number } = new Error("Forbidden");
-    err.statusCode = 403;
+    const err: Error & { statusCode?: number } = new Error(
+      "Capture session not found"
+    );
+    err.statusCode = 404;
     throw err;
   }
   return session;

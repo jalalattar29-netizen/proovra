@@ -514,12 +514,6 @@ export const USER_FACING_ERRORS: Record<string, UserFacingError> = {
       "New versions are already being created in this workspace. Try again when they finish; nothing was lost.",
     severity: "info",
   },
-  EVIDENCE_NOT_FINALIZED: {
-    title: "This record isn't finalized yet",
-    message:
-      "Verification becomes available once the record has been finalized. Finish the capture, then try again.",
-    severity: "info",
-  },
   EVIDENCE_NOT_LOCKED: {
     title: "This record isn't locked",
     message: "That action is only available on a record that has been sealed.",

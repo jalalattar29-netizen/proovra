@@ -185,7 +185,10 @@ describe("public verify semantics (Governance Item 1)", () => {
     expect(routeSource).toContain("currentPublicVerifyViewAtUtc: verifiedAt");
     expect(routeSource).toContain("lastPublicVerifyViewAtUtc: verifiedAt");
     expect(routeSource).toContain('custodyEventSampled: false');
-    expect(routeSource).toContain('code: "EVIDENCE_NOT_FINALIZED"');
+    // ET-SEC-31 — a record that is not finalized is refused as a missing one
+    // (404, no status); the audit row keeps the real outcome.
+    expect(routeSource).toContain('denialReason: "not_finalized"');
+    expect(routeSource).not.toContain('code: "EVIDENCE_NOT_FINALIZED"');
 
     expect(verifyPageSource).toContain('label: "Last meaningful verification"');
     expect(verifyPageSource).toContain('label: "Last public verify page view"');

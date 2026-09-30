@@ -50,8 +50,8 @@ describe("Phase 6 §9.3/§9.6 — bulk ADD_TO_CASE cross-team gate", () => {
   it("bulk and single-record paths share ONE gate source", () => {
     // ET-SEC-16 — the bulk path now also imports THE case-link authority
     // beside the cross-team gate; both paths call both.
-    expect(src).toContain(
-      'import { authorizeCaseEvidenceLink, evaluateCrossTeamAttach } from "../services/cases/case-permission.service.js"',
+    expect(src).toMatch(
+      /import \{\s*authorizeCaseEvidenceLink,\s*evaluateCrossTeamAttach,[^}]*\} from "\.\.\/services\/cases\/case-permission\.service\.js"/,
     );
     const cases = read("src/routes/cases.routes.ts");
     expect(cases).toContain("evaluateCrossTeamAttach");

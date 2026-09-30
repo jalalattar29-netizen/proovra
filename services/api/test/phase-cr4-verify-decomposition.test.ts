@@ -281,7 +281,8 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Rebaselined 2026-08-16: PHASE 13 §A4 NEW-026 added the ACTIVE-membership
     // check on the caller-supplied `body.teamId`.
     const sz = statSync(apiSrcPath("routes/capture.routes.ts")).size;
-    expect(sz).toBe(23490);
+    // Rebaselined 2026-09-30: 23,490 -> 23,637 — ET-SEC-31: another user's capture draft answers 404, as a missing one
+    expect(sz).toBe(23637);
   });
 });
 
