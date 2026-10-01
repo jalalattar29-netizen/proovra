@@ -4073,6 +4073,10 @@
         {
           "sha": "a606dcaa5e29",
           "subject": "fix(trust): a stored-bytes pass is \"current\" only over a pinned, immutable version (UC-TRUST-008)"
+        },
+        {
+          "sha": "d0034b073eb1",
+          "subject": "fix(verify): Public Verify reads the stored-bytes facts by name, never by spreading the evidence row (UC-TRUST-008 follow-up)"
         }
       ],
       "migrations": "none",

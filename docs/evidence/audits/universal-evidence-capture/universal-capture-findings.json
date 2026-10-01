@@ -4731,7 +4731,8 @@
         "proofKind": "integration-real-db",
         "commits": [
           "b4b035380ac8",
-          "a606dcaa5e29"
+          "a606dcaa5e29",
+          "d0034b073eb1"
         ],
         "migrations": "none",
         "redTest": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-008: a passing check 3 days old is STALE, not Verified",
