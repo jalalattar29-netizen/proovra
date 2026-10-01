@@ -28,11 +28,37 @@ import { Readable } from "node:stream";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { readFileSync } from "node:fs";
+
 import { SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION } from "@proovra/shared";
+
+// UC-IOS-001 — the SAME builder the iOS app runs, fed the SAME native result
+// the Swift code produces (the contract fixture the mobile suite pins against
+// the Swift sources).
+import { buildContinuousManifest } from "../../../apps/mobile/src/continuous-manifest";
 
 import type { IntegrationHarness } from "./integration-harness.js";
 
 const objects = new Map<string, Buffer>();
+type NativeSegment = {
+  sequence: number;
+  startedAtOffsetMs: number;
+  durationMs: number;
+  widthPx: number;
+  heightPx: number;
+  orientation: "portrait" | "landscape";
+};
+type MutableManifest = {
+  device: Record<string, unknown>;
+  segments: Array<{ sequence: number; partIndex: number } & Record<string, unknown>>;
+} & Record<string, unknown>;
+const IOS_FIXTURE: {
+  jsResult: Parameters<typeof buildContinuousManifest>[1];
+  jsSegments: NativeSegment[];
+  legacyV1DeviceBlock: Record<string, unknown>;
+} = JSON.parse(
+  readFileSync(new URL("../../../apps/mobile/test/fixtures/ios-broadcast-result.json", import.meta.url), "utf8"),
+);
 
 vi.mock("../src/storage.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -163,18 +189,27 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
     return { partIndex, sha256: digest, sizeBytes: bytes.length };
   }
 
-  /** Stage a full continuous capture up to (but not including) /continuous-complete. */
+  /**
+   * Stage a full iOS continuous capture up to (but not including)
+   * /continuous-complete — FROM THE NATIVE CONTRACT, not from a hand-written
+   * device block (UC-IOS-001 / UC-TQ-001): the manifest is built by the mobile
+   * client's own builder (apps/mobile/src/continuous-manifest.ts) from the
+   * exact result + segment maps the Swift code produces
+   * (apps/mobile/test/fixtures/ios-broadcast-result.json). Only the times are
+   * moved to "now", because the server checks the capture window against the
+   * session it just opened. `mutate` edits the manifest BEFORE it is uploaded
+   * and declared, so a negative case is refused by the gate it targets and not
+   * by a digest mismatch (UC-TQ-005).
+   */
   async function stageContinuous(
     opts: {
       segments?: number;
-      omitLastSegment?: boolean;
       badSequence?: boolean;
       badSessionInManifest?: boolean;
-      duplicateSequence?: boolean;
       tamperManifestDigest?: boolean;
       reverseUpload?: boolean;
       tamperStoredBytes?: boolean;
-      orientationTransition?: boolean;
+      mutate?: (manifest: MutableManifest) => void;
     } = {},
   ) {
     const token = owner().ownerToken;
@@ -194,83 +229,59 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
     expect(reserve.statusCode, reserve.body).toBe(201);
     const evidenceId = reserve.json().evidence.evidenceId as string;
 
-    // Bytes per segment index, generated up front so upload ORDER can vary
-    // independently of the manifest's (index-keyed) description.
-    const segmentBytes = Array.from({ length: segCount }, (_, i) =>
+    const nativeSegments = IOS_FIXTURE.jsSegments.slice(0, segCount);
+    const segmentBytes = nativeSegments.map((_, i) =>
       Buffer.from(`segment-${i}-${randomBytes(8).toString("hex")}`),
     );
-    // Out-of-order upload proves the server is order-independent (it cross-checks by
-    // partIndex, never by arrival order).
-    const uploadOrder = opts.reverseUpload
-      ? [...segmentBytes.keys()].reverse()
-      : [...segmentBytes.keys()];
-
-    const declaredByIndex = new Map<number, { partIndex: number; sha256: string; sizeBytes: number }>();
+    const uploadOrder = opts.reverseUpload ? [...segmentBytes.keys()].reverse() : [...segmentBytes.keys()];
+    const declared = new Map<number, { sha256: string; sizeBytes: number }>();
     for (const i of uploadOrder) {
-      const declared = await uploadAndDeclare(token, evidenceId, sessionId, i, segmentBytes[i], "SCREEN_SEGMENT");
-      declaredByIndex.set(i, declared);
-      // Storage tamper: overwrite the stored object with different bytes AFTER the
-      // honest digest was declared, so the server recompute at seal finds a mismatch.
+      const d = await uploadAndDeclare(token, evidenceId, sessionId, i, segmentBytes[i]!, "SCREEN_SEGMENT");
+      declared.set(i, d);
       if (opts.tamperStoredBytes && i === 0) {
         for (const key of objects.keys()) {
-          if (objects.get(key) === segmentBytes[0]) objects.set(key, Buffer.from("tampered-bytes"));
+          // Same LENGTH, different bytes: only the digest recompute can catch it.
+          if (objects.get(key) === segmentBytes[0]) objects.set(key, Buffer.alloc(segmentBytes[0]!.length, 0x78));
         }
       }
     }
 
-    const segments: Array<Record<string, unknown>> = [];
-    for (let i = 0; i < segCount; i++) {
-      if (opts.omitLastSegment && i === segCount - 1) continue;
-      const declared = declaredByIndex.get(i)!;
-      // A mid-session rotation: segment 1 is landscape (its own true geometry).
-      const isLandscape = opts.orientationTransition && i === 1;
-      segments.push({
-        role: "screen_segment",
-        partIndex: i,
-        // A non-contiguous sequence (skip 1) makes a missing segment detectable; a
-        // duplicate sequence collapses two segments onto one slot (also rejected).
-        sequence: opts.badSequence && i >= 1 ? i + 1 : opts.duplicateSequence && i === 1 ? 0 : i,
-        expectedSha256:
-          opts.tamperManifestDigest && i === 0 ? "f".repeat(64) : declared.sha256,
-        sizeBytes: declared.sizeBytes,
-        mediaType: "video/mp4",
-        startedAtOffsetMs: i * 1000,
-        durationMs: 1000,
-        widthPx: isLandscape ? 2400 : 1080,
-        heightPx: isLandscape ? 1080 : 2400,
-        orientation: isLandscape ? "landscape" : "portrait",
-      });
-    }
-
-    const captureStartMs = Date.now();
-    const manifest = {
-      schemaVersion: SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION,
-      captureSessionId: opts.badSessionInManifest ? "00000000-0000-4000-8000-000000000000" : sessionId,
-      // ET-DC-09 — the window is checked against the server session, so it is
-      // the one this session actually spans (it opened moments ago).
-      captureStartedAtUtc: new Date(captureStartMs).toISOString(),
-      captureEndedAtUtc: new Date(captureStartMs + segCount * 1000).toISOString(),
-      device: {
-        platform: "ios",
-        osVersion: "18.0",
-        model: "iPhone 15 Pro",
-        appVersion: "1.0.0",
-        screenW: 1179,
-        screenH: 2556,
-        densityDpi: 460,
-        orientation: "portrait",
-      },
-      osConsentGranted: true,
-      totalDurationMs: segCount * 1000,
-      segments,
-      sessionCompleteness: "COMPLETE_SESSION",
-      terminationReason: "USER_STOPPED",
-      limitations: opts.orientationTransition ? ["ORIENTATION_CHANGED_DURING_CAPTURE"] : [],
-      notes: [],
+    // The Swift result map, re-timed to this session.
+    const lastEnd = nativeSegments.reduce((m, s) => Math.max(m, s.startedAtOffsetMs + s.durationMs), 0);
+    const start = Date.now() - lastEnd - 500;
+    const jsResult = {
+      ...structuredClone(IOS_FIXTURE.jsResult),
+      captureStartedAtUtc: new Date(start).toISOString(),
+      captureEndedAtUtc: new Date(start + lastEnd + 200).toISOString(),
+      segmentCount: segCount,
+      totalDurationMs: lastEnd,
     };
+    const manifest = buildContinuousManifest(
+      opts.badSessionInManifest ? "00000000-0000-4000-8000-000000000000" : sessionId,
+      jsResult,
+      nativeSegments.map((s: NativeSegment, i: number) => ({
+        partIndex: s.sequence,
+        sequence: s.sequence,
+        sha256Hex: opts.tamperManifestDigest && i === 0 ? "f".repeat(64) : declared.get(i)!.sha256,
+        sizeBytes: declared.get(i)!.sizeBytes,
+        startedAtOffsetMs: s.startedAtOffsetMs,
+        durationMs: s.durationMs,
+        widthPx: s.widthPx,
+        heightPx: s.heightPx,
+        orientation: s.orientation,
+      })),
+    ) as unknown as MutableManifest;
+    if (opts.badSequence) {
+      // A gap: segment 1 claims sequence 2 (and so part 2) — a missing segment.
+      manifest.segments = manifest.segments.map((s, i) =>
+        i >= 1 ? { ...s, sequence: s.sequence + 1, partIndex: s.partIndex + 1 } : s,
+      );
+    }
+    opts.mutate?.(manifest);
     const manifestJson = JSON.stringify(manifest);
-    await uploadAndDeclare(token, evidenceId, sessionId, segCount, Buffer.from(manifestJson, "utf8"), "CONTINUOUS_MANIFEST");
-    return { token, sessionId, evidenceId, manifestJson, manifestPartIndex: segCount };
+    const manifestPartIndex = segCount;
+    await uploadAndDeclare(token, evidenceId, sessionId, manifestPartIndex, Buffer.from(manifestJson, "utf8"), "CONTINUOUS_MANIFEST");
+    return { token, sessionId, evidenceId, manifestJson, manifestPartIndex };
   }
 
   it("seals an iOS broadcast through the SHARED pipeline: ONE Evidence, server-set mode", async () => {
@@ -319,12 +330,14 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
     expect(again.json().result.alreadyBound).toBe(true);
   });
 
-  it("accepts the DEVICE THE BROADCAST EXTENSION ACTUALLY REPORTS", async () => {
-    // THE DEFECT THIS SUITE FOUND. validateScreenContinuousManifest required
-    // device.platform === "android", so every UC-5 seal was refused
-    // CONTINUOUS_MANIFEST_INVALID — on a manifest that was telling the truth.
+  it("accepts the DEVICE THE BROADCAST EXTENSION ACTUALLY REPORTS (UC-IOS-001: the Swift result, verbatim)", async () => {
+    // THE DEFECT THIS SUITE FOUND, twice. First the validator required
+    // device.platform === "android"; then the Swift device map carried 4 of
+    // the 8 required keys while this suite hand-built all 8, so it passed
+    // against a payload the device never produced. The device block now comes
+    // from the Swift contract fixture through the app's own builder.
     const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 2 });
-    expect(JSON.parse(manifestJson).device.platform).toBe("ios");
+    expect(JSON.parse(manifestJson).device).toEqual(IOS_FIXTURE.jsResult.device);
 
     const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
     expect(done.statusCode, done.body).toBe(200);
@@ -332,16 +345,48 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
     expect(ev.status).toBe("SIGNED");
   });
 
-  it("refuses a platform that is neither — widening is not abolishing", async () => {
-    const { token, sessionId, manifestJson } = await stageContinuous({ segments: 2 });
-    const forged = JSON.parse(manifestJson);
-    forged.device.platform = "ios_pro_max";
-    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, {
-      manifestJson: JSON.stringify(forged),
+  it("refuses a platform that is neither — widening is not abolishing (UC-TQ-005: the platform gate alone)", async () => {
+    // The forged manifest IS the declared part, so no digest gate can refuse
+    // it: only the platform allow-list does, with its own status and denial.
+    const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({
+      segments: 2,
+      mutate: (m) => {
+        m.device.platform = "ios_pro_max";
+      },
     });
-    // The manifest bytes changed, so it is no longer the artifact that was
-    // declared either — refused on both counts, and never sealed.
-    expect(done.statusCode).not.toBe(200);
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+    expect(done.statusCode, done.body).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+    const ev = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { status: true } });
+    expect(ev.status).not.toBe("SIGNED");
+    // And the ANDROID platform on an iOS session is refused by the same gate.
+    const android = await stageContinuous({
+      segments: 2,
+      mutate: (m) => {
+        m.device.platform = "android";
+      },
+    });
+    const refused = await call("POST", `/v1/capture/direct-sessions/${android.sessionId}/continuous-complete`, token, {
+      manifestJson: android.manifestJson,
+    });
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(refused.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
+  });
+
+  it("UC-IOS-001: a malformed native device block is refused with the specific validator error", async () => {
+    const { validateScreenContinuousManifest } = await import("@proovra/shared");
+    const { token, sessionId, manifestJson } = await stageContinuous({
+      segments: 2,
+      mutate: (m) => {
+        // The pre-remediation Swift map: platform/osVersion/model/appVersion only.
+        m.device = { ...IOS_FIXTURE.legacyV1DeviceBlock };
+        delete m.device._comment;
+      },
+    });
+    expect(validateScreenContinuousManifest(JSON.parse(manifestJson))).toEqual({ ok: false, error: "invalid device.screenW" });
+    const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
+    expect(done.statusCode, done.body).toBe(422);
+    expect(done.json().denial).toBe("CONTINUOUS_MANIFEST_INVALID");
   });
 
   it("refuses a NON-CONTIGUOUS segment sequence on iOS exactly as on Android", async () => {
@@ -368,7 +413,9 @@ describe("UC-5 iOS system broadcast — live PostgreSQL 16", () => {
   it("fails CLOSED when a segment's stored bytes no longer match its declared digest", async () => {
     const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 3, tamperStoredBytes: true });
     const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
-    expect(done.statusCode).not.toBe(200);
+    // UC-TQ-005 — pinned: the digest gate's own refusal, not "anything but 200".
+    expect(done.statusCode, done.body).toBe(409);
+    expect(done.json().denial).toBe("CAPTURE_DIGEST_MISMATCH");
     const ev = await prisma.evidence.findUnique({ where: { id: evidenceId } });
     expect(ev?.status).not.toBe("SIGNED");
   });

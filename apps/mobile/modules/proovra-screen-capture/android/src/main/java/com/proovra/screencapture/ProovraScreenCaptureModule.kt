@@ -35,8 +35,8 @@ class ProovraScreenCaptureModule : Module() {
   // UC-3 continuous flow.
   private var continuousStartPromise: Promise? = null
   private var continuousStopPromise: Promise? = null
-  private var pendingSegmentMs: Int = 6000
-  private var pendingMaxSegments: Int = 600
+  private var pendingSegmentMs: Int = ContinuousScreenCaptureService.DEFAULT_SEGMENT_MS
+  private var pendingMaxSegments: Int = ContinuousScreenCaptureService.MAX_SEGMENTS
 
   // Which flow the pending consent belongs to.
   private var pendingKind: String? = null
@@ -48,7 +48,16 @@ class ProovraScreenCaptureModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ProovraScreenCapture")
 
-    Events("onScreenFrame", "onScreenCaptureStopped", "onScreenSegment", "onScreenContinuousStopped")
+    Events(
+      "onScreenFrame", "onScreenCaptureStopped", "onScreenSegment", "onScreenContinuousStopped",
+      "onScreenContinuousStarted",
+    )
+
+    // UC-AND-004 — the recorder outlives the JS context. Each new module
+    // instance (a reloaded / recreated JS runtime) re-binds the service's static
+    // callbacks to ITSELF, so segments recorded after the UI came back reach the
+    // new listeners instead of a dead closure.
+    OnCreate { bindContinuousCallbacks() }
 
     Function("isSupported") { Build.VERSION.SDK_INT >= Build.VERSION_CODES.O }
     Function("isContinuousSupported") { Build.VERSION.SDK_INT >= Build.VERSION_CODES.O }
@@ -61,6 +70,17 @@ class ProovraScreenCaptureModule : Module() {
         "active" to ContinuousScreenCaptureService.isActive(),
         "segmentCount" to ContinuousScreenCaptureService.segmentCount(),
       )
+    }
+    Function("getContinuousSegments") { ContinuousScreenCaptureService.segmentsSnapshot() }
+    // UC-AND-004 / UC-IOS-010 — the explicit discard of a leftover recording's
+    // local files (never while recording).
+    AsyncFunction("discardContinuousSpool") { promise: Promise ->
+      val ctx = appContext.reactContext?.applicationContext
+      if (ContinuousScreenCaptureService.isActive()) {
+        promise.reject(CodedException("BUSY", "Stop the recording before discarding it.", null)); return@AsyncFunction
+      }
+      ContinuousScreenCaptureService.discardSpool(ctx)
+      promise.resolve(null)
     }
 
     // ---- UC-2 frame flow --------------------------------------------------
@@ -119,13 +139,12 @@ class ProovraScreenCaptureModule : Module() {
       }
       continuousStartPromise = promise
       pendingKind = "continuous"
-      pendingSegmentMs = ((options["segmentMs"] as? Number)?.toInt() ?: 6000).coerceIn(2000, 30000)
-      pendingMaxSegments = ((options["maxSegments"] as? Number)?.toInt() ?: 600).coerceIn(1, 600)
-      ContinuousScreenCaptureService.onSegment = { seg -> sendEvent("onScreenSegment", seg) }
-      ContinuousScreenCaptureService.onStopped = { js ->
-        continuousStopPromise?.resolve(js); continuousStopPromise = null
-        sendEvent("onScreenContinuousStopped", js)
-      }
+      // UC-STR-001 — THE capture limits (by value): segments + manifest fit the record.
+      pendingSegmentMs = ((options["segmentMs"] as? Number)?.toInt() ?: ContinuousScreenCaptureService.DEFAULT_SEGMENT_MS)
+        .coerceIn(ContinuousScreenCaptureService.MIN_SEGMENT_MS, ContinuousScreenCaptureService.MAX_SEGMENT_MS)
+      pendingMaxSegments = ((options["maxSegments"] as? Number)?.toInt() ?: ContinuousScreenCaptureService.MAX_SEGMENTS)
+        .coerceIn(1, ContinuousScreenCaptureService.MAX_SEGMENTS)
+      bindContinuousCallbacks()
       launchConsent(activity, promise)
     }
 
@@ -151,9 +170,15 @@ class ProovraScreenCaptureModule : Module() {
           promise.reject(CodedException("PERMISSION_DENIED", "Screen capture consent was not granted.", null))
           return@OnActivityResult
         }
-        ContinuousScreenCaptureService.start(ctx!!, payload.resultCode, payload.data!!, pendingSegmentMs, pendingMaxSegments) { started ->
-          promise.resolve(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "segmentMs" to pendingSegmentMs, "maxSegments" to pendingMaxSegments))
-        }
+        ContinuousScreenCaptureService.start(
+          ctx!!, payload.resultCode, payload.data!!, pendingSegmentMs, pendingMaxSegments,
+          onStarted = { started ->
+            promise.resolve(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "segmentMs" to pendingSegmentMs, "maxSegments" to pendingMaxSegments))
+            sendEvent("onScreenContinuousStarted", mapOf("captureStartedAtUtc" to started))
+          },
+          // UC-AND-013 — a setup failure after consent rejects; never a hung start.
+          onStartFailed = { code, message -> promise.reject(CodedException(code, message, null)) },
+        )
       } else {
         val promise = startPromise ?: return@OnActivityResult
         startPromise = null
@@ -161,10 +186,22 @@ class ProovraScreenCaptureModule : Module() {
           promise.reject(CodedException("PERMISSION_DENIED", "Screen capture consent was not granted.", null))
           return@OnActivityResult
         }
-        ScreenCaptureService.start(ctx!!, payload.resultCode, payload.data!!, pendingMaxFrames) { started ->
-          promise.resolve(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "maxFrames" to pendingMaxFrames))
-        }
+        ScreenCaptureService.start(
+          ctx!!, payload.resultCode, payload.data!!, pendingMaxFrames,
+          onStarted = { started ->
+            promise.resolve(mapOf("osConsentGranted" to true, "captureStartedAtUtc" to started, "maxFrames" to pendingMaxFrames))
+          },
+          onStartFailed = { code, message -> promise.reject(CodedException(code, message, null)) },
+        )
       }
+    }
+  }
+
+  private fun bindContinuousCallbacks() {
+    ContinuousScreenCaptureService.onSegment = { seg -> sendEvent("onScreenSegment", seg) }
+    ContinuousScreenCaptureService.onStopped = { js ->
+      continuousStopPromise?.resolve(js); continuousStopPromise = null
+      sendEvent("onScreenContinuousStopped", js)
     }
   }
 

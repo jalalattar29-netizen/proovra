@@ -17,8 +17,10 @@
  *   4. Delegate to `completeDirectCapture`, which recomputes every part digest
  *      (including the manifest part) against the declarations, seals through the
  *      canonical `completeEvidence`, and emits exactly one CAPTURE_SESSION_BOUND.
- *   5. ONLY after the seal succeeds, class the manifest part CAPTURE_MANIFEST —
- *      so the label can never sit on an unsealed/failed record (UC-1 §4.6).
+ *   5. UC-AND-008 — the manifest part is classed CAPTURE_MANIFEST BEFORE the
+ *      seal (ET-DC-11): a relabel after the seal mutated a signed record, and a
+ *      failure between the two left the manifest classed as an original frame.
+ *      The validated manifest facts are recorded with it (UC-PROV-003).
  *
  * The app cannot grant itself DIRECT_SCREEN_CAPTURE_ANDROID: the mode lives on
  * the server-issued session, and this path refuses a session of any other mode.
@@ -26,6 +28,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import {
+  screenCaptureManifestFacts,
   validateScreenCaptureManifest,
   type ScreenCaptureManifest,
 } from "@proovra/shared";
@@ -35,9 +38,9 @@ import {
   completeDirectCapture,
   DirectCaptureError,
   loadOwnedDirectCaptureSession,
-  readPartDeclarations,
   sha256HexOf,
   type CompleteDirectCaptureResult,
+  type DirectCaptureSealPlanner,
 } from "./direct-capture-ingest.service.js";
 
 export type CompleteScreenCaptureInput = {
@@ -81,61 +84,67 @@ export async function completeScreenCaptureSession(
   }
   const manifest: ScreenCaptureManifest = validation.manifest;
 
-  // 2. The manifest bytes must have been uploaded and declared: its own digest
-  //    must equal a declared part. That part is the CAPTURE_MANIFEST part.
   const manifestDigest = sha256HexOf(input.manifestJson);
-  const declarations = await readPartDeclarations(db, session);
-  let manifestPartIndex = -1;
-  for (const d of declarations.values()) {
-    if (d.sha256 === manifestDigest) {
-      manifestPartIndex = d.partIndex;
-      break;
-    }
-  }
-  if (manifestPartIndex < 0) {
-    throw new DirectCaptureError("SCREEN_MANIFEST_DIGEST_UNDECLARED");
-  }
 
-  // 3. Cross-check: manifest artifacts <-> declared parts (excluding the manifest
-  //    part), 1:1 on partIndex + digest. Neither may omit or invent a frame.
-  const declaredByIndex = new Map<number, string>();
-  for (const d of declarations.values()) {
-    if (d.partIndex === manifestPartIndex) continue;
-    declaredByIndex.set(d.partIndex, d.sha256);
-  }
-  const manifestByIndex = new Map<number, string>();
-  for (const a of manifest.artifacts) {
-    if (a.partIndex === manifestPartIndex) {
-      // The manifest must not list itself as one of its own frames.
+  // Run by completeDirectCapture UNDER the session lock, against the exact
+  // declaration snapshot the seal hashes (a declaration cannot land between
+  // this cross-check and the bind).
+  const plan: DirectCaptureSealPlanner = async ({ declarations }) => {
+    // 2. The manifest bytes must have been uploaded and declared: its own digest
+    //    must equal a declared part. That part is the CAPTURE_MANIFEST part.
+    let manifestPartIndex = -1;
+    for (const d of declarations.values()) {
+      if (d.sha256 === manifestDigest) {
+        manifestPartIndex = d.partIndex;
+        break;
+      }
+    }
+    if (manifestPartIndex < 0) {
+      throw new DirectCaptureError("SCREEN_MANIFEST_DIGEST_UNDECLARED");
+    }
+
+    // 3. Cross-check: manifest artifacts <-> declared parts (excluding the
+    //    manifest part), 1:1 on partIndex + digest. Neither may omit or invent.
+    const declaredByIndex = new Map<number, string>();
+    for (const d of declarations.values()) {
+      if (d.partIndex === manifestPartIndex) continue;
+      declaredByIndex.set(d.partIndex, d.sha256);
+    }
+    const manifestByIndex = new Map<number, string>();
+    for (const a of manifest.artifacts) {
+      if (a.partIndex === manifestPartIndex) {
+        // The manifest must not list itself as one of its own artifacts.
+        throw new DirectCaptureError("SCREEN_MANIFEST_ARTIFACT_MISMATCH");
+      }
+      manifestByIndex.set(a.partIndex, a.expectedSha256.toLowerCase());
+    }
+    if (manifestByIndex.size !== declaredByIndex.size) {
       throw new DirectCaptureError("SCREEN_MANIFEST_ARTIFACT_MISMATCH");
     }
-    manifestByIndex.set(a.partIndex, a.expectedSha256.toLowerCase());
-  }
-  if (manifestByIndex.size !== declaredByIndex.size) {
-    throw new DirectCaptureError("SCREEN_MANIFEST_ARTIFACT_MISMATCH");
-  }
-  for (const [idx, digest] of declaredByIndex) {
-    if (manifestByIndex.get(idx) !== digest) {
-      throw new DirectCaptureError("SCREEN_MANIFEST_ARTIFACT_MISMATCH");
+    for (const [idx, digest] of declaredByIndex) {
+      if (manifestByIndex.get(idx) !== digest) {
+        throw new DirectCaptureError("SCREEN_MANIFEST_ARTIFACT_MISMATCH");
+      }
     }
-  }
+    // 4. UC-AND-008 — the manifest part is classed CAPTURE_MANIFEST BEFORE the
+    //    seal (completeDirectCapture does it for every manifest-sealed mode):
+    //    relabelling a part of a sealed record changed it after its fingerprint
+    //    was signed, and a failure between the seal and the relabel left the
+    //    manifest classed as an original artifact. UC-PROV-003 — the validated
+    //    manifest facts are recorded with it.
+    return {
+      manifestPartIndex,
+      manifestFacts: screenCaptureManifestFacts(manifest, { manifestSha256: manifestDigest, manifestPartIndex }),
+    };
+  };
 
-  // 4. Seal through the canonical direct-capture completion FIRST. Only a sealed
-  //    record may carry the CAPTURE_MANIFEST label (UC-1 §4.6 hardening).
+  // 5. Seal through the canonical direct-capture completion.
   const result = await completeDirectCapture({
     prisma: db,
     sessionId: input.sessionId,
     ownerUserId: input.ownerUserId,
     now: input.now,
+    plan,
   });
-
-  // 5. Class the manifest part now that the record is sealed. Its bytes were
-  //    already verified against the declared digest by completeEvidence, so this
-  //    is a label on a sealed record, not a trust grant on an unsealed one.
-  await db.evidencePart.updateMany({
-    where: { evidenceId: result.evidenceId, partIndex: manifestPartIndex },
-    data: { artifactClass: "CAPTURE_MANIFEST" },
-  });
-
-  return { ...result, manifestPartIndex };
+  return { ...result, manifestPartIndex: result.manifestPartIndex ?? -1 };
 }

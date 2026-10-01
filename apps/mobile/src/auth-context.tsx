@@ -10,6 +10,7 @@ import {
   type BootEvent,
 } from "./bootstrap/bootstrap-machine";
 import * as SecureStore from "expo-secure-store";
+import { setCaptureSessionOwner } from "./capture/capture-session-store";
 
 type AuthUser = { id: string; email?: string | null; displayName?: string | null };
 
@@ -138,6 +139,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })();
   }, [restoreSession, dispatchBoot]);
+
+  // UC-AND-006 — the durable capture-session store is scoped to THIS user:
+  // bound when the user is known, unbound the moment they are not.
+  // Bound during render (an idempotent module assignment), not in an effect:
+  // a child's mount effect — the Capture screen reading its durable record —
+  // runs BEFORE this provider's effects in the same commit.
+  setCaptureSessionOwner(user?.id ?? null);
 
   // Boot phase + readiness are DERIVED from the machine — one authority.
   const bootPhase: BootPhase = bootState.phase;

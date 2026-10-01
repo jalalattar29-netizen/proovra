@@ -89,12 +89,49 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let app: IntegrationHarness["app"];
   let originalBilling: Record<string, unknown> | null = null;
+  /**
+   * UC-ARCH-001 — only the extension's own capture.direct-scoped credential may
+   * open a DIRECT_WEB_CAPTURE_EXTENSION session (an ordinary token is refused
+   * MODE_NOT_ALLOWED_FOR_CREDENTIAL), so this suite captures as the extension.
+   */
+  let extensionToken: string;
+  const provisionedPolicies: string[] = [];
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
     harness = await bootIntegrationHarness();
     ({ prisma } = await import("../src/db.js"));
     app = harness.app;
+    // UC-SEC-004 — an extension capture is checked against the TARGET
+    // Organization's security policy, and an Organization with no provisioned
+    // policy fails closed (POLICY_NOT_PROVISIONED). Production Organizations
+    // are provisioned; the disposable fixture ones are provisioned here (and
+    // only the rows created here are removed afterwards).
+    for (const fixtureTeamId of [harness.fixtures.teamA.teamId, harness.fixtures.teamB.teamId]) {
+      const t = await prisma.team.findUniqueOrThrow({ where: { id: fixtureTeamId }, select: { organizationId: true } });
+      if (t.organizationId && !(await prisma.organizationSecurityPolicy.findUnique({ where: { organizationId: t.organizationId } }))) {
+        await prisma.organizationSecurityPolicy.create({ data: { organizationId: t.organizationId } });
+        provisionedPolicies.push(t.organizationId);
+      }
+    }
+    const { signJwt } = await import("../src/services/jwt.js");
+    const { EXTENSION_CAPTURE_SCOPE } = await import("../src/services/auth/extension-scope.js");
+    const ownerRow = await prisma.user.findUniqueOrThrow({
+      where: { id: harness.fixtures.teamA.ownerUserId },
+      select: { email: true },
+    });
+    extensionToken = signJwt(
+      {
+        sub: harness.fixtures.teamA.ownerUserId,
+        provider: "EMAIL",
+        email: ownerRow.email,
+        authMethod: "PASSWORD",
+        authAt: Math.floor(Date.now() / 1000),
+        scope: EXTENSION_CAPTURE_SCOPE,
+      } as never,
+      process.env.AUTH_JWT_SECRET!,
+      3600,
+    );
     // The fixture workspace has no paid plan; the commercial gate refuses
     // capture in it. Give it one for this suite; restored in afterAll.
     const team = await prisma.team.findUniqueOrThrow({
@@ -109,6 +146,9 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
   }, 600_000);
 
   afterAll(async () => {
+    for (const organizationId of provisionedPolicies) {
+      await prisma.organizationSecurityPolicy.delete({ where: { organizationId } }).catch(() => undefined);
+    }
     if (harness && originalBilling) {
       await prisma.team
         .update({ where: { id: harness.fixtures.teamA.teamId }, data: originalBilling as never })
@@ -158,7 +198,7 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
 
   /** Stage a full web capture up to (but not including) /web-complete. */
   async function stageWebCapture(opts: { omitDomFromManifest?: boolean; badSessionInManifest?: boolean } = {}) {
-    const token = owner().ownerToken;
+    const token = extensionToken;
     const open = await call("POST", "/v1/capture/direct-sessions", token, {
       mode: "DIRECT_WEB_CAPTURE_EXTENSION",
       teamId: owner().teamId,
@@ -244,14 +284,16 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
     expect(bound).toBe(1);
 
     // The library projection + acquisition filter use the one authority.
-    const list = await call("GET", `/v1/evidence?scope=all&acquisition=DIRECT_WEB_CAPTURE&limit=50`, token);
+    // The library is read with the owner's ordinary session (a scoped extension
+    // token reaches only the capture routes).
+    const list = await call("GET", `/v1/evidence?scope=all&acquisition=DIRECT_WEB_CAPTURE&limit=50`, owner().ownerToken);
     expect(list.statusCode, list.body).toBe(200);
     const items = (list.json().items ?? []) as Array<{ id: string; acquisition?: { mode: string; category: string } }>;
     const mine = items.find((x) => x.id === evidenceId);
     expect(mine?.acquisition?.mode).toBe("DIRECT_WEB_CAPTURE_EXTENSION");
     expect(mine?.acquisition?.category).toBe("DIRECT_WEB_CAPTURE");
     // It does not appear under a different acquisition filter.
-    const uploadOnly = await call("GET", `/v1/evidence?scope=all&acquisition=UPLOAD&limit=50`, token);
+    const uploadOnly = await call("GET", `/v1/evidence?scope=all&acquisition=UPLOAD&limit=50`, owner().ownerToken);
     expect(((uploadOnly.json().items ?? []) as Array<{ id: string }>).some((x) => x.id === evidenceId)).toBe(false);
 
     // Idempotent re-complete returns the same binding, mints no second bind.
@@ -345,6 +387,7 @@ describe("UC-1 direct web capture — live PostgreSQL 16", () => {
       teamId: owner().teamId,
       deviceId: null,
     });
-    expect([400, 422]).toContain(forged.statusCode);
+    // UC-TQ-005 — pinned: the mode enum refuses it before any service runs.
+    expect(forged.statusCode, forged.body).toBe(400);
   });
 });

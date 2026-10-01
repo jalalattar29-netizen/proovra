@@ -19,6 +19,19 @@
  *
  *   GET    /v1/provenance/:evidenceId                — bounded ProvenanceChain projection
  *
+ * UC-ARCH-007 (2026-09-30) — SHIPPED CLIENTS vs SERVER-ONLY SURFACES. No
+ * PROOVRA client registers a capture device (POST /v1/capture/devices),
+ * submits a platform attestation (…/:id/attestation) or reads a trust
+ * timeline (GET /v1/capture/sessions/:id/trust-timeline): the mobile app opens
+ * UNBOUND sessions and declares every part unsigned (`signed: null`), the
+ * extension sends `deviceId: null`, and the web only LISTS and REVOKES
+ * devices (Security Center). Those three routes are therefore server-only,
+ * de-scoped capabilities — kept because device binding is the designed
+ * authority for a device-established acquisition mode (UC-ARCH-001) and their
+ * fail-closed contracts are integration-tested — and no surface may claim
+ * device-signed or attested capture until a client ships them.
+ * test/capture-trust-client-surfaces.test.ts proves the absence of callers.
+ *
  * Hard rules:
  *   * Device registry and read routes require a workspace context (teamId);
  *     personal-space callers receive a bounded 403.
@@ -40,6 +53,7 @@ import {
   CAPTURE_PROVENANCE_CLASSES,
   CAPTURE_SIGNATURE_ALGORITHMS,
   DEVICE_ATTESTATION_PROVIDERS,
+  MAX_EVIDENCE_PARTS,
   type CaptureSignaturePayload,
 } from "@proovra/shared";
 import * as prismaPkg from "@prisma/client";
@@ -76,6 +90,7 @@ import { projectProvenanceChain } from "../services/capture-trust/provenance-pro
 import { readCaptureTrustTimeline } from "../services/capture-trust/trust-event.service.js";
 import { ensurePersonalWorkspace } from "../services/platform-context/workspace-bootstrap.service.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
+import { evaluateExtensionCaptureTargetPolicy } from "../services/auth/extension-scope.js";
 
 // =============================================================================
 // Zod input schemas
@@ -159,6 +174,10 @@ const OpenDirectSessionBody = z
     // Omitted = the caller's personal workspace (resolved server-side).
     teamId: z.string().uuid().optional(),
     deviceId: z.string().uuid().nullable().optional(),
+    // UC-EXT-010 — file the sealed record into this case. Authorized at open
+    // and again at seal by the canonical case-link authority; linked in the
+    // same transaction as the bind.
+    caseId: z.string().uuid().nullable().optional(),
   })
   .strict();
 
@@ -225,9 +244,10 @@ const ContinuousCompleteBody = z
     manifestJson: z.string().min(2).max(512 * 1024),
   })
   .strict();
+// UC-STR-001 — THE part bound (@proovra/shared capture-limits), not a literal.
 const PartParams = z.object({
   id: z.string().uuid(),
-  partIndex: z.coerce.number().int().min(0).max(199),
+  partIndex: z.coerce.number().int().min(0).max(MAX_EVIDENCE_PARTS - 1),
 });
 
 const DIRECT_SESSION_OPEN_LIMIT_PER_MIN = 30;
@@ -384,12 +404,41 @@ export async function captureTrustRoutes(app: FastifyInstance) {
       const teamId = await authorizeDirectCapture(req, reply, candidateTeamId, userId);
       if (!teamId) return reply;
 
+      // UC-SEC-004 — an extension token is anchored to the workspace of the
+      // session that authorized it; a capture names its own TARGET, which can
+      // be another Organization. Its policy (mandatory SSO, lifecycle, session
+      // policy) must accept THIS token's authentication too. No-op for
+      // ordinary tokens. Fail closed: an unanswerable policy read is a 503.
+      let targetPolicy: { allowed: boolean; reason?: string };
+      try {
+        targetPolicy = await evaluateExtensionCaptureTargetPolicy({
+          user: {
+            sub: userId,
+            tokenScope: req.user?.tokenScope ?? null,
+            authMethod: req.user?.authMethod ?? null,
+            authAt: req.user?.authAt ?? null,
+            ssoConnId: req.user?.ssoConnId ?? null,
+          },
+          teamId,
+        });
+      } catch (err) {
+        req.log.warn({ err, teamId }, "capture.target_policy_unavailable");
+        return reply.code(503).send({ denial: "CAPTURE_POLICY_UNAVAILABLE" });
+      }
+      if (!targetPolicy.allowed) {
+        return reply.code(401).send({ denial: "REAUTHENTICATION_REQUIRED" });
+      }
+
       try {
         const opened = await openDirectCaptureSession({
           ownerUserId: userId,
           teamId,
           mode: body.mode,
           deviceId: body.deviceId ?? null,
+          // UC-ARCH-001 — the credential, not the body, decides which channel
+          // label the session may carry.
+          credentialScope: req.user?.tokenScope ?? null,
+          caseId: body.caseId ?? null,
         });
         return reply.code(201).send({ session: opened });
       } catch (err) {
@@ -453,6 +502,9 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         });
         return reply.code(out.created ? 201 : 200).send({
           declaration: out.declaration,
+          // UC-STR-003 — the server's (slid) session expiry, so a client's
+          // durable record never judges a live session stale.
+          session: { expiresAtUtc: out.sessionExpiresAtUtc },
         });
       } catch (err) {
         return sendDirectCaptureError(reply, err);

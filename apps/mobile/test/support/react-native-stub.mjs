@@ -70,7 +70,33 @@ export const StyleSheet = {
   absoluteFillObject: {},
 };
 
-export const Platform = { OS: "ios", select: (o) => o.ios ?? o.default };
+// A test can switch the platform with globalThis.__RN_OS__ ("ios" | "android")
+// and the API level with globalThis.__RN_VERSION__ (read on every access).
+export const Platform = {
+  get OS() {
+    return globalThis.__RN_OS__ ?? "ios";
+  },
+  get Version() {
+    return globalThis.__RN_VERSION__ ?? (this.OS === "android" ? 34 : "17.5");
+  },
+  select(o) {
+    return o[this.OS] ?? o.default;
+  },
+};
+// Every runtime permission request is recorded on globalThis.__PERMISSION_REQUESTS__;
+// the answer is globalThis.__PERMISSION_RESULT__ (default "granted").
+export const PermissionsAndroid = {
+  PERMISSIONS: { POST_NOTIFICATIONS: "android.permission.POST_NOTIFICATIONS" },
+  RESULTS: { GRANTED: "granted", DENIED: "denied", NEVER_ASK_AGAIN: "never_ask_again" },
+  check: async (permission) => {
+    (globalThis.__PERMISSION_CHECKS__ ??= []).push(permission);
+    return globalThis.__PERMISSION_ALREADY_GRANTED__ === true;
+  },
+  request: async (permission) => {
+    (globalThis.__PERMISSION_REQUESTS__ ??= []).push(permission);
+    return globalThis.__PERMISSION_RESULT__ ?? "granted";
+  },
+};
 export const Dimensions = { get: () => ({ width: 390, height: 844 }), addEventListener: () => ({ remove() {} }) };
 // Every opened URL is recorded on globalThis.__LINKING_OPENED__ so a test can assert what left the app.
 export const Linking = {
@@ -99,7 +125,7 @@ export default {
   View, Text, Pressable, ScrollView, TextInput, Image, Switch, ActivityIndicator,
   Modal, KeyboardAvoidingView, SafeAreaView, FlatList, StyleSheet, Platform,
   Dimensions, Linking, Alert, useWindowDimensions, useColorScheme, I18nManager,
-  Appearance, RefreshControl, Share,
+  Appearance, RefreshControl, Share, PermissionsAndroid,
 };
 
 /**

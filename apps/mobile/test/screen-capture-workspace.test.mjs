@@ -46,10 +46,19 @@ const DIRECT_CAPTURE_STUB = dataUrl(`
 const RN_STUB = dataUrl(`export const Platform = { OS: "android" };`);
 const FS_STUB = dataUrl(`export const getInfoAsync = async () => ({ exists: true, size: 1 }); export const deleteAsync = async () => {};`);
 const SHARED_STUB = dataUrl(`export const SCREEN_CONTINUOUS_STREAM_BOUNDS = {};`);
+// The pure manifest builder (src/continuous-manifest.ts) is not what this file tests.
+const MANIFEST_STUB = dataUrl(`
+  export const SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION = "V2";
+  export const buildContinuousManifest = () => ({});
+  export const reconcileContinuousUploads = () => ({ manifestPartIndex: 0 });
+  export const deriveSessionCompleteness = () => "COMPLETE_SESSION";
+  export class ContinuousManifestError extends Error {}
+`);
 
 const load = async (file) => {
   const src = compile(file)
     .replace(/from ["']\.\/direct-capture["']/g, `from "${DIRECT_CAPTURE_STUB}"`)
+    .replace(/from ["']\.\/continuous-manifest["']/g, `from "${MANIFEST_STUB}"`)
     .replace(/from ["']react-native["']/g, `from "${RN_STUB}"`)
     .replace(/from ["']expo-file-system["']/g, `from "${FS_STUB}"`)
     .replace(/from ["']@proovra\/shared["']/g, `from "${SHARED_STUB}"`);

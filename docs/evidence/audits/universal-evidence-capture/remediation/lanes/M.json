@@ -1,0 +1,1292 @@
+{
+  "lane": "M",
+  "findings": {
+    "UC-STR-001": {
+      "decision": "Created packages/shared/src/capture-limits.ts as THE bound (MAX_EVIDENCE_PARTS=200, maxContinuousSegments=199 = parts-1 for the manifest, session ms/bytes, segment ms window). The part writer re-exports it, the declaration route's PartParams uses MAX_EVIDENCE_PARTS-1, the continuous stream/manifest bounds derive from it, and Kotlin (MAX_SEGMENTS etc.) and Swift (maxSegmentsLimit / ProovraBroadcastLimits) carry it by value, pinned by a parser test. A continuous staging failure no longer discards a session whose segments are verified (it returns to review with a retry).",
+      "red": {
+        "test": "apps/mobile/test/capture-limits-native-sync.test.mjs::Kotlin carries THE capture limits by value",
+        "command": "node --test test/capture-limits-native-sync.test.mjs (against HEAD native files)",
+        "observed": "MAX_SEGMENTS not found / SampleHandler.maxSegmentsLimit not found; shared validator accepted maxSegments 600 (packages/shared probe)"
+      },
+      "green": {
+        "tests": [
+          "packages/shared/tests/screen-continuous-completeness.test.mjs::UC-STR-001: one bound",
+          "apps/mobile/test/capture-limits-native-sync.test.mjs (3)",
+          "services/api/test/uc3-continuous-completeness.integration.test.ts::UC-STR-001 the part bound is THE shared one"
+        ],
+        "command": "node --test ...; vitest integration",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/capture-limits.ts",
+        "packages/shared/src/index.ts",
+        "packages/shared/src/screen-continuous-manifest.ts",
+        "services/api/src/services/evidence/evidence-part-writer.service.ts",
+        "services/api/src/routes/capture-trust.routes.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "apps/mobile/modules/proovra-screen-capture/index.ts",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift",
+        "apps/mobile/app/(stack)/continuous-capture.tsx",
+        "apps/mobile/src/continuous-capture.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "continuous sessions stop at 199 segments with SESSION_BOUNDS_REACHED",
+        "api": "part index bound from shared",
+        "worker": "none",
+        "mobile": "JS/Kotlin/Swift clamp 199",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy; native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device recording past 199 segments on Android/iOS",
+      "status": "FIXED"
+    },
+    "UC-STR-002": {
+      "decision": "Continuity manifest V2: REQUIRED recordedSegmentCount, partIndex===sequence, duplicate-sequence refusal, head/tail coverage for COMPLETE, SEGMENT_UPLOAD_LOST/SEGMENT_WRITE_FAILED/BROADCAST_PAUSED limitations that forbid COMPLETE, gaps only as INTERRUPTED+SEGMENT_UPLOAD_LOST. Server seal restructured per lead review into three steps, no transaction open while hashing (ET-ACQ-04): (A) short tx under the capture-session advisory lock loads the session + declarations, runs the mode planner against that exact snapshot (declared SCREEN_SEGMENT parts are the authoritative expected set; manifest part must follow them), passes governance, and CLAIMS the session (status stays ACTIVE, endReason = CAPTURE_SEAL_CLAIM.endReason 'SEAL_IN_PROGRESS', claim timestamp = updatedAt; lease 10 min, in packages/shared capture-limits.ts); (B) outside any transaction: manifest classing, manifest facts, storage size checks, completeEvidence with the claimed declaration snapshot as expectedSha256ByPartIndex (refuses any part set differing from the plan); (C) short tx under the lock binds claim -> BOUND with final endReason + case link in one commit. While a claim is live, declarations, reserve, discard and other seals answer SESSION_BUSY (409, retryable); a failed non-terminal hash releases the claim back to ACTIVE; a terminal digest refusal interrupts; a stale claim is reclaimed by the next seal, cleared by a declaration, and released by the capture reaper (which never expires a session under a live claim). The client reconciles recorded vs declared via the pure src/continuous-manifest.ts.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::seal racing a final declaration (vs HEAD server) + shared probe",
+        "command": "vitest integration with HEAD server files swapped in; node probe on HEAD dist",
+        "observed": "round 0: seal 200 AND decl 201 both succeeded; V1 validator: missing tail (3 of 4) -> ok:true"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/uc3-continuous-completeness.integration.test.ts (missing last, missing middle, duplicate sequence, same sequence different digest, seal racing declaration, repeated seal, interrupted)",
+          "packages/shared/tests/screen-continuous-completeness.test.mjs (12)",
+          "apps/mobile/test/continuous-reconcile.test.mjs",
+          "apps/mobile/test/continuous-capture-screen.render.test.mjs::recorded 3, none declared",
+          "uc3-continuous-completeness.integration.test.ts::a seal hashes OUTSIDE any transaction: a failed hash releases its claim and the retry seals",
+          "uc3-continuous-completeness.integration.test.ts::a LIVE seal claim refuses declarations, discards and other seals (SESSION_BUSY); a STALE one is reclaimed",
+          "uc3-continuous-completeness.integration.test.ts::the capture reaper releases a STALE seal claim and never expires a session under a LIVE one"
+        ],
+        "command": "TEST_DATABASE_URL=...m_test ... npx vitest run --config vitest.integration.config.ts test/uc3-continuous-completeness.integration.test.ts (4 consecutive runs green)",
+        "result": "19 passed (suite); owned integration set 121 passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/screen-continuous-manifest.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts",
+        "apps/mobile/src/continuous-manifest.ts",
+        "apps/mobile/src/continuous-capture.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx",
+        "packages/shared/src/capture-limits.ts",
+        "services/worker/src/capture-reaper.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "review shows interrupted when segments were lost",
+        "api": "seal = claim tx / hash outside tx / bind tx; SESSION_BUSY 409 while a seal is in progress; no long-held transaction",
+        "worker": "capture reaper releases stale seal claims, skips live ones",
+        "mobile": "V2 manifest, reconciliation",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy; native build (V1 manifests refused)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-STR-003": {
+      "decision": "The declaration route returns session.expiresAtUtc (the slid server expiry); the mobile handle adopts later expiries (adoptServerSessionExpiry) and staging persists that value into the durable record.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::UC-STR-003",
+        "command": "vitest integration vs HEAD server",
+        "observed": "declaration body had no session.expiresAtUtc"
+      },
+      "green": {
+        "tests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-STR-003 a declaration answers the server's slid session expiry",
+          "apps/mobile/test/continuous-reconcile.test.mjs::UC-STR-003"
+        ],
+        "command": "vitest / node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/capture-trust.routes.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "apps/mobile/src/direct-capture.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "declaration response gains session.expiresAtUtc (additive)",
+        "worker": "none",
+        "mobile": "durable record keeps slid expiry",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api redeploy; native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-STR-004": {
+      "decision": "The continuous screen opens the server session only after the OS confirms recording (Android start resolved / iOS extension `started` event), so refused consent or a cancelled picker leaves nothing. Discard, Try Again, Capture Another, start failures and session-open failures call releaseSession (stop native, delete spool, discardDirectCaptureSession). No reaper change needed (it already shares the session lock).",
+      "red": {
+        "test": "apps/mobile/test/continuous-capture-screen.render.test.mjs::UC-STR-004 (2)",
+        "command": "node --test (HEAD screen swapped in)",
+        "observed": "a session was opened for a recording the OS never started; Discard left the server session open"
+      },
+      "green": {
+        "tests": [
+          "continuous-capture-screen.render.test.mjs::UC-STR-004 a refused OS consent opens no server session",
+          "::Discard from an opened session discards it"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "server discard on every exit",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-STR-006": {
+      "decision": "The bind (step C, short transaction under the session lock) moves the claimed session ACTIVE -> BOUND and writes the FINAL end reason (continuous completeness) in the same UPDATE, with the case link in the same commit; the separate post-seal endReason update is gone. A failure after that commit cannot leave an interrupted recording reading as complete.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::UC-STR-006",
+        "command": "vitest integration vs HEAD server (BOUND emit failure injected)",
+        "observed": "endReason COMPLETED (not CONTINUOUS_INTERRUPTED_SESSION) after a failure following the bind"
+      },
+      "green": {
+        "tests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-STR-006"
+        ],
+        "command": "vitest integration",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "atomic end reason",
+        "worker": "reads correct completeness",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-IOS-001": {
+      "decision": "One device contract (validateContinuousDeviceBlock: 8 keys, positive ints, orientation agrees with dims; iOS densityDpi = UIScreen.scale x 160). SampleHandler writes device{screenW,screenH,densityDpi,orientation} from the first frame's oriented geometry into result.json; ProovraBroadcastResult.toJsMap merges it with app facts (fallback UIScreen.nativeBounds). buildContinuousManifest validates the native device block. Golden fixture apps/mobile/test/fixtures/ios-broadcast-result.json is pinned to the Swift key sets and fed through the real builder, the shared validator, and a real API seal (uc5 suite imports the mobile builder + fixture).",
+      "red": {
+        "test": "apps/mobile/test/ios-broadcast-contract.test.mjs (HEAD Swift) + shared probe",
+        "command": "node --test with HEAD Swift files",
+        "observed": "SampleHandler.writeResult dictionary not found / toJsMap 4 keys; validator: {ok:false,error:'invalid device.screenW'} for the Swift map"
+      },
+      "green": {
+        "tests": [
+          "apps/mobile/test/ios-broadcast-contract.test.mjs (11)",
+          "services/api/test/uc5-ios-screen-capture.integration.test.ts::accepts the DEVICE THE BROADCAST EXTENSION ACTUALLY REPORTS (200 SIGNED)",
+          "::UC-IOS-001: a malformed native device block is refused with the specific validator error"
+        ],
+        "command": "node --test; vitest integration",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/screen-continuous-manifest.ts",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift",
+        "apps/mobile/src/continuous-manifest.ts",
+        "apps/mobile/test/fixtures/ios-broadcast-result.json",
+        "services/api/test/uc5-ios-screen-capture.integration.test.ts"
+      ],
+      "proofKind": "contract-fixture",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS manifests now seal",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "Swift compile + physical iOS device broadcast sealed end to end",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-002": {
+      "decision": "Dedicated app->extension note com.proovra.screencapture.ios.stopRequested; SampleHandler registers a CFNotificationCenter observer (observer = self, removed on teardown), finalises the last segment, writes result.json (USER_STOPPED) and calls finishBroadcastWithError. The module posts that note and waits (bounded 6 s) for result.json before draining and resolving; it no longer posts the `finished` note it observes.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::UC-IOS-002",
+        "command": "node --test (HEAD Swift)",
+        "observed": "no stopRequestNote / observer in SampleHandler"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-002"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "in-app Stop really stops",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "recording stops when the user asks",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: stop in-app -> indicator disappears, USER_STOPPED result, last segment emitted",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-003": {
+      "decision": "Backpressure applies to Android only (shouldStopForBackpressure takes platform; backpressureApplies('ios')=false); the screen drains on AppState 'active' via getContinuousSegments; iOS copy says uploads happen when you return to PROOVRA.",
+      "red": {
+        "test": "apps/mobile/test/continuous-reconcile.test.mjs::UC-IOS-003",
+        "command": "node --test",
+        "observed": "HEAD reducer has no platform parameter: shouldStopForBackpressure(20,0,8) -> true"
+      },
+      "green": {
+        "tests": [
+          "continuous-reconcile.test.mjs::UC-IOS-003"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/src/continuous-capture-flow.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx",
+        "apps/mobile/src/continuous-capture.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "iOS copy",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: 3-minute broadcast in another app, return, all segments uploaded",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-004": {
+      "decision": "Single PTS clock: offset = segmentStartPts - sessionFirstPts, duration = endPts - segmentStartPts; rotation happens BEFORE appending so a segment ends at the next frame's PTS (contiguous); the final segment ends at the last appended PTS (never literal 0); totalDurationMs = lastPts - first. Golden fixture 6s+6s+4s validates COMPLETE; the old rule is refused.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::UC-IOS-004 one PTS clock",
+        "command": "node --test (HEAD Swift)",
+        "observed": "a literal zero duration is back (durationMs: 0)"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-004 (2)",
+          "::the exact Swift result builds a manifest the SERVER validator accepts as COMPLETE"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift"
+      ],
+      "proofKind": "contract-fixture",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "Swift compile + device timing verification",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-005": {
+      "decision": "startContinuousCapture resolves {awaitingSystemStart:true, osConsentGranted:false, captureStartedAtUtc:null}; broadcastStarted writes state.json and posts `started`; the module emits onScreenContinuousStarted; the UI shows 'Waiting for Start Broadcast' and opens the server session only on that event (120 s timeout -> stop, nothing saved). The picker is added (hidden) to the key window.",
+      "red": {
+        "test": "continuous-capture-screen.render.test.mjs::UC-IOS-005",
+        "command": "node --test (HEAD screen)",
+        "observed": "the picker was treated as a start (active shown, session opened)"
+      },
+      "green": {
+        "tests": [
+          "continuous-capture-screen.render.test.mjs::UC-IOS-005",
+          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift",
+        "apps/mobile/modules/proovra-screen-capture/index.ts",
+        "apps/mobile/src/continuous-capture-flow.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "awaiting state",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: cancel picker -> back to intro, no session",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-006": {
+      "decision": "readResult without result.json no longer fabricates: start from state.json (written by the extension), end = start + last sidecar end, duration from sidecars, terminationReason UNKNOWN (new enum value, INTERRUPTED-only), CAPTURE_INTERRUPTED, consent only if a segment exists. state.json has a 5 s heartbeat; getContinuousState reports stale (active=false) after 30 s silence.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::app-side lifecycle",
+        "command": "node --test (HEAD Swift)",
+        "observed": "fallback with startedAtUtc: now"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-006 a missing result is summarised as INTERRUPTED / UNKNOWN",
+          "packages/shared/tests/screen-continuous-completeness.test.mjs::UC-IOS-006"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift",
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift",
+        "packages/shared/src/screen-continuous-manifest.ts"
+      ],
+      "proofKind": "contract-fixture",
+      "impacts": {
+        "ui": "none",
+        "api": "UNKNOWN termination accepted only for INTERRUPTED",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build; api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: extension killed mid-broadcast",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-007": {
+      "decision": "startWriting/canAdd/append/status/finishWriting(+timeout) are checked; a segment that did not complete is deleted, never sidecar-published, and recorded SEGMENT_WRITE_FAILED; a writer failure or <200 MB free stops the broadcast with result ERROR and an explicit storage/save message.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::UC-IOS-007",
+        "command": "node --test (HEAD Swift)",
+        "observed": "no `guard w.startWriting() else`"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-007"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: nearly full storage",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-008": {
+      "decision": "Orientation read per buffer from RPVideoSampleOrientationKey; writer input transform set per segment; an orientation change ends the segment; sidecars state oriented (post-transform) dimensions; change vs initial orientation recorded as ORIENTATION_CHANGED_DURING_CAPTURE.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009",
+        "command": "node --test (HEAD Swift)",
+        "observed": "no CMGetAttachment(... RPVideoSampleOrientationKey"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: rotate mid-broadcast; confirm rotation direction of the .left/.right transform mapping",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-009": {
+      "decision": "broadcastPaused finalises the current segment and records BROADCAST_PAUSED (forces INTERRUPTED); broadcastResumed resumes into a new segment, so the paused gap is visible.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009",
+        "command": "node --test (HEAD Swift)",
+        "observed": "no broadcastPaused override"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009",
+          "screen-continuous-completeness.test.mjs::conflicting terminal state"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/plugins/broadcast-extension/SampleHandler.swift",
+        "packages/shared/src/screen-continuous-manifest.ts"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "BROADCAST_PAUSED limitation",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: incoming call during broadcast",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-010": {
+      "decision": "Live session persisted from open (continuous-session-store, per user) and updated per declared segment; on mount the screen reattaches to a live native recording, offers Recover/Discard when it ended, and Discard for leftover spool (e.g. Control Center broadcast). Swift start refuses PENDING_RECORDING instead of wiping un-uploaded segments; discardContinuousSpool is the explicit discard; getContinuousSegments lists them.",
+      "red": {
+        "test": "continuous-capture-screen.render.test.mjs::UC-AND-004 / UC-IOS-010",
+        "command": "node --test (HEAD screen)",
+        "observed": "remount did not reattach (intro shown)"
+      },
+      "green": {
+        "tests": [
+          "continuous-capture-screen.render.test.mjs::reattaches",
+          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/src/capture/continuous-session-store.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift",
+        "apps/mobile/modules/proovra-screen-capture/index.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "recovery cards",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS+Android",
+        "extension": "none",
+        "security": "orphaned spool now discardable",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: kill app mid-broadcast, relaunch, recover",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-IOS-011": {
+      "decision": "Intro/active copy branches on platform (CONTINUOUS_PLATFORM_COPY): iOS speaks of Apple's picker, DRM content appearing black, status-bar indicator/Control Center, and uploads on return.",
+      "red": {
+        "test": "continuous-capture-screen.render.test.mjs::UC-IOS-011",
+        "command": "node --test (HEAD screen)",
+        "observed": "iOS users are told about Android restrictions"
+      },
+      "green": {
+        "tests": [
+          "continuous-capture-screen.render.test.mjs::UC-IOS-011"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/src/continuous-capture.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "copy",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-IOS-012": {
+      "decision": "ProovraDarwinNotify is a singleton with ONE stable observer token, registers each name once, removes with the same token, guards handlers with a lock; drainSegments is serialised on a dedicated queue.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::app-side lifecycle",
+        "command": "node --test (HEAD Swift)",
+        "observed": "passUnretained(NSObject()) observer identity"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift",
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "Swift unit test on macOS CI",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-AND-003": {
+      "decision": "src/capture/notification-permission.ts requests android.permission.POST_NOTIFICATIONS via PermissionsAndroid on API>=33 before either foreground service starts; a refusal shows what is lost (UC-2: only PROOVRA's own screen; UC-3: stop only in-app) and starts nothing until the user accepts. Manifest/app config unchanged (permission declared in the module manifest).",
+      "red": {
+        "test": "continuous-capture-screen.render.test.mjs + screen-capture-screen.render.test.mjs ::UC-AND-003",
+        "command": "node --test (HEAD screens)",
+        "observed": "no permission request before native start"
+      },
+      "green": {
+        "tests": [
+          "continuous-capture-screen.render.test.mjs::UC-AND-003 (3)",
+          "screen-capture-screen.render.test.mjs::UC-AND-003 (2)"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/src/capture/notification-permission.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx",
+        "apps/mobile/app/(stack)/screen-capture.tsx",
+        "apps/mobile/test/support/react-native-stub.mjs"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "denied-state cards",
+        "api": "none",
+        "worker": "none",
+        "mobile": "Android 13+",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: fresh install Android 13/14, notification actions visible",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-AND-004": {
+      "decision": "Live session persisted at open and per declared segment; Kotlin exposes getContinuousSegments and discardContinuousSpool, and OnCreate re-binds the service's static callbacks to the new module instance; the screen reattaches (no second session) or offers recover/discard/stop-orphan.",
+      "red": {
+        "test": "android-capture-service-contract.test.mjs::UC-AND-004 + render reattach",
+        "command": "node --test (HEAD)",
+        "observed": "no getContinuousSegments; remount did not reattach"
+      },
+      "green": {
+        "tests": [
+          "android-capture-service-contract.test.mjs::UC-AND-004",
+          "continuous-capture-screen.render.test.mjs::reattaches"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt",
+        "apps/mobile/src/capture/continuous-session-store.ts",
+        "apps/mobile/app/(stack)/continuous-capture.tsx"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "recovery",
+        "api": "none",
+        "worker": "none",
+        "mobile": "Android",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: kill UI during recording, relaunch, continue",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-AND-006": {
+      "decision": "Capture store and live-session store are keyed per user (owner bound by AuthProvider; records carry ownerUserId; unattributable v1 key purged). Sign-out runs teardownCaptureOnSignOut BEFORE revoking the token: stop native capture, discard open sessions (live+staged), delete spool files, clear records, unbind owner. Capture.tsx resume waits for the signed-in user.",
+      "red": {
+        "test": "apps/mobile/test/capture-teardown.test.mjs",
+        "command": "node --test",
+        "observed": "HEAD: doLogout had no teardown; single device-wide key"
+      },
+      "green": {
+        "tests": [
+          "capture-teardown.test.mjs (2)",
+          "continuous-reconcile.test.mjs::UC-AND-006 (2)",
+          "capture-parity.render.test.mjs (updated to per-user key)"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/src/capture/capture-session-store.ts",
+        "apps/mobile/src/capture/capture-teardown.ts",
+        "apps/mobile/src/auth-context.tsx",
+        "apps/mobile/app/(tabs)/settings.tsx",
+        "apps/mobile/app/(stack)/capture.tsx",
+        "apps/mobile/test/capture-parity.render.test.mjs"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "discard calls on sign-out",
+        "worker": "none",
+        "mobile": "per-user storage",
+        "extension": "none",
+        "security": "no cross-account capture metadata; recording stops on sign-out",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-AND-007": {
+      "decision": "MediaRecorder.stop() failure is tracked: the file is deleted, SEGMENT_WRITE_FAILED recorded, nothing emitted; a clean stop with an incomplete limitation reports INTERRUPTED.",
+      "red": {
+        "test": "android-capture-service-contract.test.mjs::UC-AND-007",
+        "command": "node --test (HEAD Kotlin)",
+        "observed": "swallowed stop() then segment emitted"
+      },
+      "green": {
+        "tests": [
+          "android-capture-service-contract.test.mjs::UC-AND-007"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt",
+        "packages/shared/src/screen-continuous-manifest.ts"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "SEGMENT_WRITE_FAILED limitation",
+        "worker": "none",
+        "mobile": "Android",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "Kotlin compile + instrumented test of stop() throwing",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-AND-008": {
+      "decision": "Manifest-part classification moved into completeDirectCapture BEFORE completeEvidence for every manifest-sealed mode (UC-1, UC-2, UC-3/5); the post-seal relabel in screen and web services is gone.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::UC-AND-008",
+        "command": "vitest integration vs HEAD server",
+        "observed": "expected 'ORIGINAL' to be 'CAPTURE_MANIFEST'"
+      },
+      "green": {
+        "tests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-AND-008",
+          "uc2/uc1 suites"
+        ],
+        "command": "vitest integration",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/capture-trust/screen-capture.service.ts",
+        "services/api/src/services/capture-trust/web-capture.service.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "no post-seal mutation",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-AND-010": {
+      "decision": "stageScreenCapture measures each frame size before upload and deletes it after its PUT, deletes the manifest file, and deletes all frames on staging failure; the screen deletes frames on Discard/Try Again/Capture Another.",
+      "red": {
+        "test": "screen-capture-screen.render.test.mjs::UC-AND-010 (2)",
+        "command": "node --test (HEAD)",
+        "observed": "no deletions recorded"
+      },
+      "green": {
+        "tests": [
+          "screen-capture-screen.render.test.mjs::UC-AND-010 (2)"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/src/screen-capture.ts",
+        "apps/mobile/app/(stack)/screen-capture.tsx",
+        "apps/mobile/test/support/expo-stub.mjs"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "cache hygiene",
+        "extension": "none",
+        "security": "screenshots not retained",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-AND-011": {
+      "decision": "Frame read/write failures report the new FRAME_CAPTURE_FAILED code; the service never emits SECURE_CONTENT_OMITTED (undetectable on Android). Code added to the shared UC-2 manifest and JS types; header copy corrected.",
+      "red": {
+        "test": "android-capture-service-contract.test.mjs::UC-AND-011",
+        "command": "node --test (HEAD Kotlin)",
+        "observed": "no FRAME_CAPTURE_FAILED"
+      },
+      "green": {
+        "tests": [
+          "android-capture-service-contract.test.mjs::UC-AND-011",
+          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-AND-011"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt",
+        "packages/shared/src/screen-capture-manifest.ts",
+        "apps/mobile/modules/proovra-screen-capture/index.ts"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "new limitation code",
+        "worker": "none",
+        "mobile": "Android",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build; api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "Kotlin compile",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-AND-012": {
+      "decision": "UC-2 service registers a DisplayListener, resizes VirtualDisplay/ImageReader on rotation, labels each frame with its image's real dimensions and records ORIENTATION_CHANGED_DURING_CAPTURE; the shared UC-2 validator refuses mixed-orientation frames without that limitation.",
+      "red": {
+        "test": "android-capture-service-contract.test.mjs::UC-AND-012",
+        "command": "node --test (HEAD Kotlin)",
+        "observed": "no registerDisplayListener()"
+      },
+      "green": {
+        "tests": [
+          "android-capture-service-contract.test.mjs::UC-AND-012",
+          "capture-manifest-facts.test.mjs::UC-AND-012"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt",
+        "packages/shared/src/screen-capture-manifest.ts"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "validator rule",
+        "worker": "none",
+        "mobile": "Android",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build; api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "device: rotate during UC-2 capture",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-AND-013": {
+      "decision": "Both services wrap beginProjection in try/catch and call failStart (release resources, stopSelf, invoke onStartFailed); the module rejects the JS promise with the code.",
+      "red": {
+        "test": "android-capture-service-contract.test.mjs::UC-AND-013",
+        "command": "node --test (HEAD Kotlin)",
+        "observed": "no failStart"
+      },
+      "green": {
+        "tests": [
+          "android-capture-service-contract.test.mjs::UC-AND-013"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt",
+        "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "start failure shows an error",
+        "api": "none",
+        "worker": "none",
+        "mobile": "Android",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "Kotlin compile + null-projection unit test",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-AND-014": {
+      "decision": "Swift AsyncFunction renamed to stopCapture (rejects UNSUPPORTED on iOS); pinned by the iOS contract test alongside the existing Kotlin/JS parity guard.",
+      "red": {
+        "test": "ios-broadcast-contract.test.mjs::app-side lifecycle",
+        "command": "node --test (HEAD Swift)",
+        "observed": "AsyncFunction(\"stop\")"
+      },
+      "green": {
+        "tests": [
+          "ios-broadcast-contract.test.mjs::app-side lifecycle",
+          "native-module-contract.test.mjs"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "iOS",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build (iOS)"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-PROV-010": {
+      "decision": "Review badge is neutral with 'Reported complete by this device — no known interruption' / 'Interrupted — …' and its value is the reconciled completeness (recorded vs declared), not the recorder's claim; success badge says 'reported complete'.",
+      "red": {
+        "test": "continuous-capture-screen.render.test.mjs::UC-PROV-010",
+        "command": "node --test (HEAD)",
+        "observed": "verified tone / 'Complete — no known interruption'"
+      },
+      "green": {
+        "tests": [
+          "continuous-capture-screen.render.test.mjs::UC-PROV-010 / UC-STR-002"
+        ],
+        "command": "node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "apps/mobile/app/(stack)/continuous-capture.tsx",
+        "apps/mobile/src/continuous-capture.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "neutral badge",
+        "api": "none",
+        "worker": "none",
+        "mobile": "copy",
+        "extension": "none",
+        "security": "none",
+        "deployment": "native build"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-TQ-005": {
+      "decision": "Pinned exact status+denial: uc5 platform case now uploads the forged manifest as the declared part (422 CONTINUOUS_MANIFEST_INVALID from the platform gate only, plus an android-on-iOS case); uc3/uc5 stored-bytes tamper uses same-length bytes and pins 409 CAPTURE_DIGEST_MISMATCH; forged-mode cases pin 400; uc0 smuggled-field cases pin 400 INVALID_INPUT.",
+      "red": {
+        "test": "uc5-ios-screen-capture.integration.test.ts (old assertions not.toBe(200))",
+        "command": "source review",
+        "observed": "refusal satisfied by digest mismatch or 5xx"
+      },
+      "green": {
+        "tests": [
+          "uc5-ios-screen-capture.integration.test.ts (11)",
+          "uc3-continuous-capture.integration.test.ts (14)",
+          "uc0-acquisition-capture.integration.test.ts",
+          "uc1-web-capture.integration.test.ts"
+        ],
+        "command": "vitest integration",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/test/uc5-ios-screen-capture.integration.test.ts",
+        "services/api/test/uc3-continuous-capture.integration.test.ts",
+        "services/api/test/uc0-acquisition-capture.integration.test.ts",
+        "services/api/test/uc1-web-capture.integration.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "none"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-ARCH-001": {
+      "decision": "resolveDirectCaptureModeAuthority (direct-capture-ingest) decides from the authenticated credential (req.user.tokenScope): a capture.direct extension token may open ONLY DIRECT_WEB_CAPTURE_EXTENSION (authority EXTENSION_SCOPED_CREDENTIAL) and only it may; any other restricted scope opens nothing. No trustworthy mobile channel fact exists (mobile uses the same AUTH_JWT as web, no client credential, no shipped device registration/attestation), so mobile/screen modes stay open to ordinary tokens but are recorded as modeAuthority CLIENT_DECLARED on CAPTURE_SESSION_STARTED and in the open response — never upgraded; the descriptors already say client-attested. Denial MODE_NOT_ALLOWED_FOR_CREDENTIAL 403.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::UC-ARCH-001",
+        "command": "vitest integration vs HEAD server",
+        "observed": "ordinary token opening DIRECT_WEB_CAPTURE_EXTENSION: expected 201 to be 403"
+      },
+      "green": {
+        "tests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-ARCH-001",
+          "uc1-web-capture.integration.test.ts (now uses a capture.direct token)"
+        ],
+        "command": "vitest integration",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/routes/capture-trust.routes.ts",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts",
+        "services/api/test/uc1-web-capture.integration.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "ordinary tokens refused for extension mode; modeAuthority recorded",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "must use its scoped token (it does)",
+        "security": "channel label no longer forgeable for the extension mode; mobile labelled client-declared",
+        "deployment": "api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-ARCH-007": {
+      "decision": "Proved no shipped client calls POST /v1/capture/devices, …/attestation or trust-timeline (web only lists/revokes devices — valid consumer, kept). De-scoped explicitly rather than deleted: routes annotated SERVER-ONLY (device binding is the future mode authority for UC-ARCH-001, and their fail-closed contracts are tested by other suites); mobile declarations are explicitly unsigned. A guard test fails if a client starts calling them.",
+      "red": {
+        "test": "n/a (absence-of-consumer proof)",
+        "command": "grep across apps/{web,mobile,extension}",
+        "observed": "no callers; Security Center lists devices nothing can register"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/capture-trust-client-surfaces.test.ts (5)"
+        ],
+        "command": "npx vitest run test/capture-trust-client-surfaces.test.ts",
+        "result": "5 passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/capture-trust.routes.ts",
+        "apps/mobile/src/direct-capture.ts",
+        "services/api/test/capture-trust-client-surfaces.test.ts"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "web Security Center copy (cross-lane)",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "none"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-EXT-010": {
+      "decision": "Server half: OpenDirectSessionBody accepts optional caseId; at open THE case-link authority (authorizeCaseEvidenceLink) must allow it and the case must be in the session's workspace (else 404 CASE_NOT_FOUND / 403 CASE_LINK_NOT_PERMITTED); the caseId is recorded on CAPTURE_SESSION_STARTED. At seal it is re-authorized and attachEvidenceToCase runs on the bind's transaction (same commit as ACTIVE->BOUND); result.caseLink reports linked/denial. No migration.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::UC-EXT-010 (2)",
+        "command": "vitest integration vs HEAD server",
+        "observed": "400 Unrecognized key: caseId"
+      },
+      "green": {
+        "tests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-EXT-010 foreign/unknown case 404",
+          "::linked in the same transaction as the bind"
+        ],
+        "command": "vitest integration",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/capture-trust.routes.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "caseId on open; caseLink in seal result",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "popup must send caseId (lane E)",
+        "security": "case access re-checked at seal",
+        "deployment": "api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-PROV-003": {
+      "decision": "Persistence half: at seal (UC-1, UC-2, UC-3/5) the validated manifest facts — source URL (private), domain, title (private), browser/app/extension version, OS/model, client capture window, completeness, reportedComplete, page-mutated, limitations, recorded/listed counts, end reason — are written as a CAPTURE_ARTIFACT_RECEIVED trust event (stage manifest_facts, evidenceId null so the URL never enters custody payloads) BEFORE the bind, so the BOUND chain head covers them; deduped by manifest digest. Shared projection: CaptureManifestFacts + readCaptureManifestFacts / selectCaptureManifestFacts(events,{manifestSha256}) / publicCaptureManifestFacts (domain only) in packages/shared/src/web-capture-manifest.ts. Wiring into loadProvenanceChain is a cross-lane request.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::UC-PROV-003",
+        "command": "vitest integration vs HEAD server",
+        "observed": "expected null not to be null (no facts persisted)"
+      },
+      "green": {
+        "tests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-PROV-003 (facts persisted, before bind, not in custody)",
+          "packages/shared/tests/capture-manifest-facts.test.mjs (4 PROV tests)"
+        ],
+        "command": "vitest integration; node --test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/web-capture-manifest.ts",
+        "packages/shared/src/screen-capture-manifest.ts",
+        "packages/shared/src/screen-continuous-manifest.ts",
+        "services/api/src/services/capture-trust/direct-capture-ingest.service.ts",
+        "services/api/src/services/capture-trust/web-capture.service.ts",
+        "services/api/src/services/capture-trust/screen-capture.service.ts",
+        "services/api/src/services/capture-trust/continuous-capture.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "lane T renders",
+        "api": "one extra trust event per seal",
+        "worker": "can read via selectCaptureManifestFacts",
+        "mobile": "none",
+        "extension": "none",
+        "security": "private URL kept out of custody/public projection",
+        "deployment": "api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-SEC-004": {
+      "decision": "Lead cross-lane item: POST /v1/capture/direct-sessions calls evaluateExtensionCaptureTargetPolicy after workspace authorization; allowed:false -> 401 REAUTHENTICATION_REQUIRED; a throw -> 503 CAPTURE_POLICY_UNAVAILABLE (logged), never allow. No-op for ordinary tokens.",
+      "red": {
+        "test": "uc3-continuous-completeness.integration.test.ts::UC-SEC-004",
+        "command": "vitest integration",
+        "observed": "before wiring: target org's ssoRequired ignored for capture open"
+      },
+      "green": {
+        "tests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-SEC-004 (refused under SSO mandate; anchor workspace opens; lifted mandate opens)"
+        ],
+        "command": "vitest integration",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/capture-trust.routes.ts",
+        "services/api/test/uc3-continuous-completeness.integration.test.ts",
+        "services/api/test/uc1-web-capture.integration.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "extension capture refused where target org policy refuses; unprovisioned org policy -> 503",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "must reauthenticate",
+        "security": "target-org policy enforced",
+        "deployment": "api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-EXT-004": {
+      "decision": "Lead cross-lane item: new web limitation code DOM_SNAPSHOT_MISSING; validateWebCaptureManifest refuses completeness CAPTURED with any limitation ('a capture with limitations cannot be CAPTURED (use PARTIAL)'). Extension suite (85) still green.",
+      "red": {
+        "test": "capture-manifest-facts.test.mjs::UC-EXT-004",
+        "command": "node --test",
+        "observed": "code absent; CAPTURED+limitations accepted"
+      },
+      "green": {
+        "tests": [
+          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-EXT-004",
+          "pnpm --filter @proovra/extension test (85)"
+        ],
+        "command": "node --test; pnpm test",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/web-capture-manifest.ts",
+        "packages/shared/tests/capture-manifest-facts.test.mjs"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "stricter web manifest",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "emit DOM_SNAPSHOT_MISSING with PARTIAL",
+        "security": "none",
+        "deployment": "api redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    }
+  },
+  "crossLaneRequests": [
+    {
+      "finding": "UC-PROV-003",
+      "file": "packages/shared-runtime/src/capture-trust/provenance-chain.ts (+ ProvenanceChain type in packages/shared/src/capture-trust.ts)",
+      "change": "In loadProvenanceChain add `captureManifestFacts: selectCaptureManifestFacts(trustEvents, { manifestSha256: <sha256 of the evidence's CAPTURE_MANIFEST part> })` (the session trust events are already loaded) and expose `publicCaptureManifestFacts(...)` on public projections. Lane T should READ `selectCaptureManifestFacts` / `publicCaptureManifestFacts` from @proovra/shared and render with 'reported by the capture client' labelling."
+    },
+    {
+      "finding": "UC-EXT-010",
+      "file": "apps/extension/src/lib/api-client.ts, popup (lane E); services/api/src/services/auth/extension-scope.ts",
+      "change": "Send optional `caseId` in POST /v1/capture/direct-sessions; show result.caseLink outcome. If the popup lists cases, add a GET case-list route to the capture.direct allowlist (owner of extension-scope.ts)."
+    },
+    {
+      "finding": "UC-ARCH-007",
+      "file": "apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx; docs/uc6-release-acceptance.md, docs/admin/audits/UC1_DIRECT_WEB_CAPTURE_IMPLEMENTATION.md",
+      "change": "State that no PROOVRA client registers capture devices or submits attestation yet (list stays empty); remove device-signed/attested and case-selection claims from docs until shipped."
+    },
+    {
+      "finding": "UC-SEC-004",
+      "file": "services/api/test/capture-scope-and-draft-authority.integration.test.ts",
+      "change": "Its extension-token control now gets 503 CAPTURE_POLICY_UNAVAILABLE because the fixture Organization has no provisioned OrganizationSecurityPolicy (fail-closed by design). Provision the fixture org policy in beforeAll (create if missing, delete afterwards) as done in uc1-web-capture / uc3-continuous-completeness."
+    },
+    {
+      "finding": "UC-STR-002",
+      "file": "docs/evidence/audits/universal-evidence-capture/probes/test/uca-continuous-ios.integration.test.ts",
+      "change": "Probe builds V1 continuity manifests; V1 is now refused (V2 requires recordedSegmentCount). Update or mark historical."
+    }
+  ],
+  "migrationRequests": [],
+  "governanceFollowUps": [
+    "apps/mobile/docs/contract-coverage.md: contract-audit test regenerates it with parseDerivedReview keys changed by another lane's derived-review route; restored to HEAD — lead should regenerate once.",
+    "Capability map / route dispositions: open-session body gains caseId; declaration response gains session.expiresAtUtc; new denials MODE_NOT_ALLOWED_FOR_CREDENTIAL, CASE_NOT_FOUND, CASE_LINK_NOT_PERMITTED, SESSION_BUSY, REAUTHENTICATION_REQUIRED, CAPTURE_POLICY_UNAVAILABLE; new native method getContinuousSegments/discardContinuousSpool and event onScreenContinuousStarted.",
+    "Continuity manifest schemaVersion is now PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2 (V1 refused) — any generated fact file citing V1 needs regeneration.",
+    "Not lane M: services/api/test/uc0-derivative-lifecycle.integration.test.ts 'storage accounting' fails with upsert_failed also on HEAD server code (shared-runtime derived-assets changes by another lane); API typecheck has 2 errors in scripts/dev-populate-investigation.ts (createEvidence return type change by another lane); packages/shared/tests/intake-link-messaging.test.mjs lint error (unused import) not mine.",
+    "Observed once: three back-to-back uc3-continuous-completeness runs returned 500s while another lane was rebuilding shared dist; 5 subsequent runs green.",
+    "SEAL_TRANSACTION_TIMEOUT_MS removed; the seal holds no transaction while hashing. New denial SESSION_BUSY (409) on declaration/reserve/discard/seal while a seal claim is live.",
+    "Not lane M: services/api/test/web-capture-custody-wording.contract.test.ts (pin on evidence.service.ts createEvidence comment) and services/worker/test/custody-capture-presentation.test.ts (pin on worker provenance loader) fail from other lanes' edits."
+  ],
+  "commandsRun": [
+    {
+      "command": "packages/shared: pnpm build && node --test tests/*.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "apps/mobile: node --test (1889 pass; 1 fail = contract-coverage.md regenerated by other lane's route change)",
+      "exit": 1
+    },
+    {
+      "command": "apps/mobile: npx tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "services/api: node --max-old-space-size=6144 tsc --noEmit (0 errors in src/my tests; 2 in scripts/dev-populate-investigation.ts, not mine)",
+      "exit": 2
+    },
+    {
+      "command": "services/worker: tsc --noEmit (src clean)",
+      "exit": 0
+    },
+    {
+      "command": "services/api integration (lane M DB): uc0-acquisition, uc0-discard, uc1-web-capture, uc2, uc3-continuous, uc3-continuous-completeness, uc5, direct-capture-*, capture-reaper-run, capture-trust-chain-concurrency, uc1-extension-oauth(-session), runtime-proof-evidence-capture-a, capture-scope-and-draft-authority -> 120 passed, 1 failed (capture-scope control, cross-lane fixture provisioning)",
+      "exit": 1
+    },
+    {
+      "command": "services/api unit: capture-trust-client-surfaces, phase-1b-mobile-capture-trust, evidence-part-writer-authority + 7 pin suites",
+      "exit": 0
+    },
+    {
+      "command": "pnpm --filter @proovra/extension test (85 pass)",
+      "exit": 0
+    },
+    {
+      "command": "RED runs: same new tests with HEAD versions of server/native/screen files temporarily swapped in (restored after)",
+      "exit": 1
+    },
+    {
+      "command": "services/api integration after seal restructure: 15 owned/adjacent suites",
+      "exit": 0
+    },
+    {
+      "command": "services/worker: tsc --noEmit (src clean); vitest full (1194 pass, 1 fail not lane M)",
+      "exit": 1
+    }
+  ],
+  "migrationNotes": "No migration needed for the seal claim: an ACTIVE capture session's endReason is always NULL, so endReason='SEAL_IN_PROGRESS' on an ACTIVE row unambiguously marks the claim, and CaptureSession.updatedAt (set by the claim write; nothing else writes a claimed row) is its timestamp. If the lead prefers explicit columns, the equivalent hardening is: ALTER TABLE capture_sessions ADD COLUMN seal_claimed_at_utc timestamptz NULL; CREATE INDEX capture_sessions_seal_claim_idx ON capture_sessions (seal_claimed_at_utc) WHERE seal_claimed_at_utc IS NOT NULL; (Prisma: sealClaimedAtUtc DateTime? @map(\"seal_claimed_at_utc\") @db.Timestamptz(6)) — then isLiveSealClaim reads that column instead of endReason/updatedAt."
+}

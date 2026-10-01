@@ -1,0 +1,56 @@
+{
+  "_comment": "UC-IOS-001 / UC-IOS-004 golden fixture. `resultJson` is exactly what SampleHandler.writeResult writes to the App Group container (keys: osConsentGranted, endedAtUtc, segmentCount, totalDurationMs, sessionCompleteness, terminationReason, limitations, startedAtUtc, device{screenW,screenH,densityDpi,orientation}); `sidecars` are the seg-<n>.json files SampleHandler.finalizeSegment writes (PTS clock: offset = segment start - session first frame; duration = next segment start or last frame - segment start). `jsResult` is ProovraBroadcastResult.toJsMap() of that result.json on an iPhone 15 Pro (UIScreen nativeBounds 1179x2556, scale 3 -> densityDpi 480); `jsSegments` are ProovraScreenSegment.toJsMap() of the sidecars. Pinned against the Swift sources by apps/mobile/test/ios-broadcast-contract.test.mjs and sealed through the real API by services/api/test/uc5-ios-screen-capture.integration.test.ts.",
+  "resultJson": {
+    "osConsentGranted": true,
+    "startedAtUtc": "2026-09-30T10:00:00Z",
+    "endedAtUtc": "2026-09-30T10:00:16Z",
+    "segmentCount": 3,
+    "totalDurationMs": 16000,
+    "sessionCompleteness": "COMPLETE_SESSION",
+    "terminationReason": "USER_STOPPED",
+    "limitations": [],
+    "device": {
+      "screenW": 1179,
+      "screenH": 2556,
+      "densityDpi": 480,
+      "orientation": "portrait"
+    }
+  },
+  "sidecars": [
+    { "sequence": 0, "startedAtOffsetMs": 0, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
+    { "sequence": 1, "startedAtOffsetMs": 6000, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
+    { "sequence": 2, "startedAtOffsetMs": 12000, "durationMs": 4000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" }
+  ],
+  "jsResult": {
+    "osConsentGranted": true,
+    "captureStartedAtUtc": "2026-09-30T10:00:00Z",
+    "captureEndedAtUtc": "2026-09-30T10:00:16Z",
+    "device": {
+      "platform": "ios",
+      "osVersion": "18.0",
+      "model": "iPhone",
+      "appVersion": "1.0.0",
+      "screenW": 1179,
+      "screenH": 2556,
+      "densityDpi": 480,
+      "orientation": "portrait"
+    },
+    "totalDurationMs": 16000,
+    "segmentCount": 3,
+    "sessionCompleteness": "COMPLETE_SESSION",
+    "terminationReason": "USER_STOPPED",
+    "limitations": []
+  },
+  "jsSegments": [
+    { "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/seg-0.mp4", "sequence": 0, "startedAtOffsetMs": 0, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
+    { "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/seg-1.mp4", "sequence": 1, "startedAtOffsetMs": 6000, "durationMs": 6000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" },
+    { "uri": "file:///private/var/mobile/Containers/Shared/AppGroup/X/uc5-broadcast/seg-2.mp4", "sequence": 2, "startedAtOffsetMs": 12000, "durationMs": 4000, "widthPx": 1179, "heightPx": 2556, "orientation": "portrait" }
+  ],
+  "legacyV1DeviceBlock": {
+    "_comment": "The device map ProovraBroadcastShared.swift emitted before remediation (4 keys).",
+    "platform": "ios",
+    "osVersion": "18.0",
+    "model": "iPhone",
+    "appVersion": "1.0.0"
+  }
+}

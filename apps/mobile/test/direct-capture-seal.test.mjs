@@ -148,10 +148,7 @@ test("every surface that seals a direct capture goes through the rule", () => {
   // released on failure, and the other two are why this file exists.
   const read = (rel) => readFileSync(resolve(HERE, rel), "utf8");
 
-  const sealers = [
-    ["../src/screen-capture.ts", "UC-2 screen capture"],
-    ["../app/(stack)/continuous-capture.tsx", "UC-3 continuous capture"],
-  ];
+  const sealers = [["../src/screen-capture.ts", "UC-2 screen capture"]];
   for (const [file, what] of sealers) {
     assert.match(
       read(file),
@@ -159,6 +156,14 @@ test("every surface that seals a direct capture goes through the rule", () => {
       `${what} seals a direct session without going through sealDirectCapture`,
     );
   }
+  // UC-3/UC-5 (UC-STR-001 / UC-STR-004, 2026-09-30): a continuous recording's
+  // segments are uploaded and verified WHILE it records, so a staging failure
+  // KEEPS the session (retry) instead of releasing every verified segment —
+  // and every other exit from an opened session (Discard, Try Again, a start
+  // failure) releases it through the primitive.
+  const continuous = read("../app/(stack)/continuous-capture.tsx");
+  assert.match(continuous, /const releaseSession = useCallback\(async \(\) => \{[\s\S]*?discardDirectCaptureSession\(active\.session\)/);
+  assert.match(continuous, /const reset = useCallback\(async \(\) => \{[\s\S]*?await releaseSession\(\)/);
 
   // /capture releases through the primitive directly, in its own failure and
   // discard paths. Either route to the release is fine; having none is not.

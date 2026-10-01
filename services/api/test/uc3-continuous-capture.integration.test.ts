@@ -212,7 +212,8 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       // honest digest was declared, so the server recompute at seal finds a mismatch.
       if (opts.tamperStoredBytes && i === 0) {
         for (const key of objects.keys()) {
-          if (objects.get(key) === segmentBytes[0]) objects.set(key, Buffer.from("tampered-bytes"));
+          // Same LENGTH, different bytes: only the digest recompute can catch it.
+          if (objects.get(key) === segmentBytes[0]) objects.set(key, Buffer.alloc(segmentBytes[0]!.length, 0x78));
         }
       }
     }
@@ -261,6 +262,10 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       },
       osConsentGranted: true,
       totalDurationMs: segCount * 1000,
+      // V2 (UC-STR-002): the recorder's own count. These fixtures state the
+      // segments they list; the loss cases live in
+      // uc3-continuous-completeness.integration.test.ts.
+      recordedSegmentCount: segments.length,
       segments,
       sessionCompleteness: opts.interrupted ? "INTERRUPTED_SESSION" : "COMPLETE_SESSION",
       terminationReason: opts.interrupted ? "INTERRUPTED" : "USER_STOPPED",
@@ -401,7 +406,8 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
       teamId: owner().teamId,
       deviceId: null,
     });
-    expect([400, 422]).toContain(forged.statusCode);
+    // UC-TQ-005 — pinned: the mode enum refuses it before any service runs.
+    expect(forged.statusCode, forged.body).toBe(400);
   });
 
   it("refuses a segment substitution: a manifest digest that disagrees with the declared part", async () => {
@@ -450,9 +456,10 @@ describe("UC-3 android continuous screen capture — live PostgreSQL 16", () => 
     const { token, sessionId, evidenceId, manifestJson } = await stageContinuous({ segments: 3, tamperStoredBytes: true });
     const done = await call("POST", `/v1/capture/direct-sessions/${sessionId}/continuous-complete`, token, { manifestJson });
     // The canonical seal recomputes every part digest from storage; a mismatch must
-    // never seal. We assert fail-closed (no 200, evidence not SIGNED) rather than a
-    // brittle exact code, since the digest gate lives in completeEvidence.
-    expect(done.statusCode).not.toBe(200);
+    // never seal. UC-TQ-005 — pinned to the digest gate's own refusal: a 500
+    // (a crash) must not pass as fail-closed.
+    expect(done.statusCode, done.body).toBe(409);
+    expect(done.json().denial).toBe("CAPTURE_DIGEST_MISMATCH");
     const ev = await prisma.evidence.findUnique({ where: { id: evidenceId } });
     expect(ev?.status).not.toBe("SIGNED");
   });

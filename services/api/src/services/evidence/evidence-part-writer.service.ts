@@ -32,14 +32,20 @@ import { prisma as defaultPrisma } from "../../db.js";
 type Tx = Prisma.TransactionClient;
 type AnyClient = PrismaClient | Tx;
 
-/** Who is asking to add bytes to the record. */
 /**
  * ET-ACQ-07 — THE upper bound on a record's parts: indexes 0..MAX-1. Indexes
  * are unique per record, so bounding the index bounds the count. The owner
  * parts route and direct capture both use it (the owner route had no bound:
  * any number of part rows and presigned URLs).
+ *
+ * UC-STR-001 — the value now lives in `@proovra/shared` (capture-limits.ts),
+ * the ONE source the continuity manifest, the mobile client and (by value) the
+ * native recorders also read, so a continuous session can never be allowed more
+ * segments than its record can hold. Re-exported here for the part routes.
  */
-export const MAX_EVIDENCE_PARTS = 200;
+export { MAX_EVIDENCE_PARTS } from "@proovra/shared";
+
+/** Who is asking to add bytes to the record. */
 
 export type EvidencePartWritePrincipal =
   /** The record's owner (web capture, mobile, extension, resumable upload). */

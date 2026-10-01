@@ -37,8 +37,11 @@ const stableRouter = {
 export const useRouter = () => stableRouter;
 export const usePathname = () => "/";
 export const useLocalSearchParams = () => globalThis.__EXPO_PARAMS__ ?? {};
+// Like expo-router: the effect re-runs (cleanup first) whenever the memoised
+// callback changes while the screen is focused — a screen that waits for data
+// (e.g. the signed-in user) re-runs when it arrives, as it does on a device.
 export const useFocusEffect = (cb) => {
-  React.useEffect(() => cb(), []);
+  React.useEffect(() => cb(), [cb]);
 };
 export const Stack = Object.assign(({ children }) => children ?? null, {
   Screen: () => null,
@@ -76,6 +79,10 @@ export const FileSystemUploadType = { BINARY_CONTENT: 0 };
 export const getInfoAsync = async () => ({ exists: true, size: 0, md5: "d41d8cd98f00b204e9800998ecf8427e" });
 export const readAsStringAsync = async () => "";
 export const copyAsync = async () => {};
+// Every local deletion is recorded on globalThis.__DELETED__ (array of URIs).
+export const deleteAsync = async (uri) => {
+  (globalThis.__DELETED__ ??= []).push(uri);
+};
 // A test observes the storage PUT by setting globalThis.__UPLOAD_ASYNC__.
 export const uploadAsync = async (...a) => (typeof globalThis.__UPLOAD_ASYNC__ === "function" ? globalThis.__UPLOAD_ASYNC__(...a) : { status: 200 });
 

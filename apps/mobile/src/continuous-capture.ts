@@ -33,6 +33,7 @@ import {
   uploadDirectCaptureItem,
   type DirectCaptureSession,
 } from "./direct-capture";
+import { buildContinuousManifest, reconcileContinuousUploads, type DeclaredSegment } from "./continuous-manifest";
 import type {
   ScreenContinuousResult,
   ScreenSegment,
@@ -56,39 +57,79 @@ export const CONTINUOUS_REVIEW_COPY = {
 /** The three steps between Stop and Capture, each with its own honest failure. */
 export type ContinuousStageStep = "drain" | "stage" | "handoff";
 
+/**
+ * UC-STR-001 — a staging failure KEEPS the session: its segments are at storage
+ * and declared. The user retries (Continue) or discards; nothing here claims the
+ * record was released.
+ */
 export const CONTINUOUS_STAGE_FAILURE: Record<ContinuousStageStep, string> = {
   drain:
-    "Some recorded segments did not finish uploading, so this recording could not be staged. Nothing was saved to your library — start a new recording.",
+    "Some recorded segments had not finished uploading. Your uploaded segments are kept — tap Continue to retry, or Discard.",
   stage:
-    "The recording's continuity manifest could not be staged, so it cannot be sealed. The reserved record was released and nothing was saved — start a new recording.",
+    "The recording's continuity manifest could not be staged yet. Your uploaded segments are kept — tap Continue to retry, or Discard.",
   handoff:
-    "The recording was staged but could not be handed to Capture on this device. Open Capture: if it does not offer this recording, start a new one.",
+    "The recording was staged but could not be handed to Capture on this device. Open Capture: if it does not offer this recording, tap Continue to stage it again.",
 };
+
+/** UC-IOS-005 — how long Apple's picker may stay up before PROOVRA gives up waiting. */
+export const BROADCAST_START_TIMEOUT_MS = 120_000;
+
+/**
+ * UC-IOS-011 — platform-true copy. Android talks about its notification and
+ * restrictions; iOS about Apple's picker, the status-bar indicator / Control
+ * Center, and uploads that happen when the user returns to PROOVRA.
+ */
+export const CONTINUOUS_PLATFORM_COPY = {
+  android: {
+    consent: "Android will ask you to allow screen capture.",
+    protectedContent: "Protected content may be unavailable because of Android restrictions.",
+    control: "You control it: stop the recording at any time from the capture notification, or here.",
+    active:
+      "Leave PROOVRA and open what you want to record. Segments upload in the background. Tap Stop from the notification, or here, when you are done.",
+  },
+  ios: {
+    consent:
+      "Apple will show its system broadcast picker — tap Start Broadcast to begin. Nothing is recorded until you do.",
+    protectedContent:
+      "Protected (DRM) content, such as some video streams, appears black: Apple does not let any app record it.",
+    control:
+      "You control it: stop from the red status-bar recording indicator or Control Center, or here in PROOVRA.",
+    active:
+      "Leave PROOVRA and open what you want to record. iOS pauses PROOVRA while you are in other apps, so segments are kept on this device and upload when you return to PROOVRA. Stop from the status-bar indicator or Control Center, or here.",
+  },
+} as const;
+
+/** UC-PROV-010 — the device's own report, in neutral wording (never a verification). */
+export const CONTINUOUS_COMPLETENESS_LABEL = {
+  complete: "Reported complete by this device — no known interruption",
+  interrupted: "Interrupted — the device reported a break, or segments did not reach PROOVRA",
+} as const;
+
+
 
 /** The draft item's size is the sum of the declared (server-verified) segment sizes — never a hard-coded 0. */
 export function continuousSessionBytes(declared: ReadonlyArray<{ sizeBytes: number }>): number {
   return declared.reduce((sum, d) => sum + (Number.isFinite(d.sizeBytes) && d.sizeBytes > 0 ? d.sizeBytes : 0), 0);
 }
 
-export const SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION =
-  "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V1";
-
-export type DeclaredSegment = {
-  partIndex: number;
-  sequence: number;
-  sha256Hex: string;
-  sizeBytes: number;
-  startedAtOffsetMs: number;
-  durationMs: number;
-  widthPx: number;
-  heightPx: number;
-  orientation: "portrait" | "landscape";
-};
+// The manifest contract (V2) and its builder live in ONE pure module, shared
+// with the native-fixture contract tests and the API seal test.
+export {
+  SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION,
+  buildContinuousManifest,
+  deriveSessionCompleteness,
+  reconcileContinuousUploads,
+  ContinuousManifestError,
+  type DeclaredSegment,
+} from "./continuous-manifest";
 
 export interface StagedContinuousCapture {
   /** Handed to `continuous-complete` at finalize. */
   manifestJson: string;
+  /** Segments in the record (declared). */
   segmentCount: number;
+  /** Segments the recorder produced (UC-STR-002). */
+  recordedSegmentCount: number;
   sessionCompleteness: string;
 }
 
@@ -97,49 +138,6 @@ export type ContinuousCaptureEvidence = {
   segmentCount: number;
   sessionCompleteness: string;
 };
-
-/** PURE: map native limitation-ish reason to the manifest session-completeness. */
-export function deriveSessionCompleteness(
-  result: Pick<ScreenContinuousResult, "sessionCompleteness" | "segmentCount">,
-): "COMPLETE_SESSION" | "INTERRUPTED_SESSION" {
-  if (result.segmentCount <= 0) return "INTERRUPTED_SESSION";
-  return result.sessionCompleteness === "COMPLETE_SESSION" ? "COMPLETE_SESSION" : "INTERRUPTED_SESSION";
-}
-
-/** PURE: build the continuity manifest. Unit-tested — no device needed. */
-export function buildContinuousManifest(
-  sessionId: string,
-  result: ScreenContinuousResult,
-  segments: DeclaredSegment[],
-) {
-  const ordered = [...segments].sort((a, b) => a.sequence - b.sequence);
-  return {
-    schemaVersion: SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION,
-    captureSessionId: sessionId,
-    captureStartedAtUtc: result.captureStartedAtUtc,
-    captureEndedAtUtc: result.captureEndedAtUtc,
-    device: result.device,
-    osConsentGranted: result.osConsentGranted,
-    totalDurationMs: result.totalDurationMs,
-    segments: ordered.map((s) => ({
-      role: "screen_segment",
-      partIndex: s.partIndex,
-      sequence: s.sequence,
-      expectedSha256: s.sha256Hex,
-      sizeBytes: s.sizeBytes,
-      mediaType: "video/mp4",
-      startedAtOffsetMs: s.startedAtOffsetMs,
-      durationMs: s.durationMs,
-      widthPx: s.widthPx,
-      heightPx: s.heightPx,
-      orientation: s.orientation,
-    })),
-    sessionCompleteness: deriveSessionCompleteness(result),
-    terminationReason: result.terminationReason,
-    limitations: result.limitations,
-    notes: [],
-  };
-}
 
 async function fileSizeBytes(uri: string): Promise<number> {
   const info = await FileSystem.getInfoAsync(uri, { size: true });
@@ -242,24 +240,45 @@ export async function uploadContinuousSegment(
 }
 
 /**
+ * PURE — the recorded segments this client saw but never declared (their
+ * upload failed for good during recording). Finalize retries them from disk
+ * before the manifest is built (UC-STR-002); whatever is still missing is
+ * stated as SEGMENT_UPLOAD_LOST, never sealed over.
+ */
+export function undeclaredSegments<T extends Pick<ScreenSegment, "sequence">>(
+  seen: ReadonlyArray<T>,
+  declared: ReadonlyArray<Pick<DeclaredSegment, "sequence">>,
+): T[] {
+  const have = new Set(declared.map((d) => d.sequence));
+  const out = new Map<number, T>();
+  for (const s of seen) if (!have.has(s.sequence)) out.set(s.sequence, s);
+  return [...out.values()].sort((a, b) => a.sequence - b.sequence);
+}
+
+/**
  * Stage the continuous session: build and upload the continuity manifest.
  *
  * This used to complete the session as well, which is what made this surface a
  * second product ending. The completion is now the canonical Finish & Sign,
  * which calls `continuous-complete` with the manifest returned here.
  *
- * Called after Stop and after every segment has been declared.
+ * Called after Stop, after the upload queue drained and undeclared segments
+ * were retried. UC-STR-002 — the manifest states what was RECORDED as well as
+ * what was declared: a shortfall makes it INTERRUPTED_SESSION with
+ * SEGMENT_UPLOAD_LOST, and the manifest part goes after every declared
+ * segment (max partIndex + 1), so a lost middle segment no longer collides.
  */
 export async function stageContinuousCapture(
   session: DirectCaptureSession,
   evidenceId: string,
   result: ScreenContinuousResult,
   declared: DeclaredSegment[],
+  extraLimitations: ReadonlyArray<string> = [],
 ): Promise<StagedContinuousCapture> {
   if (declared.length === 0) throw new Error("No screen segments were captured.");
 
-  const manifestPartIndex = declared.length;
-  const manifest = buildContinuousManifest(session.captureSessionId, result, declared);
+  const { manifestPartIndex } = reconcileContinuousUploads(result, declared, extraLimitations);
+  const manifest = buildContinuousManifest(session.captureSessionId, result, declared, extraLimitations);
   const manifestJson = JSON.stringify(manifest);
   const manifestUri = `${FileSystem.cacheDirectory}proovra-continuous-manifest-${session.captureSessionId}.json`;
   await FileSystem.writeAsStringAsync(manifestUri, manifestJson);
@@ -280,6 +299,7 @@ export async function stageContinuousCapture(
   return {
     manifestJson,
     segmentCount: declared.length,
+    recordedSegmentCount: manifest.recordedSegmentCount,
     sessionCompleteness: manifest.sessionCompleteness,
   };
 }

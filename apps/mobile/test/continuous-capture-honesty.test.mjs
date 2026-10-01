@@ -33,13 +33,22 @@ test("only Capture has a control named Finish & Sign; the continuous screen name
   assert.match(read("../app/(stack)/capture.tsx"), /label="Finish (&amp;|&) Sign"|Finish & Sign/);
 });
 
-test("each staging step fails with its own sentence, and never offers to retry a released session", () => {
+test("each staging step fails with its own sentence, and a staging failure KEEPS the session for a retry", () => {
+  // UC-STR-001 (2026-09-30): staging used to discard the session on any
+  // failure, so one failed manifest upload destroyed every verified segment.
+  // The session is now kept — which is what makes "retry" honest: the retry
+  // is the same session, not a new recording presented as the old one.
   const msgs = Object.values(C.CONTINUOUS_STAGE_FAILURE);
   assert.equal(new Set(msgs).size, 3, "two steps share one failure sentence");
-  for (const m of msgs) assert.ok(!/Could not finalize the evidence/.test(m));
+  for (const m of msgs) {
+    assert.ok(!/Could not finalize the evidence/.test(m));
+    assert.ok(!/released/.test(m), "a failure sentence still claims the record was released");
+  }
   const screen = code("../app/(stack)/continuous-capture.tsx");
-  assert.match(screen, /CONTINUOUS_STAGE_FAILURE\[step\]/);
-  assert.match(screen, /recoverable: false/, "a finalize failure is still marked retryable");
+  assert.match(screen, /type: "STAGE_FAILED",\s*message: detail \? `\$\{CONTINUOUS_STAGE_FAILURE\[step\]\}/);
+  assert.ok(!/sealDirectCapture\(/.test(screen), "staging still releases the session on failure");
+  // Any other exit from an opened session releases it on the server.
+  assert.match(screen, /await discardDirectCaptureSession\(active\.session\)/);
   assert.match(screen, /label="Start a new recording"/);
   assert.ok(!/"Could not finalize the evidence\."/.test(screen));
 });

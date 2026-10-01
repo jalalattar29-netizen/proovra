@@ -105,6 +105,27 @@ async function fileSizeBytes(uri: string): Promise<number> {
   return info.exists && typeof info.size === "number" ? info.size : 0;
 }
 
+async function deleteLocalFileQuietly(uri: string | null | undefined): Promise<void> {
+  if (!uri) return;
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch {
+    // Disk hygiene only; the OS reclaims the app cache under pressure.
+  }
+}
+
+/**
+ * UC-AND-010 — the full-resolution screenshots of whatever the user captured
+ * (possibly sensitive) must not outlive their purpose. Each frame file is
+ * deleted as soon as its bytes are durably at storage, the manifest file after
+ * its upload, and every remaining file on Discard / Try Again / a failed stage.
+ */
+export async function discardScreenCaptureFiles(
+  result: Pick<ScreenCaptureResult, "frames"> | null | undefined,
+): Promise<void> {
+  for (const f of result?.frames ?? []) await deleteLocalFileQuietly(f.uri);
+}
+
 /**
  * Stage a completed native capture into the canonical Capture lifecycle.
  *
@@ -139,7 +160,8 @@ export async function stageScreenCapture(
   // release. A failure between reserving the record and completing it used to
   // leave a custody-logged empty record in the owner's library, and nothing
   // in the product ever removed it.
-  return sealDirectCapture(session, async () => {
+  try {
+  return await sealDirectCapture(session, async () => {
   const evidenceId = await reserveDirectCaptureEvidence(session, {
     type: "PHOTO",
     mimeType: "image/png",
@@ -149,6 +171,8 @@ export async function stageScreenCapture(
   const declared: Array<{ partIndex: number; frameIndex: number; sha256Hex: string; sizeBytes: number; widthPx: number; heightPx: number; capturedAtOffsetMs: number }> = [];
   for (let i = 0; i < result.frames.length; i += 1) {
     const frame = result.frames[i];
+    // Measured BEFORE the upload: the file is deleted once its PUT succeeds.
+    const sizeBytes = await fileSizeBytes(frame.uri);
     const up = await uploadDirectCaptureItem(session, evidenceId, {
       partIndex: i,
       uri: frame.uri,
@@ -160,11 +184,13 @@ export async function stageScreenCapture(
       partIndex: i,
       frameIndex: frame.frameIndex,
       sha256Hex: up.sha256Hex,
-      sizeBytes: await fileSizeBytes(frame.uri),
+      sizeBytes,
       widthPx: frame.widthPx,
       heightPx: frame.heightPx,
       capturedAtOffsetMs: frame.capturedAtOffsetMs,
     });
+    // UC-AND-010 — the bytes are at storage; drop the on-device screenshot.
+    await deleteLocalFileQuietly(frame.uri);
   }
 
   const manifestPartIndex = result.frames.length;
@@ -179,6 +205,7 @@ export async function stageScreenCapture(
     originalFilename: "screen-capture-manifest.json",
     source: "SCREEN_MANIFEST",
   });
+  await deleteLocalFileQuietly(manifestUri);
 
   // The manifest travels with the session rather than being sent now: the
   // canonical finalize hands it to `screen-complete` when the operator
@@ -192,4 +219,9 @@ export async function stageScreenCapture(
     stopReason: result.stopReason,
   };
   });
+  } catch (err) {
+    // The session was released by sealDirectCapture; nothing may stay behind.
+    await discardScreenCaptureFiles(result);
+    throw err;
+  }
 }

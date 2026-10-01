@@ -20,6 +20,7 @@ describe("capture scope and draft authority (live PostgreSQL 16, real HTTP)", ()
   let prisma: (typeof import("../src/db.js"))["prisma"];
   let extensionToken: string;
   let originalBilling: Record<string, unknown> | null = null;
+  let provisionedPolicyOrg: string | null = null;
 
   beforeAll(async () => {
     const { bootIntegrationHarness } = await import("./integration-harness.js");
@@ -46,9 +47,19 @@ describe("capture scope and draft authority (live PostgreSQL 16, real HTTP)", ()
       select: { billingPlan: true, billingStatus: true },
     })) as unknown as Record<string, unknown>;
     await prisma.team.update({ where: { id: A.teamId }, data: { billingPlan: "ENTERPRISE", billingStatus: "ACTIVE" } as never });
+    // UC-SEC-004 — an extension token is evaluated against the TARGET organization's security
+    // policy, which every real organization has provisioned; this fixture org did not.
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: A.teamId }, select: { organizationId: true } });
+    if (team.organizationId && !(await prisma.organizationSecurityPolicy.findUnique({ where: { organizationId: team.organizationId } }))) {
+      await prisma.organizationSecurityPolicy.create({ data: { organizationId: team.organizationId } });
+      provisionedPolicyOrg = team.organizationId;
+    }
   }, 180_000);
 
   afterAll(async () => {
+    if (h && provisionedPolicyOrg) {
+      await prisma.organizationSecurityPolicy.delete({ where: { organizationId: provisionedPolicyOrg } }).catch(() => undefined);
+    }
     if (h && originalBilling) {
       await prisma.team.update({ where: { id: h.fixtures.teamA.teamId }, data: originalBilling as never }).catch(() => undefined);
     }

@@ -101,6 +101,7 @@ import {
   type CaptureDraftDetail,
 } from "../../src/capture/capture-draft";
 import { usePlatformContext } from "../../src/product/platform-context";
+import { useAuth } from "../../src/auth-context";
 // UC-0 — every item goes through ONE server-issued direct-capture session
 // (src/direct-capture.ts): the record is reserved by the session, each file's
 // digest is declared to it, the bytes go to storage, and the server re-hashes
@@ -182,6 +183,9 @@ export default function CaptureScreen() {
   // final `personalSpaceBlocked` is computed after that flag is known.
   const personalSpace = usePersonalSpaceAllowed();
   const platform = usePlatformContext();
+  // UC-AND-006 — the durable capture record is per user: read it once the
+  // signed-in user is known (a mount during boot re-runs when they are).
+  const captureOwnerId = useAuth().user?.id ?? null;
   const teamId = platform.context?.activeTeamId ?? null;
 
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -483,6 +487,7 @@ hasActiveDraft: isSessionActive || isRecording,
   // Discard; stale/expired → auto-clear and inform (it can't be completed).
   useEffect(() => {
     let alive = true;
+    if (!captureOwnerId) return undefined;
     void (async () => {
       const persisted = await loadCaptureSession();
       if (!alive || !persisted) return;
@@ -498,7 +503,7 @@ hasActiveDraft: isSessionActive || isRecording,
     return () => {
       alive = false;
     };
-  }, []);
+  }, [captureOwnerId]);
 
   const resumeSession = useCallback(
     async (persisted: PersistedCaptureSession) => {

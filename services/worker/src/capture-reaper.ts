@@ -26,6 +26,7 @@ import {
   releaseEvidenceReservationTx,
   runGovernanceReconciliation,
 } from "@proovra/shared-runtime";
+import { CAPTURE_SEAL_CLAIM } from "@proovra/shared";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -214,6 +215,8 @@ export interface ReleaseExpiredReservationsResult {
   scanned: number;
   /** The rows that threw, so the caller can page past them. */
   failedIds: string[];
+  /** UC-STR-002 — seal claims whose lease expired (crashed seals), released. */
+  staleSealClaimsReleased: number;
 }
 
 /**
@@ -262,13 +265,40 @@ export async function releaseExpiredReservations(
     failed: 0,
     scanned: 0,
     failedIds: [],
+    staleSealClaimsReleased: 0,
   };
   const exclude = options.excludeIds?.length ? { id: { notIn: [...options.excludeIds] } } : {};
   const released: string[] = [];
   const LIVE = [prismaPkg.CaptureSessionStatus.ACTIVE, prismaPkg.CaptureSessionStatus.INTERRUPTED];
 
+  // UC-STR-002 — a STALE seal claim (a seal that crashed between its claim and
+  // its bind) is released after its lease, so the session can be sealed again
+  // or discarded. A LIVE claim is a seal hashing right now: never touched.
+  const staleClaimBefore = new Date(now.getTime() - CAPTURE_SEAL_CLAIM.leaseMs);
+  const notLiveSealClaim = [
+    { endReason: null },
+    { endReason: { not: CAPTURE_SEAL_CLAIM.endReason } },
+    { updatedAt: { lt: staleClaimBefore } },
+  ];
+  const releasedClaims = await prisma.captureSession.updateMany({
+    where: {
+      status: prismaPkg.CaptureSessionStatus.ACTIVE,
+      endReason: CAPTURE_SEAL_CLAIM.endReason,
+      updatedAt: { lt: staleClaimBefore },
+    },
+    data: { endReason: null },
+  });
+  result.staleSealClaimsReleased = releasedClaims.count;
+
   const sessions = await prisma.captureSession.findMany({
-    where: { status: { in: LIVE }, expiresAtUtc: { not: null, lt: now }, ...exclude },
+    where: {
+      status: { in: LIVE },
+      expiresAtUtc: { not: null, lt: now },
+      // A session a seal is hashing is not expired under it (NULL-safe: an
+      // ordinary ACTIVE session has a NULL end reason).
+      OR: notLiveSealClaim,
+      ...exclude,
+    },
     orderBy: { expiresAtUtc: "asc" },
     take: batchSize,
     select: { id: true },
@@ -279,7 +309,12 @@ export async function releaseExpiredReservations(
       await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${s.id}`}))`;
         const claim = await tx.captureSession.updateMany({
-          where: { id: s.id, status: { in: LIVE }, expiresAtUtc: { lt: now } },
+          where: {
+            id: s.id,
+            status: { in: LIVE },
+            expiresAtUtc: { lt: now },
+            OR: notLiveSealClaim,
+          },
           data: { status: prismaPkg.CaptureSessionStatus.EXPIRED, endedAtUtc: now, endReason: "EXPIRED" },
         });
         if (claim.count !== 1) return;

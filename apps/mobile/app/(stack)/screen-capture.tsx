@@ -13,14 +13,18 @@
  * Phase 10: presentation converged onto the canonical kit. The native module,
  * flow reducer, listeners, reconnect and sealing pipeline are UNCHANGED.
  */
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Platform, View, StyleSheet } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { useToast } from "../../src/toast-context";
 import { usePersonalSpaceAllowed } from "../../src/usePersonalSpaceAllowed";
 import { usePlatformContext } from "../../src/product/platform-context";
-import { stageScreenCapture } from "../../src/screen-capture";
+import { discardScreenCaptureFiles, stageScreenCapture } from "../../src/screen-capture";
+import {
+  ensureCaptureNotificationPermission,
+  NOTIFICATION_DENIED_COPY,
+} from "../../src/capture/notification-permission";
 import { saveCaptureSession } from "../../src/capture/capture-session-store";
 import { toScreenDraftItem } from "../../src/capture/screen-acquisition";
 import { openCaptureDraft } from "../../src/capture/capture-draft";
@@ -57,13 +61,17 @@ export default function ScreenCaptureScreen() {
   const teamId = usePlatformContext().context?.activeTeamId ?? null;
   const [state, dispatch] = useReducer(screenFlowReducer, INITIAL_SCREEN_FLOW);
   const [busy, setBusy] = useState(false);
+  const [notificationDenied, setNotificationDenied] = useState(false);
+  // The last native result, so Discard can delete its frame files (UC-AND-010).
+  const lastResultRef = useRef<ScreenCaptureResult | null>(null);
   const supported = Platform.OS === "android" && isScreenCaptureSupported();
 
   useEffect(() => {
     const frameSub = addScreenFrameListener((e) => dispatch({ type: "FRAME", frameCount: e.frameCount }));
-    const stopSub = addScreenStoppedListener((e: ScreenCaptureResult) =>
-      dispatch({ type: "STOPPED", frameCount: e.frames.length, stopReason: e.stopReason }),
-    );
+    const stopSub = addScreenStoppedListener((e: ScreenCaptureResult) => {
+      lastResultRef.current = e;
+      dispatch({ type: "STOPPED", frameCount: e.frames.length, stopReason: e.stopReason });
+    });
     return () => {
       frameSub.remove();
       stopSub.remove();
@@ -86,9 +94,18 @@ export default function ScreenCaptureScreen() {
     return () => setCaptureActive(false);
   }, [state.phase]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (opts: { notificationAcknowledged?: boolean } = {}) => {
     setBusy(true);
     try {
+      // UC-AND-003 — Android 13+: the notification is the ONLY cross-app control
+      // (Capture Frame, Stop); ask for it before the service starts.
+      if (!opts.notificationAcknowledged) {
+        const permission = await ensureCaptureNotificationPermission();
+        if (permission === "denied") {
+          setNotificationDenied(true);
+          return;
+        }
+      }
       await startScreenCapture({ maxFrames: 20 });
       dispatch({ type: "STARTED" });
     } catch (err) {
@@ -113,6 +130,7 @@ export default function ScreenCaptureScreen() {
     setBusy(true);
     try {
       const result = await stopScreenCapture();
+      lastResultRef.current = result;
       dispatch({ type: "STOPPED", frameCount: result.frames.length, stopReason: result.stopReason });
     } catch (err) {
       dispatch({ type: "FAIL", message: toSafeUserError(err, { message: "Could not stop capture." }).message });
@@ -136,7 +154,9 @@ export default function ScreenCaptureScreen() {
     dispatch({ type: "FINALIZE" });
     try {
       const result = await stopScreenCapture();
+      lastResultRef.current = result;
       const staged = await stageScreenCapture(result, { teamId });
+      lastResultRef.current = null; // staged: its files were deleted after upload
 
       // The canonical draft — the product's record of what this session holds.
       const item = toScreenDraftItem({
@@ -183,6 +203,15 @@ export default function ScreenCaptureScreen() {
     }
   }, [toast, teamId]);
 
+  /** Discard / Try Again / Capture Another: the local screenshots go too (UC-AND-010). */
+  const reset = useCallback(() => {
+    const last = lastResultRef.current;
+    lastResultRef.current = null;
+    void discardScreenCaptureFiles(last);
+    setNotificationDenied(false);
+    dispatch({ type: "RESET" });
+  }, []);
+
   if (personalSpace.loading) return <ProovraScreen scroll={false}><ProovraLoadingState /></ProovraScreen>;
   if (!personalSpace.allowed) {
     return (
@@ -202,7 +231,16 @@ export default function ScreenCaptureScreen() {
   return (
     <ProovraScreen>
       <ProovraSection title="Direct Screen Capture">
-        {state.phase === "intro" && (
+        {state.phase === "intro" && notificationDenied && (
+          <ProovraCard style={styles.card}>
+            <ProovraText variant="body" weight="semibold">Notifications are off</ProovraText>
+            <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{NOTIFICATION_DENIED_COPY.frames}</ProovraText>
+            <ProovraButton label="Continue with PROOVRA's own screen only" loading={busy} onPress={() => void start({ notificationAcknowledged: true })} />
+            <ProovraButton label="Cancel" variant="ghost" onPress={() => setNotificationDenied(false)} />
+          </ProovraCard>
+        )}
+
+        {state.phase === "intro" && !notificationDenied && (
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" color={theme.color.ink.secondary}>
               PROOVRA will capture what is shown on your screen, using Android's own screen-capture permission. Before it starts:
@@ -214,7 +252,7 @@ export default function ScreenCaptureScreen() {
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
               A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.
             </ProovraText>
-            <ProovraButton label="Start Screen Capture" loading={busy} onPress={start} />
+            <ProovraButton label="Start Screen Capture" loading={busy} onPress={() => void start()} />
             <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
         )}
@@ -224,7 +262,9 @@ export default function ScreenCaptureScreen() {
             <ProovraBadge tone="pending" label="Screen capture active" />
             <ProovraText variant="body" weight="semibold">Captured {state.frameCount} frame(s).</ProovraText>
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
-              Leave PROOVRA and open the app you want to capture, then tap Capture Frame from the notification. You can also capture PROOVRA's own screen here.
+              {notificationDenied
+                ? "Notifications are off, so there is no Capture Frame notification: only PROOVRA's own screen can be captured, with the button below."
+                : "Leave PROOVRA and open the app you want to capture, then tap Capture Frame from the notification. You can also capture PROOVRA's own screen here."}
             </ProovraText>
             <ProovraButton label="Capture Frame" loading={busy} onPress={captureFrame} />
             <ProovraButton label="Stop &amp; Review" variant="secondary" onPress={stop} />
@@ -238,7 +278,7 @@ export default function ScreenCaptureScreen() {
               The frames are on this device. Adding them to your capture session uploads them and verifies each frame&apos;s integrity on the server. You review and finish the session in Capture, and nothing is signed until you do.
             </ProovraText>
             <ProovraButton label="Add to capture session" onPress={stageForReview} />
-            <ProovraButton label="Discard" variant="ghost" onPress={() => dispatch({ type: "RESET" })} />
+            <ProovraButton label="Discard" variant="ghost" onPress={reset} />
           </ProovraCard>
         )}
 
@@ -253,14 +293,14 @@ export default function ScreenCaptureScreen() {
               Review and finish this session in Capture. It is not evidence until you do.
             </ProovraText>
             <ProovraButton label="Go to Capture" onPress={() => router.replace("/capture")} />
-            <ProovraButton label="Capture Another" variant="secondary" onPress={() => dispatch({ type: "RESET" })} />
+            <ProovraButton label="Capture Another" variant="secondary" onPress={reset} />
           </ProovraCard>
         )}
 
         {state.phase === "error" && (
           <ProovraCard style={styles.card}>
             <ProovraText variant="body" color={theme.color.status.risk.fg}>{state.message}</ProovraText>
-            {state.recoverable && <ProovraButton label="Try Again" onPress={() => dispatch({ type: "RESET" })} />}
+            {state.recoverable && <ProovraButton label="Try Again" onPress={reset} />}
             <ProovraButton label="Back to Capture" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
         )}

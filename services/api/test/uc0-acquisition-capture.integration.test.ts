@@ -689,12 +689,16 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       teamId: owner().teamId,
       acquisitionMode: "SECURE_INTAKE_LINK",
     });
-    expect(smuggled.statusCode).toBeGreaterThanOrEqual(400);
+    // UC-TQ-005 — pinned: the strict contract refuses it (400 INVALID_INPUT), never a 5xx.
+    expect(smuggled.statusCode, smuggled.body).toBe(400);
+    expect(smuggled.json().error.code).toBe("INVALID_INPUT");
     const badMode = await call("POST", "/v1/capture/direct-sessions", token, {
       mode: "PROOVRA_WEB_UPLOAD",
       teamId: owner().teamId,
     });
-    expect(badMode.statusCode).toBeGreaterThanOrEqual(400);
+    // UC-TQ-005 — pinned: the strict contract refuses it (400 INVALID_INPUT), never a 5xx.
+    expect(badMode.statusCode, badMode.body).toBe(400);
+    expect(badMode.json().error.code).toBe("INVALID_INPUT");
   });
 
   it("authorization: cross-workspace, non-owner, viewer and outsider are refused without leaking existence", async () => {
@@ -890,7 +894,9 @@ describe("UC-0 acquisition + direct capture — live PostgreSQL 16", () => {
       assertedAtUtc: now,
       providerMetadata: { deviceIntegrityLabel: "MEETS_STRONG_INTEGRITY" },
     });
-    expect(smuggled.statusCode).toBeGreaterThanOrEqual(400);
+    // UC-TQ-005 — pinned: the strict contract refuses it (400 INVALID_INPUT), never a 5xx.
+    expect(smuggled.statusCode, smuggled.body).toBe(400);
+    expect(smuggled.json().error.code).toBe("INVALID_INPUT");
 
     // A nonce that is not this session's.
     const wrongNonce = await call("POST", url, a.ownerToken, {

@@ -24,7 +24,7 @@ function segment(over = {}) {
   };
 }
 
-function goodManifest(over = {}) {
+function baseManifest(over = {}) {
   return {
     schemaVersion: SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION,
     captureSessionId: "11111111-1111-4111-8111-111111111111",
@@ -52,6 +52,16 @@ function goodManifest(over = {}) {
     notes: [],
     ...over,
   };
+}
+
+// V2 (UC-STR-002): the recorder's own segment count is part of the contract.
+// Unless a case sets it, it is what the listed segments imply.
+function goodManifest(over = {}) {
+  const m = baseManifest(over);
+  if (!("recordedSegmentCount" in over)) {
+    m.recordedSegmentCount = Math.max(-1, ...m.segments.map((s) => s.sequence)) + 1;
+  }
+  return m;
 }
 
 test("accepts a well-formed continuous manifest", () => {
@@ -102,7 +112,8 @@ test("CONTINUITY: rejects a non-contiguous sequence (a missing segment cannot pa
   const gap = goodManifest({
     segments: [
       segment({ partIndex: 0, sequence: 0 }),
-      segment({ partIndex: 1, sequence: 2, expectedSha256: "b".repeat(64) }),
+      // V2: a segment sits at the part index of its sequence, so the gap is a real missing part 1.
+      segment({ partIndex: 2, sequence: 2, expectedSha256: "b".repeat(64) }),
     ],
   });
   const r = validateScreenContinuousManifest(gap);

@@ -38,9 +38,16 @@ import { createHash, randomBytes } from "node:crypto";
 import * as prismaPkg from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import {
+  CAPTURE_MANIFEST_FACTS_STAGE,
+  CAPTURE_SEAL_CLAIM,
+  MAX_EVIDENCE_PARTS,
+  isLiveSealClaim,
+  isStaleSealClaim,
   canonicalJson,
   isPositiveAttestationVerdict,
   isEvidenceAcquisitionMode,
+  readCaptureManifestFacts,
+  type CaptureManifestFacts,
   type CaptureSignaturePayload,
   type EvidenceAcquisitionMode,
 } from "@proovra/shared";
@@ -52,7 +59,8 @@ import { emitCaptureTrustEvent } from "./trust-event.service.js";
 import { releaseEvidenceReservationTx } from "@proovra/shared-runtime";
 import { verifyCaptureSignature } from "./signature-verifier.service.js";
 import { verifyDeviceAttestation } from "./attestation-verifier.service.js";
-import { MAX_EVIDENCE_PARTS } from "../evidence/evidence-part-writer.service.js";
+import { authorizeCaseEvidenceLink } from "../cases/case-permission.service.js";
+import { attachEvidenceToCase, CaseEvidenceAuthorityError } from "../cases/case-evidence-link.service.js";
 
 // -----------------------------------------------------------------------------
 // Contract
@@ -76,6 +84,60 @@ export const DIRECT_CAPTURE_SESSION_MODES = [
   "DIRECT_SCREEN_CAPTURE_IOS",
 ] as const;
 export type DirectCaptureSessionMode = (typeof DIRECT_CAPTURE_SESSION_MODES)[number];
+
+/**
+ * UC-ARCH-001 — WHO SAYS WHICH CLIENT PRODUCED THE BYTES.
+ *
+ * The session's acquisition mode is the provenance channel label ("Web
+ * capture — PROOVRA extension", "iOS screen recording — PROOVRA app"). It was
+ * copied verbatim from the open-session body, so any signed-in API client
+ * could mint a record labelled as the extension's or the app's.
+ *
+ * The server now decides what the CREDENTIAL can establish:
+ *
+ *   EXTENSION_SCOPED_CREDENTIAL  a `capture.direct`-scoped token, which only
+ *                                the first-party extension OAuth flow issues
+ *                                (services/auth/extension-scope.ts). It may
+ *                                open DIRECT_WEB_CAPTURE_EXTENSION and nothing
+ *                                else; and only it may open that mode.
+ *   CLIENT_DECLARED              an ordinary session token. There is NO
+ *                                trustworthy mobile channel fact today: the app
+ *                                authenticates with the same AUTH_JWT as the
+ *                                web, sends no client credential, and device
+ *                                registration + platform attestation have no
+ *                                shipped client (UC-ARCH-007). The mobile and
+ *                                screen modes stay available to such a token,
+ *                                but their authority is recorded as
+ *                                CLIENT_DECLARED on the session's
+ *                                CAPTURE_SESSION_STARTED trust event — never
+ *                                upgraded — and the mode descriptors already
+ *                                say "(client-attested)" / "reports that".
+ *
+ * Any other restricted scope opens nothing. When device binding ships, a
+ * device-bound session becomes a third authority; this is the one place that
+ * decides it.
+ */
+export const DIRECT_CAPTURE_MODE_AUTHORITIES = ["EXTENSION_SCOPED_CREDENTIAL", "CLIENT_DECLARED"] as const;
+export type DirectCaptureModeAuthority = (typeof DIRECT_CAPTURE_MODE_AUTHORITIES)[number];
+/** Kept equal to EXTENSION_CAPTURE_SCOPE (services/auth/extension-scope.ts). */
+const EXTENSION_CREDENTIAL_SCOPE = "capture.direct";
+
+export function resolveDirectCaptureModeAuthority(
+  mode: string,
+  credentialScope: string | null | undefined,
+): { allowed: true; authority: DirectCaptureModeAuthority } | { allowed: false } {
+  if (!(DIRECT_CAPTURE_SESSION_MODES as ReadonlyArray<string>).includes(mode)) return { allowed: false };
+  if (credentialScope === EXTENSION_CREDENTIAL_SCOPE) {
+    return mode === "DIRECT_WEB_CAPTURE_EXTENSION"
+      ? { allowed: true, authority: "EXTENSION_SCOPED_CREDENTIAL" }
+      : { allowed: false };
+  }
+  if (credentialScope) return { allowed: false };
+  // An ordinary token cannot claim the extension channel: only the extension's
+  // own scoped credential establishes it.
+  if (mode === "DIRECT_WEB_CAPTURE_EXTENSION") return { allowed: false };
+  return { allowed: true, authority: "CLIENT_DECLARED" };
+}
 
 export const DIRECT_CAPTURE_CLIENT_SOURCES = [
   "CAMERA",
@@ -140,6 +202,14 @@ export const DIRECT_CAPTURE_DENIALS = {
   FINALIZATION_BLOCKED_BY_POLICY: 409,
   // A discard of a session whose record is already signed (2026-09-29, D11).
   EVIDENCE_ALREADY_FINALIZED: 409,
+  // UC-ARCH-001 — the credential cannot establish the channel the mode names.
+  MODE_NOT_ALLOWED_FOR_CREDENTIAL: 403,
+  // UC-STR-002 — the session lock is held (a seal in progress); retry.
+  SESSION_BUSY: 409,
+  // UC-EXT-010 — a case named at open that the caller may not see (anti-
+  // enumeration: the same answer as a missing case) or may not file into.
+  CASE_NOT_FOUND: 404,
+  CASE_LINK_NOT_PERMITTED: 403,
 } as const;
 export type DirectCaptureDenial = keyof typeof DIRECT_CAPTURE_DENIALS;
 
@@ -205,7 +275,7 @@ export function sha256HexOf(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-type SessionRow = {
+export type SessionRow = {
   id: string;
   ownerUserId: string;
   teamId: string | null;
@@ -216,6 +286,10 @@ type SessionRow = {
   finalizedEvidenceId: string | null;
   expiresAtUtc: Date | null;
   startedAtUtc: Date | null;
+  /** NULL while ACTIVE, except CAPTURE_SEAL_CLAIM.endReason while a seal holds it. */
+  endReason: string | null;
+  /** The seal claim's timestamp while one is held. */
+  updatedAt: Date | null;
 };
 
 const SESSION_SELECT = {
@@ -229,6 +303,8 @@ const SESSION_SELECT = {
   finalizedEvidenceId: true,
   expiresAtUtc: true,
   startedAtUtc: true,
+  endReason: true,
+  updatedAt: true,
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -243,6 +319,16 @@ export type OpenDirectCaptureSessionInput = {
   mode: DirectCaptureSessionMode;
   /** A registered device of this owner in this workspace, or null. */
   deviceId: string | null;
+  /**
+   * UC-ARCH-001 — the authenticated credential's scope (req.user.tokenScope):
+   * the channel fact the mode is checked against. Null = an ordinary token.
+   */
+  credentialScope?: string | null;
+  /**
+   * UC-EXT-010 — a case to file the sealed record into. Authorized here by
+   * THE case-link authority and linked in the same transaction as the bind.
+   */
+  caseId?: string | null;
   ttlSeconds?: number;
   now?: Date;
 };
@@ -252,7 +338,11 @@ export type OpenDirectCaptureSessionResult = {
   /** Returned ONCE. Only its SHA-256 is stored. */
   nonceHex: string;
   acquisitionMode: DirectCaptureSessionMode;
+  /** UC-ARCH-001 — what established the mode (never upgraded later). */
+  modeAuthority: DirectCaptureModeAuthority;
   deviceBound: boolean;
+  /** UC-EXT-010 — the case the record will be filed into at seal, if any. */
+  caseId: string | null;
   startedAtUtc: string;
   expiresAtUtc: string;
 };
@@ -263,6 +353,22 @@ export async function openDirectCaptureSession(
   const db = input.prisma ?? defaultPrisma;
   if (!(DIRECT_CAPTURE_SESSION_MODES as ReadonlyArray<string>).includes(input.mode)) {
     throw new DirectCaptureError("UNSUPPORTED_MODE");
+  }
+  const authority = resolveDirectCaptureModeAuthority(input.mode, input.credentialScope ?? null);
+  if (!authority.allowed) throw new DirectCaptureError("MODE_NOT_ALLOWED_FOR_CREDENTIAL");
+
+  // UC-EXT-010 — the case is authorized NOW (so a capture is never recorded
+  // against a case the caller cannot file into) and again at seal.
+  const caseId = input.caseId ?? null;
+  if (caseId) {
+    const link = await authorizeCaseEvidenceLink({ userId: input.ownerUserId, caseId }, db);
+    if (!link.allowed) {
+      throw new DirectCaptureError(link.status === 404 ? "CASE_NOT_FOUND" : "CASE_LINK_NOT_PERMITTED");
+    }
+    const kase = await db.case.findUnique({ where: { id: caseId }, select: { teamId: true } });
+    // The record is created in the session's workspace; a case elsewhere could
+    // never hold it (the link authority refuses cross-workspace links).
+    if (!kase || kase.teamId !== input.teamId) throw new DirectCaptureError("CASE_NOT_FOUND");
   }
 
   if (input.deviceId) {
@@ -309,8 +415,10 @@ export async function openDirectCaptureSession(
     code: "CAPTURE_SESSION_STARTED",
     payload: {
       acquisitionMode: input.mode,
+      modeAuthority: authority.authority,
       deviceBound: input.deviceId !== null,
       expiresAtUtc: expiresAtUtc.toISOString(),
+      ...(caseId ? { caseId } : {}),
     },
   });
 
@@ -318,7 +426,9 @@ export async function openDirectCaptureSession(
     captureSessionId: session.id,
     nonceHex,
     acquisitionMode: input.mode,
+    modeAuthority: authority.authority,
     deviceBound: input.deviceId !== null,
+    caseId,
     startedAtUtc: now.toISOString(),
     expiresAtUtc: expiresAtUtc.toISOString(),
   };
@@ -420,6 +530,7 @@ export async function reserveDirectCaptureEvidence(
         input.sessionId,
         input.ownerUserId,
       );
+      if (isLiveSealClaim(session, now)) throw new DirectCaptureError("SESSION_BUSY");
       await requireActive(db, session, now);
       if (session.finalizedEvidenceId) {
         throw new DirectCaptureError("SESSION_ALREADY_RESERVED");
@@ -484,11 +595,13 @@ export type PartDeclaration = {
   partIndex: number;
   sha256: string;
   signatureVerdict: string;
+  /** What the client said the part is (SCREEN_SEGMENT, CONTINUOUS_MANIFEST, …). */
+  clientReportedSource: string | null;
 };
 
 export async function declareDirectCapturePart(
   input: DeclareDirectCapturePartInput,
-): Promise<{ declaration: PartDeclaration; created: boolean }> {
+): Promise<{ declaration: PartDeclaration; created: boolean; sessionExpiresAtUtc: string | null }> {
   const db = input.prisma ?? defaultPrisma;
   const now = input.now ?? new Date();
   const sha256 = input.sha256.toLowerCase();
@@ -554,10 +667,68 @@ export async function declareDirectCapturePart(
     throw new DirectCaptureError("DEVICE_NOT_BOUND");
   }
 
-  const existing = (await readPartDeclarations(db, session)).get(input.partIndex);
+  // UC-STR-002 — a declaration is SERIALISED with the seal, under the session
+  // lock the seal holds from reading the declarations until it binds. A
+  // declaration either commits before the seal reads them (and the manifest
+  // must then cover it) or waits and finds the session sealed — it can never
+  // land between the seal's check and its bind, so a late segment cannot slip
+  // past a COMPLETE claim.
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        // A seal can hold the lock while it hashes every part; a declaration
+        // waits a bounded time for it, then is answered SESSION_BUSY (retryable)
+        // rather than hanging or surfacing as a server error.
+        await tx.$executeRaw`SELECT set_config('lock_timeout', ${`${DECLARATION_LOCK_WAIT_MS}ms`}, true)`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${session.id}`}))`;
+        const locked = await loadOwnedDirectCaptureSession(tx as unknown as PrismaClient, session.id, input.ownerUserId);
+        // UC-STR-002 — a seal has claimed the session: no part may join it now.
+        if (isLiveSealClaim(locked, now)) throw new DirectCaptureError("SESSION_BUSY");
+        if (isStaleSealClaim(locked, now)) {
+          // A crashed seal: its lease is over, so the session is open again.
+          await db.captureSession.updateMany({
+            where: { id: locked.id, status: prismaPkg.CaptureSessionStatus.ACTIVE, endReason: CAPTURE_SEAL_CLAIM.endReason },
+            data: { endReason: null },
+          });
+        }
+        const fresh = await requireActive(db, locked, now);
+        return declareUnderSessionLock(tx as unknown as PrismaClient, db, fresh, input, sha256, signatureVerdict, now);
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
+  } catch (err) {
+    if (isLockWaitCancelled(err)) throw new DirectCaptureError("SESSION_BUSY");
+    throw err;
+  }
+}
+
+/** How long a declaration waits for a seal (or another writer) holding the session lock. */
+const DECLARATION_LOCK_WAIT_MS = 15_000;
+
+/** PostgreSQL cancelled a lock wait (lock_timeout 55P03, or statement_timeout 57014). */
+function isLockWaitCancelled(err: unknown): boolean {
+  const text = `${(err as { message?: unknown })?.message ?? ""} ${JSON.stringify((err as { meta?: unknown })?.meta ?? {})}`;
+  return /\b(55P03|57014)\b|lock timeout|statement timeout/i.test(text);
+}
+
+async function declareUnderSessionLock(
+  tx: PrismaClient,
+  db: PrismaClient,
+  session: SessionRow,
+  input: DeclareDirectCapturePartInput,
+  sha256: string,
+  signatureVerdict: string,
+  now: Date,
+): Promise<{ declaration: PartDeclaration; created: boolean; sessionExpiresAtUtc: string | null }> {
+  const existing = (await readPartDeclarations(tx, session)).get(input.partIndex);
   if (existing) {
+    // The same index with a different digest is a second, conflicting claim.
     if (existing.sha256 !== sha256) throw new DirectCaptureError("PART_ALREADY_DECLARED");
-    return { declaration: existing, created: false };
+    return {
+      declaration: existing,
+      created: false,
+      sessionExpiresAtUtc: session.expiresAtUtc?.toISOString() ?? null,
+    };
   }
 
   await emitCaptureTrustEvent({
@@ -585,11 +756,20 @@ export async function declareDirectCapturePart(
     },
   });
 
-  await extendDirectCaptureSessionOnActivity(db, session, now);
+  // UC-STR-003 — the slid expiry is RETURNED, so the client's durable record
+  // follows the server's session instead of the expiry it was given at open.
+  const extended = await extendDirectCaptureSessionOnActivity(db, session, now);
+  const expiresAt = extended ?? session.expiresAtUtc;
 
   return {
-    declaration: { partIndex: input.partIndex, sha256, signatureVerdict },
+    declaration: {
+      partIndex: input.partIndex,
+      sha256,
+      signatureVerdict,
+      clientReportedSource: input.clientReportedSource,
+    },
     created: true,
+    sessionExpiresAtUtc: expiresAt ? expiresAt.toISOString() : null,
   };
 }
 
@@ -637,6 +817,8 @@ export async function readPartDeclarations(
         partIndex: idx,
         sha256: digest,
         signatureVerdict: typeof p["signatureVerdict"] === "string" ? p["signatureVerdict"] : "MISSING",
+        clientReportedSource:
+          typeof p["clientReportedSource"] === "string" ? p["clientReportedSource"] : null,
       });
     }
   }
@@ -730,7 +912,47 @@ export type CompleteDirectCaptureResult = {
   bound: boolean;
   alreadyBound: boolean;
   digestsConfirmed: number;
+  /**
+   * UC-EXT-010 — the case named when the session was opened: linked in the
+   * same transaction as the bind, or refused (the capture still seals).
+   */
+  caseLink?: DirectCaptureCaseLinkOutcome | null;
 };
+
+export type DirectCaptureCaseLinkOutcome = {
+  caseId: string;
+  linked: boolean;
+  /** Set when the link was refused at seal (access to the case ended). */
+  denial: "CASE_NOT_FOUND" | "CASE_LINK_NOT_PERMITTED" | null;
+};
+
+/**
+ * THE mode-specific part of a seal, decided UNDER the session lock from the
+ * same declaration snapshot the seal hashes against (UC-STR-002).
+ */
+export type DirectCaptureSealPlan = {
+  /** The part that holds the manifest: classed CAPTURE_MANIFEST before the seal. */
+  manifestPartIndex: number | null;
+  /**
+   * UC-STR-006 — the session's end reason, written by the SAME update that
+   * binds it (a continuous session's completeness). Default "COMPLETED".
+   */
+  endReason?: string;
+  /** UC-PROV-003 — validated manifest facts, recorded before the bind. */
+  manifestFacts?: CaptureManifestFacts | null;
+  /**
+   * Checks that read storage (object sizes). Run after the claim, OUTSIDE the
+   * session lock — network calls never extend a transaction.
+   */
+  verifyStorage?: () => Promise<void>;
+};
+
+export type DirectCaptureSealPlanner = (ctx: {
+  db: PrismaClient;
+  session: SessionRow;
+  declarations: Map<number, PartDeclaration>;
+  now: Date;
+}) => Promise<DirectCaptureSealPlan>;
 
 /**
  * MODES WHOSE SEAL VALIDATES A CAPTURE MANIFEST (2026-09-29, audit D12).
@@ -763,61 +985,113 @@ export async function completeGenericDirectCapture(input: {
   return completeDirectCapture(input);
 }
 
+/** The short transactions of a seal (claim, bind, release) never hash anything. */
+const SEAL_STEP_TRANSACTION = { timeout: 30_000, maxWait: 10_000 } as const;
+
+/**
+ * THE seal of a direct-capture session — three steps, and no transaction is
+ * ever open while bytes are hashed (ET-ACQ-04).
+ *
+ *   A. CLAIM (short transaction, session lock): read the session and its
+ *      declarations, let the mode's planner check its manifest against exactly
+ *      that declaration snapshot (UC-STR-002), pass the governance gate, and
+ *      claim the session for sealing (CAPTURE_SEAL_CLAIM). While the claim is
+ *      live, declarations / reservation / discard / another seal answer
+ *      SESSION_BUSY, so no part can be declared after the check.
+ *   B. HASH (no transaction): class the manifest part, record the manifest
+ *      facts, run the planner's storage checks, and seal through the canonical
+ *      `completeEvidence` with the CLAIMED declaration snapshot as the expected
+ *      part set — it refuses a record whose stored parts differ from it.
+ *   C. BIND (short transaction, session lock): claimed ACTIVE → BOUND with the
+ *      FINAL end reason (UC-STR-006) and the requested case link (UC-EXT-010)
+ *      in one commit; then exactly one CAPTURE_SESSION_BOUND.
+ *
+ * A failed hash releases the claim (back to ACTIVE, retryable) unless the
+ * failure proves the session's claims false (terminal → INTERRUPTED). A
+ * crashed seal leaves a claim whose lease expires; the next seal attempt
+ * reclaims it and the capture reaper releases it.
+ */
 export async function completeDirectCapture(input: {
   prisma?: PrismaClient;
   sessionId: string;
   ownerUserId: string;
   now?: Date;
-}): Promise<CompleteDirectCaptureResult> {
+  plan?: DirectCaptureSealPlanner;
+}): Promise<CompleteDirectCaptureResult & { manifestPartIndex: number | null }> {
   const db = input.prisma ?? defaultPrisma;
   const now = input.now ?? new Date();
-  const loaded = await loadOwnedDirectCaptureSession(db, input.sessionId, input.ownerUserId);
 
-  if (loaded.status === prismaPkg.CaptureSessionStatus.BOUND && loaded.finalizedEvidenceId) {
-    const ev = await db.evidence.findUnique({
-      where: { id: loaded.finalizedEvidenceId },
-      select: { status: true, fileSha256: true },
+  // ---- A. claim -------------------------------------------------------------
+  const claimed = await db.$transaction(async (txClient) => {
+    const tx = txClient as unknown as PrismaClient;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${input.sessionId}`}))`;
+    const loaded = await loadOwnedDirectCaptureSession(tx, input.sessionId, input.ownerUserId);
+    const declarations = await readPartDeclarations(tx, loaded);
+
+    if (loaded.status === prismaPkg.CaptureSessionStatus.BOUND && loaded.finalizedEvidenceId) {
+      // Idempotent re-seal. The planner still validates what was sent, so a
+      // different manifest is refused rather than answered as sealed.
+      const plan = input.plan ? await input.plan({ db, session: loaded, declarations, now }) : null;
+      const ev = await tx.evidence.findUnique({
+        where: { id: loaded.finalizedEvidenceId },
+        select: { status: true, fileSha256: true },
+      });
+      return {
+        kind: "already" as const,
+        result: {
+          evidenceId: loaded.finalizedEvidenceId,
+          status: String(ev?.status ?? "UNKNOWN"),
+          fileSha256: ev?.fileSha256 ?? null,
+          bound: true,
+          alreadyBound: true,
+          digestsConfirmed: declarations.size,
+          manifestPartIndex: plan?.manifestPartIndex ?? null,
+          caseLink: null,
+        },
+      };
+    }
+    // Another seal is hashing this session right now.
+    if (isLiveSealClaim(loaded, now)) throw new DirectCaptureError("SESSION_BUSY");
+
+    // (A stale claim — a crashed seal — is simply reclaimed below.)
+    const session = await requireActive(db, loaded, now);
+    if (!session.finalizedEvidenceId) throw new DirectCaptureError("SESSION_NOT_RESERVED");
+    const plan: DirectCaptureSealPlan = input.plan
+      ? await input.plan({ db, session, declarations, now })
+      : { manifestPartIndex: null };
+
+    // The ONE finalization governance gate (2026-09-29, audit D3): the same
+    // policy the web upload obeys. A refusal leaves the session ACTIVE and the
+    // record unsigned — nothing is published that policy forbids.
+    const gate = await evaluateFinalizationGovernance({
+      evidenceId: session.finalizedEvidenceId,
+      actorUserId: input.ownerUserId,
     });
-    const declared = await readPartDeclarations(db, loaded);
-    return {
-      evidenceId: loaded.finalizedEvidenceId,
-      status: String(ev?.status ?? "UNKNOWN"),
-      fileSha256: ev?.fileSha256 ?? null,
-      bound: true,
-      alreadyBound: true,
-      digestsConfirmed: declared.size,
-    };
-  }
+    if (!gate.allowed) throw new DirectCaptureError("FINALIZATION_BLOCKED_BY_POLICY");
 
-  const session = await requireActive(db, loaded, now);
-  if (!session.finalizedEvidenceId) throw new DirectCaptureError("SESSION_NOT_RESERVED");
-  const evidenceId = session.finalizedEvidenceId;
-  const declarations = await readPartDeclarations(db, session);
+    await extendDirectCaptureSessionOnActivity(tx, session, now);
+    const claim = await tx.captureSession.updateMany({
+      where: { id: session.id, status: prismaPkg.CaptureSessionStatus.ACTIVE },
+      // updatedAt (set by this write) is the claim's timestamp.
+      data: { endReason: CAPTURE_SEAL_CLAIM.endReason },
+    });
+    if (claim.count !== 1) throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+    return { kind: "claimed" as const, session, declarations, plan, evidenceId: session.finalizedEvidenceId };
+  }, SEAL_STEP_TRANSACTION);
 
-  // The ONE finalization governance gate (2026-09-29, audit D3): the same
-  // policy the web upload obeys. A refusal leaves the session ACTIVE and the
-  // record unsigned — nothing is published that policy forbids.
-  const gate = await evaluateFinalizationGovernance({ evidenceId, actorUserId: input.ownerUserId });
-  if (!gate.allowed) throw new DirectCaptureError("FINALIZATION_BLOCKED_BY_POLICY");
+  if (claimed.kind === "already") return claimed.result;
+  const { session, declarations, plan, evidenceId } = claimed;
 
-  let result: { status: unknown; fileSha256: string | null } | undefined;
+  // ---- B. hash (outside any transaction) -------------------------------------
+  let result: { status: unknown; fileSha256: string | null };
   try {
-    result = await completeEvidence({
-      evidenceId,
-      ownerUserId: input.ownerUserId,
-      captureSession: {
-        sessionId: session.id,
-        expectedSha256ByPartIndex: new Map(
-          [...declarations.values()].map((d) => [d.partIndex, d.sha256]),
-        ),
-      },
-    });
+    result = await hashAndSealClaimed(db, session, declarations, plan, evidenceId, input.ownerUserId);
   } catch (err) {
     const code = (err as { code?: unknown }).code;
     if (typeof code === "string" && TERMINAL_COMPLETION_CODES.has(code)) {
       // The session's claims did not match the bytes PROOVRA holds. The record
       // was not sealed (completeEvidence refused before signing); the session
-      // can never complete it now.
+      // can never complete it now. (Interrupting also ends the claim.)
       await emitCaptureTrustEvent({
         prisma: db,
         teamId: session.teamId!,
@@ -832,55 +1106,64 @@ export async function completeDirectCapture(input: {
     }
     /*
      * A FAILURE AFTER THE RECORD WAS SIGNED DOES NOT UNSEAL IT
-     * (2026-09-29, audit D11). completeEvidence commits the signature and
-     * only then applies retention; a throw there left the record SIGNED and
-     * the session unbound — and the mobile client then discarded the session.
-     * If the record is finalized, bind the session to it (the reconcilers
-     * carry the post-commit OTS/report work) and surface nothing to discard.
+     * (2026-09-29, audit D11): bind the session to the signed record.
+     * Any other failure RELEASES the claim, so the client can retry.
      */
-    const sealed = await db.evidence.findUnique({
+    const signed = await db.evidence.findUnique({
       where: { id: evidenceId },
       select: { status: true, fileSha256: true },
     });
     if (
-      sealed?.status !== prismaPkg.EvidenceStatus.SIGNED &&
-      sealed?.status !== prismaPkg.EvidenceStatus.REPORTED
+      signed?.status !== prismaPkg.EvidenceStatus.SIGNED &&
+      signed?.status !== prismaPkg.EvidenceStatus.REPORTED
     ) {
+      await releaseSealClaim(db, session.id);
       throw err;
     }
-    result = { status: sealed.status, fileSha256: sealed.fileSha256 ?? null };
+    result = { status: signed.status, fileSha256: signed.fileSha256 ?? null };
   }
-  if (!result) throw new DirectCaptureError("SESSION_NOT_ACTIVE");
 
-  // Exactly one bind: only the caller that moves ACTIVE -> BOUND emits it.
-  const claim = await db.captureSession.updateMany({
-    where: {
-      id: session.id,
-      status: prismaPkg.CaptureSessionStatus.ACTIVE,
-      finalizedEvidenceId: evidenceId,
-    },
-    data: {
-      status: prismaPkg.CaptureSessionStatus.BOUND,
-      finalizedAtUtc: now,
-      endedAtUtc: now,
-      endReason: "COMPLETED",
-    },
-  });
-  if (claim.count !== 1) {
-    // ET-DC-01: only a session that IS bound to this record may be answered as
-    // bound. A session a discard ended is not — never report bound:true for it.
-    const current = await db.captureSession.findUnique({
-      where: { id: session.id },
-      select: { status: true, finalizedEvidenceId: true },
+  // ---- C. bind -------------------------------------------------------------
+  const bound = await db.$transaction(async (txClient) => {
+    const tx = txClient as unknown as PrismaClient;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`capture-session:${session.id}`}))`;
+    // Exactly one bind: only the holder of THIS claim moves it to BOUND.
+    // UC-STR-006 — the end reason is part of THIS update.
+    const claim = await tx.captureSession.updateMany({
+      where: {
+        id: session.id,
+        status: prismaPkg.CaptureSessionStatus.ACTIVE,
+        endReason: CAPTURE_SEAL_CLAIM.endReason,
+        finalizedEvidenceId: evidenceId,
+      },
+      data: {
+        status: prismaPkg.CaptureSessionStatus.BOUND,
+        finalizedAtUtc: now,
+        endedAtUtc: now,
+        endReason: plan.endReason ?? "COMPLETED",
+      },
     });
-    if (
-      current?.status !== prismaPkg.CaptureSessionStatus.BOUND ||
-      current.finalizedEvidenceId !== evidenceId
-    ) {
-      throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+    if (claim.count !== 1) {
+      // ET-DC-01: only a session that IS bound to this record may be answered as
+      // bound (a reclaimed stale claim may have bound it meanwhile).
+      const current = await tx.captureSession.findUnique({
+        where: { id: session.id },
+        select: { status: true, finalizedEvidenceId: true },
+      });
+      if (
+        current?.status !== prismaPkg.CaptureSessionStatus.BOUND ||
+        current.finalizedEvidenceId !== evidenceId
+      ) {
+        throw new DirectCaptureError("SESSION_NOT_ACTIVE");
+      }
+      return { claimed: false, caseLink: null };
     }
-  }
-  if (claim.count === 1) {
+    // UC-EXT-010 — the case link commits with the bind, or not at all.
+    const caseLink = await linkSessionCaseAtSeal(tx, session, evidenceId, input.ownerUserId);
+    return { claimed: true, caseLink };
+  }, SEAL_STEP_TRANSACTION);
+
+  if (bound.claimed) {
     const head = await db.captureTrustEventRecord.findFirst({
       where: { teamId: session.teamId!, captureSessionId: session.id },
       orderBy: { sequence: "desc" },
@@ -898,7 +1181,8 @@ export async function completeDirectCapture(input: {
         trustChainHeadHash: head?.eventHash ?? null,
         trustEventCount: head?.sequence ?? 0,
         digestsConfirmed: declarations.size,
-        fileSha256: result.fileSha256,
+        fileSha256: result.fileSha256 ?? null,
+        ...(bound.caseLink ? { caseId: bound.caseLink.caseId, caseLinked: bound.caseLink.linked } : {}),
       },
     });
   }
@@ -908,9 +1192,149 @@ export async function completeDirectCapture(input: {
     status: String(result.status),
     fileSha256: result.fileSha256 ?? null,
     bound: true,
-    alreadyBound: claim.count !== 1,
+    alreadyBound: !bound.claimed,
     digestsConfirmed: declarations.size,
+    manifestPartIndex: plan.manifestPartIndex,
+    caseLink: bound.caseLink,
   };
+}
+
+/** Step B: everything that touches bytes, with the claimed snapshot as the expected part set. */
+async function hashAndSealClaimed(
+  db: PrismaClient,
+  session: SessionRow,
+  declarations: Map<number, PartDeclaration>,
+  plan: DirectCaptureSealPlan,
+  evidenceId: string,
+  ownerUserId: string,
+): Promise<{ status: unknown; fileSha256: string | null }> {
+  // ET-DC-11 / UC-AND-008 — class the manifest part BEFORE the seal, for every
+  // manifest-sealed mode: relabelling a part of a sealed record changed it
+  // after its fingerprint was signed.
+  if (plan.manifestPartIndex !== null) {
+    await db.evidencePart.updateMany({
+      where: { evidenceId, partIndex: plan.manifestPartIndex },
+      data: { artifactClass: "CAPTURE_MANIFEST" },
+    });
+  }
+  // UC-PROV-003 — the validated manifest facts join the session's trust chain
+  // BEFORE the bind, so the bind's chain head covers them.
+  if (plan.manifestFacts) await recordManifestFacts(db, session, plan.manifestFacts);
+  // Storage checks the planner needs (object sizes) — network, so not under the lock.
+  if (plan.verifyStorage) await plan.verifyStorage();
+  return completeEvidence({
+    evidenceId,
+    ownerUserId,
+    captureSession: {
+      sessionId: session.id,
+      // THE planned part set: the declarations the claim was checked against.
+      // completeEvidence refuses a record whose stored parts are not exactly these.
+      expectedSha256ByPartIndex: new Map([...declarations.values()].map((d) => [d.partIndex, d.sha256])),
+    },
+  });
+}
+
+/** Give a claimed session back (a failed, retryable hash). Only THE claim is released. */
+async function releaseSealClaim(db: PrismaClient, sessionId: string): Promise<void> {
+  await db.captureSession.updateMany({
+    where: { id: sessionId, status: prismaPkg.CaptureSessionStatus.ACTIVE, endReason: CAPTURE_SEAL_CLAIM.endReason },
+    data: { endReason: null },
+  });
+}
+
+/**
+ * UC-PROV-003 — record validated manifest facts on the session's trust chain,
+ * once per manifest digest. evidenceId stays null: the private source URL must
+ * never be mirrored into the custody chain (custody payloads travel into the
+ * report and package summaries).
+ */
+async function recordManifestFacts(
+  db: PrismaClient,
+  session: SessionRow,
+  facts: CaptureManifestFacts,
+): Promise<void> {
+  const prior = await db.captureTrustEventRecord.findMany({
+    where: { teamId: session.teamId!, captureSessionId: session.id, code: "CAPTURE_ARTIFACT_RECEIVED" },
+    select: { payload: true },
+    take: MAX_PARTS * 2,
+  });
+  for (const r of prior) {
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    if (p["stage"] !== CAPTURE_MANIFEST_FACTS_STAGE) continue;
+    if (readCaptureManifestFacts(p)?.manifestSha256 === facts.manifestSha256) return;
+  }
+  await emitCaptureTrustEvent({
+    prisma: db,
+    teamId: session.teamId!,
+    captureSessionId: session.id,
+    evidenceId: null,
+    deviceId: session.deviceId,
+    code: "CAPTURE_ARTIFACT_RECEIVED",
+    payload: { stage: CAPTURE_MANIFEST_FACTS_STAGE, facts: facts as unknown as Record<string, unknown> },
+  });
+}
+
+/** UC-EXT-010 — the case named at open, read from the session's own STARTED event. */
+async function readSessionCaseId(db: PrismaClient, session: Pick<SessionRow, "id" | "teamId">): Promise<string | null> {
+  const started = await db.captureTrustEventRecord.findFirst({
+    where: { teamId: session.teamId!, captureSessionId: session.id, code: "CAPTURE_SESSION_STARTED" },
+    orderBy: { sequence: "asc" },
+    select: { payload: true },
+  });
+  const caseId = (started?.payload as Record<string, unknown> | null)?.["caseId"];
+  return typeof caseId === "string" && caseId.length > 0 ? caseId : null;
+}
+
+/**
+ * The canonical case-link authority, re-asked at seal (access can end between
+ * open and seal), then THE link writer, both on the bind's transaction.
+ * `attachEvidenceToCase` opens its own nested transaction for the link row +
+ * tenant audit; inside an interactive transaction that is the enclosing one.
+ */
+async function linkSessionCaseAtSeal(
+  tx: PrismaClient,
+  session: SessionRow,
+  evidenceId: string,
+  ownerUserId: string,
+): Promise<DirectCaptureCaseLinkOutcome | null> {
+  const caseId = await readSessionCaseId(tx, session);
+  if (!caseId) return null;
+  const auth = await authorizeCaseEvidenceLink({ userId: ownerUserId, caseId, evidenceId }, tx);
+  if (!auth.allowed) {
+    return { caseId, linked: false, denial: auth.status === 404 ? "CASE_NOT_FOUND" : "CASE_LINK_NOT_PERMITTED" };
+  }
+  try {
+    await attachEvidenceToCase(
+      {
+        caseId,
+        evidenceId,
+        actorUserId: ownerUserId,
+        source: "USER",
+        reason: "Filed to this case when the capture session was opened.",
+      },
+      withinTransaction(tx),
+    );
+  } catch (err) {
+    // A refusal decided BEFORE any write (the authority's own tenancy checks)
+    // leaves the bind intact and is reported; anything else aborts the seal.
+    if (err instanceof CaseEvidenceAuthorityError) {
+      return { caseId, linked: false, denial: "CASE_NOT_FOUND" };
+    }
+    throw err;
+  }
+  return { caseId, linked: true, denial: null };
+}
+
+/** An interactive-transaction client whose nested `$transaction(fn)` runs `fn` in it. */
+function withinTransaction(tx: PrismaClient): PrismaClient {
+  return new Proxy(tx, {
+    get(target, prop) {
+      if (prop === "$transaction") {
+        return (fn: (client: PrismaClient) => Promise<unknown>) => fn(tx);
+      }
+      return Reflect.get(target, prop);
+    },
+  }) as PrismaClient;
 }
 
 // -----------------------------------------------------------------------------
@@ -995,9 +1419,11 @@ export async function discardDirectCaptureSession(
 
     const fresh = await tx.captureSession.findUnique({
       where: { id: session.id },
-      select: { id: true, status: true, finalizedEvidenceId: true },
+      select: { id: true, status: true, finalizedEvidenceId: true, endReason: true, updatedAt: true },
     });
     if (!fresh) throw new DirectCaptureError("SESSION_NOT_FOUND");
+    // A seal is hashing this session: retry once it has bound or released.
+    if (isLiveSealClaim(fresh, now)) throw new DirectCaptureError("SESSION_BUSY");
     // ET-DC-01: and against FINALIZATION of the reserved record, which holds
     // the evidence lock (evidence-complete.service) for its whole transaction.
     // Without it a discard sent while finalization was hashing released the

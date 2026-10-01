@@ -44,16 +44,26 @@ class ContinuousScreenCaptureService : Service() {
     private const val CHANNEL_ID = "proovra_continuous_capture"
     private const val NOTIF_ID = 0x50D3
     const val ACTION_STOP = "com.proovra.screencapture.CONTINUOUS_STOP"
-    // Kept in agreement (by value, since Kotlin cannot import the TS authority) with
-    // SCREEN_CONTINUOUS_STREAM_BOUNDS in packages/shared/src/screen-continuous-manifest.ts:
-    // videoBitrateBps, videoFrameRate, maxSegmentBytes.
+    // UC-STR-001 — kept in agreement BY VALUE (Kotlin cannot import the TS
+    // authority) with CAPTURE_LIMITS in packages/shared/src/capture-limits.ts and
+    // SCREEN_CONTINUOUS_STREAM_BOUNDS; apps/mobile/test/capture-limits-native-sync
+    // parses these lines and fails on drift.
+    // MAX_SEGMENTS = MAX_EVIDENCE_PARTS - 1: one record part is the manifest.
+    const val MAX_SEGMENTS = 199
+    const val DEFAULT_SEGMENT_MS = 6000
+    const val MIN_SEGMENT_MS = 2000
+    const val MAX_SEGMENT_MS = 30000
     private const val BITRATE = 6_000_000
     private const val FRAME_RATE = 12
     private const val MAX_SEGMENT_BYTES = 64L * 1024L * 1024L
     // Total wall-clock ceiling (ms), kept below the server capture-session TTL so a
-    // session always stops with margin to finalize. Agrees with maxSessionMs in
-    // SCREEN_CONTINUOUS_STREAM_BOUNDS.
+    // session always stops with margin to finalize. Agrees with maxSessionMs.
     private const val MAX_SESSION_MS = 50L * 60L * 1000L
+    // Limitations that make a session INTERRUPTED whatever ended it (the
+    // manifest validator refuses them on a COMPLETE session).
+    private val INCOMPLETE_LIMITATIONS = setOf(
+      "CAPTURE_INTERRUPTED", "SEGMENT_UPLOAD_LOST", "SEGMENT_WRITE_FAILED", "BROADCAST_PAUSED",
+    )
 
     private var projection: MediaProjection? = null
     private var recorder: MediaRecorder? = null
@@ -63,8 +73,8 @@ class ContinuousScreenCaptureService : Service() {
     private val limitations = linkedSetOf<String>()
     private var startedAtMs = 0L
     private var startedAtUtc = ""
-    private var segmentMs = 6000
-    private var maxSegments = 600
+    private var segmentMs = DEFAULT_SEGMENT_MS
+    private var maxSegments = MAX_SEGMENTS
     // Session-INITIAL display geometry (the manifest's session-level device block).
     private var widthPx = 0
     private var heightPx = 0
@@ -83,6 +93,9 @@ class ContinuousScreenCaptureService : Service() {
     private var resultCode = 0
     private var resultData: Intent? = null
     private var onStartedCb: ((String) -> Unit)? = null
+    // UC-AND-013 — the failure counterpart of onStartedCb: a setup failure after
+    // consent REJECTS the JS start instead of leaving it pending forever.
+    private var onStartFailedCb: ((String, String) -> Unit)? = null
 
     var onSegment: ((Map<String, Any?>) -> Unit)? = null
     var onStopped: ((Map<String, Any?>) -> Unit)? = null
@@ -90,9 +103,36 @@ class ContinuousScreenCaptureService : Service() {
     fun isActive(): Boolean = active
     fun segmentCount(): Int = segments.size
     fun lastOutcome(): Map<String, Any?>? = last
+    /**
+     * UC-AND-004 — every segment finalised in the current (or last) session, so
+     * a recreated JS context can resume uploading them instead of orphaning a
+     * live recording. The static callbacks are re-bound by each new module.
+     */
+    fun segmentsSnapshot(): List<Map<String, Any?>> = segments.toList()
 
-    fun start(context: Context, code: Int, data: Intent, segMs: Int, maxSeg: Int, onStarted: (String) -> Unit) {
-      resultCode = code; resultData = data; segmentMs = segMs; maxSegments = maxSeg; onStartedCb = onStarted
+    /** Delete every local segment file of the last session and forget it. */
+    fun discardSpool(context: Context?) {
+      if (active) return
+      for (seg in segments) {
+        val uri = seg["uri"] as? String ?: continue
+        try { File(uri.removePrefix("file://")).delete() } catch (_: Throwable) {}
+      }
+      try {
+        context?.cacheDir?.listFiles()?.filter { it.name.startsWith("proovra-continuous-") && it.name.endsWith(".mp4") }
+          ?.forEach { it.delete() }
+      } catch (_: Throwable) {}
+      segments.clear()
+      last = null
+    }
+
+    fun start(
+      context: Context, code: Int, data: Intent, segMs: Int, maxSeg: Int,
+      onStarted: (String) -> Unit, onStartFailed: (String, String) -> Unit,
+    ) {
+      resultCode = code; resultData = data
+      segmentMs = segMs.coerceIn(MIN_SEGMENT_MS, MAX_SEGMENT_MS)
+      maxSegments = maxSeg.coerceIn(1, MAX_SEGMENTS)
+      onStartedCb = onStarted; onStartFailedCb = onStartFailed
       terminationReason = "USER_STOPPED"
       segments.clear(); limitations.clear(); last = null
       val intent = Intent(context, ContinuousScreenCaptureService::class.java)
@@ -114,8 +154,33 @@ class ContinuousScreenCaptureService : Service() {
       return START_NOT_STICKY
     }
     startForegroundWithNotification()
-    beginProjection()
+    // UC-AND-013 — any setup failure (no token, a null projection, a
+    // SecurityException from getMediaProjection, a display that cannot be
+    // created) settles the JS start as a rejection.
+    try {
+      beginProjection()
+    } catch (t: Throwable) {
+      failStart("START_FAILED", t.message ?: "Screen recording could not start.")
+    }
     return START_NOT_STICKY
+  }
+
+  /** Release whatever setup created and REJECT the pending start (UC-AND-013). */
+  private fun failStart(code: String, message: String) {
+    active = false
+    unregisterDisplayListener()
+    try { recorder?.reset(); recorder?.release() } catch (_: Throwable) {}
+    recorder = null
+    try { virtualDisplay?.release() } catch (_: Throwable) {}
+    try { projection?.stop() } catch (_: Throwable) {}
+    virtualDisplay = null; projection = null
+    currentFile?.delete(); currentFile = null
+    val cb = onStartFailedCb
+    onStartedCb = null; onStartFailedCb = null
+    cb?.invoke(code, message)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
+    else @Suppress("DEPRECATION") stopForeground(true)
+    stopSelf()
   }
 
   private fun startForegroundWithNotification() {
@@ -143,9 +208,10 @@ class ContinuousScreenCaptureService : Service() {
   }
 
   private fun beginProjection() {
-    val data = resultData ?: return finish("ERROR")
+    val data = resultData ?: return failStart("NO_CONSENT_TOKEN", "The screen-capture consent was not available.")
     val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-    val mp = mpm.getMediaProjection(resultCode, data) ?: return finish("ERROR")
+    val mp = mpm.getMediaProjection(resultCode, data)
+      ?: return failStart("PROJECTION_UNAVAILABLE", "Android did not provide the screen-capture session.")
     projection = mp
 
     val metrics = DisplayMetrics()
@@ -164,9 +230,12 @@ class ContinuousScreenCaptureService : Service() {
     registerDisplayListener()
 
     active = true
+    if (!startNextSegment()) {
+      failStart("RECORDER_UNAVAILABLE", "The screen recorder could not start.")
+      return
+    }
     onStartedCb?.invoke(startedAtUtc)
-    onStartedCb = null
-    if (!startNextSegment()) finish("ERROR")
+    onStartedCb = null; onStartFailedCb = null
   }
 
   private var displayListener: DisplayManager.DisplayListener? = null
@@ -281,10 +350,21 @@ class ContinuousScreenCaptureService : Service() {
   private fun finalizeCurrentSegment() {
     val r = recorder ?: return
     val file = currentFile
-    try { r.stop() } catch (_: Throwable) {}
+    // UC-AND-007 — a stop() that throws leaves an mp4 with no finalised moov
+    // box: unplayable, yet it was uploaded and sealed as ORIGINAL video with a
+    // wall-clock duration. It is now deleted and recorded as a limitation (which
+    // makes the session INTERRUPTED), never emitted as a segment.
+    var stopFailed = false
+    try { r.stop() } catch (_: Throwable) { stopFailed = true }
     try { r.reset(); r.release() } catch (_: Throwable) {}
     recorder = null
     try { virtualDisplay?.surface = null } catch (_: Throwable) {}
+    if (stopFailed) {
+      limitations.add("SEGMENT_WRITE_FAILED")
+      try { file?.delete() } catch (_: Throwable) {}
+      currentFile = null
+      return
+    }
     if (file != null && file.exists() && file.length() > 0) {
       val seq = segments.size
       // Record THIS segment's own geometry (segW/segH), which reflects any rotation
@@ -335,8 +415,11 @@ class ContinuousScreenCaptureService : Service() {
     try { projection?.stop() } catch (_: Throwable) {}
     virtualDisplay = null; projection = null
 
-    val complete = reason == "USER_STOPPED" || reason == "BOUNDS_REACHED"
-    if (!complete) limitations.add("CAPTURE_INTERRUPTED")
+    val cleanEnd = reason == "USER_STOPPED" || reason == "BOUNDS_REACHED"
+    if (!cleanEnd) limitations.add("CAPTURE_INTERRUPTED")
+    // A clean stop over a lost stretch (a segment that could not be written) is
+    // still not a complete session.
+    val complete = cleanEnd && limitations.none { it in INCOMPLETE_LIMITATIONS }
     val outcome = mapOf<String, Any?>(
       "osConsentGranted" to true,
       "captureStartedAtUtc" to startedAtUtc,

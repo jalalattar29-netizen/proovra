@@ -304,9 +304,12 @@ test("a server draft can be deleted from the list", async () => {
 /* ---------------------------------------------------------- local resume -- */
 
 test("resuming a never-finalized local session finishes through a NEW direct session, not the draft id", async () => {
+  // UC-AND-006 — the durable record lives under the signed-in user's key and
+  // names its owner (the authenticated fixture's user is "user-1").
   await M.AsyncStorage.setItem(
-    "proovra.capture.session.v1",
+    "proovra.capture.session.v2:user-1",
     JSON.stringify({
+      ownerUserId: "user-1",
       captureSessionId: "draft-9",
       evidenceId: "draft-9",
       expiresAtUtc: "",

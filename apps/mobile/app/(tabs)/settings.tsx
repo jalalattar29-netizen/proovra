@@ -19,6 +19,7 @@ import { useAuth } from "../../src/auth-context";
 import { logout as logoutApi, getLegalStatus } from "../../src/auth/auth-api";
 import { loadTelemetryConsent, setTelemetryConsent } from "../../src/privacy/telemetry-consent";
 import { apiFetch, setAuthToken } from "../../src/api";
+import { teardownCaptureOnSignOut } from "../../src/capture/capture-teardown";
 import { toSafeUserError } from "../../src/errors/safe-error";
 import { theme } from "../../src/theme/theme";
 import { formatUserDateTime } from "../../src/lib/date";
@@ -181,6 +182,10 @@ export default function SettingsScreen() {
   }, []);
 
   const doLogout = useCallback(async () => {
+    // UC-AND-006 — capture ends with the account session: stop native capture,
+    // discard open capture sessions while the token is still valid, delete the
+    // local spool and the durable records. Never blocks sign-out.
+    await teardownCaptureOnSignOut().catch(() => undefined);
     await logoutApi();
     setToken(null);
     setAuthToken(null);

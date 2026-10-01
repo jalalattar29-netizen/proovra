@@ -17,8 +17,10 @@
  *   getState()       → { active, frameCount } for reconnect after an app switch.
  *   events           → onScreenFrame / onScreenCaptureStopped for live UI state.
  *
- * It never captures outside the OS-authorised session, never bypasses FLAG_SECURE
- * (secure windows come back blank and are reported), collects NO app inventory,
+ * It never captures outside the OS-authorised session and never bypasses
+ * FLAG_SECURE. UC-AND-011: Android returns a secure window as BLACK pixels with
+ * no error, so PROOVRA cannot detect it and does not claim to; a frame that
+ * could not be read or written is reported as FRAME_CAPTURE_FAILED. It collects NO app inventory,
  * notifications, clipboard, contacts or hardware identifiers, and uses NO overlay
  * / draw-over-other-apps or Accessibility permission.
  */
@@ -40,7 +42,9 @@ export type ScreenCaptureLimitationCode =
   | "ORIENTATION_CHANGED_DURING_CAPTURE"
   | "CAPTURE_BOUNDS_EXCEEDED"
   | "CAPTURE_INTERRUPTED"
-  | "SCREEN_CONTENT_CHANGED_DURING_CAPTURE";
+  | "SCREEN_CONTENT_CHANGED_DURING_CAPTURE"
+  // UC-AND-011 — a frame read/write failed; never evidence of secure content.
+  | "FRAME_CAPTURE_FAILED";
 
 export type ScreenCaptureFrame = {
   uri: string;
@@ -175,7 +179,9 @@ export type ScreenContinuousStopReason =
   | "BOUNDS_REACHED"
   | "INTERRUPTED"
   | "PERMISSION_REVOKED"
-  | "ERROR";
+  | "ERROR"
+  // UC-IOS-006 — the recorder's summary is missing (extension killed).
+  | "UNKNOWN";
 
 export type ScreenSegment = {
   uri: string;
@@ -189,10 +195,21 @@ export type ScreenSegment = {
 
 export type ScreenContinuousStarted = {
   osConsentGranted: boolean;
-  captureStartedAtUtc: string;
+  /** Null while the OS has not yet started recording (iOS: picker shown). */
+  captureStartedAtUtc: string | null;
   segmentMs: number;
   maxSegments: number;
+  /**
+   * UC-IOS-005 — iOS resolves when Apple's broadcast picker is PRESENTED, which
+   * is not consent and not a start. True means: wait for
+   * `onScreenContinuousStarted` (the extension's broadcastStarted) before
+   * treating the session as recording; the user may still cancel the picker.
+   */
+  awaitingSystemStart?: boolean;
 };
+
+/** UC-IOS-005 — the OS actually began recording. */
+export type ScreenContinuousStartedEvent = { captureStartedAtUtc: string };
 
 /**
  * The device that recorded a CONTINUOUS session, which is not always Android.
@@ -220,18 +237,34 @@ export type ScreenContinuousResult = {
   limitations: string[];
 };
 
-export type ScreenContinuousState = { active: boolean; segmentCount: number };
+export type ScreenContinuousState = {
+  active: boolean;
+  segmentCount: number;
+  /**
+   * UC-IOS-006 — iOS only: the container says "active" but the extension has
+   * written nothing for longer than a few segment intervals (it was killed).
+   */
+  stale?: boolean;
+};
 
 export type ScreenContinuousOptions = {
   /** Per-segment duration ms (native clamps to a safe range). */
   segmentMs?: number;
-  /** Hard ceiling on segments (bounded session; native clamps to 600). */
+  /** Hard ceiling on segments (bounded session; native clamps to THE capture limit). */
   maxSegments?: number;
 };
 
 type ContinuousNativeModule = {
   isContinuousSupported(): boolean;
   getContinuousState(): ScreenContinuousState;
+  /**
+   * UC-AND-004 / UC-IOS-010 — every segment the recorder has FINALISED in the
+   * current (or last, if not yet cleared) session, so a relaunched UI can
+   * resume uploading instead of orphaning a live recording.
+   */
+  getContinuousSegments(): ScreenSegment[];
+  /** UC-IOS-010 / UC-AND-004 — explicitly discard a leftover recording's local spool. */
+  discardContinuousSpool(): Promise<void>;
   startContinuousCapture(options: { segmentMs: number; maxSegments: number }): Promise<ScreenContinuousStarted>;
   stopContinuousCapture(): Promise<ScreenContinuousResult>;
 };
@@ -265,7 +298,7 @@ export function getScreenContinuousState(): ScreenContinuousState {
   }
 }
 
-const DEFAULT_SEGMENT_MS = 6000;
+const DEFAULT_SEGMENT_MS = SCREEN_CONTINUOUS_STREAM_BOUNDS.defaultSegmentMs;
 const DEFAULT_MAX_SEGMENTS = SCREEN_CONTINUOUS_STREAM_BOUNDS.maxSegments;
 
 export async function startContinuousCapture(
@@ -280,6 +313,23 @@ export async function startContinuousCapture(
   });
 }
 
+/** UC-AND-004 / UC-IOS-010 — the finalised segments the recorder holds on disk. */
+export function getContinuousSegments(): ScreenSegment[] {
+  if (!isContinuousScreenPlatform()) return [];
+  try {
+    const out = continuousModule().getContinuousSegments();
+    return Array.isArray(out) ? out : [];
+  } catch {
+    return [];
+  }
+}
+
+/** UC-IOS-010 / UC-AND-004 — the user's explicit discard of a leftover recording's files. */
+export async function discardContinuousSpool(): Promise<void> {
+  if (!isContinuousScreenPlatform()) return;
+  await continuousModule().discardContinuousSpool();
+}
+
 export async function stopContinuousCapture(): Promise<ScreenContinuousResult> {
   if (!isContinuousScreenPlatform()) throw new Error("Android/iOS only.");
   return continuousModule().stopContinuousCapture();
@@ -290,4 +340,8 @@ export function addScreenSegmentListener(cb: (seg: ScreenSegment) => void): Subs
 }
 export function addContinuousStoppedListener(cb: (r: ScreenContinuousResult) => void): Subscription {
   return emitter().addListener("onScreenContinuousStopped", cb as never) as Subscription;
+}
+/** UC-IOS-005 — fired when the OS broadcast actually starts (iOS). */
+export function addContinuousStartedListener(cb: (e: ScreenContinuousStartedEvent) => void): Subscription {
+  return emitter().addListener("onScreenContinuousStarted", cb as never) as Subscription;
 }

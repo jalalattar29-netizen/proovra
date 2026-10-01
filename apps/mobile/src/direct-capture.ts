@@ -101,6 +101,24 @@ export async function reserveDirectCaptureEvidence(
 }
 
 /**
+ * UC-STR-003 — the server slides a session's expiry on every declaration and
+ * answers the new value. The handle carries it forward (only ever later), so
+ * the durable record a long recording stages with is the server's expiry, not
+ * the one it was opened with — a live session is never judged stale.
+ */
+export function adoptServerSessionExpiry(
+  session: DirectCaptureSession,
+  response: { session?: { expiresAtUtc?: unknown } | null } | null | undefined,
+): void {
+  const next = response?.session?.expiresAtUtc;
+  if (typeof next !== "string") return;
+  const nextMs = Date.parse(next);
+  if (!Number.isFinite(nextMs)) return;
+  const currentMs = Date.parse(session.expiresAtUtc);
+  if (!Number.isFinite(currentMs) || nextMs > currentMs) session.expiresAtUtc = next;
+}
+
+/**
  * Declare one item's digest to the session, then upload its bytes through the
  * canonical part presign. The same digest is sent to storage as the
  * checksum header, so storage also rejects a corrupted transfer.
@@ -132,17 +150,21 @@ export async function uploadDirectCaptureItem(
   const integrity = await computeFileIntegrityBase64(item.uri);
   const sha256Hex = integrity.sha256Hex;
 
-  await apiFetch(
+  const declared = await apiFetch(
     `/v1/capture/direct-sessions/${session.captureSessionId}/parts/${item.partIndex}/declaration`,
     {
       method: "POST",
       body: JSON.stringify({
         sha256: sha256Hex,
         clientReportedSource: item.source,
+        // UC-ARCH-007 — declarations are UNSIGNED: this app registers no device
+        // key and submits no platform attestation (no shipped client does), so
+        // the server records every declaration as signatureVerdict MISSING.
         signed: null,
       }),
     },
   );
+  adoptServerSessionExpiry(session, declared);
 
   const part = await apiFetch(`/v1/evidence/${evidenceId}/parts`, {
     method: "POST",

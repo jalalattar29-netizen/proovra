@@ -28,6 +28,9 @@ const ALIASES = {
   "react-native": resolve(HERE, "react-native-stub.mjs"),
   "react-native-safe-area-context": resolve(HERE, "react-native-stub.mjs"),
   "expo-router": resolve(HERE, "expo-stub.mjs"),
+  // The `expo` core (EventEmitter, requireNativeModule) — only the PROOVRA
+  // screen-capture binding imports it. See expo-core-stub.mjs.
+  expo: resolve(HERE, "expo-core-stub.mjs"),
   "expo-audio": resolve(HERE, "expo-stub.mjs"),
   "expo-camera": resolve(HERE, "expo-stub.mjs"),
   "expo-file-system": resolve(HERE, "expo-stub.mjs"),

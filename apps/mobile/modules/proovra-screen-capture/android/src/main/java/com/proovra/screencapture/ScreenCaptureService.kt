@@ -41,6 +41,14 @@ import java.util.TimeZone
  * Stop, on OS revocation, or when the frame bound is reached, and reports frames
  * + context back through one-shot callbacks. Actions on a non-active service are
  * ignored (stale notification safety).
+ *
+ * UC-AND-012 — a rotation during the session resizes the ImageReader and the
+ * VirtualDisplay, so every frame is captured at, and labelled with, the display
+ * geometry it was taken in; the change is recorded as
+ * ORIENTATION_CHANGED_DURING_CAPTURE. UC-AND-011 — a FLAG_SECURE window comes
+ * back as black pixels WITHOUT an error, so it cannot be detected here and is
+ * not claimed; a frame that could not be read or written is FRAME_CAPTURE_FAILED.
+ * UC-AND-013 — a setup failure after consent rejects the pending start.
  */
 class ScreenCaptureService : Service() {
   private var virtualDisplay: VirtualDisplay? = null
@@ -60,15 +68,21 @@ class ScreenCaptureService : Service() {
     private var startedAtMs = 0L
     private var startedAtUtc = ""
     private var maxFrames = 20
+    // Session-INITIAL display geometry (the manifest's device block).
     private var widthPx = 0
     private var heightPx = 0
     private var densityDpi = 0
+    // The geometry frames are CURRENTLY captured at (changes on rotation).
+    private var frameW = 0
+    private var frameH = 0
+    private var frameDpi = 0
     @Volatile private var active = false
     private var last: ScreenCaptureOutcome? = null
 
     private var resultCode = 0
     private var resultData: Intent? = null
     private var onStartedCb: ((String) -> Unit)? = null
+    private var onStartFailedCb: ((String, String) -> Unit)? = null
     @Volatile private var stopReason: String = "USER_STOPPED"
 
     var onFrame: ((Int, Int) -> Unit)? = null
@@ -78,11 +92,15 @@ class ScreenCaptureService : Service() {
     fun frameCount(): Int = frames.size
     fun lastOutcome(): ScreenCaptureOutcome? = last
 
-    fun start(context: Context, code: Int, data: Intent, max: Int, onStarted: (String) -> Unit) {
+    fun start(
+      context: Context, code: Int, data: Intent, max: Int,
+      onStarted: (String) -> Unit, onStartFailed: (String, String) -> Unit,
+    ) {
       resultCode = code
       resultData = data
       maxFrames = max
       onStartedCb = onStarted
+      onStartFailedCb = onStartFailed
       stopReason = "USER_STOPPED"
       frames.clear()
       limitations.clear()
@@ -117,7 +135,11 @@ class ScreenCaptureService : Service() {
       ACTION_STOP -> finish(stopReason)
       else -> {
         startForegroundWithNotification()
-        beginProjection()
+        try {
+          beginProjection()
+        } catch (t: Throwable) {
+          failStart("START_FAILED", t.message ?: "Screen capture could not start.")
+        }
       }
     }
     return START_NOT_STICKY
@@ -164,17 +186,37 @@ class ScreenCaptureService : Service() {
     }
   }
 
+  /** Release whatever setup created and REJECT the pending start (UC-AND-013). */
+  private fun failStart(code: String, message: String) {
+    active = false
+    unregisterDisplayListener()
+    try { virtualDisplay?.release() } catch (_: Throwable) {}
+    try { imageReader?.close() } catch (_: Throwable) {}
+    try { projection?.stop() } catch (_: Throwable) {}
+    bgThread?.quitSafely()
+    virtualDisplay = null
+    imageReader = null
+    projection = null
+    val cb = onStartFailedCb
+    onStartedCb = null
+    onStartFailedCb = null
+    cb?.invoke(code, message)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE)
+    else @Suppress("DEPRECATION") stopForeground(true)
+    stopSelf()
+  }
+
   private fun beginProjection() {
     val data = resultData
     if (data == null) {
-      finish("ERROR")
+      failStart("NO_CONSENT_TOKEN", "The screen-capture consent was not available.")
       return
     }
     val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     // getMediaProjection MUST be called after startForeground on Android 14.
     val mp = mpm.getMediaProjection(resultCode, data)
     if (mp == null) {
-      finish("ERROR")
+      failStart("PROJECTION_UNAVAILABLE", "Android did not provide the screen-capture session.")
       return
     }
     projection = mp
@@ -185,6 +227,9 @@ class ScreenCaptureService : Service() {
     widthPx = metrics.widthPixels
     heightPx = metrics.heightPixels
     densityDpi = metrics.densityDpi
+    frameW = widthPx
+    frameH = heightPx
+    frameDpi = densityDpi
     startedAtMs = System.currentTimeMillis()
     startedAtUtc = iso(startedAtMs)
 
@@ -209,9 +254,60 @@ class ScreenCaptureService : Service() {
       null,
       bgHandler,
     )
+    registerDisplayListener()
     active = true
     onStartedCb?.invoke(startedAtUtc)
     onStartedCb = null
+    onStartFailedCb = null
+  }
+
+  private var displayListener: DisplayManager.DisplayListener? = null
+
+  private fun registerDisplayListener() {
+    val dm = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    val l = object : DisplayManager.DisplayListener {
+      override fun onDisplayChanged(displayId: Int) { onDisplayGeometryChanged() }
+      override fun onDisplayAdded(displayId: Int) {}
+      override fun onDisplayRemoved(displayId: Int) {}
+    }
+    displayListener = l
+    dm.registerDisplayListener(l, bgHandler)
+  }
+
+  private fun unregisterDisplayListener() {
+    val l = displayListener ?: return
+    displayListener = null
+    try { (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(l) } catch (_: Throwable) {}
+  }
+
+  /**
+   * UC-AND-012 — a rotation re-sizes the capture surface to the new geometry, so
+   * the next frame is taken at (and labelled with) the display it shows, and the
+   * orientation change is recorded.
+   */
+  private fun onDisplayGeometryChanged() {
+    if (!active) return
+    val m = DisplayMetrics()
+    @Suppress("DEPRECATION")
+    (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(m)
+    if (m.widthPixels == frameW && m.heightPixels == frameH) return
+    if ((m.widthPixels >= m.heightPixels) != (widthPx >= heightPx)) {
+      limitations.add("ORIENTATION_CHANGED_DURING_CAPTURE")
+    }
+    val previous = imageReader
+    try {
+      val next = ImageReader.newInstance(m.widthPixels, m.heightPixels, PixelFormat.RGBA_8888, 2)
+      virtualDisplay?.resize(m.widthPixels, m.heightPixels, m.densityDpi)
+      virtualDisplay?.surface = next.surface
+      imageReader = next
+      frameW = m.widthPixels
+      frameH = m.heightPixels
+      frameDpi = m.densityDpi
+      try { previous?.close() } catch (_: Throwable) {}
+    } catch (_: Throwable) {
+      // Keep capturing at the previous geometry; the frames still carry the
+      // geometry they were actually taken at.
+    }
   }
 
   private fun captureOneFrame() {
@@ -232,10 +328,13 @@ class ScreenCaptureService : Service() {
       val buffer = plane.buffer
       val pixelStride = plane.pixelStride
       val rowStride = plane.rowStride
-      val rowPadding = rowStride - pixelStride * widthPx
-      val bitmap = Bitmap.createBitmap(widthPx + rowPadding / pixelStride, heightPx, Bitmap.Config.ARGB_8888)
+      // The frame is read at the geometry its image actually has (UC-AND-012).
+      val w = image.width
+      val h = image.height
+      val rowPadding = rowStride - pixelStride * w
+      val bitmap = Bitmap.createBitmap(w + rowPadding / pixelStride, h, Bitmap.Config.ARGB_8888)
       bitmap.copyPixelsFromBuffer(buffer)
-      val cropped = Bitmap.createBitmap(bitmap, 0, 0, widthPx, heightPx)
+      val cropped = Bitmap.createBitmap(bitmap, 0, 0, w, h)
       bitmap.recycle()
 
       val file = File(cacheDir, "proovra-screen-${startedAtMs}-$index.png")
@@ -246,16 +345,18 @@ class ScreenCaptureService : Service() {
         FrameOut(
           uri = "file://${file.absolutePath}",
           frameIndex = index,
-          widthPx = widthPx,
-          heightPx = heightPx,
+          widthPx = w,
+          heightPx = h,
           capturedAtOffsetMs = System.currentTimeMillis() - startedAtMs,
         ),
       )
       onFrame?.invoke(index, frames.size)
     } catch (t: Throwable) {
-      // A frame we could not read (e.g. a FLAG_SECURE window) is a truthful
-      // limitation, never a silent gap.
-      limitations.add("SECURE_CONTENT_OMITTED")
+      // UC-AND-011 — a frame we could not read or write (image read, PNG write,
+      // storage full) is FRAME_CAPTURE_FAILED. It is NOT secure content: Android
+      // returns FLAG_SECURE windows as black pixels without any error, so this
+      // path never observes them and must not claim to.
+      limitations.add("FRAME_CAPTURE_FAILED")
       onFrame?.invoke(-1, frames.size)
     } finally {
       image.close()
@@ -265,6 +366,7 @@ class ScreenCaptureService : Service() {
   private fun finish(reason: String) {
     if (!active && last != null) return
     active = false
+    unregisterDisplayListener()
     try { virtualDisplay?.release() } catch (_: Throwable) {}
     try { imageReader?.close() } catch (_: Throwable) {}
     try { projection?.stop() } catch (_: Throwable) {}

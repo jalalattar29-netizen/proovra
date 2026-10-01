@@ -21,6 +21,8 @@
  * worker share ONE schema.
  */
 
+import { CAPTURE_MANIFEST_FACTS_SCHEMA, type CaptureManifestFacts } from "./web-capture-manifest.js";
+
 export const SCREEN_CAPTURE_MANIFEST_SCHEMA_VERSION = "PROOVRA_SCREEN_CAPTURE_MANIFEST_V1" as const;
 
 export const SCREEN_CAPTURE_COMPLETENESS = [
@@ -41,7 +43,12 @@ export const SCREEN_CAPTURE_ARTIFACT_ROLES = ["screen_frame"] as const;
 export type ScreenCaptureArtifactRole = (typeof SCREEN_CAPTURE_ARTIFACT_ROLES)[number];
 
 export const SCREEN_CAPTURE_LIMITATION_CODES = [
-  /** A FLAG_SECURE window was on screen; its region was blank/omitted by the OS. */
+  /**
+   * A FLAG_SECURE window was on screen; its region was blank/omitted by the OS.
+   * UC-AND-011 — Android returns such windows as BLACK pixels without any error,
+   * so the app cannot detect them and no longer emits this code; it stays in the
+   * schema so a capture client that CAN detect secure content may state it.
+   */
   "SECURE_CONTENT_OMITTED",
   /** The device orientation changed during the session. */
   "ORIENTATION_CHANGED_DURING_CAPTURE",
@@ -51,6 +58,12 @@ export const SCREEN_CAPTURE_LIMITATION_CODES = [
   "CAPTURE_INTERRUPTED",
   /** Content on screen may have changed between frames. */
   "SCREEN_CONTENT_CHANGED_DURING_CAPTURE",
+  /**
+   * UC-AND-011 — a requested frame could not be read or written (image read or
+   * PNG write failed, storage full). The frame is missing; it is NOT evidence
+   * of secure content.
+   */
+  "FRAME_CAPTURE_FAILED",
 ] as const;
 export type ScreenCaptureLimitationCode = (typeof SCREEN_CAPTURE_LIMITATION_CODES)[number];
 
@@ -211,6 +224,7 @@ export function validateScreenCaptureManifest(
   }
   const seenParts = new Set<number>();
   const seenFrames = new Set<number>();
+  const frameOrientations = new Set<string>();
   for (const a of m.artifacts as unknown[]) {
     if (typeof a !== "object" || a === null) return { ok: false, error: "an artifact is not an object" };
     const art = a as Record<string, unknown>;
@@ -234,6 +248,7 @@ export function validateScreenCaptureManifest(
     if (!isNonNegInt(art.widthPx) || !isNonNegInt(art.heightPx)) {
       return { ok: false, error: "invalid artifact dimensions" };
     }
+    frameOrientations.add((art.widthPx as number) >= (art.heightPx as number) ? "landscape" : "portrait");
     if (!isNonNegInt(art.capturedAtOffsetMs)) {
       return { ok: false, error: "invalid artifact.capturedAtOffsetMs" };
     }
@@ -244,5 +259,49 @@ export function validateScreenCaptureManifest(
       return { ok: false, error: "invalid artifact.completeness" };
     }
   }
+  // UC-AND-012 — a rotation during the session is RECORDED, not silent: frames
+  // of both orientations require ORIENTATION_CHANGED_DURING_CAPTURE (the same
+  // rule the continuous manifest applies to its segments).
+  if (
+    frameOrientations.size > 1 &&
+    !(m.limitations as string[]).includes("ORIENTATION_CHANGED_DURING_CAPTURE")
+  ) {
+    return { ok: false, error: "orientation transition across frames is not recorded in limitations" };
+  }
   return { ok: true, manifest: input as ScreenCaptureManifest };
+}
+
+/** UC-PROV-003 — the persisted facts of a VALIDATED frame-capture manifest. */
+export function screenCaptureManifestFacts(
+  m: ScreenCaptureManifest,
+  ref: { manifestSha256: string; manifestPartIndex: number },
+): CaptureManifestFacts {
+  return {
+    schema: CAPTURE_MANIFEST_FACTS_SCHEMA,
+    kind: "SCREEN_FRAMES",
+    reportedBy: "CAPTURE_CLIENT",
+    manifestSchemaVersion: m.schemaVersion,
+    manifestSha256: ref.manifestSha256,
+    manifestPartIndex: ref.manifestPartIndex,
+    clientCaptureWindow: { startedAtUtc: m.captureStartedAtUtc, endedAtUtc: m.captureEndedAtUtc },
+    completeness: m.completeness,
+    reportedComplete: m.completeness === "CAPTURED" && m.limitations.length === 0,
+    limitations: [...m.limitations],
+    client: {
+      kind: "MOBILE_APP",
+      appVersion: m.device.appVersion,
+      platform: m.device.platform,
+      osVersion: m.device.osVersion,
+      model: m.device.model,
+      browserName: null,
+      browserVersion: null,
+    },
+    web: null,
+    screen: {
+      endReason: m.stopReason,
+      artifactCount: m.artifacts.length,
+      recordedSegmentCount: null,
+      totalDurationMs: null,
+    },
+  };
 }

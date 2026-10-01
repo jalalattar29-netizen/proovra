@@ -54,6 +54,11 @@ export const WEB_CAPTURE_LIMITATION_CODES = [
   "PAGE_EXCEEDED_CAPTURE_BOUNDS",
   "SHADOW_DOM_NOT_FULLY_REPRESENTED",
   "CAPTURE_INTERRUPTED",
+  /**
+   * UC-EXT-004 — the DOM snapshot could not be produced or was dropped, so the
+   * capture holds the visual artifacts only.
+   */
+  "DOM_SNAPSHOT_MISSING",
 ] as const;
 export type WebCaptureLimitationCode = (typeof WEB_CAPTURE_LIMITATION_CODES)[number];
 
@@ -207,6 +212,12 @@ export function validateWebCaptureManifest(
       return { ok: false, error: `unknown limitation code: ${String(l).slice(0, 40)}` };
     }
   }
+  // UC-EXT-004 — completeness and limitations must agree: a capture that
+  // records ANY limitation is not CAPTURED (it is PARTIAL, or worse). A
+  // manifest claiming a complete capture while naming a known gap is refused.
+  if (m.completeness === "CAPTURED" && (m.limitations as unknown[]).length > 0) {
+    return { ok: false, error: "a capture with limitations cannot be CAPTURED (use PARTIAL)" };
+  }
   if (!Array.isArray(m.notes) || m.notes.length > B.maxNotes) {
     return { ok: false, error: "invalid notes" };
   }
@@ -280,4 +291,242 @@ export function publicDomainFromUrl(url: string | null | undefined): string | nu
  */
 export function redactUrlForLog(url: string | null | undefined): string {
   return publicDomainFromUrl(url) ?? "(unparseable-url)";
+}
+
+// =============================================================================
+// UC-PROV-003 — CAPTURE MANIFEST FACTS: the ONE persisted projection of a
+// validated capture manifest (web, screen frames, continuous screen).
+//
+// The manifest used to be validated at seal and then dropped: only the raw
+// CAPTURE_MANIFEST part carried the source URL, title, browser/app version,
+// the client's capture window, completeness, the page-mutated flag and the
+// limitations the client detected — so no report, Verify page or detail view
+// could state them. At seal the API now records these facts, taken ONLY from a
+// manifest that passed its validator and whose digest is a declared part, as a
+// `CAPTURE_ARTIFACT_RECEIVED` trust event with `stage: "manifest_facts"`.
+// It is written BEFORE the bind, so the CAPTURE_SESSION_BOUND event's
+// `trustChainHeadHash` covers it; it carries no evidence id, so the private
+// source URL is never mirrored into the custody chain.
+//
+// Everything here is REPORTED BY THE CAPTURE CLIENT. A surface rendering it must
+// say so; none of it is a server observation.
+// =============================================================================
+
+export const CAPTURE_MANIFEST_FACTS_SCHEMA = "PROOVRA_CAPTURE_MANIFEST_FACTS_V1" as const;
+/** The trust-event stage that carries the facts (code CAPTURE_ARTIFACT_RECEIVED). */
+export const CAPTURE_MANIFEST_FACTS_STAGE = "manifest_facts" as const;
+
+export type CaptureManifestFactsKind = "WEB" | "SCREEN_FRAMES" | "SCREEN_CONTINUOUS";
+
+export type CaptureManifestFacts = {
+  schema: typeof CAPTURE_MANIFEST_FACTS_SCHEMA;
+  kind: CaptureManifestFactsKind;
+  /** Always the client: the server validated the shape, not the statements. */
+  reportedBy: "CAPTURE_CLIENT";
+  manifestSchemaVersion: string;
+  /** SHA-256 of the exact manifest bytes (= the CAPTURE_MANIFEST part digest). */
+  manifestSha256: string;
+  manifestPartIndex: number;
+  clientCaptureWindow: { startedAtUtc: string; endedAtUtc: string };
+  /** The manifest's own completeness value (CAPTURED / PARTIAL / COMPLETE_SESSION …). */
+  completeness: string;
+  /** True only when the client reported a complete capture with no known gap. */
+  reportedComplete: boolean;
+  /** Limitation codes the client detected, verbatim from the validated enum. */
+  limitations: string[];
+  client: {
+    kind: "BROWSER_EXTENSION" | "MOBILE_APP";
+    appVersion: string;
+    platform: string | null;
+    osVersion: string | null;
+    model: string | null;
+    browserName: string | null;
+    browserVersion: string | null;
+  };
+  web: {
+    /** Public-safe (publicDomainFromUrl of the source URL, or the manifest domain). */
+    domain: string;
+    /** PRIVATE — authorized private surfaces and the package only. */
+    sourceUrlPrivate: string;
+    /** PRIVATE — a page title can carry personal data. */
+    titlePrivate: string | null;
+    captureMode: string;
+    pageMutatedDuringCapture: boolean;
+  } | null;
+  screen: {
+    /** stopReason (frames) or terminationReason (continuous). */
+    endReason: string;
+    /** Frames or segments listed in the manifest. */
+    artifactCount: number;
+    /** Continuous only: segments the recorder produced. */
+    recordedSegmentCount: number | null;
+    /** Continuous only: the client's total recorded duration. */
+    totalDurationMs: number | null;
+  } | null;
+};
+
+/** The facts with every PRIVATE value removed (public Verify, search). */
+export type PublicCaptureManifestFacts = Omit<CaptureManifestFacts, "web"> & {
+  web: { domain: string; captureMode: string; pageMutatedDuringCapture: boolean } | null;
+};
+
+/** Facts of a VALIDATED web capture manifest. */
+export function webCaptureManifestFacts(
+  m: WebCaptureManifest,
+  ref: { manifestSha256: string; manifestPartIndex: number },
+): CaptureManifestFacts {
+  return {
+    schema: CAPTURE_MANIFEST_FACTS_SCHEMA,
+    kind: "WEB",
+    reportedBy: "CAPTURE_CLIENT",
+    manifestSchemaVersion: m.schemaVersion,
+    manifestSha256: ref.manifestSha256,
+    manifestPartIndex: ref.manifestPartIndex,
+    clientCaptureWindow: { startedAtUtc: m.captureStartedAtUtc, endedAtUtc: m.captureEndedAtUtc },
+    completeness: m.completeness,
+    reportedComplete: m.completeness === "CAPTURED" && !m.pageMutatedDuringCapture && m.limitations.length === 0,
+    limitations: [...m.limitations],
+    client: {
+      kind: "BROWSER_EXTENSION",
+      appVersion: m.extensionVersion,
+      platform: null,
+      osVersion: m.browser.os,
+      model: null,
+      browserName: m.browser.name,
+      browserVersion: m.browser.versionBucket,
+    },
+    web: {
+      domain: publicDomainFromUrl(m.page.sourceUrlPrivate) ?? m.page.domain.toLowerCase(),
+      sourceUrlPrivate: m.page.sourceUrlPrivate,
+      titlePrivate: m.page.title,
+      captureMode: m.captureMode,
+      pageMutatedDuringCapture: m.pageMutatedDuringCapture,
+    },
+    screen: null,
+  };
+}
+
+function factStr(v: unknown, max = 256): string | null {
+  return typeof v === "string" && v.length > 0 && v.length <= max ? v : null;
+}
+function factInt(v: unknown): number | null {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null;
+}
+
+/**
+ * Read persisted facts back (a trust-event payload, or the facts object
+ * itself). Tolerant and bounded: an unknown or malformed payload is `null`,
+ * never a partially trusted object.
+ */
+export function readCaptureManifestFacts(payload: unknown): CaptureManifestFacts | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  const f = (p["stage"] === CAPTURE_MANIFEST_FACTS_STAGE ? p["facts"] : p) as Record<string, unknown> | undefined;
+  if (!f || typeof f !== "object" || f["schema"] !== CAPTURE_MANIFEST_FACTS_SCHEMA) return null;
+  const kind = f["kind"];
+  if (kind !== "WEB" && kind !== "SCREEN_FRAMES" && kind !== "SCREEN_CONTINUOUS") return null;
+  const manifestSha256 = factStr(f["manifestSha256"], 64);
+  const manifestPartIndex = factInt(f["manifestPartIndex"]);
+  const win = f["clientCaptureWindow"] as Record<string, unknown> | undefined;
+  const startedAtUtc = factStr(win?.["startedAtUtc"], 40);
+  const endedAtUtc = factStr(win?.["endedAtUtc"], 40);
+  const completeness = factStr(f["completeness"], 40);
+  const manifestSchemaVersion = factStr(f["manifestSchemaVersion"], 80);
+  const c = f["client"] as Record<string, unknown> | undefined;
+  if (!manifestSha256 || !/^[0-9a-f]{64}$/.test(manifestSha256) || manifestPartIndex === null) return null;
+  if (!startedAtUtc || !endedAtUtc || !completeness || !manifestSchemaVersion || !c) return null;
+  const clientKind = c["kind"];
+  if (clientKind !== "BROWSER_EXTENSION" && clientKind !== "MOBILE_APP") return null;
+  const appVersion = factStr(c["appVersion"]);
+  if (!appVersion) return null;
+  const limitations = Array.isArray(f["limitations"])
+    ? (f["limitations"] as unknown[]).map((l) => factStr(l, 64)).filter((l): l is string => l !== null).slice(0, 64)
+    : [];
+  let web: CaptureManifestFacts["web"] = null;
+  if (kind === "WEB") {
+    const w = f["web"] as Record<string, unknown> | undefined;
+    const domain = factStr(w?.["domain"], WEB_CAPTURE_MANIFEST_BOUNDS.maxDomainLen);
+    const sourceUrlPrivate = factStr(w?.["sourceUrlPrivate"], WEB_CAPTURE_MANIFEST_BOUNDS.maxUrlLen);
+    const captureMode = factStr(w?.["captureMode"], 40);
+    if (!w || !domain || !sourceUrlPrivate || !captureMode || typeof w["pageMutatedDuringCapture"] !== "boolean") {
+      return null;
+    }
+    web = {
+      domain,
+      sourceUrlPrivate,
+      titlePrivate: factStr(w["titlePrivate"], WEB_CAPTURE_MANIFEST_BOUNDS.maxTitleLen),
+      captureMode,
+      pageMutatedDuringCapture: w["pageMutatedDuringCapture"] as boolean,
+    };
+  }
+  let screen: CaptureManifestFacts["screen"] = null;
+  if (kind !== "WEB") {
+    const s = f["screen"] as Record<string, unknown> | undefined;
+    const endReason = factStr(s?.["endReason"], 40);
+    const artifactCount = factInt(s?.["artifactCount"]);
+    if (!s || !endReason || artifactCount === null) return null;
+    screen = {
+      endReason,
+      artifactCount,
+      recordedSegmentCount: factInt(s["recordedSegmentCount"]),
+      totalDurationMs: factInt(s["totalDurationMs"]),
+    };
+  }
+  return {
+    schema: CAPTURE_MANIFEST_FACTS_SCHEMA,
+    kind,
+    reportedBy: "CAPTURE_CLIENT",
+    manifestSchemaVersion,
+    manifestSha256,
+    manifestPartIndex,
+    clientCaptureWindow: { startedAtUtc, endedAtUtc },
+    completeness,
+    reportedComplete: f["reportedComplete"] === true,
+    limitations,
+    client: {
+      kind: clientKind,
+      appVersion,
+      platform: factStr(c["platform"], 40),
+      osVersion: factStr(c["osVersion"]),
+      model: factStr(c["model"]),
+      browserName: factStr(c["browserName"]),
+      browserVersion: factStr(c["browserVersion"]),
+    },
+    web,
+    screen,
+  };
+}
+
+/**
+ * THE selector a projection uses over a session's trust events (the rows
+ * `loadProvenanceChain` already loads): the LAST manifest-facts event, or the
+ * last one for a given manifest digest when the sealed record's
+ * CAPTURE_MANIFEST digest is known (a retried seal may have recorded facts for
+ * a manifest that did not seal).
+ */
+export function selectCaptureManifestFacts(
+  events: ReadonlyArray<{ code: string; payload: unknown }>,
+  opts: { manifestSha256?: string | null } = {},
+): CaptureManifestFacts | null {
+  let found: CaptureManifestFacts | null = null;
+  for (const e of events) {
+    if (e.code !== "CAPTURE_ARTIFACT_RECEIVED") continue;
+    const p = e.payload as Record<string, unknown> | null;
+    if (!p || p["stage"] !== CAPTURE_MANIFEST_FACTS_STAGE) continue;
+    const facts = readCaptureManifestFacts(p);
+    if (!facts) continue;
+    if (opts.manifestSha256 && facts.manifestSha256 !== opts.manifestSha256.toLowerCase()) continue;
+    found = facts;
+  }
+  return found;
+}
+
+/** Strip every private value (source URL, title) for a public surface. */
+export function publicCaptureManifestFacts(f: CaptureManifestFacts): PublicCaptureManifestFacts {
+  return {
+    ...f,
+    web: f.web
+      ? { domain: f.web.domain, captureMode: f.web.captureMode, pageMutatedDuringCapture: f.web.pageMutatedDuringCapture }
+      : null,
+  };
 }

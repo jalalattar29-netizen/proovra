@@ -1,7 +1,8 @@
 /**
- * UC-3 — PROOVRA Android CONTINUOUS Screen Capture manifest (the ONE bounded,
+ * UC-3 / UC-5 — PROOVRA CONTINUOUS Screen Capture manifest (the ONE bounded,
  * server-validated schema describing a continuous/streaming screen session that
- * PROOVRA's Android app recorded through MediaProjection consent).
+ * PROOVRA's Android app recorded through MediaProjection consent, or that its
+ * iOS app recorded through Apple's user-authorised system broadcast).
  *
  * It is the streaming sibling of the UC-2 frame manifest: a continuous session is
  * preserved as ordered ORIGINAL SEGMENTS (short recordings), never one giant blob
@@ -11,16 +12,31 @@
  *
  * CONTINUITY IS STATED, NOT ASSUMED. `sessionCompleteness` distinguishes a
  * COMPLETE_SESSION from an INTERRUPTED_SESSION, `sequence` makes ordering explicit
- * (a gap is detectable), and interruptions/orientation changes are recorded — so
- * PROOVRA never claims continuity across a break it knows about.
+ * (a gap is detectable), `recordedSegmentCount` says how many segments the
+ * recorder produced (so a lost tail is detectable), and interruptions /
+ * orientation changes / pauses / losses are recorded — so PROOVRA never claims
+ * continuity across a break it knows about.
  *
  * PRIVACY (deliberate omissions): NO app inventory, notification contents,
  * clipboard, contacts or hardware identifiers — only the coarse display/OS/app
  * context and segment structure needed to interpret the recording.
  */
 
+import { CAPTURE_LIMITS } from "./capture-limits.js";
+import { CAPTURE_MANIFEST_FACTS_SCHEMA, type CaptureManifestFacts } from "./web-capture-manifest.js";
+
+/**
+ * V2 (UC-STR-002 / UC-IOS-001, 2026-09-30). V1 had no statement of how many
+ * segments the recorder produced, so a manifest listing only the segments that
+ * happened to upload sealed as COMPLETE_SESSION over a lost tail. V2 adds the
+ * REQUIRED `recordedSegmentCount`, the head/tail coverage rule for a complete
+ * session, explicit loss / pause / write-failure limitations, the UNKNOWN
+ * termination, `partIndex === sequence`, and ONE device block for both
+ * platforms (`validateContinuousDeviceBlock`). A V1 manifest is refused: no V1
+ * client ever sealed a UC-5 session and UC-3 had not shipped to a store.
+ */
 export const SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION =
-  "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V1" as const;
+  "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2" as const;
 
 export const SCREEN_CONTINUOUS_SESSION_COMPLETENESS = [
   "COMPLETE_SESSION",
@@ -40,6 +56,12 @@ export const SCREEN_CONTINUOUS_TERMINATION_REASONS = [
   "INTERRUPTED",
   "PERMISSION_REVOKED",
   "ERROR",
+  /**
+   * UC-IOS-006 — the recorder's own summary is missing (extension killed,
+   * jetsam, crash). Only ever INTERRUPTED, and only the times PROOVRA can read
+   * from what was actually written are stated.
+   */
+  "UNKNOWN",
 ] as const;
 export type ScreenContinuousTerminationReason =
   (typeof SCREEN_CONTINUOUS_TERMINATION_REASONS)[number];
@@ -50,14 +72,44 @@ export const SCREEN_CONTINUOUS_LIMITATION_CODES = [
   "SESSION_BOUNDS_REACHED",
   "CAPTURE_INTERRUPTED",
   "SEGMENT_UPLOAD_BACKPRESSURE",
+  /**
+   * UC-STR-002 — the device recorded segments that never reached PROOVRA (their
+   * upload or declaration failed for good). The sealed record holds fewer
+   * segments than were recorded; `recordedSegmentCount` says how many.
+   */
+  "SEGMENT_UPLOAD_LOST",
+  /**
+   * UC-AND-007 / UC-IOS-007 — the recorder could not finalise a segment file
+   * (encoder stop failed, writer failed, storage full). That stretch of the
+   * recording is not in the record.
+   */
+  "SEGMENT_WRITE_FAILED",
+  /** UC-IOS-009 — the system paused the broadcast; the paused interval is not recorded. */
+  "BROADCAST_PAUSED",
 ] as const;
 export type ScreenContinuousLimitationCode =
   (typeof SCREEN_CONTINUOUS_LIMITATION_CODES)[number];
 
+/**
+ * Limitations that say the recording is NOT a complete, gap-free whole. A
+ * manifest carrying any of them cannot claim COMPLETE_SESSION (a conflicting
+ * terminal state).
+ */
+export const SCREEN_CONTINUOUS_INCOMPLETE_LIMITATIONS: ReadonlyArray<ScreenContinuousLimitationCode> = [
+  "CAPTURE_INTERRUPTED",
+  "SEGMENT_UPLOAD_LOST",
+  "SEGMENT_WRITE_FAILED",
+  "BROADCAST_PAUSED",
+];
+
 /** Bounds — enforced by the validator; the app must not exceed them. */
 export const SCREEN_CONTINUOUS_MANIFEST_BOUNDS = {
-  /** A bounded session: a ceiling on segments (never unlimited recording). */
-  maxSegments: 600,
+  /**
+   * A bounded session: a ceiling on segments (never unlimited recording).
+   * UC-STR-001 — THE capture limit, so the segments plus the manifest part fit
+   * the record's part-index ceiling (MAX_EVIDENCE_PARTS).
+   */
+  maxSegments: CAPTURE_LIMITS.maxContinuousSegments,
   maxStringLen: 256,
   maxNotes: 64,
   maxNoteLen: 300,
@@ -70,6 +122,9 @@ export const SCREEN_CONTINUOUS_MANIFEST_BOUNDS = {
    * INTERRUPTED session may carry. `timingSlackMs` absorbs clock rounding
    * between the recorder and the wall clock; `clockSkewMs` bounds how far the
    * device clock may disagree with the server's session window.
+   * UC-STR-002 — `maxGapMs` is also the head/tail tolerance: a complete
+   * session's first segment starts within it of 0 and its last segment ends
+   * within it of `totalDurationMs`.
    */
   maxGapMs: 3000,
   maxOverlapMs: 1000,
@@ -106,66 +161,62 @@ export function captureSessionAcquisitionComplete(
 
 /**
  * THE canonical continuous-capture resource bounds (technical safety limits — NOT
- * commercial entitlements). One authority shared by the JS binding (segment/session
- * clamps), the streaming client (retry/backoff, backpressure) and — by value, since
- * a Kotlin service cannot import TS — the native recorder. The native
- * `ContinuousScreenCaptureService` MUST keep its `BITRATE`, `FRAME_RATE` and
- * `MAX_SEGMENT_BYTES` in agreement with `videoBitrateBps`, `videoFrameRate` and
- * `maxSegmentBytes` here.
+ * commercial entitlements). Every value is read from THE capture limits
+ * (`capture-limits.ts`), shared by the JS binding (segment/session clamps), the
+ * streaming client (retry/backoff, backpressure), the manifest validator and —
+ * by value, since native code cannot import TS — the Kotlin and Swift recorders
+ * (`apps/mobile/test/capture-limits-native-sync.test.mjs` parses them).
  *
  * `maxSessionBytes` is the ceiling a whole continuous session may occupy across all
  * ORIGINAL segments. It is deliberately set BELOW the canonical total-evidence cap
  * `MAX_EVIDENCE_SIZE_MB` (default 1 GiB) that `completeEvidence` enforces fail-closed
- * for every ingest path — including continuous-complete → completeDirectCapture →
- * completeEvidence — with headroom for the in-flight backlog and the manifest, so a
- * sealed continuous session is always UNDER that cap and therefore always
- * packageable, reportable and destroyable: every ORIGINAL segment participates, and
- * the Report/Verification-Package worker (which buffers evidence bytes, bounded by
- * that same cap) never sees a UC-3 payload larger than any other sealed evidence.
+ * for every ingest path, with headroom for the in-flight backlog and the manifest,
+ * so a sealed continuous session is always packageable, reportable and destroyable.
  */
 export const SCREEN_CONTINUOUS_STREAM_BOUNDS = {
   /** Per-segment recording duration window (ms). */
-  minSegmentMs: 2000,
-  maxSegmentMs: 30000,
-  /** Ceiling on segment count for one bounded session. */
-  maxSegments: 600,
+  minSegmentMs: CAPTURE_LIMITS.minContinuousSegmentMs,
+  maxSegmentMs: CAPTURE_LIMITS.maxContinuousSegmentMs,
+  defaultSegmentMs: CAPTURE_LIMITS.defaultContinuousSegmentMs,
+  /**
+   * Ceiling on segment count for one bounded session. UC-STR-001 — THE capture
+   * limit (MAX_EVIDENCE_PARTS - 1: one part is the continuity manifest). It was
+   * 600 against a 200-part record, so segment 200 could never be declared and
+   * the whole recording was discarded at staging.
+   */
+  maxSegments: CAPTURE_LIMITS.maxContinuousSegments,
   /**
    * Max total wall-clock duration of one session (ms). Kept safely BELOW the
-   * default capture-session TTL (1 h) so recording always stops with margin to
-   * drain uploads and finalize before the server-issued session expires — an
-   * expired session cannot seal (it flips to INTERRUPTED), and this bound keeps a
-   * long or low-motion session (which may accrue bytes slowly) from ever reaching
-   * that. Enforced natively (by value) as `MAX_SESSION_MS`.
+   * default capture-session TTL (1 h). Enforced natively (by value) as
+   * `MAX_SESSION_MS`. Whichever of this, `maxSegments` and `maxSessionBytes` is
+   * reached first ends the session with SESSION_BOUNDS_REACHED.
    */
-  maxSessionMs: 50 * 60 * 1000,
+  maxSessionMs: CAPTURE_LIMITS.maxContinuousSessionMs,
   /** Native encoder settings (kept in sync with the Kotlin service by value). */
   videoBitrateBps: 6_000_000,
   videoFrameRate: 12,
   /** Per-segment byte ceiling (native setMaxFileSize → rollover; defence in depth). */
-  maxSegmentBytes: 64 * 1024 * 1024,
-  /**
-   * Whole-session byte ceiling across all ORIGINAL segments. Kept at or below the
-   * downstream total-evidence memory ceiling so a session never becomes
-   * un-packageable/un-reportable. At the default 6 Mbps this is ~11 min of capture.
-   */
-  maxSessionBytes: 512 * 1024 * 1024,
+  maxSegmentBytes: CAPTURE_LIMITS.maxContinuousSegmentBytes,
+  /** Whole-session byte ceiling across all ORIGINAL segments. */
+  maxSessionBytes: CAPTURE_LIMITS.maxContinuousSessionBytes,
   /** Streaming upload discipline (bounded backlog, no unbounded RAM/disk). */
   uploadConcurrency: 1,
   uploadRetries: 2,
   retryBackoffMs: 500,
   /**
-   * Backpressure: the maximum number of recorded-but-not-yet-uploaded segments the
-   * client tolerates before it triggers a CONTROLLED stop (no silent drop; the
-   * already-recorded segments still upload and seal contiguously).
+   * Backpressure (Android): the maximum number of recorded-but-not-yet-uploaded
+   * segments the client tolerates before it triggers a CONTROLLED stop. iOS does
+   * not apply it: the host app is suspended while the user is in another app, so
+   * the App Group container is the durable spool (UC-IOS-003).
    */
   maxPendingSegments: 8,
 } as const;
 
 export type ScreenContinuousSegmentDescriptor = {
   role: ScreenContinuousArtifactRole;
-  /** 0-based index within this capture (ties the manifest to the uploaded part). */
+  /** The record part holding this segment. V2: always equal to `sequence`. */
   partIndex: number;
-  /** Explicit ordering (0-based, contiguous). A gap here is detectable. */
+  /** Explicit ordering (0-based). A gap here is detectable. */
   sequence: number;
   /** SHA-256 (lowercase hex) the client computed; the server recomputes it. */
   expectedSha256: string;
@@ -179,38 +230,46 @@ export type ScreenContinuousSegmentDescriptor = {
   orientation: "portrait" | "landscape";
 };
 
+/**
+ * UC-IOS-001 — THE device block, one contract for both platforms.
+ *
+ *   platform     "android" | "ios"
+ *   osVersion    Build.VERSION.RELEASE | UIDevice.systemVersion
+ *   model        coarse model (manufacturer + model | UIDevice.model)
+ *   appVersion   versionName | CFBundleShortVersionString
+ *   screenW/H    the display in NATIVE PIXELS at session start
+ *                (DisplayMetrics real metrics | UIScreen.main.nativeBounds,
+ *                expressed in the session-start orientation)
+ *   densityDpi   Android: DisplayMetrics.densityDpi. iOS: UIScreen.main.scale
+ *                x 160 — the Android-equivalent LOGICAL density, not the
+ *                panel's physical PPI (iOS does not expose that).
+ *   orientation  the session-start orientation; MUST agree with screenW/H.
+ */
+export type ScreenContinuousDevice = {
+  platform: "android" | "ios";
+  osVersion: string;
+  model: string;
+  appVersion: string;
+  screenW: number;
+  screenH: number;
+  densityDpi: number;
+  orientation: "portrait" | "landscape";
+};
+
 export type ScreenContinuousManifest = {
   schemaVersion: typeof SCREEN_CONTINUOUS_MANIFEST_SCHEMA_VERSION;
   captureSessionId: string;
   captureStartedAtUtc: string;
   captureEndedAtUtc: string;
-  device: {
-    /**
-     * THE DEVICE THAT RECORDED IT, WHICH IS NOT ALWAYS AN ANDROID ONE.
-     *
-     * UC-5 (Apple system broadcast) is an ordered-segment continuous session
-     * with this identical manifest and seals through the same pipeline —
-     * `continuous-capture.service.ts` admits DIRECT_SCREEN_CAPTURE_IOS
-     * explicitly. This field said "android" only, so the iOS broadcast
-     * extension's own honest `"platform": "ios"`
-     * (ProovraBroadcastShared.swift:59) was refused as an invalid manifest and
-     * a UC-5 session could not be sealed at all. The alternative — an iOS app
-     * claiming to be Android to get past a validator — is a false statement
-     * about the device on a record whose entire purpose is provenance.
-     *
-     * UC-2's frame manifest stays Android-only, because THAT capture path is.
-     */
-    platform: "android" | "ios";
-    osVersion: string;
-    model: string;
-    appVersion: string;
-    screenW: number;
-    screenH: number;
-    densityDpi: number;
-    orientation: "portrait" | "landscape";
-  };
+  device: ScreenContinuousDevice;
   osConsentGranted: boolean;
   totalDurationMs: number;
+  /**
+   * UC-STR-002 — how many segments the RECORDER produced (not how many
+   * uploaded). A session whose record holds fewer can only be INTERRUPTED with
+   * SEGMENT_UPLOAD_LOST.
+   */
+  recordedSegmentCount: number;
   segments: ScreenContinuousSegmentDescriptor[];
   sessionCompleteness: ScreenContinuousSessionCompleteness;
   terminationReason: ScreenContinuousTerminationReason;
@@ -230,11 +289,45 @@ function isBoundedString(v: unknown, max: number): v is string {
 function isNonNegInt(v: unknown): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 0;
 }
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v > 0;
+}
+
+/**
+ * UC-IOS-001 — THE device-block validator, used by the manifest validator and
+ * by the mobile client before it ever builds a manifest, so a malformed native
+ * summary is refused with the same specific error on both sides.
+ */
+export function validateContinuousDeviceBlock(
+  device: unknown,
+): { ok: true; device: ScreenContinuousDevice } | { ok: false; error: string } {
+  if (!device || typeof device !== "object") return { ok: false, error: "missing device" };
+  const d = device as Record<string, unknown>;
+  if (d.platform !== "android" && d.platform !== "ios") {
+    return { ok: false, error: "invalid device.platform" };
+  }
+  for (const k of ["osVersion", "model", "appVersion"] as const) {
+    if (!isBoundedString(d[k], SCREEN_CONTINUOUS_MANIFEST_BOUNDS.maxStringLen)) {
+      return { ok: false, error: `invalid device.${k}` };
+    }
+  }
+  for (const k of ["screenW", "screenH", "densityDpi"] as const) {
+    if (!isPositiveInt(d[k])) return { ok: false, error: `invalid device.${k}` };
+  }
+  if (d.orientation !== "portrait" && d.orientation !== "landscape") {
+    return { ok: false, error: "invalid device.orientation" };
+  }
+  if (((d.screenW as number) >= (d.screenH as number)) !== (d.orientation === "landscape")) {
+    return { ok: false, error: "device.orientation does not match its dimensions" };
+  }
+  return { ok: true, device: d as unknown as ScreenContinuousDevice };
+}
 
 /**
  * THE server-side validator. Strict and bounded: it never trusts the client's
- * shape, requires contiguous 0-based sequence numbers (so a missing segment is
- * refused, not silently accepted as continuous), and rejects duplicates.
+ * shape, refuses duplicates, requires every segment to sit at the part index of
+ * its sequence, and — for a COMPLETE session — requires the listed segments to
+ * be exactly the recorded ones, contiguous from 0, covering the stated duration.
  */
 export function validateScreenContinuousManifest(
   input: unknown,
@@ -275,22 +368,14 @@ export function validateScreenContinuousManifest(
   if (!isBoundedString(m.captureEndedAtUtc, 40) || Number.isNaN(Date.parse(m.captureEndedAtUtc))) {
     return { ok: false, error: "invalid captureEndedAtUtc" };
   }
-  const device = m.device as Record<string, unknown> | undefined;
-  if (!device || typeof device !== "object") return { ok: false, error: "missing device" };
-  if (device.platform !== "android" && device.platform !== "ios") {
-    return { ok: false, error: "invalid device.platform" };
-  }
-  for (const k of ["osVersion", "model", "appVersion"] as const) {
-    if (!isBoundedString(device[k], B.maxStringLen)) return { ok: false, error: `invalid device.${k}` };
-  }
-  for (const k of ["screenW", "screenH", "densityDpi"] as const) {
-    if (!isNonNegInt(device[k])) return { ok: false, error: `invalid device.${k}` };
-  }
-  if (device.orientation !== "portrait" && device.orientation !== "landscape") {
-    return { ok: false, error: "invalid device.orientation" };
-  }
+  const deviceCheck = validateContinuousDeviceBlock(m.device);
+  if (!deviceCheck.ok) return deviceCheck;
+  const device = deviceCheck.device;
   if (typeof m.osConsentGranted !== "boolean") return { ok: false, error: "invalid osConsentGranted" };
   if (!isNonNegInt(m.totalDurationMs)) return { ok: false, error: "invalid totalDurationMs" };
+  if (!isNonNegInt(m.recordedSegmentCount) || m.recordedSegmentCount > B.maxSegments) {
+    return { ok: false, error: "invalid recordedSegmentCount" };
+  }
   if (!(SCREEN_CONTINUOUS_SESSION_COMPLETENESS as ReadonlyArray<unknown>).includes(m.sessionCompleteness)) {
     return { ok: false, error: "invalid sessionCompleteness" };
   }
@@ -305,6 +390,7 @@ export function validateScreenContinuousManifest(
       return { ok: false, error: `unknown limitation code: ${String(l).slice(0, 40)}` };
     }
   }
+  const limitations = m.limitations as string[];
   if (!Array.isArray(m.notes) || m.notes.length > B.maxNotes) {
     return { ok: false, error: "invalid notes" };
   }
@@ -317,7 +403,7 @@ export function validateScreenContinuousManifest(
     return { ok: false, error: "invalid segments array" };
   }
   const seenParts = new Set<number>();
-  const sequences: number[] = [];
+  const seenSequences = new Set<number>();
   const orientations = new Set<string>();
   for (const s of m.segments as unknown[]) {
     if (typeof s !== "object" || s === null) return { ok: false, error: "a segment is not an object" };
@@ -326,10 +412,20 @@ export function validateScreenContinuousManifest(
       return { ok: false, error: "invalid segment.role" };
     }
     if (!isNonNegInt(seg.partIndex)) return { ok: false, error: "invalid segment.partIndex" };
-    if (seenParts.has(seg.partIndex as number)) return { ok: false, error: "duplicate segment.partIndex" };
-    seenParts.add(seg.partIndex as number);
+    if (seenParts.has(seg.partIndex)) return { ok: false, error: "duplicate segment.partIndex" };
+    seenParts.add(seg.partIndex);
     if (!isNonNegInt(seg.sequence)) return { ok: false, error: "invalid segment.sequence" };
-    sequences.push(seg.sequence as number);
+    if (seenSequences.has(seg.sequence)) return { ok: false, error: "duplicate segment.sequence" };
+    seenSequences.add(seg.sequence);
+    // V2 — a segment sits at the part index of its sequence, so "the declared
+    // segment parts" and "the recorded sequence" are one ordering and the
+    // server can see which recorded segment a missing part was.
+    if (seg.partIndex !== seg.sequence) {
+      return { ok: false, error: "segment.partIndex must equal segment.sequence" };
+    }
+    if (seg.sequence >= m.recordedSegmentCount) {
+      return { ok: false, error: "a segment sequence is beyond recordedSegmentCount" };
+    }
     if (typeof seg.expectedSha256 !== "string" || !HEX64.test(seg.expectedSha256)) {
       return { ok: false, error: "invalid segment.expectedSha256" };
     }
@@ -352,25 +448,26 @@ export function validateScreenContinuousManifest(
     orientations.add(seg.orientation as string);
     if (!isBoundedString(seg.mediaType, 80)) return { ok: false, error: "invalid segment.mediaType" };
   }
-  // Ordering MUST be explicit and contiguous 0..N-1: a gap means a missing
-  // segment, which cannot be presented as a continuous whole.
-  const sorted = [...sequences].sort((a, b) => a - b);
-  for (let i = 0; i < sorted.length; i += 1) {
-    if (sorted[i] !== i) {
-      return { ok: false, error: "segment sequence numbers are not contiguous from 0" };
-    }
-  }
-  // Orientation transitions must be RECORDED, not silent: if the segments span both
-  // orientations, the session experienced a display transition, so the manifest must
-  // carry ORIENTATION_CHANGED_DURING_CAPTURE. A transition that changed the segment
-  // geometry but was not flagged would misrepresent a continuous session.
-  if (orientations.size > 1 && !(m.limitations as string[]).includes("ORIENTATION_CHANGED_DURING_CAPTURE")) {
+  // Orientation transitions must be RECORDED, not silent.
+  if (orientations.size > 1 && !limitations.includes("ORIENTATION_CHANGED_DURING_CAPTURE")) {
     return { ok: false, error: "orientation transition across segments is not recorded in limitations" };
   }
 
+  const listed = (m.segments as ScreenContinuousSegmentDescriptor[]).length;
+  const ordered = (m.segments as ScreenContinuousSegmentDescriptor[]).slice().sort((a, b) => a.sequence - b.sequence);
+  const contiguous = ordered.every((s, i) => s.sequence === i);
+  const recorded = m.recordedSegmentCount as number;
+  // UC-STR-002 — a loss must be NAMED. A sequence gap, or fewer listed segments
+  // than the recorder produced, is only honest as SEGMENT_UPLOAD_LOST.
+  const lossStated = limitations.includes("SEGMENT_UPLOAD_LOST");
+  if (!contiguous && !lossStated) {
+    return { ok: false, error: "segment sequence numbers are not contiguous from 0" };
+  }
+  if (listed < recorded && !lossStated) {
+    return { ok: false, error: "fewer segments than recordedSegmentCount without SEGMENT_UPLOAD_LOST" };
+  }
+
   // ---- ET-DC-09 — continuity is checked, not taken on the client's word ----
-  // Everything below compares the manifest's own statements with each other
-  // and with the server's facts; nothing here trusts the completeness label.
   if (opts.expectedPlatform && device.platform !== opts.expectedPlatform) {
     return { ok: false, error: "device.platform does not match the session's capture mode" };
   }
@@ -383,7 +480,6 @@ export function validateScreenContinuousManifest(
       return { ok: false, error: "the capture window lies outside the server session" };
     }
   }
-  const ordered = (m.segments as ScreenContinuousSegmentDescriptor[]).slice().sort((a, b) => a.sequence - b.sequence);
   let gapFound = false;
   for (let i = 1; i < ordered.length; i += 1) {
     const prev = ordered[i - 1]!;
@@ -393,13 +489,30 @@ export function validateScreenContinuousManifest(
     if (between > B.maxGapMs) gapFound = true;
   }
   if (m.sessionCompleteness === "COMPLETE_SESSION") {
-    // A COMPLETE session ended cleanly, holds no gap, and every segment lies
-    // inside its own stated window. (An INTERRUPTED session is an honest
-    // downgrade: its window may be unknown — the iOS fallback records none.)
+    // A COMPLETE session ended cleanly, holds exactly the recorded segments,
+    // contiguous from 0, with no gap, covering its stated duration, and carries
+    // no limitation that says otherwise.
     if (!(SCREEN_CONTINUOUS_COMPLETE_TERMINATIONS as ReadonlyArray<unknown>).includes(m.terminationReason)) {
       return { ok: false, error: "a complete session cannot have ended by interruption" };
     }
+    for (const l of limitations) {
+      if ((SCREEN_CONTINUOUS_INCOMPLETE_LIMITATIONS as ReadonlyArray<string>).includes(l)) {
+        return { ok: false, error: `a complete session cannot carry ${l}` };
+      }
+    }
+    if (!contiguous) return { ok: false, error: "segment sequence numbers are not contiguous from 0" };
+    if (listed !== recorded) {
+      return { ok: false, error: "a complete session must list every recorded segment (recordedSegmentCount)" };
+    }
     if (gapFound) return { ok: false, error: "a gap between segments is not declared (session is not complete)" };
+    const first = ordered[0]!;
+    const last = ordered[ordered.length - 1]!;
+    if (first.startedAtOffsetMs > B.maxGapMs) {
+      return { ok: false, error: "the first segment does not start at the capture start (head gap)" };
+    }
+    if (last.startedAtOffsetMs + last.durationMs < (m.totalDurationMs as number) - B.maxGapMs) {
+      return { ok: false, error: "the last segment ends before totalDurationMs (tail not covered)" };
+    }
     const windowMs = endMs - startMs;
     if ((m.totalDurationMs as number) > windowMs + B.timingSlackMs) {
       return { ok: false, error: "totalDurationMs exceeds the capture window" };
@@ -411,4 +524,39 @@ export function validateScreenContinuousManifest(
     }
   }
   return { ok: true, manifest: input as ScreenContinuousManifest };
+}
+
+/** UC-PROV-003 — the persisted facts of a VALIDATED continuity manifest. */
+export function continuousCaptureManifestFacts(
+  m: ScreenContinuousManifest,
+  ref: { manifestSha256: string; manifestPartIndex: number },
+): CaptureManifestFacts {
+  return {
+    schema: CAPTURE_MANIFEST_FACTS_SCHEMA,
+    kind: "SCREEN_CONTINUOUS",
+    reportedBy: "CAPTURE_CLIENT",
+    manifestSchemaVersion: m.schemaVersion,
+    manifestSha256: ref.manifestSha256,
+    manifestPartIndex: ref.manifestPartIndex,
+    clientCaptureWindow: { startedAtUtc: m.captureStartedAtUtc, endedAtUtc: m.captureEndedAtUtc },
+    completeness: m.sessionCompleteness,
+    reportedComplete: m.sessionCompleteness === "COMPLETE_SESSION",
+    limitations: [...m.limitations],
+    client: {
+      kind: "MOBILE_APP",
+      appVersion: m.device.appVersion,
+      platform: m.device.platform,
+      osVersion: m.device.osVersion,
+      model: m.device.model,
+      browserName: null,
+      browserVersion: null,
+    },
+    web: null,
+    screen: {
+      endReason: m.terminationReason,
+      artifactCount: m.segments.length,
+      recordedSegmentCount: m.recordedSegmentCount,
+      totalDurationMs: m.totalDurationMs,
+    },
+  };
 }

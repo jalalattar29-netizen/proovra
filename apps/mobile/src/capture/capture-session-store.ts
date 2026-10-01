@@ -21,7 +21,32 @@ import {
   type ScreenAcquisitionMode,
 } from "./screen-acquisition";
 
-const STORAGE_KEY = "proovra.capture.session.v1";
+/**
+ * UC-AND-006 — the store is SCOPED TO THE SIGNED-IN USER. The v1 key was one
+ * constant for the whole device, so the next account to sign in on a shared
+ * phone was offered the previous user's staged capture (session id, record id,
+ * manifest). Records now live under the owner's key and carry the owner id; a
+ * read for anyone else returns nothing. The unscoped v1 record cannot be
+ * attributed to anyone, so it is removed on first read, never offered.
+ */
+const LEGACY_STORAGE_KEY = "proovra.capture.session.v1";
+const STORAGE_KEY_PREFIX = "proovra.capture.session.v2:";
+
+let captureSessionOwner: string | null = null;
+
+/** Bound by the auth provider to the signed-in user (null when signed out). */
+export function setCaptureSessionOwner(userId: string | null | undefined): void {
+  captureSessionOwner = typeof userId === "string" && userId.length > 0 ? userId : null;
+}
+
+export function getCaptureSessionOwner(): string | null {
+  return captureSessionOwner;
+}
+
+/** The storage key for one user's durable capture session. */
+export function captureSessionStorageKey(userId: string): string {
+  return `${STORAGE_KEY_PREFIX}${userId}`;
+}
 /** A staged session older than this (by last update) is stale — resume refused. */
 export const CAPTURE_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 
@@ -74,6 +99,8 @@ export interface PersistedCaptureSession {
   draftId?: string | null;
   /** ISO timestamp of the last persist — drives the staleness policy. */
   updatedAtIso: string;
+  /** UC-AND-006 — the user this record belongs to. */
+  ownerUserId?: string | null;
 }
 
 export interface CaptureSessionInput {
@@ -191,14 +218,26 @@ export function validatePersisted(raw: unknown): PersistedCaptureSession | null 
     acquisition,
     draftId: typeof o.draftId === "string" && o.draftId ? o.draftId : null,
     updatedAtIso: typeof o.updatedAtIso === "string" ? o.updatedAtIso : new Date(0).toISOString(),
+    ownerUserId: typeof o.ownerUserId === "string" && o.ownerUserId ? o.ownerUserId : null,
   };
+}
+
+/** PURE — a stored record is readable only by the user it belongs to. */
+export function isRecordOwnedBy(record: PersistedCaptureSession | null, userId: string | null): boolean {
+  if (!record || !userId) return false;
+  return record.ownerUserId === userId;
 }
 
 /* ----------------------------------------------------------- AsyncStorage IO */
 
 export async function saveCaptureSession(input: CaptureSessionInput): Promise<void> {
+  const owner = captureSessionOwner;
+  if (!owner) return; // nobody signed in: nothing may be persisted for "the device"
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(serializeSession(input)));
+    await AsyncStorage.setItem(
+      captureSessionStorageKey(owner),
+      JSON.stringify({ ...serializeSession(input), ownerUserId: owner }),
+    );
   } catch {
     // Durability is best-effort; a failed persist must never break live capture.
   }
@@ -206,17 +245,27 @@ export async function saveCaptureSession(input: CaptureSessionInput): Promise<vo
 
 export async function loadCaptureSession(): Promise<PersistedCaptureSession | null> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // Best-effort purge of the unattributable v1 record.
+  }
+  const owner = captureSessionOwner;
+  if (!owner) return null;
+  try {
+    const raw = await AsyncStorage.getItem(captureSessionStorageKey(owner));
     if (!raw) return null;
-    return validatePersisted(JSON.parse(raw));
+    const record = validatePersisted(JSON.parse(raw));
+    return isRecordOwnedBy(record, owner) ? record : null;
   } catch {
     return null;
   }
 }
 
 export async function clearCaptureSession(): Promise<void> {
+  const owner = captureSessionOwner;
+  if (!owner) return;
   try {
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.removeItem(captureSessionStorageKey(owner));
   } catch {
     // A failed clear is harmless — the next resumable check re-validates.
   }
