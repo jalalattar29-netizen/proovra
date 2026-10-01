@@ -13442,7 +13442,19 @@ await recordOriginalRelease({
     const storedBytesCheckedAt = new Date();
     // UC-TRUST-008 — "current" needs every object the check read to be a pinned version.
     const storedBytesParts = publicVerifyParts.map((p) => ({ storageVersionId: p.storageVersionId ?? null }));
-    let storedBytes = readStoredBytesIntegrity({ ...evidence, parts: storedBytesParts }, storedBytesCheckedAt);
+    // Named fields only — this route never spreads the evidence row (intake-customer-id contract).
+    const storedBytesRow = {
+      status: evidence.status,
+      integrityVerifiedAtUtc: evidence.integrityVerifiedAtUtc,
+      integrityCheckedAtUtc: evidence.integrityCheckedAtUtc,
+      integrityCheckOutcome: evidence.integrityCheckOutcome,
+      integrityCheckFailureCode: evidence.integrityCheckFailureCode,
+      integrityRecheckRequestedAtUtc: evidence.integrityRecheckRequestedAtUtc,
+      storageVersionId: evidence.storageVersionId ?? null,
+      fileSha256: evidence.fileSha256 ?? null,
+      parts: storedBytesParts,
+    };
+    let storedBytes = readStoredBytesIntegrity(storedBytesRow, storedBytesCheckedAt);
     if (storedBytes.state !== "verified_current" && storedBytes.state !== "failed") {
       const requested = await requestIntegrityRecheck(prisma, evidence.id, storedBytesCheckedAt).catch(() => false);
       if (requested) {
