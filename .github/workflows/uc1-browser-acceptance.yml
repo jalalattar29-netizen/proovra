@@ -157,28 +157,13 @@ jobs:
           $minioExe = Get-ChildItem -Recurse -Path "$env:RUNNER_TEMP\minio-dist" -Filter "minio.exe" | Select-Object -First 1
           if (-not $minioExe) { Write-Output "::error::minio.exe not found in $minioArchive"; Get-ChildItem -Recurse "$env:RUNNER_TEMP\minio-dist" | Out-String | Write-Output; exit 1 }
           Copy-Item $minioExe.FullName "$env:RUNNER_TEMP\minio.exe"
-          $env:MINIO_ROOT_USER = "uc1miniolocal"
-          $env:MINIO_ROOT_PASSWORD = "uc1miniolocalsecret"
-          # The runner REAPS every process a step started when that step ends
-          # (it tags them with RUNNER_TRACKING_ID): MinIO came up, served the
-          # bucket bootstrap below, and was gone before the acceptance step —
-          # every capture upload then failed (worker: "connect ECONNREFUSED
-          # 127.0.0.1:56423"). Clearing the tag for this one child is the
-          # runner's documented way to keep a background service alive across
-          # steps; PostgreSQL and Memurai run as Windows services and are not
-          # affected.
-          $env:RUNNER_TRACKING_ID = ""
-          Start-Process -FilePath "$env:RUNNER_TEMP\minio.exe" -ArgumentList "server","$env:RUNNER_TEMP\minio-data","--address","127.0.0.1:56423" -RedirectStandardOutput "$env:RUNNER_TEMP\minio.log" -NoNewWindow
-          for ($i = 0; $i -lt 60; $i++) {
-            try { Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:56423/minio/health/live" | Out-Null; break } catch { Start-Sleep -Seconds 1 }
-          }
-          # Same bucket bootstrap the harness uses for --start-infra.
-          $env:S3_ENDPOINT = "http://127.0.0.1:56423"
-          $env:S3_BUCKET = "uc1-acceptance"
-          $env:S3_ACCESS_KEY = "uc1miniolocal"
-          $env:S3_SECRET_KEY = "uc1miniolocalsecret"
-          $env:S3_REGION = "us-east-1"
-          pnpm --filter proovra-api exec node scripts/uc1-ensure-bucket.mjs
+          # NOT started here. The runner reaps every process a step started
+          # when that step ends (on Windows the step's job object kills it;
+          # clearing RUNNER_TRACKING_ID did not help): MinIO served the bucket
+          # bootstrap and was gone before the acceptance step, so every capture
+          # upload failed ("connect ECONNREFUSED 127.0.0.1:56423"). It is
+          # started by the acceptance step itself. PostgreSQL and Memurai run
+          # as Windows services and are unaffected.
 
       - name: UC-1 acceptance — Chrome + Edge (docker infra)
         if: steps.infra.outputs.mode == 'docker'
@@ -191,9 +176,21 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          # The object store must still be up: started in the previous step.
-          curl -fsS --max-time 5 http://127.0.0.1:56423/minio/health/live >/dev/null \
-            || { echo "::error::MinIO (127.0.0.1:56423) is not running at the start of the acceptance step"; exit 1; }
+          # The object store lives for exactly this step (see the infra step).
+          mkdir -p "$RUNNER_TEMP/minio-data"
+          MINIO_ROOT_USER=uc1miniolocal MINIO_ROOT_PASSWORD=uc1miniolocalsecret \
+            "$RUNNER_TEMP/minio.exe" server "$RUNNER_TEMP/minio-data" --address 127.0.0.1:56423 \
+            > "$RUNNER_TEMP/minio.log" 2>&1 &
+          ready=""
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 3 http://127.0.0.1:56423/minio/health/live >/dev/null 2>&1; then ready=1; echo "MinIO ready after ${i}s"; break; fi
+            sleep 1
+          done
+          [ -n "$ready" ] || { echo "::error::MinIO did not become ready: $(tail -c 800 "$RUNNER_TEMP/minio.log" | tr '\r\n' '  ')"; exit 1; }
+          # Same bucket bootstrap the harness uses for --start-infra.
+          S3_ENDPOINT=http://127.0.0.1:56423 S3_BUCKET=uc1-acceptance S3_REGION=us-east-1 \
+            S3_ACCESS_KEY=uc1miniolocal S3_SECRET_KEY=uc1miniolocalsecret \
+            pnpm --filter proovra-api exec node scripts/uc1-ensure-bucket.mjs
           node scripts/uc1-acceptance-windows.mjs --browsers=chromium,edge \
             --db-url=postgresql://proovra:uc1_disposable@127.0.0.1:5432/uc1_acceptance_test \
             --redis-url=redis://127.0.0.1:6379/0 \
