@@ -269,7 +269,7 @@ async function waitForMinioAndBucket() {
   let ready = false;
   for (let i = 0; i < 60; i++) {
     try {
-      const res = await fetch(`${config.s3Endpoint}/minio/health/ready`);
+      const res = await probe(`${config.s3Endpoint}/minio/health/ready`);
       if (res.status === 200) {
         ready = true;
         break;
@@ -371,11 +371,28 @@ function stopChildren() {
   }
 }
 
+/**
+ * One readiness probe, BOUNDED by a ref'd timer. A bare `fetch` against a port
+ * that is still coming up could hang without holding the event loop open; the
+ * loop then drained with main() still pending and Node exited 0 — the Linux CI
+ * job "passed" at "waiting for MinIO to become ready" without running a single
+ * test. The timer below keeps the process alive and aborts the request.
+ */
+async function probe(url, ms = 5_000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(new Error(`probe timed out after ${ms} ms`)), ms);
+  try {
+    return await fetch(url, { signal: ac.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function waitForHttp(url, label, { tries = 120, expectStatus = null } = {}) {
   log(`waiting for ${label} at ${url} …`);
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url);
+      const res = await probe(url);
       // When an exact status is required (the API endpoints), a wrong service
       // squatting the port — e.g. the Next.js web app answering the API's port
       // with a 404 not-found page — must NOT count as ready. That masquerade is
@@ -778,7 +795,21 @@ if (invokedDirectly) {
     });
   }
 
+  // A drained event loop with main() still pending is NOT success: Node would
+  // exit 0, which is how the Linux job reported green without testing anything.
+  let mainSettled = false;
+  process.on("beforeExit", () => {
+    if (mainSettled) return;
+    mainSettled = true;
+    teardown();
+    reportFatal("the event loop drained while the harness was still running (a pending step never settled) — refusing to report success.");
+    process.exit(1);
+  });
+
   main()
+    .finally(() => {
+      mainSettled = true;
+    })
     .then((code) => process.exit(code))
     .catch((err) => {
       // main()'s `finally` already tore the stack down; teardown is idempotent.
