@@ -766,5 +766,111 @@ await journey("J13-governed-permanent-destruction", "Enterprise record: retentio
   check("the share link no longer verifies the destroyed record", after.status >= 400 || /destroy/i.test(JSON.stringify(after.json ?? {})), after.status);
 });
 
+/** Any mutation the server gates by step-up: retry once through the product's TOTP challenge. */
+async function withStepUp(actor, teamId, method, path, body) {
+  let r = await call(actor, method, path, body);
+  if (r.status === 401 && r.json?.error?.code === "STEP_UP_REQUIRED") {
+    const d = r.json.error.details ?? {};
+    const su = await stepUp(actor, teamId, d.purpose, d.resourceKind, d.resourceId);
+    if (su.error) return { status: 0, json: su };
+    r = await call(actor, method, path, body, { headers: { "x-proovra-step-up-challenge-id": su.challengeId } });
+  }
+  return r;
+}
+
+/** The anonymous contributor's path through an intake link (as J08 drives it). */
+async function contributorSubmits(rawToken, bytes, check) {
+  const t = encodeURIComponent(rawToken);
+  const boot = await call(null, "GET", `/v1/external-intake/${t}`);
+  check("contributor opens the link", boot.status === 200, boot.status);
+  const sid = boot.json?.session?.id;
+  const consent = await call(null, "POST", `/v1/external-intake/${t}/sessions/${sid}/consent`, {
+    consent: {
+      acceptedAtUtc: new Date().toISOString(),
+      policyVersion: boot.json?.link?.consentPolicyVersion || "v1",
+      disclosureTextHash: createHash("sha256").update(boot.json?.link?.consentDisclosureText ?? "").digest("hex"),
+      termsAcknowledged: true, identityDisclosed: true, ipHash: null, userAgent: null,
+    },
+  });
+  check("contributor consents", consent.status === 200, consent.status);
+  const part = await call(null, "POST", `/v1/external-intake/${t}/sessions/${sid}/parts`, {
+    partIndex: 0, mimeType: "image/png", originalFileName: "requested.png", checksumSha256Base64: sha256b64(bytes), webkitRelativePath: null,
+  });
+  const put = await call(null, "PUT", part.json?.upload?.putUrl, bytes, { raw: true, headers: { "content-type": "image/png", "x-amz-checksum-sha256": sha256b64(bytes) } });
+  check("contributor uploads", part.status === 201 && put.status < 300, { part: part.status, put: put.status });
+  const submit = await call(null, "POST", `/v1/external-intake/${t}/sessions/${sid}/submit`, {});
+  check("contributor submits", submit.status < 300, submit.status);
+  return sid;
+}
+
+await journey("J14-evidence-request-to-record", "Evidence Request: create → send (intake link, recipient notified) → contributor submits → record in the workspace, request answered, outputs", async (check, obs) => {
+  const created = await call(ownerA, "POST", "/v1/evidence-requests", {
+    teamId: ownerA.teamId, evidenceId: mainId, requestType: "ADDITIONAL_EVIDENCE", title: "UCA requested evidence",
+    instructions: "Please photograph the item.", priority: "NORMAL", dueAtUtc: new Date(Date.now() + 48 * 3_600_000).toISOString(),
+    recipientMode: "EXTERNAL_CONTRIBUTOR", recipientLabel: "Contributor", recipientEmail: "contributor@test.proovra.local", createIntakeLink: true,
+    deliverables: [{ title: "Primary evidence", description: "", required: true, acceptedKinds: ["PHOTO"], minCount: 1, locationRequirement: "optional", captureAfterRequest: false, sortOrder: 0 }],
+  });
+  check("request created", created.status === 201, created.status === 201 ? null : created.json);
+  const rid = created.json?.request?.id;
+  const sent = await call(ownerA, "POST", `/v1/evidence-requests/${rid}/send`);
+  check("request sent with an intake link", sent.status === 200 && typeof sent.json?.rawToken === "string" && sent.json?.request?.status === "SENT", { status: sent.status, state: sent.json?.request?.status });
+  const delivery = sql(`select count(*) from notification_deliveries where evidence_request_id='${rid}'`).rows?.[0];
+  obs.deliveries = delivery;
+  check("the recipient notification is recorded", Number(delivery) >= 1, delivery);
+  if (!sent.json?.rawToken) return;
+  const sid = await contributorSubmits(sent.json.rawToken, png(110), check);
+  const ev = sql(`select e.id, e.acquisition_mode, e.team_id from evidence e where e.id = (select evidence_id from workflow_intake_sessions where id='${sid}')`).rows?.[0] ?? "";
+  obs.evidence = ev;
+  const id = ev.split("|")[0];
+  check("the submitted record is in the requesting workspace (SECURE_INTAKE_LINK)", ev.endsWith(`|SECURE_INTAKE_LINK|${ownerA.teamId}`), ev);
+  const req = await call(ownerA, "GET", `/v1/evidence-requests/${rid}?teamId=${ownerA.teamId}`);
+  obs.requestAfter = req.json?.request?.status ?? null;
+  check("the request records the response", req.status === 200 && /RESPONSE|RECEIVED|PARTIAL|COMPLETE/.test(String(req.json?.request?.status)), req.json?.request?.status);
+  if (!id) return;
+  const st = await pollOutputs(ownerA, id);
+  check("requested record: report and package", st?.report?.available === true && st?.verificationPackage?.available === true, st?.outputs);
+});
+
+await journey("J15-legal-hold", "Legal hold: placed on a record → destruction and byte release refused while held → released → bytes release again", async (check, obs) => {
+  const u = await webUpload(ownerA, ownerA.teamId, png(120));
+  check("record completed", u.complete?.status < 300, u.complete?.status);
+  await pollOutputs(ownerA, u.id);
+  const before = await call(ownerA, "GET", `/v1/evidence/${u.id}/original`);
+  obs.originalBefore = before.status;
+  const hold = await withStepUp(ownerA, ownerA.teamId, "POST", "/v1/governance/legal-holds", { teamId: ownerA.teamId, evidenceId: u.id, title: "UCA hold", reason: "remediation journey" });
+  check("hold placed", hold.status === 201, hold.status === 201 ? null : hold.json);
+  const holdId = hold.json?.hold?.id ?? hold.json?.legalHold?.id ?? hold.json?.id;
+  const review = await call(ownerA, "POST", "/v1/governance/destruction-reviews", { teamId: ownerA.teamId, evidenceId: u.id, reason: "manual_review" });
+  obs.reviewWhileHeld = { status: review.status, code: review.json?.error?.code ?? null };
+  check("destruction cannot be opened while held", review.status >= 400 && review.status < 500, obs.reviewWhileHeld);
+  const held = await call(ownerA, "GET", `/v1/evidence/${u.id}/original`);
+  obs.originalWhileHeld = { status: held.status, code: held.json?.error?.code ?? held.json?.code ?? null };
+  check("the original is not released while held", held.status >= 400 && held.status < 500 && before.status < 400, { before: before.status, held: obs.originalWhileHeld });
+  const rel = await withStepUp(ownerA, ownerA.teamId, "POST", `/v1/governance/legal-holds/${holdId}/release`, { teamId: ownerA.teamId, releaseNote: "remediation journey release", approvalAcknowledged: true });
+  check("hold released", rel.status === 200, rel.status === 200 ? null : rel.json);
+  const after = await call(ownerA, "GET", `/v1/evidence/${u.id}/original`);
+  obs.originalAfter = after.status;
+  check("the original releases again after the hold", after.status === before.status, { before: before.status, after: after.status });
+});
+
+await journey("J16-free-reservation-concurrency", "FREE personal workspace: six concurrent creations admit exactly the three-record allowance", async (check, obs) => {
+  const attempts = await Promise.all(
+    Array.from({ length: 6 }, (_, i) =>
+      call(free, "POST", "/v1/evidence", {
+        type: "PHOTO", teamId: free.teamId, mimeType: "image/png", originalFileName: `race-${i}.png`, captureFileName: `race-${i}.png`,
+        deviceTimeIso: new Date().toISOString(), checksumSha256Base64: sha256b64(png(130 + i)), contentMd5Base64: md5b64(png(130 + i)),
+      }),
+    ),
+  );
+  const statuses = attempts.map((a) => a.status).sort();
+  obs.statuses = statuses;
+  obs.codes = attempts.map((a) => a.json?.code ?? a.json?.error?.code ?? null);
+  check("exactly three admitted", statuses.filter((s) => s === 201).length === 3, statuses);
+  check("the other three refused with a 4xx, none 5xx", statuses.filter((s) => s !== 201).every((s) => s >= 400 && s < 500), statuses);
+  const rows = sql(`select count(*) from evidence where owner_user_id='${free.id}' and deleted_at is null`).rows?.[0];
+  obs.rows = rows;
+  check("exactly three records exist", Number(rows) === 3, rows);
+});
+
 writeFileSync(outPath, JSON.stringify({ api: API, generatedAt: new Date().toISOString(), journeys }, null, 2));
 process.stdout.write(`wrote ${outPath}\n`);

@@ -25,6 +25,9 @@ export const REMEDIATION_RUN_FILES = [
   "runtime/remediation/journeys-raw.json",
   // J11 on its own seed: it needs a FREE user whose allowance J05 has not used.
   "runtime/remediation/journeys-j11-raw.json",
+  // J16 on its own seed: a FREE user whose allowance nothing else has used.
+  "runtime/remediation/journeys-j16-raw.json",
+  "runtime/remediation/derived-thumbnails.json",
   "runtime/remediation/web-screen-capture.json",
   "runtime/remediation/extension-acceptance.json",
 ];
@@ -82,9 +85,9 @@ export const JOURNEYS_AFTER = {
   R02: { runs: ["R02-web-screen-capture"] },
   R03: { runs: ["J08-"] },
   R04: {
-    runs: ["J08-"],
+    runs: ["J14-"],
     evidence: ["services/api/test/runtime-proof-evidence-capture-b.integration.test.ts::POST /v1/evidence-requests/:id/send — opens the intake link, notifies the recipient and marks SENT"],
-    note: "An Evidence Request delivers through an intake link (no separate byte path): send is proven on real PostgreSQL with the recording mail transport, the byte path by the intake journey on the stack.",
+    note: "Driven end to end on the stack (Evidence Requests enabled): create, send with intake link and recorded recipient notification, contributor submission, record in the requesting workspace, outputs. External mail delivery itself is not exercised (recording transport).",
   },
   R05: { runs: ["R05-extension-real-browsers"] },
   R06: {
@@ -123,7 +126,7 @@ export const JOURNEYS_AFTER = {
   R13: { runs: ["J12-"] },
   R14a: { runs: ["J04-"] },
   R14b: { runs: ["J13-"] },
-  R15a: { runs: ["J05-"] },
+  R15a: { runs: ["J05-", "J16-"] },
   R15b: {
     status: "BLOCKED",
     blockers: ["EP-10", "EP-11"],

@@ -68,6 +68,11 @@ async function main(): Promise<void> {
     // Remediation rerun: product-provisioned organizations carry a security policy
     // (default row); without it the workspace switch answers 503 POLICY_NOT_PROVISIONED.
     await prisma.organizationSecurityPolicy.create({ data: { organizationId: org.id } });
+    // An onboarded Enterprise customer has an ACTIVE contract; Legal Hold is a contract
+    // term (the plan alone grants nothing — FEATURE_LEGAL_HOLD resolves from the contract).
+    await prisma.enterpriseContract.create({
+      data: { organizationId: org.id, status: "ACTIVE", effectiveAtUtc: new Date(), legalHoldEnabled: true } as never,
+    });
     const team = await prisma.team.create({
       data: {
         name: `UCA-${tag}-${stamp}`,
