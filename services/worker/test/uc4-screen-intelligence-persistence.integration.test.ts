@@ -148,6 +148,8 @@ runIf("UC-4 persisted screen intelligence (DB + storage)", () => {
         organizationId: org.id,
         ownerUserId: user.id,
         type: opts.parts[0]!.mime.startsWith("video/") ? "VIDEO" : "PHOTO",
+        // A derivable source is a SEALED record (derived-production eligibility).
+        status: "SIGNED",
       },
     });
     const parts: ScreenSourcePartInput[] = [];

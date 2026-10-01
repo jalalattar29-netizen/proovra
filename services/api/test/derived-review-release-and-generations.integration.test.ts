@@ -246,6 +246,17 @@ describe("UC-4 derived review — release, generations, personal (live PostgreSQ
         ...(regenerate === undefined ? {} : { regenerate }),
       });
 
+    it("a record that never sealed (UPLOADING, or a refused hash-mismatch) is not a source: 409 evidence_not_sealed, no run", async () => {
+      for (const status of ["UPLOADING", "FAILED_HASH_MISMATCH"] as const) {
+        const { evidenceId } = await screenRecord();
+        await prisma.evidence.update({ where: { id: evidenceId }, data: { status } as never });
+        const res = await generate(evidenceId);
+        expect(res.statusCode, `${status}: ${res.body}`).toBe(409);
+        expect(res.json()).toMatchObject({ error: { code: "evidence_not_eligible", reason: "evidence_not_sealed" } });
+        expect(await runsOf(evidenceId)).toHaveLength(0);
+      }
+    });
+
     it("first Generate → generation 1 PENDING; while in flight a second request is 409, not a phantom 'queued'", async () => {
       const { evidenceId } = await screenRecord();
       const res = await generate(evidenceId);

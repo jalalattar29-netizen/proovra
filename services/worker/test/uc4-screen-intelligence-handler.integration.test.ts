@@ -153,6 +153,8 @@ runIf("UC-4 processReconstructScreenJob (live PostgreSQL)", () => {
         organizationId: org.id,
         ownerUserId: user.id,
         type: "VIDEO",
+        // A derivable source is a SEALED record (derived-production eligibility).
+        status: "SIGNED",
       } as never,
     });
     const bytes = Buffer.from(`segment-${randomUUID()}`);
