@@ -1395,6 +1395,13 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20280816000002_evidence_unpublished_by_default",
       // PA-03 — governance policy audit rows may have no policy (evaluation with nothing applied).
       "20280817000000_governance_policy_audit_nullable_policy",
+      // Universal Evidence Capture closure (2026-10-01): derived generations kept (UC-DER-005/006/014),
+      // acquisition source after creation is a backfill only (UC-PROV-009), one link per case/evidence
+      // pair (UC-CASE-004), one active entitlement per user (UC-COM-004). All EXPAND; the last two fail closed.
+      "20281001000000_derived_asset_generations",
+      "20281001000100_acquisition_source_backfill_only",
+      "20281001000200_case_evidence_link_pair_unique",
+      "20281001000300_entitlement_one_active",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

@@ -3387,6 +3387,38 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT is_nullable FROM information_schema.columns WHERE table_name='governance_policy_audits' AND column_name='policy_id'\"",
       "evidence": "GOVERNANCE POLICY AUDIT WITHOUT A POLICY (2026-09-30, PA-03). Relaxes governance_policy_audits.policy_id to NULLable. WHY: a policy evaluation is audited even when no policy applied; those rows were written with the all-zero UUID as a stand-in, which violates governance_policy_audits_policy_id_fkey, so every such insert failed inside a catch that discarded the error and the evaluation record was lost (observed in the CI full-stack log, 2026-09-30). NULL = the evaluation had no policy; the foreign key is unchanged and does not constrain NULL. EXPAND / SAFE_TO_APPLY_NOW: code built before it always writes a non-null policy_id and is unaffected; code built after it writes NULL for a no-policy evaluation, so apply BEFORE the PA-03 API image (a NULL insert into a NOT NULL column fails, and is now reported rather than swallowed). Idempotent (guarded DO block). Nothing is rewritten, no backfill. ROLLBACK is code-first; re-imposing NOT NULL would require deleting the no-policy rows and is not proposed. NOT APPLIED TO PRODUCTION."
+    },
+    "20281001000000_derived_asset_generations": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='evidence_part_derived_assets' AND column_name='generation_parameters'\"",
+      "evidence": "DERIVED GENERATIONS ARE PRESERVED (2026-10-01, UC-DER-005/006/014). Widens evidence_part_derived_assets_status_bounded to include SUPERSEDED (constraint swap, strict superset) and adds nullable generation_parameters JSONB. WHY: regeneration overwrote a derivative row and deleted its object; a new generation now marks the previous row SUPERSEDED and keeps it, and records the parameters it was produced with. EXPAND / SAFE_TO_APPLY_NOW: the previous image never writes SUPERSEDED or the new column; apply BEFORE the UC-4 closure API/worker images, which write both. Idempotent (DROP CONSTRAINT IF EXISTS + ADD, ADD COLUMN IF NOT EXISTS). No backfill. ROLLBACK is code-first. NOT APPLIED TO PRODUCTION."
+    },
+    "20281001000100_acquisition_source_backfill_only": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT position('BACKFILL' in prosrc) > 0 FROM pg_proc WHERE proname='evidence_acquisition_set_once'\"",
+      "evidence": "ACQUISITION SOURCE AFTER CREATION IS A BACKFILL ONLY (2026-10-01, UC-PROV-009). CREATE OR REPLACE of the evidence_acquisition_set_once trigger function: the existing immutability rules are unchanged, and a record created without an acquisition may later receive only a BACKFILL_* source, never RECORDED_AT_CREATION (which only the creating INSERT writes). WHY: a legacy record could be relabelled as if its channel had been recorded when it was created. EXPAND / SAFE_TO_APPLY_NOW: no running image assigns a non-backfill source late. Idempotent. ROLLBACK: re-create the previous function body. NOT APPLIED TO PRODUCTION."
+    },
+    "20281001000200_case_evidence_link_pair_unique": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM (SELECT 1 FROM case_evidence_links GROUP BY case_id, evidence_id HAVING count(*) > 1) d\"",
+      "evidence": "ONE LINK ROW PER (CASE, EVIDENCE) (2026-10-01, UC-CASE-004). Adds unique index case_evidence_links_case_id_evidence_id_key. WHY: one link per pair was enforced only by read-then-write, so concurrent attaches could insert two rows (different roles) or answer 500. FAIL CLOSED: a guard aborts the migration, naming the count, if duplicate pairs already exist; nothing is deleted — the operator decides which link is kept (readinessCommand must return 0). EXPAND / SAFE_TO_APPLY_NOW once readiness returns 0: the previous image only ever writes one row per pair and the new image maps the unique violation to the idempotent already-linked answer. The previous (case_id, evidence_id, role) unique stays (implied; retire later). ROLLBACK: DROP INDEX. NOT APPLIED TO PRODUCTION."
+    },
+    "20281001000300_entitlement_one_active": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM (SELECT 1 FROM entitlements WHERE active GROUP BY user_id HAVING count(*) > 1) d\"",
+      "evidence": "ONE ACTIVE ENTITLEMENT PER USER (2026-10-01, UC-COM-004). Adds the partial unique index entitlements_user_id_active_key ON entitlements(user_id) WHERE active (a raw-schema object Prisma cannot express). WHY: entitlement bootstrap was check-then-create in several places, so concurrent first requests could create two active rows and the wallet/plan reader picked one arbitrarily; every writer now uses ensureEntitlement. FAIL CLOSED: a guard aborts the migration if any user already has two active rows; nothing is merged or summed — duplicate rows may hold purchased credits and must be reconciled by an operator (readinessCommand must return 0). EXPAND / SAFE_TO_APPLY_NOW once readiness returns 0. ROLLBACK: DROP INDEX. NOT APPLIED TO PRODUCTION."
     }
   }
 }
