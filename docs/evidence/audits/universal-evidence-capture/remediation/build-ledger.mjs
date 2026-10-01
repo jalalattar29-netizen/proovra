@@ -30,16 +30,51 @@ const findingsDoc = JSON.parse(readFileSync(join(AUDIT, "universal-capture-findi
 const findings = findingsDoc.findings;
 const consolidations = findingsDoc.consolidations;
 
-const lanes = {};
+// A finding may have more than one lane row (e.g. a server half and a client half).
+// Rows are merged: FIXED only when every contributing row is FIXED; FIXED + BLOCKED_EXTERNAL_PROOF
+// merges to BLOCKED_EXTERNAL_PROOF (carrying the external proof); anything else stays OPEN until
+// the lead adjudicates it in lead-decisions.mjs.
+const PROOF_RANK = ["runtime", "integration-real-db", "contract-fixture", "unit", "source-structure"];
+const laneRows = {};
 const laneDir = join(HERE, "lanes");
 if (existsSync(laneDir)) {
   for (const f of readdirSync(laneDir).filter((n) => n.endsWith(".json")).sort()) {
     const doc = JSON.parse(readFileSync(join(laneDir, f), "utf8"));
-    for (const [id, row] of Object.entries(doc.findings ?? {})) {
-      if (lanes[id]) throw new Error(`finding ${id} reported by two lanes (${lanes[id].lane} and ${doc.lane})`);
-      lanes[id] = { lane: doc.lane, ...row };
-    }
+    for (const [id, row] of Object.entries(doc.findings ?? {})) (laneRows[id] ??= []).push({ lane: doc.lane, ...row });
   }
+}
+const lanes = {};
+for (const [id, rows] of Object.entries(laneRows)) {
+  if (rows.length === 1) {
+    lanes[id] = rows[0];
+    continue;
+  }
+  const statuses = rows.map((r) => r.status);
+  const status = statuses.every((x) => x === "FIXED")
+    ? "FIXED"
+    : statuses.every((x) => x === "FIXED" || x === "BLOCKED_EXTERNAL_PROOF")
+      ? "BLOCKED_EXTERNAL_PROOF"
+      : "OPEN_MULTI_LANE";
+  const ranked = rows
+    .filter((r) => r.status === "FIXED" || r.status === "BLOCKED_EXTERNAL_PROOF")
+    .map((r) => r.proofKind)
+    .filter(Boolean)
+    .sort((a, b) => PROOF_RANK.indexOf(a) - PROOF_RANK.indexOf(b));
+  lanes[id] = {
+    lane: rows.map((r) => r.lane).join("+"),
+    status,
+    proofKind: ranked[0] ?? rows[0].proofKind,
+    decision: rows.map((r) => `[${r.lane}] ${r.decision}`).join(" "),
+    red: rows.find((r) => r.red)?.red ?? null,
+    green: {
+      tests: rows.flatMap((r) => r.green?.tests ?? []),
+      command: rows.map((r) => r.green?.command).filter(Boolean).join(" ; "),
+      result: rows.map((r) => `[${r.lane}] ${r.green?.result ?? "—"}`).join(" "),
+    },
+    migration: rows.map((r) => r.migration).filter((m) => m && m !== "none").join("; ") || "none",
+    impacts: Object.assign({}, ...rows.map((r) => r.impacts ?? {})),
+    externalProofRemaining: rows.map((r) => r.externalProofRemaining).filter((e) => e && e !== "none").join("; ") || "none",
+  };
 }
 
 // Commits citing each id (product paths only).
@@ -55,9 +90,48 @@ for (const rec of log.split("\x1e").map((s) => s.trim()).filter(Boolean)) {
   }
 }
 
+// Lead attribution: a commit whose message cited the id only inside a range ("UC-IOS-001..UC-IOS-012")
+// or a commit that resolved a cross-lane half. Every attributed sha must exist on this branch since
+// the base and touch product paths — otherwise the build fails.
+const productCommits = new Set();
+for (const rec of log.split("\x1e").map((s) => s.trim()).filter(Boolean)) {
+  const sha = rec.split("\x1f")[0];
+  const files = execFileSync("git", ["-C", REPO, "show", "--name-only", "--format=", sha], { encoding: "utf8" }).split("\n").filter(Boolean);
+  if (files.some((f) => PRODUCT.test(f))) productCommits.add(sha.slice(0, 12));
+}
+for (const [id, a] of Object.entries(LEAD.COMMIT_ATTRIBUTION ?? {})) {
+  for (const short of a.commits) {
+    const full = [...productCommits].find((s) => s.startsWith(short));
+    if (!full) throw new Error(`attributed commit ${short} for ${id} is not a product commit on this branch since ${LEAD.BASE_SHA}`);
+    const list = (commitsById[id] ??= []);
+    if (!list.some((c) => c.sha === full)) {
+      const subject = execFileSync("git", ["-C", REPO, "log", "-1", "--format=%s", full], { encoding: "utf8" }).trim();
+      list.push({ sha: full, subject, attributedBy: a.reason });
+    }
+  }
+}
+
 const rows = findings.map((f) => {
   const lane = lanes[f.id] ?? null;
-  const lead = LEAD.DECISIONS[f.id] ?? null;
+  const leadRaw = LEAD.DECISIONS[f.id] ?? null;
+  // A lead adjudication merges over the lane row(s): it sets the final status / proof kind and
+  // appends its note and re-run proof; the lanes' decision, red and green evidence is kept.
+  const lead = leadRaw && lane
+    ? {
+        ...lane,
+        status: leadRaw.status,
+        proofKind: leadRaw.proofKind ?? lane.proofKind,
+        decision: `${lane.decision} LEAD ADJUDICATION: ${leadRaw.note}`,
+        red: lane.red ?? leadRaw.red ?? null,
+        green: {
+          tests: [...(lane.green?.tests ?? []), ...(leadRaw.green?.tests ?? [])],
+          command: [lane.green?.command, leadRaw.green?.command].filter(Boolean).join(" ; "),
+          result: [lane.green?.result, leadRaw.green?.result].filter(Boolean).join(" ; "),
+        },
+        migration: leadRaw.migration ?? lane.migration,
+        externalProofRemaining: leadRaw.externalProofRemaining ?? lane.externalProofRemaining,
+      }
+    : leadRaw;
   const src = lead ?? lane;
   const commits = (commitsById[f.id] ?? []).slice().reverse();
   let disposition = "OPEN";
@@ -94,7 +168,11 @@ const ids = rows.map((r) => r.id);
 gate("ledger rows = 119 original findings", rows.length === 119, `${rows.length}`);
 gate("no duplicate ids", new Set(ids).size === ids.length);
 gate("every consolidated alias maps to exactly one ledger row", consolidations.every((c) => rows.filter((r) => r.aliases.includes(c.id)).length === 1 && ids.includes(c.into)), consolidations.map((c) => `${c.id}->${c.into}`).join(", "));
-gate("no lane reports an unknown id", Object.keys(lanes).every((id) => ids.includes(id)), Object.keys(lanes).filter((id) => !ids.includes(id)).join(","));
+// Lane reports may carry extra work items (cross-lane notes, the R02 web screen-capture capability)
+// under descriptive keys; only keys shaped like a finding id must name a real finding.
+const ID_SHAPE = /^UC-[A-Z]+-\d{3}$/;
+const extraWorkItems = Object.keys(lanes).filter((id) => !ID_SHAPE.test(id)).sort();
+gate("no lane reports an unknown finding id", Object.keys(lanes).filter((id) => ID_SHAPE.test(id)).every((id) => ids.includes(id)), Object.keys(lanes).filter((id) => ID_SHAPE.test(id) && !ids.includes(id)).join(","));
 const counts = {};
 for (const r of rows) counts[r.finalDisposition] = (counts[r.finalDisposition] ?? 0) + 1;
 const fixed = (counts.FIXED_RUNTIME_PROVEN ?? 0) + (counts.FIXED_SOURCE_AND_TEST_PROVEN ?? 0);
@@ -112,6 +190,7 @@ const doc = {
   auditSha: LEAD.AUDIT_SHA,
   auditRemote: LEAD.AUDIT_REMOTE_STATUS,
   baseSha: LEAD.BASE_SHA,
+  extraWorkItems: extraWorkItems.map((k) => ({ key: k, lane: lanes[k].lane, status: lanes[k].status, decision: lanes[k].decision })),
   counts: { total: rows.length, ...Object.fromEntries(Object.entries(counts).sort()), fixed, blocked, remaining: rows.length - fixed - blocked },
   gates,
   rows,

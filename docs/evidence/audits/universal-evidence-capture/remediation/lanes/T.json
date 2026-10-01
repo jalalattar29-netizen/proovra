@@ -778,8 +778,8 @@
     "UC-DER-006 (lane D cross-lane: version)": {
       "migration": "none",
       "externalProofRemaining": "none",
-      "status": "NEEDS_CROSS_LANE",
-      "decision": "storage.ts putObjectBuffer returns { versionId: res.VersionId ?? null }. Recording it next to derived outputs needs lane D's derived-asset version column (D marked UC-DER-006 NEEDS_MIGRATION) and edits in derived-assets.processor.ts / screen-intelligence.handler.ts (lane D files) — recorded as a cross-lane request.",
+      "status": "FIXED",
+      "decision": "storage.ts putObjectBuffer returns { versionId: res.VersionId ?? null }. Recording it next to derived outputs needs lane D's derived-asset version column (D marked UC-DER-006 NEEDS_MIGRATION) and edits in derived-assets.processor.ts / screen-intelligence.handler.ts (lane D files) — recorded as a cross-lane request. RESOLVED: lane D recorded putObjectBuffer versionId on every derived row in 83dd6cf4 (storage_version_id, migration 20281001000600).",
       "red": {
         "test": "services/worker/test/storage-put-version.test.ts",
         "command": "cd services/worker && npx vitest run test/storage-put-version.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
