@@ -810,7 +810,17 @@ jobs:
             if [ -n "$body" ]; then args+=(--data-raw "$body"); fi
             status=$(curl "${args[@]}" "${base}${path}")
             if [ "$status" != "$expected" ]; then
-              echo "::error::${method} ${path} returned ${status}, expected ${expected}"
+              echo "::error::${method} ${path} returned ${status}, expected ${expected}: $(head -c 600 /tmp/resp.json 2>/dev/null | tr '\r\n' '  ')"
+              # A 5xx body is deliberately generic; the cause is in the API's
+              # own error-level log lines, which go to annotations because a
+              # step log needs a signed-in viewer.
+              case "$status" in
+                5*)
+                  $COMPOSE logs --no-color proovra-api 2>/dev/null \
+                    | grep -E '"level":(50|60)' | tail -n 5 | cut -c1-1500 \
+                    | while IFS= read -r line; do echo "::error::api-log: ${line}"; done
+                  ;;
+              esac
               echo "--- response body ---"
               cat /tmp/resp.json || true
               echo

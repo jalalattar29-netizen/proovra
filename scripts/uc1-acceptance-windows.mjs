@@ -673,7 +673,8 @@ async function main() {
       // reported FAIL rather than holding the harness (and the stack) forever.
       const r = spawnSync("npx", ["playwright", "test", `--project=${project}`, ...grepArgs], {
         cwd: e2eDir,
-        env: acceptanceEnv,
+        // UC1_PROJECT names this project's JSON result (CI only, see the config).
+        env: { ...acceptanceEnv, UC1_PROJECT: project },
         stdio: "inherit",
         shell: process.platform === "win32",
         timeout: PROJECT_TIMEOUT_MS,

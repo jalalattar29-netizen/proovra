@@ -6,3 +6,4 @@ test/dist/
 e2e/node_modules/
 e2e/test-results/
 *.log
+e2e/results/

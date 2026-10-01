@@ -186,13 +186,22 @@ jobs:
       - name: Refuse an empty acceptance run
         if: always()
         shell: pwsh
+        # FAIL CLOSED, per browser. This used to look for a results.json the
+        # config never wrote, find none, warn and exit 0 — a gate that passed
+        # by construction. The config now writes results/<project>.json on
+        # GitHub Actions, and each requested browser must have one that
+        # executed at least one test.
         run: |
-          $results = Get-ChildItem -Recurse -Path "apps/extension" -Filter "results.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $results) { Write-Output "::warning::no Playwright JSON results found to count" ; exit 0 }
-          $r = Get-Content $results.FullName | ConvertFrom-Json
-          $executed = $r.stats.expected + $r.stats.unexpected + $r.stats.flaky
-          Write-Output "playwright stats: $($r.stats | ConvertTo-Json -Compress)"
-          if ($executed -le 0) { Write-Output "::error::UC-1 acceptance executed ZERO tests"; exit 1 }
+          $failed = $false
+          foreach ($project in @("chromium", "edge")) {
+            $file = "apps/extension/e2e/results/$project.json"
+            if (-not (Test-Path $file)) { Write-Output "::error::no Playwright result for $project ($file)"; $failed = $true; continue }
+            $r = Get-Content $file -Raw | ConvertFrom-Json
+            $executed = $r.stats.expected + $r.stats.unexpected + $r.stats.flaky
+            Write-Output "$project playwright stats: $($r.stats | ConvertTo-Json -Compress)"
+            if ($executed -le 0) { Write-Output "::error::UC-1 acceptance executed ZERO tests on $project"; $failed = $true }
+          }
+          if ($failed) { exit 1 }
 
       - name: Upload acceptance logs
         if: always()
@@ -202,6 +211,7 @@ jobs:
           path: |
             ${{ runner.temp }}/uc1-acceptance-*
             ${{ runner.temp }}/minio.log
+            apps/extension/e2e/results/
             apps/extension/test-results/
             apps/extension/playwright-report/
           if-no-files-found: warn
@@ -235,6 +245,13 @@ jobs:
       - name: UC-1 extension e2e — Chromium (headed under xvfb)
         run: xvfb-run -a node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium
 
+      - name: Refuse an empty e2e run
+        if: always()
+        run: |
+          f=apps/extension/e2e/results/chromium.json
+          test -f "$f" || { echo "::error::no Playwright result for chromium ($f)"; exit 1; }
+          node -e 'const s=require(require("path").resolve(process.argv[1])).stats; console.log("chromium playwright stats:", JSON.stringify(s)); if (s.expected + s.unexpected + s.flaky <= 0) { console.log("::error::UC-1 e2e executed ZERO tests on chromium"); process.exit(1); }' "$f"
+
       - name: Upload e2e logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -242,6 +259,7 @@ jobs:
           name: uc1-extension-e2e-linux-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/uc1-acceptance-*
+            apps/extension/e2e/results/
             apps/extension/test-results/
             apps/extension/playwright-report/
           if-no-files-found: warn

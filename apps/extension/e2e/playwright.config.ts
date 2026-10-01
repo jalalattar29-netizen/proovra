@@ -13,7 +13,17 @@ export default defineConfig({
   timeout: 120_000,
   fullyParallel: false,
   workers: 1,
-  reporter: [["list"]],
+  // On GitHub Actions also: `github` (each failure becomes an annotation — run
+  // logs need a signed-in viewer) and a per-project JSON result, which the
+  // workflow COUNTS so a run that executed nothing cannot pass.
+  reporter:
+    process.env.GITHUB_ACTIONS === "true"
+      ? [
+          ["list"],
+          ["github"],
+          ["json", { outputFile: `results/${process.env.UC1_PROJECT ?? "all"}.json` }],
+        ]
+      : [["list"]],
   projects: [
     { name: "chromium", use: { channel: "chrome" } },
     { name: "edge", use: { channel: "msedge" } },
