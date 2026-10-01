@@ -5,6 +5,262 @@
     {
       "id": "R01",
       "title": "Web/PWA file upload → finalize → report → package → Public Verify",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify",
+        "runtime/remediation/journeys-raw.json#J02-package-independent-recompute",
+        "runtime/remediation/package-recompute.json"
+      ],
+      "blockers": [],
+      "note": "J01-web-upload-to-public-verify: PASS (22/22); J02-package-independent-recompute: PASS (2/2)",
+      "status": "PASS"
+    },
+    {
+      "id": "R02",
+      "title": "Web/PWA screen capture → outputs",
+      "auditStatus": "FAIL",
+      "evidence": [
+        "runtime/remediation/web-screen-capture.json#R02-web-screen-capture-real-chromium"
+      ],
+      "blockers": [],
+      "note": "R02-web-screen-capture-real-chromium: PASS (15/15)",
+      "status": "PASS"
+    },
+    {
+      "id": "R03",
+      "title": "Intake-link submission → outputs",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J08-intake-link-to-public-verify"
+      ],
+      "blockers": [],
+      "note": "J08-intake-link-to-public-verify: PASS (10/10)",
+      "status": "PASS"
+    },
+    {
+      "id": "R04",
+      "title": "Evidence Request submission → outputs",
+      "auditStatus": "BLOCKED",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J08-intake-link-to-public-verify",
+        "services/api/test/runtime-proof-evidence-capture-b.integration.test.ts::POST /v1/evidence-requests/:id/send — opens the intake link, notifies the recipient and marks SENT"
+      ],
+      "blockers": [],
+      "note": "J08-intake-link-to-public-verify: PASS (10/10). An Evidence Request delivers through an intake link (no separate byte path): send is proven on real PostgreSQL with the recording mail transport, the byte path by the intake journey on the stack.",
+      "status": "PASS"
+    },
+    {
+      "id": "R05",
+      "title": "Browser extension capture → outputs",
+      "auditStatus": "FAIL",
+      "evidence": [
+        "runtime/remediation/extension-acceptance.json#R05-extension-real-browsers"
+      ],
+      "blockers": [],
+      "note": "R05-extension-real-browsers: PASS (11/11)",
+      "status": "PASS"
+    },
+    {
+      "id": "R06",
+      "title": "Android flow (strongest available environment)",
+      "auditStatus": "BLOCKED",
+      "evidence": [
+        "services/api/test/uc2-android-screen-capture.integration.test.ts",
+        "services/api/test/uc3-continuous-capture.integration.test.ts",
+        "runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify"
+      ],
+      "blockers": [
+        "EP-06",
+        "EP-07"
+      ],
+      "note": "Server side proven on the stack and on real PostgreSQL; MediaProjection, foreground service and notifications need a physical Android device.",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "R07",
+      "title": "iOS flow (strongest available environment)",
+      "auditStatus": "FAIL",
+      "evidence": [
+        "services/api/test/uc5-ios-screen-capture.integration.test.ts",
+        "apps/mobile/test/ios-broadcast-contract.test.mjs"
+      ],
+      "blockers": [
+        "EP-08",
+        "EP-09",
+        "EP-14"
+      ],
+      "note": "The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline); ReplayKit itself needs macOS and a device.",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "R08",
+      "title": "Continuous/streaming capture with interruption and resume",
+      "auditStatus": "FAIL",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify",
+        "services/api/test/uc3-continuous-completeness.integration.test.ts"
+      ],
+      "blockers": [
+        "EP-06"
+      ],
+      "note": "J09-continuous-direct-capture-to-public-verify: PASS (10/10). Missing tail/middle, duplicate and conflicting segments, seal racing and interruption are proven on real PostgreSQL; resume after an app/process restart needs a device.",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "R09a",
+      "title": "Video → keyframes",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J10-uc4-derived-review"
+      ],
+      "blockers": [],
+      "note": "J10-uc4-derived-review: PASS (2/2)",
+      "status": "PASS"
+    },
+    {
+      "id": "R09b",
+      "title": "Video → OCR",
+      "auditStatus": "BLOCKED",
+      "evidence": [
+        "services/worker/test/uc4-tesseract-ocr.test.ts",
+        "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
+      ],
+      "blockers": [
+        "EP-14"
+      ],
+      "note": "OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host, so the extraction assertion runs in the worker CI job only.",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "R10",
+      "title": "Conversation capture / reconstruction",
+      "auditStatus": "FAIL",
+      "evidence": [
+        "packages/shared/tests/screen-reconstruction.test.mjs",
+        "services/worker/test/uc4-reconstruction.test.ts"
+      ],
+      "blockers": [
+        "EP-13",
+        "EP-14"
+      ],
+      "note": "Reconstruction now merges realistic chat screens (UC-DER-004 fixtures); real conversation apps and real OCR remain external.",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "R11",
+      "title": "Add capture to existing Case",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J03-case-attach-and-tenancy",
+        "services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE)"
+      ],
+      "blockers": [],
+      "note": "J03-case-attach-and-tenancy: PASS (18/18)",
+      "status": "PASS"
+    },
+    {
+      "id": "R12",
+      "title": "Create new Evidence from capture",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify"
+      ],
+      "blockers": [],
+      "note": "J01-web-upload-to-public-verify: PASS (22/22)",
+      "status": "PASS"
+    },
+    {
+      "id": "R13",
+      "title": "Failure and recovery journey",
+      "auditStatus": "BLOCKED",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J12-failure-and-recovery"
+      ],
+      "blockers": [],
+      "note": "J12-failure-and-recovery: PASS (12/12)",
+      "status": "PASS"
+    },
+    {
+      "id": "R14a",
+      "title": "Trash / restore",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J04-trash-restore"
+      ],
+      "blockers": [],
+      "note": "J04-trash-restore: PASS (6/6)",
+      "status": "PASS"
+    },
+    {
+      "id": "R14b",
+      "title": "Permanent destruction",
+      "auditStatus": "BLOCKED",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J13-governed-permanent-destruction"
+      ],
+      "blockers": [],
+      "note": "J13-governed-permanent-destruction: PASS (10/10)",
+      "status": "PASS"
+    },
+    {
+      "id": "R15a",
+      "title": "FREE allowance: three records, fourth refused, trash keeps the slot",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J05-free-allowance"
+      ],
+      "blockers": [],
+      "note": "J05-free-allowance: PASS (3/3)",
+      "status": "PASS"
+    },
+    {
+      "id": "R15b",
+      "title": "Credit purchase / upgrade / downgrade / webhook replay",
+      "auditStatus": "BLOCKED",
+      "evidence": [
+        "services/api/test/billing-paypal-integrity.integration.test.ts",
+        "services/api/test/billing-allowance-commitments.integration.test.ts"
+      ],
+      "blockers": [
+        "EP-10",
+        "EP-11"
+      ],
+      "note": "Needs Stripe/PayPal sandboxes; the commercial rules are proven on real PostgreSQL.",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "R16",
+      "title": "Share-link create / revoke / replace",
+      "auditStatus": "PASS",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify"
+      ],
+      "blockers": [],
+      "note": "J01-web-upload-to-public-verify: PASS (22/22)",
+      "status": "PASS"
+    },
+    {
+      "id": "R17",
+      "title": "Integrity mismatch and stale-status journey",
+      "auditStatus": "FAIL",
+      "evidence": [
+        "runtime/remediation/journeys-raw.json#J06-integrity-tamper",
+        "services/api/test/public-verify-stored-bytes-truth.integration.test.ts"
+      ],
+      "blockers": [],
+      "note": "J06-integrity-tamper: PASS (7/7)",
+      "status": "PASS"
+    }
+  ],
+  "counts": {
+    "PASS": 14,
+    "FAIL": 0,
+    "BLOCKED": 6
+  },
+  "auditRequired": [
+    {
+      "id": "R01",
+      "title": "Web/PWA file upload → finalize → report → package → Public Verify",
       "status": "PASS",
       "evidence": [
         "runtime/journeys-raw.json#J01-web-upload-to-public-verify",
@@ -192,11 +448,163 @@
       "note": "After byte substitution Public Verify still states original 'verified' and stored bytes 'verified_current' (UC-TRUST-008)."
     }
   ],
-  "counts": {
+  "auditCounts": {
     "PASS": 8,
     "FAIL": 6,
     "BLOCKED": 6
   },
+  "remediationRuns": [
+    {
+      "id": "J01-web-upload-to-public-verify",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Web/PWA upload → finalize → report → package → share link → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 22,
+      "checksTotal": 22,
+      "failedChecks": [],
+      "requests": 22
+    },
+    {
+      "id": "J02-package-independent-recompute",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Download verification package and recompute its checksum index outside the application",
+      "verdict": "PASS",
+      "checksPassed": 2,
+      "checksTotal": 2,
+      "failedChecks": [],
+      "requests": 2
+    },
+    {
+      "id": "J03-case-attach-and-tenancy",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Create case, attach evidence, read back; cross-tenant + viewer negatives",
+      "verdict": "PASS",
+      "checksPassed": 18,
+      "checksTotal": 18,
+      "failedChecks": [],
+      "requests": 21
+    },
+    {
+      "id": "J04-trash-restore",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Trash → restore keeps the record and its outputs",
+      "verdict": "PASS",
+      "checksPassed": 6,
+      "checksTotal": 6,
+      "failedChecks": [],
+      "requests": 9
+    },
+    {
+      "id": "J05-free-allowance",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "FREE personal workspace: three records, fourth refused, trash keeps the slot",
+      "verdict": "PASS",
+      "checksPassed": 3,
+      "checksTotal": 3,
+      "failedChecks": [],
+      "requests": 15
+    },
+    {
+      "id": "J06-integrity-tamper",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Tamper stored original bytes; the product must not keep saying verified",
+      "verdict": "PASS",
+      "checksPassed": 7,
+      "checksTotal": 7,
+      "failedChecks": [],
+      "requests": 13
+    },
+    {
+      "id": "J07-upload-session-member-injection",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Same-workspace MEMBER drives the OWNER's resumable upload session (UC-SEC-001)",
+      "verdict": "PASS",
+      "checksPassed": 3,
+      "checksTotal": 3,
+      "failedChecks": [],
+      "requests": 4
+    },
+    {
+      "id": "J08-intake-link-to-public-verify",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Intake link: anonymous contributor submits → evidence in the org workspace → report → package → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 10,
+      "checksTotal": 10,
+      "failedChecks": [],
+      "requests": 12
+    },
+    {
+      "id": "J09-continuous-direct-capture-to-public-verify",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Android continuous direct capture (API-driven, real MinIO + worker) → seal → report → package → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 10,
+      "checksTotal": 10,
+      "failedChecks": [],
+      "requests": 19
+    },
+    {
+      "id": "J10-uc4-derived-review",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "UC-4: Generate Derived Review on the continuous capture and observe the worker run",
+      "verdict": "PASS",
+      "checksPassed": 2,
+      "checksTotal": 2,
+      "failedChecks": [],
+      "requests": 3
+    },
+    {
+      "id": "J12-failure-and-recovery",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Induced capture failures (finalize before bytes, bytes that do not match the declared digest) are refused with no false completion; the SAME record then recovers to Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 12,
+      "checksTotal": 12,
+      "failedChecks": [],
+      "requests": 13
+    },
+    {
+      "id": "J13-governed-permanent-destruction",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Enterprise record: retention passes → destruction review → step-up approve → execute → bytes gone from storage, one certificate, the share link stops verifying",
+      "verdict": "PASS",
+      "checksPassed": 10,
+      "checksTotal": 10,
+      "failedChecks": [],
+      "requests": 22
+    },
+    {
+      "id": "J11-destroy-and-free-slot",
+      "file": "runtime/remediation/journeys-j11-raw.json",
+      "title": "FREE record: trash → governed destruction transitions → does the slot release?",
+      "verdict": "PASS",
+      "checksPassed": 2,
+      "checksTotal": 2,
+      "failedChecks": [],
+      "requests": 16
+    },
+    {
+      "id": "R02-web-screen-capture-real-chromium",
+      "file": "runtime/remediation/web-screen-capture.json",
+      "title": "Web screen capture (real Chromium, getDisplayMedia) → seal → report → package → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 15,
+      "checksTotal": 15,
+      "failedChecks": [],
+      "requests": 14
+    },
+    {
+      "id": "R05-extension-real-browsers",
+      "file": "runtime/remediation/extension-acceptance.json",
+      "title": "Browser extension (real Chrome + Edge, unpacked build): OAuth/PKCE → workspace → capture → seal → library/detail/case/search → report → package → Public Verify",
+      "verdict": "PASS",
+      "checksPassed": 11,
+      "checksTotal": 11,
+      "failedChecks": [],
+      "requests": 0
+    }
+  ],
   "executedRuns": [
     {
       "id": "J01-web-upload-to-public-verify",
@@ -646,6 +1054,24 @@
       "passed": 1152,
       "failed": 0,
       "skipped": 4
+    },
+    "remediation": {
+      "apiIntegration": {
+        "files": 268,
+        "suites": 876,
+        "tests": 2873,
+        "passed": 2873,
+        "failed": 0,
+        "skipped": 0
+      },
+      "worker": {
+        "files": 101,
+        "suites": 403,
+        "tests": 1219,
+        "passed": 1218,
+        "failed": 0,
+        "skipped": 1
+      }
     }
   }
 }

@@ -1,0 +1,68 @@
+{
+  "journeys": [
+    {
+      "id": "R05-extension-real-browsers",
+      "title": "Browser extension (real Chrome + Edge, unpacked build): OAuth/PKCE → workspace → capture → seal → library/detail/case/search → report → package → Public Verify",
+      "verdict": "PASS",
+      "checks": [
+        {
+          "name": "chromium / static page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence 580dc756-f435-47ba-af9d-19dd8637848b"
+        },
+        {
+          "name": "chromium / long page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence 05829ba0-933e-40ac-8799-9e814a92c038"
+        },
+        {
+          "name": "chromium / spa page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence 13dca28b-f231-46ab-973d-50a8ab81df28"
+        },
+        {
+          "name": "chromium / mutating page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence 8594624e-d056-446d-bba9-f143e77e0ac4"
+        },
+        {
+          "name": "edge / static page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence 165b787b-799c-41d4-9b7c-49fbbe3e17b0"
+        },
+        {
+          "name": "edge / long page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence 32e23285-06d2-4b44-891a-c63448a9d9c1"
+        },
+        {
+          "name": "edge / spa page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence 6d982ef1-e7b6-4c8d-8c4c-1422d81ec119"
+        },
+        {
+          "name": "edge / mutating page: 20 steps from OAuth to Public Verify",
+          "ok": true,
+          "detail": "20/20 steps; evidence ddfefd2b-2340-406e-baad-46c828387b6a"
+        },
+        {
+          "name": "harness verdict: chromium",
+          "ok": true,
+          "detail": "PASS"
+        },
+        {
+          "name": "harness verdict: edge",
+          "ok": true,
+          "detail": "PASS"
+        },
+        {
+          "name": "harness gate: UC-1 browser gate",
+          "ok": true,
+          "detail": "PASS"
+        }
+      ],
+      "requests": [],
+      "source": "uc1-acceptance.log"
+    }
+  ]
+}

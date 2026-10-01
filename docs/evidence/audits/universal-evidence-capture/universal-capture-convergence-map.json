@@ -2,8 +2,8 @@
   "schema": "PROOVRA_UNIVERSAL_CAPTURE_CONVERGENCE_V1",
   "baselineSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
   "verdict": {
-    "verdict": "CONVERGED WRITERS, DIVERGENT SIDE EFFECTS",
-    "statement": "Every live capture channel reaches ONE Evidence writer, ONE part writer, ONE finalizer (completeEvidence), ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route; no duplicate evidence model or writer was found and every queue has a consumer. The divergence is in what surrounds the finalizer: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run only in the web route, so direct-capture and intake records differ from uploads (UC-ARCH-002/003). iOS never reaches the finalizer (UC-IOS-001)."
+    "verdict": "CONVERGED WRITERS AND SIDE EFFECTS",
+    "statement": "Every live capture channel still reaches ONE Evidence writer, ONE part writer, ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route, and now also ONE canonical finalizer that owns the completion side effects: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run exactly once for web upload, direct capture and intake alike (UC-ARCH-002/003, proven on real PostgreSQL by completion-cross-channel.integration.test.ts). The iOS manifest reaches the finalizer (UC-IOS-001 server side); its native half awaits EP-08."
   },
   "arrows": [
     {

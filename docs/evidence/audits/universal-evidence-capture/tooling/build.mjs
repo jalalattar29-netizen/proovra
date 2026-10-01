@@ -87,7 +87,7 @@ for (const f of raw) {
     ucs: [...(f.ucs ?? [])].sort(),
     platforms: [...(f.platforms ?? [])].sort(),
     status: rem ? STATUS_OF[rem.finalDisposition] : "present",
-    remediation: rem
+    resolution: rem
       ? {
           disposition: rem.finalDisposition,
           proofKind: rem.proofKind,
@@ -402,8 +402,8 @@ if (R) {
   gate("every ledger disposition is allowed", REM.rows.every((r) => r.finalDisposition in STATUS_OF), "");
   gate("ledger counts agree with finding statuses", REM.counts.fixed === statusCounts.fixed && REM.counts.blocked === statusCounts.blockedExternal && REM.counts.remaining === 0 && statusCounts.present === 0, JSON.stringify(REM.counts));
   gate("ledger's own gates all pass", REM.gates.every((g) => g.ok), `${REM.gates.length} gates`);
-  gate("every fixed finding names a commit and a green test", findings.filter((f) => f.status === "fixed").every((f) => f.remediation.commits.length > 0 && f.remediation.greenTests.length > 0), "");
-  gate("every blocked-external finding names a registered external proof", findings.filter((f) => f.status === "blocked-external").every((f) => f.remediation.externalProofs.length > 0 && f.remediation.externalProofs.every((e) => EXTERNAL_PROOFS.some((x) => x.id === e))), "");
+  gate("every fixed finding names a commit and a green test", findings.filter((f) => f.status === "fixed").every((f) => f.resolution.commits.length > 0 && f.resolution.greenTests.length > 0), "");
+  gate("every blocked-external finding names a registered external proof", findings.filter((f) => f.status === "blocked-external").every((f) => f.resolution.externalProofs.length > 0 && f.resolution.externalProofs.every((e) => EXTERNAL_PROOFS.some((x) => x.id === e))), "");
   gate("blocked-external only where the external proof map says so", Object.keys(R.BLOCKED_EXTERNAL_PROOFS).every((id) => findings.find((f) => f.id === id)?.status === "blocked-external"), "");
   gate("every required journey has a post-remediation decision", auditJourneys.every((j) => R.JOURNEYS_AFTER[j.id]), "");
   gate("a BLOCKED journey names an external proof", journeys.filter((j) => j.status === "BLOCKED").every((j) => j.blockers.length > 0 && j.blockers.every((b) => EXTERNAL_PROOFS.some((e) => e.id === b))), "");
@@ -449,7 +449,7 @@ function mdTruth() {
     o.push("", `- Findings: ${findings.length} = fixed ${statusCounts.fixed} (runtime-proven ${REM.counts.FIXED_RUNTIME_PROVEN} · source+test-proven ${REM.counts.FIXED_SOURCE_AND_TEST_PROVEN}) + blocked on external proof ${statusCounts.blockedExternal} + open ${statusCounts.present + statusCounts.partial}.`);
     o.push(`- Unresolved by severity: P0 ${unresolvedSev.P0} · P1 ${unresolvedSev.P1} · P2 ${unresolvedSev.P2} · P3 ${unresolvedSev.P3}.`, "");
     o.push("| Finding | Sev | Disposition | Commits | External proof |", "|---|---|---|---|---|");
-    for (const f of findings) o.push(`| ${f.id} | ${f.severity} | ${f.remediation.disposition} | ${f.remediation.commits.join(", ")} | ${f.remediation.externalProofs.join(", ") || "—"} |`);
+    for (const f of findings) o.push(`| ${f.id} | ${f.severity} | ${f.resolution.disposition} | ${f.resolution.commits.join(", ")} | ${f.resolution.externalProofs.join(", ") || "—"} |`);
     o.push("");
   }
   o.push("## Safety", "");
@@ -487,7 +487,7 @@ function mdTruth() {
   o.push(R ? "## Unresolved P0/P1 (code complete, external proof required)" : "## Open P0/P1", "");
   for (const f of findings.filter((x) => (x.severity === "P0" || x.severity === "P1") && x.status !== "fixed")) {
     o.push(`### ${f.id} (${f.severity}, ${f.proof}) — ${esc(f.title)}`, "");
-    if (f.remediation) o.push(`- Remediation: **${f.remediation.disposition}** in ${f.remediation.commits.join(", ")}; outstanding: ${esc(f.remediation.externalProofRemaining)} (${f.remediation.externalProofs.join(", ")})`);
+    if (f.resolution) o.push(`- Remediation: **${f.resolution.disposition}** in ${f.resolution.commits.join(", ")}; outstanding: ${esc(f.resolution.externalProofRemaining)} (${f.resolution.externalProofs.join(", ")})`);
     o.push(`- UCs: ${f.ucs.join(", ")} · Platforms: ${f.platforms.join(", ")}`);
     o.push(`- Where: ${loc(f)}`);
     o.push(`- Observed: ${esc(f.observed)}`);
@@ -550,7 +550,7 @@ function mdRemediation() {
     const ids = w.findings.length ? w.findings : findings.filter((f) => !placed.has(f.id)).map((f) => f.id);
     for (const id of ids) {
       const f = findings.find((x) => x.id === id);
-      o.push(`- **${f.id}** (${f.severity}, ${f.proof}) ${esc(f.title)}${f.remediation ? ` — ${f.remediation.disposition} · ${f.remediation.commits.join(", ")}` : ""}`);
+      o.push(`- **${f.id}** (${f.severity}, ${f.proof}) ${esc(f.title)}${f.resolution ? ` — ${f.resolution.disposition} · ${f.resolution.commits.join(", ")}` : ""}`);
     }
     o.push("");
   }
@@ -582,7 +582,7 @@ const outputs = {
 
 // Render-agreement + hygiene gates run over the final bytes.
 const md = outputs["definitive-universal-evidence-capture-truth.md"];
-gate("no artifact/render disagreement", md.includes(headline) && findings.filter((f) => (f.severity === "P1" || f.severity === "P0") && f.status !== "fixed").every((f) => md.includes(`### ${f.id} `)) && (!R || findings.every((f) => md.includes(`| ${f.id} | ${f.severity} | ${f.remediation.disposition} |`))) && journeys.every((j) => md.includes(`| ${j.id} |`)), "");
+gate("no artifact/render disagreement", md.includes(headline) && findings.filter((f) => (f.severity === "P1" || f.severity === "P0") && f.status !== "fixed").every((f) => md.includes(`### ${f.id} `)) && (!R || findings.every((f) => md.includes(`| ${f.id} | ${f.severity} | ${f.resolution.disposition} |`))) && journeys.every((j) => md.includes(`| ${j.id} |`)), "");
 // Unfilled slots, not English prose: a finding may legitimately describe a shipped "placeholder".
 const banned = /\bundefined\b|\bTODO\b|\bTBD\b|PENDING_PHASE2|PENDING_EXT|<placeholder>|\[placeholder\]|lorem ipsum|\bNaN\b/i;
 const bad = Object.entries(outputs).filter(([, v]) => banned.test(v)).map(([k, v]) => `${k}: ${v.match(banned)[0]}`);

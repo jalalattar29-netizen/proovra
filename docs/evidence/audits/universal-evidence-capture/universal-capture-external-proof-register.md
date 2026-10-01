@@ -118,3 +118,12 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4`. A blocked external proof is
 - Procedure: Capture a representative page per platform; inspect manifest limitations.
 - Pass criteria: Capture completes or records a truthful limitation; nothing claims more than viewport/DOM snapshot.
 - Production risk if omitted: Customer expectations for social evidence unproven.
+
+## EP-14 — First CI execution of the native-build and browser-acceptance workflows
+
+- Locally proven: Workflows authored (.github/workflows/native-build.yml, uc1-browser-acceptance.yml); the extension acceptance they run passes locally in real Chrome and Edge; the worker OCR test runs when the Tesseract binary exists.
+- Unproven: Kotlin and Swift compilation of the native capture modules, the Swift unit tests and the Tesseract-backed OCR assertion on GitHub runners (no push from this session, so no CI run could be observed).
+- Requires: The feature branch pushed to GitHub; macOS and Windows runners.
+- Procedure: Push the branch, let both workflows run, read their job logs.
+- Pass criteria: Both workflows green on the branch head; the OCR test executes (not skipped) in the worker job.
+- Production risk if omitted: Native code that does not compile would only be discovered at release-build time.

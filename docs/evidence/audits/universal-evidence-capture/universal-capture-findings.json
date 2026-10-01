@@ -10,10 +10,17 @@
       "P3": 53
     },
     "byStatus": {
-      "fixed": 0,
+      "fixed": 101,
+      "blockedExternal": 18,
       "partial": 0,
-      "present": 119,
+      "present": 0,
       "acceptedRisk": 0
+    },
+    "unresolvedBySeverity": {
+      "P0": 0,
+      "P1": 4,
+      "P2": 9,
+      "P3": 5
     }
   },
   "consolidations": [
@@ -40,7 +47,24 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "continuous-capture-screen.render.test.mjs + screen-capture-screen.render.test.mjs ::UC-AND-003",
+        "greenTests": [
+          "continuous-capture-screen.render.test.mjs::UC-AND-003 (3)",
+          "screen-capture-screen.render.test.mjs::UC-AND-003 (2)"
+        ],
+        "externalProofRemaining": "device: fresh install Android 13/14, notification actions visible",
+        "externalProofs": [
+          "EP-06"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "On a fresh Android 13+ install the notification permission is off by default and PROOVRA never asks for it. The foreground service still runs, but its notification (with the Capture Frame and Stop actions) does not appear in the shade. The screen tells the user to 'open the app you want to capture, then tap Capture Frame from the notification'; the in-app button can only capture PROOVRA itself. UC-2 cannot capture third-party content; UC-3 loses its out-of-app Stop control.",
       "legalImpact": "none directly; the primary UC-2 acquisition is unreachable.",
@@ -93,7 +117,25 @@
         "ios",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: single, bulk and case-workspace unlink are refused under an active case hold, zero mutation",
+        "greenTests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: single, bulk and case-workspace unlink are refused under an active case hold, zero mutation",
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: an unlink racing an in-flight hold placement waits for it and is refused (row lock vs the hold's FK)",
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: hold-vs-unlink races always end consistent (never: hold active AND link gone after the hold)",
+          "services/api/test/case-link-authority.integration.test.ts",
+          "services/api/test/phase-12b-case-evidence-authority.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Any case writer (MEMBER, assigned INVESTIGATOR) can remove a held record from the held case via Remove from case, bulk REMOVE_FROM_CASE or matter-workspace unlink; afterwards the record is no longer held and can be trashed, and later destroyed by retention.",
       "legalImpact": "Defeats a preservation obligation: a case-scoped legal hold covers exactly the records currently linked, and linkage is mutable by non-admins with no hold check. Case deletion is refused under the same hold precisely because it detaches links, so the gap is inconsistent with the platform's own rule.",
@@ -151,7 +193,24 @@
         "api",
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/popup-context.test.mjs::the popup no longer reads the invented `workspaces` / `teams` keys",
+        "greenTests": [
+          "apps/extension/test/popup-context.test.mjs::lists the capture-eligible workspaces from availableWorkspaces and preselects activeSpace",
+          "apps/extension/test/popup-context.test.mjs::the popup's parsed keys exist in the server's PlatformContextEnvelope type",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-001: the popup's own parser finds the member's workspace in the REAL platform context",
+          "apps/extension/e2e/direct-web-capture.spec.ts::WORKSPACE stage (real Chrome 153 + Edge 154)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "A signed-in user can never start a Direct Web Capture from the popup: the select shows 'No workspace available' and busy(true) disables both capture buttons. The UC-1 channel is unusable end to end.",
       "legalImpact": "No web-capture evidence can be produced through the product surface.",
@@ -209,7 +268,24 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/capture-full-page.test.mjs::a page four viewports tall is captured completely without tripping the 2/s quota",
+        "greenTests": [
+          "apps/extension/test/capture-full-page.test.mjs::a page four viewports tall is captured completely without tripping the 2/s quota",
+          "apps/extension/test/capture-full-page.test.mjs::a tile the browser keeps refusing ends the capture PARTIAL with the tiles taken, not a discard",
+          "apps/extension/test/capture-scheduler.test.mjs (6 tests)",
+          "e2e long.html (~6.3 viewports) FULL_PAGE in real Chrome + Edge"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "'Capture full page' likely fails with the generic error on any page taller than about two viewports; nothing is preserved (no partial fallback).",
       "legalImpact": "Full-page preservation, the mode most relevant to long posts/threads, cannot complete.",
@@ -260,7 +336,26 @@
         "api",
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "contract-fixture",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "apps/mobile/test/ios-broadcast-contract.test.mjs (HEAD Swift) + shared probe",
+        "greenTests": [
+          "apps/mobile/test/ios-broadcast-contract.test.mjs (11)",
+          "services/api/test/uc5-ios-screen-capture.integration.test.ts::accepts the DEVICE THE BROADCAST EXTENSION ACTUALLY REPORTS (200 SIGNED)",
+          "::UC-IOS-001: a malformed native device block is refused with the specific validator error"
+        ],
+        "externalProofRemaining": "Swift compile + physical iOS device broadcast sealed end to end",
+        "externalProofs": [
+          "EP-08",
+          "EP-14"
+        ]
+      },
       "proof": "runtime-proven",
       "userImpact": "No iOS screen recording can ever be sealed. The user records, uploads every segment, stages, opens Capture, taps Finish & Sign, and continuous-complete answers CONTINUOUS_MANIFEST_INVALID. The reserved record is eventually reaped; the recording is lost as evidence.",
       "legalImpact": "UC-5 is documented as code-complete / PASS (docs/uc6-release-acceptance.md:141) while it cannot produce a single sealed record.",
@@ -323,7 +418,23 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::UC-IOS-002",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-002"
+        ],
+        "externalProofRemaining": "device: stop in-app -> indicator disappears, USER_STOPPED result, last segment emitted",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "Tapping 'Stop & Review' (or hitting the byte ceiling / upload backpressure) does not stop recording: the status-bar indicator stays on and the extension keeps writing up to 600 segments into the container. The review shows 'Interrupted' for a session the user ended cleanly; everything recorded after the tap is never emitted or uploaded and is wiped at the next start.",
       "legalImpact": "The sealed manifest (if it could seal) would state INTERRUPTED_SESSION/terminationReason INTERRUPTED with captureStartedAtUtc equal to the stop instant and totalDurationMs 0 — false provenance for a clean stop. The client byte/backpressure bounds (SESSION_BOUNDS_REACHED, SEGMENT_UPLOAD_BACKPRESSURE) are unenforceable on iOS.",
@@ -378,7 +489,25 @@
         "api",
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "contract-fixture",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::UC-IOS-004 one PTS clock",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-004 (2)",
+          "::the exact Swift result builds a manifest the SERVER validator accepts as COMPLETE"
+        ],
+        "externalProofRemaining": "Swift compile + device timing verification",
+        "externalProofs": [
+          "EP-08",
+          "EP-14"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "Even with UC-IOS-001 fixed, a cleanly stopped session whose last segment is longer than 3 s (roughly half of all sessions at 6 s segments) fails Finish & Sign with CONTINUOUS_MANIFEST_INVALID. Static screens (ReplayKit delivers no new frames when nothing changes) also create >3 s wall-clock gaps between segments.",
       "legalImpact": "The last segment's declared duration (0) is false provenance in the manifest.",
@@ -430,7 +559,26 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8",
+          "d87a3673bb63"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/report-trust-truth.test.ts::unpublished at issuance: no link, no QR, an explicit 'Not published' caveat",
+        "greenTests": [
+          "services/worker/test/report-trust-truth.test.ts::UC-OUT-001",
+          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-001",
+          "apps/web/__tests__/render/public-verification-links-panel.render.test.tsx::UC-OUT-001",
+          "services/worker/test/package-readme-seal-instructions.test.ts",
+          "apps/web/__tests__/render/public-verification-links-panel.render.test.tsx::the server projection decides"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "Records finalize NOT_PUBLISHED. The worker mints a REPORT-purpose pvs_ token and prints it on the report cover as 'Public Verification — Scan QR code or open verification page'. Until the owner separately publishes the record, /public/verify/<token> returns 404 'Evidence not found' — byte-identical to a forged/unknown link. The owner's links panel says the record is private but lists the printed link with a green 'Active' badge; nothing tells the owner that reports they hand out have a dead link.",
       "legalImpact": "A recipient (court, counterparty) following the report's own verification instruction is told the evidence does not exist. The package README's seal verification step 2c (compare seal key fingerprint with Public Verify) and step 6 (signing key published on Public Verify) cannot be completed for a private record, so the package's independent-verification claim is unavailable by default.",
@@ -503,7 +651,25 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8",
+          "d87a3673bb63"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::PROV-001",
+        "greenTests": [
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs::PROV-001",
+          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::PROV-001",
+          "apps/mobile/test/basic-verification-view-truth.render.test.mjs::PROV-001",
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-001 (2 tests)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Reviewers read a server bookkeeping time as the moment the material was captured. For uploads and intake there is no capturing device at all; for the extension the value is when the session was reserved, after the capture ran.",
       "legalImpact": "Public Verify makes a false provenance statement (attributing a server timestamp to the device); reports/Verify give a 'Captured At' time that is neither the capture time nor labelled as server receipt, which can be relied on for timeline arguments.",
@@ -610,7 +776,23 @@
         "api",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "apps/mobile/test/capture-limits-native-sync.test.mjs::Kotlin carries THE capture limits by value",
+        "greenTests": [
+          "packages/shared/tests/screen-continuous-completeness.test.mjs::UC-STR-001: one bound",
+          "apps/mobile/test/capture-limits-native-sync.test.mjs (3)",
+          "services/api/test/uc3-continuous-completeness.integration.test.ts::UC-STR-001 the part bound is THE shared one"
+        ],
+        "externalProofRemaining": "device recording past 199 segments on Android/iOS",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "A continuous screen recording that runs past ~19.9 minutes at the default 6 s segments (fewer with rotation rollovers) cannot be staged. Segment 200+ uploads fail, backpressure stops recording, and at 'Continue to Finish & Sign' the manifest part is refused, sealDirectCapture discards the session and the reserved record: every already-uploaded segment is released and the local copies were already deleted. The user loses the whole recording.",
       "legalImpact": "Destructive loss of an acquisition the user was told was bounded at 50 minutes; nothing is sealed.",
@@ -695,7 +877,28 @@
         "api",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49",
+          "9f3d8203c057"
+        ],
+        "migrations": "none",
+        "redTest": "uc3-continuous-completeness.integration.test.ts::seal racing a final declaration (vs HEAD server) + shared probe",
+        "greenTests": [
+          "services/api/test/uc3-continuous-completeness.integration.test.ts (missing last, missing middle, duplicate sequence, same sequence different digest, seal racing declaration, repeated seal, interrupted)",
+          "packages/shared/tests/screen-continuous-completeness.test.mjs (12)",
+          "apps/mobile/test/continuous-reconcile.test.mjs",
+          "apps/mobile/test/continuous-capture-screen.render.test.mjs::recorded 3, none declared",
+          "uc3-continuous-completeness.integration.test.ts::a seal hashes OUTSIDE any transaction: a failed hash releases its claim and the retry seals",
+          "uc3-continuous-completeness.integration.test.ts::a LIVE seal claim refuses declarations, discards and other seals (SESSION_BUSY); a STALE one is reclaimed",
+          "uc3-continuous-completeness.integration.test.ts::the capture reaper releases a STALE seal claim and never expires a session under a LIVE one"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "If the network drops near the end of a recording, the final segment(s) fail at the declaration step, the review card shows 'N recorded, M uploaded and ready to seal', and Continue seals the M-segment prefix labelled 'Complete — no known interruption'. If instead a middle segment is lost, the manifest part collides with an existing part index, staging fails and the whole session (all good segments) is discarded.",
       "legalImpact": "A truncated recording is sealed and reported as a COMPLETE continuous session: the record claims continuity/completeness over content it does not contain.",
@@ -761,7 +964,24 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "android-capture-service-contract.test.mjs::UC-AND-004 + render reattach",
+        "greenTests": [
+          "android-capture-service-contract.test.mjs::UC-AND-004",
+          "continuous-capture-screen.render.test.mjs::reattaches"
+        ],
+        "externalProofRemaining": "device: kill UI during recording, relaunch, continue",
+        "externalProofs": [
+          "EP-06"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "If the Activity/JS context is recreated (app swiped away, OOM kill of the UI, dev reload) while the foreground service keeps recording, the new screen has no sessionRef, so the focus reconnect is skipped, segments emitted by the service are not uploaded, and pressing Start again opens a NEW server session and reserves a new record before native rejects with BUSY. The first recording cannot be recovered; segments accumulate in cacheDir.",
       "legalImpact": "Recorded content is lost without a sealed record; the partially uploaded session is only released by the reaper.",
@@ -816,7 +1036,23 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "apps/mobile/test/capture-teardown.test.mjs",
+        "greenTests": [
+          "capture-teardown.test.mjs (2)",
+          "continuous-reconcile.test.mjs::UC-AND-006 (2)",
+          "capture-parity.render.test.mjs (updated to per-user key)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Signing out while a continuous capture runs leaves the foreground service recording the screen (up to 50 min) into the app cache; uploads fail with no token. The next account on the device is offered the previous user's staged session record (captureSessionId/evidenceId/manifest) on /capture.",
       "legalImpact": "Screen content keeps being recorded after the user ended their session; another user's capture metadata is presented on a shared device.",
@@ -858,7 +1094,24 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "android-capture-service-contract.test.mjs::UC-AND-007",
+        "greenTests": [
+          "android-capture-service-contract.test.mjs::UC-AND-007"
+        ],
+        "externalProofRemaining": "Kotlin compile + instrumented test of stop() throwing",
+        "externalProofs": [
+          "EP-06",
+          "EP-14"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "When stop() throws (e.g. a segment stopped almost immediately after start on rotation rollover or Stop, or encoder error), the partially written mp4 (no finalized moov) is still reported with a wall-clock durationMs and becomes part of the sealed evidence; playback/derived intelligence may fail on it while the manifest presents it as recorded video.",
       "legalImpact": "A sealed segment may be unplayable while the manifest asserts its duration.",
@@ -907,7 +1160,22 @@
         "extension",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "uc3-continuous-completeness.integration.test.ts::UC-ARCH-001",
+        "greenTests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-ARCH-001",
+          "uc1-web-capture.integration.test.ts (now uses a capture.direct token)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A reviewer sees 'iOS screen recording - PROOVRA app (client-attested)' / 'Web capture - PROOVRA extension' on records that may have been produced by a script using an ordinary web session token.",
       "legalImpact": "Channel provenance (which PROOVRA client produced the bytes) is not established by the server even though code comments claim it is; the only mitigation is the 'client-attested' wording of the descriptors.",
@@ -974,7 +1242,28 @@
         "extension",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "193e42c49ad0",
+          "9f3d8203c057",
+          "9671120a39ba"
+        ],
+        "migrations": "20281001000700_retention_backfill_direct_capture (BACKFILL, Release C WAIT_FOR_BACKFILL_READINESS, after a backup)",
+        "redTest": "services/api/test/completion-cross-channel.integration.test.ts::web upload / direct capture / intake ... retention",
+        "greenTests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::web upload: one completion custody event, audit pair, reviewer row and retention — repeated complete adds none",
+          "services/api/test/completion-cross-channel.integration.test.ts::direct capture: the same effects, exactly once, including a repeated complete",
+          "services/api/test/completion-cross-channel.integration.test.ts::intake submission: the same effects, exactly once, including a repeated submit",
+          "services/api/test/completion-cross-channel.integration.test.ts",
+          "services/api/test/retention-backfill-direct-capture.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "In a Team workspace with a retention policy, records captured by the mobile app or extension carry no retention date and are eligible for trash/delete immediately, unlike identical web uploads.",
       "legalImpact": "Retention-policy compliance differs by capture channel; records the workspace policy says must be kept can be deleted.",
@@ -1037,7 +1326,26 @@
         "ios",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "9f3d8203c057"
+        ],
+        "migrations": "see migrationRequests (optional workflow backfill)",
+        "redTest": "services/api/test/completion-cross-channel.integration.test.ts::web upload: one completion custody event ...",
+        "greenTests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::web upload: one completion custody event, audit pair, reviewer row and retention — repeated complete adds none",
+          "services/api/test/completion-cross-channel.integration.test.ts::direct capture: the same effects, exactly once, including a repeated complete",
+          "services/api/test/completion-cross-channel.integration.test.ts::intake submission: the same effects, exactly once, including a repeated submit",
+          "services/api/test/completion-fanout-once.integration.test.ts",
+          "services/api/test/phase-t-evidence-to-review-identity.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "Intake submissions and mobile/extension/screen captures do not appear in reviewer queues (queues read EvidenceReviewWorkflow rows) until someone manually opens the reviewer workflow; custody timelines and reports differ by channel.",
       "legalImpact": "Custody chain content depends on channel: web records carry EVIDENCE_COMPLETED, others do not. The intake orchestration comment claims it does.",
@@ -1102,7 +1410,24 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/phase-30-6-integrations-uploads.test.ts::all nine former routes answer 410 INTEGRATION_UPLOADS_RETIRED",
+        "greenTests": [
+          "services/api/test/phase-30-6-integrations-uploads.test.ts",
+          "services/api/test/phase-30-8-multipart.test.ts",
+          "services/api/test/phase-30-12-consumer-integration.test.ts",
+          "services/api/test/phase-r1-upload-session-evidence-scope.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Enterprise integrations with integration.evidence.upload scope always receive 404 evidence_not_found; the documented machine-ingest channel is unusable.",
       "legalImpact": "none (fails closed)",
@@ -1156,7 +1481,24 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "068efffd9da4"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/completion-cross-channel.integration.test.ts::the link creator cannot add parts to, or seal, a contributor's in-flight intake record",
+        "greenTests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::the link creator cannot add parts to, or seal, a contributor's in-flight intake record",
+          "services/api/test/completion-cross-channel.integration.test.ts::intake submission: the same effects, exactly once, including a repeated submit",
+          "services/api/test/completion-cross-channel.integration.test.ts::the link creator cannot add parts to, or seal, a contributor's in-flight intake record"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A sealed 'Submitted through a secure intake link' record can contain files the contributor never sent, or be sealed before the contributor finished (their later submit then fails).",
       "legalImpact": "Third-party submission integrity: intake records are presented as contributor-sourced but the workspace-side owner can alter their content before sealing.",
@@ -1215,7 +1557,22 @@
         "ios",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/case-hold-and-links.integration.test.ts::CASE-002: a VIEWER on the case's access list stays a viewer (403, never 500, no mutation); a MEMBER on it may",
+        "greenTests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-002: a VIEWER on the case's access list stays a viewer (403, never 500, no mutation); a MEMBER on it may",
+          "services/api/test/matter-access-tab.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Read-only members on a restricted case can remove evidence from it; their attempt to add evidence passes the case-link authority and then fails as an unmapped 500 inside attachEvidenceToCase.",
       "legalImpact": "A read-only reviewer can alter a matter's evidence set (and, with UC-CASE-001, its hold coverage).",
@@ -1271,7 +1628,21 @@
         "ios",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE)",
+        "greenTests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "An organization that issues an intake link or evidence request for a matter receives evidence that does not appear in the matter's evidence list, reports tab, hold scope or case export; the evidence detail source card says 'Case / matter <id>' and mobile offers 'Return to matter', implying membership.",
       "legalImpact": "A CASE-scoped legal hold does not cover evidence collected for that case through its own intake link; case exports/SIU bundles omit it.",
@@ -1326,7 +1697,30 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "f0527e0c454a"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: settlement counts every plan-funded record whatever its creation order",
+        "greenTests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: a reservation kept alive past 24 h still counts — the 4th FREE record is refused",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: a truly expired reservation stops counting and can no longer be finalized",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: settlement counts every plan-funded record whatever its creation order",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: unsealed records admitted earlier still take their plan slots ahead of a later record",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: concurrent creations on FREE never exceed the allowance",
+          "services/api/test/billing-personal-funding-boundary.integration.test.ts",
+          "services/api/test/trash-keeps-allowance-slot.integration.test.ts",
+          "services/api/test/reservation-sweep.integration.test.ts",
+          "services/api/test/intake-lifecycle-remediation.integration.test.ts::ET-INT-03 / ET-ACQ-02: an abandoned reservation stops consuming the owner's FREE allowance once it expires"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Commercial: a FREE account can obtain more than 3 plan-funded records (and the paid outputs they earn) with no credit; the same applies to PRO's lifetime cap and TEAM's rolling window.",
       "legalImpact": "none",
@@ -1385,7 +1779,25 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/media-intelligence-queue-settled-run.test.ts::a reused COMPLETED run (attempts 1) is NOT reported queued and no job is created; services/worker/test/uc4-screen-intelligence-handler.test.ts::runs the generation named by the run's own idempotency key",
+        "greenTests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::Generate / Retry / Regenerate create a new, claimable generation (5 tests)",
+          "services/api/test/media-intelligence-queue-settled-run.test.ts (5 tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-001 generation (2 tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::happy path → generation 1 COMPLETED, then a regeneration run produces generation 2",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-001: a DISMISSED run offers Retry"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "After the first run, Regenerate does nothing (status stays COMPLETED with the old reconstruction). After any failure, Retry moves the run to DISMISSED and the tab then shows 'Dismissed' with no button at all — UC-4 is permanently dead for that evidence. After 5 claims (attempt_count ceiling) the same key can never run again either.",
       "legalImpact": "A reviewer who regenerates after an OCR/engine change believes the review reflects the new run; it is the old one.",
@@ -1455,7 +1867,27 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/derived-review-release-and-generations.integration.test.ts::the Derived Review projection (reconstructed OCR text) is withheld from a VIEWER with an honest reason",
+        "greenTests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::OWNER gets the bytes; VIEWER (no download capability) is refused and sees no bytes URL",
+          "…::the reconstruction JSON (every OCR line) is refused to a VIEWER",
+          "…::a trashed record's derived bytes are refused, even to the OWNER",
+          "…::a record under an active legal hold releases no derived bytes, and the refusal is on custody",
+          "…::the Derived Review projection (reconstructed OCR text) is withheld from a VIEWER with an honest reason",
+          "services/api/test/redaction-derivative-byte-release.integration.test.ts (regression, gate shared)",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-002"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A VIEWER, who is refused original bytes even for in-app viewing (originalReleaseForViewer -> evidence.download_original), can fetch a 480p re-encode of the video, 256-px keyframes of every 1.5 s, and the screen_reconstruction JSON containing every OCR'd line of the recording. Trashed, held and destruction-bound records keep serving these bytes.",
       "legalImpact": "Legal-hold 'no byte release' rule and export eligibility do not govern derivative bytes; content of a held/trashed record can leave through derivatives.",
@@ -1521,7 +1953,22 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "69e995c58803"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/uc4-keyframe-producer.test.ts::DER-003: OCR reads a native-resolution rendition while the persisted review keyframe stays <=256px; services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-003/005: OCR reads the OCR-resolution rendition",
+        "greenTests": [
+          "services/worker/test/uc4-keyframe-producer.test.ts (real ffmpeg-static: 1080x2400 source → OCR PNG 1080x2400, review WebP ≤256)",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-003/005"
+        ],
+        "externalProofRemaining": "OCR recall comparison (full-resolution rendition vs 256-px thumbnail) with the real tesseract engine: tesseract is not installed on this host and no local worker image contains it (proovra-worker:hardened/baseline, docker-proovra-worker, p8repro-proovra-worker all lack it); building the image needs apk network access, which the lane rules forbid. Fixture ready: services/worker/test/fixtures/uc4/chat-screen-1080.png.",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "For Android continuous and iOS screen recordings the reconstruction is built from OCR of thumbnail-resolution frames (a 1080-px-wide phone screen is scaled ~4.2x down, 40-px text becomes ~9 px), so text is largely missed or garbled; the Derived Review looks empty or noisy while reporting OCR 'enabled'.",
       "legalImpact": "Machine-extracted text presented as review material is systematically degraded; omissions are not flagged as a limitation.",
@@ -1564,7 +2011,23 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "69e995c58803"
+        ],
+        "migrations": "none",
+        "redTest": "packages/shared/tests/screen-reconstruction.test.mjs::DER-004: fixed header/composer + one-line scroll merges each message ONCE, header and composer once",
+        "greenTests": [
+          "packages/shared/tests/screen-reconstruction.test.mjs (18 tests incl. 6 DER-004 realistic-chat fixtures)",
+          "services/worker/test/uc4-reconstruction.test.ts",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-004"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "The 'reconstructed reading order' lists the same message many times (one block per 1.5 s keyframe it was visible in), in sequence, as separate blocks; a reviewer can read repeats as repeated messages. Coverage is always PARTIAL with POSSIBLE_GAP even for a clean continuous scroll.",
       "legalImpact": "Duplicated blocks in an ordered 'conversation' reconstruction can be mistaken for repeated sends; duplication is not labelled as such (only 'overlap PARTIAL_OVERLAP').",
@@ -1622,7 +2085,26 @@
         "api",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803",
+          "d8e1f8605c5f",
+          "9f3d8203c057"
+        ],
+        "migrations": "landed",
+        "redTest": "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-005/014: lineage records the source actually read …; services/worker/test/uc4-keyframe-producer.test.ts::DER-005: the ffmpeg version is PROBED; services/worker/test/derived-assets-processor-lineage.test.ts",
+        "greenTests": [
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts (17 tests)",
+          "services/worker/test/uc4-keyframe-producer.test.ts::DER-005",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-005 tool versions",
+          "services/worker/test/derived-assets-processor-lineage.test.ts (6 tests)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A reviewer or validator cannot tell which language model OCR used (eng+ara by env), where on the frame a line was read, which ffmpeg/sharp build produced a derivative, or what sampling parameters were used; regeneration cannot be proven equivalent.",
       "legalImpact": "Reproducibility of machine-derived material (tool + version + parameters) is not recorded, weakening any explanation of how derived text was produced.",
@@ -1694,7 +2176,33 @@
         "api",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803",
+          "d8e1f8605c5f",
+          "b4b035380ac8",
+          "5b17f3321b08",
+          "83dd6cf482c8"
+        ],
+        "migrations": "landed (status CHECK + generation_parameters + 20281001000600 storage_version_id)",
+        "redTest": "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-006: regeneration writes a NEW generation; the prior one is SUPERSEDED …",
+        "greenTests": [
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-006 + the same generation re-run is idempotent",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::happy path → … supersedes (not deletes) generation 1",
+          "services/worker/test/derived-assets-processor-lineage.test.ts::does not delete any object when a regeneration completes",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-006",
+          "services/worker/test/derived-assets-processor-lineage.test.ts::records the stored object VERSION …",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-006 output object version",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-006: the object VERSION …",
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::OWNER gets the bytes … (asserts listed storageVersionId)",
+          "services/api/test/uc0-derivative-lifecycle.integration.test.ts (regression)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A reconstruction a reviewer relied on (and that an earlier report summarised) is replaced with no trace; descriptorVersion is always 1 and the row id is reused, so there is no way to see what changed or when beyond updatedAt.",
       "legalImpact": "Machine-derived review material can change after it was used in review or summarised in a report, with no custody event and no retained prior version.",
@@ -1755,7 +2263,23 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/provenance-chain-truth.integration.test.ts::DER-007 (503 rows) + services/worker/test/derived-binding-and-bounds.test.ts::600 derived assets",
+        "greenTests": [
+          "services/api/test/provenance-chain-truth.integration.test.ts::DER-007",
+          "services/worker/test/derived-binding-and-bounds.test.ts::DER-007 (2 tests)",
+          "services/worker/test/uc4-package-manifest.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A continuous screen recording easily exceeds the caps (up to 240 keyframes per part); the package's derived lineage lists a subset with no truncation marker, and review-artifact-boundaries.json states a derivedCount equal to the truncated list.",
       "legalImpact": "Verification package describes an incomplete derived-material inventory as complete.",
@@ -1810,7 +2334,29 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803",
+          "b4b035380ac8",
+          "9f3d8203c057"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/derived-review-release-and-generations.integration.test.ts::its owner can generate and read the Derived Review through the personal workspace",
+        "greenTests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::a Personal record stored with team_id NULL (2 tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::DER-010",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-010",
+          "services/worker/test/derived-assets-processor-lineage.test.ts::reads the source through the record's workspace",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-010 (2)",
+          "services/api/test/derived-review-release-and-generations.integration.test.ts",
+          "services/worker/test/report-trust-truth.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A personal user's Android/iOS screen capture shows a 'Derived Review' tab whose Generate button is disabled (or 404s) with no explanation.",
       "legalImpact": "none",
@@ -1868,7 +2414,22 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/popup-context.test.mjs::401 is a sign-in state, not 'no workspace'",
+        "greenTests": [
+          "apps/extension/test/popup-context.test.mjs::401 is a sign-in state, not 'no workspace'",
+          "apps/extension/test/popup-context.test.mjs::5xx and network failure are an error state, not an empty list"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A 401/403/5xx/network failure is shown as a healthy empty state; the user is told they have no workspace and is never prompted to sign in again.",
       "legalImpact": "none",
@@ -1915,7 +2476,28 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "1fd1813d6ca7",
+          "6934514c6d49",
+          "5e145b8cec61"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/manifest-builder.test.mjs::CAPTURE_INTERRUPTED makes the whole capture PARTIAL",
+        "greenTests": [
+          "apps/extension/test/manifest-builder.test.mjs (10 tests)",
+          "apps/extension/test/capture-full-page.test.mjs::a missing DOM snapshot and the page facts are recorded (UC-EXT-004)",
+          "apps/extension/test/preserve-flow.test.mjs::success seals and reports the evidence id; a missing DOM makes the record PARTIAL",
+          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-EXT-004",
+          "pnpm --filter @proovra/extension test (85)",
+          "apps/extension/test/manifest-builder.test.mjs::a missing DOM snapshot ... as DOM_SNAPSHOT_MISSING"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A truncated, interrupted, mutated, shadow-DOM or iframe-incomplete capture looks identical in Detail/Report/Package summary to a complete one; reviewers only see the mode-generic limitation text.",
       "legalImpact": "The acquisition statement promises 'PROOVRA records the representation it received and any limitations it detected', but the detected limitations are buried in a raw JSON part. A PARTIAL capture can be presented as a complete record of the page.",
@@ -1977,7 +2559,24 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/capture-registry.test.mjs::a second PRESERVE for the same tab while the first runs is refused",
+        "greenTests": [
+          "apps/extension/test/capture-registry.test.mjs (5 tests)",
+          "apps/extension/test/status-copy.test.mjs::an unknown outcome never says nothing was saved",
+          "apps/extension/test/preserve-flow.test.mjs::UC-EXT-005: a seal with no answer is UNKNOWN when the discard cannot settle it",
+          "e2e CAPTURE stage reads the background-persisted status (data-capture-state/data-evidence-id)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Clicking the page closes the popup; the capture keeps running unseen. Reopening shows enabled buttons; a second click starts another session. Two FULL_PAGE loops scroll the same tab concurrently. After a lost response the popup says 'Nothing was saved' although a record may have sealed.",
       "legalImpact": "Concurrent loops interleave scrolls: a tile's recorded scrollOffsetY (taken from its own SCROLL_TO reply) can differ from what captureVisibleTab actually photographed, so the manifest can misdescribe tile positions. Duplicate sealed records of one page.",
@@ -2032,7 +2631,27 @@
         "api",
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "1fd1813d6ca7",
+          "0364d89aef47",
+          "0f6f924408ec"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-006: a signed-out browser navigation is sent to sign in with a return path to authorize",
+        "greenTests": [
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-006: a signed-out browser navigation is sent to sign in with a return path to authorize",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-006: an unregistered redirect is refused before any sign-in bounce",
+          "e2e OAUTH_ROUTES stage (live 302 to /login?next=)",
+          "apps/web/__tests__/render/extension-continue.render.test.tsx",
+          "apps/web/__tests__/render/extension-continue.render.test.tsx"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "launchWebAuthFlow shows a raw JSON error page; the user must close it and is told to 'check that pop-ups are allowed', which is not the cause.",
       "legalImpact": "none",
@@ -2078,7 +2697,21 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/sanitizer.test.mjs::meta CSRF / session tokens are cleared",
+        "greenTests": [
+          "apps/extension/test/sanitizer.test.mjs (9 tests incl. meta tokens, data-* tokens, signed URL/srcset/fragment redaction, disclosure notes)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "The preserved snapshot (shared via packages/reports with third parties) can contain the capturer's live anti-CSRF token for the captured site.",
       "legalImpact": "Evidence bundle carries the capturer's session material for a third-party site.",
@@ -2128,7 +2761,23 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "apps/mobile/test/continuous-reconcile.test.mjs::UC-IOS-003",
+        "greenTests": [
+          "continuous-reconcile.test.mjs::UC-IOS-003"
+        ],
+        "externalProofRemaining": "device: 3-minute broadcast in another app, return, all segments uploaded",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "The screen copy says 'Segments upload in the background' (continuous-capture.tsx:442). On iOS nothing uploads while PROOVRA is backgrounded; on return, the drain emits every accumulated segment at once, captured−uploaded ≥ 8 fires requestControlledStop with 'Uploads fell behind, so recording stopped' — for any recording longer than ~48 s spent outside PROOVRA. Because of UC-IOS-002 the broadcast actually continues, but observing stops, so the rest is lost.",
       "legalImpact": "Sessions are labelled with SEGMENT_UPLOAD_BACKPRESSURE and end at the moment the user came back, not when they stopped.",
@@ -2176,7 +2825,24 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "continuous-capture-screen.render.test.mjs::UC-IOS-005",
+        "greenTests": [
+          "continuous-capture-screen.render.test.mjs::UC-IOS-005",
+          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+        ],
+        "externalProofRemaining": "device: cancel picker -> back to intro, no session",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "If the user dismisses Apple's picker (or the undocumented sendActions trigger shows nothing), PROOVRA still shows the active state with a server session and reserved record open; Stop then yields 'No screen segments were captured'.",
       "legalImpact": "startContinuousCapture reports osConsentGranted:true and captureStartedAtUtc = picker time before any consent (ProovraScreenCaptureModule.swift:88-90).",
@@ -2218,7 +2884,24 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "contract-fixture",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::app-side lifecycle",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-006 a missing result is summarised as INTERRUPTED / UNKNOWN",
+          "packages/shared/tests/screen-continuous-completeness.test.mjs::UC-IOS-006"
+        ],
+        "externalProofRemaining": "device: extension killed mid-broadcast",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "After an extension kill the review shows an interrupted session of zero duration; the true start time is lost even though the extension wrote it to state.json.",
       "legalImpact": "captureStartedAtUtc in the manifest equals captureEndedAtUtc (the stop instant) — a false capture window recorded on an INTERRUPTED seal (the validator skips window checks for INTERRUPTED, screen-continuous-manifest.ts:395-412).",
@@ -2256,7 +2939,23 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::UC-IOS-007",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-007"
+        ],
+        "externalProofRemaining": "device: nearly full storage",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "On low storage the broadcast keeps running with the indicator on while nothing more is recorded and no error is shown. A segment whose finishWriting timed out or failed is still emitted and uploaded as an unplayable ORIGINAL.",
       "legalImpact": "A truncated/corrupt mp4 is sealed as a segment of a 'complete' session (its digest is honest, its content is not usable).",
@@ -2302,7 +3001,23 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009"
+        ],
+        "externalProofRemaining": "device: rotate mid-broadcast; confirm rotation direction of the .left/.right transform mapping",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED)",
       "userImpact": "Recordings made in landscape play back rotated 90°; no ORIENTATION_CHANGED_DURING_CAPTURE is ever recorded.",
       "legalImpact": "Segment orientation metadata in the sealed manifest can be false; limitations are always [] (SampleHandler.swift:149).",
@@ -2344,7 +3059,24 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::UC-IOS-008 / UC-IOS-009",
+          "screen-continuous-completeness.test.mjs::conflicting terminal state"
+        ],
+        "externalProofRemaining": "device: incoming call during broadcast",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "A pause (system interruption) appears as a frozen stretch inside a segment with no notice.",
       "legalImpact": "COMPLETE_SESSION / 'no known interruption' (continuous-capture.tsx:453) is asserted across an interruption the OS reported to the extension.",
@@ -2378,7 +3110,24 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "continuous-capture-screen.render.test.mjs::UC-AND-004 / UC-IOS-010",
+        "greenTests": [
+          "continuous-capture-screen.render.test.mjs::reattaches",
+          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+        ],
+        "externalProofRemaining": "device: kill app mid-broadcast, relaunch, recover",
+        "externalProofs": [
+          "EP-08"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "If PROOVRA is killed during a broadcast (common while the user is in other apps), relaunch shows no session to resume; the recorded segments remain on disk until the next 'Start', which deletes them. The 'PROOVRA Screen Broadcast' entry in Control Center records segments no one ever consumes.",
       "legalImpact": "Recorded-but-unsealed capture material is destroyed without the user being told.",
@@ -2425,7 +3174,25 @@
         "ios",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47",
+          "0f6f924408ec"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/legal-screen-capture-disclosure.test.ts",
+        "greenTests": [
+          "apps/web/__tests__/legal-screen-capture-disclosure.test.ts (authored, hero and slug registration: pass after 0f6f9244)",
+          "apps/web/__tests__/legal-screen-capture-disclosure.test.ts",
+          "apps/web/__tests__/legal-corpus-freshness.test.ts",
+          "apps/mobile/test/product-manifest-coverage.test.mjs"
+        ],
+        "externalProofRemaining": "counsel review of the disclosure wording",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Users are not told in the privacy notice what a screen recording collects (third-party content, other apps, notifications on screen), where it is stored, or how long.",
       "legalImpact": "Screen recordings capture third-party personal data; privacy.md, data-retention.md and evidence-handling.md never mention screen capture/recording, while a dedicated direct-web-capture.md exists. App Store / Play data-safety declarations have no repository source to derive from.",
@@ -2472,7 +3239,23 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/report-trust-truth.test.ts::no recorded mode reads 'Not recorded'",
+        "greenTests": [
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-002 (2 tests)",
+          "services/worker/test/technical-metadata.test.ts",
+          "services/worker/test/uc0-package-acquisition.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "A reviewer sees 'Web capture - PROOVRA extension (client-attested)' in the acquisition panel and 'Capture Method: Not recorded' a few rows later; the package's case-metadata.json and court-admissibility-checklist.json say 'Not recorded' while acquisition.json names the mode.",
       "legalImpact": "Internally inconsistent provenance statements in a forensic export undermine the record; a direct capture is downgraded to 'not recorded' on the fields most reviewers read.",
@@ -2563,7 +3346,27 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49",
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "uc3-continuous-completeness.integration.test.ts::UC-PROV-003",
+        "greenTests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-PROV-003 (facts persisted, before bind, not in custody)",
+          "packages/shared/tests/capture-manifest-facts.test.mjs (4 PROV tests)",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::UC-PROV-003 (public: domain only, private URL/title absent)",
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-003",
+          "apps/web/__tests__/render/provenance-chain-layer-status.render.test.tsx::UC-PROV-003",
+          "services/api/test/provenance-chain-truth.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A web capture record never shows which URL/page was captured, and a PARTIAL capture or one with PAGE_MUTATED_DURING_CAPTURE / CROSS_ORIGIN_IFRAME_NOT_CAPTURED is presented identically to a complete one; likewise FLAG_SECURE omissions on Android frames.",
       "legalImpact": "WEB_PAGE_STATE_AT_CAPTURE text and the legal page promise PROOVRA records 'any limitations it detected' and 'the page URL captured'; neither is surfaced, so a reviewer cannot see detected completeness defects except by hand-parsing the raw capture-manifest.json in a package.",
@@ -2627,7 +3430,22 @@
         "extension",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/legal-copy-guard.test.mjs",
+        "greenTests": [
+          "apps/extension/test/legal-copy-guard.test.mjs (6 tests)",
+          "node apps/web/scripts/generate-legal-corpus.mjs --check"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Users and reviewers are told the capture is server-participating; code captures first and opens the session afterwards, and the server observes nothing but uploaded bytes.",
       "legalImpact": "Upgrades a client-attested capture to a server-participating one in the published 'how it works' disclosure relied on by legal reviewers; contradicts the product's own limitation CAPTURE_CLIENT_ATTESTED.",
@@ -2695,7 +3513,22 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/technical-metadata.test.ts::PDF report: Capture Device & Camera Metadata section (expectation updated to the honest label)",
+        "greenTests": [
+          "services/worker/test/technical-metadata.test.ts",
+          "services/worker/test/report-media-intelligence.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A phone photo uploaded from a Windows desktop reads 'Capture Device: <EXIF camera> / Operating system: Windows / Device: Desktop / Timezone: <browser tz>'.",
       "legalImpact": "Upload environment is upgraded to capture environment; timezone is a request-body value with no provenance label.",
@@ -2754,7 +3587,24 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/upload-session-actor-binding.integration.test.ts::another member is refused (404, zero mutation) at every step; the creator completes the upload",
+        "greenTests": [
+          "services/api/test/upload-session-actor-binding.integration.test.ts::another member is refused (404, zero mutation) at every step; the creator completes the upload",
+          "services/api/test/upload-session-key-and-terminal.integration.test.ts",
+          "services/api/test/phase-30-5-upload-session-routes.test.ts",
+          "services/api/test/phase-30-8-multipart.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "A same-workspace member holding the session id can overwrite parts of a colleague's multipart upload; the bridge then attaches the object to the colleague's record as the colleague, and finalization signs it.",
       "legalImpact": "A sealed record attributed to one person can contain bytes supplied by another; custody says the owner uploaded them.",
@@ -2814,7 +3664,26 @@
         "api",
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "1fd1813d6ca7",
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/cors-request-log.integration.test.ts::SEC-002: a pinned extension origin is admitted in production; unpinned / unconfigured are refused",
+        "greenTests": [
+          "services/api/test/cors-request-log.integration.test.ts::SEC-002: a pinned extension origin is admitted in production; unpinned / unconfigured are refused",
+          "services/api/test/cors-browser-headers.integration.test.ts",
+          "apps/extension/test/manifest-plan.test.mjs (5 tests)",
+          "services/api/test/uc1-extension-oauth-harness.test.ts::the acceptance stack's API env allow-lists the E2E build's real redirect (extensionAllowedOrigins)",
+          "services/api/test/cors-browser-headers.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "In production every extension API call (bearer + JSON => preflight) and the S3 presigned PUT fail CORS unless an operator has added chrome-extension://<id> to CORS_ORIGINS and the bucket CORS; nothing in the repo does or documents it.",
       "legalImpact": "none",
@@ -2861,7 +3730,21 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/cors-request-log.integration.test.ts::SEC-003: no token-bearing path or query value reaches the request log",
+        "greenTests": [
+          "services/api/test/cors-request-log.integration.test.ts::SEC-003: no token-bearing path or query value reaches the request log"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Anyone with log access (and every log sink/backup) can replay an intake link (upload into the org's workspace), an external-review grant, or a verify share link.",
       "legalImpact": "Bearer capabilities to private evidence disclosure are retained in operational logs beyond their revocation window.",
@@ -2920,7 +3803,27 @@
         "api",
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "1fd1813d6ca7",
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: the token is a registered session anchored to the authorizing session's workspace",
+        "greenTests": [
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: the token is a registered session anchored to the authorizing session's workspace",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: the token carries the authorizing session's real authMethod, not a hard-coded SOCIAL_OAUTH",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-SEC-004: an organization that mandates SSO refuses a password-derived extension token",
+          "uc3-continuous-completeness.integration.test.ts::UC-SEC-004 (refused under SSO mandate; anchor workspace opens; lifted mandate opens)",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts",
+          "services/api/test/capture-scope-and-draft-authority.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "An organization that mandates SSO or short reviewer/contributor timeouts cannot bind extension captures into its workspace to that policy; the token is invisible in the user's session list and cannot be revoked individually.",
       "legalImpact": "Captures may enter an organization workspace under an authentication that the organization's policy would refuse.",
@@ -2966,7 +3869,22 @@
         "android",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "uc3-continuous-completeness.integration.test.ts::UC-STR-003",
+        "greenTests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-STR-003 a declaration answers the server's slid session expiry",
+          "apps/mobile/test/continuous-reconcile.test.mjs::UC-STR-003"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A recording opened at T0 (expiresAtUtc T0+60 min) and staged at ~T0+51 min is saved with expiresAtUtc T0+60 min. If the Capture screen mounts after that (app restart, navigation back later), isSessionResumable is false, the durable record is cleared and the user is told the capture could not be completed — although the server slid the expiry to ~T0+111 min. Local segments were already deleted, so the recording is lost.",
       "legalImpact": "Loss of a staged, fully verified-in-place acquisition before it can be sealed.",
@@ -3018,7 +3936,24 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "1fd1813d6ca7",
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/e2e/direct-web-capture.spec.ts (HEAD launch)",
+        "greenTests": [
+          "apps/extension/e2e/direct-web-capture.spec.ts x4 fixtures on project chromium (Chrome 153.0.8010.53) and edge (Edge 154.0.4258.37)",
+          "yaml parse of uc1-browser-acceptance.yml",
+          "node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge"
+        ],
+        "externalProofRemaining": "none (CI workflow wiring is a cross-lane request); first windows-latest run; spec channel fix (cross-lane)",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "An Edge-specific (or Chrome-Stable-specific) extension failure would be reported as 'edge PASS' by the acceptance harness; UC-1 closure is defined as 'both browser projects pass'.",
       "legalImpact": "A release decision (store submission to Edge Add-ons) could rest on an acceptance verdict for a browser that was never launched.",
@@ -3074,7 +4009,30 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803",
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/uc4-screen-intelligence-handler.test.ts (whole suite)",
+        "greenTests": [
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts (12, DB-free, CI worker unit job)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts (5, live PG16)",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts (17, live PG16)",
+          "services/worker/test/uc4-keyframe-producer.test.ts (5, real ffmpeg-static)",
+          "services/worker/test/uc4-tesseract-ocr.test.ts (4 passed + 1 skipped: engine absent on host)",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
+        ],
+        "externalProofRemaining": "(1) The two worker live-PG suites only execute where TEST_DATABASE_URL is provided — CI's 'Test — worker' job provides none (cross-lane workflow request filed). (2) Real tesseract extraction: engine absent on this host and in every local worker image; building one requires apk network access (forbidden by lane rules). Run `UC4_REQUIRE_TESSERACT=1 npx vitest run test/uc4-tesseract-ocr.test.ts` inside the worker image.; first CI run; real-tesseract text assertion is a test change in services/worker (not lane W)",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A regression in the reconstruct_screen job (claim/lease/fence, storage wiring, real ffmpeg/tesseract invocation, persistence) ships green; derived keyframes/OCR/reconstruction could silently stop being produced.",
       "legalImpact": "Derived-intelligence provenance (§61 link from reconstructed block back to ORIGINAL part digest) is only proven on a developer workstation, not by a gate.",
@@ -3141,7 +4099,21 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "ci.yml",
+        "greenTests": [
+          "services/worker/test/verification-package-publication.minio.test.ts"
+        ],
+        "externalProofRemaining": "real AWS Object-Lock acceptance (MinIO does not enforce the checksum rule)",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "The streamed-package staging → checksum → promote → VersionId pin path (the one that failed in production, Sentry 150024171) has no gate; a regression publishes nothing or publishes unlocked.",
       "legalImpact": "Package immutability claims (COMPLIANCE retention applied, VersionId pinned) are asserted by a suite that no gate executes.",
@@ -3192,7 +4164,24 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/uc1-extension-oauth-harness.test.ts::the acceptance stack's API env allow-lists the E2E build's real redirect",
+        "greenTests": [
+          "services/api/test/uc1-extension-oauth-harness.test.ts (4 tests)",
+          "services/api/test/uc1-acceptance-harness-oauth-routing.test.ts (6 tests)",
+          "apps/web/__tests__/local-fixture-env-isolation.test.mjs (23, run from repo root)",
+          "full acceptance run"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "The only end-to-end proof of Direct Web Capture fails at AUTH in both projects; nobody can currently re-prove UC-1 with the shipped tooling.",
       "legalImpact": "none directly; removes the release gate for the extension channel.",
@@ -3245,7 +4234,22 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/e2e/direct-web-capture.spec.ts (HEAD)",
+        "greenTests": [
+          "[chromium] static/long/spa/mutating",
+          "[edge] static/long/spa/mutating"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "No automated proof of the extension capture exists or can exist with this spec.",
       "legalImpact": "none directly",
@@ -3296,7 +4300,24 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/integrity-recheck-signed-digest.test.ts::bytes + columns rewritten consistently: FAILED / DIGEST_MISMATCH",
+        "greenTests": [
+          "services/worker/test/integrity-recheck-signed-digest.test.ts",
+          "services/worker/test/integrity-recheck-digest-rule.test.ts",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-001: bytes and digest columns rewritten consistently (real MinIO)",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-001"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A record whose bytes and digest columns were changed together keeps 'Stored file rechecked - matched its signed hash', a valid signature and a verified original on Verify.",
       "legalImpact": "The platform's own recheck and verify answers would certify substituted evidence under an insider/DB-write threat model; the signed fingerprint that would expose the substitution is never consulted.",
@@ -3364,7 +4385,24 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/provenance-chain-truth.integration.test.ts::TRUST-002: PENDING OTS + unvalidated legacy STAMPED -> not anchored",
+        "greenTests": [
+          "services/api/test/provenance-chain-truth.integration.test.ts",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-002",
+          "apps/web/__tests__/render/provenance-chain-layer-status.render.test.tsx",
+          "apps/mobile/test/provenance.render.test.mjs::UC-TRUST-002"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "The Evidence Detail provenance section and the native provenance view show 'Anchored' minutes after capture, when the proof only exists at a calendar and Bitcoin anchoring is pending; legacy records whose token was never validated show the RFC 3161 layer as applied.",
       "legalImpact": "A reviewer reading provenance (or provenance/chain.json in the verification package) is told a public blockchain anchor exists when every other surface correctly says PENDING / ANCHORED_NOT_CHECKED; contradicts the one-OTS-claim rule.",
@@ -3434,7 +4472,29 @@
         "api",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8",
+          "5b17f3321b08",
+          "d87a3673bb63",
+          "9f3d8203c057"
+        ],
+        "migrations": "20281001000400_signing_key_identity_immutable (written and applied by the lead)",
+        "redTest": "services/api/test/signing-key-identity.integration.test.ts::a private key that is not the registered key is refused at signing time",
+        "greenTests": [
+          "services/api/test/signing-key-identity.integration.test.ts",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-003",
+          "services/api/test/completion-fanout-once.integration.test.ts",
+          "services/api/test/runtime-proof-evidence-capture-a.integration.test.ts",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::UC-TRUST-003 (bound fingerprint valid; PEM swap refused by trigger; forged mismatch fails)",
+          "services/api/test/completion-size-and-prehash.integration.test.ts (sealed row carries signingKeySha256 of the registered key)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A private/public key mismatch (rotation without a version bump, wrong mounted PEM) signs every new record with a signature that Verify then reports invalid, with no error at capture time; re-running the seed with a new key silently invalidates every historical signature under that keyId/version.",
       "legalImpact": "Signature validity of historical evidence depends on an overwritable table row rather than a key identity bound to the record; a revoked/compromised key still verifies as valid.",
@@ -3502,7 +4562,27 @@
         "ios",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8",
+          "5b17f3321b08",
+          "24846684b41c",
+          "d87a3673bb63",
+          "9f3d8203c057"
+        ],
+        "migrations": "see lead migration 20281001000500; 20281001000500_capture_trust_events_append_only (written and applied by the lead)",
+        "redTest": "n/a (lead-directed code half; verifier side owned elsewhere)",
+        "greenTests": [
+          "services/api/test/provenance-chain-truth.integration.test.ts (all but the tamper case, see note)",
+          "all 15 lane-M capture integration suites",
+          "services/api/test/provenance-chain-truth.integration.test.ts::TRUST-004 (2 tests)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Capture provenance (device signature verdicts, session binding, digests confirmed, trustChainHeadHash) is displayed and packaged from rows no code has checked; an edited or deleted trust event changes the provenance verdict silently.",
       "legalImpact": "The 'trust chain head hash' presented as provenance evidence cannot be independently recomputed and is not verified by the platform.",
@@ -3565,7 +4645,24 @@
         "ios",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-005: OBJECT_VERSION_MISSING makes the original and the headline failed",
+        "greenTests": [
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-005 (object deleted from real MinIO -> overallIntegrity false, REVIEW_REQUIRED, Basic failed)",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs",
+          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::TRUST-005",
+          "apps/mobile/test/basic-verification-view-truth.render.test.mjs::TRUST-005 / 008"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Public Verify shows a separate 'Stored file: Failed' row but the headline verdict, risk level 'Low' and legal statement ('storage signals ... support the recorded integrity state') stay positive.",
       "legalImpact": "A recipient can rely on a green verdict for a record whose original object version no longer exists in storage.",
@@ -3628,7 +4725,29 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8",
+          "a606dcaa5e29"
+        ],
+        "migrations": "none",
+        "redTest": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-008: a passing check 3 days old is STALE, not Verified",
+        "greenTests": [
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008 (2 tests, real MinIO 127.0.0.1:59711 point7-local-bucket: overwrite -> STALE, never Verified; requested recheck reads the real object -> MISMATCH)",
+          "services/api/test/integrity-recheck.integration.test.ts",
+          "services/worker/test/report-trust-truth.test.ts::UC-TRUST-008",
+          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::TRUST-008",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008: a fresh pass over an UNVERSIONED object is STALE, never VERIFIED (real MinIO in-place substitution; red on the previous resolver: verified_current)",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008: a fresh pinned-version recheck against MinIO is the only VERIFIED (versioned bucket)",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs (10)",
+          "runtime/remediation/journeys-raw.json#J06-integrity-tamper"
+        ],
+        "externalProofRemaining": "Behaviour against an Object-Lock-retained AWS bucket (EP-01); MinIO proves the read path only.",
+        "externalProofs": []
+      },
       "proof": "runtime-proven",
       "userImpact": "A third party opening a share link sees a Verified badge for bytes that no longer exist in that form.",
       "legalImpact": "Public Verify's stored-bytes claim is a periodic attestation presented as current; between rechecks it cannot detect storage-side substitution.",
@@ -3678,7 +4797,25 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47",
+          "718a4d15ec93",
+          "9f3d8203c057"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/completion-cross-channel.integration.test.ts::a web draft stays DRAFT until the record is sealed, and a retried finalize resumes the same record",
+        "greenTests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::a web draft stays DRAFT until the record is sealed, and a retried finalize resumes the same record",
+          "apps/web/__tests__/render/capture-finalize-resume.render.test.tsx (8 tests: stuck-state reset, same-record resume of missing parts only, complete-only retry, reservation abandoned on changed set, lost-create retry carries the same draft id and no non-CORS header, 3x UC-WEB-005)",
+          "apps/web/__tests__/render/capture-finalize-resume.render.test.tsx"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "After a network/5xx/4xx failure on any file, retry creates a new record and re-uploads every file; the first record is orphaned until swept; failed items show as still uploading (no 'Retry needed'), cannot be removed with 'Remove pending items', and the draft disappears from 'unfinished sessions' because the server already moved it to FINALIZED.",
       "legalImpact": "Custody/audit shows the draft FINALIZED into an evidence id that never sealed; reload recovery of a failed session is impossible.",
@@ -3734,7 +4871,23 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/completion-cross-channel.integration.test.ts::a reload resumes the contributor's open intake session with its staged files; another browser does not",
+        "greenTests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::a reload resumes the contributor's open intake session with its staged files; another browser does not",
+          "apps/web/__tests__/intake-session-resume.test.ts",
+          "apps/web intake suite (152 tests)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A contributor who reloads (or whose mobile browser evicts the tab) must redo consent and re-upload everything; the earlier uploads sit in an abandoned session. No beforeunload warning exists on this page.",
       "legalImpact": "Orphaned partial submissions in abandoned sessions; contributor may believe files were sent.",
@@ -3785,7 +4938,21 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/home-href-route-integrity.test.ts::every Home href resolves to a page or a redirect",
+        "greenTests": [
+          "apps/web/__tests__/home-href-route-integrity.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "The primary call to action for reviewing intake submissions lands on Page Not Found.",
       "legalImpact": "External evidence awaiting review is harder to reach.",
@@ -3827,7 +4994,22 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "uc3-continuous-completeness.integration.test.ts::UC-AND-008",
+        "greenTests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-AND-008",
+          "uc2/uc1 suites"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A sealed UC-2 record's part row is mutated after signing; if the process fails between seal and relabel, the manifest JSON stays classed as an original frame artifact.",
       "legalImpact": "Minor: post-seal mutation of part metadata.",
@@ -3871,7 +5053,21 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "screen-capture-screen.render.test.mjs::UC-AND-010 (2)",
+        "greenTests": [
+          "screen-capture-screen.render.test.mjs::UC-AND-010 (2)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Full-resolution screenshots of whatever the user captured (possibly sensitive) remain in the app cache indefinitely until the OS evicts it.",
       "legalImpact": "none",
@@ -3913,7 +5109,24 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "android-capture-service-contract.test.mjs::UC-AND-011",
+        "greenTests": [
+          "android-capture-service-contract.test.mjs::UC-AND-011",
+          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-AND-011"
+        ],
+        "externalProofRemaining": "Kotlin compile",
+        "externalProofs": [
+          "EP-14"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "Secure windows are projected as black images (no exception), so a black frame is uploaded as CAPTURED with no limitation; conversely a disk-full/IO error is reported as 'secure content omitted'.",
       "legalImpact": "Limitation codes in the manifest can misstate why content is missing.",
@@ -3951,7 +5164,24 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "android-capture-service-contract.test.mjs::UC-AND-012",
+        "greenTests": [
+          "android-capture-service-contract.test.mjs::UC-AND-012",
+          "capture-manifest-facts.test.mjs::UC-AND-012"
+        ],
+        "externalProofRemaining": "device: rotate during UC-2 capture",
+        "externalProofs": [
+          "EP-06"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "Frames captured after rotating are letterboxed/scaled into the original ImageReader size and labelled with the original width/height; the manifest orientation is derived from the initial geometry.",
       "legalImpact": "Frame provenance metadata (dimensions/orientation) can be wrong.",
@@ -3994,7 +5224,24 @@
       "platforms": [
         "android"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "android-capture-service-contract.test.mjs::UC-AND-013",
+        "greenTests": [
+          "android-capture-service-contract.test.mjs::UC-AND-013"
+        ],
+        "externalProofRemaining": "Kotlin compile + null-projection unit test",
+        "externalProofs": [
+          "EP-06",
+          "EP-14"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "When getMediaProjection returns null (or resultData is missing) the service calls finish(\"ERROR\") before onStartedCb is invoked; the JS start() awaits forever with the button spinning; the STOPPED event is ignored because the reducer is still in 'intro'. For UC-3 the server session was already opened.",
       "legalImpact": "none",
@@ -4037,7 +5284,22 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::app-side lifecycle",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::app-side lifecycle",
+          "native-module-contract.test.mjs"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "None today (the JS frame API throws on non-Android before reaching native), but the parity guarantee the F5 fix established for Android is broken on iOS.",
       "legalImpact": "none",
@@ -4076,7 +5338,24 @@
         "api",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "718a4d15ec93",
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/integrity-digest-golden.test.ts",
+        "greenTests": [
+          "services/api/test/integrity-digest-golden.test.ts",
+          "services/api/test/integrity-digest-golden.test.ts",
+          "services/worker/test/integrity-recheck-signed-digest.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "none today",
       "legalImpact": "Drift risk: a change to one copy would make the integrity recheck or report gate declare correctly sealed evidence FAILED_HASH_MISMATCH.",
@@ -4141,7 +5420,26 @@
         "api",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49",
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "n/a (absence-of-consumer proof)",
+        "greenTests": [
+          "services/api/test/capture-trust-client-surfaces.test.ts (5)",
+          "apps/web/__tests__/render/capture-devices-honesty.render.test.tsx",
+          "apps/web/__tests__/phase13-evidence-security-ui.test.ts",
+          "services/api/test/capture-trust-client-surfaces.test.ts",
+          "apps/web/__tests__/render/capture-devices-honesty.render.test.tsx"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Security Center lists capture devices that no client can register; 'deviceBound' and signed declarations never occur.",
       "legalImpact": "Code-complete claims for device-signed capture are not reachable in product.",
@@ -4197,7 +5495,23 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/completion-cross-channel.integration.test.ts::creation mints no root upload URL, and custody says none was issued",
+        "greenTests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::creation mints no root upload URL, and custody says none was issued",
+          "services/api/test/forensic-hardening.test.ts",
+          "services/api/test/web-capture-custody-wording.contract.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "none visible",
       "legalImpact": "Custody event UPLOAD_AUTHORIZED states a URL was issued for evidence/{id}/original-* on web/mobile/extension records whose bytes never go there; for intake it says 'No upload URL was issued' while one is minted (not delivered) at evidence.service.ts:674.",
@@ -4243,7 +5557,21 @@
       "platforms": [
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/preserve-flow.test.mjs::UC-ARCH-009: a failing upload discards the opened session",
+        "greenTests": [
+          "apps/extension/test/preserve-flow.test.mjs (10 tests)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A failed web capture leaves a reserved empty record for up to the session TTL (1h sliding) before the worker releases it.",
       "legalImpact": "none",
@@ -4285,7 +5613,23 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "d8e1f8605c5f"
+        ],
+        "migrations": "see migrationRequests",
+        "redTest": "services/api/test/case-hold-and-links.integration.test.ts::CASE-004: concurrent attaches with mixed roles create exactly one link and no caller errors",
+        "greenTests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-004: concurrent attaches with mixed roles create exactly one link and no caller errors",
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-004"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Double-submit of Add evidence / Link evidence with different roles yields two link rows for the same pair; with the same role the loser gets an unmapped P2002 -> 500 DATABASE_ERROR.",
       "legalImpact": "Minor: duplicate relationship rows in case exports/graph.",
@@ -4328,7 +5672,25 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47",
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/case-hold-and-links.integration.test.ts::CASE-005: the review workspace lists every case the viewer may open and hides a restricted one",
+        "greenTests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-005: the review workspace lists every case the viewer may open and hides a restricted one",
+          "apps/web/__tests__/render/evidence-linked-cases.render.test.tsx",
+          "apps/web/__tests__/evidence-review-redesign.test.ts",
+          "apps/web/__tests__/render/evidence-linked-cases.render.test.tsx"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A record linked to several cases shows only the first; 'Remove from case' can only target that one; other memberships are invisible on the record. A member who cannot open a restricted case still sees its name on the record.",
       "legalImpact": "Reviewer may not know a record is also part of another (possibly held) matter.",
@@ -4370,7 +5732,21 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-002: admission and completion lock the SAME capacity subject for a personal record",
+        "greenTests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-002: admission and completion lock the SAME capacity subject for a personal record"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Creation and completion are not mutually serialized for Personal subjects, contrary to the ET-ACQ-06 comment; TEAM-plan personal settlement counts a narrower population than admission.",
       "legalImpact": "none",
@@ -4426,7 +5802,24 @@
       "platforms": [
         "all"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "068efffd9da4"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-003: one banked credit admits exactly one over-allowance capture",
+        "greenTests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-003: one banked credit admits exactly one over-allowance capture",
+          "services/api/test/lapsed-plan-creation-policy.integration.test.ts::lapsed with a valid credit: the record is admitted, funded by the credit, and earns its outputs",
+          "services/api/test/lapsed-plan-creation-policy.integration.test.ts::two lapsed records settling on ONE credit: exactly one is funded, the balance never goes negative"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A FREE user at 3/3 with 1 credit can start several captures (e.g. a continuous screen recording) that are admitted, fully uploaded, and then refused INSUFFICIENT_EVIDENCE_CREDITS at seal; the capture is stranded until the 24h sweep.",
       "legalImpact": "A capture the user believed was being preserved is not sealed.",
@@ -4464,7 +5857,25 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "d8e1f8605c5f"
+        ],
+        "migrations": "see migrationRequests",
+        "redTest": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-004: ten concurrent first ensureEntitlement calls create exactly one active entitlement",
+        "greenTests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-004: ten concurrent first ensureEntitlement calls create exactly one active entitlement",
+          "services/api/test/phase-9-authority-writers.test.ts",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-004",
+          "services/api/test/phase-9-authority-writers.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A purchased credit or plan can land on one row while another reader (findFirst without orderBy) reads the other.",
       "legalImpact": "none",
@@ -4511,7 +5922,25 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "69e995c58803",
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/uc4-report-section.test.ts::an OCR runtime missing on the worker is NEVER reported as a policy decision; services/worker/test/uc4-screen-intelligence-handler.test.ts::policy allows OCR but the engine is missing → RUNTIME_UNAVAILABLE",
+        "greenTests": [
+          "services/worker/test/uc4-report-section.test.ts (7)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-008 (3)",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-008",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-008 (2)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "When the workspace allows OCR but the worker has no tesseract, the tab says 'OCR is disabled for this workspace' and the report says 'OCR: disabled by policy', sending admins to the wrong setting.",
       "legalImpact": "Report states a policy decision that was not made.",
@@ -4555,7 +5984,22 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/derived-review-release-and-generations.integration.test.ts::DER-009: a regenerated derivative gets a NEW bytes URL (digest-versioned), so no stale cache",
+        "greenTests": [
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::DER-009",
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012 (asserts &v= on keyframe src)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "After regeneration the browser keeps showing the old thumbnail/keyframe for up to a day.",
       "legalImpact": "none",
@@ -4597,7 +6041,21 @@
       "platforms": [
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "69e995c58803"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::keyframes and the reconstruction JSON are not rendered as 'Derived preview' images",
+        "greenTests": [
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::Technical Appendix derived strip (DER-011)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Up to 240 keyframes per part appear as unlabelled 'Derived preview' tiles with no offset, and the screen_reconstruction JSON tile shows 'Derived preview unavailable' (an <img> of application/json).",
       "legalImpact": "none",
@@ -4639,7 +6097,21 @@
       "platforms": [
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "69e995c58803"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012: keyframe thumbnails are requested WITH credentials",
+        "greenTests": [
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012"
+        ],
+        "externalProofRemaining": "Playwright proof against a real cross-origin API (finding's requiredTests) not run — no long-lived servers in this lane",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Per the codebase's own note, the keyframe thumbnails under 'View source' may 401 in production (runtime-dependent on cookie/SameSite).",
       "legalImpact": "none",
@@ -4678,7 +6150,28 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803",
+          "0408adaaa26b"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/media-intelligence-stranded-run-lifecycle.test.ts::re-enqueues a live record's run and never a trashed / destruction-bound / destroyed record's run; persistence suite DER-013 (2 tests)",
+        "greenTests": [
+          "services/worker/test/media-intelligence-stranded-run-lifecycle.test.ts",
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-013 (2)",
+          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::DER-013",
+          "services/worker/test/derived-assets-processor-lineage.test.ts::a trashed record gets no derived bytes",
+          "services/worker/test/et-q-07-derived-asset-reconciler.test.ts (regression)",
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::a record that never sealed (UPLOADING, or a refused hash-mismatch) is not a source (red: 202 + queued run)",
+          "services/worker full suite (1218 passed, 1 skipped)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Trashed records keep getting new derivatives (via the stranded-run reconciler, which does not filter lifecycle); after destruction, a late write re-creates derived rows/objects and OCR_SCREEN text until the next orchestrator sweep.",
       "legalImpact": "A short window where destroyed evidence's derived content exists after the destruction certificate.",
@@ -4724,7 +6217,25 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "69e995c58803",
+          "d8e1f8605c5f",
+          "9f3d8203c057"
+        ],
+        "migrations": "landed",
+        "redTest": "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-014: a source larger than the bounded read is marked truncated …; services/worker/test/derived-assets-processor-lineage.test.ts::a source larger than the read budget is recorded as a PREFIX read",
+        "greenTests": [
+          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-005/014, DER-014 (2)",
+          "services/worker/test/derived-assets-processor-lineage.test.ts (3 lineage tests)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts::DER-014"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A 'Low-res proxy' is at most the first 30 s and the first 50 MB of the source; video_frame reads 50 MB; thumbnails 4 MB; UC-4 64 MB. Nothing marks the derivative as partial.",
       "legalImpact": "source_sha256_at_generation asserts a relationship to the full original that was not verified (bytes never hashed; S3 VersionId not used although evidence_parts.storage_version_id exists).",
@@ -4784,7 +6295,22 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/derived-binding-and-bounds.test.ts::package: digest is sha256(bytes read)",
+        "greenTests": [
+          "services/worker/test/derived-binding-and-bounds.test.ts::DER-015 (2 tests)",
+          "services/worker/test/uc4-report-section.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "After a regeneration there is no way to know which descriptor a report's 'Machine-Derived Review Materials' counts came from.",
       "legalImpact": "Weakens traceability of the report's derived-material statement.",
@@ -4827,7 +6353,24 @@
         "api",
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "1fd1813d6ca7",
+          "b91d4b0d3cb3"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/uc1-extension-oauth-session.integration.test.ts (scope assertion)",
+        "greenTests": [
+          "apps/extension/test/preserve-flow.test.mjs::UC-EXT-008: a 401 mid-capture is SIGNED_OUT and clears the token",
+          "apps/extension/test/status-copy.test.mjs::an ended sign-in is a sign-in state (UC-EXT-008)",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts (scope === capture.direct)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "After 1h (or a 401 mid-capture) the user gets the generic 'could not be completed' line while the popup still shows the signed-in UI.",
       "legalImpact": "none",
@@ -4874,7 +6417,22 @@
         "api",
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-009: an ordinary web token cannot call the extension revoke",
+        "greenTests": [
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-009: sign-out revokes the token server-side; a copied token stops working",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-009: an ordinary web token cannot call the extension revoke"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "After 'Sign out' a copied token keeps working on the capture allowlist for up to an hour.",
       "legalImpact": "none",
@@ -4917,7 +6475,27 @@
         "api",
         "extension"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "1fd1813d6ca7",
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/preserve-flow.test.mjs::UC-EXT-010: the chosen case is sent on session open; no case sends none",
+        "greenTests": [
+          "apps/extension/test/preserve-flow.test.mjs::UC-EXT-010: the chosen case is sent on session open; no case sends none",
+          "apps/extension/test/popup-context.test.mjs::cases: only the selected workspace's open cases are offered (UC-EXT-010)",
+          "services/api/test/uc1-extension-oauth-session.integration.test.ts::UC-EXT-010: the extension token may read the case list the popup offers",
+          "e2e [chromium|edge]/static CASE stage: capture filed to the chosen case at seal",
+          "uc3-continuous-completeness.integration.test.ts::UC-EXT-010 foreign/unknown case 404",
+          "::linked in the same transaction as the bind"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Every web capture lands unassigned; filing to a matter requires a separate trip to the web Evidence library.",
       "legalImpact": "none",
@@ -4961,7 +6539,21 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "continuous-capture-screen.render.test.mjs::UC-IOS-011",
+        "greenTests": [
+          "continuous-capture-screen.render.test.mjs::UC-IOS-011"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Wrong instructions at the permission-education moment.",
       "legalImpact": "Consent disclosure is inaccurate for iOS users.",
@@ -5003,7 +6595,23 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "ios-broadcast-contract.test.mjs::app-side lifecycle",
+        "greenTests": [
+          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+        ],
+        "externalProofRemaining": "Swift unit test on macOS CI",
+        "externalProofs": [
+          "EP-14"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "Repeated sessions accumulate CF observers so each note triggers N drains/N stop events; a race between the Expo queue (stop) and main thread (Darwin callback) on lastEmittedSequence can emit a segment twice, leading to a failed duplicate upload toast or a duplicate partIndex that the validator refuses.",
       "legalImpact": "none",
@@ -5050,7 +6658,23 @@
         "all",
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47",
+          "7af5861c5013"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/capture-alert-rules.test.ts",
+        "greenTests": [
+          "apps/web/__tests__/capture-alert-rules.test.ts (5 of 5 pass after the counters landed in 7af5861c)",
+          "apps/web/__tests__/capture-alert-rules.test.ts"
+        ],
+        "externalProofRemaining": "monitoring stack deployment + webhook delivery test",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A 100% failure of iOS seals (UC-IOS-001) or of extension OAuth would raise no alert.",
       "legalImpact": "none",
@@ -5095,7 +6719,23 @@
         "extension",
         "ios"
       ],
-      "status": "present",
+      "status": "blocked-external",
+      "resolution": {
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
+        "proofKind": "source-structure",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "grep 'extension/e2e|xcodebuild|macos' .github/workflows",
+        "greenTests": [
+          "yaml parse of native-build.yml + uc1-browser-acceptance.yml (jobs: ios-simulator-build, android-debug-build, windows-acceptance, linux-extension-e2e)"
+        ],
+        "externalProofRemaining": "first GitHub Actions run of both workflows (macOS runner, Windows runner)",
+        "externalProofs": [
+          "EP-14"
+        ]
+      },
       "proof": "source-proven",
       "userImpact": "Native regressions (UC-IOS-001..012) reach devices undetected.",
       "legalImpact": "none",
@@ -5142,7 +6782,22 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/pwa-service-worker-policy.test.ts::manifest is installable",
+        "greenTests": [
+          "apps/web/__tests__/pwa-service-worker-policy.test.ts (10)",
+          "apps/web/scripts/pwa-installability-check.mjs (Chromium CDP Page.getInstallabilityErrors)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "No install prompt on Android Chrome; no offline shell; web capture has no offline spool.",
       "legalImpact": "none",
@@ -5179,7 +6834,21 @@
         "extension",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "1fd1813d6ca7"
+        ],
+        "migrations": "none",
+        "redTest": "apps/extension/test/env-example-parity.test.mjs",
+        "greenTests": [
+          "apps/extension/test/env-example-parity.test.mjs (2 tests)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "An operator deploying the extension cannot discover that sign-in fails closed until EXTENSION_OAUTH_REDIRECT_ALLOW is set, or that the install CTA stays 'coming soon' until NEXT_PUBLIC_EXTENSION_INSTALL_URL is inlined at web build time.",
       "legalImpact": "none",
@@ -5222,7 +6891,21 @@
       "platforms": [
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "doc grep",
+        "greenTests": [
+          "doc review"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Operators follow a blocker list that no longer matches reality (and misses the real UC-5 blockers above).",
       "legalImpact": "none",
@@ -5264,7 +6947,23 @@
       "platforms": [
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/case-quick-actions-honesty.test.ts",
+        "greenTests": [
+          "apps/web/__tests__/case-quick-actions-honesty.test.ts",
+          "apps/web/__tests__/evidence-action-authority.test.ts",
+          "apps/web/__tests__/case-detail-proovra-v2.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Clicking either button changes local tab state; nothing is generated and the destination tab offers no generation control (it says to open each evidence record).",
       "legalImpact": "none",
@@ -5306,7 +7005,21 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/report-pinned-version-read.test.ts",
+        "greenTests": [
+          "services/worker/test/report-pinned-version-read.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "If a second object version ever exists at reports/<id>/v<N>.pdf (e.g. an interrupted earlier attempt uploaded after the committed one), package recovery fails permanently with REPORT_INTEGRITY_MISMATCH and the record is routed to 'integrity review' although the committed report is intact.",
       "legalImpact": "No false output (digest check prevents it); spurious terminal failure.",
@@ -5346,7 +7059,22 @@
       "platforms": [
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/render/evidence-report-download-feedback.render.test.tsx",
+        "greenTests": [
+          "apps/web/__tests__/render/evidence-report-download-feedback.render.test.tsx",
+          "apps/web/__tests__/render/evidence-artifacts-output-actions.render.test.tsx"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A legal-hold/export-policy block (403/409), a missing stored PDF (410) or a not-found reads as a generic failure; the package download and the Reports page map the same codes to reasons.",
       "legalImpact": "none",
@@ -5385,7 +7113,23 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8",
+          "d87a3673bb63"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005",
+        "greenTests": [
+          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005",
+          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005: the owner of a NULL-team legacy record can publish it by creating a link, and the link answers"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Owner of a legacy Personal record gets 409 PUBLICATION_NOT_AVAILABLE record_has_no_workspace on 'Publish and create link'; the publication panel cannot address it either. The report/package pipeline was taught resolveEvidenceWorkspaceId for these rows, the share path was not.",
       "legalImpact": "Such a record's printed report link can never become live.",
@@ -5426,7 +7170,21 @@
         "api",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/report-trust-truth.test.ts::intake + VERIFIED_EMAIL owner snapshot -> 'Not independently verified'",
+        "greenTests": [
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-006"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Not rendered by current web/mobile UI, but public API consumers and the unrendered report executiveRows 'Contributor Identity' receive 'Verified' for an unverified remote contributor whenever the link creator's email is verified.",
       "legalImpact": "Link creator's verified identity -> contributor 'Verified' in a public machine-readable response.",
@@ -5486,7 +7244,22 @@
       "platforms": [
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/worker/test/package-honest-naming.test.ts",
+        "greenTests": [
+          "services/worker/test/package-honest-naming.test.ts",
+          "services/worker/test/package-manifest-contents-truth.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Recipients see 'court-ready' framing on every package regardless of acquisition tier.",
       "legalImpact": "Implies legal status; mitigated by remainingHumanRequirements text.",
@@ -5533,7 +7306,22 @@
         "web",
         "worker"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/exchange-acquisition-truth.integration.test.ts",
+        "greenTests": [
+          "services/api/test/exchange-acquisition-truth.integration.test.ts",
+          "services/api/test/defects-exchange-rebuild.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A direct screen/web capture transferred via exchange package is described as captureMethod UPLOADED_FILE / MULTIPART_PACKAGE; package file names embed 'uploaded_file-image'.",
       "legalImpact": "Structure read as origin (downgrade) in an inter-organization transfer artifact; the acquisition authority is absent from it.",
@@ -5591,7 +7379,24 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93",
+          "d8e1f8605c5f"
+        ],
+        "migrations": "see migrationRequests",
+        "redTest": "services/api/test/acquisition-set-once-trigger.integration.test.ts::NULL -> RECORDED_AT_CREATION on UPDATE is refused",
+        "greenTests": [
+          "services/api/test/acquisition-set-once-trigger.integration.test.ts::NULL -> RECORDED_AT_CREATION on UPDATE is refused",
+          "services/api/test/acquisition-set-once-trigger.integration.test.ts::a BACKFILL_* source may still be written once",
+          "services/api/test/acquisition-set-once-trigger.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "none today (no app writer); defense-in-depth gap for operators/scripts.",
       "legalImpact": "Contradicts the stated invariant that a backfill 'can never pass for a contemporaneous record'.",
@@ -5635,7 +7440,21 @@
         "android",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "continuous-capture-screen.render.test.mjs::UC-PROV-010",
+        "greenTests": [
+          "continuous-capture-screen.render.test.mjs::UC-PROV-010 / UC-STR-002"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Completeness asserted by the app is styled as a verification success.",
       "legalImpact": "Minor: client-asserted continuity visually upgraded to verified.",
@@ -5672,7 +7491,22 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/capture-workflow-hierarchy.test.ts::UC-PROV-011",
+        "greenTests": [
+          "apps/web/__tests__/capture-workflow-hierarchy.test.ts",
+          "apps/web/__tests__/capture-target-surfaces.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Overstates confidentiality model (server can read content).",
       "legalImpact": "Security-property upgrade: TLS + storage encryption presented as end-to-end.",
@@ -5707,7 +7541,21 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "718a4d15ec93"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/cors-request-log.integration.test.ts::SEC-005: production refuses *.vercel.app and localhost; keeps the Proovra origins",
+        "greenTests": [
+          "services/api/test/cors-request-log.integration.test.ts::SEC-005: production refuses *.vercel.app and localhost; keeps the Proovra origins"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "none directly",
       "legalImpact": "none",
@@ -5749,7 +7597,24 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "source-structure",
+        "commits": [
+          "6934514c6d49",
+          "718a4d15ec93",
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/rate-limit-global-bound.test.ts::UC-SEC-006 — ... each declares bound: \"global\"",
+        "greenTests": [
+          "services/api/test/rate-limit-global-bound.test.ts (12 existing cases pass)",
+          "services/api/test/rate-limit-global-bound.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "none",
       "legalImpact": "none",
@@ -5793,7 +7658,22 @@
         "android",
         "ios"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "apps/mobile/test/continuous-capture-screen.render.test.mjs::UC-STR-004 (2)",
+        "greenTests": [
+          "continuous-capture-screen.render.test.mjs::UC-STR-004 a refused OS consent opens no server session",
+          "::Discard from an opened session discards it"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "The server session and reserved Evidence stay ACTIVE for up to an hour after the user discarded (or after consent was denied); uploaded segment objects remain until the sweep releases them.",
       "legalImpact": "none (reserved records are not listed; the reaper releases them).",
@@ -5838,7 +7718,21 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "uc3-continuous-completeness.integration.test.ts::UC-STR-006",
+        "greenTests": [
+          "uc3-continuous-completeness.integration.test.ts::UC-STR-006"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Rare: if the process dies or the update fails after completeDirectCapture commits, the session keeps endReason COMPLETED and captureSessionAcquisitionComplete() returns true for an interrupted recording.",
       "legalImpact": "Downstream (worker/report) completeness reading can be wrong for an interrupted session.",
@@ -5884,7 +7778,24 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "6934514c6d49"
+        ],
+        "migrations": "none",
+        "redTest": "uc5-ios-screen-capture.integration.test.ts (old assertions not.toBe(200))",
+        "greenTests": [
+          "uc5-ios-screen-capture.integration.test.ts (11)",
+          "uc3-continuous-capture.integration.test.ts (14)",
+          "uc0-acquisition-capture.integration.test.ts",
+          "uc1-web-capture.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A refusal path that regresses into an unhandled 500 (user sees 'problem on our side', record possibly left reserved) still passes.",
       "legalImpact": "none",
@@ -5942,7 +7853,21 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "integration-real-db",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "temporary unit probe of the unit project's positive path",
+        "greenTests": [
+          "services/api/test/capture-workspace-billing-scope.integration.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A regression that refuses capture in a correctly-planned workspace with another code (or crashes) is not caught by this suite.",
       "legalImpact": "none",
@@ -5980,7 +7905,26 @@
       "platforms": [
         "api"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47",
+          "b4b035380ac8"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/tsa-trust-configuration.test.ts",
+        "greenTests": [
+          "services/api/test/tsa-trust-configuration.test.ts",
+          "services/api/test/tsa-token-validation.test.ts",
+          "services/api/test/phase-ia-tsa-false-failed.test.ts",
+          "doc",
+          "services/api/test/tsa-trust-configuration.test.ts"
+        ],
+        "externalProofRemaining": "A real production TSA chain validated end to end (external-proof-register row 2).; real TSA chain validation outside Production",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A production deploy without TSA_TRUST_BUNDLE_PATH silently records every new timestamp as FAILED ('Timestamp failed') with no readiness signal; a mistakenly mounted non-marker CA bundle (e.g. a staging root) is accepted as a trust anchor.",
       "legalImpact": "Low: all failures are fail-closed, but the positive path accepts any policy OID and any anchor the file contains.",
@@ -6037,7 +7981,24 @@
         "api",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "b4b035380ac8",
+          "9f3d8203c057"
+        ],
+        "migrations": "none",
+        "redTest": "services/api/test/trust-projections-truth.test.ts",
+        "greenTests": [
+          "services/api/test/trust-projections-truth.test.ts",
+          "services/api/test/ots-worker-exists.contract.test.ts",
+          "services/api/test/evidence-intelligence-anchor-readiness.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "The review-workspace API returns verificationProof.hashMatch 'MATCH' and signatureStatus 'APPLIED' whenever a digest/signature column is non-null (no comparison, including records later found mismatched); the dashboard counts ANCHORED_NOT_CHECKED proofs as 'anchored'; admin record lists show raw 'STAMPED' for unvalidated legacy tokens.",
       "legalImpact": "Minor; not the primary verdict surfaces, but an API consumer or AI context can read 'MATCH' as a verification result.",
@@ -6090,7 +8051,22 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/render/capture-leave-guard.render.test.tsx::prevents unload while busy",
+        "greenTests": [
+          "apps/web/__tests__/render/capture-leave-guard.render.test.tsx",
+          "apps/web/__tests__/phase-7-tenant-isolation.test.ts"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Closing the tab or switching workspace mid-upload gives no warning; the upload is abandoned silently.",
       "legalImpact": "none",
@@ -6129,7 +8105,22 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47",
+          "9f3d8203c057"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/render/capture-finalize-resume.render.test.tsx::a FAILED report is reported as failed, not as still generating",
+        "greenTests": [
+          "apps/web/__tests__/render/capture-finalize-resume.render.test.tsx (FAILED, BLOCKED, NOT_INCLUDED cases)"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "A report that failed or is gated is presented as pending.",
       "legalImpact": "none",
@@ -6172,7 +8163,21 @@
         "pwa",
         "web"
       ],
-      "status": "present",
+      "status": "fixed",
+      "resolution": {
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
+        "commits": [
+          "0364d89aef47"
+        ],
+        "migrations": "none",
+        "redTest": "apps/web/__tests__/render/capture-safe-feedback.render.test.tsx",
+        "greenTests": [
+          "apps/web/__tests__/render/capture-safe-feedback.render.test.tsx"
+        ],
+        "externalProofRemaining": "none",
+        "externalProofs": []
+      },
       "proof": "source-proven",
       "userImpact": "Users can see internal DOMException text.",
       "legalImpact": "none",

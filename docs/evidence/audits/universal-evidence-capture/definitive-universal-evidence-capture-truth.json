@@ -1,6 +1,8 @@
 {
   "schema": "PROOVRA_UNIVERSAL_CAPTURE_TRUTH_V1",
   "headline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
+  "headlineReason": "101 of 119 findings fixed with proof; 18 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.",
+  "auditHeadline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
   "meta": {
     "title": "Definitive Universal Evidence Capture Truth",
     "baselineSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
@@ -43,6 +45,26 @@
       ]
     }
   },
+  "remediation": {
+    "branch": "fix/universal-evidence-capture-closure",
+    "baseSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
+    "notes": [
+      "Every finding has exactly one ledger row; dispositions are FIXED_RUNTIME_PROVEN, FIXED_SOURCE_AND_TEST_PROVEN or BLOCKED_EXTERNAL_PROOF only (no deferred, unknown or accepted-risk row).",
+      "BLOCKED_EXTERNAL_PROOF means the code change is made and tested to the limit of this host; the remaining proof needs a device, macOS, a store, a sandbox or a CI runner that this environment does not have.",
+      "Remediated runtime evidence was produced on disposable loopback infrastructure only (PostgreSQL 16, Redis 7, MinIO); no Production system, credential or data was touched.",
+      "The audit's findings, observations and baseline verdicts are kept verbatim; the post-remediation state is added beside them, never written over them."
+    ],
+    "ledger": "remediation/remediation-ledger.json",
+    "ledgerCounts": {
+      "total": 119,
+      "BLOCKED_EXTERNAL_PROOF": 18,
+      "FIXED_RUNTIME_PROVEN": 60,
+      "FIXED_SOURCE_AND_TEST_PROVEN": 41,
+      "fixed": 101,
+      "blocked": 18,
+      "remaining": 0
+    }
+  },
   "auditShaNote": "The audit commit SHA is the commit that adds this directory on the audit branch; it is recorded in the final report, not inside the artifact (a file cannot contain its own commit hash).",
   "counts": {
     "findings": 119,
@@ -53,21 +75,39 @@
       "P2": 55,
       "P3": 53
     },
+    "byStatus": {
+      "fixed": 101,
+      "blockedExternal": 18,
+      "partial": 0,
+      "present": 0,
+      "acceptedRisk": 0
+    },
+    "unresolvedBySeverity": {
+      "P0": 0,
+      "P1": 4,
+      "P2": 9,
+      "P3": 5
+    },
     "byProof": {
       "runtime-proven": 12,
       "source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED)": 1,
       "source-proven": 106
     },
     "journeys": {
+      "PASS": 14,
+      "FAIL": 0,
+      "BLOCKED": 6
+    },
+    "auditJourneys": {
       "PASS": 8,
       "FAIL": 6,
       "BLOCKED": 6
     },
     "ucBuckets": {
-      "complete": 0,
-      "partial": 7,
-      "missing": 2,
-      "blocked": 0
+      "complete": 2,
+      "partial": 0,
+      "missing": 0,
+      "blocked": 7
     },
     "surfaces": 27,
     "mutations": 59,
@@ -78,8 +118,8 @@
     {
       "uc": "UC-0a",
       "name": "Provenance Truth Repair",
-      "verdict": "PRESENT BUT UNTRUTHFUL",
-      "rationale": "The acquisition-mode authority, set-once trigger and fail-closed attestation are real and runtime-visible (J01/J08/J09 report snapshots and Public Verify carry the server-recorded mode and IMPORTED_EXISTING_MEDIA tier). But server record-creation time is presented as capture time and on Public Verify as 'declared by the capturing device'; every direct-capture record reads 'Capture Method: Not recorded' in the rendered report (runtime-proven on an Android continuous record) and package; the client still chooses the direct-capture mode label; validated manifest facts (URL, title, browser, completeness) are dropped.",
+      "verdict": "COMPLETE",
+      "auditVerdict": "PRESENT BUT UNTRUTHFUL",
       "keyFindings": [
         "UC-PROV-001",
         "UC-PROV-002",
@@ -89,13 +129,15 @@
         "UC-PROV-005"
       ],
       "blockers": [],
-      "bucket": "partial"
+      "rationale": "25 findings name this UC: 25 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R03 PASS. No external proof outstanding.",
+      "auditRationale": "The acquisition-mode authority, set-once trigger and fail-closed attestation are real and runtime-visible (J01/J08/J09 report snapshots and Public Verify carry the server-recorded mode and IMPORTED_EXISTING_MEDIA tier). But server record-creation time is presented as capture time and on Public Verify as 'declared by the capturing device'; every direct-capture record reads 'Capture Method: Not recorded' in the rendered report (runtime-proven on an Android continuous record) and package; the client still chooses the direct-capture mode label; validated manifest facts (URL, title, browser, completeness) are dropped.",
+      "bucket": "complete"
     },
     {
       "uc": "UC-0b",
       "name": "Trust / Attestation Repair",
-      "verdict": "PARTIALLY COMPLETE",
-      "rationale": "Signing, custody chain, package seal and share-token verify work end to end (J01, J02; 463/463 API integration incl. public-verify-*, ots-integrity-lifecycle, integrity-recheck). RFC 3161 tokens are now validated with openssl against a configured anchor (tested with a local TSA). Open: OTS PENDING shown as 'Anchored', stored-bytes 'Verified' survives substitution for the recheck window (runtime J06), verdict ignores recheck, signing-key identity mutable, capture trust-event sub-chain never verified. Real TSA/OTS/Object Lock authority is external.",
+      "verdict": "COMPLETE LOCALLY, EXTERNAL PROOF PENDING",
+      "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-TRUST-008",
         "UC-TRUST-005",
@@ -109,13 +151,15 @@
         "EP-02",
         "EP-03"
       ],
-      "bucket": "partial"
+      "rationale": "8 findings name this UC: 8 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R17 PASS. External proofs outstanding: EP-01, EP-02, EP-03.",
+      "auditRationale": "Signing, custody chain, package seal and share-token verify work end to end (J01, J02; 463/463 API integration incl. public-verify-*, ots-integrity-lifecycle, integrity-recheck). RFC 3161 tokens are now validated with openssl against a configured anchor (tested with a local TSA). Open: OTS PENDING shown as 'Anchored', stored-bytes 'Verified' survives substitution for the recheck window (runtime J06), verdict ignores recheck, signing-key identity mutable, capture trust-event sub-chain never verified. Real TSA/OTS/Object Lock authority is external.",
+      "bucket": "blocked"
     },
     {
       "uc": "UC-0c",
       "name": "Derivative Lifecycle Closure",
-      "verdict": "PARTIALLY COMPLETE",
-      "rationale": "One derived-asset authority, tenant binding, destruction sweep and redaction byte gate are in place (worker 1152/1152 executed, 4 Object-Lock cases run separately 4/4). Open: derived bytes bypass the byte-release gate (VIEWER can fetch OCR/keyframes), regeneration overwrites lineage and deletes prior objects, provenance (tool version, parameters, text digest) dropped, package derived manifests silently truncated.",
+      "verdict": "COMPLETE",
+      "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-DER-002",
         "UC-DER-006",
@@ -125,13 +169,15 @@
         "UC-DER-014"
       ],
       "blockers": [],
-      "bucket": "partial"
+      "rationale": "7 findings name this UC: 7 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS. No external proof outstanding.",
+      "auditRationale": "One derived-asset authority, tenant binding, destruction sweep and redaction byte gate are in place (worker 1152/1152 executed, 4 Object-Lock cases run separately 4/4). Open: derived bytes bypass the byte-release gate (VIEWER can fetch OCR/keyframes), regeneration overwrites lineage and deletes prior objects, provenance (tool version, parameters, text digest) dropped, package derived manifests silently truncated.",
+      "bucket": "complete"
     },
     {
       "uc": "UC-1",
       "name": "Chrome / Edge Web Capture",
-      "verdict": "PRESENT BUT UNREACHABLE",
-      "rationale": "The server side of Direct Web Capture works (uc1-web-capture + uc1-extension-oauth integration pass). A real user cannot capture: the popup never lists a workspace (runtime-proven), the extension origin is absent from production CORS and host_permissions, it is unpublished, and the shipped acceptance harness fails at AUTH on main. Full-page capture exceeds Chrome's captureVisibleTab quota by construction. No case selection.",
+      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "auditVerdict": "PRESENT BUT UNREACHABLE",
       "keyFindings": [
         "UC-EXT-001",
         "UC-EXT-003",
@@ -143,15 +189,18 @@
       "blockers": [
         "EP-04",
         "EP-05",
-        "EP-12"
+        "EP-12",
+        "EP-14"
       ],
-      "bucket": "missing"
+      "rationale": "29 findings name this UC: 28 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R05 PASS. External proofs outstanding: EP-04, EP-05, EP-12, EP-14.",
+      "auditRationale": "The server side of Direct Web Capture works (uc1-web-capture + uc1-extension-oauth integration pass). A real user cannot capture: the popup never lists a workspace (runtime-proven), the extension origin is absent from production CORS and host_permissions, it is unpublished, and the shipped acceptance harness fails at AUTH on main. Full-page capture exceeds Chrome's captureVisibleTab quota by construction. No case selection.",
+      "bucket": "blocked"
     },
     {
       "uc": "UC-2",
       "name": "Android Direct Screen Capture",
-      "verdict": "PARTIALLY COMPLETE",
-      "rationale": "Server seal path runtime-proven (uc2-screen-capture integration); JS↔Kotlin parity, manifest service declarations and foreground-service typing verified; Android prebuild generated the native project; Hermes bundle builds. Unproven on any device; POST_NOTIFICATIONS is never requested, so on Android 13+ the capture-frame notification action (the only way to capture another app) is suppressed. No share-into-PROOVRA, logout does not stop capture.",
+      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-AND-003",
         "UC-AND-006",
@@ -161,15 +210,18 @@
       ],
       "blockers": [
         "EP-06",
-        "EP-07"
+        "EP-07",
+        "EP-14"
       ],
-      "bucket": "partial"
+      "rationale": "22 findings name this UC: 18 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.",
+      "auditRationale": "Server seal path runtime-proven (uc2-screen-capture integration); JS↔Kotlin parity, manifest service declarations and foreground-service typing verified; Android prebuild generated the native project; Hermes bundle builds. Unproven on any device; POST_NOTIFICATIONS is never requested, so on Android 13+ the capture-frame notification action (the only way to capture another app) is suppressed. No share-into-PROOVRA, logout does not stop capture.",
+      "bucket": "blocked"
     },
     {
       "uc": "UC-3",
       "name": "Continuous Capture + Streaming",
-      "verdict": "PRESENT BUT UNTRUTHFUL",
-      "rationale": "Seal refuses missing/duplicate/out-of-order/tampered declared segments (uc3 integration, real PG) and the full pipeline to Public Verify works for a sealed session (J09). But a lost TAIL segment seals as SIGNED COMPLETE_SESSION (runtime-proven), part index 200+ is refused while the client allows 600 segments so long recordings are discarded (runtime-proven), and a session is not resumable after app restart.",
+      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "auditVerdict": "PRESENT BUT UNTRUTHFUL",
       "keyFindings": [
         "UC-STR-002",
         "UC-STR-001",
@@ -178,15 +230,18 @@
         "UC-STR-006"
       ],
       "blockers": [
-        "EP-06"
+        "EP-06",
+        "EP-14"
       ],
-      "bucket": "partial"
+      "rationale": "27 findings name this UC: 23 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.",
+      "auditRationale": "Seal refuses missing/duplicate/out-of-order/tampered declared segments (uc3 integration, real PG) and the full pipeline to Public Verify works for a sealed session (J09). But a lost TAIL segment seals as SIGNED COMPLETE_SESSION (runtime-proven), part index 200+ is refused while the client allows 600 segments so long recordings are discarded (runtime-proven), and a session is not resumable after app restart.",
+      "bucket": "blocked"
     },
     {
       "uc": "UC-4",
       "name": "Keyframes / OCR / Conversation Reconstruction",
-      "verdict": "PARTIALLY COMPLETE",
-      "rationale": "Runtime J10 (real worker, real ffmpeg-static): Generate → reconstruct_screen COMPLETED with 4 keyframes and 1 reconstruction descriptor, labelled DERIVED_RECONSTRUCTED; OCR did not run (ocrAllowed defaults OFF; coverage PARTIAL). A single manual 'Generate Derived Review' path exists, labelled as derived and never as original, with no actor-attribution claims. There is no conversation-capture channel; 'conversation' is OCR screen reconstruction. Retry/Regenerate never run again, OCR runs on ≤256 px keyframes for video sources, dedup cannot merge real chat screens, provenance fields are dropped, and the worker path has no CI-executed behavioural test.",
+      "verdict": "COMPLETE LOCALLY, EXTERNAL PROOF PENDING",
+      "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-DER-001",
         "UC-DER-003",
@@ -195,14 +250,19 @@
         "UC-TQ-003",
         "UC-DER-010"
       ],
-      "blockers": [],
-      "bucket": "partial"
+      "blockers": [
+        "EP-13",
+        "EP-14"
+      ],
+      "rationale": "16 findings name this UC: 16 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.",
+      "auditRationale": "Runtime J10 (real worker, real ffmpeg-static): Generate → reconstruct_screen COMPLETED with 4 keyframes and 1 reconstruction descriptor, labelled DERIVED_RECONSTRUCTED; OCR did not run (ocrAllowed defaults OFF; coverage PARTIAL). A single manual 'Generate Derived Review' path exists, labelled as derived and never as original, with no actor-attribution claims. There is no conversation-capture channel; 'conversation' is OCR screen reconstruction. Retry/Regenerate never run again, OCR runs on ≤256 px keyframes for video sources, dedup cannot merge real chat screens, provenance fields are dropped, and the worker path has no CI-executed behavioural test.",
+      "bucket": "blocked"
     },
     {
       "uc": "UC-5",
       "name": "iOS",
-      "verdict": "PRESENT BUT DISCONNECTED",
-      "rationale": "Swift module, broadcast upload extension, App Group and entitlements exist and are internally consistent, and the server accepts DIRECT_SCREEN_CAPTURE_IOS. But no real iOS recording can be sealed: the device block the Swift code writes is refused by the shared validator (runtime-proven 422). The app cannot stop the broadcast, the last segment always has duration 0, and there is no crash recovery. Native compilation and ReplayKit behaviour are BLOCKED here (no macOS/Xcode).",
+      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "auditVerdict": "PRESENT BUT DISCONNECTED",
       "keyFindings": [
         "UC-IOS-001",
         "UC-IOS-002",
@@ -212,15 +272,18 @@
       ],
       "blockers": [
         "EP-08",
-        "EP-09"
+        "EP-09",
+        "EP-14"
       ],
-      "bucket": "missing"
+      "rationale": "35 findings name this UC: 23 fixed, 12 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012, UC-LCH-003), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.",
+      "auditRationale": "Swift module, broadcast upload extension, App Group and entitlements exist and are internally consistent, and the server accepts DIRECT_SCREEN_CAPTURE_IOS. But no real iOS recording can be sealed: the device block the Swift code writes is refused by the shared validator (runtime-proven 422). The app cannot stop the broadcast, the last segment always has duration 0, and there is no crash recovery. Native compilation and ReplayKit behaviour are BLOCKED here (no macOS/Xcode).",
+      "bucket": "blocked"
     },
     {
       "uc": "UC-6",
       "name": "Full Public Launch",
-      "verdict": "PARTIALLY COMPLETE",
-      "rationale": "Web build, extension build, both Hermes bundles and the API/worker suites are green locally; CI runs the API integration project against real PG. Not launched: extension unpublished and unusable, iOS cannot seal, Android unproven on device, PWA not installable, no capture monitoring/runbook, no mobile screen-recording privacy disclosure, extension/native never compiled or run in CI.",
+      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-LCH-001",
         "UC-LCH-002",
@@ -235,12 +298,69 @@
         "EP-06",
         "EP-07",
         "EP-08",
-        "EP-09"
+        "EP-09",
+        "EP-10",
+        "EP-11",
+        "EP-14"
       ],
-      "bucket": "partial"
+      "rationale": "8 findings name this UC: 7 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R01 PASS, R02 PASS, R03 PASS, R04 PASS, R11 PASS, R12 PASS, R13 PASS, R14a PASS, R14b PASS, R15a PASS, R15b BLOCKED, R16 PASS. External proofs outstanding: EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14.",
+      "auditRationale": "Web build, extension build, both Hermes bundles and the API/worker suites are green locally; CI runs the API integration project against real PG. Not launched: extension unpublished and unusable, iOS cannot seal, Android unproven on device, PWA not installable, no capture monitoring/runbook, no mobile screen-recording privacy disclosure, extension/native never compiled or run in CI.",
+      "bucket": "blocked"
     }
   ],
   "platformMatrix": [
+    {
+      "platform": "Browser Extension",
+      "capture": "WORKS_LOCALLY",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "WORKS_LOCALLY",
+      "build": "WORKS_LOCALLY",
+      "realBrowser": "SEE_JOURNEY_R05",
+      "distribution": "BLOCKED",
+      "note": "Workspace selection, case at capture and DOM-snapshot truth fixed; real Chrome and Edge acceptance on the remediated stack (R05). Store listing and production OAuth are EP-04/05/12."
+    },
+    {
+      "platform": "Web",
+      "capture": "WORKS_LOCALLY",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "NOT_IMPLEMENTED",
+      "build": "WORKS_LOCALLY",
+      "realBrowser": "SEE_JOURNEY_R02",
+      "distribution": "N/A",
+      "note": "File/camera/mic upload (R01) and browser screen recording through getDisplayMedia in real Chromium (R02). The Capture page does not take a case; records are linked to a case afterwards (R11)."
+    },
+    {
+      "platform": "PWA",
+      "capture": "WORKS_LOCALLY",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "NOT_IMPLEMENTED",
+      "build": "WORKS_LOCALLY",
+      "realBrowser": "WORKS_LOCALLY",
+      "distribution": "WORKS_LOCALLY",
+      "note": "Installable by Chromium's own criteria (CDP getInstallabilityErrors empty), service worker with a network-only policy for API and evidence bytes, offline page (UC-LCH-004)."
+    },
+    {
+      "platform": "Android",
+      "capture": "BLOCKED",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "SERVER_ONLY",
+      "build": "PARTIAL",
+      "realBrowser": "N/A",
+      "distribution": "BLOCKED",
+      "note": "Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. Native compile and device behaviour are EP-06/07/14."
+    },
+    {
+      "platform": "iOS",
+      "capture": "BLOCKED",
+      "evidencePipeline": "WORKS_LOCALLY",
+      "caseAtCapture": "SERVER_ONLY",
+      "build": "PARTIAL",
+      "realBrowser": "N/A",
+      "distribution": "BLOCKED",
+      "note": "The device block the extension writes now seals SIGNED on the real server (golden fixture); Swift compile, ReplayKit and TestFlight are EP-08/09/14. The direct-session API accepts a case, the app does not yet send one."
+    }
+  ],
+  "auditPlatformMatrix": [
     {
       "platform": "Browser Extension",
       "capture": "BROKEN",
@@ -293,21 +413,18 @@
     }
   ],
   "convergenceVerdict": {
+    "verdict": "CONVERGED WRITERS AND SIDE EFFECTS",
+    "statement": "Every live capture channel still reaches ONE Evidence writer, ONE part writer, ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route, and now also ONE canonical finalizer that owns the completion side effects: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run exactly once for web upload, direct capture and intake alike (UC-ARCH-002/003, proven on real PostgreSQL by completion-cross-channel.integration.test.ts). The iOS manifest reaches the finalizer (UC-IOS-001 server side); its native half awaits EP-08."
+  },
+  "auditConvergenceVerdict": {
     "verdict": "CONVERGED WRITERS, DIVERGENT SIDE EFFECTS",
     "statement": "Every live capture channel reaches ONE Evidence writer, ONE part writer, ONE finalizer (completeEvidence), ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route; no duplicate evidence model or writer was found and every queue has a consumer. The divergence is in what surrounds the finalizer: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run only in the web route, so direct-capture and intake records differ from uploads (UC-ARCH-002/003). iOS never reaches the finalizer (UC-IOS-001)."
   },
   "openP0P1": [
     "UC-AND-003",
-    "UC-CASE-001",
-    "UC-EXT-001",
-    "UC-EXT-003",
     "UC-IOS-001",
     "UC-IOS-002",
-    "UC-IOS-004",
-    "UC-OUT-001",
-    "UC-PROV-001",
-    "UC-STR-001",
-    "UC-STR-002"
+    "UC-IOS-004"
   ],
   "validation": {
     "apiIntegration": {
@@ -531,7 +648,361 @@
         "exit": 124,
         "log": "uc1-acceptance.log"
       }
-    ]
+    ],
+    "remediation": {
+      "apiIntegration": {
+        "files": 268,
+        "suites": 876,
+        "tests": 2873,
+        "passed": 2873,
+        "failed": 0,
+        "skipped": 0
+      },
+      "worker": {
+        "files": 101,
+        "suites": 403,
+        "tests": 1219,
+        "passed": 1218,
+        "failed": 0,
+        "skipped": 1
+      },
+      "commands": [
+        {
+          "label": "seed-journeys",
+          "exit": 1,
+          "log": "seed-r1.json"
+        },
+        {
+          "label": "seed-journeys-2",
+          "exit": 0,
+          "log": "seed-r2.json"
+        },
+        {
+          "label": "journeys-run1",
+          "exit": 0,
+          "log": "journeys-run1-superseded.log",
+          "note": "SUPERSEDED: run on 068efffd..81144aa1, before a606dcaa/0408adaa; it is the red evidence for both (J06 storedBytes verified_current after substitution; J10 derived run on J09 UPLOADING record). J09 sent the V1 manifest the remediated server refuses; J11 reused the FREE user J05 had filled; J13 was driven against a TRASHED record without a review id. Rerun below on the final source."
+        },
+        {
+          "label": "uc1-acceptance-final",
+          "exit": 0,
+          "log": "uc1-acceptance.run2-superseded.log",
+          "note": "SUPERSEDED (run 2, 0408adaa). run in the background (not via rec-remediation.sh, so the stack stays up under the operator teardown); chromium PASS, edge PASS, 8/8 pages; exit recorded as the harness verdict, the process is stopped at teardown"
+        },
+        {
+          "label": "uc1-acceptance-run1",
+          "exit": 0,
+          "log": "uc1-acceptance.run1.log",
+          "note": "SUPERSEDED first stack (before a606dcaa/0408adaa): chromium PASS, edge PASS, 8/8; times approximate (background run, not wrapped)"
+        },
+        {
+          "label": "seed-journeys-3",
+          "exit": 0,
+          "log": "seed-r3.json"
+        },
+        {
+          "label": "seed-journeys-4",
+          "exit": 0,
+          "log": "seed-r4.json"
+        },
+        {
+          "label": "journeys-final",
+          "exit": 0,
+          "log": "journeys-final.run2-superseded.log",
+          "note": "SUPERSEDED (run 2, 0408adaa): 12/13 PASS; J13 refused at EXECUTED (409 LIFECYCLE_INVALID_TRANSITION) — the red evidence for 4a49635e. Rerun below."
+        },
+        {
+          "label": "journeys-final-j11",
+          "exit": 0,
+          "log": "journeys-final-j11.run2-superseded.log",
+          "note": "SUPERSEDED (run 2): J11 PASS 2/2."
+        },
+        {
+          "label": "uc1-acceptance-final",
+          "exit": 0,
+          "log": "uc1-acceptance.run6-superseded.log",
+          "note": "SUPERSEDED stack (no Evidence Requests flag). final source 4a49635e; background run kept up for the journeys; chromium PASS, edge PASS, 8/8 pages; stopped at teardown"
+        },
+        {
+          "label": "seed-journeys-5",
+          "exit": 0,
+          "log": "seed-r5.json"
+        },
+        {
+          "label": "seed-journeys-6",
+          "exit": 0,
+          "log": "seed-r6.json"
+        },
+        {
+          "label": "seed-journeys-7",
+          "exit": 0,
+          "log": "seed-r7.json"
+        },
+        {
+          "label": "journeys-final",
+          "exit": 0,
+          "log": "journeys-final.run3-superseded.log",
+          "note": "SUPERSEDED (run 3, 4a49635e): 11/12 PASS + J11 PASS; J13 8/9 — every destruction check passed (bytes gone, certificate, link stops) but the driver read evidence.status instead of lifecycle_state. Rerun below."
+        },
+        {
+          "label": "journeys-final-j11",
+          "exit": 0,
+          "log": "journeys-final-j11.run3-superseded.log",
+          "note": "SUPERSEDED (run 3): J11 PASS 2/2."
+        },
+        {
+          "label": "web-screen-capture",
+          "exit": 1,
+          "log": "web-screen-capture.run3-superseded.log",
+          "note": "SUPERSEDED (run 3): recorded + sealed in real Chromium, but into the default PERSONAL (FREE) workspace, so report/package were NOT_INCLUDED_IN_PLAN (correct); probe now switches to the organization workspace and verifies through a share link."
+        },
+        {
+          "label": "seed-journeys-8",
+          "exit": 0,
+          "log": "seed-r8.json"
+        },
+        {
+          "label": "seed-journeys-9",
+          "exit": 0,
+          "log": "seed-r9.json"
+        },
+        {
+          "label": "seed-journeys-10",
+          "exit": 0,
+          "log": "seed-r10.json"
+        },
+        {
+          "label": "journeys-final",
+          "exit": 0,
+          "log": "journeys-final.run4-superseded.log",
+          "note": "SUPERSEDED (run 4, 4a49635e): 11/12 + J11 PASS; J13 8/9 — every destruction check passed; the destruction orchestrator executed the approved review before the operator EXECUTE (designed path), which the driver did not accept. Rerun below."
+        },
+        {
+          "label": "journeys-final-j11",
+          "exit": 0,
+          "log": "journeys-final-j11.run4-superseded.log",
+          "note": "SUPERSEDED (run 4): J11 PASS 2/2."
+        },
+        {
+          "label": "web-screen-capture",
+          "exit": 1,
+          "log": "web-screen-capture.run4-superseded.log",
+          "note": "SUPERSEDED (run 4): workspace switch 503 POLICY_NOT_PROVISIONED — the seed created organizations without the security policy product provisioning creates; seed fixed."
+        },
+        {
+          "label": "seed-journeys-11",
+          "exit": 0,
+          "log": "seed-r11.json"
+        },
+        {
+          "label": "seed-journeys-12",
+          "exit": 0,
+          "log": "seed-r12.json"
+        },
+        {
+          "label": "seed-journeys-13",
+          "exit": 0,
+          "log": "seed-r13.json"
+        },
+        {
+          "label": "journeys-final",
+          "exit": 0,
+          "log": "journeys-final.run5-superseded.log",
+          "note": "SUPERSEDED (run 5, 4a49635e): 12/12 + J11 PASS (J13 executed by operator). Superseded only because the seed now records sessions like a real sign-in; rerun below for one coherent set."
+        },
+        {
+          "label": "journeys-final-j11",
+          "exit": 0,
+          "log": "journeys-final-j11.run5-superseded.log",
+          "note": "SUPERSEDED (run 5): J11 PASS 2/2."
+        },
+        {
+          "label": "web-screen-capture",
+          "exit": 1,
+          "log": "web-screen-capture.run5-superseded.log",
+          "note": "SUPERSEDED (run 5): switch 403 session_not_in_inventory — seeded tokens had no session-inventory row (a sign-in records one); seed now records it with the stack identity-hash secret."
+        },
+        {
+          "label": "seed-journeys-14",
+          "exit": 0,
+          "log": "seed-r14.json"
+        },
+        {
+          "label": "seed-journeys-15",
+          "exit": 0,
+          "log": "seed-r15.json"
+        },
+        {
+          "label": "seed-journeys-16",
+          "exit": 0,
+          "log": "seed-r16.json"
+        },
+        {
+          "label": "seed-journeys-17",
+          "exit": 0,
+          "log": "seed-r17.json"
+        },
+        {
+          "label": "journeys-final",
+          "exit": 0,
+          "log": "journeys-final.run6-superseded.log",
+          "note": "SUPERSEDED (run 6, 4a49635e): 12/12 + J11 PASS."
+        },
+        {
+          "label": "journeys-final-j11",
+          "exit": 0,
+          "log": "journeys-final-j11.run6-superseded.log",
+          "note": "SUPERSEDED (run 6): J11 PASS 2/2."
+        },
+        {
+          "label": "web-screen-capture",
+          "exit": 1,
+          "log": "web-screen-capture.run6-superseded.log",
+          "note": "SUPERSEDED (run 6): 13/14 — every functional check passed; the only failure was a console 503 from the Evidence detail page listing Evidence Requests, a feature switched off on the stack (EVIDENCE_REQUESTS_ENABLED unset; the panel handles FEATURE_DISABLED by design). The stack now runs with the flag on."
+        },
+        {
+          "label": "seed-journeys-18",
+          "exit": 0,
+          "log": "seed-r18.json"
+        },
+        {
+          "label": "uc1-acceptance-final",
+          "exit": 0,
+          "log": "uc1-acceptance.log",
+          "note": "FINAL stack (4a49635e, intake + Evidence Requests flags on); background run kept up for the journeys; stopped at teardown"
+        },
+        {
+          "label": "seed-journeys-19",
+          "exit": 0,
+          "log": "seed-r19.json"
+        },
+        {
+          "label": "seed-journeys-20",
+          "exit": 0,
+          "log": "seed-r20.json"
+        },
+        {
+          "label": "seed-journeys-21",
+          "exit": 0,
+          "log": "seed-r21.json"
+        },
+        {
+          "label": "journeys-final",
+          "exit": 0,
+          "log": "journeys-final.log"
+        },
+        {
+          "label": "journeys-final-j11",
+          "exit": 0,
+          "log": "journeys-final-j11.log"
+        },
+        {
+          "label": "web-screen-capture",
+          "exit": 0,
+          "log": "web-screen-capture.log"
+        },
+        {
+          "label": "package-independent-recompute",
+          "exit": 0,
+          "log": "package-recompute.log"
+        },
+        {
+          "label": "mobile-export-android-ios",
+          "exit": 0,
+          "log": "mobile-export.log"
+        },
+        {
+          "label": "api-integration-full",
+          "exit": 0,
+          "log": "api-integration.tail.log",
+          "note": "FULL suite at d0034b07 on a freshly migrated PG16 + Redis + MinIO: 2873/2873 passed, 0 failed, 0 skipped, 268 files; summary api-integration.json (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "api-unit-full",
+          "exit": 1,
+          "log": "api-unit.tail.log",
+          "note": "at e7bf4315: 25618/25620 passed, 1 failed (phase-0-audit-self-reference: clean-tree gate counted the then-untracked runtime/remediation directory; re-run after commit is recorded separately), 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "worker-full",
+          "exit": 0,
+          "log": "worker-tests.tail.log",
+          "note": "1218/1219 passed, 1 skipped (Tesseract binary absent on this host: EP-14) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "web-node",
+          "exit": 0,
+          "log": "web-node.tail.log",
+          "note": "3295 passed, 0 failed, 4 skipped (need the admin fixture server) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "web-render",
+          "exit": 0,
+          "log": "web-render.tail.log",
+          "note": "1655/1655 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "shared",
+          "exit": 0,
+          "log": "shared.tail.log",
+          "note": "1068/1068 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "ui",
+          "exit": 0,
+          "log": "ui.tail.log",
+          "note": "18/18 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "extension-unit",
+          "exit": 0,
+          "log": "extension.tail.log",
+          "note": "85/85 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "mobile-unit",
+          "exit": 0,
+          "log": "mobile.tail.log",
+          "note": "1893/1893 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "lint",
+          "exit": 0,
+          "log": "lint.tail.log",
+          "note": "0 errors (2 pre-existing web warnings) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "typecheck",
+          "exit": 0,
+          "log": "typecheck.tail.log",
+          "note": "recorded after the run; start/end are the record time"
+        },
+        {
+          "label": "build-api",
+          "exit": 0,
+          "log": "build-api.tail.log",
+          "note": "recorded after the run; start/end are the record time"
+        },
+        {
+          "label": "build-worker",
+          "exit": 0,
+          "log": "build-worker.tail.log",
+          "note": "recorded after the run; start/end are the record time"
+        },
+        {
+          "label": "build-extension",
+          "exit": 0,
+          "log": "build-extension.tail.log",
+          "note": "recorded after the run; start/end are the record time"
+        },
+        {
+          "label": "build-web",
+          "exit": 0,
+          "log": "build-web.tail.log",
+          "note": "recorded after the run; start/end are the record time"
+        }
+      ]
+    }
   },
   "reviewedCoverage": [
     {
@@ -2661,17 +3132,82 @@
     {
       "name": "runtime journeys = passed + failed + blocked",
       "ok": true,
-      "detail": "{\"PASS\":8,\"FAIL\":6,\"BLOCKED\":6}"
+      "detail": "{\"PASS\":14,\"FAIL\":0,\"BLOCKED\":6}"
     },
     {
-      "name": "findings = fixed + partial + present + accepted-risk",
+      "name": "findings = fixed + blocked-external + partial + present + accepted-risk",
       "ok": true,
-      "detail": "119"
+      "detail": "{\"fixed\":101,\"blockedExternal\":18,\"partial\":0,\"present\":0,\"acceptedRisk\":0}"
+    },
+    {
+      "name": "remediation ledger rows = findings (one row per finding, no extra row)",
+      "ok": true,
+      "detail": "119 rows"
+    },
+    {
+      "name": "every ledger disposition is allowed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ledger counts agree with finding statuses",
+      "ok": true,
+      "detail": "{\"total\":119,\"BLOCKED_EXTERNAL_PROOF\":18,\"FIXED_RUNTIME_PROVEN\":60,\"FIXED_SOURCE_AND_TEST_PROVEN\":41,\"fixed\":101,\"blocked\":18,\"remaining\":0}"
+    },
+    {
+      "name": "ledger's own gates all pass",
+      "ok": true,
+      "detail": "9 gates"
+    },
+    {
+      "name": "every fixed finding names a commit and a green test",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every blocked-external finding names a registered external proof",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "blocked-external only where the external proof map says so",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every required journey has a post-remediation decision",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a BLOCKED journey names an external proof",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "every UC-journey mapping names a required journey",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "remediation API integration run executed (not skipped) and green",
+      "ok": true,
+      "detail": "2873/2873 (0 skipped)"
+    },
+    {
+      "name": "remediation worker run green",
+      "ok": true,
+      "detail": "1218/1219 (1 skipped)"
+    },
+    {
+      "name": "every remediation command has an exit code",
+      "ok": true,
+      "detail": "60 commands"
     },
     {
       "name": "every UC = complete + partial + missing + blocked",
       "ok": true,
-      "detail": "{\"complete\":0,\"partial\":7,\"missing\":2,\"blocked\":0}"
+      "detail": "{\"complete\":2,\"partial\":0,\"missing\":0,\"blocked\":7}"
     },
     {
       "name": "no UNKNOWN without explicit blocker",
@@ -2716,7 +3252,7 @@
     {
       "name": "every open P0/P1 is in the remediation order",
       "ok": true,
-      "detail": "UC-AND-003,UC-CASE-001,UC-EXT-001,UC-EXT-003,UC-IOS-001,UC-IOS-002,UC-IOS-004,UC-OUT-001,UC-PROV-001,UC-STR-001,UC-STR-002"
+      "detail": "UC-AND-003,UC-IOS-001,UC-IOS-002,UC-IOS-004"
     },
     {
       "name": "every dependsOn resolves",

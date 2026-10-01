@@ -2,7 +2,145 @@
 
 **C. UNIVERSAL EVIDENCE CAPTURE NOT READY**
 
+101 of 119 findings fixed with proof; 18 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.
+
+At the audit baseline the headline was **C. UNIVERSAL EVIDENCE CAPTURE NOT READY**.
+
 Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main) at audit start, 2026-09-30). Branch `audit/universal-evidence-capture-truth`. Generated from `definitive-universal-evidence-capture-truth.json` by `tooling/build.mjs`; do not edit by hand.
+
+## Remediation reconciliation
+
+Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87089b29571e3e702311c9d1a2a4`. Ledger: `remediation/remediation-ledger.json` (mechanical, built by `remediation/build-ledger.mjs`).
+
+- Every finding has exactly one ledger row; dispositions are FIXED_RUNTIME_PROVEN, FIXED_SOURCE_AND_TEST_PROVEN or BLOCKED_EXTERNAL_PROOF only (no deferred, unknown or accepted-risk row).
+- BLOCKED_EXTERNAL_PROOF means the code change is made and tested to the limit of this host; the remaining proof needs a device, macOS, a store, a sandbox or a CI runner that this environment does not have.
+- Remediated runtime evidence was produced on disposable loopback infrastructure only (PostgreSQL 16, Redis 7, MinIO); no Production system, credential or data was touched.
+- The audit's findings, observations and baseline verdicts are kept verbatim; the post-remediation state is added beside them, never written over them.
+
+- Findings: 119 = fixed 101 (runtime-proven 60 · source+test-proven 41) + blocked on external proof 18 + open 0.
+- Unresolved by severity: P0 0 · P1 4 · P2 9 · P3 5.
+
+| Finding | Sev | Disposition | Commits | External proof |
+|---|---|---|---|---|
+| UC-AND-003 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-06 |
+| UC-CASE-001 | P1 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-EXT-001 | P1 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
+| UC-EXT-003 | P1 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
+| UC-IOS-001 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08, EP-14 |
+| UC-IOS-002 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-IOS-004 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08, EP-14 |
+| UC-OUT-001 | P1 | FIXED_RUNTIME_PROVEN | b4b035380ac8, d87a3673bb63 | — |
+| UC-PROV-001 | P1 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8, d87a3673bb63 | — |
+| UC-STR-001 | P1 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
+| UC-STR-002 | P1 | FIXED_RUNTIME_PROVEN | 6934514c6d49, 9f3d8203c057 | — |
+| UC-AND-004 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-06 |
+| UC-AND-006 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
+| UC-AND-007 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-06, EP-14 |
+| UC-ARCH-001 | P2 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
+| UC-ARCH-002 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, 193e42c49ad0, 9f3d8203c057, 9671120a39ba | — |
+| UC-ARCH-003 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, 9f3d8203c057 | — |
+| UC-ARCH-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 718a4d15ec93 | — |
+| UC-ARCH-005 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, 068efffd9da4 | — |
+| UC-CASE-002 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-CASE-003 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-COM-001 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, f0527e0c454a | — |
+| UC-DER-001 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803 | — |
+| UC-DER-002 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803 | — |
+| UC-DER-003 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803 | — |
+| UC-DER-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 69e995c58803 | — |
+| UC-DER-005 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803, d8e1f8605c5f, 9f3d8203c057 | — |
+| UC-DER-006 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803, d8e1f8605c5f, b4b035380ac8, 5b17f3321b08, 83dd6cf482c8 | — |
+| UC-DER-007 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
+| UC-DER-010 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803, b4b035380ac8, 9f3d8203c057 | — |
+| UC-EXT-002 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
+| UC-EXT-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7, 6934514c6d49, 5e145b8cec61 | — |
+| UC-EXT-005 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
+| UC-EXT-006 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 0364d89aef47, 0f6f924408ec | — |
+| UC-EXT-007 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
+| UC-IOS-003 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-IOS-005 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-IOS-006 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-IOS-007 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-IOS-008 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-IOS-009 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-IOS-010 | P2 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
+| UC-LCH-001 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 0f6f924408ec | — |
+| UC-PROV-002 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
+| UC-PROV-003 | P2 | FIXED_RUNTIME_PROVEN | 6934514c6d49, b4b035380ac8 | — |
+| UC-PROV-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
+| UC-PROV-005 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
+| UC-SEC-001 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-SEC-002 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 718a4d15ec93 | — |
+| UC-SEC-003 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-SEC-004 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 6934514c6d49 | — |
+| UC-STR-003 | P2 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
+| UC-TQ-002 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 0364d89aef47 | — |
+| UC-TQ-003 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803, 0364d89aef47 | — |
+| UC-TQ-004 | P2 | FIXED_RUNTIME_PROVEN | 0364d89aef47 | — |
+| UC-TQ-007 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
+| UC-TQ-008 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
+| UC-TRUST-001 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
+| UC-TRUST-002 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
+| UC-TRUST-003 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, 5b17f3321b08, d87a3673bb63, 9f3d8203c057 | — |
+| UC-TRUST-004 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, 5b17f3321b08, 24846684b41c, d87a3673bb63, 9f3d8203c057 | — |
+| UC-TRUST-005 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
+| UC-TRUST-008 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, a606dcaa5e29 | — |
+| UC-WEB-001 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 718a4d15ec93, 9f3d8203c057 | — |
+| UC-WEB-003 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-WEB-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
+| UC-AND-008 | P3 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
+| UC-AND-010 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
+| UC-AND-011 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-14 |
+| UC-AND-012 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-06 |
+| UC-AND-013 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-06, EP-14 |
+| UC-AND-014 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
+| UC-ARCH-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 718a4d15ec93, b4b035380ac8 | — |
+| UC-ARCH-007 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49, 0364d89aef47 | — |
+| UC-ARCH-008 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-ARCH-009 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
+| UC-CASE-004 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, d8e1f8605c5f | — |
+| UC-CASE-005 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 718a4d15ec93 | — |
+| UC-COM-002 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-COM-003 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, 068efffd9da4 | — |
+| UC-COM-004 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, d8e1f8605c5f | — |
+| UC-DER-008 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 69e995c58803, b4b035380ac8 | — |
+| UC-DER-009 | P3 | FIXED_RUNTIME_PROVEN | 69e995c58803 | — |
+| UC-DER-011 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 69e995c58803 | — |
+| UC-DER-012 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 69e995c58803 | — |
+| UC-DER-013 | P3 | FIXED_RUNTIME_PROVEN | 69e995c58803, 0408adaaa26b | — |
+| UC-DER-014 | P3 | FIXED_RUNTIME_PROVEN | 69e995c58803, d8e1f8605c5f, 9f3d8203c057 | — |
+| UC-DER-015 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
+| UC-EXT-008 | P3 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, b91d4b0d3cb3 | — |
+| UC-EXT-009 | P3 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
+| UC-EXT-010 | P3 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 6934514c6d49 | — |
+| UC-IOS-011 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
+| UC-IOS-012 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-14 |
+| UC-LCH-002 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 7af5861c5013 | — |
+| UC-LCH-003 | P3 | BLOCKED_EXTERNAL_PROOF | 0364d89aef47 | EP-14 |
+| UC-LCH-004 | P3 | FIXED_RUNTIME_PROVEN | 0364d89aef47 | — |
+| UC-LCH-005 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
+| UC-LCH-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
+| UC-OUT-002 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
+| UC-OUT-003 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
+| UC-OUT-004 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
+| UC-OUT-005 | P3 | FIXED_RUNTIME_PROVEN | b4b035380ac8, d87a3673bb63 | — |
+| UC-PROV-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
+| UC-PROV-007 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
+| UC-PROV-008 | P3 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
+| UC-PROV-009 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, d8e1f8605c5f | — |
+| UC-PROV-010 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
+| UC-PROV-011 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
+| UC-SEC-005 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-SEC-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49, 718a4d15ec93, b4b035380ac8 | — |
+| UC-STR-004 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
+| UC-STR-006 | P3 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
+| UC-TQ-005 | P3 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
+| UC-TQ-006 | P3 | FIXED_RUNTIME_PROVEN | 0364d89aef47 | — |
+| UC-TRUST-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, b4b035380ac8 | — |
+| UC-TRUST-007 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8, 9f3d8203c057 | — |
+| UC-WEB-002 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
+| UC-WEB-005 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 9f3d8203c057 | — |
+| UC-WEB-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
 
 ## Safety
 
@@ -29,54 +167,58 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 
 ## UC verdicts
 
-| UC | Name | Verdict | Key findings | External blockers |
-|---|---|---|---|---|
-| UC-0a | Provenance Truth Repair | **PRESENT BUT UNTRUTHFUL** | UC-PROV-001, UC-PROV-002, UC-ARCH-001, UC-PROV-003, UC-PROV-004, UC-PROV-005 | — |
-| UC-0b | Trust / Attestation Repair | **PARTIALLY COMPLETE** | UC-TRUST-008, UC-TRUST-005, UC-TRUST-002, UC-TRUST-001, UC-TRUST-003, UC-TRUST-004 | EP-01, EP-02, EP-03 |
-| UC-0c | Derivative Lifecycle Closure | **PARTIALLY COMPLETE** | UC-DER-002, UC-DER-006, UC-DER-005, UC-DER-007, UC-DER-013, UC-DER-014 | — |
-| UC-1 | Chrome / Edge Web Capture | **PRESENT BUT UNREACHABLE** | UC-EXT-001, UC-EXT-003, UC-SEC-002, UC-TQ-007, UC-EXT-004, UC-EXT-005 | EP-04, EP-05, EP-12 |
-| UC-2 | Android Direct Screen Capture | **PARTIALLY COMPLETE** | UC-AND-003, UC-AND-006, UC-AND-007, UC-AND-011, UC-AND-012 | EP-06, EP-07 |
-| UC-3 | Continuous Capture + Streaming | **PRESENT BUT UNTRUTHFUL** | UC-STR-002, UC-STR-001, UC-AND-004, UC-STR-003, UC-STR-006 | EP-06 |
-| UC-4 | Keyframes / OCR / Conversation Reconstruction | **PARTIALLY COMPLETE** | UC-DER-001, UC-DER-003, UC-DER-004, UC-DER-005, UC-TQ-003, UC-DER-010 | — |
-| UC-5 | iOS | **PRESENT BUT DISCONNECTED** | UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-010 | EP-08, EP-09 |
-| UC-6 | Full Public Launch | **PARTIALLY COMPLETE** | UC-LCH-001, UC-LCH-002, UC-LCH-003, UC-LCH-004, UC-TQ-002, UC-TQ-004 | EP-04, EP-05, EP-06, EP-07, EP-08, EP-09 |
+| UC | Name | Verdict | Audit verdict | Key findings | External blockers |
+|---|---|---|---|---|---|
+| UC-0a | Provenance Truth Repair | **COMPLETE** | PRESENT BUT UNTRUTHFUL | UC-PROV-001, UC-PROV-002, UC-ARCH-001, UC-PROV-003, UC-PROV-004, UC-PROV-005 | — |
+| UC-0b | Trust / Attestation Repair | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PARTIALLY COMPLETE | UC-TRUST-008, UC-TRUST-005, UC-TRUST-002, UC-TRUST-001, UC-TRUST-003, UC-TRUST-004 | EP-01, EP-02, EP-03 |
+| UC-0c | Derivative Lifecycle Closure | **COMPLETE** | PARTIALLY COMPLETE | UC-DER-002, UC-DER-006, UC-DER-005, UC-DER-007, UC-DER-013, UC-DER-014 | — |
+| UC-1 | Chrome / Edge Web Capture | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNREACHABLE | UC-EXT-001, UC-EXT-003, UC-SEC-002, UC-TQ-007, UC-EXT-004, UC-EXT-005 | EP-04, EP-05, EP-12, EP-14 |
+| UC-2 | Android Direct Screen Capture | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-AND-003, UC-AND-006, UC-AND-007, UC-AND-011, UC-AND-012 | EP-06, EP-07, EP-14 |
+| UC-3 | Continuous Capture + Streaming | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNTRUTHFUL | UC-STR-002, UC-STR-001, UC-AND-004, UC-STR-003, UC-STR-006 | EP-06, EP-14 |
+| UC-4 | Keyframes / OCR / Conversation Reconstruction | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PARTIALLY COMPLETE | UC-DER-001, UC-DER-003, UC-DER-004, UC-DER-005, UC-TQ-003, UC-DER-010 | EP-13, EP-14 |
+| UC-5 | iOS | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT DISCONNECTED | UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-010 | EP-08, EP-09, EP-14 |
+| UC-6 | Full Public Launch | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-LCH-001, UC-LCH-002, UC-LCH-003, UC-LCH-004, UC-TQ-002, UC-TQ-004 | EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14 |
 
-- **UC-0a** — The acquisition-mode authority, set-once trigger and fail-closed attestation are real and runtime-visible (J01/J08/J09 report snapshots and Public Verify carry the server-recorded mode and IMPORTED_EXISTING_MEDIA tier). But server record-creation time is presented as capture time and on Public Verify as 'declared by the capturing device'; every direct-capture record reads 'Capture Method: Not recorded' in the rendered report (runtime-proven on an Android continuous record) and package; the client still chooses the direct-capture mode label; validated manifest facts (URL, title, browser, completeness) are dropped.
-- **UC-0b** — Signing, custody chain, package seal and share-token verify work end to end (J01, J02; 463/463 API integration incl. public-verify-*, ots-integrity-lifecycle, integrity-recheck). RFC 3161 tokens are now validated with openssl against a configured anchor (tested with a local TSA). Open: OTS PENDING shown as 'Anchored', stored-bytes 'Verified' survives substitution for the recheck window (runtime J06), verdict ignores recheck, signing-key identity mutable, capture trust-event sub-chain never verified. Real TSA/OTS/Object Lock authority is external.
-- **UC-0c** — One derived-asset authority, tenant binding, destruction sweep and redaction byte gate are in place (worker 1152/1152 executed, 4 Object-Lock cases run separately 4/4). Open: derived bytes bypass the byte-release gate (VIEWER can fetch OCR/keyframes), regeneration overwrites lineage and deletes prior objects, provenance (tool version, parameters, text digest) dropped, package derived manifests silently truncated.
-- **UC-1** — The server side of Direct Web Capture works (uc1-web-capture + uc1-extension-oauth integration pass). A real user cannot capture: the popup never lists a workspace (runtime-proven), the extension origin is absent from production CORS and host_permissions, it is unpublished, and the shipped acceptance harness fails at AUTH on main. Full-page capture exceeds Chrome's captureVisibleTab quota by construction. No case selection.
-- **UC-2** — Server seal path runtime-proven (uc2-screen-capture integration); JS↔Kotlin parity, manifest service declarations and foreground-service typing verified; Android prebuild generated the native project; Hermes bundle builds. Unproven on any device; POST_NOTIFICATIONS is never requested, so on Android 13+ the capture-frame notification action (the only way to capture another app) is suppressed. No share-into-PROOVRA, logout does not stop capture.
-- **UC-3** — Seal refuses missing/duplicate/out-of-order/tampered declared segments (uc3 integration, real PG) and the full pipeline to Public Verify works for a sealed session (J09). But a lost TAIL segment seals as SIGNED COMPLETE_SESSION (runtime-proven), part index 200+ is refused while the client allows 600 segments so long recordings are discarded (runtime-proven), and a session is not resumable after app restart.
-- **UC-4** — Runtime J10 (real worker, real ffmpeg-static): Generate → reconstruct_screen COMPLETED with 4 keyframes and 1 reconstruction descriptor, labelled DERIVED_RECONSTRUCTED; OCR did not run (ocrAllowed defaults OFF; coverage PARTIAL). A single manual 'Generate Derived Review' path exists, labelled as derived and never as original, with no actor-attribution claims. There is no conversation-capture channel; 'conversation' is OCR screen reconstruction. Retry/Regenerate never run again, OCR runs on ≤256 px keyframes for video sources, dedup cannot merge real chat screens, provenance fields are dropped, and the worker path has no CI-executed behavioural test.
-- **UC-5** — Swift module, broadcast upload extension, App Group and entitlements exist and are internally consistent, and the server accepts DIRECT_SCREEN_CAPTURE_IOS. But no real iOS recording can be sealed: the device block the Swift code writes is refused by the shared validator (runtime-proven 422). The app cannot stop the broadcast, the last segment always has duration 0, and there is no crash recovery. Native compilation and ReplayKit behaviour are BLOCKED here (no macOS/Xcode).
-- **UC-6** — Web build, extension build, both Hermes bundles and the API/worker suites are green locally; CI runs the API integration project against real PG. Not launched: extension unpublished and unusable, iOS cannot seal, Android unproven on device, PWA not installable, no capture monitoring/runbook, no mobile screen-recording privacy disclosure, extension/native never compiled or run in CI.
+- **UC-0a** — 25 findings name this UC: 25 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R03 PASS. No external proof outstanding.
+- **UC-0b** — 8 findings name this UC: 8 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R17 PASS. External proofs outstanding: EP-01, EP-02, EP-03.
+- **UC-0c** — 7 findings name this UC: 7 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS. No external proof outstanding.
+- **UC-1** — 29 findings name this UC: 28 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R05 PASS. External proofs outstanding: EP-04, EP-05, EP-12, EP-14.
+- **UC-2** — 22 findings name this UC: 18 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.
+- **UC-3** — 27 findings name this UC: 23 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.
+- **UC-4** — 16 findings name this UC: 16 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.
+- **UC-5** — 35 findings name this UC: 23 fixed, 12 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012, UC-LCH-003), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.
+- **UC-6** — 8 findings name this UC: 7 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R01 PASS, R02 PASS, R03 PASS, R04 PASS, R11 PASS, R12 PASS, R13 PASS, R14a PASS, R14b PASS, R15a PASS, R15b BLOCKED, R16 PASS. External proofs outstanding: EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14.
 
 ## Platform matrix
 
 | Platform | Capture | Evidence pipeline | Case at capture | Build | Real browser/device | Distribution | Note |
 |---|---|---|---|---|---|---|---|
-| Browser Extension | BROKEN | WORKS_LOCALLY | NOT_IMPLEMENTED | WORKS_LOCALLY | FAIL | BLOCKED | Popup cannot select a workspace (UC-EXT-001); server path proven by uc1 integration. |
-| Web | PARTIAL | WORKS_LOCALLY | NOT_IMPLEMENTED | WORKS_LOCALLY | NOT_EXECUTED_IN_UI | N/A | File/drag/camera/mic upload proven via the product API sequence (J01); no screen capture (getDisplayMedia) or clipboard. |
-| PWA | PARTIAL | WORKS_LOCALLY | NOT_IMPLEMENTED | WORKS_LOCALLY | NOT_EXECUTED_IN_UI | BROKEN | Same code as Web; not installable (one 'any' icon, no service worker), no offline, no share_target. |
-| Android | BLOCKED | WORKS_LOCALLY | NOT_IMPLEMENTED | PARTIAL | N/A | BLOCKED | Server seal + outputs proven (uc2/uc3 integration, J09). Native compile/device BLOCKED; POST_NOTIFICATIONS never requested (UC-AND-003). |
-| iOS | BROKEN | BROKEN | NOT_IMPLEMENTED | PARTIAL | N/A | BLOCKED | Real device block refused at seal (UC-IOS-001, runtime); native build/device BLOCKED (no macOS). |
+| Browser Extension | WORKS_LOCALLY | WORKS_LOCALLY | WORKS_LOCALLY | WORKS_LOCALLY | SEE_JOURNEY_R05 | BLOCKED | Workspace selection, case at capture and DOM-snapshot truth fixed; real Chrome and Edge acceptance on the remediated stack (R05). Store listing and production OAuth are EP-04/05/12. |
+| Web | WORKS_LOCALLY | WORKS_LOCALLY | NOT_IMPLEMENTED | WORKS_LOCALLY | SEE_JOURNEY_R02 | N/A | File/camera/mic upload (R01) and browser screen recording through getDisplayMedia in real Chromium (R02). The Capture page does not take a case; records are linked to a case afterwards (R11). |
+| PWA | WORKS_LOCALLY | WORKS_LOCALLY | NOT_IMPLEMENTED | WORKS_LOCALLY | WORKS_LOCALLY | WORKS_LOCALLY | Installable by Chromium's own criteria (CDP getInstallabilityErrors empty), service worker with a network-only policy for API and evidence bytes, offline page (UC-LCH-004). |
+| Android | BLOCKED | WORKS_LOCALLY | SERVER_ONLY | PARTIAL | N/A | BLOCKED | Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. Native compile and device behaviour are EP-06/07/14. |
+| iOS | BLOCKED | WORKS_LOCALLY | SERVER_ONLY | PARTIAL | N/A | BLOCKED | The device block the extension writes now seals SIGNED on the real server (golden fixture); Swift compile, ReplayKit and TestFlight are EP-08/09/14. The direct-session API accepts a case, the app does not yet send one. |
 
 ## Capture-to-Public-Verify convergence
 
-**CONVERGED WRITERS, DIVERGENT SIDE EFFECTS** — Every live capture channel reaches ONE Evidence writer, ONE part writer, ONE finalizer (completeEvidence), ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route; no duplicate evidence model or writer was found and every queue has a consumer. The divergence is in what surrounds the finalizer: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run only in the web route, so direct-capture and intake records differ from uploads (UC-ARCH-002/003). iOS never reaches the finalizer (UC-IOS-001).
+**CONVERGED WRITERS AND SIDE EFFECTS** — Every live capture channel still reaches ONE Evidence writer, ONE part writer, ONE custody appender, ONE report builder, ONE package builder and ONE Public Verify route, and now also ONE canonical finalizer that owns the completion side effects: custody EVIDENCE_COMPLETED, reviewer-workflow initialisation, tenant audit and workspace retention run exactly once for web upload, direct capture and intake alike (UC-ARCH-002/003, proven on real PostgreSQL by completion-cross-channel.integration.test.ts). The iOS manifest reaches the finalizer (UC-IOS-001 server side); its native half awaits EP-08.
 
 ## Counts
 
-- Findings: 119 open (P0 0 · P1 11 · P2 55 · P3 53); 2 consolidated into kept findings.
-- Proof: runtime-proven 12 · source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED) 1 · source-proven 106
-- Required journeys: PASS 8 · FAIL 6 · BLOCKED 6 (of 20).
-- API integration (capture-relevant, real PG16/Redis/MinIO): 463/463 passed, 0 skipped, 64 files.
-- Worker suite: 1152/1156 passed, 4 skipped (the 4 skipped Object-Lock cases were run separately: see commands).
+- Findings at the audit baseline: 119 (P0 0 · P1 11 · P2 55 · P3 53); 2 consolidated into kept findings.
+- Status now: fixed 101 · blocked on external proof 18 · partial 0 · present 0 · accepted risk 0.
+- Proof (audit): runtime-proven 12 · source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED) 1 · source-proven 106
+- Required journeys: PASS 14 · FAIL 0 · BLOCKED 6 (of 20); at the audit baseline PASS 8 · FAIL 6 · BLOCKED 6.
+- Audit API integration (capture-relevant, real PG16/Redis/MinIO): 463/463 passed, 0 skipped, 64 files.
+- Audit worker suite: 1152/1156 passed, 4 skipped (the 4 skipped Object-Lock cases were run separately: see commands).
+- Remediated API integration (FULL suite, fresh migrated PG16 + Redis + MinIO): 2873/2873 passed, 0 failed, 0 skipped, 268 files.
+- Remediated worker suite (live PG16/Redis/MinIO Object Lock): 1218/1219 passed, 0 failed, 1 skipped.
 
-## Open P0/P1
+## Unresolved P0/P1 (code complete, external proof required)
 
 ### UC-AND-003 (P1, source-proven) — POST_NOTIFICATIONS is declared but never requested, so on Android 13+ the 'Capture Frame'/'Stop' notification — UC-2's only way to capture another app — is not shown
 
+- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: device: fresh install Android 13/14, notification actions visible (EP-06)
 - UCs: UC-2, UC-3 · Platforms: android
 - Where: `apps/mobile/modules/proovra-screen-capture/android/src/main/AndroidManifest.xml:13`, `apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:136`, `apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:131`, `apps/mobile/app/(stack)/screen-capture.tsx:227`, `apps/mobile/app/(stack)/continuous-capture.tsx:428`
 - Observed: Manifest-only declaration; no runtime permission request before starting either foreground service.
@@ -89,51 +231,9 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 - Required tests: Mobile unit: start() requests the permission on API 33+ before calling the native start. Device acceptance: fresh install on Android 13/14, verify notification actions visible.
 - Migration: none · Depends on: — · Aliases: —
 
-### UC-CASE-001 (P1, source-proven) — Evidence can be unlinked from a case under an active CASE legal hold, silently removing the hold's protection
-
-- UCs: UC-0 · Platforms: android, api, ios, web
-- Where: `services/api/src/services/cases/case-evidence-link.service.ts:218`, `services/api/src/routes/cases.routes.ts:1571`, `services/api/src/routes/evidence.routes.ts:7441`, `services/api/src/services/cases/case-lifecycle.service.ts:687`, `packages/shared-runtime/src/governance/effective-legal-hold.ts:210`, `services/api/src/routes/cases.routes.ts:1262`
-- Observed: detachEvidenceFromCase deletes the link row with no hold evaluation; none of its three callers evaluates holds. evaluateCaseDeletionHold is used only for case DELETE.
-- Expected: Detaching evidence from a case that carries an ACTIVE CASE hold (or while the evidence is otherwise held via that case) is refused (403 LEGAL_HOLD_BLOCKED, fail-closed 503 when hold state unreadable), inside the one detach authority so no caller can skip it.
-- Root cause: The case-hold scope is computed dynamically from mutable links (resolveLinkedCaseIds), but the one detach authority treats linkage as a pure relationship edit and has no preservation gate.
-- User impact: Any case writer (MEMBER, assigned INVESTIGATOR) can remove a held record from the held case via Remove from case, bulk REMOVE_FROM_CASE or matter-workspace unlink; afterwards the record is no longer held and can be trashed, and later destroyed by retention.
-- Legal/evidentiary: Defeats a preservation obligation: a case-scoped legal hold covers exactly the records currently linked, and linkage is mutable by non-admins with no hold check. Case deletion is refused under the same hold precisely because it detaches links, so the gap is inconsistent with the platform's own rule.
-- Security/tenancy: Within-tenant integrity/preservation bypass; no cross-tenant access.
-- Remediation: In detachEvidenceFromCase (and detachAllEvidenceFromCase) evaluate ACTIVE holds with scope=CASE for caseId (and historical holds) inside the transaction, fail closed; map to 403 in cases.routes, case-workspace and bulk. Alternatively snapshot case-hold membership at hold placement.
-- Required tests: Integration: CASE hold active -> single, bulk and case-workspace unlink all refused with zero mutation; hold store unreadable -> 503 zero mutation; after hold release unlink succeeds; trash after refused unlink still blocked.
-- Migration: none · Depends on: — · Aliases: ET-SEC-16, ET-SEC-17
-
-### UC-EXT-001 (P1, runtime-proven) — Extension popup reads `workspaces`/`teams` from /v1/platform/context, which returns neither, so the workspace list is always empty and both Capture buttons are disabled
-
-- UCs: UC-1 · Platforms: api, extension
-- Where: `apps/extension/src/popup.ts:32`, `apps/extension/src/popup.ts:138`, `apps/extension/src/popup.ts:143`, `services/api/src/services/platform-context/types.ts:1097`, `services/api/src/routes/platform-context.routes.ts:94`, `apps/extension/e2e/direct-web-capture.spec.ts:435`
-- Observed: Workspace list always empty; capture disabled for every user. RUNTIME: Real popup (loaded unpacked in Chromium, signed in via real OAuth/PKCE): workspace select shows only No workspace available and both Capture buttons are disabled (screenshot). GET /v1/platform/context → 200 with top-level keys including availableWorkspaces (2 entries) and neither 'workspaces' nor 'teams'; popup.ts returns body.workspaces ?? body.teams ?? [] → [].
-- Expected: The popup lists the user's capture-eligible workspaces from the canonical envelope field.
-- Root cause: Popup parses an invented envelope key. The acceptance spec never opens the popup: it writes the token into storage and sends PRESERVE with PROOVRA_E2E_TEAM_ID directly from the service worker (direct-web-capture.spec.ts:409-449), so the defect is structurally invisible to every existing test.
-- User impact: A signed-in user can never start a Direct Web Capture from the popup: the select shows 'No workspace available' and busy(true) disables both capture buttons. The UC-1 channel is unusable end to end.
-- Legal/evidentiary: No web-capture evidence can be produced through the product surface.
-- Security/tenancy: none
-- Remediation: Read the canonical workspace options (availableWorkspaces or contextOptions via the shared projection), filtered to workspaces where evidence.create is permitted; add a contract test in tools/contract-audit style that the popup's parsed keys exist in PlatformContextEnvelope.
-- Required tests: Popup unit test against a recorded /v1/platform/context envelope; e2e that drives the real popup (click action, choose workspace, click Capture).
-- Migration: none · Depends on: — · Aliases: —
-- Runtime evidence: runtime/probes/platform-context-shape.json, runtime/probes/extension-steps.json, runtime/probes/extension-popup.png
-
-### UC-EXT-003 (P1, source-proven) — Full-page capture calls captureVisibleTab roughly every 250ms+capture time, above Chrome's 2-calls-per-second quota; the quota error aborts the whole capture
-
-- UCs: UC-1 · Platforms: extension
-- Where: `apps/extension/src/lib/capture.ts:114`, `apps/extension/src/lib/capture.ts:124`, `apps/extension/src/lib/capture.ts:125`, `apps/extension/src/lib/capture.ts:43`, `apps/extension/src/lib/config.ts:32`
-- Observed: No rate pacing against the documented quota; no catch around captureVisibleTab; no partial manifest on tile failure.
-- Expected: Pace tiles to >=500ms apart (or retry on the quota error with backoff) and, if a tile still fails, finish as PARTIAL with CAPTURE_INTERRUPTED rather than discarding everything.
-- Root cause: Tile timing chosen for lazy-load settling only, ignoring the platform capture quota; real-browser acceptance never passed (UC1 doc §K), so it was never observed.
-- User impact: 'Capture full page' likely fails with the generic error on any page taller than about two viewports; nothing is preserved (no partial fallback).
-- Legal/evidentiary: Full-page preservation, the mode most relevant to long posts/threads, cannot complete.
-- Security/tenancy: none
-- Remediation: Enforce a minimum interval between captureVisibleTab calls; wrap in retry-on-quota; on persistent failure truncate tiles and mark PARTIAL.
-- Required tests: Unit test of the pacing scheduler; real-Chrome e2e on apps/extension/e2e/fixtures/long.html with >=6 viewports.
-- Migration: none · Depends on: — · Aliases: —
-
 ### UC-IOS-001 (P1, runtime-proven) — Every iOS continuous-capture manifest is refused at seal: the Swift result's device object lacks screenW/screenH/densityDpi/orientation that the server validator requires
 
+- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: Swift compile + physical iOS device broadcast sealed end to end (EP-08, EP-14)
 - UCs: UC-5 · Platforms: api, ios
 - Where: `apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:58`, `apps/mobile/src/continuous-capture.ts:121`, `packages/shared/src/screen-continuous-manifest.ts:286`, `packages/shared/src/screen-continuous-manifest.ts:289`, `services/api/src/services/capture-trust/continuous-capture.service.ts:94`, `services/api/test/uc5-ios-screen-capture.integration.test.ts:253`, `apps/mobile/test/native-module-contract.test.mjs:75`
 - Observed: Swift device map has 4 keys; validator requires 8. The UC-5 integration test hand-builds a device with screenW:1179, screenH:2556, densityDpi:460, orientation:'portrait' (uc5-ios-screen-capture.integration.test.ts:253-262) that the Swift never produces, so the suite passes against a fictional payload; the native contract test compares method/event NAMES only (native-module-contract.test.mjs:75-99). RUNTIME: Sealing with the exact device block ProovraBroadcastShared.swift writes ({platform, osVersion, model, appVersion}) → HTTP 422 CONTINUOUS_MANIFEST_INVALID; record stays UPLOADING.
@@ -149,6 +249,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 
 ### UC-IOS-002 (P1, source-proven) — The app cannot stop the iOS broadcast: in-app Stop and every controlled stop post a Darwin note the extension never observes, then return a fabricated INTERRUPTED summary while recording continues
 
+- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: device: stop in-app -> indicator disappears, USER_STOPPED result, last segment emitted (EP-08)
 - UCs: UC-5 · Platforms: ios
 - Where: `apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:100`, `apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:119`, `apps/mobile/plugins/broadcast-extension/SampleHandler.swift:35`, `apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:136`, `apps/mobile/app/(stack)/continuous-capture.tsx:112`, `apps/mobile/app/(stack)/continuous-capture.tsx:273`
 - Observed: One-way IPC (extension→app only).
@@ -163,6 +264,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 
 ### UC-IOS-004 (P1, source-proven) — Extension segment timing is wrong: the final segment is recorded with durationMs 0 and a start offset equal to the session end, so COMPLETE iOS sessions are refused as having an undeclared gap
 
+- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: Swift compile + device timing verification (EP-08, EP-14)
 - UCs: UC-5 · Platforms: api, ios
 - Where: `apps/mobile/plugins/broadcast-extension/SampleHandler.swift:74`, `apps/mobile/plugins/broadcast-extension/SampleHandler.swift:121`, `packages/shared/src/screen-continuous-manifest.ts:391`, `packages/shared/src/screen-continuous-manifest.ts:402`
 - Observed: Final segment duration hard-coded to 0; offsets mix wall clock and PTS.
@@ -175,91 +277,52 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 - Required tests: Pure timing function extracted from SampleHandler (or mirrored in TS) with a test: 6 s segments + 4 s final → contiguous offsets, validator accepts COMPLETE.
 - Migration: none · Depends on: UC-IOS-001 · Aliases: ET-DC-09
 
-### UC-OUT-001 (P1, runtime-proven) — Every report issued since share tokens prints a 'Public Verification' QR/link that answers 'Evidence not found' by default, and package README seal step 2c depends on that page
-
-- UCs: UC-0 · Platforms: api, web, worker
-- Where: `services/worker/src/processor.ts:2685`, `services/worker/src/processor.ts:4247`, `services/worker/src/report-v2/sections/cover.ts:253`, `services/api/src/services/evidence-complete.service.ts:1258`, `services/api/src/routes/evidence.routes.ts:12832`, `services/worker/src/verification-package.ts:2176`, `apps/web/components/evidence-outputs/PublicVerificationLinksPanel.tsx:81`
-- Observed: Report text and README promise a live public verification path; the path is closed by default and the closure is indistinguishable from non-existence. RUNTIME: Fresh web-upload record, never published: its report PDF prints a pvs_ 'Public Verification' link; GET /public/verify/<that token> → 404 {message:'Evidence not found'}; publicVerifyState NOT_PUBLISHED; the owner's links panel lists the REPORT link as state ACTIVE.
-- Expected: Either (a) the report/README state that the link works only once the owner enables public verification, and the owner is told at download that the printed link is inactive; or (b) the 404 for a real-but-unpublished token answers a distinct 'not currently published by its owner' state (410-style) that does not deny existence; and the links panel shows REPORT links as 'Inactive — record not published'.
-- Root cause: ET-PKG-07 made records private by default and gave reports their own token, but the report template, README and owner UI were not updated for the unpublished state; the public route collapses unpublished into not-found.
-- User impact: Records finalize NOT_PUBLISHED. The worker mints a REPORT-purpose pvs_ token and prints it on the report cover as 'Public Verification — Scan QR code or open verification page'. Until the owner separately publishes the record, /public/verify/<token> returns 404 'Evidence not found' — byte-identical to a forged/unknown link. The owner's links panel says the record is private but lists the printed link with a green 'Active' badge; nothing tells the owner that reports they hand out have a dead link.
-- Legal/evidentiary: A recipient (court, counterparty) following the report's own verification instruction is told the evidence does not exist. The package README's seal verification step 2c (compare seal key fingerprint with Public Verify) and step 6 (signing key published on Public Verify) cannot be completed for a private record, so the package's independent-verification claim is unavailable by default.
-- Security/tenancy: none
-- Remediation: Add a report-cover caveat and README note conditioned on publication at issuance; add a download-time/owner-panel warning; consider a dedicated 'withheld by owner' response for valid tokens on unpublished records (no metadata).
-- Required tests: Worker render test asserting the cover caveat for NOT_PUBLISHED records; API test: valid REPORT token on unpublished record -> documented response; web render test for the REPORT link badge when private.
-- Migration: none · Depends on: — · Aliases: ET-PKG-02, ET-PKG-03, ET-PKG-07
-- Runtime evidence: runtime/probes/report-printed-verify-link.json
-
-### UC-PROV-001 (P1, source-proven) — Server record-creation time (Evidence.capturedAtUtc = server now() at reserve/upload) is presented as capture time, and public Basic Verify says it was 'declared by the capturing device'
-
-- UCs: UC-0a, UC-1, UC-2, UC-3, UC-5 · Platforms: android, api, ios, pwa, web, worker
-- Where: `services/api/src/services/evidence.service.ts:446`, `services/api/src/services/evidence.service.ts:531`, `packages/shared/src/basic-verification.ts:51`, `packages/shared/src/basic-verification.ts:253`, `apps/web/app/verify/[token]/BasicVerificationView.tsx:216`, `apps/mobile/src/ui/basic-verification-view.tsx:122`, `apps/web/app/verify/[token]/page.tsx:4098`, `apps/web/app/verify/[token]/page.tsx:3661`, `apps/mobile/src/product/public-verify.ts:1513`, `services/worker/src/report-v2/build-view-model.ts:365`, `services/worker/src/report-v2/sections/executive-summary.ts:356`, `services/worker/src/report-v2/build-view-model.ts:1654`, `apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx:378`, `apps/mobile/src/product/evidence-record.ts:985`, `packages/shared/src/evidence-acquisition.ts:454`, `apps/extension/src/background.ts:46`, `apps/extension/src/background.ts:59`, `services/api/src/routes/evidence.routes.ts:5054`
-- Observed: One server clock value (record creation) is labelled 'declared by the capturing device', 'Captured At', 'Captured & Signed', 'Captured at'. The API already knows better: it emits capturedAtUtcLabel 'Server-recorded intake time' / capturedAtUtcProvenance 'server_clock' (evidence.routes.ts:5054-5055), which the UI drops. The report Capture Context row labelled '(server UTC)' falls back to deviceTimeIso (client clock) when capturedAtUtc is null (build-view-model.ts:1654-1658); Verify's 'Capture timestamp' does the same (page.tsx:3658-3663). The actual client capture window (manifest captureStartedAtUtc/EndedAtUtc) is never projected.
-- Expected: Label the value as what it is ('Recorded by PROOVRA (server UTC)' / 'Record created'); never attribute it to a device; show client-reported capture window (manifest) separately and labelled client-reported; never mix server and device clocks under one label.
-- Root cause: The column is named capturedAtUtc but holds server creation time; surfaces label it by its name, and basic-verification.ts invented a 'Declared' semantics for it.
-- User impact: Reviewers read a server bookkeeping time as the moment the material was captured. For uploads and intake there is no capturing device at all; for the extension the value is when the session was reserved, after the capture ran.
-- Legal/evidentiary: Public Verify makes a false provenance statement (attributing a server timestamp to the device); reports/Verify give a 'Captured At' time that is neither the capture time nor labelled as server receipt, which can be relied on for timeline arguments.
-- Security/tenancy: none
-- Remediation: Rename the projection field (e.g. recordedAtUtc) in BasicVerification (keep old key as alias), relabel all listed surfaces to server-receipt wording, surface manifest captureStartedAtUtc as 'Capture started (reported by client)', and remove the deviceTimeIso fallback under server-UTC labels.
-- Required tests: Render tests for BasicVerificationView / mobile basic view / Verify summary / report exec grid asserting no 'Captured' or 'declared by device' wording for capturedAtUtc; unit test that basic-verification output does not claim device origin.
-- Migration: none · Depends on: — · Aliases: ET-DC-02
-
-### UC-STR-001 (P1, runtime-proven) — Continuous capture advertises 600 segments / 50 min but the server accepts part indexes 0..199 only; any recording that reaches 200 segments is discarded in full at staging
-
-- UCs: UC-3, UC-5 · Platforms: android, api, ios
-- Where: `services/api/src/services/evidence/evidence-part-writer.service.ts:42`, `services/api/src/routes/capture-trust.routes.ts:230`, `services/api/src/services/capture-trust/direct-capture-ingest.service.ts:495`, `services/api/src/routes/evidence.routes.ts:464`, `packages/shared/src/screen-continuous-manifest.ts:131`, `packages/shared/src/screen-continuous-manifest.ts:60`, `apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt:123`, `apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:222`, `apps/mobile/modules/proovra-screen-capture/index.ts:269`, `apps/mobile/src/continuous-capture.ts:261`, `apps/mobile/app/(stack)/continuous-capture.tsx:319`, `apps/mobile/src/direct-capture.ts:273`
-- Observed: Client/native/manifest bound = 600 segments (+1 manifest part) and 50 min; server bound = 200 parts total (indexes 0..199). RUNTIME: POST /v1/evidence/:id/parts partIndex 199 → 201; partIndex 200 → 400 'Too big: expected number to be <=199'; declaration for part 200 → 400.
-- Expected: One bound shared by native, client, manifest validator and the part writer; recording stops (COMPLETE, BOUNDS_REACHED) before the server limit, with room for the manifest part.
-- Root cause: SCREEN_CONTINUOUS_STREAM_BOUNDS.maxSegments / SCREEN_CONTINUOUS_MANIFEST_BOUNDS.maxSegments (600) were never reconciled with MAX_EVIDENCE_PARTS (200) introduced by ET-ACQ-07.
-- User impact: A continuous screen recording that runs past ~19.9 minutes at the default 6 s segments (fewer with rotation rollovers) cannot be staged. Segment 200+ uploads fail, backpressure stops recording, and at 'Continue to Finish & Sign' the manifest part is refused, sealDirectCapture discards the session and the reserved record: every already-uploaded segment is released and the local copies were already deleted. The user loses the whole recording.
-- Legal/evidentiary: Destructive loss of an acquisition the user was told was bounded at 50 minutes; nothing is sealed.
-- Security/tenancy: none
-- Remediation: Make MAX_EVIDENCE_PARTS the single authority imported by the shared stream bounds (maxSegments = MAX_EVIDENCE_PARTS - 1) and the native clamp, or raise MAX_EVIDENCE_PARTS for continuous modes; additionally never discard a session whose segments are all verified — stage failure after segments exist should keep the session, not release it.
-- Required tests: Integration: open a DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS session, declare partIndex 199 and 200 -> assert the configured maxSegments+1 fits. Shared unit: assert SCREEN_CONTINUOUS_STREAM_BOUNDS.maxSegments + 1 <= MAX_EVIDENCE_PARTS. Mobile: stage with 200 declared segments.
-- Migration: none · Depends on: — · Aliases: ET-ACQ-07
-- Runtime evidence: runtime/probes/continuous-ios.json#partIndexCap
-
-### UC-STR-002 (P1, runtime-proven) — Lost segments are never reconciled against the recorded count: a lost TAIL seals as COMPLETE_SESSION, a lost middle segment discards the whole recording
-
-- UCs: UC-3, UC-5 · Platforms: android, api, ios
-- Where: `apps/mobile/app/(stack)/continuous-capture.tsx:138`, `apps/mobile/app/(stack)/continuous-capture.tsx:303`, `apps/mobile/app/(stack)/continuous-capture.tsx:450`, `apps/mobile/src/continuous-capture.ts:102`, `apps/mobile/src/continuous-capture.ts:110`, `apps/mobile/src/continuous-capture.ts:261`, `packages/shared/src/screen-continuous-manifest.ts:395`, `services/api/src/services/capture-trust/continuous-capture.service.ts:118`
-- Observed: The manifest does not carry the recorded segment count; the client never compares declared vs recorded; the validator's COMPLETE rules do not bound the tail; manifestPartIndex is derived from declared.length. RUNTIME: 4 segments recorded (manifest totalDurationMs 4000), tail never declared, 3 segments listed (sum 3000 ms), sessionCompleteness COMPLETE_SESSION → HTTP 200, evidence SIGNED.
-- Expected: Before staging, declared.length must equal the native segmentCount or the manifest must be downgraded to INTERRUPTED_SESSION with a limitation; the manifest should state recordedSegmentCount and the server should refuse COMPLETE when segments.length != recordedSegmentCount or when last.startedAtOffsetMs + last.durationMs falls short of totalDurationMs by more than maxGapMs. The manifest part index should be a reserved index (e.g. max(declared partIndex)+1 or a fixed slot), not declared.length.
-- Root cause: Completeness is taken from the native recorder's termination only; upload-side loss is not an input to completeness, and the server cannot see segments that were never declared.
-- User impact: If the network drops near the end of a recording, the final segment(s) fail at the declaration step, the review card shows 'N recorded, M uploaded and ready to seal', and Continue seals the M-segment prefix labelled 'Complete — no known interruption'. If instead a middle segment is lost, the manifest part collides with an existing part index, staging fails and the whole session (all good segments) is discarded.
-- Legal/evidentiary: A truncated recording is sealed and reported as a COMPLETE continuous session: the record claims continuity/completeness over content it does not contain.
-- Security/tenancy: none
-- Remediation: Client: in finalize, compare declaredRef.current.length with resultRef.current.segmentCount; retry missing segments from seenRef (files still on disk) and, if still missing, mark INTERRUPTED_SESSION + a new limitation (e.g. SEGMENT_UPLOAD_LOST) and seal the contiguous prefix instead of discarding. Shared: add recordedSegmentCount to the manifest and a tail-coverage check to validateScreenContinuousManifest for COMPLETE. Use max(partIndex)+1 for the manifest part.
-- Required tests: Shared: COMPLETE manifest whose last segment ends > maxGapMs before totalDurationMs is refused; COMPLETE with segments.length < recordedSegmentCount refused. Integration: seal with a missing tail -> must be INTERRUPTED or refused. Mobile: finalize with declared < recorded downgrades completeness and keeps the session.
-- Migration: none · Depends on: — · Aliases: ET-DC-09
-- Runtime evidence: runtime/probes/continuous-ios.json#missingTail
-
 ## Required runtime journeys
 
-| # | Journey | Status | Evidence | Note |
-|---|---|---|---|---|
-| R01 | Web/PWA file upload → finalize → report → package → Public Verify | **PASS** | runtime/journeys-raw.json#J01-web-upload-to-public-verify<br>runtime/journeys-raw.json#J02-package-independent-recompute<br>runtime/probes/package-recompute.json | Independent node:crypto recompute of the downloaded package 14/14 (ZIP digest, Ed25519 seal + key fingerprint, checksum index, report digest, fingerprint, evidence signature, original vs SIGNED digest, custody chain replay, 2 negative controls). J01 22/22 checks: server-hashed SIGNED record, report+package READY from the real worker, share link minted through TOTP step-up, token hashed at rest, revoke/rotate/guess all 404, audit trail complete (admin_audit_logs). |
-| R02 | Web/PWA screen capture → outputs | **FAIL** | sources/ARCH.json#facts.absentChannels | Channel does not exist: 0 getDisplayMedia call sites in apps/web. |
-| R03 | Intake-link submission → outputs | **PASS** | runtime/journeys-phase2-raw.json#J08-intake-link-to-public-verify | J08-intake-link-to-public-verify: PASS (10/10) |
-| R04 | Evidence Request submission → outputs | **BLOCKED** | sources/ARCH.json#facts.surfaces.evidence-requests | Evidence Requests deliver through intake links (no separate byte path); the request send/delivery step needs the communications provider, which is disabled on the disposable stack. The byte path is R03. |
-| R05 | Browser extension capture → outputs | **FAIL** | runtime/uc1-acceptance.log<br>runtime/uc1-acceptance-audit-copy.log<br>runtime/extension-acceptance-result.json | Extension capture cannot be completed by a user or by the shipped acceptance spec. (1) Shipped harness: AUTH fails INVALID_CLIENT_OR_REDIRECT in both projects (UC-TQ-007). (2) With the operator allow-list supplied after the fixture scan, AUTH passes but the first spec test hung until its 11.2-min backstop without reaching CAPTURE; the run was stopped. (3) Step probe on the same stack: real OAuth/PKCE token OK, service worker registers, but the real popup lists only No workspace available with both Capture buttons disabled (UC-EXT-001); PRESERVE from the extension page without a user gesture is refused (activeTab not granted); the spec capture path (service worker messaging itself) fails Receiving end does not exist (UC-TQ-008). Gesture-driven capture in real Chrome/Edge is therefore unproven (EP-04/EP-05/EP-13). |
-| R06 | Android flow (strongest available environment) | **BLOCKED** | runtime/api-integration-capture.json<br>runtime/mobile-export.log<br>runtime/prebuild/app-AndroidManifest.xml | No JDK/SDK/device. Strongest available: server seal (uc2/uc3 integration) + Hermes bundle + prebuild manifest; see R08/J09 for the API-driven continuous journey. |
-| R07 | iOS flow (strongest available environment) | **FAIL** | runtime/probes/continuous-ios.json#iosDeviceShape | Strongest available environment = the real server with the device block the Swift code writes: refused 422. |
-| R08 | Continuous/streaming capture with interruption and resume | **FAIL** | runtime/probes/continuous-ios.json#missingTail<br>runtime/probes/continuous-ios.json#partIndexCap<br>runtime/journeys-phase2-raw.json#J09-continuous-direct-capture-to-public-verify | A lost tail seals as COMPLETE_SESSION; >200 segments refused; no resume after app restart (UC-AND-004). |
-| R09a | Video → keyframes | **PASS** | runtime/journeys-phase2-raw.json#J10-uc4-derived-review | J10-uc4-derived-review: PASS (2/2) |
-| R09b | Video → OCR | **BLOCKED** | runtime/journeys-phase2-raw.json#J10-uc4-derived-review | Not exercised: workspace AI policy ocrAllowed defaults OFF (projection ocrEnabled:false, coverage PARTIAL) and no Tesseract binary exists on this host; the worker Docker image carries it. Real Tesseract extraction is also unasserted in CI (UC-TQ-003). |
-| R10 | Conversation capture / reconstruction | **FAIL** | sources/DER.json#facts.uc4 | No conversation-capture channel exists; reconstruction is OCR over screen keyframes whose dedup cannot merge real chat screens (UC-DER-004). |
-| R11 | Add capture to existing Case | **PASS** | runtime/journeys-raw.json#J03-case-attach-and-tenancy | Post-hoc link only (no channel accepts a case at capture time). 18/18 incl. cross-tenant, unknown-id, viewer negatives; unlink keeps evidence and workspace. |
-| R12 | Create new Evidence from capture | **PASS** | runtime/journeys-raw.json#J01-web-upload-to-public-verify |  |
-| R13 | Failure and recovery journey | **BLOCKED** | runtime/api-integration-capture.json | Not induced end-to-end with the worker in the loop. Integration-level only: report-generation-supersession-recovery, package-recovery-backfill, reports-blocked-update-failed (real PG, storage/signer doubled). Healthy record regenerate → NOTHING_TO_RECOVER (J06). |
-| R14a | Trash / restore | **PASS** | runtime/journeys-raw.json#J04-trash-restore | Soft trash keeps the row (deleted_at set), hides it from the library, restore brings it back live; viewer cannot trash. |
-| R14b | Permanent destruction | **BLOCKED** | runtime/journeys-phase2-raw.json#J11-destroy-and-free-slot<br>runtime/api-integration-capture.json | Not executed end to end: destruction runs only by executing an approved destruction review (Enterprise feature). J11: FREE record PENDING_DESTRUCTION → 402 ENTERPRISE_FEATURE_REQUIRED, DESTROYED → 409 LIFECYCLE_DESTRUCTION_REQUIRES_REVIEW, row unchanged, FREE slot still held. Integration-level: evidence-destruction-storage, legal-hold-destruction-serialization, defects-destruction-refusals (real PG). |
-| R15a | FREE allowance: three records, fourth refused, trash keeps the slot | **PASS** | runtime/journeys-raw.json#J05-free-allowance | Product-provisioned FREE personal workspace; 4th → 409 FREE_LIMIT_REACHED; after trash still 409. |
-| R15b | Credit purchase / upgrade / downgrade / webhook replay | **BLOCKED** | runtime/api-integration-capture.json | Needs Stripe/PayPal sandbox (EP-10/EP-11). Integration-level: stripe-credit-refund-reversal, billing-paypal-integrity, admin-evidence-credit-grant, trash-keeps-allowance-slot passed on real PG. |
-| R16 | Share-link create / revoke / replace | **PASS** | runtime/journeys-raw.json#J01-web-upload-to-public-verify |  |
-| R17 | Integrity mismatch and stale-status journey | **FAIL** | runtime/journeys-raw.json#J06-integrity-tamper | After byte substitution Public Verify still states original 'verified' and stored bytes 'verified_current' (UC-TRUST-008). |
+| # | Journey | Status | Audit status | Evidence | Blockers | Note |
+|---|---|---|---|---|---|---|
+| R01 | Web/PWA file upload → finalize → report → package → Public Verify | **PASS** | PASS | runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify<br>runtime/remediation/journeys-raw.json#J02-package-independent-recompute<br>runtime/remediation/package-recompute.json | — | J01-web-upload-to-public-verify: PASS (22/22); J02-package-independent-recompute: PASS (2/2) |
+| R02 | Web/PWA screen capture → outputs | **PASS** | FAIL | runtime/remediation/web-screen-capture.json#R02-web-screen-capture-real-chromium | — | R02-web-screen-capture-real-chromium: PASS (15/15) |
+| R03 | Intake-link submission → outputs | **PASS** | PASS | runtime/remediation/journeys-raw.json#J08-intake-link-to-public-verify | — | J08-intake-link-to-public-verify: PASS (10/10) |
+| R04 | Evidence Request submission → outputs | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J08-intake-link-to-public-verify<br>services/api/test/runtime-proof-evidence-capture-b.integration.test.ts::POST /v1/evidence-requests/:id/send — opens the intake link, notifies the recipient and marks SENT | — | J08-intake-link-to-public-verify: PASS (10/10). An Evidence Request delivers through an intake link (no separate byte path): send is proven on real PostgreSQL with the recording mail transport, the byte path by the intake journey on the stack. |
+| R05 | Browser extension capture → outputs | **PASS** | FAIL | runtime/remediation/extension-acceptance.json#R05-extension-real-browsers | — | R05-extension-real-browsers: PASS (11/11) |
+| R06 | Android flow (strongest available environment) | **BLOCKED** | BLOCKED | services/api/test/uc2-android-screen-capture.integration.test.ts<br>services/api/test/uc3-continuous-capture.integration.test.ts<br>runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify | EP-06, EP-07 | Server side proven on the stack and on real PostgreSQL; MediaProjection, foreground service and notifications need a physical Android device. |
+| R07 | iOS flow (strongest available environment) | **BLOCKED** | FAIL | services/api/test/uc5-ios-screen-capture.integration.test.ts<br>apps/mobile/test/ios-broadcast-contract.test.mjs | EP-08, EP-09, EP-14 | The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline); ReplayKit itself needs macOS and a device. |
+| R08 | Continuous/streaming capture with interruption and resume | **BLOCKED** | FAIL | runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify<br>services/api/test/uc3-continuous-completeness.integration.test.ts | EP-06 | J09-continuous-direct-capture-to-public-verify: PASS (10/10). Missing tail/middle, duplicate and conflicting segments, seal racing and interruption are proven on real PostgreSQL; resume after an app/process restart needs a device. |
+| R09a | Video → keyframes | **PASS** | PASS | runtime/remediation/journeys-raw.json#J10-uc4-derived-review | — | J10-uc4-derived-review: PASS (2/2) |
+| R09b | Video → OCR | **BLOCKED** | BLOCKED | services/worker/test/uc4-tesseract-ocr.test.ts<br>services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts | EP-14 | OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host, so the extraction assertion runs in the worker CI job only. |
+| R10 | Conversation capture / reconstruction | **BLOCKED** | FAIL | packages/shared/tests/screen-reconstruction.test.mjs<br>services/worker/test/uc4-reconstruction.test.ts | EP-13, EP-14 | Reconstruction now merges realistic chat screens (UC-DER-004 fixtures); real conversation apps and real OCR remain external. |
+| R11 | Add capture to existing Case | **PASS** | PASS | runtime/remediation/journeys-raw.json#J03-case-attach-and-tenancy<br>services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE) | — | J03-case-attach-and-tenancy: PASS (18/18) |
+| R12 | Create new Evidence from capture | **PASS** | PASS | runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify | — | J01-web-upload-to-public-verify: PASS (22/22) |
+| R13 | Failure and recovery journey | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J12-failure-and-recovery | — | J12-failure-and-recovery: PASS (12/12) |
+| R14a | Trash / restore | **PASS** | PASS | runtime/remediation/journeys-raw.json#J04-trash-restore | — | J04-trash-restore: PASS (6/6) |
+| R14b | Permanent destruction | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J13-governed-permanent-destruction | — | J13-governed-permanent-destruction: PASS (10/10) |
+| R15a | FREE allowance: three records, fourth refused, trash keeps the slot | **PASS** | PASS | runtime/remediation/journeys-raw.json#J05-free-allowance | — | J05-free-allowance: PASS (3/3) |
+| R15b | Credit purchase / upgrade / downgrade / webhook replay | **BLOCKED** | BLOCKED | services/api/test/billing-paypal-integrity.integration.test.ts<br>services/api/test/billing-allowance-commitments.integration.test.ts | EP-10, EP-11 | Needs Stripe/PayPal sandboxes; the commercial rules are proven on real PostgreSQL. |
+| R16 | Share-link create / revoke / replace | **PASS** | PASS | runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify | — | J01-web-upload-to-public-verify: PASS (22/22) |
+| R17 | Integrity mismatch and stale-status journey | **PASS** | FAIL | runtime/remediation/journeys-raw.json#J06-integrity-tamper<br>services/api/test/public-verify-stored-bytes-truth.integration.test.ts | — | J06-integrity-tamper: PASS (7/7) |
 
-## Executed journey runs (driver)
+## Remediation journey runs (remediated stack)
+
+| Run | Verdict | Checks | Failed checks |
+|---|---|---|---|
+| J01-web-upload-to-public-verify | **PASS** | 22/22 | — |
+| J02-package-independent-recompute | **PASS** | 2/2 | — |
+| J03-case-attach-and-tenancy | **PASS** | 18/18 | — |
+| J04-trash-restore | **PASS** | 6/6 | — |
+| J05-free-allowance | **PASS** | 3/3 | — |
+| J06-integrity-tamper | **PASS** | 7/7 | — |
+| J07-upload-session-member-injection | **PASS** | 3/3 | — |
+| J08-intake-link-to-public-verify | **PASS** | 10/10 | — |
+| J09-continuous-direct-capture-to-public-verify | **PASS** | 10/10 | — |
+| J10-uc4-derived-review | **PASS** | 2/2 | — |
+| J12-failure-and-recovery | **PASS** | 12/12 | — |
+| J13-governed-permanent-destruction | **PASS** | 10/10 | — |
+| J11-destroy-and-free-slot | **PASS** | 2/2 | — |
+| R02-web-screen-capture-real-chromium | **PASS** | 15/15 | — |
+| R05-extension-real-browsers | **PASS** | 11/11 | — |
+
+## Executed journey runs (audit driver)
 
 | Run | Driver verdict | Lead-graded verdict | Checks | Lead note |
 |---|---|---|---|---|
@@ -282,9 +345,22 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | discovered capture surfaces = dispositioned capture surfaces | PASS | 27 surfaces |
 | discovered mutations = dispositioned mutations | PASS | 59 mutations |
 | discovered queues = classified queues | PASS | 13 queue rows |
-| runtime journeys = passed + failed + blocked | PASS | {"PASS":8,"FAIL":6,"BLOCKED":6} |
-| findings = fixed + partial + present + accepted-risk | PASS | 119 |
-| every UC = complete + partial + missing + blocked | PASS | {"complete":0,"partial":7,"missing":2,"blocked":0} |
+| runtime journeys = passed + failed + blocked | PASS | {"PASS":14,"FAIL":0,"BLOCKED":6} |
+| findings = fixed + blocked-external + partial + present + accepted-risk | PASS | {"fixed":101,"blockedExternal":18,"partial":0,"present":0,"acceptedRisk":0} |
+| remediation ledger rows = findings (one row per finding, no extra row) | PASS | 119 rows |
+| every ledger disposition is allowed | PASS |  |
+| ledger counts agree with finding statuses | PASS | {"total":119,"BLOCKED_EXTERNAL_PROOF":18,"FIXED_RUNTIME_PROVEN":60,"FIXED_SOURCE_AND_TEST_PROVEN":41,"fixed":101,"blocked":18,"remaining":0} |
+| ledger's own gates all pass | PASS | 9 gates |
+| every fixed finding names a commit and a green test | PASS |  |
+| every blocked-external finding names a registered external proof | PASS |  |
+| blocked-external only where the external proof map says so | PASS |  |
+| every required journey has a post-remediation decision | PASS |  |
+| a BLOCKED journey names an external proof | PASS |  |
+| every UC-journey mapping names a required journey | PASS |  |
+| remediation API integration run executed (not skipped) and green | PASS | 2873/2873 (0 skipped) |
+| remediation worker run green | PASS | 1218/1219 (1 skipped) |
+| every remediation command has an exit code | PASS | 60 commands |
+| every UC = complete + partial + missing + blocked | PASS | {"complete":2,"partial":0,"missing":0,"blocked":7} |
 | no UNKNOWN without explicit blocker | PASS |  |
 | no NOT_REVIEWED | PASS | 301 reviewed topics |
 | no duplicate finding IDs | PASS |  |
@@ -293,7 +369,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | every finding id matches UC-AREA-NNN | PASS |  |
 | every UC key finding exists | PASS |  |
 | every remediation-order finding exists | PASS |  |
-| every open P0/P1 is in the remediation order | PASS | UC-AND-003,UC-CASE-001,UC-EXT-001,UC-EXT-003,UC-IOS-001,UC-IOS-002,UC-IOS-004,UC-OUT-001,UC-PROV-001,UC-STR-001,UC-STR-002 |
+| every open P0/P1 is in the remediation order | PASS | UC-AND-003,UC-IOS-001,UC-IOS-002,UC-IOS-004 |
 | every dependsOn resolves | PASS |  |
 | executed-run overrides name executed runs | PASS |  |
 | runtime-bound findings exist | PASS |  |
@@ -349,6 +425,71 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | web-typecheck | 0 | web-typecheck.log |
 | audit-tooling-syntax | 0 | audit-tooling-syntax.log |
 | uc1-acceptance-fullstack | 124 | uc1-acceptance.log |
+
+## Remediation validation commands
+
+| Label | Exit | Log |
+|---|---|---|
+| seed-journeys | 1 | seed-r1.json |
+| seed-journeys-2 | 0 | seed-r2.json |
+| journeys-run1 | 0 | journeys-run1-superseded.log — SUPERSEDED: run on 068efffd..81144aa1, before a606dcaa/0408adaa; it is the red evidence for both (J06 storedBytes verified_current after substitution; J10 derived run on J09 UPLOADING record). J09 sent the V1 manifest the remediated server refuses; J11 reused the FREE user J05 had filled; J13 was driven against a TRASHED record without a review id. Rerun below on the final source. |
+| uc1-acceptance-final | 0 | uc1-acceptance.run2-superseded.log — SUPERSEDED (run 2, 0408adaa). run in the background (not via rec-remediation.sh, so the stack stays up under the operator teardown); chromium PASS, edge PASS, 8/8 pages; exit recorded as the harness verdict, the process is stopped at teardown |
+| uc1-acceptance-run1 | 0 | uc1-acceptance.run1.log — SUPERSEDED first stack (before a606dcaa/0408adaa): chromium PASS, edge PASS, 8/8; times approximate (background run, not wrapped) |
+| seed-journeys-3 | 0 | seed-r3.json |
+| seed-journeys-4 | 0 | seed-r4.json |
+| journeys-final | 0 | journeys-final.run2-superseded.log — SUPERSEDED (run 2, 0408adaa): 12/13 PASS; J13 refused at EXECUTED (409 LIFECYCLE_INVALID_TRANSITION) — the red evidence for 4a49635e. Rerun below. |
+| journeys-final-j11 | 0 | journeys-final-j11.run2-superseded.log — SUPERSEDED (run 2): J11 PASS 2/2. |
+| uc1-acceptance-final | 0 | uc1-acceptance.run6-superseded.log — SUPERSEDED stack (no Evidence Requests flag). final source 4a49635e; background run kept up for the journeys; chromium PASS, edge PASS, 8/8 pages; stopped at teardown |
+| seed-journeys-5 | 0 | seed-r5.json |
+| seed-journeys-6 | 0 | seed-r6.json |
+| seed-journeys-7 | 0 | seed-r7.json |
+| journeys-final | 0 | journeys-final.run3-superseded.log — SUPERSEDED (run 3, 4a49635e): 11/12 PASS + J11 PASS; J13 8/9 — every destruction check passed (bytes gone, certificate, link stops) but the driver read evidence.status instead of lifecycle_state. Rerun below. |
+| journeys-final-j11 | 0 | journeys-final-j11.run3-superseded.log — SUPERSEDED (run 3): J11 PASS 2/2. |
+| web-screen-capture | 1 | web-screen-capture.run3-superseded.log — SUPERSEDED (run 3): recorded + sealed in real Chromium, but into the default PERSONAL (FREE) workspace, so report/package were NOT_INCLUDED_IN_PLAN (correct); probe now switches to the organization workspace and verifies through a share link. |
+| seed-journeys-8 | 0 | seed-r8.json |
+| seed-journeys-9 | 0 | seed-r9.json |
+| seed-journeys-10 | 0 | seed-r10.json |
+| journeys-final | 0 | journeys-final.run4-superseded.log — SUPERSEDED (run 4, 4a49635e): 11/12 + J11 PASS; J13 8/9 — every destruction check passed; the destruction orchestrator executed the approved review before the operator EXECUTE (designed path), which the driver did not accept. Rerun below. |
+| journeys-final-j11 | 0 | journeys-final-j11.run4-superseded.log — SUPERSEDED (run 4): J11 PASS 2/2. |
+| web-screen-capture | 1 | web-screen-capture.run4-superseded.log — SUPERSEDED (run 4): workspace switch 503 POLICY_NOT_PROVISIONED — the seed created organizations without the security policy product provisioning creates; seed fixed. |
+| seed-journeys-11 | 0 | seed-r11.json |
+| seed-journeys-12 | 0 | seed-r12.json |
+| seed-journeys-13 | 0 | seed-r13.json |
+| journeys-final | 0 | journeys-final.run5-superseded.log — SUPERSEDED (run 5, 4a49635e): 12/12 + J11 PASS (J13 executed by operator). Superseded only because the seed now records sessions like a real sign-in; rerun below for one coherent set. |
+| journeys-final-j11 | 0 | journeys-final-j11.run5-superseded.log — SUPERSEDED (run 5): J11 PASS 2/2. |
+| web-screen-capture | 1 | web-screen-capture.run5-superseded.log — SUPERSEDED (run 5): switch 403 session_not_in_inventory — seeded tokens had no session-inventory row (a sign-in records one); seed now records it with the stack identity-hash secret. |
+| seed-journeys-14 | 0 | seed-r14.json |
+| seed-journeys-15 | 0 | seed-r15.json |
+| seed-journeys-16 | 0 | seed-r16.json |
+| seed-journeys-17 | 0 | seed-r17.json |
+| journeys-final | 0 | journeys-final.run6-superseded.log — SUPERSEDED (run 6, 4a49635e): 12/12 + J11 PASS. |
+| journeys-final-j11 | 0 | journeys-final-j11.run6-superseded.log — SUPERSEDED (run 6): J11 PASS 2/2. |
+| web-screen-capture | 1 | web-screen-capture.run6-superseded.log — SUPERSEDED (run 6): 13/14 — every functional check passed; the only failure was a console 503 from the Evidence detail page listing Evidence Requests, a feature switched off on the stack (EVIDENCE_REQUESTS_ENABLED unset; the panel handles FEATURE_DISABLED by design). The stack now runs with the flag on. |
+| seed-journeys-18 | 0 | seed-r18.json |
+| uc1-acceptance-final | 0 | uc1-acceptance.log — FINAL stack (4a49635e, intake + Evidence Requests flags on); background run kept up for the journeys; stopped at teardown |
+| seed-journeys-19 | 0 | seed-r19.json |
+| seed-journeys-20 | 0 | seed-r20.json |
+| seed-journeys-21 | 0 | seed-r21.json |
+| journeys-final | 0 | journeys-final.log |
+| journeys-final-j11 | 0 | journeys-final-j11.log |
+| web-screen-capture | 0 | web-screen-capture.log |
+| package-independent-recompute | 0 | package-recompute.log |
+| mobile-export-android-ios | 0 | mobile-export.log |
+| api-integration-full | 0 | api-integration.tail.log — FULL suite at d0034b07 on a freshly migrated PG16 + Redis + MinIO: 2873/2873 passed, 0 failed, 0 skipped, 268 files; summary api-integration.json (recorded after the run; start/end are the record time) |
+| api-unit-full | 1 | api-unit.tail.log — at e7bf4315: 25618/25620 passed, 1 failed (phase-0-audit-self-reference: clean-tree gate counted the then-untracked runtime/remediation directory; re-run after commit is recorded separately), 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger) (recorded after the run; start/end are the record time) |
+| worker-full | 0 | worker-tests.tail.log — 1218/1219 passed, 1 skipped (Tesseract binary absent on this host: EP-14) (recorded after the run; start/end are the record time) |
+| web-node | 0 | web-node.tail.log — 3295 passed, 0 failed, 4 skipped (need the admin fixture server) (recorded after the run; start/end are the record time) |
+| web-render | 0 | web-render.tail.log — 1655/1655 (recorded after the run; start/end are the record time) |
+| shared | 0 | shared.tail.log — 1068/1068 (recorded after the run; start/end are the record time) |
+| ui | 0 | ui.tail.log — 18/18 (recorded after the run; start/end are the record time) |
+| extension-unit | 0 | extension.tail.log — 85/85 (recorded after the run; start/end are the record time) |
+| mobile-unit | 0 | mobile.tail.log — 1893/1893 (recorded after the run; start/end are the record time) |
+| lint | 0 | lint.tail.log — 0 errors (2 pre-existing web warnings) (recorded after the run; start/end are the record time) |
+| typecheck | 0 | typecheck.tail.log — recorded after the run; start/end are the record time |
+| build-api | 0 | build-api.tail.log — recorded after the run; start/end are the record time |
+| build-worker | 0 | build-worker.tail.log — recorded after the run; start/end are the record time |
+| build-extension | 0 | build-extension.tail.log — recorded after the run; start/end are the record time |
+| build-web | 0 | build-web.tail.log — recorded after the run; start/end are the record time |
 
 ## Artifacts
 
