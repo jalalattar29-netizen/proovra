@@ -1,3 +1,4 @@
+import type { StoredBytesIntegrity } from "@proovra/shared";
 import type {
   EvidenceIntelligence,
   EvidenceOutputState,
@@ -187,6 +188,12 @@ export type PreservationMatrix = {
   verificationStatus: string | null;
   verificationStatusLabel: string;
   recordedIntegrityVerifiedAtUtc: string | null;
+  /**
+   * UC-TRUST-008 — the CURRENT stored file, judged by the same resolver as Public
+   * Verify ("Verified" only for a fresh pass over a pinned version). Optional:
+   * an API that predates it sends nothing and the row is not shown.
+   */
+  storedBytes?: (StoredBytesIntegrity & { versionPinned: boolean }) | null;
   sha256Recorded: boolean;
   fingerprintHashRecorded: boolean;
   /**

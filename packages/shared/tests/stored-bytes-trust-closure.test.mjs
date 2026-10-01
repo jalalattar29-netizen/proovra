@@ -66,7 +66,25 @@ test("TRUST-008: a fresh pass over an UNPINNED object (unversioned store) is nev
   );
   assert.equal(s.state, "verified_stale");
   assert.equal(s.checkStatus, "STALE");
-  assert.notEqual(shared.storedBytesVerificationRow(s).badge, "Verified");
+  assert.equal(s.staleReason, "UNPINNED_VERSION");
+  const row = shared.storedBytesVerificationRow(s);
+  assert.notEqual(row.badge, "Verified");
+  // "Last verified at" wording, and the true reason — never "outside the window".
+  assert.match(row.label, /last verified/i);
+  assert.match(row.detail, /no immutable version/);
+  assert.doesNotMatch(row.detail, /outside the/);
+});
+
+test("TRUST-008: a pinned pass older than the window is STALE for that reason, with its time", () => {
+  const at = new Date(now.getTime() - 30 * HOUR);
+  const s = shared.resolveStoredBytesIntegrity(
+    facts({ lastVerifiedAtUtc: at, lastCheckedAtUtc: at, lastOutcome: "VERIFIED", pinnedVersionId: "v1" }),
+    now,
+  );
+  assert.equal(s.staleReason, "OUTSIDE_WINDOW");
+  const row = shared.storedBytesVerificationRow(s);
+  assert.equal(row.badge, "Stale");
+  assert.match(row.detail, /outside the 24-hour freshness window/);
 });
 
 test("TRUST-008: a multi-part record whose every part is pinned is current inside the window", () => {

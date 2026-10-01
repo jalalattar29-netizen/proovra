@@ -49,6 +49,7 @@ import {
 } from "./_lib";
 import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection";
 import { formatUserDateTime } from "../../../../../lib/date";
+import { storedBytesVerificationRow } from "@proovra/shared";
 import {
   displayAcquisition,
   displaySourceType,
@@ -103,6 +104,8 @@ type MatrixItem = {
   value: string;
   /** Omitted for descriptive rows that carry no state of their own. */
   state?: IntegrityState;
+  /** The state word, when a shared vocabulary owns it (e.g. Stale / Mismatch). */
+  stateLabel?: string;
   /** Descriptive rows span the full row so long prose stays readable. */
   wide?: boolean;
 };
@@ -184,7 +187,7 @@ function MatrixGrid({ items }: { items: MatrixItem[] }) {
                   data-size="md"
                   data-tone={presentation.tone}
                 >
-                  {presentation.label}
+                  {item.stateLabel ?? presentation.label}
                 </span>
               ) : null}
             </div>
@@ -258,6 +261,20 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
       : preservation.fingerprintCanonicalHashMatches === false
         ? "failed"
         : "recorded";
+
+  // UC-TRUST-008 — the current stored file, worded and badged exactly as on
+  // Public Verify. Stale / pending are amber, never green; only a fresh pass over
+  // a pinned version is "verified".
+  const storedBytesRow = preservation.storedBytes ? storedBytesVerificationRow(preservation.storedBytes) : null;
+  const storedBytesState: IntegrityState = !storedBytesRow
+    ? "unavailable"
+    : storedBytesRow.checkStatus === "VERIFIED"
+      ? "verified"
+      : storedBytesRow.checkStatus === "MISMATCH" || preservation.storedBytes?.state === "failed"
+        ? "failed"
+        : storedBytesRow.checkStatus === "UNKNOWN"
+          ? "unavailable"
+          : "pending";
 
   const signatureState: IntegrityState = !preservation.signature.recorded
     ? "unavailable"
@@ -484,6 +501,16 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               value: preservation.verificationStatusLabel,
               state: verificationState,
             },
+            ...(storedBytesRow
+              ? [
+                  {
+                    label: "Stored file (current)",
+                    value: storedBytesRow.label,
+                    state: storedBytesState,
+                    stateLabel: storedBytesRow.badge,
+                  },
+                ]
+              : []),
             {
               label: "SHA-256 recorded",
               value: preservation.sha256Recorded ? "Recorded" : "Not recorded",

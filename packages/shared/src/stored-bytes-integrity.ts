@@ -123,8 +123,13 @@ export type StoredBytesIntegrityFacts = {
   versionPinned?: boolean;
 };
 
+/** UC-TRUST-008 — why a past match is not stated as current. */
+export type StoredBytesStaleReason = "OUTSIDE_WINDOW" | "UNPINNED_VERSION" | "LATER_ATTEMPT_UNAVAILABLE";
+
 export type StoredBytesIntegrity = {
   state: StoredBytesIntegrityState;
+  /** Set only on verified_stale: the reason the last match is not current. */
+  staleReason?: StoredBytesStaleReason | null;
   /** ISO time the bytes last matched; null when they never have. */
   lastVerifiedAtUtc: string | null;
   /** ISO time of the last attempt, whatever its outcome. */
@@ -191,6 +196,12 @@ export function resolveStoredBytesIntegrity(
     return {
       ...base,
       state: "verified_stale",
+      staleReason:
+        facts.lastOutcome !== "VERIFIED"
+          ? "LATER_ATTEMPT_UNAVAILABLE"
+          : !withinWindow
+            ? "OUTSIDE_WINDOW"
+            : "UNPINNED_VERSION",
       failureCode: facts.lastOutcome === "VERIFIED" ? null : failureCode,
       checkStatus: "STALE",
     };
@@ -250,7 +261,12 @@ export function storedBytesIntegrityCopy(integrity: StoredBytesIntegrity): { lab
     case "verified_stale":
       return {
         label: `Stored file last verified ${at(integrity.lastVerifiedAtUtc)}`,
-        detail: `The stored file last matched the digest in the signed fingerprint at ${at(integrity.lastVerifiedAtUtc)}. That is outside the ${integrity.freshnessHours ?? STORED_BYTES_FRESHNESS_HOURS_DEFAULT}-hour freshness window, so it is not stated as current; a recheck of the pinned version has been requested.`,
+        detail:
+          integrity.staleReason === "UNPINNED_VERSION"
+            ? `The stored file last matched the digest in the signed fingerprint at ${at(integrity.lastVerifiedAtUtc)}. The store keeps no immutable version of this file, so it could have been replaced since; it is not stated as current, and a recheck has been requested.`
+            : integrity.staleReason === "LATER_ATTEMPT_UNAVAILABLE"
+              ? `The stored file last matched the digest in the signed fingerprint at ${at(integrity.lastVerifiedAtUtc)}. A later recheck could not read storage, so it is not stated as current; a recheck has been requested.`
+              : `The stored file last matched the digest in the signed fingerprint at ${at(integrity.lastVerifiedAtUtc)}. That is outside the ${integrity.freshnessHours ?? STORED_BYTES_FRESHNESS_HOURS_DEFAULT}-hour freshness window, so it is not stated as current; a recheck of the pinned version has been requested.`,
       };
     case "pending":
       if (integrity.checkStatus === "UNAVAILABLE") {

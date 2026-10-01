@@ -404,6 +404,11 @@ await journey("J06-integrity-tamper", "Tamper stored original bytes; the product
   const sb = pub2.json?.basicVerification?.storedBytes ?? null;
   obs.storedBytesAfterTamper = sb;
   check("stored bytes are not presented as currently verified after substitution", sb && sb.state !== "verified_current" && sb.checkStatus !== "VERIFIED", sb);
+  // The owner's evidence page reads the same state (one resolver for every surface).
+  const ws = await call(ownerA, "GET", `/v1/evidence/${u.id}/review-workspace`);
+  const ownerSb = ws.json?.preservationMatrix?.storedBytes ?? null;
+  obs.ownerStoredBytesAfterTamper = ownerSb;
+  check("the owner projection agrees: not currently verified, with a last-verified time or a mismatch", ws.status === 200 && ownerSb && ownerSb.state !== "verified_current" && ownerSb.checkStatus !== "VERIFIED" && (ownerSb.state === "failed" || Boolean(ownerSb.lastVerifiedAtUtc) || ownerSb.state === "pending"), { status: ws.status, ownerSb });
 });
 
 

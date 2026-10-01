@@ -160,6 +160,32 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     expect(body.basicVerification.storedBytes.state).not.toBe("verified_current");
     expect(body.basicVerification.storedBytes.checkStatus).not.toBe("VERIFIED");
     expect(body.basicVerification.verdict.state).not.toBe("verified");
+    // The owner's evidence page reads the SAME state through the same resolver.
+    const owner = await h.app.inject({
+      method: "GET",
+      url: `/v1/evidence/${ev.id}/review-workspace`,
+      headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` },
+    });
+    expect(owner.statusCode, owner.body).toBe(200);
+    const ownerStored = (owner.json() as { preservationMatrix: { storedBytes: Record<string, unknown> | null } }).preservationMatrix.storedBytes;
+    expect(ownerStored).toMatchObject({ state: "verified_stale", checkStatus: "STALE", staleReason: "UNPINNED_VERSION", versionPinned: false });
+    expect(ownerStored!.state).toBe(body.basicVerification.storedBytes.state);
+  });
+
+  it("TRUST-008: the owner projection of a fresh pass over a pinned version is the only verified_current", async () => {
+    const ev = await signedRecordInStore({}, { bucket: VERSIONED_BUCKET });
+    await recheck.recheckEvidenceIntegrity({ evidenceId: ev.id, trigger: "PUBLIC_VERIFY", force: true });
+    const owner = await h.app.inject({
+      method: "GET",
+      url: `/v1/evidence/${ev.id}/review-workspace`,
+      headers: { authorization: `Bearer ${h.fixtures.teamA.ownerToken}` },
+    });
+    expect(owner.statusCode, owner.body).toBe(200);
+    expect((owner.json() as { preservationMatrix: { storedBytes: Record<string, unknown> } }).preservationMatrix.storedBytes).toMatchObject({
+      state: "verified_current",
+      checkStatus: "VERIFIED",
+      versionPinned: true,
+    });
   });
 
   it("TRUST-008: original replaced in MinIO after a 3-day-old pass -> STALE (never Verified), then the requested recheck records MISMATCH", async () => {

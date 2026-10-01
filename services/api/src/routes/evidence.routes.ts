@@ -229,6 +229,8 @@ import {
   readStoredBytesIntegrity,
   recordVerificationShareUse,
   requestIntegrityRecheck,
+  STORED_BYTES_INTEGRITY_SELECT,
+  storedBytesVersionPinned,
   resolveVerificationShareToken,
   type VerificationShareRow,
   type VerificationShareState,
@@ -9329,6 +9331,34 @@ return {
             : Promise.resolve(0),
         ]);
 
+        // UC-TRUST-008 — the owner sees the CURRENT stored file's state through the
+        // same resolver as Public Verify: "Verified" only for a fresh pass over a
+        // pinned version; otherwise stale / pending / mismatch, and a recheck is
+        // requested (idempotent) exactly as Public Verify does.
+        const storedBytesAt = new Date();
+        const storedBytesSource = await prisma.evidence.findUnique({
+          where: { id },
+          select: STORED_BYTES_INTEGRITY_SELECT,
+        });
+        let ownerStoredBytes = storedBytesSource
+          ? readStoredBytesIntegrity(storedBytesSource, storedBytesAt)
+          : null;
+        if (
+          storedBytesSource &&
+          ownerStoredBytes &&
+          ownerStoredBytes.state !== "verified_current" &&
+          ownerStoredBytes.state !== "failed" &&
+          (evidence.status === "SIGNED" || evidence.status === "REPORTED")
+        ) {
+          const requested = await requestIntegrityRecheck(prisma, id, storedBytesAt).catch(() => false);
+          if (requested) {
+            ownerStoredBytes = readStoredBytesIntegrity(
+              { ...storedBytesSource, integrityRecheckRequestedAtUtc: storedBytesAt },
+              storedBytesAt,
+            );
+          }
+        }
+
         const workspaceCapabilitySnapshot = await resolveWorkspaceCapabilitySnapshot({
           ownerUserId,
           evidence,
@@ -10003,6 +10033,13 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               ),
               recordedIntegrityVerifiedAtUtc:
                 evidence.recordedIntegrityVerifiedAtUtc?.toISOString() ?? null,
+              // UC-TRUST-008 — the current stored file (see ownerStoredBytes).
+              storedBytes: ownerStoredBytes
+                ? {
+                    ...ownerStoredBytes,
+                    versionPinned: storedBytesSource ? storedBytesVersionPinned(storedBytesSource) : false,
+                  }
+                : null,
               sha256Recorded: Boolean(evidence.fileSha256),
               fingerprintHashRecorded: Boolean(evidence.fingerprintHash),
               // The canonical fingerprint is recomputed above and compared
