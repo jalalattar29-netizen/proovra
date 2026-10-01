@@ -58,6 +58,26 @@ test("TRUST-008: a passing check inside the freshness window is VERIFIED", () =>
   assert.equal(shared.storedBytesVerificationRow(s).badge, "Verified");
 });
 
+test("TRUST-008: a fresh pass over an UNPINNED object (unversioned store) is never current — the object can be replaced in place", () => {
+  const at = new Date(now.getTime() - 60 * 1000);
+  const s = shared.resolveStoredBytesIntegrity(
+    facts({ lastVerifiedAtUtc: at, lastCheckedAtUtc: at, lastOutcome: "VERIFIED", pinnedVersionId: null, recordedDigest: "a".repeat(64) }),
+    now,
+  );
+  assert.equal(s.state, "verified_stale");
+  assert.equal(s.checkStatus, "STALE");
+  assert.notEqual(shared.storedBytesVerificationRow(s).badge, "Verified");
+});
+
+test("TRUST-008: a multi-part record whose every part is pinned is current inside the window", () => {
+  const at = new Date(now.getTime() - 60 * 1000);
+  const s = shared.resolveStoredBytesIntegrity(
+    facts({ lastVerifiedAtUtc: at, lastCheckedAtUtc: at, lastOutcome: "VERIFIED", pinnedVersionId: null, versionPinned: true }),
+    now,
+  );
+  assert.equal(s.checkStatus, "VERIFIED");
+});
+
 test("TRUST-008: substituted bytes -> MISMATCH; missing version -> UNAVAILABLE", () => {
   const mismatch = shared.resolveStoredBytesIntegrity(facts({ lastOutcome: "FAILED", lastFailureCode: "DIGEST_MISMATCH" }), now);
   assert.equal(mismatch.checkStatus, "MISMATCH");

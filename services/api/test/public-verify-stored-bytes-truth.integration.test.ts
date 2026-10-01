@@ -36,6 +36,9 @@ describe("Public Verify — stored-bytes truth against a real object store (live
   let storage: WorkerStorage;
   let readState: (typeof import("@proovra/shared-runtime"))["readStoredBytesIntegrity"];
   const BUCKET = process.env.S3_BUCKET ?? "point7-local-bucket";
+  // UC-TRUST-008 — a VERSIONED bucket: a pass over a pinned VersionId is the only
+  // "current". The shared bucket stays unversioned, which is the other case.
+  const VERSIONED_BUCKET = "uca-trust-versioned";
   const keyId = `uctrust-${randomUUID().slice(0, 8)}`;
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const created: string[] = [];
@@ -47,6 +50,13 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     recheck = await import("../../worker/src/integrity-recheck.js");
     storage = await import("../../worker/src/storage.js");
     ({ readStoredBytesIntegrity: readState } = await import("@proovra/shared-runtime"));
+    const { CreateBucketCommand, PutBucketVersioningCommand } = await import("@aws-sdk/client-s3");
+    await storage.s3.send(new CreateBucketCommand({ Bucket: VERSIONED_BUCKET })).catch((err: { name?: string }) => {
+      if (!/BucketAlready(OwnedByYou|Exists)/.test(String(err?.name))) throw err;
+    });
+    await storage.s3.send(
+      new PutBucketVersioningCommand({ Bucket: VERSIONED_BUCKET, VersioningConfiguration: { Status: "Enabled" } }),
+    );
     await prisma.signingKey.create({
       data: { keyId, version: 1, publicKeyPem: publicKey.export({ type: "spki", format: "pem" }).toString().trim() },
     });
@@ -66,8 +76,9 @@ describe("Public Verify — stored-bytes truth against a real object store (live
   /** A genuinely signed single-object record whose original is in MinIO. */
   async function signedRecordInStore(
     over: Record<string, unknown> = {},
-    opts: { key?: string; create?: Record<string, unknown> } = {},
+    opts: { key?: string; create?: Record<string, unknown>; bucket?: string } = {},
   ) {
+    const bucket = opts.bucket ?? BUCKET;
     const { teamId } = h.fixtures.teamA;
     const team = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { organizationId: true, ownerUserId: true } });
     const bytes = Buffer.from(`genuine-original-${randomUUID()}`);
@@ -85,14 +96,14 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     });
     created.push(row.id);
     const key = opts.key ?? `evidence/${row.id}/original.bin`;
-    const put = await storage.putObjectBuffer({ bucket: BUCKET, key, body: bytes, contentType: "application/octet-stream" });
+    const put = await storage.putObjectBuffer({ bucket, key, body: bytes, contentType: "application/octet-stream" });
     const fileSha256 = sha(bytes);
     // The fingerprint in its production shape: the signed digest lives in file.sha256.
     const canonical = JSON.stringify({
       v: 1,
       evidenceId: row.id,
       type: "DOCUMENT",
-      file: { multipart: false, bucket: BUCKET, key, sizeBytes: bytes.length, mimeType: "application/octet-stream", sha256: fileSha256, etag: null },
+      file: { multipart: false, bucket, key, sizeBytes: bytes.length, mimeType: "application/octet-stream", sha256: fileSha256, etag: null },
       capturedAtUtc: null,
       deviceTimeIso: null,
       gps: { lat: null, lng: null, accuracyMeters: null },
@@ -110,14 +121,14 @@ describe("Public Verify — stored-bytes truth against a real object store (live
         signingKeyVersion: 1,
         signedAtUtc: new Date(),
         mimeType: "application/octet-stream",
-        storageBucket: BUCKET,
+        storageBucket: bucket,
         storageKey: key,
         storageVersionId: put?.versionId ?? null,
         sizeBytes: BigInt(bytes.length),
         ...over,
       } as never,
     });
-    return { id: row.id, key, bytes, fileSha256 };
+    return { id: row.id, key, bytes, fileSha256, versionId: put?.versionId ?? null };
   }
 
   const verify = async (id: string, ip: string) =>
@@ -125,7 +136,8 @@ describe("Public Verify — stored-bytes truth against a real object store (live
   const row = (id: string) => prisma.evidence.findUniqueOrThrow({ where: { id } });
 
   it("TRUST-008: a fresh pinned-version recheck against MinIO is the only VERIFIED", async () => {
-    const ev = await signedRecordInStore();
+    const ev = await signedRecordInStore({}, { bucket: VERSIONED_BUCKET });
+    expect(ev.versionId, "the versioned bucket pins a VersionId").toBeTruthy();
     const result = await recheck.recheckEvidenceIntegrity({ evidenceId: ev.id, trigger: "PUBLIC_VERIFY", force: true });
     expect(result).toMatchObject({ checked: true, outcome: "VERIFIED" });
     const res = await verify(ev.id, "81.2.70.1");
@@ -133,6 +145,21 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     const body = res.json();
     expect(body.basicVerification.storedBytes.checkStatus).toBe("VERIFIED");
     expect(body.basicVerification.verdict.state).toBe("verified");
+  });
+
+  it("TRUST-008: a fresh pass over an UNVERSIONED object is STALE, never VERIFIED — the object can be replaced in place", async () => {
+    const ev = await signedRecordInStore();
+    expect(ev.versionId).toBeNull();
+    const result = await recheck.recheckEvidenceIntegrity({ evidenceId: ev.id, trigger: "PUBLIC_VERIFY", force: true });
+    expect(result).toMatchObject({ checked: true, outcome: "VERIFIED" });
+    // Replace the bytes in place: a store that keeps no version cannot tell.
+    await storage.putObjectBuffer({ bucket: BUCKET, key: ev.key, body: Buffer.from("substituted"), contentType: "application/octet-stream" });
+    const res = await verify(ev.id, "81.2.70.9");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json();
+    expect(body.basicVerification.storedBytes.state).not.toBe("verified_current");
+    expect(body.basicVerification.storedBytes.checkStatus).not.toBe("VERIFIED");
+    expect(body.basicVerification.verdict.state).not.toBe("verified");
   });
 
   it("TRUST-008: original replaced in MinIO after a 3-day-old pass -> STALE (never Verified), then the requested recheck records MISMATCH", async () => {

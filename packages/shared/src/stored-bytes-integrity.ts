@@ -15,7 +15,9 @@
  *                     version, they matched, and that was within the short
  *                     freshness window (UC-TRUST-008; not the 30-day cadence)
  *   verified_stale    they matched once, but that is older than the window —
- *                     or a later attempt could not read storage
+ *                     or a later attempt could not read storage — or the store
+ *                     keeps no immutable version of what was read, so a pass
+ *                     says nothing about the bytes after the moment it read them
  *   pending           never verified, and a recheck has been requested
  *   failed            the bytes did not match, or the recorded object version
  *                     is gone
@@ -112,6 +114,13 @@ export type StoredBytesIntegrityFacts = {
   pinnedVersionId?: string | null;
   /** The digest the record's signed fingerprint certifies. */
   recordedDigest?: string | null;
+  /**
+   * UC-TRUST-008 — every stored object the check reads is a PINNED, immutable
+   * version (the record's single VersionId, or one per part). Without it the
+   * object can be replaced in place after a passing check, so the pass is never
+   * "current". Absent = not pinned (fail closed).
+   */
+  versionPinned?: boolean;
 };
 
 export type StoredBytesIntegrity = {
@@ -175,7 +184,8 @@ export function resolveStoredBytesIntegrity(
     // Current ONLY when the LATEST attempt is the one that verified AND it read
     // the bytes inside the short freshness window. A later attempt that could
     // not read storage means "not confirmed now".
-    if (withinWindow && facts.lastOutcome === "VERIFIED") {
+    const pinned = facts.versionPinned === true || Boolean(facts.pinnedVersionId);
+    if (withinWindow && facts.lastOutcome === "VERIFIED" && pinned) {
       return { ...base, state: "verified_current", failureCode: null, checkStatus: "VERIFIED" };
     }
     return {

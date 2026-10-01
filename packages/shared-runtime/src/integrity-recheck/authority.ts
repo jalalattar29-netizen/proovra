@@ -263,6 +263,8 @@ export const STORED_BYTES_INTEGRITY_SELECT = {
   // UC-TRUST-008 — the pinned version and the recorded digest the state is about.
   storageVersionId: true,
   fileSha256: true,
+  // UC-TRUST-008 — a multi-part record is pinned only when every part is.
+  parts: { select: { storageVersionId: true } },
 } as const;
 
 export type StoredBytesIntegrityRow = {
@@ -274,7 +276,15 @@ export type StoredBytesIntegrityRow = {
   integrityRecheckRequestedAtUtc: Date | null;
   storageVersionId?: string | null;
   fileSha256?: string | null;
+  parts?: Array<{ storageVersionId: string | null }>;
 };
+
+/** UC-TRUST-008 — what a check reads is an immutable, pinned version. */
+export function storedBytesVersionPinned(row: Pick<StoredBytesIntegrityRow, "storageVersionId" | "parts">): boolean {
+  if (row.storageVersionId) return true;
+  const parts = row.parts ?? [];
+  return parts.length > 0 && parts.every((p) => Boolean(p.storageVersionId));
+}
 
 /**
  * The state a surface may present for this record: CURRENT only inside the
@@ -296,6 +306,7 @@ export function readStoredBytesIntegrity(
       recheckRequestedAtUtc: row.integrityRecheckRequestedAtUtc,
       pinnedVersionId: row.storageVersionId ?? null,
       recordedDigest: row.fileSha256 ?? null,
+      versionPinned: storedBytesVersionPinned(row),
     },
     now,
     intervalDays,

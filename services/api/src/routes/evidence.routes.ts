@@ -13415,18 +13415,17 @@ await recordOriginalRelease({
       signatureCryptographicallyValid && signingKeyRevokedAtUtc === null && signingKeyMatchesRecord !== false;
 
     const publicVerifyTrustShared = await import("@proovra/shared");
+    const publicVerifyParts = await prisma.evidencePart.findMany({
+      where: { evidenceId: id },
+      select: { partIndex: true, sha256: true, storageVersionId: true },
+    });
     // UC-TRUST-001 — the unsigned digest columns must agree with the digests
     // the signed fingerprint certifies; a disagreement is an integrity failure.
     const digestColumnsMatchSignedFingerprint = publicVerifyTrustShared.digestColumnsMatchSignedFingerprint(
       {
         fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
         fileSha256: evidence.fileSha256,
-        parts: (
-          await prisma.evidencePart.findMany({
-            where: { evidenceId: id },
-            select: { partIndex: true, sha256: true },
-          })
-        ).map((p) => ({ partIndex: p.partIndex, sha256: p.sha256 ?? null })),
+        parts: publicVerifyParts.map((p) => ({ partIndex: p.partIndex, sha256: p.sha256 ?? null })),
       },
       sha256Hex,
     );
@@ -13441,7 +13440,9 @@ await recordOriginalRelease({
      * The state is an INPUT to the verdict below, not a row beside it.
      */
     const storedBytesCheckedAt = new Date();
-    let storedBytes = readStoredBytesIntegrity(evidence, storedBytesCheckedAt);
+    // UC-TRUST-008 — "current" needs every object the check read to be a pinned version.
+    const storedBytesParts = publicVerifyParts.map((p) => ({ storageVersionId: p.storageVersionId ?? null }));
+    let storedBytes = readStoredBytesIntegrity({ ...evidence, parts: storedBytesParts }, storedBytesCheckedAt);
     if (storedBytes.state !== "verified_current" && storedBytes.state !== "failed") {
       const requested = await requestIntegrityRecheck(prisma, evidence.id, storedBytesCheckedAt).catch(() => false);
       if (requested) {
@@ -13455,6 +13456,7 @@ await recordOriginalRelease({
             integrityRecheckRequestedAtUtc: storedBytesCheckedAt,
             storageVersionId: evidence.storageVersionId ?? null,
             fileSha256: evidence.fileSha256 ?? null,
+            parts: storedBytesParts,
           },
           storedBytesCheckedAt,
         );
