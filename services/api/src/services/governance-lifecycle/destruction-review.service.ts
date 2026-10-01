@@ -407,6 +407,32 @@ export async function transitionDestructionReview(
         { code: preflight.code },
       );
     }
+    // The approval QUEUES the record for destruction: ACTIVE -> PENDING_DESTRUCTION
+    // through the orchestrator (the single lifecycle writer), BEFORE the review is
+    // marked APPROVED, so an approval never exists for a record left ACTIVE. The
+    // lifecycle table has no ACTIVE -> DESTROYED edge, so an approved review on an
+    // ACTIVE record could never execute (every manual review from the
+    // Destruction page ended in 409 LIFECYCLE_INVALID_TRANSITION).
+    try {
+      await transitionLifecycle(
+        {
+          teamId: input.teamId,
+          evidenceId: existing.evidenceId,
+          toState: "PENDING_DESTRUCTION",
+          actorUserId: input.actorUserId,
+          summary: "Destruction review approved — evidence queued for destruction",
+          // The review's own destruction_review_approved row is written below.
+          eventType: "lifecycle_transition",
+          metadata: { destructionReviewId: existing.id },
+          requestId: input.requestId ?? null,
+        },
+        client,
+      );
+    } catch (err) {
+      throw new DestructionReviewError("DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE", {
+        code: (err as { code?: string }).code ?? "LIFECYCLE_TRANSITION_FAILED",
+      });
+    }
   }
 
   // EXECUTED has its own dedicated branch — see executeApprovedReview.
@@ -512,6 +538,23 @@ export async function transitionDestructionReview(
         actorUserId: input.actorUserId,
         summary: "Destruction review restored — evidence returned to ACTIVE",
         eventType: "destruction_review_restored",
+        metadata: { destructionReviewId: existing.id },
+        requestId: input.requestId ?? null,
+      },
+      client,
+    ).catch(() => null);
+  }
+
+  // An approved review that is CANCELLED releases the record it queued.
+  if (input.nextStatus === "CANCELLED" && from === "APPROVED") {
+    await transitionLifecycle(
+      {
+        teamId: input.teamId,
+        evidenceId: existing.evidenceId,
+        toState: "ACTIVE",
+        actorUserId: input.actorUserId,
+        summary: "Approved destruction review cancelled — evidence returned to ACTIVE",
+        eventType: "lifecycle_transition",
         metadata: { destructionReviewId: existing.id },
         requestId: input.requestId ?? null,
       },
