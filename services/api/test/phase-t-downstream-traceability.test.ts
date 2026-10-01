@@ -25,7 +25,7 @@
  *      distinct trios across the included evidence; per-evidence
  *      metadata.json carries the per-evidence trio.
  *
- *   D. Governance traceability — applyRetentionPolicyOnCreate
+ *   D. Governance traceability — retention (createEvidence; see retention-template-provenance.integration.test.ts)
  *      threads the trio into the EVIDENCE_CREATED custody event
  *      payload that records the retention-policy application.
  *
@@ -586,99 +586,11 @@ describe("Phase 6 Part B — Report envelope provenance", () => {
 // ===========================================================================
 
 describe("Phase 6 Part D — Governance traceability", () => {
-  it("threads trio into the retention-applied custody event payload", async () => {
-    // Stub the workspace retention-policy lookup so the policy
-    // helper resolves a retention date and proceeds to write the
-    // custody event. The resolver lives inside the same file as
-    // applyRetentionPolicyOnCreate, but the workspace lookup goes
-    // through prisma directly. We mock the resolver by setting
-    // existingRetentionUntilUtc=null and returning a workspace
-    // policy via prisma.retentionPolicyConfig.
-    const mod = (await import("../src/db.js")) as unknown as {
-      prisma: Record<string, unknown>;
-    };
-    Object.assign(mod.prisma, {
-      retentionPolicyConfig: {
-        findFirst: vi.fn().mockResolvedValue({
-          retentionDays: 365,
-          template: "WORKSPACE_POLICY",
-        }),
-      },
-    });
-
-    evidenceUpdateMock.mockResolvedValue({});
-    evidenceFindUnique.mockResolvedValue({
-      templateSlug: POPULATED_TRIO.templateSlug,
-      templateVersion: POPULATED_TRIO.templateVersion,
-      templateDbId: POPULATED_TRIO.templateDbId,
-    });
-    appendCustodyEventMock.mockResolvedValue(undefined);
-
-    const { applyRetentionPolicyOnCreate } = await import(
-      "../src/services/governance.service.js"
-    );
-
-    const result = await applyRetentionPolicyOnCreate({
-      evidenceId: EVIDENCE_ID,
-      teamId: TEAM_ID,
-    });
-
-    if (result.applied) {
-      expect(appendCustodyEventMock).toHaveBeenCalledTimes(1);
-      const payload = appendCustodyEventMock.mock.calls[0][0].payload;
-      expect(payload).toMatchObject({
-        retentionPolicyApplied: true,
-        templateSlug: POPULATED_TRIO.templateSlug,
-        templateVersion: POPULATED_TRIO.templateVersion,
-        templateDbId: POPULATED_TRIO.templateDbId,
-      });
-    } else {
-      // If the workspace policy lookup did not yield a retention date
-      // (the resolver is implementation-private), the contract still
-      // holds: the function must not throw, and the custody event
-      // is simply not emitted. Either branch is acceptable for the
-      // identity-propagation contract.
-      expect(appendCustodyEventMock).not.toHaveBeenCalled();
-    }
-  });
-
-  it("surfaces NULL trio on legacy Evidence rows in retention audit payload", async () => {
-    const mod = (await import("../src/db.js")) as unknown as {
-      prisma: Record<string, unknown>;
-    };
-    Object.assign(mod.prisma, {
-      retentionPolicyConfig: {
-        findFirst: vi.fn().mockResolvedValue({
-          retentionDays: 365,
-          template: "WORKSPACE_POLICY",
-        }),
-      },
-    });
-
-    evidenceUpdateMock.mockResolvedValue({});
-    evidenceFindUnique.mockResolvedValue({
-      templateSlug: null,
-      templateVersion: null,
-      templateDbId: null,
-    });
-    appendCustodyEventMock.mockResolvedValue(undefined);
-
-    const { applyRetentionPolicyOnCreate } = await import(
-      "../src/services/governance.service.js"
-    );
-
-    const result = await applyRetentionPolicyOnCreate({
-      evidenceId: EVIDENCE_ID,
-      teamId: TEAM_ID,
-    });
-
-    if (result.applied && appendCustodyEventMock.mock.calls.length > 0) {
-      const payload = appendCustodyEventMock.mock.calls[0][0].payload;
-      expect(payload.templateSlug).toBeNull();
-      expect(payload.templateVersion).toBeNull();
-      expect(payload.templateDbId).toBeNull();
-    }
-  });
+  // The retention-applied custody event is written by createEvidence (UC-ARCH-002); its
+  // template trio is proven on live PostgreSQL by test/retention-template-provenance.integration.test.ts
+  // (known trio stamped and named, unknown trio NULL, real intake submission names the link's
+  // template). The two mocked cases that lived here exercised a helper with no caller and
+  // accepted either branch, so they proved nothing about the live path.
 
   it("legal-hold creation threads trio into LEGAL_HOLD_APPLIED webhook payload for EVIDENCE kind", async () => {
     legalHoldCreateMock.mockResolvedValue({
@@ -838,11 +750,15 @@ describe("Phase 6 source-text wiring guards", () => {
     expect(src).toMatch(/provenanceByEvidenceId/);
   });
 
-  it("governance.service.ts threads trio into retention-applied custody payload", () => {
-    const src = read("../src/services/governance.service.ts");
-    expect(src).toMatch(/templateSlug: templateProvenance\.templateSlug/);
-    expect(src).toMatch(/templateVersion: templateProvenance\.templateVersion/);
-    expect(src).toMatch(/templateDbId: templateProvenance\.templateDbId/);
+  it("createEvidence threads trio into the retention-applied custody payload (UC-ARCH-002)", () => {
+    // Retention moved into the canonical writer; the live behaviour is proven by
+    // retention-template-provenance.integration.test.ts. This guard keeps the wiring visible.
+    const src = read("../src/services/evidence.service.ts");
+    expect(src).toMatch(/templateSlug: params\.templateIdentity\?\.templateSlug \?\? null/);
+    expect(src).toMatch(/templateVersion: params\.templateIdentity\?\.templateVersion \?\? null/);
+    expect(src).toMatch(/templateDbId: params\.templateIdentity\?\.templateDbId \?\? null/);
+    const intake = read("../src/services/external-intake-orchestration.service.ts");
+    expect(intake).toMatch(/templateIdentity: trio\?\.templateSlug/);
   });
 
   it("legal-hold.service.ts emits trio in LEGAL_HOLD_APPLIED payload for EVIDENCE kind", () => {

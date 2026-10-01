@@ -318,6 +318,26 @@ export async function createOrLoadExternalEvidence(
   // link. That user is guaranteed to be a member of the workspace, which
   // satisfies createEvidence()'s team-membership check without modifying
   // that service.
+  // Phase T — the link carries the canonical template-identity trio from the moment the
+  // workspace admin created it, so it is resolved BEFORE the record exists and handed to
+  // createEvidence: it is stamped in the INSERT and named by the RETENTION_POLICY_APPLIED
+  // custody event written in the same transaction (UC-ARCH-002 moved retention there).
+  // Resolution is propagation-only: a failure leaves the trio null, never breaks the upload.
+  let trio: Awaited<ReturnType<typeof resolveTemplateTrioForIntakeLink>> | null = null;
+  try {
+    trio = await resolveTemplateTrioForIntakeLink({
+      link: {
+        workflowTemplateId: pair.link.workflowTemplateId ?? null,
+        workflowTemplateSlug: pair.link.workflowTemplateSlug,
+        workflowTemplateVersion: pair.link.workflowTemplateVersion,
+        teamId: pair.link.teamId,
+      },
+      client,
+    });
+  } catch {
+    trio = null;
+  }
+
   const createResult = await createEvidence({
     ownerUserId: pair.link.createdByUserId,
     teamId: pair.link.teamId,
@@ -328,6 +348,9 @@ export async function createOrLoadExternalEvidence(
     intakePlanJson: workflowTemplateSnapshotFromLink(pair.link),
     // UC-0 — the canonical secure-intake ingress (also Evidence Requests).
     acquisitionMode: "SECURE_INTAKE_LINK",
+    templateIdentity: trio?.templateSlug
+      ? { templateSlug: trio.templateSlug, templateVersion: trio.templateVersion, templateDbId: trio.templateDbId }
+      : null,
   });
 
   // createEvidence returns a presign-response shape; pull the full row.
@@ -398,25 +421,9 @@ export async function createOrLoadExternalEvidence(
   // re-derive snapshots. Entirely wrapped in try/catch — a stamping
   // failure must not break the upload-presign flow. Audit emission
   // reuses the existing platform audit chain.
+  // The trio was stamped by createEvidence above; record that it was.
   try {
-    const trio = await resolveTemplateTrioForIntakeLink({
-      link: {
-        workflowTemplateId: pair.link.workflowTemplateId ?? null,
-        workflowTemplateSlug: pair.link.workflowTemplateSlug,
-        workflowTemplateVersion: pair.link.workflowTemplateVersion,
-        teamId: pair.link.teamId,
-      },
-      client,
-    });
-    if (trio.templateSlug) {
-      await client.evidence.update({
-        where: { id: evidence.id },
-        data: {
-          templateSlug: trio.templateSlug,
-          templateVersion: trio.templateVersion,
-          templateDbId: trio.templateDbId,
-        },
-      });
+    if (trio?.templateSlug) {
       void emitTenantAudit({
         // External-intake submissions have no authenticated user; use the
         // link creator (workspace admin) as the actor for audit purposes.

@@ -1207,83 +1207,10 @@ export async function resolveRetentionOnCreate(input: {
   return { retentionUntilUtc: policyRetention, source: "workspace_policy" };
 }
 
-export async function applyRetentionPolicyOnCreate(input: {
-  evidenceId: string;
-  teamId: string | null | undefined;
-  existingRetentionUntilUtc?: Date | null;
-  client?: PrismaClient;
-}): Promise<{ applied: boolean; retentionUntilUtc: Date | null }> {
-  const client = input.client ?? defaultPrisma;
-  const resolved = await resolveRetentionOnCreate({
-    teamId: input.teamId,
-    existingRetentionUntilUtc: input.existingRetentionUntilUtc,
-    client,
-  });
-  if (!resolved) return { applied: false, retentionUntilUtc: null };
-
-  await client.evidence.update({
-    where: { id: input.evidenceId },
-    data: { retentionUntilUtc: resolved.retentionUntilUtc },
-  });
-
-  // Phase 6 — Resolve template-identity trio for audit traceability.
-  // Identity-only; never drives the retention decision (which has
-  // already been resolved above). Wrapped in try/catch — a
-  // propagation failure must NEVER break the retention application
-  // lifecycle. Legacy rows surface NULL members.
-  let templateProvenance: {
-    templateSlug: string | null;
-    templateVersion: number | null;
-    templateDbId: string | null;
-  } = { templateSlug: null, templateVersion: null, templateDbId: null };
-  try {
-    const ev = await client.evidence.findUnique({
-      where: { id: input.evidenceId },
-      select: {
-        templateSlug: true,
-        templateVersion: true,
-        templateDbId: true,
-      },
-    });
-    if (ev) {
-      templateProvenance = {
-        templateSlug: ev.templateSlug ?? null,
-        templateVersion: ev.templateVersion ?? null,
-        templateDbId: ev.templateDbId ?? null,
-      };
-    }
-  } catch {
-    /* identity propagation must never break retention application */
-  }
-
-  // ET-CUS-13 (2026-09-29): its own type. It was recorded as a SECOND
-  // EVIDENCE_CREATED, so every timeline showed the record created twice.
-  // A failed append is observable (ET-CUS-11), not swallowed.
-  {
-    await appendCustodyEvent({
-      evidenceId: input.evidenceId,
-      eventType: prismaPkg.CustodyEventType.RETENTION_POLICY_APPLIED,
-      payload: {
-        retentionPolicyApplied: true,
-        retentionUntilUtc: resolved.retentionUntilUtc.toISOString(),
-        source: resolved.source,
-        // Phase 6 — template provenance trio for downstream
-        // traceability. Identity-only; never drives policy.
-        templateSlug: templateProvenance.templateSlug,
-        templateVersion: templateProvenance.templateVersion,
-        templateDbId: templateProvenance.templateDbId,
-      },
-    }).catch((err) =>
-      swallowCustodyAppendError(err, {
-        surface: "governance.applyRetentionPolicy",
-        evidenceId: input.evidenceId,
-        custodyEventType: "RETENTION_POLICY_APPLIED",
-      }),
-    );
-  }
-
-  return { applied: true, retentionUntilUtc: resolved.retentionUntilUtc };
-}
+// UC-ARCH-002 — applyRetentionPolicyOnCreate was removed: createEvidence (the canonical
+// writer) applies the workspace retention for every channel inside its transaction and
+// writes RETENTION_POLICY_APPLIED there, naming the template trio when the ingress knows it
+// (proven by test/retention-template-provenance.integration.test.ts).
 
 // -----------------------------------------------------------------------------
 // emitPolicyBlockedEvent — helper for routes that need to record a

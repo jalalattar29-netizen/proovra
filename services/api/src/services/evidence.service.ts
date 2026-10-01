@@ -257,6 +257,18 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
    */
   acquisitionMode: EvidenceAcquisitionMode;
   /**
+   * Phase T / UC-ARCH-002 — the canonical template-identity trio, when the ingress already
+   * knows it (an intake link carries it from the moment it was created). Stamped in the
+   * INSERT and carried by the RETENTION_POLICY_APPLIED custody event written in the same
+   * transaction, so retention provenance names the template. Identity only — it never
+   * drives the retention decision. Ingresses that resolve it later stamp it afterwards.
+   */
+  templateIdentity?: {
+    templateSlug: string;
+    templateVersion: number | null;
+    templateDbId: string | null;
+  } | null;
+  /**
    * The server-issued direct-capture session this record is reserved for, when
    * the caller is the session adapter. Recorded on EVIDENCE_CREATED only; the
    * binding itself is the session's `finalizedEvidenceId`.
@@ -506,6 +518,13 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     const evidence = await tx.evidence.create({
 data: {
   ownerUserId: params.ownerUserId,
+  ...(params.templateIdentity
+    ? {
+        templateSlug: params.templateIdentity.templateSlug,
+        templateVersion: params.templateIdentity.templateVersion,
+        templateDbId: params.templateIdentity.templateDbId,
+      }
+    : {}),
   originalFileName: resolvedFileNames.originalFileName,
   displayFileName: resolvedFileNames.displayFileName,
   // Phase HOME-DATA-OWNERSHIP — always the REAL resolved team id
@@ -662,9 +681,10 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
           retentionPolicyApplied: true,
           retentionUntilUtc: retentionOnCreate.retentionUntilUtc.toISOString(),
           source: retentionOnCreate.source,
-          templateSlug: null,
-          templateVersion: null,
-          templateDbId: null,
+          // Template provenance trio (identity only; never drives policy).
+          templateSlug: params.templateIdentity?.templateSlug ?? null,
+          templateVersion: params.templateIdentity?.templateVersion ?? null,
+          templateDbId: params.templateIdentity?.templateDbId ?? null,
         } as prismaPkg.Prisma.InputJsonValue,
       });
     }
