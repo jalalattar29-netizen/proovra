@@ -3,14 +3,16 @@
   "findings": {
     "G-DEAD-WRITER-001": {
       "severity": "product",
-      "status": "REPORTED_NOT_FIXED",
+      "status": "FIXED",
       "summary": "applyRetentionPolicyOnCreate (services/api/src/services/governance.service.ts:1210, writer evidence.update@1224) has had no production caller since 718a4d15 moved workspace retention into createEvidence. It is a real DEAD_UNREACHABLE writer, so MutationClosurePass=false and --closure-check reports ReleaseBlockingClosure=FAIL (UNWIRED EXECUTABLE WRITERS: 1).",
-      "remedy": "Delete the function (product source; outside lane G) and re-point services/api/test/phase-t-downstream-traceability.test.ts Part D at createEvidence."
+      "remedy": "Delete the function (product source; outside lane G) and re-point services/api/test/phase-t-downstream-traceability.test.ts Part D at createEvidence.",
+      "resolution": "Fixed by the lead in 9671120a: applyRetentionPolicyOnCreate deleted; phase-t-downstream-traceability Part D re-pointed. Engine-check PASS and --closure-check ReleaseBlockingClosure PASS (MutationClosurePass true, dead writers 0) after 4be38d23."
     },
     "G-RETENTION-PROVENANCE-002": {
       "severity": "product (possible regression)",
-      "status": "REPORTED_NOT_FIXED",
-      "summary": "The live RETENTION_POLICY_APPLIED event written by createEvidence (services/api/src/services/evidence.service.ts ~656-668) hard-codes templateSlug/templateVersion/templateDbId null; the dead applyRetentionPolicyOnCreate threaded the template trio. phase-t-downstream-traceability Part D still passes only because it calls the dead function, so it no longer proves the live path."
+      "status": "FIXED",
+      "summary": "The live RETENTION_POLICY_APPLIED event written by createEvidence (services/api/src/services/evidence.service.ts ~656-668) hard-codes templateSlug/templateVersion/templateDbId null; the dead applyRetentionPolicyOnCreate threaded the template trio. phase-t-downstream-traceability Part D still passes only because it calls the dead function, so it no longer proves the live path.",
+      "resolution": "Fixed by the lead in 9671120a: createEvidence takes the template identity and names it in the same-transaction RETENTION_POLICY_APPLIED event; intake passes its link's trio. Live-PG suite services/api/test/retention-template-provenance.integration.test.ts 3/3, red on the previous code."
     }
   },
   "instrumentResolutions": [

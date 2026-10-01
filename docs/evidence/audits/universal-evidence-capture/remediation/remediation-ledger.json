@@ -6,10 +6,26 @@
   "baseSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
   "extraWorkItems": [
     {
+      "key": "G-DEAD-WRITER-001",
+      "lane": "G",
+      "status": "FIXED"
+    },
+    {
+      "key": "G-RETENTION-PROVENANCE-002",
+      "lane": "G",
+      "status": "FIXED"
+    },
+    {
       "key": "R02-WEB-SCREEN-CAPTURE",
       "lane": "W",
       "status": "FIXED",
       "decision": "Owner mandate A: browser screen recording on the Capture page via getDisplayMedia (useCaptureScreenRecorder + CaptureScreenRecorderCard + a 'Screen' action in CaptureDropzone shown only where supported). Honest permission handling (denied → nothing recorded, retryable), recording/paused/stopped states, limitations recorded on the part's sourceLabel (browser-reported surface, audio only if the browser granted an audio track, ended-by-browser, pauses) and stated on the card (no device/OS attestation). The recording is ONE VIDEO item through the existing addFilesToSession and is sealed by the same Finish & Sign (so UC-WEB-001 resume applies); the server assigns its normal web acquisition mode. Cancel/discard stops sharing and leaves it reusable; a failed add keeps the recording for retry; tracks are released on unmount."
+    },
+    {
+      "key": "RERUN-DESTRUCTION-APPROVAL-QUEUES",
+      "lane": "LEAD",
+      "status": "FIXED",
+      "decision": "Found by remediation journey J13 (required journey R14b, permanent destruction), not one of the 119 audit findings. A destruction review opened on an ACTIVE record — the only kind the Destruction page can open — and approved could never execute: the lifecycle table has no ACTIVE -> DESTROYED edge and nothing moved the record to PENDING_DESTRUCTION, so EXECUTED always answered 409 DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE. Approval now moves the record ACTIVE -> PENDING_DESTRUCTION through the lifecycle orchestrator before the review is marked APPROVED (a refusal there refuses the approval); cancelling an approved review returns the record to ACTIVE; a hold still wins."
     },
     {
       "key": "UC-ARCH-006 (lead request)",
@@ -782,6 +798,10 @@
         {
           "sha": "6934514c6d49",
           "subject": "fix(capture): continuous/iOS/Android capture seals only what was truly recorded (UC-2 / UC-3 / UC-5)"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "none",
@@ -1079,6 +1099,14 @@
         {
           "sha": "193e42c49ad0",
           "subject": "fix(retention): legacy capture records get their workspace's default retention (UC-ARCH-002)"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
+        },
+        {
+          "sha": "9671120a39ba",
+          "subject": "fix(retention): intake retention custody names its template again; the dead retention helper is removed (UC-ARCH-002)"
         }
       ],
       "migrations": "20281001000700_retention_backfill_direct_capture (BACKFILL, Release C WAIT_FOR_BACKFILL_READINESS, after a backup)",
@@ -1149,6 +1177,10 @@
         {
           "sha": "718a4d15ec93",
           "subject": "fix(api): one canonical finalizer for every channel; upload sessions bound to their creator; case holds hold; allowances cannot be gamed"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "see migrationRequests (optional workflow backfill)",
@@ -1269,6 +1301,10 @@
         {
           "sha": "718a4d15ec93",
           "subject": "fix(api): one canonical finalizer for every channel; upload sessions bound to their creator; case holds hold; allowances cannot be gamed"
+        },
+        {
+          "sha": "068efffd9da4",
+          "subject": "fix(billing): only unsealed over-allowance records hold a credit (UC-COM-003 follow-up)"
         }
       ],
       "migrations": "none",
@@ -1771,6 +1807,10 @@
         {
           "sha": "d8e1f8605c5f",
           "subject": "chore(migrations): register the four Universal Evidence Capture closure migrations"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "landed",
@@ -1985,6 +2025,10 @@
         {
           "sha": "b4b035380ac8",
           "subject": "fix(trust): Public Verify, reports and packages state only what was proven (UC-0a / UC-0b)"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "none",
@@ -2710,7 +2754,7 @@
       },
       "green": {
         "tests": [
-          "apps/web/__tests__/legal-screen-capture-disclosure.test.ts (authored + hero: pass; slug registration: pending cross-lane)",
+          "apps/web/__tests__/legal-screen-capture-disclosure.test.ts (authored, hero and slug registration: pass after 0f6f9244)",
           "apps/web/__tests__/legal-screen-capture-disclosure.test.ts",
           "apps/web/__tests__/legal-corpus-freshness.test.ts",
           "apps/mobile/test/product-manifest-coverage.test.mjs"
@@ -3809,6 +3853,10 @@
         {
           "sha": "d87a3673bb63",
           "subject": "fix(trust): signatures are bound to the key that made them; personal records can be published; honest link usability (UC-TRUST-003 / UC-TRUST-004 / UC-OUT-005 / UC-OUT-001 / UC-PROV-001)"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "20281001000400_signing_key_identity_immutable (written and applied by the lead)",
@@ -3889,6 +3937,10 @@
         {
           "sha": "d87a3673bb63",
           "subject": "fix(trust): signatures are bound to the key that made them; personal records can be published; honest link usability (UC-TRUST-003 / UC-TRUST-004 / UC-OUT-005 / UC-OUT-001 / UC-PROV-001)"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "see lead migration 20281001000500; 20281001000500_capture_trust_events_append_only (written and applied by the lead)",
@@ -3991,8 +4043,8 @@
         "services/worker/src/integrity-recheck.ts:11"
       ],
       "runtimeEvidenceStatus": "runtime-proven",
-      "owner": "lane T",
-      "decision": "Separated the recorded (signed) digest from the current object state: StoredBytesIntegrity gains checkStatus (VERIFIED/MISMATCH/UNAVAILABLE/STALE/PENDING/UNKNOWN), pinnedVersionId, recordedDigest and a SHORT freshness window (STORED_BYTES_FRESHNESS_HOURS, default 24h) distinct from the 30-day recheck cadence; only a passing pinned-version check inside the window is 'Verified', older is 'Stale — last verified <time>' and Public Verify requests a pinned-version recheck. The report cover states which digest / object version(s) it certifies and when they were re-read; package original-linkage carries storageVersionId per original. Real-MinIO tamper test through the worker recheck + public verify projection. Fixed the API test harness (safe-environment.ts) which scrubbed P7_HOST_S3_PORT so integration runs silently used the default MinIO port.",
+      "owner": "lead",
+      "decision": "Separated the recorded (signed) digest from the current object state: StoredBytesIntegrity gains checkStatus (VERIFIED/MISMATCH/UNAVAILABLE/STALE/PENDING/UNKNOWN), pinnedVersionId, recordedDigest and a SHORT freshness window (STORED_BYTES_FRESHNESS_HOURS, default 24h) distinct from the 30-day recheck cadence; only a passing pinned-version check inside the window is 'Verified', older is 'Stale — last verified <time>' and Public Verify requests a pinned-version recheck. The report cover states which digest / object version(s) it certifies and when they were re-read; package original-linkage carries storageVersionId per original. Real-MinIO tamper test through the worker recheck + public verify projection. Fixed the API test harness (safe-environment.ts) which scrubbed P7_HOST_S3_PORT so integration runs silently used the default MinIO port. LEAD ADJUDICATION: The remediation journey rerun (J06, disposable stack, unversioned MinIO) showed the lane fix incomplete: after in-place substitution Public Verify still said storedBytes verified_current / VERIFIED inside the 24 h window, because 'current' never required a pinned version. Fixed in a606dcaa: current only when every object the check read is a pinned, immutable version (fail closed); J06 now asserts the stored-bytes row, not only the headline.",
       "red": {
         "test": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-008: a passing check 3 days old is STALE, not Verified",
         "command": "cd packages/shared && node --test tests/stored-bytes-trust-closure.test.mjs (pre-change dist)",
@@ -4003,16 +4055,24 @@
           "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008 (2 tests, real MinIO 127.0.0.1:59711 point7-local-bucket: overwrite -> STALE, never Verified; requested recheck reads the real object -> MISMATCH)",
           "services/api/test/integrity-recheck.integration.test.ts",
           "services/worker/test/report-trust-truth.test.ts::UC-TRUST-008",
-          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::TRUST-008"
+          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::TRUST-008",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008: a fresh pass over an UNVERSIONED object is STALE, never VERIFIED (real MinIO in-place substitution; red on the previous resolver: verified_current)",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008: a fresh pinned-version recheck against MinIO is the only VERIFIED (versioned bucket)",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs (10)",
+          "runtime/remediation/journeys-raw.json#J06-integrity-tamper"
         ],
-        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/public-verify-stored-bytes-truth.integration.test.ts test/integrity-recheck.integration.test.ts",
-        "result": "6 + 13 passed"
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/public-verify-stored-bytes-truth.integration.test.ts test/integrity-recheck.integration.test.ts ; TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_test (fully migrated) … npx vitest run --config vitest.integration.config.ts",
+        "result": "6 + 13 passed ; 8/8 + 10/10"
       },
       "proofKind": "integration-real-db",
       "implementationCommits": [
         {
           "sha": "b4b035380ac8",
           "subject": "fix(trust): Public Verify, reports and packages state only what was proven (UC-0a / UC-0b)"
+        },
+        {
+          "sha": "a606dcaa5e29",
+          "subject": "fix(trust): a stored-bytes pass is \"current\" only over a pinned, immutable version (UC-TRUST-008)"
         }
       ],
       "migrations": "none",
@@ -4076,6 +4136,10 @@
         {
           "sha": "718a4d15ec93",
           "subject": "fix(api): one canonical finalizer for every channel; upload sessions bound to their creator; case holds hold; allowances cannot be gamed"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "none",
@@ -4959,8 +5023,8 @@
         "services/api/src/services/billing-enforcement.service.ts:923"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane A",
-      "decision": "Admission subtracts credits already committed to admitted, unsealed over-allowance records (pending = planOccupying − cap) from the wallet before deciding, for both lifetime and rolling-window plans, so one banked credit admits exactly one over-allowance capture.",
+      "owner": "lead",
+      "decision": "Admission subtracts credits already committed to admitted, unsealed over-allowance records (pending = planOccupying − cap) from the wallet before deciding, for both lifetime and rolling-window plans, so one banked credit admits exactly one over-allowance capture. LEAD ADJUDICATION: The full integration run (fresh DB) found the admission arithmetic counted SEALED records over the allowance as credit commitments, so a lapsed tenant's banked credit was never usable (409 while billing said CREDIT_AVAILABLE). Fixed in 068efffd: pending = min(unsealed, occupying - cap); the lapsed-plan race test keeps its settlement proof and now asserts the second HTTP admission is refused.",
       "red": {
         "test": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-003: one banked credit admits exactly one over-allowance capture",
         "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts (HEAD billing swapped in)",
@@ -4968,16 +5032,22 @@
       },
       "green": {
         "tests": [
-          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-003: one banked credit admits exactly one over-allowance capture"
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-003: one banked credit admits exactly one over-allowance capture",
+          "services/api/test/lapsed-plan-creation-policy.integration.test.ts::lapsed with a valid credit: the record is admitted, funded by the credit, and earns its outputs",
+          "services/api/test/lapsed-plan-creation-policy.integration.test.ts::two lapsed records settling on ONE credit: exactly one is funded, the balance never goes negative"
         ],
-        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts",
-        "result": "8 passed"
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts ; TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_test (fully migrated) … npx vitest run --config vitest.integration.config.ts",
+        "result": "8 passed ; lapsed-plan 9/9 + commitments 8/8 (red before 068efffd: 409 != 201)"
       },
       "proofKind": "integration-real-db",
       "implementationCommits": [
         {
           "sha": "718a4d15ec93",
           "subject": "fix(api): one canonical finalizer for every channel; upload sessions bound to their creator; case holds hold; allowances cannot be gamed"
+        },
+        {
+          "sha": "068efffd9da4",
+          "subject": "fix(billing): only unsealed over-allowance records hold a credit (UC-COM-003 follow-up)"
         }
       ],
       "migrations": "none",
@@ -5291,8 +5361,8 @@
         "packages/shared-runtime/src/media-intelligence/screen-intelligence.service.ts:649"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane D",
-      "decision": "One eligibility authority (shared-runtime evaluateDerivedProductionEligibility: trashed / PENDING_DESTRUCTION / DESTROYED / soft-deleted refuse; a legal hold does not stop production) is checked by the UC-4 handler before work, by the orchestrator before EVERY persist (keyframe, descriptor, supersession, text) — a record destroyed mid-run stops receiving writes and what was written is marked FAILED, never current — and by the Phase-31 processor at start and immediately before storing. The stranded-run reconciler now selects stranded PENDING runs in SQL with the lifecycle exclusion (no starvation) and never re-enqueues a run of an ineligible record; the reconciler's derived-asset list now reuses the shared constant. The generate route refuses an ineligible record (409 evidence_not_eligible).",
+      "owner": "lead",
+      "decision": "One eligibility authority (shared-runtime evaluateDerivedProductionEligibility: trashed / PENDING_DESTRUCTION / DESTROYED / soft-deleted refuse; a legal hold does not stop production) is checked by the UC-4 handler before work, by the orchestrator before EVERY persist (keyframe, descriptor, supersession, text) — a record destroyed mid-run stops receiving writes and what was written is marked FAILED, never current — and by the Phase-31 processor at start and immediately before storing. The stranded-run reconciler now selects stranded PENDING runs in SQL with the lifecycle exclusion (no starvation) and never re-enqueues a run of an ineligible record; the reconciler's derived-asset list now reuses the shared constant. The generate route refuses an ineligible record (409 evidence_not_eligible). LEAD ADJUDICATION: The remediation journey rerun found derived production accepted for a record that never sealed (J10 on J09's UPLOADING record: 202 and a COMPLETED reconstruction). Fixed in 0408adaa: the one eligibility gate also requires status SIGNED/REPORTED (evidence_not_sealed).",
       "red": {
         "test": "services/worker/test/media-intelligence-stranded-run-lifecycle.test.ts::re-enqueues a live record's run and never a trashed / destruction-bound / destroyed record's run; persistence suite DER-013 (2 tests)",
         "command": "cd services/worker && npx vitest run test/media-intelligence-stranded-run-lifecycle.test.ts (HEAD reconciler); persistence suite vs HEAD orchestrator",
@@ -5304,16 +5374,22 @@
           "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts::DER-013 (2)",
           "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts::DER-013",
           "services/worker/test/derived-assets-processor-lineage.test.ts::a trashed record gets no derived bytes",
-          "services/worker/test/et-q-07-derived-asset-reconciler.test.ts (regression)"
+          "services/worker/test/et-q-07-derived-asset-reconciler.test.ts (regression)",
+          "services/api/test/derived-review-release-and-generations.integration.test.ts::a record that never sealed (UPLOADING, or a refused hash-mismatch) is not a source (red: 202 + queued run)",
+          "services/worker full suite (1218 passed, 1 skipped)"
         ],
-        "command": "worker vitest (with and without TEST_DATABASE_URL)",
-        "result": "all passed"
+        "command": "worker vitest (with and without TEST_DATABASE_URL) ; TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_test (fully migrated) … npx vitest run --config vitest.integration.config.ts",
+        "result": "all passed ; 14/14"
       },
       "proofKind": "integration-real-db",
       "implementationCommits": [
         {
           "sha": "69e995c58803",
           "subject": "fix(derivatives): derived generations are preserved, self-describing, gated and re-runnable (UC-4 / UC-0c)"
+        },
+        {
+          "sha": "0408adaaa26b",
+          "subject": "fix(derived): only a sealed record is a source for derived production (UC-DER-013 follow-up)"
         }
       ],
       "migrations": "none",
@@ -5376,6 +5452,10 @@
         {
           "sha": "d8e1f8605c5f",
           "subject": "chore(migrations): register the four Universal Evidence Capture closure migrations"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "landed",
@@ -5485,6 +5565,10 @@
         {
           "sha": "1fd1813d6ca7",
           "subject": "fix(extension): Direct Web Capture works for a real user and passes real Chrome + Edge acceptance (UC-1)"
+        },
+        {
+          "sha": "b91d4b0d3cb3",
+          "subject": "chore(ucc): repo-wide lint and typecheck green on the remediation branch"
         }
       ],
       "migrations": "none",
@@ -5753,7 +5837,7 @@
       },
       "green": {
         "tests": [
-          "apps/web/__tests__/capture-alert-rules.test.ts (4 of 5 pass; counter-registry assertion pending cross-lane)",
+          "apps/web/__tests__/capture-alert-rules.test.ts (5 of 5 pass after the counters landed in 7af5861c)",
           "apps/web/__tests__/capture-alert-rules.test.ts"
         ],
         "command": "same ; node scripts/run-tests.mjs capture-alert",
@@ -7000,6 +7084,10 @@
         {
           "sha": "b4b035380ac8",
           "subject": "fix(trust): Public Verify, reports and packages state only what was proven (UC-0a / UC-0b)"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "none",
@@ -7106,6 +7194,10 @@
         {
           "sha": "0364d89aef47",
           "subject": "feat(web): web screen capture, installable PWA, honest capture states, CI shards for capture proofs"
+        },
+        {
+          "sha": "9f3d8203c057",
+          "subject": "test(governance): source pins follow the corrected behaviour; documented size rebaselines; backfill in Release C"
         }
       ],
       "migrations": "none",

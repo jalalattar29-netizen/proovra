@@ -1,0 +1,29 @@
+{
+  "lane": "LEAD",
+  "findings": {
+    "RERUN-DESTRUCTION-APPROVAL-QUEUES": {
+      "status": "FIXED",
+      "proofKind": "integration-real-pg",
+      "decision": "Found by remediation journey J13 (required journey R14b, permanent destruction), not one of the 119 audit findings. A destruction review opened on an ACTIVE record — the only kind the Destruction page can open — and approved could never execute: the lifecycle table has no ACTIVE -> DESTROYED edge and nothing moved the record to PENDING_DESTRUCTION, so EXECUTED always answered 409 DESTRUCTION_REVIEW_BLOCKED_BY_LIFECYCLE. Approval now moves the record ACTIVE -> PENDING_DESTRUCTION through the lifecycle orchestrator before the review is marked APPROVED (a refusal there refuses the approval); cancelling an approved review returns the record to ACTIVE; a hold still wins.",
+      "red": {
+        "test": "services/api/test/destruction-review-approval-queues.integration.test.ts::approving a review on an ACTIVE record moves it to PENDING_DESTRUCTION",
+        "command": "same suite against the previous destruction-review.service.ts",
+        "observed": "expected 'ACTIVE' to be 'PENDING_DESTRUCTION'; on the stack: EXECUTED -> 409 LIFECYCLE_INVALID_TRANSITION"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/destruction-review-approval-queues.integration.test.ts (3)",
+          "services/api/test/lifecycle-force-destroy-refused.integration.test.ts",
+          "services/api/test/evidence-destruction-storage.integration.test.ts",
+          "services/api/test/legal-hold-destruction-serialization.integration.test.ts",
+          "services/api/test/defects-destruction-refusals.integration.test.ts",
+          "runtime/remediation/journeys-raw.json#J13-governed-permanent-destruction"
+        ],
+        "command": "vitest integration (live PG16)",
+        "result": "3/3 + 25/25"
+      },
+      "migration": "none",
+      "impacts": { "lifecycle": "approval writes one lifecycle_transition ledger row (ACTIVE -> PENDING_DESTRUCTION)" }
+    }
+  }
+}

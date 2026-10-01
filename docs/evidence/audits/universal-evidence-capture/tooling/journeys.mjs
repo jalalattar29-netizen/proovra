@@ -399,6 +399,11 @@ await journey("J06-integrity-tamper", "Tamper stored original bytes; the product
   const s = JSON.stringify(pub2.json ?? {});
   check("public verify reachable after tamper", pub2.status === 200, pub2.status);
   check("public verify after regeneration does not present a clean VERIFIED headline", !/"(verdict|headline|status)":"(VERIFIED|verified|INTACT)"/.test(s), s.slice(0, 400));
+  // Remediation rerun (UC-TRUST-008): the headline is not enough — the STORED BYTES row
+  // must not claim the substituted object is currently verified either.
+  const sb = pub2.json?.basicVerification?.storedBytes ?? null;
+  obs.storedBytesAfterTamper = sb;
+  check("stored bytes are not presented as currently verified after substitution", sb && sb.state !== "verified_current" && sb.checkStatus !== "VERIFIED", sb);
 });
 
 
@@ -540,13 +545,17 @@ await journey("J09-continuous-direct-capture-to-public-verify", "Android continu
     });
   }
   const manifest = {
-    schemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V1",
+    // Remediation rerun: the server now speaks continuity manifest V2 (UC-STR-002), which
+    // adds the REQUIRED recordedSegmentCount (how many segments the recorder produced).
+    // The audit run sent V1; the client app was moved to V2 in the same change.
+    schemaVersion: "PROOVRA_SCREEN_CAPTURE_CONTINUOUS_MANIFEST_V2",
     captureSessionId: sessionId,
     captureStartedAtUtc: new Date(Date.now() - 2500).toISOString(),
     captureEndedAtUtc: new Date(Date.now() - 500).toISOString(),
     device: { platform: "android", osVersion: "14", model: "Pixel 8", appVersion: "1.0.0", screenW: 1080, screenH: 2400, densityDpi: 420, orientation: "portrait" },
     osConsentGranted: true,
     totalDurationMs: 2000,
+    recordedSegmentCount: segs.length,
     segments: segs,
     sessionCompleteness: "COMPLETE_SESSION",
     terminationReason: "USER_STOPPED",
@@ -632,6 +641,123 @@ await journey("J11-destroy-and-free-slot", "FREE record: trash → governed dest
   const fourth = await webUpload(free, free.teamId, png(70));
   obs.fourthAfterDestroyAttempt = { status: fourth.created.status, body: fourth.created.json };
   check("destruction attempt answered with a governed, non-5xx response", transitions.every((t) => t.status < 500), transitions.map((t) => t.status));
+});
+
+// ---------------------------------------------------------------- remediation rerun additions
+// R13 and R14b were BLOCKED in the audit only because they had not been driven end to end;
+// neither needs anything external, so the remediation rerun drives them on the same stack.
+
+await journey("J12-failure-and-recovery", "Induced capture failures (finalize before bytes, bytes that do not match the declared digest) are refused with no false completion; the SAME record then recovers to Public Verify", async (check, obs) => {
+  const bytes = png(80);
+  const wrong = png(81);
+  const created = await call(ownerA, "POST", "/v1/evidence", {
+    type: "PHOTO", teamId: ownerA.teamId, mimeType: "image/png", originalFileName: "recover.png", captureFileName: "recover.png",
+    deviceTimeIso: new Date().toISOString(), checksumSha256Base64: sha256b64(bytes), contentMd5Base64: md5b64(bytes),
+  });
+  check("record created", created.status < 300, created.status);
+  const id = created.json?.id;
+  const part = await call(ownerA, "POST", `/v1/evidence/${id}/parts`, {
+    partIndex: 0, mimeType: "image/png", originalFileName: "recover.png", checksumSha256Base64: sha256b64(bytes), contentMd5Base64: md5b64(bytes),
+  });
+  check("part declared", part.status < 300, part.status);
+  const statusOf = () => sql(`select status from evidence where id='${id}'`).rows?.[0] ?? "";
+
+  const early = await call(ownerA, "POST", `/v1/evidence/${id}/complete`, {});
+  obs.finalizeWithoutBytes = { status: early.status, body: early.json };
+  check("failure 1: finalize before the bytes exist is refused (4xx, not 5xx)", early.status >= 400 && early.status < 500, early.status);
+  obs.statusAfterFailure1 = statusOf();
+  check("failure 1 leaves no false completion", !/SIGNED|REPORTED/.test(obs.statusAfterFailure1), obs.statusAfterFailure1);
+
+  const badPut = await call(null, "PUT", part.json?.upload?.putUrl, wrong, {
+    raw: true,
+    headers: { "content-type": "image/png", "x-amz-checksum-sha256": sha256b64(bytes), "Content-MD5": md5b64(bytes) },
+  });
+  obs.wrongBytesPut = badPut.status;
+  check("failure 2: storage refuses bytes that do not match the declared digest", badPut.status >= 400, badPut.status);
+  const again = await call(ownerA, "POST", `/v1/evidence/${id}/complete`, {});
+  obs.finalizeAfterWrongBytes = { status: again.status, body: again.json };
+  check("failure 2: finalize is still refused", again.status >= 400 && again.status < 500, again.status);
+  obs.statusAfterFailure2 = statusOf();
+  check("failure 2 leaves no false completion", !/SIGNED|REPORTED/.test(obs.statusAfterFailure2), obs.statusAfterFailure2);
+
+  const put = await call(null, "PUT", part.json?.upload?.putUrl, bytes, {
+    raw: true,
+    headers: { "content-type": "image/png", "x-amz-checksum-sha256": sha256b64(bytes), "Content-MD5": md5b64(bytes) },
+  });
+  check("recovery: the correct bytes are accepted", put.status < 300, put.status);
+  const done = await call(ownerA, "POST", `/v1/evidence/${id}/complete`, {});
+  obs.finalizeAfterRecovery = { status: done.status, body: done.json };
+  check("recovery: the same record finalizes", done.status < 300, done.status);
+  const st = await pollOutputs(ownerA, id);
+  check("recovery: report and package produced by the worker", st?.report?.available === true && st?.verificationPackage?.available === true, st?.outputs);
+  const fp = sql(`select file_sha256 from evidence where id='${id}'`).rows?.[0] ?? "";
+  check("the sealed digest is the correct bytes' digest, never the refused ones", fp === createHash("sha256").update(bytes).digest("hex"), fp);
+  const link = await mintShare(ownerA, id, ownerA.teamId, "recovery");
+  const pub = await call(null, "GET", `/public/verify/${link.json?.token}`);
+  check("recovery: Public Verify answers for the recovered record", pub.status === 200, pub.status);
+  const rows = sql(`select count(*) from evidence where original_file_name='recover.png' and team_id='${ownerA.teamId}'`).rows?.[0];
+  obs.recordsNamedRecover = rows;
+});
+
+await journey("J13-governed-permanent-destruction", "Enterprise record: retention passes → destruction review → step-up approve → execute → bytes gone from storage, one certificate, the share link stops verifying", async (check, obs) => {
+  const u = await webUpload(ownerA, ownerA.teamId, png(90));
+  check("record completed", u.complete?.status < 300, u.complete?.status);
+  await pollOutputs(ownerA, u.id);
+  const link = await mintShare(ownerA, u.id, ownerA.teamId, "destruction");
+  const before = await call(null, "GET", `/public/verify/${link.json?.token}`);
+  check("share link verifies before destruction", before.status === 200, before.status);
+  const objects = (sql(`select storage_bucket, storage_key from evidence_parts where evidence_id='${u.id}'`).rows ?? []).map((r) => r.split("|"));
+  obs.objects = objects.length;
+  check("stored original present before destruction", objects.length > 0 && objects.every(([b, k]) => mc(`mc stat l/${b}/${k}`).status === 0), objects.length);
+  // Governed destruction starts from an ACTIVE record (the lifecycle table has no
+  // transition out of TRASHED): the review moves it to PENDING_DESTRUCTION and the
+  // executed review to DESTROYED. Time passes for THIS record only, in the disposable
+  // database: its application retention lies in the past. The bucket has no Object Lock.
+  obs.aged = sql(`update evidence set retention_until_utc = now() - interval '1 day' where id='${u.id}' returning id`);
+  const rv = await call(ownerA, "POST", "/v1/governance/destruction-reviews", { teamId: ownerA.teamId, evidenceId: u.id, reason: "manual_review" });
+  obs.createReview = { status: rv.status, body: rv.json };
+  check("destruction review created", rv.status === 201, rv.status);
+  const rid = rv.json?.review?.id;
+  const steps = [];
+  for (const nextStatus of ["UNDER_REVIEW", "APPROVED", "EXECUTED"]) {
+    const body = { teamId: ownerA.teamId, nextStatus, decisionNote: "UCA remediation journey" };
+    let r = await call(ownerA, "POST", `/v1/governance/destruction-reviews/${rid}/transition`, body);
+    if (r.status === 401 && r.json?.error?.code === "STEP_UP_REQUIRED") {
+      const su = await stepUp(ownerA, ownerA.teamId, nextStatus === "APPROVED" ? "EVIDENCE_DESTRUCTION_APPROVE" : "EVIDENCE_DESTRUCTION_EXECUTE", "destruction_review", rid);
+      r = su.error ? { status: 0, json: su } : await call(ownerA, "POST", `/v1/governance/destruction-reviews/${rid}/transition`, body, { headers: { "x-proovra-step-up-challenge-id": su.challengeId } });
+    }
+    steps.push({ nextStatus, status: r.status, body: r.json });
+  }
+  obs.transitions = steps;
+  // The approval (step-up) is the human decision; execution is then done either by the
+  // operator's own EXECUTE (step-up) or by the worker's destruction orchestrator, which
+  // sweeps APPROVED reviews — whichever comes first. Both are the designed path; the
+  // other one then meets an already-EXECUTED review.
+  const [review, approve, execute] = steps;
+  check("review and step-up approval accepted", review?.status === 200 && approve?.status === 200, steps.map((s) => `${s.nextStatus}:${s.status}`));
+  const reviewRow = sql(`select status from destruction_reviews where id='${rid}'`).rows?.[0] ?? "";
+  const executedBy =
+    execute?.status === 200 ? "operator EXECUTE (step-up)"
+      : execute?.status === 400 && execute?.body?.error?.details?.from === "EXECUTED" ? "destruction orchestrator (APPROVED sweep)"
+        : null;
+  obs.executedBy = executedBy;
+  check("the approved review was executed exactly once (operator or orchestrator)", reviewRow === "EXECUTED" && executedBy !== null, { reviewRow, executedBy, execute: execute?.status });
+  let row = "";
+  for (let i = 0; i < 36; i += 1) {
+    row = sql(`select lifecycle_state, destroyed_at_utc is not null from evidence where id='${u.id}'`).rows?.[0] ?? "";
+    if (row.startsWith("DESTROYED|t")) break;
+    await sleep(5000);
+  }
+  obs.row = row;
+  check("record tombstoned DESTROYED with a destruction time", row.startsWith("DESTROYED|t"), row);
+  const gone = objects.map(([b, k]) => mc(`mc stat l/${b}/${k}`));
+  obs.storageAfter = gone.map((g) => g.out.slice(0, 200));
+  check("the stored original is gone from storage (verified by reading the bucket)", objects.length > 0 && gone.every((g) => g.status !== 0), gone.map((g) => g.status));
+  const cert = await call(ownerA, "GET", `/v1/governance/destruction-reviews/${rid}/certificate?teamId=${ownerA.teamId}`);
+  check("a destruction certificate exists", cert.status === 200, cert.status);
+  const after = await call(null, "GET", `/public/verify/${link.json?.token}`);
+  obs.publicVerifyAfter = { status: after.status, body: after.json };
+  check("the share link no longer verifies the destroyed record", after.status >= 400 || /destroy/i.test(JSON.stringify(after.json ?? {})), after.status);
 });
 
 writeFileSync(outPath, JSON.stringify({ api: API, generatedAt: new Date().toISOString(), journeys }, null, 2));

@@ -134,6 +134,44 @@ export const DECISIONS = {
     note: "Every visible linked case projected with case-access narrowing (A) and rendered with per-case removal and the hold refusal (W).",
     green: { tests: ["apps/web/__tests__/render/evidence-linked-cases.render.test.tsx"], command: "npx vitest run --config vitest.render.config.ts", result: "passed" },
   },
+  "UC-COM-003": {
+    status: "FIXED",
+    note: "The full integration run (fresh DB) found the admission arithmetic counted SEALED records over the allowance as credit commitments, so a lapsed tenant's banked credit was never usable (409 while billing said CREDIT_AVAILABLE). Fixed in 068efffd: pending = min(unsealed, occupying - cap); the lapsed-plan race test keeps its settlement proof and now asserts the second HTTP admission is refused.",
+    green: {
+      tests: [
+        "services/api/test/lapsed-plan-creation-policy.integration.test.ts::lapsed with a valid credit: the record is admitted, funded by the credit, and earns its outputs",
+        "services/api/test/lapsed-plan-creation-policy.integration.test.ts::two lapsed records settling on ONE credit: exactly one is funded, the balance never goes negative",
+      ],
+      command: RERUN_API,
+      result: "lapsed-plan 9/9 + commitments 8/8 (red before 068efffd: 409 != 201)",
+    },
+  },
+  "UC-TRUST-008": {
+    status: "FIXED",
+    note: "The remediation journey rerun (J06, disposable stack, unversioned MinIO) showed the lane fix incomplete: after in-place substitution Public Verify still said storedBytes verified_current / VERIFIED inside the 24 h window, because 'current' never required a pinned version. Fixed in a606dcaa: current only when every object the check read is a pinned, immutable version (fail closed); J06 now asserts the stored-bytes row, not only the headline.",
+    green: {
+      tests: [
+        "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008: a fresh pass over an UNVERSIONED object is STALE, never VERIFIED (real MinIO in-place substitution; red on the previous resolver: verified_current)",
+        "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008: a fresh pinned-version recheck against MinIO is the only VERIFIED (versioned bucket)",
+        "packages/shared/tests/stored-bytes-trust-closure.test.mjs (10)",
+        "runtime/remediation/journeys-raw.json#J06-integrity-tamper",
+      ],
+      command: RERUN_API,
+      result: "8/8 + 10/10",
+    },
+  },
+  "UC-DER-013": {
+    status: "FIXED",
+    note: "The remediation journey rerun found derived production accepted for a record that never sealed (J10 on J09's UPLOADING record: 202 and a COMPLETED reconstruction). Fixed in 0408adaa: the one eligibility gate also requires status SIGNED/REPORTED (evidence_not_sealed).",
+    green: {
+      tests: [
+        "services/api/test/derived-review-release-and-generations.integration.test.ts::a record that never sealed (UPLOADING, or a refused hash-mismatch) is not a source (red: 202 + queued run)",
+        "services/worker full suite (1218 passed, 1 skipped)",
+      ],
+      command: RERUN_API,
+      result: "14/14",
+    },
+  },
   "UC-COM-004": {
     status: "FIXED",
     note: "Migration 20281001000300 landed (fail closed, merges nothing); ensureEntitlement is the only writer (allow-list test updated); ten concurrent first calls create one active row.",

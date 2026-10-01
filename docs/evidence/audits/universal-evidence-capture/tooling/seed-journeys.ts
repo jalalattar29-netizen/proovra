@@ -33,6 +33,11 @@ async function main(): Promise<void> {
   const { ensurePersonalWorkspace } = await import(
     "../../../../../services/api/src/services/platform-context/workspace-bootstrap.service.js"
   );
+  // Remediation rerun: a token is recorded in the session inventory exactly as a real
+  // sign-in records it (auth.routes.ts), so organization-context switching sees it.
+  const { recordAuthenticatedSession } = await import(
+    "../../../../../services/api/src/services/access-control/session-inventory.service.js"
+  );
   const stamp = Date.now();
 
   async function mkUser(tag: string) {
@@ -60,6 +65,9 @@ async function main(): Promise<void> {
     await prisma.organizationMembership.create({
       data: { organizationId: org.id, userId: ownerId, role: "ORG_OWNER" },
     });
+    // Remediation rerun: product-provisioned organizations carry a security policy
+    // (default row); without it the workspace switch answers 503 POLICY_NOT_PROVISIONED.
+    await prisma.organizationSecurityPolicy.create({ data: { organizationId: org.id } });
     const team = await prisma.team.create({
       data: {
         name: `UCA-${tag}-${stamp}`,
@@ -76,12 +84,16 @@ async function main(): Promise<void> {
     return { orgId: org.id, teamId: team.id };
   }
 
-  const bearer = (u: { id: string; email: string }) =>
-    signJwt(
+  const bearer = async (u: { id: string; email: string }, teamId: string | null) => {
+    const token = signJwt(
       { sub: u.id, provider: "EMAIL", email: u.email, authMethod: "PASSWORD", authAt: Math.floor(Date.now() / 1000) },
       secret,
       60 * 60 * 3,
     );
+    const claims = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8")) as { sid: string; iat: number; exp: number };
+    await recordAuthenticatedSession({ userId: u.id, teamId, sid: claims.sid, iat: claims.iat, exp: claims.exp });
+    return token;
+  };
 
   const ownerA = await mkUser("ownerA");
   const wsA = await mkOrgWorkspace(ownerA.id, "A");
@@ -106,11 +118,11 @@ async function main(): Promise<void> {
 
   process.stdout.write(
     JSON.stringify({
-      ownerA: { ...ownerA, teamId: wsA.teamId, bearer: bearer(ownerA) },
-      viewerA: { ...viewerA, teamId: wsA.teamId, bearer: bearer(viewerA) },
-      memberA: { ...memberA, teamId: wsA.teamId, bearer: bearer(memberA) },
-      ownerB: { ...ownerB, teamId: wsB.teamId, bearer: bearer(ownerB) },
-      free: { ...freeU, teamId: personal.teamId, personalTeam, bearer: bearer(freeU) },
+      ownerA: { ...ownerA, teamId: wsA.teamId, bearer: await bearer(ownerA, wsA.teamId) },
+      viewerA: { ...viewerA, teamId: wsA.teamId, bearer: await bearer(viewerA, wsA.teamId) },
+      memberA: { ...memberA, teamId: wsA.teamId, bearer: await bearer(memberA, wsA.teamId) },
+      ownerB: { ...ownerB, teamId: wsB.teamId, bearer: await bearer(ownerB, wsB.teamId) },
+      free: { ...freeU, teamId: personal.teamId, personalTeam, bearer: await bearer(freeU, personal.teamId) },
     }) + "\n",
   );
   await prisma.$disconnect();
