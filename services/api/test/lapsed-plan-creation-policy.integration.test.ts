@@ -215,14 +215,36 @@ describe("lapsed paid plan — FREE-equivalent creation, earned outputs kept (li
   it("two lapsed records settling on ONE credit: exactly one is funded, the balance never goes negative", async () => {
     const { t } = await proTenantHolding(10, { credits: 1 });
     await lapse(t);
-    // Both drafts are admitted while the credit is unspent.
+    // UC-COM-003 — admission commits the one credit to the first draft, so the
+    // second draft is refused at creation (it used to be admitted and then
+    // refused at seal, after its bytes were uploaded).
     const a = await create(t);
-    const b = await create(t);
-    expect([a.statusCode, b.statusCode]).toEqual([201, 201]);
+    expect(a.statusCode, a.body).toBe(201);
+    const refusedAtAdmission = await create(t);
+    expect(refusedAtAdmission.statusCode).toBe(409);
+    expect(refusedAtAdmission.json().code).toBe("PLAN_LAPSED_ALLOWANCE_EXHAUSTED");
+
+    // Settlement must still hold the line on its own: a second unsealed draft
+    // that exists anyway (admitted by a build before UC-COM-003, or created
+    // outside the HTTP gate) races the first for the ONE credit.
+    const first = await prisma.evidence.findUniqueOrThrow({ where: { id: a.json().id as string } });
+    const b = await prisma.evidence.create({
+      data: {
+        ownerUserId: first.ownerUserId,
+        teamId: first.teamId,
+        organizationId: first.organizationId,
+        type: first.type,
+        status: first.status,
+        mimeType: first.mimeType,
+        acquisitionMode: first.acquisitionMode,
+        acquisitionModeSource: first.acquisitionModeSource,
+      } as never,
+      select: { id: true },
+    });
 
     const outcomes = await Promise.allSettled([
       settleOne(t, a.json().id as string),
-      settleOne(t, b.json().id as string),
+      settleOne(t, b.id),
     ]);
     const funded = outcomes.filter((o) => o.status === "fulfilled");
     const refused = outcomes.filter((o) => o.status === "rejected");

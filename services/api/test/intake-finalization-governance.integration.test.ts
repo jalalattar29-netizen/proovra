@@ -99,6 +99,10 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
         organizationId: team.organizationId,
         ownerUserId: teamA.ownerUserId,
         mimeType: "application/pdf",
+        // UC-ARCH-005 — what every real intake record carries: the finalizer
+        // seals an intake record only through its bound intake session.
+        acquisitionMode: "SECURE_INTAKE_LINK",
+        acquisitionModeSource: "RECORDED_AT_CREATION",
       } as never,
       select: { id: true },
     });
@@ -132,10 +136,22 @@ describe("external intake — finalization governance (live PostgreSQL 16)", () 
       { actorUserId: teamA.ownerUserId },
     );
     const link = { ...minted.link, locationPolicy: "NONE", workflowTemplateSnapshot: {} } as never;
+    // A REAL session row bound to the record (UC-ARCH-005: the finalizer
+    // refuses an intake record whose session it cannot find), left in CREATED
+    // so the SUBMITTED transition after finalization is refused by the state
+    // machine — exactly the ET-INT-13 post-commit failure.
+    const row = await prisma.workflowIntakeSession.create({
+      data: {
+        intakeLinkId: (minted.link as { id: string }).id,
+        evidenceId: ev.id,
+        status: "CREATED",
+        expiresAtUtc: new Date(Date.now() + 3600_000),
+      } as never,
+      select: { id: true },
+    });
     const session = {
-      // Not a DB row: the SUBMITTED transition after finalization fails on it,
-      // which is exactly the ET-INT-13 post-commit failure.
-      id: randomUUID(),
+      // The in-memory value the route would hold; its DB row stays CREATED.
+      id: row.id,
       status: "OPEN",
       expiresAtUtc: new Date(Date.now() + 3600_000),
       consentAcceptedAtUtc: new Date(),

@@ -119,7 +119,7 @@ async function measureAllowance(
   scope: WorkspaceScope,
   client: AllowancePopulationClient,
   options: { since?: Date | null; settling?: EvidenceCapacityCursor | null } = {},
-): Promise<{ planOccupying: number; planPrior: number }> {
+): Promise<{ planOccupying: number; planPrior: number; unsealed: number }> {
   const population = await allowancePopulationWhere(scope, client);
   const base: prismaPkg.Prisma.EvidenceWhereInput = {
     AND: [
@@ -153,7 +153,7 @@ async function measureAllowance(
       })
     : unsealed;
   const sealedPlan = sealed.length - creditFunded;
-  return { planOccupying: sealedPlan + unsealed, planPrior: sealedPlan + unsealedPrior };
+  return { planOccupying: sealedPlan + unsealed, planPrior: sealedPlan + unsealedPrior, unsealed };
 }
 
 /**
@@ -162,8 +162,16 @@ async function measureAllowance(
  * credit admitted any number of over-allowance captures and all but one were
  * refused at seal after their bytes were uploaded.
  */
-function uncommittedCredits(scope: WorkspaceScope, planOccupying: number, cap: number | null): number {
-  const pending = cap === null ? 0 : Math.max(0, planOccupying - cap);
+function uncommittedCredits(
+  scope: WorkspaceScope,
+  measured: { planOccupying: number; unsealed: number },
+  cap: number | null,
+): number {
+  // Only UNSEALED records beyond the allowance hold a credit. Sealed records
+  // over the cap were funded when they sealed (a plan that has since lapsed, or
+  // a credit already consumed and excluded from planOccupying) and commit
+  // nothing: counting them consumed a lapsed tenant's credit before any capture.
+  const pending = cap === null ? 0 : Math.min(measured.unsealed, Math.max(0, measured.planOccupying - cap));
   return Math.max(0, Math.max(0, scope.credits ?? 0) - pending);
 }
 
@@ -432,7 +440,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       plan: scope.plan,
       currentRecordCount: 0,
       effectiveLifetimeRecordCap: 0,
-      availableEvidenceCredits: uncommittedCredits(scope, monthlyCount, contractedMonthlyCap),
+      availableEvidenceCredits: uncommittedCredits(scope, monthly, contractedMonthlyCap),
     });
 
     if (monthlyAdmission.allowed) return;
@@ -490,7 +498,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     plan: scope.plan,
     currentRecordCount: evidenceCount,
     effectiveLifetimeRecordCap: effectiveLifetimeCap,
-    availableEvidenceCredits: uncommittedCredits(scope, evidenceCount, effectiveLifetimeCap ?? null),
+    availableEvidenceCredits: uncommittedCredits(scope, lifetime, effectiveLifetimeCap ?? null),
   });
 
   if (admission.allowed) {
