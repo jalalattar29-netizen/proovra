@@ -38,20 +38,24 @@ concurrency:
 
 jobs:
   ios-simulator-build:
-    # PINNED, not macos-latest. macos-latest moved to macOS 26 (Xcode 26.x
-    # only), and React Native 0.76's bundled `fmt` pod does not compile under
-    # Xcode >= 16.3's clang ("call to consteval function ... is not a constant
-    # expression" in fmt/format-inl.h) — the first run of this job failed there,
-    # before any project source compiled. Expo SDK 52 / RN 0.76 build on Xcode
-    # 16.x <= 16.2 (EAS builds this project on its SDK-52 image), so the
-    # simulator proof uses that toolchain.
+    # PINNED, not macos-latest. macos-latest moved to macOS 26 (Xcode 26.x),
+    # whose clang rejects React Native 0.76's bundled `fmt` pod ("call to
+    # consteval function ... is not a constant expression" in
+    # fmt/format-inl.h) — the first run of this job failed there, before any
+    # project source compiled. Xcode 16.2 (the SDK-52 toolchain) is PROVEN to
+    # compile it here. The macos-15 image does not install 16.2's iOS 18.2
+    # simulator platform, and expo-dev-launcher's storyboard refused without it
+    # ("iOS 18.2 Platform Not Installed"), so the job installs that platform
+    # from Apple with Xcode's own downloader.
     runs-on: macos-15
-    timeout-minutes: 75
+    timeout-minutes: 90
     steps:
-      - name: Select Xcode 16.2 (the SDK-52 toolchain)
+      - name: Select Xcode 16.2 + its iOS simulator platform (the SDK-52 toolchain)
         run: |
           sudo xcode-select -s /Applications/Xcode_16.2.app
           xcodebuild -version
+          xcodebuild -downloadPlatform iOS
+          xcrun simctl list runtimes | grep -E "iOS 18\.2" || { echo "::error::iOS 18.2 simulator platform still missing for Xcode 16.2"; exit 1; }
 
       - uses: actions/checkout@v4
 
