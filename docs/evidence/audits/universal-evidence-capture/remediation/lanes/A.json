@@ -552,7 +552,7 @@
       "status": "NEEDS_CROSS_LANE"
     },
     "UC-COM-001": {
-      "decision": "The allowance population now equals the finalizable population: an unsealed record counts while created OR touched within 24 h, or held by a live intake session / active resumable upload (exact complement of the sweep's expired predicate), and completeEvidence refuses an expired reservation (409 EVIDENCE_RESERVATION_EXPIRED, via the new isEvidenceReservationExpiredTx). Settlement counts every plan-funded sealed record whatever its creation order plus the live unsealed records admitted before the settling one (credit-funded rows excluded).",
+      "decision": "The allowance population now equals the finalizable population: an unsealed record counts while created OR touched within 24 h, or held by a live intake session / active resumable upload (exact complement of the sweep's expired predicate), and completeEvidence refuses an expired reservation (409 EVIDENCE_RESERVATION_EXPIRED, via the new isEvidenceReservationExpiredTx). Settlement counts every plan-funded sealed record whatever its creation order plus the live unsealed records admitted before the settling one (credit-funded rows excluded). Follow-up (lead regression report, intake-lifecycle-remediation ET-INT-03/ET-ACQ-02): the product was correct — the record stayed counted because its operations-side upload_sessions row (opened by createEvidence for every reservation, last_activity_at_utc = creation time) was still inside the 24 h window, and the reservation authority (count AND sweep) treats recent upload activity as live. The test back-dated only evidence.created_at/updated_at; it now also ages upload_sessions.last_activity_at_utc, which is what 25 h of inactivity really looks like. No product change.",
       "red": {
         "test": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: settlement counts every plan-funded record whatever its creation order",
         "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts (HEAD billing-enforcement.service.ts swapped in)",
@@ -567,7 +567,8 @@
           "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: concurrent creations on FREE never exceed the allowance",
           "services/api/test/billing-personal-funding-boundary.integration.test.ts",
           "services/api/test/trash-keeps-allowance-slot.integration.test.ts",
-          "services/api/test/reservation-sweep.integration.test.ts"
+          "services/api/test/reservation-sweep.integration.test.ts",
+          "services/api/test/intake-lifecycle-remediation.integration.test.ts::ET-INT-03 / ET-ACQ-02: an abandoned reservation stops consuming the owner's FREE allowance once it expires"
         ],
         "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts",
         "result": "8 passed"
@@ -577,7 +578,8 @@
         "services/api/src/services/billing-enforcement.service.ts",
         "services/api/src/services/evidence-complete.service.ts",
         "services/api/test/reservation-authority.test.ts",
-        "services/api/test/billing-commercial-correctness.test.ts"
+        "services/api/test/billing-commercial-correctness.test.ts",
+        "services/api/test/intake-lifecycle-remediation.integration.test.ts"
       ],
       "proofKind": "integration-real-db",
       "impacts": {
@@ -925,6 +927,14 @@
     {
       "command": "pnpm --filter proovra-api typecheck",
       "exit": 2
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_test ... vitest integration test/intake-lifecycle-remediation.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=.../proovra_ucc_test ... billing-allowance-commitments, billing-personal-funding-boundary, trash-keeps-allowance-slot, reservation-sweep, evidence-commercial-denial-contract, billing-closure-invariants (53 tests)",
+      "exit": 0
     }
   ]
 }

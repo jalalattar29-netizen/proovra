@@ -121,9 +121,22 @@ describe("intake lifecycle remediation (live PostgreSQL 16)", () => {
     // While the reservation is live it holds the slot (3/3): the owner is refused.
     const whileLive = await h.app.inject({ method: "POST", url: "/v1/evidence", headers: auth(), payload: { type: "PHOTO", mimeType: "image/png" } });
     expect(whileLive.statusCode).toBe(409);
-    // The reservation expires: it no longer consumes the allowance.
     const reservation = await prisma.workflowIntakeSession.findUniqueOrThrow({ where: { id: sessionId }, select: { evidenceId: true } as never }) as unknown as { evidenceId: string };
-    await prisma.evidence.update({ where: { id: reservation.evidenceId }, data: { createdAt: new Date(Date.now() - 25 * 3_600_000) } as never });
+    const aged = new Date(Date.now() - 25 * 3_600_000);
+    await prisma.$executeRaw`UPDATE "evidence" SET "created_at" = ${aged}, "updated_at" = ${aged} WHERE "id" = ${reservation.evidenceId}::uuid`;
+    // 25 h of inactivity also ages the record's upload-activity row: createEvidence opens one
+    // (status PRESIGNED, last_activity_at_utc = now) for every reservation, and the reservation
+    // authority counts a record with upload activity inside the window as live — the same
+    // predicate the sweep uses to decide expiry. Without this the record is (correctly) still
+    // "recently active", not 25 h idle.
+    await prisma.$executeRaw`UPDATE "upload_sessions" SET "last_activity_at_utc" = ${aged} WHERE "evidence_id" = ${reservation.evidenceId}::uuid`;
+    // UC-COM-001 — age alone does not release a reservation its live intake session can still
+    // finalize: the slot stays held while the contributor can submit.
+    const agedButLive = await h.app.inject({ method: "POST", url: "/v1/evidence", headers: auth(), payload: { type: "PHOTO", mimeType: "image/png" } });
+    expect(agedButLive.statusCode).toBe(409);
+    // The reservation EXPIRES (its session is past its expiry, authoritatively): it no longer
+    // consumes the allowance.
+    await prisma.workflowIntakeSession.update({ where: { id: sessionId }, data: { expiresAtUtc: new Date(Date.now() - 60_000) } as never });
     const afterExpiry = await h.app.inject({ method: "POST", url: "/v1/evidence", headers: auth(), payload: { type: "PHOTO", mimeType: "image/png" } });
     expect(afterExpiry.statusCode, afterExpiry.body).toBe(201);
   });
