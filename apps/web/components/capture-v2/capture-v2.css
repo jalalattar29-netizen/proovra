@@ -6803,3 +6803,24 @@ body {
     min-width: 0 !important;
   }
 }
+
+/* Browser screen recording card + offline notice (web screen capture). */
+.capture-screen-card__limits {
+  margin: 8px 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.capture-screen-card__facts {
+  font-size: 13px;
+  font-weight: 600;
+}
+.capture-offline-notice {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--capture-orange);
+  background: var(--capture-orange-soft);
+  color: var(--text-primary, inherit);
+  font-size: 14px;
+}

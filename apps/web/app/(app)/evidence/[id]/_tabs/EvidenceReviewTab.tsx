@@ -250,6 +250,8 @@ export function EvidenceReviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
 
       <EvidenceRelationshipsSection
         caseName={workspace.relationships.caseName}
+        cases={workspace.relationships.cases}
+        onRemoveLinkedCase={(caseId) => void removeCase(caseId)}
         relatedEvidenceCount={workspace.relationships.relatedEvidenceCount}
         multipart={workspace.relationships.multipart}
         itemCount={workspace.relationships.itemCount}

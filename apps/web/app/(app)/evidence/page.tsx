@@ -13,6 +13,7 @@ import {
   usePlatformContext,
 } from "../../../lib/platform-context";
 import { captureException } from "../../../lib/sentry";
+import { describeReportDownloadFailure } from "../../../lib/evidence/report-download-feedback";
 import { EvidenceLibraryHeader } from "./components/EvidenceLibraryHeader";
 import { EvidenceMetrics } from "./components/EvidenceMetrics";
 import {
@@ -1105,11 +1106,16 @@ function EvidenceLibraryPageInner() {
       window.open(data.url, "_blank", "noopener,noreferrer");
       addToast("Report downloaded", "success");
     } catch (downloadError) {
-      captureException(downloadError, {
-        feature: "web_evidence_library_download_report_second_pass",
-        evidenceId,
-      });
-      addToast("Failed to download report", "error");
+      // UC-OUT-004 — the same refusal vocabulary as Evidence Detail; bounded
+      // refusals are outcomes and file no Sentry issue.
+      const feedback = describeReportDownloadFailure(downloadError);
+      if (feedback.report) {
+        captureException(downloadError, {
+          feature: "web_evidence_library_download_report_second_pass",
+          evidenceId,
+        });
+      }
+      addToast(feedback.message, feedback.tone);
     }
   };
 

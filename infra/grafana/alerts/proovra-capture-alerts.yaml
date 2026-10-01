@@ -1,0 +1,333 @@
+# PROOVRA — Capture alert rules (UC-LCH-002)
+#
+# One failure-rate rule PER ACQUISITION MODE (packages/shared
+# EVIDENCE_ACQUISITION_MODES) plus one rule per capture denial code that
+# signals a client/server contract break. Every rule names a counter in the
+# bounded registry (packages/shared-runtime/src/ops/metrics.service.ts
+# COUNTER_NAMES) and links an anchor in docs/operations/capture-runbook.md.
+# apps/web/__tests__/capture-alert-rules.test.ts is the lint that keeps this
+# file, the mode list, the counter registry and the runbook in agreement.
+#
+# Thresholds are conservative starting points (failures per second over the
+# window); tune before enabling on-call paging. Delivery depends on
+# PROOVRA_ALERT_WEBHOOK_URL (provisioning/alerting/contact-points.yaml), which
+# has no default by design — an unset webhook means these rules evaluate but
+# notify nobody (see the runbook, "Alert delivery").
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: proovra-capture
+    folder: PROOVRA
+    interval: 60s
+    rules:
+      - uid: proovra-capture-failed-proovra-web-upload
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Capture failures — PROOVRA_WEB_UPLOAD
+        condition: capture_failed
+        for: 10m
+        data:
+          - refId: capture_failed
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_failed
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(rate(capture_failed_proovra_web_upload_total[15m])) > bool 0.02
+        annotations:
+          summary: Sessions of the web upload (POST /v1/evidence → parts → complete) channel are failing to open or complete (acquisitionMode PROOVRA_WEB_UPLOAD).
+          runbook_url: docs/operations/capture-runbook.md#capture-failed-proovra-web-upload
+        labels:
+          severity: critical
+          area: capture
+
+      - uid: proovra-capture-failed-secure-intake-link
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Capture failures — SECURE_INTAKE_LINK
+        condition: capture_failed
+        for: 10m
+        data:
+          - refId: capture_failed
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_failed
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(rate(capture_failed_secure_intake_link_total[15m])) > bool 0.02
+        annotations:
+          summary: Sessions of the secure intake link submission channel are failing to open or complete (acquisitionMode SECURE_INTAKE_LINK).
+          runbook_url: docs/operations/capture-runbook.md#capture-failed-secure-intake-link
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-failed-proovra-mobile-app
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Capture failures — PROOVRA_MOBILE_APP
+        condition: capture_failed
+        for: 10m
+        data:
+          - refId: capture_failed
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_failed
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(rate(capture_failed_proovra_mobile_app_total[15m])) > bool 0.02
+        annotations:
+          summary: Sessions of the mobile app direct-capture session channel are failing to open or complete (acquisitionMode PROOVRA_MOBILE_APP).
+          runbook_url: docs/operations/capture-runbook.md#capture-failed-proovra-mobile-app
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-failed-direct-web-capture-extension
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Capture failures — DIRECT_WEB_CAPTURE_EXTENSION
+        condition: capture_failed
+        for: 10m
+        data:
+          - refId: capture_failed
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_failed
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(rate(capture_failed_direct_web_capture_extension_total[15m])) > bool 0.02
+        annotations:
+          summary: Sessions of the browser extension Direct Web Capture session channel are failing to open or complete (acquisitionMode DIRECT_WEB_CAPTURE_EXTENSION).
+          runbook_url: docs/operations/capture-runbook.md#capture-failed-direct-web-capture-extension
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-failed-direct-screen-capture-android
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Capture failures — DIRECT_SCREEN_CAPTURE_ANDROID
+        condition: capture_failed
+        for: 10m
+        data:
+          - refId: capture_failed
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_failed
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(rate(capture_failed_direct_screen_capture_android_total[15m])) > bool 0.02
+        annotations:
+          summary: Sessions of the Android single-frame screen capture session channel are failing to open or complete (acquisitionMode DIRECT_SCREEN_CAPTURE_ANDROID).
+          runbook_url: docs/operations/capture-runbook.md#capture-failed-direct-screen-capture-android
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-failed-direct-screen-capture-android-continuous
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Capture failures — DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS
+        condition: capture_failed
+        for: 10m
+        data:
+          - refId: capture_failed
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_failed
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(rate(capture_failed_direct_screen_capture_android_continuous_total[15m])) > bool 0.02
+        annotations:
+          summary: Sessions of the Android continuous screen recording session channel are failing to open or complete (acquisitionMode DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS).
+          runbook_url: docs/operations/capture-runbook.md#capture-failed-direct-screen-capture-android-continuous
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-failed-direct-screen-capture-ios
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Capture failures — DIRECT_SCREEN_CAPTURE_IOS
+        condition: capture_failed
+        for: 10m
+        data:
+          - refId: capture_failed
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_failed
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(rate(capture_failed_direct_screen_capture_ios_total[15m])) > bool 0.02
+        annotations:
+          summary: Sessions of the iOS ReplayKit screen broadcast session channel are failing to open or complete (acquisitionMode DIRECT_SCREEN_CAPTURE_IOS).
+          runbook_url: docs/operations/capture-runbook.md#capture-failed-direct-screen-capture-ios
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-continuous-manifest-invalid
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Continuous capture manifests refused (CONTINUOUS_MANIFEST_INVALID)
+        condition: capture_denial
+        for: 5m
+        data:
+          - refId: capture_denial
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_denial
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(increase(capture_continuous_manifest_invalid_total[30m])) > bool 5
+        annotations:
+          summary: Continuous capture manifests refused (CONTINUOUS_MANIFEST_INVALID) above baseline in the last 30 minutes — likely a client/server contract regression.
+          runbook_url: docs/operations/capture-runbook.md#continuous-manifest-invalid
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-screen-manifest-invalid
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Screen capture manifests refused (SCREEN_MANIFEST_INVALID)
+        condition: capture_denial
+        for: 5m
+        data:
+          - refId: capture_denial
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_denial
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(increase(capture_screen_manifest_invalid_total[30m])) > bool 5
+        annotations:
+          summary: Screen capture manifests refused (SCREEN_MANIFEST_INVALID) above baseline in the last 30 minutes — likely a client/server contract regression.
+          runbook_url: docs/operations/capture-runbook.md#screen-manifest-invalid
+        labels:
+          severity: warning
+          area: capture
+
+      - uid: proovra-capture-extension-oauth-failed
+        # Counters have no series until first increment; "nothing failed yet"
+        # arrives as NoData and must not page.
+        noDataState: OK
+        execErrState: Error
+        title: Extension sign-in (OAuth authorize/token) failures
+        condition: capture_denial
+        for: 5m
+        data:
+          - refId: capture_denial
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: capture_denial
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              datasource:
+                type: prometheus
+                uid: prometheus
+              expr: |
+                sum(increase(extension_oauth_failed_total[30m])) > bool 5
+        annotations:
+          summary: Extension sign-in (OAuth authorize/token) failures above baseline in the last 30 minutes — likely a client/server contract regression.
+          runbook_url: docs/operations/capture-runbook.md#extension-oauth-failed
+        labels:
+          severity: warning
+          area: capture

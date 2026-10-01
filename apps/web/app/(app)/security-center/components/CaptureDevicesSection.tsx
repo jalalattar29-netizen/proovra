@@ -230,10 +230,16 @@ export function CaptureDevicesSection({ teamId }: { teamId: string | null }) {
   return (
     <PageSection title="Capture devices">
       <Card variant="admin" data-cc-capture-devices-card>
-        <p style={mutedStyle}>
-          Devices whose keys sign evidence at the moment of capture. Revoking
-          one stops new signatures from being accepted; already-ingested
-          evidence keeps the provenance it was recorded with.
+        {/* UC-ARCH-007 — honest about the registry's real state: no PROOVRA
+            client calls POST /v1/capture/devices or submits platform
+            attestation today, so this list is expected to be empty and no
+            capture in this product carries a device signature or attestation. */}
+        <p style={mutedStyle} data-cc-capture-devices-scope>
+          A registry for devices whose keys could sign captures. No PROOVRA app or extension registers
+          capture devices or submits platform attestation yet, so this list stays empty and captures
+          carry no device signature or platform attestation. If a device is ever registered, revoking it stops
+          new submissions from it from being accepted; already-ingested evidence keeps the
+          provenance it was recorded with.
         </p>
 
         {/* Screen-reader status channel for load + mutation outcomes. */}
@@ -266,7 +272,7 @@ export function CaptureDevicesSection({ teamId }: { teamId: string | null }) {
           <EmptyState
             compact
             title="No capture devices registered"
-            purpose="Devices registered through the mobile capture flow appear here. Revoke one to stop accepting its at-source signatures."
+            purpose="Expected today: no PROOVRA client registers capture devices yet. Captures are recorded with the provenance their channel actually provides."
           />
         ) : (
           <ul style={listStyle} aria-label="Capture devices">

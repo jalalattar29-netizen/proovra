@@ -263,7 +263,9 @@ test("Case Details renders ONE card/surface authority — .app-panel", () => {
 test("Case Details renders ONE icon authority — lucide-react", () => {
   assert.match(
     SIMPLE_DETAIL,
-    /import \{ Copy, FileText, Plus, Search, Share2, ShieldCheck \} from "lucide-react";/,
+    // UC-OUT-002 retired the "Create verification package" nav button (and
+    // its ShieldCheck icon); the import is still ONE lucide-react line.
+    /import \{ Copy, FileText, Plus, Search, Share2 \} from "lucide-react";/,
   );
   // No second icon library, and no emoji standing in for an icon.
   assert.doesNotMatch(SIMPLE_DETAIL, /react-icons|@heroicons/);

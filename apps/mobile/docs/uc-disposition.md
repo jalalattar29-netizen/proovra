@@ -85,7 +85,7 @@ false claim: a record captured last week is just as eligible.
 |---|---|
 | CODE | **COMPLETE.** `DIRECT_SCREEN_CAPTURE_IOS`; Broadcast Extension target compiled and packaged on EAS, `CFBundleExecutable` and the `appExtensions` declaration in place. |
 | EXTERNAL | **PENDING.** A real signing identity and provisioning profile for the Broadcast Extension. Not derivable here, and §6 forbids inventing one. |
-| PHYSICAL | **PENDING.** Two device-only facts: the ReplayKit broadcast picker, and `crypto.subtle` — the simulator does not exercise the hashing path the extension uses. |
+| PHYSICAL | **PENDING.** Device-only facts: the ReplayKit broadcast picker (Apple's system UI) and a real broadcast's segment upload end to end. Hashing is NOT a device risk: the app hashes with `expo-crypto` (`Crypto.digest`, `apps/mobile/src/upload-utils.ts`), not `crypto.subtle` (corrected 2026-10-01, UC-LCH-006). The iOS build blocker that remains is the Associated Domains capability on the App ID, not hashing. |
 | ENVIRONMENT | n/a |
 
 ---

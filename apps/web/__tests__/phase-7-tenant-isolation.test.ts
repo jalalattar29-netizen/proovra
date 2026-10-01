@@ -112,9 +112,13 @@ test("all 15 required Phase 7 surfaces compose the render-proven primitives", ()
     // workspace switch is an envelope swap that never fires `beforeunload`,
     // so this registration is the only thing standing between staged evidence
     // and a silent finalize into the wrong workspace.
+    // UC-WEB-002: the registration moved into the ONE capture leave guard,
+    // which stays ON while busy (finalize in flight) — the old inline
+    // `items > 0 && !busy` dropped it exactly while uploading.
+    ["app/(app)/capture/page.tsx", [/useCaptureLeaveGuard\(sessionItems\.length, busy\)/]],
     [
-      "app/(app)/capture/page.tsx",
-      [/useDirtyWork\(/, /sessionItems\.length > 0 && !busy/, /"Staged evidence in Capture"/],
+      "app/(app)/capture/_hooks/useCaptureLeaveGuard.ts",
+      [/useDirtyWork\(/, /stagedItemCount > 0 \|\| busy/, /"Staged evidence in Capture"/],
     ],
     ["app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts", [/useTenantGuard/, /ctxIsStale\(captured\)/]],
     ["app/(app)/evidence-lifecycle/legal-holds/page.tsx", [/useWorkspaceContextSafety\(/, /WorkspaceContextBanner/, /runGuarded\(/, /teamId\]/]],
@@ -206,7 +210,8 @@ test("Phase 7 wired reference surfaces adopt the primitives (not superficially)"
   // not the marker here. Both halves are asserted, because either one alone
   // is superficial: the gate stops the switch, the guard stops a response
   // that crossed anyway from being applied.
-  const capture = read("app/(app)/capture/page.tsx");
+  assert.match(read("app/(app)/capture/page.tsx"), /useCaptureLeaveGuard\(/);
+  const capture = read("app/(app)/capture/_hooks/useCaptureLeaveGuard.ts");
   assert.match(capture, /useDirtyWork\(/);
   assert.match(capture, /"Staged evidence in Capture"/);
   const captureSession = read(

@@ -332,6 +332,11 @@ jobs:
 
       # THE WORKER'S STORAGE PROOF NEEDS A REAL OBJECT STORE.
       #
+      # UC-TQ-004 (2026-10-01): the note below predates the suite being
+      # converted to the env-gated Object-Lock form (76fddb72). It now runs in
+      # its OWN step further down, against `olc-locked` (created WITH object
+      # lock + default COMPLIANCE retention), and that step fails if it skips.
+      #
       # `test/verification-package-publication.minio.test.ts` streams a ZIP to
       # staging, HEADs it for an exact size, promotes it server-side and
       # reconciles orphaned staging residue. Every one of those is a property
@@ -387,6 +392,49 @@ jobs:
             -e MC_HOST_local=http://point7-local-minio:point7-local-minio-secret@127.0.0.1:59000 \
             pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd \
             mb --ignore-existing local/point7-local-bucket
+          # UC-TQ-004 — the Object-Lock publication suite needs a bucket created
+          # WITH object lock and a DEFAULT COMPLIANCE retention (the production
+          # shape). `point7-local-bucket` above has neither, so the suite was
+          # env-gated off and never ran here even though this step's comment
+          # claimed it existed for it.
+          docker run --rm --network host \
+            -e MC_HOST_local=http://point7-local-minio:point7-local-minio-secret@127.0.0.1:59000 \
+            pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd \
+            mb --ignore-existing --with-lock local/olc-locked
+          docker run --rm --network host \
+            -e MC_HOST_local=http://point7-local-minio:point7-local-minio-secret@127.0.0.1:59000 \
+            pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd \
+            retention set --default COMPLIANCE 1d local/olc-locked
+
+      # UC-TQ-004 — the Object-Lock publication suite, executed on purpose and
+      # REFUSED if it skips. It is `describe.skip` unless
+      # OBJECT_LOCK_MINIO_ENDPOINT is set, so a green run that skipped it is the
+      # exact silent gap this closes: the JSON report must show >= 4 executed
+      # tests, none pending, none failed. (MinIO does not enforce the AWS
+      # checksum rule behind Sentry 150024171 — this proves the publication
+      # path's own properties, not AWS acceptance; see the suite header.)
+      - name: Test — worker Object-Lock publication (MinIO, locked bucket)
+        working-directory: services/worker
+        env:
+          OBJECT_LOCK_MINIO_ENDPOINT: http://127.0.0.1:59000
+          OBJECT_LOCK_MINIO_LOGIN: point7-local-minio
+          OBJECT_LOCK_MINIO_PASSPHRASE: point7-local-minio-secret
+          OBJECT_LOCK_MINIO_BUCKET: olc-locked
+        run: |
+          set +e
+          npx vitest run test/verification-package-publication.minio.test.ts \
+            --reporter=default --reporter=json --outputFile=/tmp/worker-olc.json
+          rc=$?
+          set -e
+          node -e '
+            const r = require("/tmp/worker-olc.json");
+            const s = { total: r.numTotalTests, passed: r.numPassedTests, failed: r.numFailedTests, pending: r.numPendingTests + (r.numTodoTests || 0) };
+            console.log("object-lock publication:", JSON.stringify(s));
+            if (!(s.total >= 4)) { console.log("::error::object-lock publication executed " + s.total + " tests (expected >= 4)"); process.exit(1); }
+            if (s.pending > 0) { console.log("::error::object-lock publication SKIPPED " + s.pending + " tests"); process.exit(1); }
+            if (s.failed > 0 || s.passed !== s.total) { console.log("::error::object-lock publication failed"); process.exit(1); }
+          '
+          exit $rc
 
       - name: Test — worker
         run: |

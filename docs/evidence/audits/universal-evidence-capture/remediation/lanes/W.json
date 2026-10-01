@@ -1,0 +1,277 @@
+{
+  "lane": "W",
+  "findings": {
+    "UC-WEB-001": {
+      "decision": "Client half of resumable Finish & Sign at the canonical orchestrator (useCaptureSessionOrchestration). A per-staged-set reservation keeps the evidenceId: a retry after a part failure reuses the SAME record (no second POST /v1/evidence), skips already-uploaded items, re-presigns only missing parts (parts route is RETURN_EXISTING per partIndex), and a failed /complete retries only /complete; the reservation is abandoned if items are removed/reordered so a part index is never re-bound to another file. The catch now resets every item's uploading/progress and marks the failing item with a safe error. Across a reload the server is the authority: lane A's POST /v1/evidence returns the draft's reserved unsealed record (resolveResumableDraftRecord, resumed:true) for the same captureSessionId, which the client always sends. No Idempotency-Key header is sent because the API CORS allow-list does not include it (it would break the cross-origin create). Offline: finalize refuses to start (nothing minted) and staged items are kept.",
+      "red": { "test": "apps/web/__tests__/render/capture-finalize-resume.render.test.tsx::UC-WEB-001 retry after a part failure reuses the same evidence record", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/capture-finalize-resume.render.test.tsx", "observed": "AssertionError: expected [ false, true, false ] to deeply equal [ false, false, false ] (item stuck uploading); expected [ Array(2) ] to have a length of 1 but got 2 (second POST /v1/evidence on retry)" },
+      "green": { "tests": ["apps/web/__tests__/render/capture-finalize-resume.render.test.tsx (8 tests: stuck-state reset, same-record resume of missing parts only, complete-only retry, reservation abandoned on changed set, lost-create retry carries the same draft id and no non-CORS header, 3x UC-WEB-005)"], "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/capture-finalize-resume.render.test.tsx", "result": "8 passed" },
+      "filesChanged": ["apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts", "apps/web/__tests__/render/capture-finalize-resume.render.test.tsx"],
+      "proofKind": "unit",
+      "impacts": { "ui": "retry after a failed upload resumes into the same record; failed item shows an error; offline finalize refused", "api": "relies on lane A's draft-resume on POST /v1/evidence (already in tree)", "worker": "none", "mobile": "none", "extension": "none", "security": "no new request headers (CORS-safe)", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-WEB-002": {
+      "decision": "Extracted the ONE capture leave guard (useCaptureLeaveGuard) holding both the beforeunload handler and the dirty-work registration for the workspace switcher; the condition is now items > 0 || busy (was items > 0 && !busy, which switched both guards off for the whole finalize). The page calls it once; the phase-7 tenant-isolation source pins were moved to the hook file.",
+      "red": { "test": "apps/web/__tests__/render/capture-leave-guard.render.test.tsx::prevents unload while busy", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/capture-leave-guard.render.test.tsx", "observed": "AssertionError: expected false to be true (beforeunload not prevented while busy); expected [] to include 'Staged evidence in Capture'" },
+      "green": { "tests": ["apps/web/__tests__/render/capture-leave-guard.render.test.tsx", "apps/web/__tests__/phase-7-tenant-isolation.test.ts"], "command": "vitest render + node scripts/run-tests.mjs phase-7-tenant-isolation", "result": "5 passed; 8 passed" },
+      "filesChanged": ["apps/web/app/(app)/capture/_hooks/useCaptureLeaveGuard.ts", "apps/web/app/(app)/capture/page.tsx", "apps/web/__tests__/render/capture-leave-guard.render.test.tsx", "apps/web/__tests__/phase-7-tenant-isolation.test.ts"],
+      "proofKind": "unit",
+      "impacts": { "ui": "leave-page and workspace-switch prompts stay on during upload/finalize", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "prevents cross-workspace finalize during in-flight upload", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-WEB-004": {
+      "decision": "Home 'Review submissions' now points at the one constant HOME_SUBMISSION_REVIEW_HREF = /review/queues#evidence-request-queue (the evidence-request review queue panel, which gained the anchor id). Added a route-integrity guard that resolves EVERY literal Home href against the App Router tree or next.config redirects. Residual: /review/queues is registered ORGANIZATION_ONLY, so a Personal-space user with evidence requests gets the registry's REQUEST_ACCESS fallback rather than a list; a personal list page (/evidence-requests) remains a product decision.",
+      "red": { "test": "apps/web/__tests__/home-href-route-integrity.test.ts::every Home href resolves to a page or a redirect", "command": "cd apps/web && node scripts/run-tests.mjs home-href-route-integrity", "observed": "AssertionError: Home links to routes with no page: /evidence-requests?status=RESPONSE_RECEIVED,UNDER_REVIEW" },
+      "green": { "tests": ["apps/web/__tests__/home-href-route-integrity.test.ts"], "command": "cd apps/web && node scripts/run-tests.mjs home-href-route-integrity", "result": "3 passed" },
+      "filesChanged": ["apps/web/components/home-experience/home-view-model.ts", "apps/web/app/(app)/review/queues/_evidence-request-queue.tsx", "apps/web/__tests__/home-href-route-integrity.test.ts"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "Home CTA no longer 404s", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-WEB-005": {
+      "decision": "pollArtifacts now reads the canonical output projection (outputs.report.state from GET /artifacts/status) through a pure classifier (capture/_lib/artifact-readiness.ts), stops at the first terminal state (READY / FAILED / BLOCKED / NOT_ISSUED) or when pollIntervalMs is null, and the post-seal toast names the state it saw; legacy report.available/pending is the fallback for an older API image (web deploys first).",
+      "red": { "test": "apps/web/__tests__/render/capture-finalize-resume.render.test.tsx::a FAILED report is reported as failed, not as still generating", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/capture-finalize-resume.render.test.tsx", "observed": "Error: Test timed out in 5000ms (8 x 2s polls on TERMINAL_FAILURE, then 'still generating')" },
+      "green": { "tests": ["apps/web/__tests__/render/capture-finalize-resume.render.test.tsx (FAILED, BLOCKED, NOT_INCLUDED cases)"], "command": "same", "result": "8 passed" },
+      "filesChanged": ["apps/web/app/(app)/capture/_lib/artifact-readiness.ts", "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts"],
+      "proofKind": "unit",
+      "impacts": { "ui": "failed/blocked/not-issued report states reported honestly after seal", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-WEB-006": {
+      "decision": "Drag-and-drop and audio-add failures now go through the sanctioned toSafeUserError path via describeDropFailure / describeAudioAddFailure in capture-errors.ts with fixed fallback copy; raw err.message is no longer rendered on the capture page or the audio recorder.",
+      "red": { "test": "apps/web/__tests__/render/capture-safe-feedback.render.test.tsx", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/capture-safe-feedback.render.test.tsx", "observed": "expected page not to match /\\?\\s*err\\.message/; expected 'undefined' to be 'function'" },
+      "green": { "tests": ["apps/web/__tests__/render/capture-safe-feedback.render.test.tsx"], "command": "same", "result": "2 passed" },
+      "filesChanged": ["apps/web/app/(app)/capture/_lib/capture-errors.ts", "apps/web/app/(app)/capture/page.tsx", "apps/web/app/(app)/capture/_hooks/useCaptureAudioRecorder.ts", "apps/web/__tests__/render/capture-safe-feedback.render.test.tsx"],
+      "proofKind": "unit",
+      "impacts": { "ui": "fixed safe copy instead of browser exception text", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "no raw exception text on screen", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-OUT-002": {
+      "decision": "No case-level output exists, so the two Case quick actions that only switched tab ('Generate report', 'Create verification package') became ONE navigation control 'View reports & packages' (same tab switch, same zero-evidence disable). Pins in evidence-action-authority and case-detail-proovra-v2 updated to the new label/icon import.",
+      "red": { "test": "apps/web/__tests__/case-quick-actions-honesty.test.ts", "command": "cd apps/web && node scripts/run-tests.mjs case-quick-actions-honesty", "observed": "AssertionError: a button that only opens the Reports tab must not claim to generate/create output" },
+      "green": { "tests": ["apps/web/__tests__/case-quick-actions-honesty.test.ts", "apps/web/__tests__/evidence-action-authority.test.ts", "apps/web/__tests__/case-detail-proovra-v2.test.ts"], "command": "node scripts/run-tests.mjs <name>", "result": "2 + 11 + 45 passed" },
+      "filesChanged": ["apps/web/components/cases-experience/simple-case-detail/SimpleCaseDetail.tsx", "apps/web/__tests__/case-quick-actions-honesty.test.ts", "apps/web/__tests__/evidence-action-authority.test.ts", "apps/web/__tests__/case-detail-proovra-v2.test.ts"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "label matches behaviour", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-OUT-004": {
+      "decision": "One report-download refusal vocabulary (lib/evidence/report-download-feedback.ts) mapped from the server download gate's bounded statuses/codes (401, 403 ACCESS_DENIED/PERSONAL_OWNER_REQUIRED vs governance/hold/eligibility, 404, 409/410 report_artifact_missing, 503 GOVERNANCE_CHECK_FAILED); bounded refusals are info toasts and never reach Sentry; unknown failures use toSafeUserError and are reported. Used by Evidence Detail and by the Evidence Library row action, which had the same defect.",
+      "red": { "test": "apps/web/__tests__/render/evidence-report-download-feedback.render.test.tsx", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/evidence-report-download-feedback.render.test.tsx", "observed": "5 failed: expected 'Failed to download report' to match /not available to you/i (and Sentry called for a 403 hold)" },
+      "green": { "tests": ["apps/web/__tests__/render/evidence-report-download-feedback.render.test.tsx", "apps/web/__tests__/render/evidence-artifacts-output-actions.render.test.tsx"], "command": "same", "result": "21 passed" },
+      "filesChanged": ["apps/web/lib/evidence/report-download-feedback.ts", "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts", "apps/web/app/(app)/evidence/page.tsx", "apps/web/__tests__/render/evidence-report-download-feedback.render.test.tsx"],
+      "proofKind": "unit",
+      "impacts": { "ui": "specific refusal copy", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-CASE-005": {
+      "decision": "Web render half coded against lane A's in-tree contract relationships.cases: Array<{caseId, caseName, role, linkedAtUtc}> (resolveViewerCasesForEvidence, access-filtered by resolveCaseRecordAccess; A.json not yet written). EvidenceRelationshipsSection lists every linked case the viewer may open with a per-case unlink; removeCase(caseId) unlinks the named case; an older API without cases falls back to the deprecated caseId/caseName alias.",
+      "red": { "test": "apps/web/__tests__/render/evidence-linked-cases.render.test.tsx (run against the HEAD component)", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts <test pointed at HEAD copy>", "observed": "AssertionError: expected [] to deeply equal [ 'case-a', 'case-b' ]" },
+      "green": { "tests": ["apps/web/__tests__/render/evidence-linked-cases.render.test.tsx", "apps/web/__tests__/evidence-review-redesign.test.ts"], "command": "vitest render + node scripts/run-tests.mjs evidence-review-redesign", "result": "4 passed; 37 passed" },
+      "filesChanged": ["apps/web/app/(app)/evidence/[id]/components/EvidenceRelationshipsSection.tsx", "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceReviewTab.tsx", "apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx", "apps/web/app/(app)/evidence/[id]/page.tsx", "apps/web/app/(app)/evidence/[id]/review-workspace-types.ts", "apps/web/__tests__/render/evidence-linked-cases.render.test.tsx", "apps/web/__tests__/evidence-review-redesign.test.ts"],
+      "proofKind": "unit",
+      "impacts": { "ui": "all visible linked cases + per-case unlink", "api": "consumes lane A relationships.cases", "worker": "none", "mobile": "none", "extension": "none", "security": "renders only the server's access-filtered list", "deployment": "web redeploy (after api)" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-PROV-011": {
+      "decision": "Capture trust strip no longer claims 'End-to-end protected'; it says 'Encrypted in transit and at rest — TLS upload to encrypted storage; hashes recomputed server-side'. Copy guard extended with an end-to-end ban for the strip and the page.",
+      "red": { "test": "apps/web/__tests__/capture-workflow-hierarchy.test.ts::UC-PROV-011", "command": "cd apps/web && node scripts/run-tests.mjs capture-workflow-hierarchy", "observed": "AssertionError: capture trust strip must not claim end-to-end protection" },
+      "green": { "tests": ["apps/web/__tests__/capture-workflow-hierarchy.test.ts", "apps/web/__tests__/capture-target-surfaces.test.ts"], "command": "node scripts/run-tests.mjs <name>", "result": "27 passed; 13 passed" },
+      "filesChanged": ["apps/web/app/(app)/capture/_lib/CaptureTrustStrip.tsx", "apps/web/__tests__/capture-workflow-hierarchy.test.ts", "apps/web/__tests__/capture-target-surfaces.test.ts"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "copy", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "no overclaim", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-LCH-001": {
+      "decision": "Authored the canonical disclosure apps/web/content/legal/en/screen-capture.md (Android MediaProjection single + continuous, iOS ReplayKit, browser getDisplayMedia; what is recorded, server-side digest recomputation, no device/OS attestation, audio facts, privacy/retention) and its legal hero entry. Registering the slug requires packages/shared/src/legal/slugs.ts (not lane W's) + corpus regeneration — see crossLaneRequests; until then legal-corpus-freshness and the new slug test stay red. Native intros must link /settings/legal/screen-capture (lane M). Privacy-notice / retention entries deliberately NOT edited: material changes to privacy.md trigger re-acceptance and need counsel. [Counsel review required] for the new page.",
+      "red": { "test": "apps/web/__tests__/legal-screen-capture-disclosure.test.ts", "command": "cd apps/web && node scripts/run-tests.mjs legal-screen-capture", "observed": "AssertionError: 'screen-capture' must be in LEGAL_SLUGS ...; legal-hero-meta needs a 'screen-capture' entry" },
+      "green": { "tests": ["apps/web/__tests__/legal-screen-capture-disclosure.test.ts (authored + hero: pass; slug registration: pending cross-lane)"], "command": "same", "result": "2 passed, 1 failing pending crossLaneRequests[slug]" },
+      "filesChanged": ["apps/web/content/legal/en/screen-capture.md", "apps/web/app/legal/legal-hero-meta.ts", "apps/web/__tests__/legal-screen-capture-disclosure.test.ts"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "new legal page once slug registered", "api": "corpus served by API after regeneration", "worker": "none", "mobile": "native intro link (lane M)", "extension": "none", "security": "none", "deployment": "web + api redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "counsel review of the disclosure wording",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-LCH-002": {
+      "decision": "Added infra/grafana/alerts/proovra-capture-alerts.yaml (provisioned with the alerts directory): one failure-rate rule per EVIDENCE_ACQUISITION_MODE (7) on capture_failed_<mode>_total plus CONTINUOUS_MANIFEST_INVALID, SCREEN_MANIFEST_INVALID and extension OAuth failure rules, NoData=OK; docs/operations/capture-runbook.md with an anchor per rule and the alert-delivery caveat (PROOVRA_ALERT_WEBHOOK_URL). Lint test asserts mode coverage, runbook anchors, NoData handling and that every counter exists in COUNTER_NAMES — the last stays red until the counters are registered and bumped at the failure sites (other lanes' files).",
+      "red": { "test": "apps/web/__tests__/capture-alert-rules.test.ts", "command": "cd apps/web && node scripts/run-tests.mjs capture-alert-rules", "observed": "pre-change tree had 0 capture rules (grep -ci capture alerts yaml = 0); now: capture alert counters not in COUNTER_NAMES (nothing bumps them, so the alert is silent): capture_failed_proovra_web_upload_total, ..." },
+      "green": { "tests": ["apps/web/__tests__/capture-alert-rules.test.ts (4 of 5 pass; counter-registry assertion pending cross-lane)"], "command": "same", "result": "4 passed, 1 failing pending crossLaneRequests[counters]" },
+      "filesChanged": ["infra/grafana/alerts/proovra-capture-alerts.yaml", "docs/operations/capture-runbook.md", "apps/web/__tests__/capture-alert-rules.test.ts"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "none", "api": "needs counters bumped at capture failure sites", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "monitoring stack deploy with PROOVRA_ALERT_WEBHOOK_URL set" },
+      "migration": "none",
+      "externalProofRemaining": "monitoring stack deployment + webhook delivery test",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-LCH-003": {
+      "decision": "New workflows: native-build.yml (macos-latest: expo prebuild -p ios + xcodebuild iphonesimulator unsigned, then REFUSES a build without ProovraBroadcast.appex; ubuntu: expo prebuild -p android + gradle assembleDebug compiling the Kotlin capture services) and uc1-browser-acceptance.yml (the apps/extension/e2e harness in CI: Windows Chrome+Edge and Linux Chromium under xvfb). YAML validated; the jobs themselves have not run (no GitHub runner here).",
+      "red": { "test": "grep 'extension/e2e|xcodebuild|macos' .github/workflows", "command": "grep -rn 'xcodebuild\\|macos-\\|uc1-acceptance' .github/workflows (pre-change)", "observed": "no matches: all workflows ubuntu-only, extension e2e in no workflow" },
+      "green": { "tests": ["yaml parse of native-build.yml + uc1-browser-acceptance.yml (jobs: ios-simulator-build, android-debug-build, windows-acceptance, linux-extension-e2e)"], "command": "node -e yaml.parse(...)", "result": "parsed; jobs present" },
+      "filesChanged": [".github/workflows/native-build.yml", ".github/workflows/uc1-browser-acceptance.yml"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "CI compiles Swift/Kotlin", "extension": "CI runs e2e", "security": "no signing/EAS/store access", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "first GitHub Actions run of both workflows (macOS runner, Windows runner)",
+      "status": "BLOCKED_EXTERNAL_PROOF"
+    },
+    "UC-LCH-004": {
+      "decision": "Installable PWA: manifest with 192/512 'any' + 192/512 'maskable' PNGs generated from the brand mark by scripts/generate-pwa-icons.mjs (committed); service worker public/sw.js whose ONE route policy (public/sw-policy.js) bypasses non-GET, every cross-origin request (API, presigned storage), /v1 and /api, signed URLs and all navigations (network-only, static /offline.html only on network failure), caches only hashed build assets and the static shell; skipWaiting only on the user's Reload in ServiceWorkerUpdatePrompt; registered in production only; logout clears proovra-* caches; capture page offline notice + finalize refuses offline. Chromium installability verified against production next start on 127.0.0.1 with NEXT_PUBLIC_API_BASE=http://127.0.0.1:9.",
+      "red": { "test": "apps/web/__tests__/pwa-service-worker-policy.test.ts::manifest is installable", "command": "git show HEAD:apps/web/public/manifest.webmanifest | (icon check)", "observed": "missing any icon 192x192 (icons sizes: any); sw.js absent at HEAD" },
+      "green": { "tests": ["apps/web/__tests__/pwa-service-worker-policy.test.ts (10)", "apps/web/scripts/pwa-installability-check.mjs (Chromium CDP Page.getInstallabilityErrors)"], "command": "node scripts/run-tests.mjs pwa-service-worker-policy; NEXT_PUBLIC_API_BASE=http://127.0.0.1:9 next build && node scripts/pwa-installability-check.mjs --port=3417", "result": "10 passed; installabilityErrors: [], swControlled: true, cacheKeys: [proovra-sw-v1-static], cachedApiEntries: []" },
+      "filesChanged": ["apps/web/public/manifest.webmanifest", "apps/web/public/icons/icon-192.png", "apps/web/public/icons/icon-512.png", "apps/web/public/icons/icon-maskable-192.png", "apps/web/public/icons/icon-maskable-512.png", "apps/web/public/sw.js", "apps/web/public/sw-policy.js", "apps/web/public/offline.html", "apps/web/lib/pwa/serviceWorkerClient.ts", "apps/web/lib/pwa/useOnlineStatus.ts", "apps/web/components/pwa/ServiceWorkerUpdatePrompt.tsx", "apps/web/app/layout.tsx", "apps/web/app/(app)/layout.tsx", "apps/web/scripts/generate-pwa-icons.mjs", "apps/web/scripts/pwa-installability-check.mjs", "apps/web/__tests__/pwa-service-worker-policy.test.ts"],
+      "proofKind": "runtime",
+      "impacts": { "ui": "installable app; update prompt; offline page", "api": "none (never cached)", "worker": "none", "mobile": "none", "extension": "none", "security": "no API/evidence/presigned/authenticated content cached; caches cleared on logout", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-LCH-006": {
+      "decision": "uc6-release-acceptance.md: the AASA/assetlinks placeholder claims are marked resolved (Team ID 4LCZK75N86 since 92669167, real Android fingerprint) with the historical section labelled, keeping the Associated Domains capability as the remaining iOS build blocker; extension host_permissions row corrected. uc-disposition.md UC-5 PHYSICAL row: crypto.subtle replaced by the true hashing path (expo-crypto Crypto.digest) and the real device-only facts.",
+      "red": { "test": "doc grep", "command": "grep -n 'APPLE_TEAM_ID\\|crypto.subtle' docs/uc6-release-acceptance.md apps/mobile/docs/uc-disposition.md", "observed": "uc6:164/421/446 claimed <APPLE_TEAM_ID> still present; uc-disposition:88 named crypto.subtle" },
+      "green": { "tests": ["doc review"], "command": "same grep", "result": "placeholders recorded as resolved/historical; crypto.subtle only in the correction note" },
+      "filesChanged": ["docs/uc6-release-acceptance.md", "apps/mobile/docs/uc-disposition.md"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-TQ-002": {
+      "decision": "CI half: .github/workflows/uc1-browser-acceptance.yml windows-latest job (45-minute timeout) records the installed Chrome + Edge versions, runs node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge when Docker reports a Linux engine, otherwise brings native loopback services (preinstalled PostgreSQL, Memurai, MinIO binary + the harness's own uc1-ensure-bucket) through the harness's bring-your-own flags, refuses a zero-test Playwright result, and uploads logs always. The spec-side channel fix (launchPersistentContext ignoring project channel) is in apps/extension (not lane W) — see crossLaneRequests; until it lands an 'edge' PASS is bundled Chromium (stated in the UC1 doc).",
+      "red": { "test": "grep extension/e2e .github/workflows", "command": "grep -rn 'uc1-acceptance\\|extension/e2e' .github/workflows (pre-change)", "observed": "no workflow references the harness" },
+      "green": { "tests": ["yaml parse of uc1-browser-acceptance.yml"], "command": "node -e yaml.parse", "result": "jobs windows-acceptance, linux-extension-e2e" },
+      "filesChanged": [".github/workflows/uc1-browser-acceptance.yml", "docs/admin/audits/UC1_DIRECT_WEB_CAPTURE_IMPLEMENTATION.md"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "none", "api": "none", "worker": "none", "mobile": "none", "extension": "CI acceptance", "security": "loopback-only harness guards", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "first windows-latest run; spec channel fix (cross-lane)",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-TQ-003": {
+      "decision": "schema-reproducibility.yml now creates and migrates a dedicated proovra_worker_integration_test database on the same Postgres+Redis services and runs services/worker uc4-screen-intelligence-persistence + uc4-screen-intelligence-handler integration suites with a JSON report that fails on zero executed, any skipped, or any failed test. Verified locally against the lane DB: 22/22 executed.",
+      "red": { "test": "ci workflows", "command": "grep -rn 'uc4-screen-intelligence' .github/workflows (pre-change)", "observed": "no step; suites describe.skip without TEST_DATABASE_URL" },
+      "green": { "tests": ["services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts", "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts"], "command": "cd services/worker && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_w_test P7_TEST_REDIS_URL=redis://127.0.0.1:58812/6 npx vitest run <both> --reporter=json", "result": "22 passed, 0 pending, 0 failed" },
+      "filesChanged": [".github/workflows/schema-reproducibility.yml"],
+      "proofKind": "integration-real-db",
+      "impacts": { "ui": "none", "api": "none", "worker": "CI-executed UC-4 proof", "mobile": "none", "extension": "none", "security": "none", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "first CI run; real-tesseract text assertion is a test change in services/worker (not lane W)",
+      "status": "FIXED"
+    },
+    "UC-TQ-004": {
+      "decision": "ci.yml MinIO step now also creates olc-locked WITH object lock and default COMPLIANCE 1d retention; a dedicated step runs verification-package-publication.minio.test.ts with OBJECT_LOCK_MINIO_* and fails unless >= 4 tests executed, none skipped, none failed; the stale comment is annotated. Verified locally against the lane MinIO's locked bucket: 4/4.",
+      "red": { "test": "ci.yml", "command": "grep -rn OBJECT_LOCK_MINIO .github (pre-change)", "observed": "no workflow sets OBJECT_LOCK_MINIO_ENDPOINT; bucket created without --with-lock; suite skipped" },
+      "green": { "tests": ["services/worker/test/verification-package-publication.minio.test.ts"], "command": "cd services/worker && OBJECT_LOCK_MINIO_ENDPOINT=http://127.0.0.1:59711 OBJECT_LOCK_MINIO_BUCKET=uca-olc-locked ... npx vitest run test/verification-package-publication.minio.test.ts --reporter=json", "result": "4 passed, 0 pending" },
+      "filesChanged": [".github/workflows/ci.yml"],
+      "proofKind": "integration-real-db",
+      "impacts": { "ui": "none", "api": "none", "worker": "CI executes the Object-Lock suite", "mobile": "none", "extension": "none", "security": "none", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "real AWS Object-Lock acceptance (MinIO does not enforce the checksum rule)",
+      "status": "FIXED"
+    },
+    "UC-TQ-006": {
+      "decision": "The positive half of the capture commercial-gate matrix now runs against live PostgreSQL in services/api/test/capture-workspace-billing-scope.integration.test.ts with real harness workspace ids: SHARED/TEAM and SINGLE_OCCUPANT/FREE must RESOLVE (no error of any kind) for all 6 templates, SHARED/FREE must throw TEAM_PLAN_REQUIRED. The unit file's tolerant branch remains for the gate-code assertion only.",
+      "red": { "test": "temporary unit probe of the unit project's positive path", "command": "cd services/api && npx vitest run test/zz-red-tq006.test.ts (deleted after)", "observed": "AssertionError: promise rejected \"PrismaClientKnownRequestError{ P1001 DatabaseNotReachable }\" instead of resolving — the unit test's `if (caught) expect(code).not.toBe(TEAM_PLAN_REQUIRED)` passes on this" },
+      "green": { "tests": ["services/api/test/capture-workspace-billing-scope.integration.test.ts"], "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_w_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/6 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/capture-workspace-billing-scope.integration.test.ts", "result": "19 passed" },
+      "filesChanged": ["services/api/test/capture-workspace-billing-scope.integration.test.ts"],
+      "proofKind": "integration-real-db",
+      "impacts": { "ui": "none", "api": "test only", "worker": "none", "mobile": "none", "extension": "none", "security": "none", "deployment": "none" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-TRUST-006": {
+      "decision": "Docs/env-template half: docs/operations/tsa-trust-configuration.md states the env template (TSA_TRUST_BUNDLE_PATH, TSA_ACCEPTED_POLICY_OIDS, TSA_TRUST_ANCHOR_SHA256, optional TSA_USERNAME/PASSWORD) and the production readiness refusals. The validator, readiness check, anchor pin, unparsed-genTime refusal, optional credentials and services/api/.env.example are not lane W files — exact changes in crossLaneRequests (lane T).",
+      "red": { "test": "grep", "command": "grep -rn TSA_TRUST_BUNDLE_PATH services/api/.env.example docs/operations", "observed": "no env template entry; only the validator and external-proof-register mention it" },
+      "green": { "tests": ["doc"], "command": "-", "result": "contract documented" },
+      "filesChanged": ["docs/operations/tsa-trust-configuration.md"],
+      "proofKind": "source-structure",
+      "impacts": { "ui": "none", "api": "readiness + validator changes pending lane T", "worker": "none", "mobile": "none", "extension": "none", "security": "TSA trust configuration", "deployment": "api redeploy after lane T" },
+      "migration": "none",
+      "externalProofRemaining": "real TSA chain validation outside Production",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-EXT-006": {
+      "decision": "Web half: apps/web/app/auth/extension/continue/page.tsx validates response_type=code, client_id=proovra-extension, redirect_uri ^https://[a-p]{32}.chromiumapp.org/[A-Za-z0-9._-]*$ (single-valued), code_challenge 43-128 base64url, S256, state 1-256, optional bounded scope (lib/extension/extension-authorize-request.ts); invalid → error UI and no navigation; signed out → /login?next=<this page + validated query>; signed in → window.location.replace(apiBaseUrl() + /v1/oauth/extension/authorize?<rebuilt validated query>). Auth pages are not in the route registry (like /auth/mfa-challenge); middleware keeps /auth on the app host; the build lists the route. Release checklist documents the flow.",
+      "red": { "test": "apps/web/__tests__/render/extension-continue.render.test.tsx", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/extension-continue.render.test.tsx", "observed": "pre-change: page module did not exist (Failed to resolve import ../../app/auth/extension/continue/page)" },
+      "green": { "tests": ["apps/web/__tests__/render/extension-continue.render.test.tsx"], "command": "same", "result": "16 passed" },
+      "filesChanged": ["apps/web/app/auth/extension/continue/page.tsx", "apps/web/lib/extension/extension-authorize-request.ts", "apps/web/__tests__/render/extension-continue.render.test.tsx", "docs/admin/EXTENSION_RELEASE_CHECKLIST.md"],
+      "proofKind": "unit",
+      "impacts": { "ui": "extension sign-in continuation page", "api": "lane A redirects unauthenticated authorize here", "worker": "none", "mobile": "none", "extension": "signed-out sign-in completes", "security": "redirect target re-validated, unknown params dropped", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-ARCH-007": {
+      "decision": "Web/docs half: the Security Center capture-devices section now states that no PROOVRA app or extension registers capture devices or submits platform attestation yet, so the list stays empty and captures carry no device signature or attestation (verified: no client calls /v1/capture/devices; mobile declarations are recorded signatureVerdict MISSING). uc6-release-acceptance.md gains a capture-trust-boundary section and the UC1 implementation doc an explicit client-attested note; case selection stays documented as real.",
+      "red": { "test": "apps/web/__tests__/render/capture-devices-honesty.render.test.tsx", "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/capture-devices-honesty.render.test.tsx", "observed": "AssertionError: expected 'Capture devicesDevices whose keys sig…' to match /No PROOVRA app or extension registers…/" },
+      "green": { "tests": ["apps/web/__tests__/render/capture-devices-honesty.render.test.tsx", "apps/web/__tests__/phase13-evidence-security-ui.test.ts"], "command": "vitest render + node scripts/run-tests.mjs phase13-evidence-security-ui", "result": "1 passed; 8 passed" },
+      "filesChanged": ["apps/web/app/(app)/security-center/components/CaptureDevicesSection.tsx", "apps/web/__tests__/render/capture-devices-honesty.render.test.tsx", "docs/uc6-release-acceptance.md", "docs/admin/audits/UC1_DIRECT_WEB_CAPTURE_IMPLEMENTATION.md"],
+      "proofKind": "unit",
+      "impacts": { "ui": "honest copy", "api": "none", "worker": "none", "mobile": "none", "extension": "none", "security": "no attestation overclaim", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "R02-WEB-SCREEN-CAPTURE": {
+      "decision": "Owner mandate A: browser screen recording on the Capture page via getDisplayMedia (useCaptureScreenRecorder + CaptureScreenRecorderCard + a 'Screen' action in CaptureDropzone shown only where supported). Honest permission handling (denied → nothing recorded, retryable), recording/paused/stopped states, limitations recorded on the part's sourceLabel (browser-reported surface, audio only if the browser granted an audio track, ended-by-browser, pauses) and stated on the card (no device/OS attestation). The recording is ONE VIDEO item through the existing addFilesToSession and is sealed by the same Finish & Sign (so UC-WEB-001 resume applies); the server assigns its normal web acquisition mode. Cancel/discard stops sharing and leaves it reusable; a failed add keeps the recording for retry; tracks are released on unmount.",
+      "red": { "test": "n/a — new capability", "command": "-", "observed": "no getDisplayMedia path existed in apps/web" },
+      "green": { "tests": ["apps/web/__tests__/render/capture-screen-recorder.render.test.tsx (stubbed MediaRecorder/getDisplayMedia)"], "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/capture-screen-recorder.render.test.tsx", "result": "11 passed" },
+      "filesChanged": ["apps/web/app/(app)/capture/_hooks/useCaptureScreenRecorder.ts", "apps/web/app/(app)/capture/_lib/CaptureScreenRecorderCard.tsx", "apps/web/components/capture-v2/CaptureDropzone.tsx", "apps/web/components/capture-v2/capture-v2.css", "apps/web/app/(app)/capture/page.tsx", "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts", "apps/web/__tests__/render/capture-screen-recorder.render.test.tsx"],
+      "proofKind": "unit",
+      "impacts": { "ui": "Screen action + recorder card on Capture", "api": "none (existing parts/sourceLabel <= 120 chars)", "worker": "none", "mobile": "none", "extension": "none", "security": "no attestation claim; sharing released on cancel/unmount", "deployment": "web redeploy" },
+      "migration": "none",
+      "externalProofRemaining": "manual check in a real desktop browser's share dialog",
+      "status": "FIXED"
+    }
+  },
+  "crossLaneRequests": [
+    { "finding": "UC-LCH-001", "file": "packages/shared/src/legal/slugs.ts", "change": "Add \"screen-capture\" to LEGAL_SLUGS (after \"direct-web-capture\") and to the title map: \"screen-capture\": \"How Screen Capture Works\". Then run `node apps/web/scripts/generate-legal-corpus.mjs` (rewrites packages/shared/src/legal/corpus.generated.ts + revisions.generated.ts) and rebuild @proovra/shared. Turns green: legal-corpus-freshness (2) and legal-screen-capture-disclosure slug test." },
+    { "finding": "UC-LCH-001", "file": "apps/mobile/app/(stack)/screen-capture.tsx, apps/mobile/app/(stack)/continuous-capture.tsx (+ iOS intro)", "change": "Link the intro disclosure paragraph to the web legal page /settings/legal/screen-capture (lane M)." },
+    { "finding": "UC-LCH-002", "file": "packages/shared-runtime/src/ops/metrics.service.ts", "change": "Add to COUNTER_NAMES: capture_failed_proovra_web_upload_total, capture_failed_secure_intake_link_total, capture_failed_proovra_mobile_app_total, capture_failed_direct_web_capture_extension_total, capture_failed_direct_screen_capture_android_total, capture_failed_direct_screen_capture_android_continuous_total, capture_failed_direct_screen_capture_ios_total, capture_continuous_manifest_invalid_total, capture_screen_manifest_invalid_total, extension_oauth_failed_total." },
+    { "finding": "UC-LCH-002", "file": "services/api/src/services/capture-trust/*.service.ts, routes/capture-trust.routes.ts (lane M); routes/evidence.routes.ts + external-intake + extension-oauth.routes.ts (lane A)", "change": "bump(\"capture_failed_<mode>_total\") when a session of that acquisition mode is refused at open or fails at completion (not for user-recoverable outcomes: plan/storage limit, consent declined, expired link); bump capture_continuous_manifest_invalid_total / capture_screen_manifest_invalid_total where CONTINUOUS_MANIFEST_INVALID / SCREEN_MANIFEST_INVALID are returned; bump extension_oauth_failed_total on authorize/token refusals other than the signed-out redirect." },
+    { "finding": "UC-TQ-002", "file": "apps/extension/e2e/direct-web-capture.spec.ts + scripts/uc1-acceptance-windows.mjs", "change": "launchPersistentContext(dir, { channel: testInfo.project.use.channel, ... }); assert browser.version()/navigator.userAgent contains 'Edg/' for the edge project (and Chrome/Chrome-for-Testing for chromium, explicitly deciding the --load-extension restriction of Chrome Stable >=137); record the version in the harness result; write a Playwright JSON reporter to apps/extension/**/results.json so the CI zero-test refusal can count." },
+    { "finding": "UC-TRUST-006", "file": "services/api/src/services/timestamp/validate-tsa-token.ts, services/api/src/services/timestamp.service.ts, readiness/secrets-authority, services/api/.env.example (lane T)", "change": "Production readiness fails when TSA_ENABLED without a readable non-test TSA_TRUST_BUNDLE_PATH, empty TSA_ACCEPTED_POLICY_OIDS, or anchor SHA-256 not in TSA_TRUST_ANCHOR_SHA256; unparsed genTime → not STAMPED (never verify at now); TSA_USERNAME/TSA_PASSWORD optional; add the template block from docs/operations/tsa-trust-configuration.md to services/api/.env.example." },
+    { "finding": "UC-WEB-004", "file": "apps/web/lib/navigation/routeRegistry.ts (lane W may do it; owner decision)", "change": "Decide whether Personal-space users with evidence requests get a list surface: /review/queues is ORGANIZATION_ONLY, so Home's review CTA lands on REQUEST_ACCESS for them." }
+  ],
+  "migrationRequests": [],
+  "governanceFollowUps": [
+    "apps/web/__tests__/admin-completion-ledger.test.mjs: docs/admin/admin-control-plane-completion.md stale (1176 → 1168 API routes traced) — caused by other lanes' API route changes; regenerate with scripts/admin-ledger/generate.mjs (lane W restored the committed value it accidentally rewrote).",
+    "docs/admin/phase7-deletion-proof.md stale: apps/web file count 931 → 942 (new lane W files: PWA, screen recorder, extension continue page, tests); regenerate via scripts/admin-ledger/deletion-proof.mjs --markdown.",
+    "Capability map / route dispositions: new web page /auth/extension/continue, new public assets /sw.js /sw-policy.js /offline.html /icons/*, new workflows native-build.yml and uc1-browser-acceptance.yml.",
+    "apps/web legal corpus freshness + capture-alert-rules counter assertion stay red until the crossLaneRequests above land."
+  ],
+  "commandsRun": [
+    { "command": "cd apps/web && node scripts/run-tests.mjs (full node suite)", "exit": 1 },
+    { "command": "  -> 3299 tests, 3289 pass, 6 fail: legal-corpus x2 + legal slug (cross-lane), capture-alert counters (cross-lane), admin ledger + deletion proof (governance)", "exit": 1 },
+    { "command": "cd apps/web && npx vitest run --config vitest.render.config.ts (full render suite)", "exit": 0 },
+    { "command": "  -> 106 files, 1652 tests passed", "exit": 0 },
+    { "command": "cd apps/web && npx tsc --noEmit -p tsconfig.json", "exit": 0 },
+    { "command": "cd apps/web && npx eslint <changed web files>", "exit": 0 },
+    { "command": "cd apps/web && NEXT_PUBLIC_API_BASE=http://127.0.0.1:9 npx next build", "exit": 0 },
+    { "command": "cd apps/web && node scripts/pwa-installability-check.mjs --port=3417 (installabilityErrors [], swControlled true, no API cache entries; server torn down)", "exit": 0 },
+    { "command": "cd services/worker && TEST_DATABASE_URL=... npx vitest run uc4-screen-intelligence-{persistence,handler}.integration.test.ts (22/22)", "exit": 0 },
+    { "command": "cd services/worker && OBJECT_LOCK_MINIO_ENDPOINT=http://127.0.0.1:59711 ... npx vitest run verification-package-publication.minio.test.ts (4/4)", "exit": 0 },
+    { "command": "cd services/api && npx vitest run --config vitest.integration.config.ts test/capture-workspace-billing-scope.integration.test.ts (19/19)", "exit": 0 },
+    { "command": "node scripts/generate-pwa-icons.mjs", "exit": 0 }
+  ]
+}

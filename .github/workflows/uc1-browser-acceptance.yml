@@ -1,0 +1,186 @@
+name: uc1-browser-acceptance
+
+# UC-TQ-002 / UC-LCH-003 — the UC-1 Direct Web Capture browser acceptance
+# (apps/extension/e2e, driven by scripts/uc1-acceptance-windows.mjs) ran in NO
+# workflow, so "Chrome + Edge PASS" was a local claim only.
+#
+#   * windows-acceptance — the harness on windows-latest against the
+#     PREINSTALLED Google Chrome and Microsoft Edge, 45-minute bound, logs
+#     uploaded whatever the outcome.
+#   * linux-extension-e2e — the same harness, Chromium project only, under
+#     xvfb on ubuntu (Linux containers available for --start-infra), so every
+#     PR touching the capture path gets a headed extension run.
+#
+# Infra on Windows: hosted windows runners run WINDOWS containers only, so the
+# harness's `--start-infra` (pgvector / redis / minio Linux images) works only
+# when the Docker engine reports a Linux OS. The job asks Docker first and uses
+# `--start-infra` when it can; otherwise it brings native services (the
+# preinstalled PostgreSQL, Memurai for Redis, the MinIO Windows binary) and
+# passes them to the harness's bring-your-own flags. Either way the harness's
+# own local-only safety guards apply (it refuses any non-loopback host).
+#
+# Each browser project must DISCOVER and RUN tests: the harness exits non-zero
+# unless every requested browser passed, and the job additionally refuses a
+# results file that reports zero executed tests.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+  pull_request:
+    paths:
+      - "apps/extension/**"
+      - "scripts/uc1-acceptance-windows.mjs"
+      - "services/api/src/routes/capture-trust.routes.ts"
+      - "services/api/src/routes/extension-oauth.routes.ts"
+      - "services/api/src/services/capture-trust/**"
+      - ".github/workflows/uc1-browser-acceptance.yml"
+
+concurrency:
+  group: uc1-browser-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-acceptance:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      TEMP: ${{ runner.temp }}
+      TMP: ${{ runner.temp }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Browsers present (Chrome + Edge, recorded)
+        shell: pwsh
+        run: |
+          $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+          $edge = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+          if (-not (Test-Path $chrome)) { choco install googlechrome -y --no-progress }
+          if (-not (Test-Path $edge)) { choco install microsoft-edge -y --no-progress }
+          foreach ($b in @($chrome, $edge)) {
+            if (-not (Test-Path $b)) { Write-Output "::error::browser missing: $b"; exit 1 }
+            Write-Output ("{0} {1}" -f $b, (Get-Item $b).VersionInfo.ProductVersion)
+          }
+          npx playwright install chromium
+
+      - name: Infrastructure mode
+        id: infra
+        shell: pwsh
+        run: |
+          $os = ""
+          try { $os = (docker version --format '{{.Server.Os}}' 2>$null) } catch { $os = "" }
+          if ($os -eq "linux") { "mode=docker" >> $env:GITHUB_OUTPUT } else { "mode=native" >> $env:GITHUB_OUTPUT }
+          Write-Output "docker server os: '$os'"
+
+      - name: Native infrastructure (PostgreSQL + Redis-compatible + MinIO)
+        if: steps.infra.outputs.mode == 'native'
+        shell: pwsh
+        run: |
+          $svc = Get-Service -Name "postgresql*" | Select-Object -First 1
+          Set-Service -Name $svc.Name -StartupType Manual
+          Start-Service -Name $svc.Name
+          $env:PGPASSWORD = "root"
+          & "$env:PGBIN\psql.exe" -h 127.0.0.1 -U postgres -c "CREATE USER proovra WITH PASSWORD 'uc1_disposable' SUPERUSER;"
+          & "$env:PGBIN\psql.exe" -h 127.0.0.1 -U postgres -c "CREATE DATABASE uc1_acceptance_test OWNER proovra;"
+          choco install memurai-developer -y --no-progress
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\minio-data" | Out-Null
+          Invoke-WebRequest -Uri "https://dl.min.io/server/minio/release/windows-amd64/minio.exe" -OutFile "$env:RUNNER_TEMP\minio.exe"
+          $env:MINIO_ROOT_USER = "uc1miniolocal"
+          $env:MINIO_ROOT_PASSWORD = "uc1miniolocalsecret"
+          Start-Process -FilePath "$env:RUNNER_TEMP\minio.exe" -ArgumentList "server","$env:RUNNER_TEMP\minio-data","--address","127.0.0.1:56423" -RedirectStandardOutput "$env:RUNNER_TEMP\minio.log" -NoNewWindow
+          for ($i = 0; $i -lt 60; $i++) {
+            try { Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:56423/minio/health/live" | Out-Null; break } catch { Start-Sleep -Seconds 1 }
+          }
+          # Same bucket bootstrap the harness uses for --start-infra.
+          $env:S3_ENDPOINT = "http://127.0.0.1:56423"
+          $env:S3_BUCKET = "uc1-acceptance"
+          $env:S3_ACCESS_KEY = "uc1miniolocal"
+          $env:S3_SECRET_KEY = "uc1miniolocalsecret"
+          $env:S3_REGION = "us-east-1"
+          pnpm --filter proovra-api exec node scripts/uc1-ensure-bucket.mjs
+
+      - name: UC-1 acceptance — Chrome + Edge (docker infra)
+        if: steps.infra.outputs.mode == 'docker'
+        run: node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge
+
+      - name: UC-1 acceptance — Chrome + Edge (native infra)
+        if: steps.infra.outputs.mode == 'native'
+        run: >-
+          node scripts/uc1-acceptance-windows.mjs --browsers=chromium,edge
+          --db-url=postgresql://proovra:uc1_disposable@127.0.0.1:5432/uc1_acceptance_test
+          --redis-url=redis://127.0.0.1:6379/0
+          --s3-endpoint=http://127.0.0.1:56423
+
+      - name: Refuse an empty acceptance run
+        if: always()
+        shell: pwsh
+        run: |
+          $results = Get-ChildItem -Recurse -Path "apps/extension" -Filter "results.json" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $results) { Write-Output "::warning::no Playwright JSON results found to count" ; exit 0 }
+          $r = Get-Content $results.FullName | ConvertFrom-Json
+          $executed = $r.stats.expected + $r.stats.unexpected + $r.stats.flaky
+          Write-Output "playwright stats: $($r.stats | ConvertTo-Json -Compress)"
+          if ($executed -le 0) { Write-Output "::error::UC-1 acceptance executed ZERO tests"; exit 1 }
+
+      - name: Upload acceptance logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc1-acceptance-windows-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/uc1-acceptance-*
+            ${{ runner.temp }}/minio.log
+            apps/extension/test-results/
+            apps/extension/playwright-report/
+          if-no-files-found: warn
+          retention-days: 14
+
+  linux-extension-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TMPDIR: ${{ runner.temp }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium + xvfb
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y xvfb
+
+      - name: UC-1 extension e2e — Chromium (headed under xvfb)
+        run: xvfb-run -a node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium
+
+      - name: Upload e2e logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc1-extension-e2e-linux-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/uc1-acceptance-*
+            apps/extension/test-results/
+            apps/extension/playwright-report/
+          if-no-files-found: warn
+          retention-days: 14

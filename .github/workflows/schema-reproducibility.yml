@@ -242,6 +242,48 @@ jobs:
           RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS: "1"
           AUTH_JWT_SECRET: ci-integration-only-secret-0123456789abcdef
         run: pnpm test:integration
+
+      # UC-TQ-003 — the worker's UC-4 screen-intelligence path had NO
+      # CI-executed behavioural proof: both suites below are `describe.skip`
+      # without TEST_DATABASE_URL, and the worker's own CI step provides no
+      # database. They run here, on the same Postgres + Redis services, against
+      # a DEDICATED freshly-migrated database (the API integration run above
+      # leaves state behind; these suites must not inherit it).
+      #
+      # FAIL ON ZERO / FAIL ON SKIP. A green step that executed nothing is the
+      # exact failure this finding describes, so the JSON report is checked:
+      # at least one test, none pending/skipped, none failed.
+      - name: Create + migrate the worker integration database
+        working-directory: services/api
+        env:
+          DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_worker_integration_test
+        run: |
+          PGPASSWORD=proovra_password createdb -h localhost -U proovra proovra_worker_integration_test
+          pnpm prisma:migrate
+
+      - name: Worker UC-4 screen-intelligence integration (live PostgreSQL)
+        working-directory: services/worker
+        env:
+          TEST_DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra_worker_integration_test
+          RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS: "1"
+          AUTH_JWT_SECRET: ci-integration-only-secret-0123456789abcdef
+        run: |
+          set +e
+          npx vitest run \
+            test/uc4-screen-intelligence-persistence.integration.test.ts \
+            test/uc4-screen-intelligence-handler.integration.test.ts \
+            --reporter=default --reporter=json --outputFile=/tmp/worker-uc4.json
+          rc=$?
+          set -e
+          node -e '
+            const r = require("/tmp/worker-uc4.json");
+            const s = { total: r.numTotalTests, passed: r.numPassedTests, failed: r.numFailedTests, pending: r.numPendingTests + (r.numTodoTests || 0) };
+            console.log("worker UC-4 integration:", JSON.stringify(s));
+            if (!(s.total > 0)) { console.log("::error::worker UC-4 integration executed ZERO tests"); process.exit(1); }
+            if (s.pending > 0) { console.log("::error::worker UC-4 integration SKIPPED " + s.pending + " tests (database not reached?)"); process.exit(1); }
+            if (s.failed > 0 || s.passed !== s.total) { console.log("::error::worker UC-4 integration failed"); process.exit(1); }
+          '
+          exit $rc
       # PHASE 12 POINT 4 — raw-schema ownership verification. Proves that every
       # object the datamodel does not declare is REGISTERED, and that no table or
       # column is proposed for removal (the datamodel owns existence).

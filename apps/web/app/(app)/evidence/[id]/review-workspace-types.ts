@@ -338,8 +338,19 @@ export type ReviewWorkspaceResponse = {
   } | null;
   preservationMatrix: PreservationMatrix;
   relationships: {
+    /** Deprecated single-case alias (the first case the viewer may open). */
     caseId: string | null;
     caseName: string | null;
+    /**
+     * UC-CASE-005 — EVERY linked case the viewer may open (access-filtered
+     * server-side). Optional: an older API image does not send it.
+     */
+    cases?: Array<{
+      caseId: string;
+      caseName: string | null;
+      role: string;
+      linkedAtUtc: string;
+    }>;
     relatedEvidenceCount: number | null;
     multipart: boolean;
     itemCount: number;

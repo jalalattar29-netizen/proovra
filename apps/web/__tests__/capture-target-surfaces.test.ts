@@ -44,7 +44,9 @@ const READINESS = read("apps/web/app/(app)/capture/_lib/session-readiness.ts");
 test("the trust strip carries the three intended items and no legal claim", () => {
   for (const [title, detail] of [
     ["Integrity by design", "Hash, map, and verify automatically"],
-    ["End-to-end protected", "Encrypted storage and verifiable audit trail"],
+    // UC-PROV-011 — no end-to-end claim: TLS upload, encrypted storage,
+    // server-side hash recomputation.
+    ["Encrypted in transit and at rest", "TLS upload to encrypted storage; hashes recomputed server-side"],
     ["Verifiable audit trail", "Recorded evidence operations and preservation history"],
   ] as const) {
     assert.ok(TRUST.includes(title), `trust strip missing "${title}"`);

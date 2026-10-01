@@ -1,4 +1,4 @@
-import { Camera, Mic, Upload, Video } from "lucide-react";
+import { Camera, Mic, MonitorUp, Upload, Video } from "lucide-react";
 
 import { Button } from "../ui";
 
@@ -9,6 +9,8 @@ type CaptureDropzoneProps = {
   onOpenFolderPicker: () => void;
   onOpenCamera: (mode: "PHOTO" | "VIDEO") => void;
   onOpenAudioRecorder: () => void;
+  /** Browser screen recording; the action renders only when supplied (supported browsers). */
+  onOpenScreenRecorder?: () => void;
   onDropFiles: (event: React.DragEvent<HTMLDivElement>) => Promise<void>;
 };
 
@@ -48,6 +50,13 @@ const INTAKE_ACTIONS = [
     icon: Mic,
     tone: "secondary",
   },
+  {
+    key: "screen",
+    label: "Screen",
+    helper: "Record screen or tab",
+    icon: MonitorUp,
+    tone: "secondary",
+  },
 ] as const;
 
 export function CaptureDropzone({
@@ -57,6 +66,7 @@ export function CaptureDropzone({
   onOpenFolderPicker,
   onOpenCamera,
   onOpenAudioRecorder,
+  onOpenScreenRecorder,
   onDropFiles,
 }: CaptureDropzoneProps) {
   const runAction = (actionKey: (typeof INTAKE_ACTIONS)[number]["key"]) => {
@@ -77,6 +87,11 @@ export function CaptureDropzone({
 
     if (actionKey === "video") {
       onOpenCamera("VIDEO");
+      return;
+    }
+
+    if (actionKey === "screen") {
+      onOpenScreenRecorder?.();
       return;
     }
 
@@ -107,7 +122,7 @@ export function CaptureDropzone({
         className="capture-upload-actions capture-phase5-upload-actions"
         aria-label="Evidence intake actions"
       >
-        {INTAKE_ACTIONS.map((action) => {
+        {INTAKE_ACTIONS.filter((action) => action.key !== "screen" || onOpenScreenRecorder).map((action) => {
           const Icon = action.icon;
           const isPrimary = action.tone === "primary";
 

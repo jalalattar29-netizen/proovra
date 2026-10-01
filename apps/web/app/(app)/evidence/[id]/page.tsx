@@ -754,11 +754,14 @@ function EvidenceDetailPageInner() {
     }
   };
 
-  const removeCase = async () => {
-    if (!evidenceId || !workspace?.relationships.caseId) return;
+  // UC-CASE-005 — unlink ONE named case (a record may be linked to several);
+  // without an argument, the deprecated single-case alias.
+  const removeCase = async (caseId?: string) => {
+    const targetCaseId = caseId ?? workspace?.relationships.caseId ?? null;
+    if (!evidenceId || !targetCaseId) return;
     setActionBusy(true);
     try {
-      await apiFetch(`/v1/cases/${workspace.relationships.caseId}/evidence/${evidenceId}`, {
+      await apiFetch(`/v1/cases/${targetCaseId}/evidence/${evidenceId}`, {
         method: "DELETE",
       });
       addToast("Evidence removed from case", "success");

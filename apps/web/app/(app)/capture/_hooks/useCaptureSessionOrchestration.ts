@@ -37,10 +37,57 @@ import {
   shouldReportCaptureFailure,
   logCaptureClientError,
 } from "../_lib/capture-errors";
+import {
+  artifactOutcomeToast,
+  classifyArtifactStatus,
+  type CaptureArtifactOutcome,
+} from "../_lib/artifact-readiness";
+
+/**
+ * UC-WEB-001 — the evidence record reserved for the CURRENT staged set.
+ *
+ * Finish & Sign used to be one-shot: POST /v1/evidence minted a record, a
+ * mid-upload failure threw, and the next click minted a SECOND record. The
+ * reservation keeps the record for exactly the staged set it was made for, so a retry resumes into the SAME record:
+ * parts already uploaded are skipped, missing ones are re-presigned (the parts
+ * route is RETURN_EXISTING idempotent per partIndex) and re-PUT, and a failed
+ * /complete retries only /complete.
+ *
+ * It is abandoned the moment the staged set changes in a way that would
+ * re-bind an already-issued part index to a different file (removal or
+ * reorder); appending items keeps it, because new items take new indexes.
+ *
+ * ACROSS A RELOAD the server is the authority: POST /v1/evidence with the
+ * same durable draft id (captureSessionId) answers with the draft's reserved,
+ * still-unsealed record (`resumed: true`) instead of minting another, and the
+ * draft only moves to FINALIZED at /complete (lane A, UC-WEB-001 server half).
+ * No custom idempotency header is sent: it is not CORS-allow-listed, so a
+ * browser would refuse the cross-origin create outright.
+ */
+export type CaptureRecordReservation = {
+  evidenceId: string | null;
+  evidenceTeamId: string | null;
+  /** Item ids in part-index order at the time parts were issued. */
+  itemIds: string[];
+  uploadedItemIds: Set<string>;
+};
+
+export function reservationFitsItems(
+  reservation: CaptureRecordReservation,
+  itemIds: readonly string[],
+): boolean {
+  if (itemIds.length < reservation.itemIds.length) return false;
+  return reservation.itemIds.every((id, index) => itemIds[index] === id);
+}
+
 
 export type CaptureSessionAddFiles = (
   files: File[],
-  options?: { sessionEvidenceType?: EvidenceType }
+  options?: {
+    sessionEvidenceType?: EvidenceType;
+    /** Stored on the part as its source label (server bound: 120 chars). */
+    sourceLabel?: string;
+  }
 ) => Promise<void>;
 
 // =============================================================================
@@ -197,6 +244,7 @@ async function runResumableItemUpload(input: {
 
 type AddFilesOptions = {
   sessionEvidenceType?: EvidenceType;
+  sourceLabel?: string;
 };
 
 type ResetCaptureStateOptions = {
@@ -260,6 +308,7 @@ export function useCaptureSessionOrchestration({
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
 
   const sessionItemsRef = useRef<SessionItem[]>([]);
+  const reservationRef = useRef<CaptureRecordReservation | null>(null);
 
   sessionItemsRef.current = sessionItems;
 
@@ -293,25 +342,35 @@ export function useCaptureSessionOrchestration({
   // view, or download events. This was previously /report/latest, which logged
   // REPORT_DOWNLOADED + evidence.report_viewed on every poll and falsified the
   // custody chain. See backend evidence.routes.ts /artifacts/status.
-  const pollArtifacts = async (evidenceId: string): Promise<boolean> => {
+  //
+  // UC-WEB-005 — reads the canonical output state, stops on a terminal one,
+  // and returns WHICH state it saw, so a failed or blocked report is never
+  // announced as "still generating".
+  const pollArtifacts = async (
+    evidenceId: string
+  ): Promise<CaptureArtifactOutcome> => {
+    let last: CaptureArtifactOutcome = "UNKNOWN";
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
         const status = await apiFetch(
           `/v1/evidence/${evidenceId}/artifacts/status`,
           { method: "GET" }
         );
-
-        if (status?.report?.available) {
-          return true;
+        const read = classifyArtifactStatus(status);
+        last = read.outcome;
+        if (read.terminal) return read.outcome;
+        // The projection says polling is pointless (no live work).
+        if (status?.outputs && status.outputs.pollIntervalMs === null) {
+          return read.outcome;
         }
       } catch {
-        // Treat transient failures as "not yet ready" and retry.
+        // Transient read failure: keep the last state seen and retry.
       }
 
       await sleep(2000);
     }
 
-    return false;
+    return last;
   };
 
   const addFilesToSession = async (files: File[], options?: AddFilesOptions) => {
@@ -420,6 +479,7 @@ export function useCaptureSessionOrchestration({
             uploading: false,
             error: null,
             checklistStepId: assignChecklistStepId(normalizedMimeType),
+            ...(options?.sourceLabel ? { sourceLabel: options.sourceLabel } : {}),
             clientSignals: signals,
           };
         })
@@ -489,6 +549,7 @@ export function useCaptureSessionOrchestration({
     const hadMaterials = sessionItemsRef.current.length > 0;
 
     revokeAllPreviews();
+    reservationRef.current = null;
     setSessionItems([]);
     setSessionStatus(null);
     setProgress(0);
@@ -535,7 +596,38 @@ export function useCaptureSessionOrchestration({
       return;
     }
 
+    // Offline: nothing can reach the API, so do not start (and do not mint a
+    // record). Staged items stay; the retry resumes normally once online.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const offlineMessage =
+        "You are offline. Finish & Sign needs a connection; your staged materials are kept.";
+      setError(offlineMessage);
+      addToast(offlineMessage, "warning");
+      return;
+    }
+
     const captured = ctxStamp();
+
+    // UC-WEB-001 — resume into the reserved record when the staged set still
+    // fits it; otherwise start a new reservation.
+    const itemIds = items.map((item) => item.id);
+    let reservation = reservationRef.current;
+    if (reservation && !reservationFitsItems(reservation, itemIds)) {
+      reservation = null;
+    }
+    if (!reservation) {
+      reservation = {
+        evidenceId: null,
+        evidenceTeamId: null,
+        itemIds,
+        uploadedItemIds: new Set(),
+      };
+    } else {
+      reservation.itemIds = itemIds;
+    }
+    reservationRef.current = reservation;
+    const resuming = reservation.evidenceId !== null;
+    let currentItemId: string | null = null;
 
     setBusy(true);
     setError(null);
@@ -668,7 +760,18 @@ export function useCaptureSessionOrchestration({
 
       const captureSessionId = getCaptureSessionDraftId?.() ?? null;
 
-      const created = await apiFetch("/v1/evidence", {
+      if (resuming) {
+        recordTimelineEvent({
+          title: "Resuming finalization",
+          detail:
+            "Retrying into the same evidence record; items already uploaded are not sent again.",
+          tone: "info",
+        });
+      }
+
+      const created = resuming
+        ? { id: reservation.evidenceId, teamId: reservation.evidenceTeamId }
+        : await apiFetch("/v1/evidence", {
         method: "POST",
         body: JSON.stringify({
           type: rootType,
@@ -697,10 +800,22 @@ export function useCaptureSessionOrchestration({
       // flag + large file; all other paths use the legacy XHR PUT flow.
       const evidenceTeamId =
         (created as { teamId?: string | null }).teamId ?? null;
-      setSessionStatus("Uploading preserved evidence items...");
+      reservation.evidenceId = evidenceId;
+      reservation.evidenceTeamId = evidenceTeamId;
+      setSessionStatus(
+        resuming
+          ? "Resuming upload into the same evidence record..."
+          : "Uploading preserved evidence items..."
+      );
 
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
+
+        // UC-WEB-001 — already uploaded into this record: never re-sent.
+        if (reservation.uploadedItemIds.has(item.id)) {
+          continue;
+        }
+        currentItemId = item.id;
 
         setSessionItems((prev) =>
           prev.map((current) =>
@@ -737,6 +852,7 @@ export function useCaptureSessionOrchestration({
             // time. The downstream completeEvidence transaction
             // sees this item alongside any legacy parts and
             // finalizes them atomically.
+            reservation.uploadedItemIds.add(item.id);
             continue;
           } catch (err) {
             // Resumable failures are surfaced to the user via the
@@ -887,6 +1003,7 @@ export function useCaptureSessionOrchestration({
         }
         if (lastError) throw lastError;
 
+        reservation.uploadedItemIds.add(item.id);
         setSessionItems((prev) =>
           prev.map((current) =>
             current.id === item.id
@@ -899,13 +1016,16 @@ export function useCaptureSessionOrchestration({
       setSessionStatus("Finalizing signed record...");
       setProgress(95);
 
+      currentItemId = null;
       await apiFetch(`/v1/evidence/${evidenceId}/complete`, {
         method: "POST",
         body: JSON.stringify({}),
       });
+      // Sealed: nothing left to resume.
+      reservationRef.current = null;
 
       setSessionStatus("Generating verification artifacts...");
-      const reportReady = await pollArtifacts(evidenceId);
+      const artifactOutcome = await pollArtifacts(evidenceId);
 
       setProgress(100);
 
@@ -926,13 +1046,9 @@ export function useCaptureSessionOrchestration({
         return;
       }
 
-      if (reportReady) {
-        addToast("Evidence record created successfully!", "success");
-      } else {
-        addToast(
-          "Evidence record created. Verification artifacts are still generating.",
-          "warning"
-        );
+      {
+        const outcomeToast = artifactOutcomeToast(artifactOutcome);
+        addToast(outcomeToast.message, outcomeToast.tone);
       }
 
       // Drop the local draft handle — the server has moved it to FINALIZED
@@ -942,6 +1058,30 @@ export function useCaptureSessionOrchestration({
       resetCaptureState({ preserveTimeline: true });
       router.push(`/evidence/${evidenceId}`);
     } catch (err) {
+      // UC-WEB-001 — no item may stay "uploading" after a failure. The item
+      // that failed carries a safe error; items already uploaded keep 100%;
+      // the rest go back to idle so the retry can resume them.
+      {
+        const failedItemId = currentItemId;
+        const uploaded = reservationRef.current?.uploadedItemIds ?? new Set<string>();
+        const itemError = toSafeUserError(err, {
+          message: "This item could not be uploaded. Retry to resume.",
+        }).message;
+        setSessionItems((prev) =>
+          prev.map((current) => {
+            if (uploaded.has(current.id)) {
+              return { ...current, uploading: false, uploadProgress: 100, error: null };
+            }
+            if (current.id === failedItemId) {
+              return { ...current, uploading: false, uploadProgress: 0, error: itemError };
+            }
+            return current.uploading || current.uploadProgress > 0
+              ? { ...current, uploading: false, uploadProgress: 0 }
+              : current;
+          })
+        );
+      }
+
       // Expected billing gate — TEAM workspace evidence requires a TEAM
       // plan. This is user-recoverable: switch to personal workspace OR
       // upgrade. Staged materials must NOT be discarded (we don't call

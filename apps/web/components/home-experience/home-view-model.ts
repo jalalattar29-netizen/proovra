@@ -92,6 +92,14 @@ export type HomePlanFeatures = {
  * the exact dataset behind `trustSummary.needingAttention`
  * (see services/api/src/services/dashboard/trust-summary.service.ts:110-115).
  */
+/**
+ * UC-WEB-004 — the ONE destination for "submissions waiting for review": the
+ * evidence-request review queue panel (GET /v1/review/queue) on the reviewer
+ * queues page. /evidence-requests has no list page (only [id]).
+ */
+export const HOME_SUBMISSION_REVIEW_HREF =
+  "/review/queues#evidence-request-queue";
+
 export const HOME_INTEGRITY_REVIEW_HREF =
   "/evidence?verificationStatus=REVIEW_REQUIRED,FAILED";
 
@@ -2163,10 +2171,10 @@ function buildWorkspacePriorities(args: {
       whyItMatters: "External evidence is not part of the trusted record until you review it.",
       recommendedAction: "Review and accept or return each submission.",
       actionLabel: "Review submissions",
-      // The intake queue is where a submission is reviewed; a notification
-      // list is not. Free and paid users alike land on the same surface,
-      // because reviewing your own intake is not a workbench action.
-      href: "/evidence-requests?status=RESPONSE_RECEIVED,UNDER_REVIEW",
+      // The evidence-request review queue is where a submission is
+      // reviewed; a notification list is not. UC-WEB-004: this used to point
+      // at /evidence-requests?status=…, a route with no list page (404).
+      href: HOME_SUBMISSION_REVIEW_HREF,
       derivedFrom: ["dashboard/trust-summary.intake.submissionsAwaitingReview"],
     });
   }

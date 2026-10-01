@@ -7,6 +7,7 @@ import {
   pickSupportedAudioMimeType,
 } from "../_lib/file-utils";
 import {
+  describeAudioAddFailure,
   describeMediaError,
   logCaptureClientError,
 } from "../_lib/capture-errors";
@@ -271,11 +272,7 @@ export function useCaptureAudioRecorder({
     } catch (err) {
       logCaptureClientError("web_capture_add_audio_to_session", err, {});
       setAudioRecorderState("failed");
-      setAudioRecorderError(
-        err instanceof Error
-          ? err.message
-          : "Audio recording could not be added to the evidence session."
-      );
+      setAudioRecorderError(describeAudioAddFailure(err));
     }
   };
 

@@ -103,7 +103,11 @@ test("Remove case renders only when a case is actually attached", () => {
     REVIEW,
     /onRemoveCase=\{workspace\.relationships\.caseId \? \(\) => void removeCase\(\) : null\}/,
   );
-  assert.match(RELATIONSHIPS, /\{onRemoveCase \? \(/);
+  // UC-CASE-005: the single-alias header action renders only for an older
+  // API that does not project `cases`; otherwise each linked case carries
+  // its own unlink, rendered only for a case that is actually linked.
+  assert.match(RELATIONSHIPS, /\{onRemoveCase && !cases \? \(/);
+  assert.match(RELATIONSHIPS, /cases\.map\(\(c\) =>[\s\S]*?onRemoveLinkedCase\(c\.caseId\)/);
 });
 
 test("relationship management stays behind the visibility helper", () => {

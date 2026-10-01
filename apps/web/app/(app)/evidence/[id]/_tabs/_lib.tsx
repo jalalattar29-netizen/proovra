@@ -144,7 +144,7 @@ export type EvidenceDetailCtx = {
   generateOutputsBusy: boolean;
   runRecordAction: (path: string, successMessage: string) => Promise<void> | void;
   restoreTrash: () => Promise<void> | void;
-  removeCase: () => Promise<void> | void;
+  removeCase: (caseId?: string) => Promise<void> | void;
   handleRemoveRelationship: (relationshipId: string) => Promise<void> | void;
 
   // Modal openers

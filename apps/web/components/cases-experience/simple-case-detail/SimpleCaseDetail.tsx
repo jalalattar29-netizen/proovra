@@ -50,7 +50,7 @@ import { useRouter } from "next/navigation";
 // it). Every glyph below is wrapped in an `aria-hidden` span by its caller —
 // the same convention `AppSidebarV2` / `AppAccountToolbar` use — so an icon
 // never leaks into an accessible name.
-import { Copy, FileText, Plus, Search, Share2, ShieldCheck } from "lucide-react";
+import { Copy, FileText, Plus, Search, Share2 } from "lucide-react";
 
 import { apiFetch } from "../../../lib/api";
 // P2-4 — the ONE Cases label mapping for a canonical output state.
@@ -910,9 +910,13 @@ function OverviewTab({
             <Plus size={16} strokeWidth={1.9} aria-hidden="true" />
             Add evidence
           </button>
-          {/* State-aware. With zero evidence, report + package
-              generation have no valid input, so they are DISABLED
-              with an explanatory tooltip. */}
+          {/* UC-OUT-002 — NAVIGATION, not an output action. Reports and
+              verification packages are produced per evidence record; no
+              case-level output exists, so this control opens the Reports &
+              packages tab and says so. (It used to be two buttons,
+              "Generate report" and "Create verification package", that both
+              only switched tab.) Disabled with zero evidence: the tab would
+              have nothing to show. */}
           <button
             type="button"
             className="app-secondary-action app-secondary-action--filled app-secondary-action--block"
@@ -920,26 +924,12 @@ function OverviewTab({
             disabled={evidenceCount === 0}
             title={
               evidenceCount === 0
-                ? "Add evidence before generating a report."
+                ? "Add evidence before reports and packages can be produced."
                 : undefined
             }
           >
             <FileText size={16} strokeWidth={1.9} aria-hidden="true" />
-            Generate report
-          </button>
-          <button
-            type="button"
-            className="app-secondary-action app-secondary-action--block"
-            onClick={() => onGoToTab("reports")}
-            disabled={evidenceCount === 0}
-            title={
-              evidenceCount === 0
-                ? "A finalized evidence record is required."
-                : undefined
-            }
-          >
-            <ShieldCheck size={16} strokeWidth={1.9} aria-hidden="true" />
-            Create verification package
+            View reports &amp; packages
           </button>
           <button
             type="button"

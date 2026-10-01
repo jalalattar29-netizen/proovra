@@ -6,6 +6,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import CookieConsentInit from "./CookieConsentInit";
 import PrivacyPreferencesLauncher from "../components/privacy/PrivacyPreferencesLauncher";
+import ServiceWorkerUpdatePrompt from "../components/pwa/ServiceWorkerUpdatePrompt";
 import { apiBaseUrl } from "../lib/api";
 import { directionFor, localeFromCookies } from "../lib/i18n";
 
@@ -68,7 +69,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/assets/branding/proovra-mark.png",
     shortcut: "/assets/branding/proovra-mark.png",
-    apple: "/assets/branding/proovra-mark.png",
+    apple: "/icons/icon-192.png",
   },
 };
 
@@ -158,6 +159,7 @@ export default async function RootLayout({
       <body className="antialiased" style={{ fontFamily: "var(--font-jakarta)" }}>
         <CookieConsentInit />
         <Providers>{children}</Providers>
+        <ServiceWorkerUpdatePrompt />
         <PrivacyPreferencesLauncher />
       </body>
     </html>

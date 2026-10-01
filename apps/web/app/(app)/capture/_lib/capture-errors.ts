@@ -2,6 +2,7 @@ import { ApiError } from "../../../../lib/api";
 import type { ToastOptions } from "../../../../components/ui-legacy";
 import {
   hasExplanationFor,
+  toSafeUserError,
   type SafeUserError,
 } from "../../../../lib/feedback/toSafeUserError";
 import { captureException } from "../../../../lib/sentry";
@@ -185,4 +186,20 @@ export function logCaptureClientError(
 ) {
   console.error(`[capture] ${feature}`, error, extra ?? {});
   captureException(error, { feature, ...(extra ?? {}) });
+}
+/**
+ * UC-WEB-006 — user-safe copy for a failed drag-and-drop. `filesFromDataTransfer`
+ * rejects with raw DOMException text ("NotFoundError: A requested file or
+ * directory could not be found…"), which must never reach the screen. Routed
+ * through the ONE sanctioned mapper so a known API code still maps.
+ */
+export const DROP_FAILURE_MESSAGE = "Dropped files or folder could not be added.";
+export function describeDropFailure(error: unknown): string {
+  return toSafeUserError(error, { message: DROP_FAILURE_MESSAGE }).message;
+}
+
+export const AUDIO_ADD_FAILURE_MESSAGE =
+  "Audio recording could not be added to the evidence session.";
+export function describeAudioAddFailure(error: unknown): string {
+  return toSafeUserError(error, { message: AUDIO_ADD_FAILURE_MESSAGE }).message;
 }

@@ -13,11 +13,16 @@ captured bytes through the canonical capture-trust pipeline (`acquisitionMode = 
 
 ```bash
 cd apps/extension
-PROOVRA_API_ORIGIN=https://api.proovra.com pnpm release
+PROOVRA_API_ORIGIN=https://api.proovra.com \n  PROOVRA_STORAGE_ORIGINS=https://<bucket>.s3.<region>.amazonaws.com \n  pnpm release
 ```
 
 The `release` script (`release.mjs`) is **fail-closed**:
 - refuses to run without an `https://` `PROOVRA_API_ORIGIN` (no localhost/http in a release);
+- **REQUIRES `PROOVRA_STORAGE_ORIGINS`** (comma list of the origin(s) the presigned capture upload URLs
+  point at): every entry must be `https://` and non-local, and the release is refused without it
+  (UC-SEC-002);
+- refuses a built manifest whose `host_permissions` are anything other than **exactly** the API origin plus
+  the configured storage origin(s) — nothing broader, nothing test-only (UC-TQ-008);
 - validates the MV3 manifest;
 - builds the production bundle (`NODE_ENV=production`, minified, no source maps, no remote code);
 - **leak-scans** the bundle and refuses to ship if any localhost/dev origin survived;
@@ -46,9 +51,9 @@ Optional overrides (env): `PROOVRA_AUTH_AUTHORIZE_URL`, `PROOVRA_AUTH_TOKEN_URL`
 | `scripting` | Inject the capture routine into the active tab to read the rendered DOM/pixels for the authorized capture. | Runs only during an active, user-initiated capture. |
 | `storage` | Persist the short-lived OAuth session token in `chrome.storage.session` (cleared on browser close) and minimal UI state. | No long-lived secret; no API key. |
 | `identity` | Run the OAuth PKCE flow via `chrome.identity.launchWebAuthFlow` and obtain the `chromiumapp.org` redirect. | No profile/email scraping. |
-| `host_permissions` | **none** (empty) | Access is gated by `activeTab` + user gesture, not by broad host grants. |
+| `host_permissions` | **Exactly** `PROOVRA_API_ORIGIN/*` and each `PROOVRA_STORAGE_ORIGINS` entry `/*` — nothing else. | Needed for the API calls and the presigned PUT of captured bytes. Page access stays gated by `activeTab` + user gesture; the release refuses any other host. (The source `public/manifest.json` carries `[]`; the build injects the configured origins.) |
 
-No `<all_urls>`, no persistent background host access, no remote code (strict CSP:
+No `<all_urls>`, no host access beyond the API + storage origins, no remote code (strict CSP:
 `script-src 'self'`), no embedded credentials, no legacy/unrelated functionality.
 
 ## 4. Data-use / trust boundary (for the store privacy declaration)
@@ -68,8 +73,14 @@ The extension uses `redirect_uri = chrome.identity.getRedirectURL("oauth2")` =
   `EXTENSION_OAUTH_REDIRECT_ALLOW` env (or the store-derived ID) and the `proovra-extension` public client.
   Until then the server **fails closed** (unknown redirect → rejected), so no code change presents a false
   "signed in" state.
-- **Exact remaining human step:** after the store assigns the ID, set `EXTENSION_OAUTH_REDIRECT_ALLOW` to
-  `https://<EXTENSION_ID>.chromiumapp.org/oauth2` in the production API environment and redeploy the API.
+- **Exact remaining human step:** after each store assigns its ID, set `EXTENSION_OAUTH_REDIRECT_ALLOW` to
+  one `https://<store id>.chromiumapp.org/oauth2` entry **per store id** (comma-separated — the Chrome Web
+  Store and Edge Add-ons ids differ), e.g.
+  `EXTENSION_OAUTH_REDIRECT_ALLOW=https://<chrome id>.chromiumapp.org/oauth2,https://<edge id>.chromiumapp.org/oauth2`,
+  in the production API environment and redeploy the API.
+- **Signed-out users:** authorize redirects a browser navigation without a session to the web page
+  `/auth/extension/continue` (UC-EXT-006), which requires sign-in and then returns the auth window to
+  authorize with the validated OAuth parameters. No configuration is needed beyond the web deploy.
 
 ## 6. Chrome Web Store & Edge Add-ons submission (EXTERNAL — human console)
 Chrome Web Store (https://chrome.google.com/webstore/devconsole):
@@ -79,8 +90,8 @@ Chrome Web Store (https://chrome.google.com/webstore/devconsole):
 4. Submit for review. On approval, record the assigned **extension ID** and do §5.
 
 Edge Add-ons (https://partner.microsoft.com/dashboard/microsoftedge): the SAME stored ZIP is valid (MV3
-Chromium). Submit through the Edge Partner Center; no fork required. Register the Edge redirect if the ID
-differs.
+Chromium). Submit through the Edge Partner Center; no fork required. Add the Edge store id's redirect to
+`EXTENSION_OAUTH_REDIRECT_ALLOW` (§5) — it always differs from the Chrome id.
 
 **Do not mark PUBLISHED until the store review completes and the ID + redirect (§5) are registered.**
 

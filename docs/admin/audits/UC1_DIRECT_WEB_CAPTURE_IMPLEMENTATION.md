@@ -32,6 +32,15 @@ automation here); it is fully prepared as a runnable harness with exact commands
 **IMPLEMENTATION COMPLETE — BROWSER ACCEPTANCE PENDING**, not CLOSED. It becomes
 CLOSED when both browser projects pass.
 
+> **CI (UC-TQ-002 / UC-LCH-003, 2026-10-01):** the harness now has a workflow,
+> `.github/workflows/uc1-browser-acceptance.yml` — a `windows-latest` job running
+> `scripts/uc1-acceptance-windows.mjs --browsers=chromium,edge` against the installed
+> Chrome + Edge (45-minute bound, logs uploaded), and an ubuntu job running the
+> Chromium project headed under xvfb. Whether each project launches its DECLARED
+> channel (Chrome Stable / Edge) rather than bundled Chromium is the separate
+> spec-side fix of UC-TQ-002; until that lands a green `edge` project still runs
+> bundled Chromium and must not be read as Edge acceptance.
+
 ## Artifact-semantics decision (resolved before coding)
 
 `EvidencePart.artifactClass` ORIGINAL means a *directly acquired* output of the
@@ -138,7 +147,8 @@ storage (`extension_auth_codes`) and proof (`uc1-extension-oauth.integration.tes
 cookie scraping; redirect restricted to `*.chromiumapp.org` (or an env
 allowlist), never arbitrary. The token endpoint mints an ordinary `AUTH_JWT` the
 canonical `requireAuth` already accepts — not a second auth system. Workspace/case
-selection is sent as a request, never trusted: the server authorizes via the
+selection is sent as a request, never trusted (case selection is wired through the popup and filed at
+seal — see the Case row of the same-Evidence trace and the e2e `CASE` stage): the server authorizes via the
 canonical `authorizeOrFail` (evidence.create, anti-enumeration) and the existing
 case-access checks — exactly as the UC-0 direct-session routes already do.
 
@@ -245,9 +255,17 @@ gated on real implementation, EN/DE parity, **counsel-review-required** flagged.
 
 ## UC-2 readiness
 
+> **No device-signed or attested capture (UC-ARCH-007, 2026-10-01).** The device
+> registration and session attestation routes exist server-side, but NO PROOVRA
+> client (web, extension, Android, iOS) registers a capture device or submits
+> platform attestation. Every direct capture, UC-1 included, is CLIENT-ATTESTED:
+> the server recomputes every digest and binds the bytes to a server-issued
+> session, and nothing more. The Security Center capture-device list is expected
+> to be empty and says so.
+
 The architecture is UC-2-ready: device registration and session attestation
 routes already exist (fail closed today, classified as UC-2 prerequisites in
-`route-dispositions.json`), the acquisition authority is one resolver a new mode
+`route-dispositions.json`; unused by any client — see the note above), the acquisition authority is one resolver a new mode
 plugs into, and the session/digest/binding machine is channel-agnostic. UC-2
 (Android Direct Screen Capture) is a new acquisition channel on the same spine —
 **not implemented here.**
@@ -378,7 +396,7 @@ surface and asserts real behavior on each (not just its presence):
 | --- | --- | --- |
 | Library | `GET /v1/evidence?scope=all&acquisition=DIRECT_WEB_CAPTURE` | the record appears; `items[].acquisition.mode === DIRECT_WEB_CAPTURE_EXTENSION` |
 | Detail | `GET /v1/evidence/:id/review-workspace` | `evidence.sourceContext.acquisition.mode === DIRECT_WEB_CAPTURE_EXTENSION` |
-| Case | `POST /v1/cases` → `POST /v1/cases/:id/evidence` → `GET /v1/evidence?caseId=` | evidence links to a case in the same workspace and reads back under it |
+| Case | popup case selection → seal → `GET /v1/evidence?caseId=<filed case>&scope=all` (fallback when no case is chosen: `POST /v1/cases` → `POST /v1/cases/:id/evidence` → `GET /v1/evidence?caseId=`) | **case selection is now TRUE end to end (UC-EXT-010):** the popup lists the workspace's open cases (`[data-testid="case"]`), the chosen case travels with the session and the capture is filed under it AT SEAL; the e2e `CASE` stage (`apps/extension/e2e/direct-web-capture.spec.ts`, stage `"CASE"`) asserts the sealed record is listed under the chosen case, and only falls back to an explicit link when no case was chosen |
 | Search | `POST /v1/search/reindex/evidence/:id` → `GET /v1/search?teamId=&q=` | after the synchronous reindex, the evidence is found by a term from its own title |
 | Report | poll `GET /v1/evidence/:id/artifacts/status` → `GET /v1/evidence/:id/report/latest` | worker-generated report; `evidenceId` matches and `snapshots.acquisitionMode === DIRECT_WEB_CAPTURE_EXTENSION` (sealed, not re-derived) |
 | Verification Package | poll `artifacts/status` → `GET /v1/evidence/:id/verification-package` | worker-generated package; `evidenceId` + `version` present |

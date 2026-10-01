@@ -4,7 +4,7 @@
  * The Inspector footer is the authority, and it carries two RANKS for two
  * kinds of work: the canonical purple primary for `Download Report`, the
  * canonical dark filled secondary for `Download Verification Package`. Case
- * Details adopts exactly that pair for `Add evidence` and `Generate report`.
+ * Details adopts exactly that pair for `Add evidence` and `View reports & packages`.
  *
  * An earlier pass flattened both Inspector downloads to the outlined
  * secondary, which erased the rank difference and made the two downloads
@@ -67,7 +67,8 @@ const PAIRS = [
     classes: ["app-secondary-action", "app-secondary-action--filled"],
     forbidden: "app-primary-action",
     evidence: "Download Verification Package",
-    caseAction: "Generate report",
+    // UC-OUT-002: the case control is navigation to the Reports tab.
+    caseAction: "View reports &amp; packages",
   },
 ] as const;
 

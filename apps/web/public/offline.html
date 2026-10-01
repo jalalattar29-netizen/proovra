@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Offline | PROOVRA</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <style>
+      :root { color-scheme: light dark; --bg: #ffffff; --fg: #0f172a; --muted: #475569; --accent: #0b1f5e; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #0b1220; --fg: #e2e8f0; --muted: #94a3b8; --accent: #93c5fd; } }
+      body { margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+      main { max-width: 520px; margin: 0 auto; padding: 64px 16px; }
+      img { width: 48px; height: 48px; }
+      h1 { font-size: 22px; margin: 16px 0 8px; }
+      p { color: var(--muted); line-height: 1.55; }
+      a { color: var(--accent); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="" />
+      <h1>You are offline</h1>
+      <p>
+        PROOVRA needs a connection to open this page. Evidence is only sealed on the server, so
+        nothing can be uploaded or sealed while you are offline.
+      </p>
+      <p>
+        If you were capturing, return to the Capture page when you are back online. Materials
+        staged in an open Capture tab stay in that tab, and Finish &amp; Sign resumes into the same
+        record once the connection returns.
+      </p>
+      <p><a href="/home">Try again</a></p>
+    </main>
+  </body>
+</html>

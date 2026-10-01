@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, PageShell, PageHeader, useToast } from "../../../components/ui";
 import { PageRouteGate } from "../../../components/navigation/PageRouteGate";
 // P3 domain remediation (2026-07-21) — tenant-boundary dirty-work guard.
-import { useDirtyWork } from "../../../lib/platform-context/dirtyWorkRegistry";
 // PHASE 7 §10.5 — canonical owning-context banner.
 import { orderTemplatesByWorkflow } from "./_lib/workflowTemplateOrder";
 import { CaptureReadinessPanel } from "./_lib/CaptureReadinessPanel";
@@ -63,10 +62,14 @@ import {
 } from "./_lib/file-utils";
 
 import { filesFromDataTransfer } from "./_lib/folder-utils";
-import { logCaptureClientError } from "./_lib/capture-errors";
+import { describeDropFailure, logCaptureClientError } from "./_lib/capture-errors";
 import { buildSessionReadiness } from "./_lib/session-readiness";
 import { buildSessionWorkflowSnapshot } from "./_lib/session-workflow";
 import { useCaptureSessionOrchestration } from "./_hooks/useCaptureSessionOrchestration";
+import { useCaptureLeaveGuard } from "./_hooks/useCaptureLeaveGuard";
+import { useCaptureScreenRecorder } from "./_hooks/useCaptureScreenRecorder";
+import { CaptureScreenRecorderCard } from "./_lib/CaptureScreenRecorderCard";
+import { useOnlineStatus } from "../../../lib/pwa/useOnlineStatus";
 // Phase 30.10 — resumable upload adoption surface. The hook is
 // active only when NEXT_PUBLIC_RESUMABLE_UPLOADS_ENABLED=true; with
 // the flag off it returns empty arrays and no UI/network activity.
@@ -260,6 +263,12 @@ function CapturePageInner() {
 
   addFilesToSessionRef.current = addFilesToSession;
   setPageErrorRef.current = setError;
+
+  // Browser screen recording — stages ONE video item through the same
+  // addFilesToSession path; sealed by the same Finish & Sign.
+  const online = useOnlineStatus();
+  const [screenRecorderOpen, setScreenRecorderOpen] = useState(false);
+  const screenRecorder = useCaptureScreenRecorder({ addFilesToSession });
 
   const updateSessionItem = (
     itemId: string,
@@ -483,33 +492,10 @@ function CapturePageInner() {
     ]
   );
 
-  useEffect(() => {
-    const hasStagedMaterials = sessionItems.length > 0 && !busy;
-
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!hasStagedMaterials) return;
-
-      event.preventDefault();
-      event.returnValue = "";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, [sessionItems.length, busy]);
-
-  // P3 domain remediation (2026-07-21) — `beforeunload` only fires on real
-  // browser navigation; an in-app WORKSPACE SWITCH is an envelope swap that
-  // never triggers it. Register staged capture material in the dirty-work
-  // registry so the context switcher demands explicit confirmation before
-  // crossing the tenant boundary (staged evidence must never silently
-  // finalize into a different workspace).
-  useDirtyWork(
-    sessionItems.length > 0 && !busy,
-    "Staged evidence in Capture",
-  );
+  // UC-WEB-002 — one guard for leave-page AND workspace-switch, ON while
+  // material is staged OR a finalize/upload is in flight (busy). See
+  // _hooks/useCaptureLeaveGuard.ts for why `busy` must not switch it off.
+  useCaptureLeaveGuard(sessionItems.length, busy);
 
   useEffect(() => {
     const handleOutsideClick = (event: PointerEvent) => {
@@ -919,6 +905,11 @@ onClick={async () => {
               onOpenFolderPicker={openFolderPicker}
               onOpenCamera={openCamera}
               onOpenAudioRecorder={openAudioRecorder}
+              onOpenScreenRecorder={
+                screenRecorder.state === "unsupported"
+                  ? undefined
+                  : () => setScreenRecorderOpen(true)
+              }
               onDropFiles={async (event) => {
                 event.preventDefault();
 
@@ -927,14 +918,36 @@ onClick={async () => {
                   await handleDroppedFiles(files);
                 } catch (err) {
                   logCaptureClientError("web_capture_drop_files_or_folder", err, {});
-                  setError(
-                    err instanceof Error
-                      ? err.message
-                      : "Dropped files or folder could not be added."
-                  );
+                  setError(describeDropFailure(err));
                 }
               }}
             />
+            {!online ? (
+              <p className="capture-offline-notice" role="alert" data-capture-offline>
+                You are offline. Staged materials stay on this page; adding a recording and
+                Finish &amp; Sign need a connection and will not start until it returns.
+              </p>
+            ) : null}
+            {screenRecorderOpen ? (
+              <CaptureScreenRecorderCard
+                state={screenRecorder.state}
+                error={screenRecorder.error}
+                facts={screenRecorder.facts}
+                hasRecording={screenRecorder.recording !== null}
+                disabled={busy}
+                offline={!online}
+                onStart={() => void screenRecorder.start()}
+                onPause={screenRecorder.pause}
+                onResume={screenRecorder.resume}
+                onStop={screenRecorder.stop}
+                onDiscard={screenRecorder.discard}
+                onAdd={() => void screenRecorder.addToSession()}
+                onClose={() => {
+                  screenRecorder.discard();
+                  setScreenRecorderOpen(false);
+                }}
+              />
+            ) : null}
                         {audioRecorderOpen ? (
               <div className="capture-audio-card">
                 <div className="capture-panel-heading">

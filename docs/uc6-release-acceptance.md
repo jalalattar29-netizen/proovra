@@ -76,7 +76,7 @@ an application somebody can install, and a launch an operator can stand behind.
 | 5 | **Android physical acceptance** | **NOT_TESTED** | no device was available to this session. The APK exists and `apps/mobile/docs/physical-acceptance.md` carries the script, the build id and the two UC-6 behaviours to exercise deliberately |
 | 6 | **iPhone physical acceptance** | **NOT_TESTED** | same, and no iOS build was produced |
 | 7 | **iPad physical acceptance** | **NOT_TESTED** | same |
-| 8 | **Extension distribution readiness** | **PASS (package)** · **BLOCKED_EXTERNAL (submission)** | `proovra-extension-v1.0.0.zip`, 457 001 bytes, sha256 `b9760542…` (rebuilt 2026-09-24 after the popup stopped rendering backend strings; the previous 456 783 / `9dc38c9a…` is superseded), built against `https://api.proovra.com`; MV3 lint OK — least privilege, strict CSP, no remote code, `host_permissions` empty. Listing copy, permission justifications and the privacy declaration are written. **The archive is gitignored and exists only on the build machine** — `apps/extension/release/` is not committed, so a reviewer reproduces it with the build rather than finding it in the tree. Submission, the store-assigned extension ID and the OAuth redirect registration are human-console steps that were not performed |
+| 8 | **Extension distribution readiness** | **PASS (package)** · **BLOCKED_EXTERNAL (submission)** | `proovra-extension-v1.0.0.zip`, 457 001 bytes, sha256 `b9760542…` (rebuilt 2026-09-24 after the popup stopped rendering backend strings; the previous 456 783 / `9dc38c9a…` is superseded), built against `https://api.proovra.com`; MV3 lint OK — least privilege, strict CSP, no remote code; `host_permissions` are now EXACTLY the API origin plus the configured `PROOVRA_STORAGE_ORIGINS` (release refuses anything else; updated 2026-10-01). Listing copy, permission justifications and the privacy declaration are written. **The archive is gitignored and exists only on the build machine** — `apps/extension/release/` is not committed, so a reviewer reproduces it with the build rather than finding it in the tree. Submission, the store-assigned extension ID and the OAuth redirect registration are human-console steps that were not performed |
 | 9 | **Security and evidence integrity** | **PASS (targeted review)** | one acquisition authority; uploads are never described as direct capture; a claimed `ANCHORED` OTS state is downgraded to `PENDING` when nothing supports it; no user-facing copy leaks resource existence (all 92 dictionary entries checked); the capture screens no longer render thrown text. **Not a penetration test** — see §C |
 | 10 | **Backup and recovery** | **PASS (rehearsed on disposable data)** · **NOT_TESTED (production source)** | a full `pg_dump -Fc` of a 278-migration database was restored into a fresh database in **11 seconds with zero errors**: evidence 500, custody 52, teams 103, users 107, migrations 278, **0 orphaned custody events**, `db:drift-check` OK, and `db:raw-schema-verify` byte-identical to the source. The production backup source is a Neon snapshot this session had no access to, and `safe-migrate.mjs` already refuses a production migration that does not name one |
 | 11 | **Monitoring and incident response** | **FAIL (not wired)** | 32 alert rules exist in `infra/grafana/alerts/`, and **nothing evaluates them**: `docker-compose.prod.yml` declares redis, api, worker and caddy — no Prometheus, no Grafana, no Alertmanager — and the rule file names no contact point. The API exposes `/metrics`, `/health`, `/healthz` and `/readyz`, so the data exists and nothing is scraping it. Alerts that reach nobody are not monitoring |
@@ -155,13 +155,29 @@ it has.
 
 ---
 
+## Capture trust boundary (UC-ARCH-007, 2026-10-01)
+
+No PROOVRA client registers capture devices or submits platform attestation.
+Every direct capture mode (UC-1 extension, UC-2/UC-3 Android, UC-5 iOS) is
+CLIENT-ATTESTED: the server recomputes every digest and binds bytes to a
+server-issued session. Nothing in this release is device-signed or attested,
+and no acceptance row below should be read as claiming it. (Extension case
+selection, by contrast, IS implemented end to end — UC-EXT-010.)
+
 ## C2. SIGNING, AUTHENTICATION AND APP LINKS
 
-### Neither association file can verify anything today
+> **Updated 2026-10-01 (UC-LCH-006):** both placeholders are gone from the tree.
+> `assetlinks.json` carries the real signing SHA-256 (2026-09-24) and
+> `apple-app-site-association` carries the Team ID `4LCZK75N86` since `92669167`
+> (2026-09-25). The section below is the historical record of the state on the
+> date it was written. The iOS build blocker that REMAINS is the Associated
+> Domains capability on the App ID (§E3 row 1), not the association file.
 
-`apps/web/public/.well-known/assetlinks.json` carries the literal string
+### Neither association file could verify anything (historical, pre-92669167)
+
+`apps/web/public/.well-known/assetlinks.json` carried the literal string
 `<ANDROID_SIGNING_SHA256_FINGERPRINT>` and `apple-app-site-association`
-carries `<APPLE_TEAM_ID>`. Both are served from real paths on a real host, so
+carried `<APPLE_TEAM_ID>`. Both are served from real paths on a real host, so
 the files RESOLVE and the verification FAILS — which is the quiet failure
 mode: a link opens the browser and nothing anywhere says why. The two values
 are external prerequisites 1 and 2 in §E2, and neither can be read from this
@@ -418,7 +434,7 @@ Nothing below is invented, and none of it can be done from a repository.
 | # | Value | Where it lives now | The exact step |
 |---|---|---|---|
 | 1 | ~~Android signing SHA-256~~ **RESOLVED 2026-09-24** | extracted from the signed APK itself — the APK Signing Block (v2) carries the X.509 certificate, and `assetlinks.json` now holds `F0:59:34:F6:…:7D:38`, corroborated by `openssl x509 -fingerprint -sha256`. **Still required at Play enrolment:** Play App Signing re-signs, so its key must be ADDED to the array (the field is a list so both coexist) |
-| 2 | Apple Team ID | `apple-app-site-association` carries `<APPLE_TEAM_ID>` | Apple Developer → Membership. It prefixes the App ID as `<TEAM>.com.jalalattar29.proovra`. **Narrowed 2026-09-24:** signing itself is NOT blocked — an iOS device build was accepted non-interactively (`c9aa4432`, profile `preview`, `simulator: false`, `distribution: INTERNAL`), which EAS would refuse without a usable distribution certificate and provisioning profile. What is still missing is the ability to READ the team identifier from this environment, which is a different thing from being unable to sign |
+| 2 | ~~Apple Team ID~~ **RESOLVED 2026-09-25 (`92669167`)** | `apple-app-site-association` carries `4LCZK75N86.com.jalalattar29.proovra` | Apple Developer → Membership. It prefixes the App ID as `<TEAM>.com.jalalattar29.proovra`. **Narrowed 2026-09-24:** signing itself is NOT blocked — an iOS device build was accepted non-interactively (`c9aa4432`, profile `preview`, `simulator: false`, `distribution: INTERNAL`), which EAS would refuse without a usable distribution certificate and provisioning profile. What is still missing is the ability to READ the team identifier from this environment, which is a different thing from being unable to sign |
 | 3 | Extension ID + OAuth redirect | fails closed server-side until registered | After store review assigns the ID, set `EXTENSION_OAUTH_REDIRECT_ALLOW=https://<EXTENSION_ID>.chromiumapp.org/oauth2` in the production API environment and redeploy |
 | 4 | `NEXT_PUBLIC_EXTENSION_INSTALL_URL` | set nowhere, which is why the card says "not published yet" | Set it to the store listing URL after publication. The card flips to AVAILABLE through the canonical capability resolver — no code change |
 | 5 | Google OAuth client IDs | **already configured** in `eas.json` for all three profiles | Confirm the deployed API's `GOOGLE_CLIENT_IDS` includes them, and `APPLE_CLIENT_IDS` includes the bundle id. §0 of the physical-acceptance script checks this first, because a mismatch fails sign-in for a configuration reason that looks like a code defect |
@@ -443,7 +459,7 @@ out of the APK) and Apple signing itself (a device build reached Xcode).
 | # | Task | Verified state | Already executed | Exact missing thing | Where it must be configured | What I do immediately after | Blocks |
 |---|---|---|---|---|---|---|---|
 | 1 | iOS signed build | `c9aa4432` ERRORED at Xcode with `XCODE_BUILD_ERROR` | submitted a device build non-interactively; proved certificate + profile exist; read the exact Xcode error | **Associated Domains capability** on App ID `com.jalalattar29.proovra`, then a regenerated provisioning profile | Apple Developer → Certificates, Identifiers & Profiles → Identifiers → that App ID → enable Associated Domains; then `eas credentials` (interactive) or let EAS re-mint | re-run `eas build -p ios --profile preview`, verify the `.ipa`, record build id + version | internal testing AND public distribution |
-| 2 | Apple Team ID in `apple-app-site-association` | file still carries `<APPLE_TEAM_ID>` | wrote the Android fingerprint by extracting it from the APK; added a guard that fails on a malformed value | the ten-character Team ID | Apple Developer → Membership | write it, re-run the parity guards, redeploy the web app so the file serves | Universal Links on iOS |
+| 2 | ~~Apple Team ID in `apple-app-site-association`~~ **RESOLVED** | file carries the Team ID `4LCZK75N86` since `92669167` (2026-09-25) | wrote the Android fingerprint by extracting it from the APK; added a guard that fails on a malformed value | the ten-character Team ID | Apple Developer → Membership | write it, re-run the parity guards, redeploy the web app so the file serves | Universal Links on iOS |
 | 3 | Play App Signing fingerprint | `assetlinks.json` holds the real upload-key SHA-256 (extracted 2026-09-24) | extracted and published the current signing key; the field is an array so both coexist | the Play-assigned key, if and when the app is enrolled | Play Console → App integrity → App signing | append it to the array and redeploy | Android App Links only after Play enrolment |
 | 4 | Store submission (Chrome, Edge) | package built and published as a CI artifact each commit | gates, deterministic build, checksum, listing copy, permissions and privacy text | a store account session; submission is a human console step | Chrome Web Store dev console; Microsoft Partner Center | upload the artifact, fill the listing, register the extension ID and the OAuth redirect | public distribution |
 | 5 | Production alert destination | evaluator and delivery proven against a local sink | Prometheus + Grafana provisioning, repaired rules, contact point, routing, compose that refuses to start without a destination | the real `PROOVRA_ALERT_WEBHOOK_URL` (or SMTP settings) | the deployment environment; never in the repository | deploy the monitoring compose alongside prod, fire one synthetic alert, confirm delivery | full public launch |

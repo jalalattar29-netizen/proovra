@@ -265,6 +265,18 @@ test("no prohibited legal claim appears on the capture surface", () => {
   }
 });
 
+test("UC-PROV-011: the trust strip claims no end-to-end protection the pipeline does not provide", () => {
+  // Bytes are uploaded to PROOVRA storage in clear over TLS and the server
+  // recomputes SHA-256 of the stored plaintext at completion — end-to-end
+  // encryption would make that impossible. The honest statement is
+  // "encrypted in transit and at rest".
+  const STRIP = read("apps/web/app/(app)/capture/_lib/CaptureTrustStrip.tsx");
+  const copy = code(STRIP);
+  assert.doesNotMatch(copy, /end[- ]to[- ]end/i, "capture trust strip must not claim end-to-end protection");
+  assert.doesNotMatch(code(PAGE), /end[- ]to[- ]end/i, "capture page must not claim end-to-end protection");
+  assert.match(copy, /Encrypted in transit and at rest/);
+});
+
 // ---------------------------------------------------------------------------
 // Top-of-page order, and the two blocks that left
 // ---------------------------------------------------------------------------

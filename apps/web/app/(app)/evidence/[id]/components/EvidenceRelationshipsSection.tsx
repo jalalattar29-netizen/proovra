@@ -15,8 +15,17 @@ type RelationshipItem = {
   };
 };
 
+type LinkedCase = {
+  caseId: string;
+  caseName: string | null;
+  role: string;
+  linkedAtUtc: string;
+};
+
 export function EvidenceRelationshipsSection({
   caseName,
+  cases,
+  onRemoveLinkedCase,
   relatedEvidenceCount,
   multipart,
   itemCount,
@@ -35,6 +44,13 @@ export function EvidenceRelationshipsSection({
   onRemoveRelationship,
 }: {
   caseName: string | null;
+  /**
+   * UC-CASE-005 — every linked case the viewer may open (server-filtered).
+   * When present it is the authority for the case list and per-case unlink;
+   * absent (older API) the single `caseName` alias renders as before.
+   */
+  cases?: LinkedCase[];
+  onRemoveLinkedCase?: (caseId: string) => void;
   relatedEvidenceCount: number | null;
   multipart: boolean;
   itemCount: number;
@@ -75,9 +91,9 @@ export function EvidenceRelationshipsSection({
             onClick={onAssignCase}
             data-evidence-action="assign-case"
           >
-            {caseName ? "Reassign case" : "Assign case"}
+            {(cases ? cases.length > 0 : Boolean(caseName)) ? "Reassign case" : "Assign case"}
           </button>
-          {onRemoveCase ? (
+          {onRemoveCase && !cases ? (
             <button
               type="button"
               className="app-ghost-action evidence-detail-destructive-action"
@@ -106,10 +122,40 @@ export function EvidenceRelationshipsSection({
           own card and can never widen the grid or push a neighbour. */}
       <div className="evidence-detail-facts-grid" data-evidence-facts-grid>
         <div className="evidence-detail-fact">
-          <span className="evidence-detail-fact__label">Case assignment</span>
-          <span className="evidence-detail-fact__value evidence-detail-fact__value--clamp">
-            {caseName || "Unassigned"}
+          <span className="evidence-detail-fact__label">
+            {cases && cases.length > 1 ? `Linked cases (${cases.length})` : "Case assignment"}
           </span>
+          {cases ? (
+            cases.length === 0 ? (
+              <span className="evidence-detail-fact__value">Unassigned</span>
+            ) : (
+              <ul className="evidence-detail-case-list" data-evidence-linked-cases>
+                {cases.map((c) => (
+                  <li key={c.caseId} data-evidence-linked-case={c.caseId}>
+                    <span className="evidence-detail-fact__value evidence-detail-fact__value--clamp">
+                      {c.caseName || "Untitled case"}
+                    </span>
+                    {onRemoveLinkedCase ? (
+                      <button
+                        type="button"
+                        className="app-ghost-action evidence-detail-destructive-action"
+                        onClick={() => onRemoveLinkedCase(c.caseId)}
+                        disabled={actionBusy}
+                        data-evidence-action="remove-case"
+                        aria-label={`Remove from case ${c.caseName || "Untitled case"}`}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <span className="evidence-detail-fact__value evidence-detail-fact__value--clamp">
+              {caseName || "Unassigned"}
+            </span>
+          )}
         </div>
         <div className="evidence-detail-fact">
           <span className="evidence-detail-fact__label">Related evidence</span>

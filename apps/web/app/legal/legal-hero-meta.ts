@@ -205,6 +205,14 @@ export const LEGAL_HERO_META: Record<string, LegalHeroMeta> = {
       "What the PROOVRA browser extension records when it preserves a web page through a server-issued capture session, how integrity is established after ingestion, and what capture does and does not establish.",
     meta: "Capture disclosure · Records how and when, not that content is true",
   },
+  "screen-capture": {
+    label: "Capture",
+    title: "How Screen Capture Works.",
+    highlight: "Screen Capture Works.",
+    summary:
+      "What PROOVRA's Android, iOS and browser screen capture record, how integrity is established after ingestion, and what screen capture does and does not establish.",
+    meta: "Capture disclosure · Records what was displayed, not that it is true",
+  },
   dmca: {
     label: "Legal",
     title: "Copyright and DMCA Policy.",

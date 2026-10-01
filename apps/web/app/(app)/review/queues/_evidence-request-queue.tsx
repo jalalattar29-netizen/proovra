@@ -162,6 +162,7 @@ export function EvidenceRequestReviewQueue({
     <Card
       variant="admin"
       padding="compact"
+      id="evidence-request-queue"
       data-evidence-request-queue
       data-evidence-request-queue-state={state.kind}
     >

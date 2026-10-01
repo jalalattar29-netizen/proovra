@@ -15,6 +15,10 @@
  * admissible", "Court approved", "Authenticity proven", "Truth verified". The
  * platform records and verifies preservation state; it does not adjudicate.
  * `capture-workflow-hierarchy.test.ts` fails if any of those appear here.
+ *
+ * Nor "end-to-end" protection (UC-PROV-011): bytes travel over TLS to
+ * encrypted storage and the server recomputes SHA-256 over the stored
+ * plaintext at completion, which true end-to-end encryption would preclude.
  */
 
 import { Fingerprint, Lock, ScrollText } from "lucide-react";
@@ -29,8 +33,8 @@ const TRUST_ITEMS = [
   {
     id: "protected",
     Icon: Lock,
-    title: "End-to-end protected",
-    detail: "Encrypted storage and verifiable audit trail",
+    title: "Encrypted in transit and at rest",
+    detail: "TLS upload to encrypted storage; hashes recomputed server-side",
   },
   {
     id: "audit",

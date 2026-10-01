@@ -50,6 +50,7 @@ import { useState } from "react";
 import { apiFetch } from "../../../../../lib/api";
 import { captureException } from "../../../../../lib/sentry";
 import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
+import { describeReportDownloadFailure } from "../../../../../lib/evidence/report-download-feedback";
 import { tryDownloadFile } from "../_tabs/_lib";
 // RELIABILITY CLOSURE (2026-09-09) — the ONE reader of the typed generation
 // outcome, shared with the Reports page and the AI Copilot.
@@ -59,6 +60,10 @@ import {
 } from "../../../../../lib/evidence/generation-outcome";
 
 type Toast = (message: string, tone: "success" | "error" | "info") => void;
+
+// UC-OUT-004 — the ONE report-download refusal vocabulary (shared with the
+// Evidence Library row action).
+export { describeReportDownloadFailure };
 
 export type EvidenceArtifactActions = {
   downloadReport: () => Promise<void>;
@@ -121,11 +126,17 @@ const downloadReport = async () => {
     }
     window.open(data.url, "_blank", "noopener,noreferrer");
   } catch (downloadError) {
-    addToast("Failed to download report", "error");
-    captureException(downloadError, {
-      feature: "web_evidence_download_report",
-      evidenceId,
-    });
+    // UC-OUT-004 — each refusal answers in its own words, and an expected,
+    // bounded refusal (hold, governance, eligibility, not generated) is an
+    // outcome, not a fault: it never files a Sentry issue.
+    const feedback = describeReportDownloadFailure(downloadError);
+    addToast(feedback.message, feedback.tone);
+    if (feedback.report) {
+      captureException(downloadError, {
+        feature: "web_evidence_download_report",
+        evidenceId,
+      });
+    }
   }
 };
 

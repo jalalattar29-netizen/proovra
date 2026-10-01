@@ -84,6 +84,15 @@ export default function AppLayout({
       // ignore
     }
 
+    // PWA — nothing a session touched survives sign-out (the service worker
+    // caches only the static shell, but it is cleared regardless).
+    try {
+      const { clearServiceWorkerCaches } = await import("../../lib/pwa/serviceWorkerClient");
+      await clearServiceWorkerCaches();
+    } catch {
+      // best-effort
+    }
+
     setToken(null);
     updateUser(null);
 
