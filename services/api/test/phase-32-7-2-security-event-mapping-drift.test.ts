@@ -1402,6 +1402,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281001000100_acquisition_source_backfill_only",
       "20281001000200_case_evidence_link_pair_unique",
       "20281001000300_entitlement_one_active",
+      // UC-TRUST-003 signing-key identity, UC-TRUST-004 trust-event append-only, UC-DER-006 output version.
+      "20281001000400_signing_key_identity_immutable",
+      "20281001000500_capture_trust_events_append_only",
+      "20281001000600_derived_asset_storage_version",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

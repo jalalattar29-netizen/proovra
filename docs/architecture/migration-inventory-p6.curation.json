@@ -3419,6 +3419,30 @@
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM (SELECT 1 FROM entitlements WHERE active GROUP BY user_id HAVING count(*) > 1) d\"",
       "evidence": "ONE ACTIVE ENTITLEMENT PER USER (2026-10-01, UC-COM-004). Adds the partial unique index entitlements_user_id_active_key ON entitlements(user_id) WHERE active (a raw-schema object Prisma cannot express). WHY: entitlement bootstrap was check-then-create in several places, so concurrent first requests could create two active rows and the wallet/plan reader picked one arbitrarily; every writer now uses ensureEntitlement. FAIL CLOSED: a guard aborts the migration if any user already has two active rows; nothing is merged or summed — duplicate rows may hold purchased credits and must be reconciled by an operator (readinessCommand must return 0). EXPAND / SAFE_TO_APPLY_NOW once readiness returns 0. ROLLBACK: DROP INDEX. NOT APPLIED TO PRODUCTION."
+    },
+    "20281001000400_signing_key_identity_immutable": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_trigger WHERE tgname IN ('signing_keys_identity_immutable','signing_keys_no_delete')\"",
+      "evidence": "SIGNING KEY IDENTITY IS IMMUTABLE (2026-10-01, UC-TRUST-003). Adds nullable evidence.signing_key_sha256 (SPKI SHA-256 of the key that verified the signature at signing time) and two triggers on signing_keys: identity (key_id, version, public_key_pem) cannot change and a revocation cannot be cleared; rows are never deleted (the canonical proovra_refuse_history_rewrite). WHY: the seed upserted public_key_pem and cleared revoked_at, so a replaced key row could make old signatures read as valid. EXPAND / SAFE_TO_APPLY_NOW: the previous image never changes key identity (the new seed refuses to); apply BEFORE the image that writes signing_key_sha256. Idempotent. ROLLBACK: drop the triggers. NOT APPLIED TO PRODUCTION."
+    },
+    "20281001000500_capture_trust_events_append_only": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM pg_trigger WHERE tgname='capture_trust_event_records_append_only'\"",
+      "evidence": "CAPTURE TRUST EVENTS ARE APPEND-ONLY (2026-10-01, UC-TRUST-004). BEFORE UPDATE OR DELETE trigger on capture_trust_event_records using the custody chain refusal function proovra_refuse_history_rewrite (20280805000000). WHY: the sub-chain was hash-linked on write but rows could be edited or deleted silently. No product path updates or deletes these rows and nothing cascades into them. EXPAND / SAFE_TO_APPLY_NOW. Idempotent. ROLLBACK: drop the trigger. NOT APPLIED TO PRODUCTION."
+    },
+    "20281001000600_derived_asset_storage_version": {
+      "classification": "EXPAND",
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='evidence_part_derived_assets' AND column_name='storage_version_id'\"",
+      "evidence": "DERIVED OUTPUT VERSION RECORDED (2026-10-01, UC-DER-006). Adds nullable evidence_part_derived_assets.storage_version_id (the S3 VersionId of the output object), mirroring evidence_parts.storage_version_id. WHY: on a versioned bucket the key alone does not identify a generation. EXPAND / SAFE_TO_APPLY_NOW; apply BEFORE the worker image that writes it. Idempotent. NOT APPLIED TO PRODUCTION."
     }
   }
 }

@@ -70,6 +70,9 @@ model Evidence {
   /// BACKFILL_INTAKE_SESSION_LINK (derived from the unique
   /// workflow_intake_sessions.evidence_id join). Set together with the mode.
   acquisitionModeSource          String?             @map("acquisition_mode_source") @db.VarChar(40)
+  /// UC-TRUST-003 — SPKI SHA-256 of the public key that verified this record's signature at
+  /// signing time (migration 20281001000400). NULL on records signed before it.
+  signingKeySha256               String?             @map("signing_key_sha256") @db.VarChar(64)
   identityLevelSnapshot          IdentityLevel?      @map("identity_level_snapshot")
   submittedByEmail               String?             @map("submitted_by_email") @db.VarChar(320)
   submittedByAuthProvider        AuthProvider?       @map("submitted_by_auth_provider")
@@ -14312,6 +14315,8 @@ model EvidencePartDerivedAsset {
   // version, producer parameters, the source read: object version, bytes read,
   // whole-or-prefix, digest read). parametersSha256 is their hash.
   generationParameters     Json?     @map("generation_parameters")
+  // UC-DER-006 — the S3 VersionId of the output object (migration 20281001000600).
+  storageVersionId         String?   @map("storage_version_id") @db.VarChar(1024)
   // Offset into a time-based source (video/audio), when the derivative is a
   // point in it.
   sourceOffsetMs           Int?      @map("source_offset_ms")
