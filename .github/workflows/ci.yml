@@ -867,9 +867,17 @@ jobs:
           echo "--- capture a record"
           req 201 POST /v1/evidence '{"type":"PHOTO","mimeType":"text/plain"}'
           id=$(field id)
-          put=$(field 'upload.putUrl')
           test -n "$id"
-          test -n "$put"
+          # UC-ARCH-008 — the record reservation issues NO upload URL of its
+          # own. The original is declared as part 0 and uploaded to that
+          # part's presigned URL, the path every product channel uses.
+          req 201 POST "/v1/evidence/$id/parts" '{"partIndex":0,"mimeType":"text/plain","originalFileName":"ci-smoke.txt"}'
+          put=$(field 'upload.putUrl')
+          if [ -z "$put" ]; then
+            echo "::error::part 0 of $id was declared but no upload URL was issued"
+            cat /tmp/resp.json
+            exit 1
+          fi
 
           # The presigned URL is signed FOR `minio:9000`, which is a name only
           # the compose network resolves, and the host is part of the SigV4

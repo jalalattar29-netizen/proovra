@@ -45,7 +45,19 @@ async function main() {
 
   console.log("Created evidence", created.id);
 
-  const putRes = await fetch(created.upload.putUrl, {
+  // UC-ARCH-008 — the reservation issues no upload URL of its own; the
+  // original is declared as part 0 and uploaded to that part's URL.
+  const part = await api(`/v1/evidence/${created.id}/parts`, {
+    method: "POST",
+    body: JSON.stringify({
+      partIndex: 0,
+      mimeType: "text/plain",
+      originalFileName: "proovra-smoke.txt",
+      checksumSha256Base64,
+    }),
+  });
+
+  const putRes = await fetch(part.upload.putUrl, {
     method: "PUT",
     headers: {
       "content-type": "text/plain",
