@@ -1203,6 +1203,38 @@
       "migration": "none",
       "externalProofRemaining": "none",
       "status": "FIXED"
+    },
+    "UC-TRUST-004": {
+      "decision": "Code half: services/api/src/services/capture-trust/trust-event.service.ts no longer has its private buildTrustEventHash (top-level-sorted keys, nested objects in insertion order, not reproducible after a JSONB round-trip); every new trust-event row is hashed with buildTrustEventHashV2 from @proovra/shared-runtime (full-depth canonical JSON, v:2), the same function loadProvenanceChain verifies with. Audit of all lane-M code (and api/worker/shared-runtime src): capture_trust_event_records are only ever INSERTed (emitCaptureTrustEvent); the manifest facts and seal claim are new INSERTed events / capture_sessions columns, never trust-row updates — compatible with append-only migration 20281001000500.",
+      "red": {
+        "test": "n/a (lead-directed code half; verifier side owned elsewhere)",
+        "command": "grep",
+        "observed": "private v1 hash in trust-event.service.ts"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/provenance-chain-truth.integration.test.ts (all but the tamper case, see note)",
+          "all 15 lane-M capture integration suites"
+        ],
+        "command": "TEST_DATABASE_URL=...m_test npx vitest run --config vitest.integration.config.ts ...",
+        "result": "125 passed, 1 failed (not lane M)"
+      },
+      "filesChanged": [
+        "services/api/src/services/capture-trust/trust-event.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "new trust rows hash v2",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "chain reproducible from stored JSONB",
+        "deployment": "api redeploy (with migration 20281001000500)"
+      },
+      "migration": "see lead migration 20281001000500",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
     }
   },
   "crossLaneRequests": [
@@ -1240,7 +1272,8 @@
     "Not lane M: services/api/test/uc0-derivative-lifecycle.integration.test.ts 'storage accounting' fails with upsert_failed also on HEAD server code (shared-runtime derived-assets changes by another lane); API typecheck has 2 errors in scripts/dev-populate-investigation.ts (createEvidence return type change by another lane); packages/shared/tests/intake-link-messaging.test.mjs lint error (unused import) not mine.",
     "Observed once: three back-to-back uc3-continuous-completeness runs returned 500s while another lane was rebuilding shared dist; 5 subsequent runs green.",
     "SEAL_TRANSACTION_TIMEOUT_MS removed; the seal holds no transaction while hashing. New denial SESSION_BUSY (409) on declaration/reserve/discard/seal while a seal claim is live.",
-    "Not lane M: services/api/test/web-capture-custody-wording.contract.test.ts (pin on evidence.service.ts createEvidence comment) and services/worker/test/custody-capture-presentation.test.ts (pin on worker provenance loader) fail from other lanes' edits."
+    "Not lane M: services/api/test/web-capture-custody-wording.contract.test.ts (pin on evidence.service.ts createEvidence comment) and services/worker/test/custody-capture-presentation.test.ts (pin on worker provenance loader) fail from other lanes' edits.",
+    "provenance-chain-truth.integration.test.ts::TRUST-004 tamper case now fails with \"capture_trust_event_records is append-only: UPDATE is not permitted\" — the test edits/deletes trust rows to prove the verifier detects tampering; it must bypass the new trigger (e.g. SET LOCAL session_replication_role = replica, or ALTER TABLE ... DISABLE TRIGGER in a transaction). Not a lane-M file."
   ],
   "commandsRun": [
     {
@@ -1285,6 +1318,10 @@
     },
     {
       "command": "services/worker: tsc --noEmit (src clean); vitest full (1194 pass, 1 fail not lane M)",
+      "exit": 1
+    },
+    {
+      "command": "api integration incl. provenance-chain-truth after v2 hash: 125 pass, 1 fail (tamper test vs append-only trigger)",
       "exit": 1
     }
   ],

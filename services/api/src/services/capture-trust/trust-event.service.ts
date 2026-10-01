@@ -27,13 +27,13 @@
  *     chain.
  */
 
-import { createHash } from "node:crypto";
-
 import { Prisma, type PrismaClient } from "@prisma/client";
 import {
   CAPTURE_TRUST_EVENT_CODES,
   type CaptureTrustEventCode,
 } from "@proovra/shared";
+
+import { buildTrustEventHashV2 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
@@ -135,7 +135,11 @@ export async function emitCaptureTrustEvent(
     const prevEventHash = last?.eventHash ?? null;
 
     // Local hash for the trust-event sub-chain.
-    const eventHash = buildTrustEventHash({
+    // UC-TRUST-004 — THE v2 hash (full-depth canonical JSON, v:2), shared with
+    // the provenance verifier, so the link is reproducible from the stored
+    // JSONB. The rows are append-only (migration 20281001000500): this module
+    // only INSERTS them.
+    const eventHash = buildTrustEventHashV2({
       teamId: input.teamId,
       code: input.code,
       captureSessionId: input.captureSessionId,
@@ -211,42 +215,6 @@ export async function emitCaptureTrustEvent(
     sequence: nextSequence,
     eventHash,
   };
-}
-
-// -----------------------------------------------------------------------------
-// Bounded chain hash
-// -----------------------------------------------------------------------------
-
-function buildTrustEventHash(input: {
-  teamId: string;
-  code: CaptureTrustEventCode;
-  captureSessionId: string | null;
-  evidenceId: string | null;
-  deviceId: string | null;
-  sequence: number;
-  atUtc: Date;
-  payload: Record<string, unknown>;
-  prevEventHash: string | null;
-}): string {
-  // Bounded canonical line for the hash — every field deterministically
-  // serialised. We keep this simple (sorted keys via JSON.stringify with
-  // a stable replacer) so downstream tooling can re-derive.
-  const payloadKeys = Object.keys(input.payload).sort();
-  const sortedPayload: Record<string, unknown> = {};
-  for (const k of payloadKeys) sortedPayload[k] = input.payload[k];
-
-  const line = JSON.stringify({
-    teamId: input.teamId,
-    code: input.code,
-    captureSessionId: input.captureSessionId,
-    evidenceId: input.evidenceId,
-    deviceId: input.deviceId,
-    sequence: input.sequence,
-    atUtc: input.atUtc.toISOString(),
-    payload: sortedPayload,
-    prevEventHash: input.prevEventHash,
-  });
-  return createHash("sha256").update(line).digest("hex");
 }
 
 /**
