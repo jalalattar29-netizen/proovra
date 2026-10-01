@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9413,
-      "UNRESOLVED_IDENTIFIER": 1270
+      "METHOD_ON_VALUE": 9415,
+      "UNRESOLVED_IDENTIFIER": 1272
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -19932,8 +19932,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13716",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13716",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13730",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13730",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20031,8 +20031,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@13704",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13704",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@13718",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13718",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20526,8 +20526,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13722",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13722",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13736",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13736",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -42661,8 +42661,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@429",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:429",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@455",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:455",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "transitionDestructionReview",
       "kind": "DATABASE",
@@ -42694,8 +42694,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@720",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:720",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#destructionReview.update@763",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:763",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "executeApprovedReview",
       "kind": "DATABASE",
@@ -42760,8 +42760,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@468",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:468",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@494",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:494",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "transitionDestructionReview",
       "kind": "DATABASE",
@@ -42793,8 +42793,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@730",
-      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:730",
+      "writerId": "services/api/src/services/governance-lifecycle/destruction-review.service.ts#evidence.update@773",
+      "terminalLocation": "services/api/src/services/governance-lifecycle/destruction-review.service.ts:773",
       "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
       "enclosingDeclaration": "executeApprovedReview",
       "kind": "DATABASE",
@@ -148594,9 +148594,9 @@
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
       "crossTenantRefusalSemantics": "refuses with 403/404",
       "tenantStampingInsertSites": [
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
+        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
         "packages/shared-runtime/src/evidence-destruction/executor.ts: evidenceLifecycleEvent.create",
-        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
-        "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create",
         "services/api/src/services/governance-lifecycle/lifecycle-orchestrator.service.ts: evidenceLifecycleEvent.create"
       ],
       "tenantUnboundInsertSites": []
