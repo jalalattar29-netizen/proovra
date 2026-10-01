@@ -645,6 +645,10 @@ export default function ContinuousCaptureScreen() {
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
               A screen recording captures what your device displayed. It does not establish that the content is true, who authored it, that an app or account shown is genuine, or that the session is free of gaps.
             </ProovraText>
+            {/* UC-LCH-001 — the canonical screen-capture disclosure. */}
+            <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="How screen capture works" onPress={() => router.push("/legal/screen-capture")}>
+              How screen capture works
+            </ProovraText>
             <ProovraButton label="Start Continuous Capture" loading={busy} onPress={() => void start()} />
             <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>

@@ -54,6 +54,7 @@ export const LEGAL_SLUGS = [
   // Capture-channel disclosure for the browser extension's Direct Web
   // Capture (UC-1) — a "how it works" page, NOT the install target.
   "direct-web-capture",
+  "screen-capture",
 ] as const;
 
 export type LegalSlug = (typeof LEGAL_SLUGS)[number];
@@ -90,6 +91,7 @@ export const LEGAL_DOCUMENT_TITLES: Readonly<Record<LegalSlug, string>> = {
   "refund-policy": "Consumer Cancellation and Refund Policy",
   accessibility: "Accessibility Statement",
   "direct-web-capture": "How Direct Web Capture Works",
+  "screen-capture": "How Screen Capture Works",
 };
 
 export function titleFromSlug(slug: string): string {

@@ -169,6 +169,15 @@ export const NATIVE_DESTINATIONS = {
       "NOT A GAP, a platform difference: the web callback route exists because a browser OAuth flow has to land somewhere after the redirect. Native OAuth returns in-app through expo-auth-session, so there is no redirect to land, and a native screen for it would be a page nothing can reach.",
     ],
   },
+  "/auth/extension/continue": {
+    routeFile: "(stack)/auth.tsx",
+    status: "CODE_PARITY",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/auth/extension/continue/page.tsx"],
+    gaps: [
+      "NOT A GAP, a platform difference (UC-EXT-006): this page only exists so the Chrome/Edge extension's launchWebAuthFlow window can send a signed-out user through web sign-in and back to /v1/oauth/extension/authorize. The browser extension cannot run on a phone and nothing in the native app opens that flow; the native equivalent of 'sign in, then continue' is the auth gateway itself.",
+    ],
+  },
 
   /* --------------------------------------------------------------- product */
   "/home": {

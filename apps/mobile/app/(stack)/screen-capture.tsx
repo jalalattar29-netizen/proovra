@@ -252,6 +252,10 @@ export default function ScreenCaptureScreen() {
             <ProovraText variant="label" color={theme.color.ink.muted} style={styles.caveat}>
               A screen capture records what your device displayed. It does not establish that the content is true, who authored it, or that an app or account shown is genuine.
             </ProovraText>
+            {/* UC-LCH-001 — the canonical screen-capture disclosure. */}
+            <ProovraText variant="label" color={theme.color.accent.a600} accessibilityRole="link" accessibilityLabel="How screen capture works" onPress={() => router.push("/legal/screen-capture")}>
+              How screen capture works
+            </ProovraText>
             <ProovraButton label="Start Screen Capture" loading={busy} onPress={() => void start()} />
             <ProovraButton label="Cancel" variant="ghost" onPress={() => router.back()} />
           </ProovraCard>
