@@ -188,6 +188,11 @@ jobs:
             --s3-endpoint=http://127.0.0.1:56423 2>&1 | tee "$RUNNER_TEMP/uc1-harness.log"
           rc=${PIPESTATUS[0]}
           { echo "### UC-1 harness output (windows, tail)"; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 150; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # Summaries and log artifacts need a signed-in viewer; annotations do
+          # not. The tail travels as ONE annotation (%/CR/LF-escaped).
+          tailmsg=$(sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 60 | cut -c1-400)
+          tailmsg=${tailmsg//'%'/'%25'}; tailmsg=${tailmsg//$'\r'/'%0D'}; tailmsg=${tailmsg//$'\n'/'%0A'}
+          echo "::warning title=UC-1 harness output (windows, last 60 lines)::${tailmsg}"
           exit "$rc"
 
       - name: Refuse an empty acceptance run
@@ -258,6 +263,11 @@ jobs:
           xvfb-run -a node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium 2>&1 | tee "$RUNNER_TEMP/uc1-harness.log"
           rc=${PIPESTATUS[0]}
           { echo "### UC-1 harness output (linux, tail)"; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 150; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # Summaries and log artifacts need a signed-in viewer; annotations do
+          # not. The tail travels as ONE annotation (%/CR/LF-escaped).
+          tailmsg=$(sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 60 | cut -c1-400)
+          tailmsg=${tailmsg//'%'/'%25'}; tailmsg=${tailmsg//$'\r'/'%0D'}; tailmsg=${tailmsg//$'\n'/'%0A'}
+          echo "::warning title=UC-1 harness output (linux, last 60 lines)::${tailmsg}"
           exit "$rc"
 
       - name: Refuse an empty e2e run

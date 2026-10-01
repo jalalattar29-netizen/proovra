@@ -737,6 +737,23 @@ function writeCiStackSummary() {
   } catch {
     /* a summary that cannot be written never changes the verdict */
   }
+  // …and as ONE annotation per service (job summaries are not served to an
+  // anonymous viewer either; annotations are). Workflow-command data is
+  // %/CR/LF-escaped so many lines travel as one message.
+  for (const name of ["api", "worker", "web", "fixtures"]) {
+    const file = resolve(STACK_LOG_DIR, `${name}.log`);
+    if (!existsSync(file)) continue;
+    const lines = strip(readFileSync(file, "utf8")).split(/\r?\n/).filter(Boolean);
+    const errors = lines.filter((l) => /"level":(50|60)|\bError\b|ERR_|refus/i.test(l)).slice(-12);
+    if (errors.length === 0) continue;
+    const data = errors
+      .map((l) => l.slice(0, 700))
+      .join("\n")
+      .replace(/%/g, "%25")
+      .replace(/\r/g, "%0D")
+      .replace(/\n/g, "%0A");
+    process.stdout.write(`::warning title=uc1 ${name} log (error-like, last ${errors.length})::${data}\n`);
+  }
 }
 
 /** Per-browser-project wall clock bound (the spec's own stages are far smaller). */
