@@ -577,6 +577,40 @@ runIf("UC-4 persisted screen intelligence (DB + storage)", () => {
     expect(desc.observations[0].bbox).toEqual({ top: 0.2, left: 0.1, width: 0.5, height: 0.02 });
   });
 
+  it("DER-006: the object VERSION each PUT returned is recorded on its row, listed, and named in the descriptor lineage", async () => {
+    const { teamId, evidenceId, parts, store } = await seed({
+      parts: [{ mime: "video/mp4", sha256: sha("v-ver"), bytes: Buffer.from("v-ver") }],
+    });
+    const d = deps(store, true, [{ offsetMs: 0, rows: ["A", "B"] }, { offsetMs: 1500, rows: ["B", "C"] }]);
+    const put = d.putKeyframeObject;
+    const versions = new Map<string, string>();
+    d.putKeyframeObject = async (i) => {
+      await put(i);
+      const v = `ver-${versions.size + 1}`;
+      versions.set(i.key, v);
+      return { versionId: v };
+    };
+    const res = await runAndPersistScreenIntelligence({ teamId, evidenceId, parts, acquisitionComplete: true }, d);
+    expect(res.ok).toBe(true);
+    const rows = (await prisma.$queryRawUnsafe(
+      `SELECT id::text, asset_kind, storage_bucket, storage_key, storage_version_id
+         FROM evidence_part_derived_assets WHERE evidence_id=$1::uuid`,
+      evidenceId,
+    )) as Array<{ id: string; asset_kind: string; storage_bucket: string; storage_key: string; storage_version_id: string | null }>;
+    expect(rows).toHaveLength(3);
+    for (const r of rows) expect(r.storage_version_id).toBe(versions.get(r.storage_key));
+    // Listed with the generation's rows.
+    const { listDerivedAssetsForEvidence } = await import("@proovra/shared-runtime/media-intelligence");
+    const listed = await listDerivedAssetsForEvidence(teamId, evidenceId, prisma);
+    for (const r of rows) expect(listed.find((l) => l.id === r.id)!.storageVersionId).toBe(r.storage_version_id);
+    // The descriptor names each keyframe's stored version.
+    const desc = readDescriptor(store, rows.find((r) => r.asset_kind === "screen_reconstruction") as never);
+    for (const kf of desc.keyframes) {
+      const row = rows.find((r) => r.id === kf.derivedAssetId)!;
+      expect(kf.outputVersionId).toBe(row.storage_version_id);
+    }
+  });
+
   it("DER-008: OCR allowed but runtime missing is RUNTIME_UNAVAILABLE, never 'disabled by policy'", async () => {
     const { teamId, evidenceId, parts, store } = await seed({
       parts: [{ mime: "video/mp4", sha256: sha("v-rt"), bytes: Buffer.from("v-rt") }],

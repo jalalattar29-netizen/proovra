@@ -448,13 +448,15 @@ export async function processDerivedAssetJob(
     return { ok: true, status: "FAILED" };
   }
 
+  let derivedVersionId: string | null = null;
   try {
-    await putObjectBuffer({
+    const put = await putObjectBuffer({
       bucket: part.storage_bucket,
       key: derivedKey,
       body: derivedBuffer,
       contentType: derivedContentType,
     });
+    derivedVersionId = put?.versionId ?? null;
   } catch (err) {
     await persistFailed({
       teamId,
@@ -484,6 +486,7 @@ export async function processDerivedAssetJob(
     sourceSha256AtGeneration: part.sha256,
     storageBucket: part.storage_bucket,
     storageKey: derivedKey,
+    storageVersionId: derivedVersionId,
     generationParameters: {
       producer: DERIVED_ASSETS_PRODUCER,
       assetKind,
@@ -648,13 +651,15 @@ async function handleFfmpegAssetKind(params: {
     if (!(await stillEligible({ teamId, evidenceId, evidencePartId, assetKind }))) {
       return { ok: true, status: "FAILED" };
     }
+    let derivedVersionId: string | null = null;
     try {
-      await putObjectBuffer({
+      const put = await putObjectBuffer({
         bucket: part.storage_bucket,
         key: derivedKey,
         body: result.bytes,
         contentType: result.contentType,
       });
+      derivedVersionId = put?.versionId ?? null;
     } catch (err) {
       await persistFailed({
         teamId,
@@ -682,6 +687,7 @@ async function handleFfmpegAssetKind(params: {
       sourceSha256AtGeneration: part.sha256,
       storageBucket: part.storage_bucket,
       storageKey: derivedKey,
+      storageVersionId: derivedVersionId,
       engineVersion: FFMPEG_ENGINE_VERSION,
       toolVersion: ffmpegVersion ? `ffmpeg-${ffmpegVersion}` : null,
       generationParameters: {
@@ -784,6 +790,8 @@ async function persistCompleted(
     sourceSha256AtGeneration: string | null;
     storageBucket: string;
     storageKey: string;
+    /** UC-DER-006 — the object version the PUT returned (null: unversioned). */
+    storageVersionId?: string | null;
     /** Optional override — ffmpeg-derived assets pass their own
      *  engine version so the provenance trail can distinguish
      *  sharp- vs. ffmpeg-produced bytes. */

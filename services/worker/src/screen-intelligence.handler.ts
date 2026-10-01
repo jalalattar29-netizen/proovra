@@ -226,8 +226,10 @@ export async function processReconstructScreenJob(
         getSourceBytes: ({ bucket, key, maxBytes, versionId }) =>
           readObjectBounded({ bucket, key, maxBytes, versionId: versionId ?? null }),
         produceKeyframes: (kfInput) => produceVideoKeyframes(kfInput),
+        // UC-DER-006 — the store's VersionId travels back to the row.
         putKeyframeObject: async ({ bucket, key, body, contentType }) => {
-          await putObjectBuffer({ bucket, key, body, contentType });
+          const put = await putObjectBuffer({ bucket, key, body, contentType });
+          return { versionId: put?.versionId ?? null };
         },
         deleteObject: async ({ bucket, key }) => {
           await deleteObject({ bucket, key });

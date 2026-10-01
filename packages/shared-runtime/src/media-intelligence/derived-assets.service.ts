@@ -80,6 +80,12 @@ export type DerivedAssetRecordInput = {
   sourceSha256AtGeneration?: string | null;
   storageBucket?: string | null;
   storageKey?: string | null;
+  /**
+   * UC-DER-006 — the object VERSION the store returned for the PUT. On a
+   * versioned bucket the key alone does not identify the bytes; null on
+   * unversioned storage.
+   */
+  storageVersionId?: string | null;
   lastError?: string | null;
   engineVersion?: string;
   /**
@@ -121,6 +127,8 @@ export type DerivedAssetRow = {
   engineVersion: string;
   /** Variant identity (kf-NNNN, recon-vN, default, <variant>~<sha> when superseded). */
   variantKey: string;
+  /** UC-DER-006 — the stored object's version (null on unversioned storage). */
+  storageVersionId: string | null;
   sourceOffsetMs: number | null;
   parametersSha256: string | null;
   generatedAtUtc: string | null;
@@ -184,7 +192,7 @@ export async function recordDerivedAsset(
            "width_px", "height_px", "source_sha256_at_generation",
            "storage_bucket", "storage_key", "last_error", "engine_version",
            "variant_key", "transformation", "parameters_sha256", "source_offset_ms",
-           "generation_parameters",
+           "generation_parameters", "storage_version_id",
            "generated_at_utc", "created_at_utc", "updated_at_utc"
          )
          SELECT p."team_id", p."evidence_id", p."evidence_part_id", p."asset_kind",
@@ -194,7 +202,7 @@ export async function recordDerivedAsset(
                 LEFT(p."variant_key", 50) || '~' ||
                   COALESCE(LEFT(p."derived_sha256", 12), LEFT(p."id"::text, 8)),
                 p."transformation", p."parameters_sha256", p."source_offset_ms",
-                p."generation_parameters",
+                p."generation_parameters", p."storage_version_id",
                 p."generated_at_utc", p."created_at_utc", NOW()
            FROM prev p
           WHERE $5::varchar = 'COMPLETED'
@@ -212,7 +220,7 @@ export async function recordDerivedAsset(
          "storage_bucket", "storage_key",
          "last_error", "engine_version",
          "variant_key", "transformation", "parameters_sha256", "source_offset_ms",
-         "generation_parameters",
+         "generation_parameters", "storage_version_id",
          "generated_at_utc", "updated_at_utc"
        )
        VALUES (
@@ -223,7 +231,7 @@ export async function recordDerivedAsset(
          $12, $13,
          $14, $15,
          $16, $17, $18, $19,
-         $20::jsonb,
+         $20::jsonb, $21::varchar,
          CASE WHEN $5::varchar = 'COMPLETED' THEN NOW() ELSE NULL END,
          NOW()
        )
@@ -242,6 +250,7 @@ export async function recordDerivedAsset(
              "transformation" = EXCLUDED."transformation",
              "parameters_sha256" = ${keepOnFailure("parameters_sha256")},
              "generation_parameters" = ${keepOnFailure("generation_parameters")},
+             "storage_version_id" = ${keepOnFailure("storage_version_id")},
              "source_offset_ms" = EXCLUDED."source_offset_ms",
              "generated_at_utc" =
                CASE WHEN EXCLUDED."status" = 'COMPLETED'
@@ -274,6 +283,7 @@ export async function recordDerivedAsset(
           : null),
       input.sourceOffsetMs ?? null,
       input.generationParameters ? JSON.stringify(input.generationParameters) : null,
+      input.storageVersionId?.slice(0, 1024) ?? null,
     )) as Array<{ id: string; archived_id: string | null }>;
     const row = rows[0];
     if (!row) return { ok: false, reason: "upsert_returned_no_row" };
@@ -316,7 +326,7 @@ export async function listDerivedAssetsForEvidence(
               "width_px", "height_px",
               "source_sha256_at_generation",
               "last_error", "engine_version",
-              "variant_key", "source_offset_ms", "parameters_sha256",
+              "variant_key", "source_offset_ms", "parameters_sha256", "storage_version_id",
               "generated_at_utc", "created_at_utc", "updated_at_utc"
          FROM "evidence_part_derived_assets"
         WHERE "team_id" = $1 AND "evidence_id" = $2
@@ -413,6 +423,7 @@ type RawDerivedRow = {
   variant_key?: string | null;
   source_offset_ms?: number | null;
   parameters_sha256?: string | null;
+  storage_version_id?: string | null;
   generated_at_utc: Date | null;
   created_at_utc: Date;
   updated_at_utc: Date;
@@ -436,6 +447,7 @@ function projectRow(raw: RawDerivedRow): DerivedAssetRow {
     variantKey: raw.variant_key ?? "default",
     sourceOffsetMs: raw.source_offset_ms ?? null,
     parametersSha256: raw.parameters_sha256 ?? null,
+    storageVersionId: raw.storage_version_id ?? null,
     generatedAtUtc: raw.generated_at_utc?.toISOString() ?? null,
     createdAtUtc: raw.created_at_utc.toISOString(),
     updatedAtUtc: raw.updated_at_utc.toISOString(),

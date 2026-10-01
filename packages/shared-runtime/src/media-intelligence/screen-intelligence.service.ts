@@ -133,12 +133,16 @@ export type ScreenIntelligenceDeps = {
     intervalMs: number;
     maxKeyframes: number;
   }): Promise<KeyframeProducerResult>;
+  /**
+   * Store a derived object. UC-DER-006 — returns the object VERSION the store
+   * assigned (versioned buckets), recorded on the row next to key and digest.
+   */
   putKeyframeObject(input: {
     bucket: string;
     key: string;
     body: Buffer;
     contentType: string;
-  }): Promise<void>;
+  }): Promise<void | { versionId?: string | null }>;
   /**
    * Retained for the transient-failure path only: an object whose ROW could not
    * be written has no pointer and is removed (unless held). A superseded
@@ -404,6 +408,7 @@ export async function runAndPersistScreenIntelligence(
         ocrHeightPx: number | null;
         derivedSha256: string;
         derivedAssetId: string | null;
+        outputVersionId: string | null;
         reason: "first" | "interval" | "change";
       };
       const frames: FrameUnit[] = [];
@@ -481,13 +486,15 @@ export async function runAndPersistScreenIntelligence(
           const variantKey = keyframeVariantKeyForGeneration(kf.index, generation);
           const key = keyframeObjectKey(evidenceId, part.evidencePartId, kf.derivedSha256);
           await assertEligible();
+          let keyframeVersionId: string | null = null;
           try {
-            await deps.putKeyframeObject({
+            const put = await deps.putKeyframeObject({
               bucket: part.storageBucket,
               key,
               body: kf.bytes,
               contentType: kf.contentType,
             });
+            keyframeVersionId = (put && put.versionId) || null;
           } catch (err) {
             throw wrapTransient("keyframe_put_failed", err);
           }
@@ -504,6 +511,7 @@ export async function runAndPersistScreenIntelligence(
               sourceSha256AtGeneration: sourceDigestAtGeneration,
               storageBucket: part.storageBucket,
               storageKey: key,
+              storageVersionId: keyframeVersionId,
               engineVersion: engineVersionFor("ffmpeg", deps.toolVersions?.ffmpeg),
               variantKey,
               transformation: SCREEN_INTELLIGENCE_TRANSFORMATION_VERSIONS.keyframe,
@@ -548,6 +556,7 @@ export async function runAndPersistScreenIntelligence(
             ocrHeightPx: kf.ocrBytes ? kf.ocrHeightPx ?? null : null,
             derivedSha256: kf.derivedSha256,
             derivedAssetId: persisted.id,
+            outputVersionId: keyframeVersionId,
             reason: kf.index === 0 ? "first" : "interval",
           });
         }
@@ -564,6 +573,7 @@ export async function runAndPersistScreenIntelligence(
           ocrHeightPx: null,
           derivedSha256: part.sha256 ?? "",
           derivedAssetId: null,
+          outputVersionId: null,
           reason: "first",
         });
       }
@@ -578,6 +588,7 @@ export async function runAndPersistScreenIntelligence(
           offsetMs: frame.offsetMs,
           derivedSha256: frame.derivedSha256 || null,
           derivedAssetId: frame.derivedAssetId,
+          outputVersionId: frame.outputVersionId,
           reason: frame.reason,
           ocrInput: null,
         };
@@ -777,13 +788,15 @@ export async function runAndPersistScreenIntelligence(
     // so it satisfies the derived-asset FK; its lineage is the whole `sources` list.
     const descriptorPartId = parts[0]!.evidencePartId;
     await assertEligible();
+    let descriptorVersionId: string | null = null;
     try {
-      await deps.putKeyframeObject({
+      const put = await deps.putKeyframeObject({
         bucket: descriptorBucket,
         key: descriptorKey,
         body: descriptorJson,
         contentType: "application/json",
       });
+      descriptorVersionId = (put && put.versionId) || null;
     } catch (err) {
       throw wrapTransient("descriptor_put_failed", err);
     }
@@ -800,6 +813,7 @@ export async function runAndPersistScreenIntelligence(
         sourceSha256AtGeneration: parts[0]!.sha256 ?? sourceReads[0]?.readSha256 ?? null,
         storageBucket: descriptorBucket,
         storageKey: descriptorKey,
+        storageVersionId: descriptorVersionId,
         engineVersion: SCREEN_ENGINE_VERSION,
         variantKey: descriptorVariant,
         transformation: SCREEN_INTELLIGENCE_TRANSFORMATION_VERSIONS.reconstruction,

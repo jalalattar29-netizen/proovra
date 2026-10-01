@@ -61,6 +61,7 @@ vi.mock("../src/storage.js", () => ({
   }),
   putObjectBuffer: vi.fn(async ({ key }: { key: string }) => {
     s.puts.push(key);
+    return { versionId: `ver-of-${key.slice(-8)}` };
   }),
   deleteObject: vi.fn(async ({ key }: { key: string }) => {
     s.deletes.push(key);
@@ -164,6 +165,14 @@ describe("derived-assets processor — lineage (DER-005 / DER-014)", () => {
 });
 
 describe("derived-assets processor — never deletes a prior generation (DER-006)", () => {
+  it("records the stored object VERSION the PUT returned on the derived row", async () => {
+    await processDerivedAssetJob(job as never);
+    const done = s.writes.find((w) => w.status === "COMPLETED")!;
+    expect(s.puts).toHaveLength(1);
+    expect(done.storageKey).toBe(s.puts[0]);
+    expect(done.storageVersionId).toBe(`ver-of-${s.puts[0]!.slice(-8)}`);
+  });
+
   it("does not delete any object when a regeneration completes", async () => {
     await processDerivedAssetJob(job as never);
     expect(s.deletes).toEqual([]);

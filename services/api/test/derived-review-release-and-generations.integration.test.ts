@@ -114,6 +114,7 @@ describe("UC-4 derived review — release, generations, personal (live PostgreSQ
         contentType: input.contentType,
         storageBucket: BUCKET,
         storageKey: key,
+        storageVersionId: `ver-${input.variant}`,
         variantKey: input.variant,
         generatedAtUtc: new Date(),
       },
@@ -155,6 +156,8 @@ describe("UC-4 derived review — release, generations, personal (live PostgreSQ
       const ownerList = await get(`/v1/evidence/${evidenceId}/derived-assets?teamId=${A.teamId}`, A.ownerToken);
       const url: string = ownerList.json().assets.find((a: { id: string }) => a.id === assetId).bytesUrl;
       expect(url).toContain(`v=${sha(kf).slice(0, 16)}`);
+      // UC-DER-006 — the stored object version is listed with the generation row.
+      expect(ownerList.json().assets.find((a: { id: string }) => a.id === assetId).storageVersionId).toBe("ver-kf-0000");
     });
 
     it("the reconstruction JSON (every OCR line) is refused to a VIEWER", async () => {

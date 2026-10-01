@@ -78,7 +78,7 @@ vi.mock("../src/storage.js", () => ({
   getObjectRange: vi.fn(async () => {
     throw new Error("unversioned range read must not be used");
   }),
-  putObjectBuffer: vi.fn(async () => undefined),
+  putObjectBuffer: vi.fn(async ({ key }: { key: string }) => ({ versionId: `v-${key}` })),
   deleteObject: vi.fn(async () => undefined),
 }));
 
@@ -277,6 +277,15 @@ describe("processReconstructScreenJob — DER-014 pinned, bounded source read", 
     });
     expect(bytes.length).toBe(10);
     expect(state.streamCalls.at(-1)).toMatchObject({ key: "originals/seg-0", versionId: "ver-7" });
+  });
+});
+
+describe("processReconstructScreenJob — DER-006 output object version", () => {
+  it("hands the VersionId the PUT returned back to the orchestrator", async () => {
+    await job();
+    const { deps } = state.orchestratorCalls[0]!;
+    const put = await deps.putKeyframeObject({ bucket: "b", key: "derived-assets/x.webp", body: Buffer.from("x"), contentType: "image/webp" });
+    expect(put).toEqual({ versionId: "v-derived-assets/x.webp" });
   });
 });
 

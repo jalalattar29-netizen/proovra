@@ -211,6 +211,8 @@ export type ScreenKeyframeRecord = {
   derivedSha256: string | null;
   /** The derived-asset row id, so View Source resolves the private bytes proxy. */
   derivedAssetId: string | null;
+  /** UC-DER-006 — the stored object version of this keyframe (null: unversioned / ORIGINAL frame). */
+  outputVersionId?: string | null;
   reason: "first" | "interval" | "change";
   /** UC-DER-003 — the pixel size of the frame OCR actually read (null: not OCR'd). */
   ocrInput?: { widthPx: number | null; heightPx: number | null } | null;
