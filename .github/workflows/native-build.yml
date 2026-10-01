@@ -81,7 +81,16 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            build | tee "$RUNNER_TEMP/xcodebuild.log" | tail -200
+            build | tee "$RUNNER_TEMP/xcodebuild.log" | tail -200 || {
+              rc=$?
+              # Surface the compiler's own diagnostics as annotations: the raw
+              # log is thousands of lines and the failing one is rarely in the
+              # tail. Reporting only — the step still fails with xcodebuild's code.
+              grep -E "(error|fatal error): " "$RUNNER_TEMP/xcodebuild.log" | sort -u | head -40 | while IFS= read -r line; do
+                echo "::error::${line}"
+              done
+              exit "$rc"
+            }
 
       - name: Refuse a build without the broadcast extension
         working-directory: apps/mobile/ios
