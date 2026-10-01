@@ -1,11 +1,11 @@
 {
   "numTotalTestSuites": 5126,
   "numTotalTests": 25620,
-  "numPassedTests": 25618,
-  "numFailedTests": 1,
+  "numPassedTests": 25619,
+  "numFailedTests": 0,
   "numPendingTests": 1,
   "numTodoTests": 0,
-  "success": false,
+  "success": true,
   "testResults": [
     {
       "name": "test/account-closure-subscription-eligibility.test.ts",
@@ -1360,11 +1360,9 @@
     },
     {
       "name": "test/phase-0-audit-self-reference.test.ts",
-      "status": "failed",
+      "status": "passed",
       "tests": 7,
-      "failed": [
-        "passes twice from a clean tree and changes no tracked file"
-      ],
+      "failed": [],
       "skipped": []
     },
     {

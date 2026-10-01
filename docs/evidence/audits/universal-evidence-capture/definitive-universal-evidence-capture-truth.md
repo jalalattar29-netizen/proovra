@@ -359,7 +359,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | every UC-journey mapping names a required journey | PASS |  |
 | remediation API integration run executed (not skipped) and green | PASS | 2873/2873 (0 skipped) |
 | remediation worker run green | PASS | 1218/1219 (1 skipped) |
-| every remediation command has an exit code | PASS | 60 commands |
+| every remediation command has an exit code | PASS | 61 commands |
 | every UC = complete + partial + missing + blocked | PASS | {"complete":2,"partial":0,"missing":0,"blocked":7} |
 | no UNKNOWN without explicit blocker | PASS |  |
 | no NOT_REVIEWED | PASS | 301 reviewed topics |
@@ -490,6 +490,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | build-worker | 0 | build-worker.tail.log — recorded after the run; start/end are the record time |
 | build-extension | 0 | build-extension.tail.log — recorded after the run; start/end are the record time |
 | build-web | 0 | build-web.tail.log — recorded after the run; start/end are the record time |
+| api-unit-full-final | 0 | api-unit.tail.log — FINAL at 5f3be40a on a clean tree: 25619/25620 passed, 0 failed, 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger); supersedes api-unit-full (whose single failure was the clean-tree gate counting the then-untracked runtime directory). Recorded after the run. |
 
 ## Artifacts
 

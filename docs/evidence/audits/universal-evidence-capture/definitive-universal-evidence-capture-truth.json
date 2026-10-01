@@ -1000,6 +1000,12 @@
           "exit": 0,
           "log": "build-web.tail.log",
           "note": "recorded after the run; start/end are the record time"
+        },
+        {
+          "label": "api-unit-full-final",
+          "exit": 0,
+          "log": "api-unit.tail.log",
+          "note": "FINAL at 5f3be40a on a clean tree: 25619/25620 passed, 0 failed, 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger); supersedes api-unit-full (whose single failure was the clean-tree gate counting the then-untracked runtime directory). Recorded after the run."
         }
       ]
     }
@@ -3202,7 +3208,7 @@
     {
       "name": "every remediation command has an exit code",
       "ok": true,
-      "detail": "60 commands"
+      "detail": "61 commands"
     },
     {
       "name": "every UC = complete + partial + missing + blocked",
