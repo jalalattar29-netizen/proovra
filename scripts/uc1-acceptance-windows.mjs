@@ -571,14 +571,6 @@ async function main() {
       env: { ...process.env, DATABASE_URL: config.dbUrl, DIRECT_URL: config.dbUrl },
     });
 
-    // 1b. Register the fixture signing key(s) in the DB. Evidence reads verify the
-    //     record's signing key against this registry, so without it every read
-    //     after a capture 503s SIGNING_KEY_MISSING. Uses the same SIGNING_* the
-    //     fixture env signs with.
-    run("seed:signing-key", "pnpm", ["--filter", "proovra-api", "exec", "tsx", "src/seed-signing-key.ts"], {
-      env: fixtureEnv,
-    });
-
     // 2. Build shared packages + the extension's E2E TEST build (fixed key,
     //    <all_urls>; dist-e2e/, never dist/) against the local API + MinIO.
     // prisma generate (part of build:shared) refuses to load its config
@@ -586,6 +578,17 @@ async function main() {
     // disposable one.
     run("build:shared", "pnpm", ["run", "build:shared"], {
       env: { ...process.env, DATABASE_URL: config.dbUrl, DIRECT_URL: config.dbUrl },
+    });
+
+    // 2b. Register the fixture signing key(s) in the DB. AFTER build:shared:
+    //     the seed imports @prisma/client, which build:shared generates. Run
+    //     first, it only worked where a client had been generated before (a
+    //     clean Windows runner failed: no export named PrismaClient). Evidence reads verify the
+    //     record's signing key against this registry, so without it every read
+    //     after a capture 503s SIGNING_KEY_MISSING. Uses the same SIGNING_* the
+    //     fixture env signs with.
+    run("seed:signing-key", "pnpm", ["--filter", "proovra-api", "exec", "tsx", "src/seed-signing-key.ts"], {
+      env: fixtureEnv,
     });
     run("build:extension:e2e", "node", ["apps/extension/build.mjs", "--e2e"], {
       env: {
