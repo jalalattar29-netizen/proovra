@@ -111,6 +111,33 @@ jobs:
           if ($LASTEXITCODE -ne 0) { Write-Output "::error::psql CREATE USER failed"; exit 1 }
           & "$env:PGBIN\psql.exe" -h 127.0.0.1 -U postgres -c "CREATE DATABASE uc1_acceptance_test OWNER proovra;"
           if ($LASTEXITCODE -ne 0) { Write-Output "::error::psql CREATE DATABASE failed"; exit 1 }
+          # pgvector. The runner's PostgreSQL ships without it, and migration
+          # 20271119000000 REFUSES a database where it is absent (the datamodel
+          # declares evidence_search_documents.embedding) — the first native run
+          # of this job failed exactly there (reproduced locally on plain
+          # postgres:17). Built from the pinned release source with MSVC, the
+          # Windows path pgvector itself documents (nmake /F Makefile.win).
+          $pgRoot = Split-Path $env:PGBIN -Parent
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+          if (-not (Test-Path $vcvars)) { Write-Output "::error::MSVC vcvars64.bat not found under '$vsPath'"; exit 1 }
+          $pgvSrc = "$env:RUNNER_TEMP\pgvector"
+          git clone --quiet --depth 1 --branch v0.8.6 https://github.com/pgvector/pgvector.git $pgvSrc
+          $pgvHead = (git -C $pgvSrc rev-parse HEAD).Trim()
+          if ($pgvHead -ne "8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c") { Write-Output "::error::pgvector v0.8.6 resolved to $pgvHead, not the pinned commit"; exit 1 }
+          $buildCmd = "$env:RUNNER_TEMP\pgvector-build.cmd"
+          @(
+            "@echo off",
+            "call `"$vcvars`" || exit /b 1",
+            "set `"PGROOT=$pgRoot`"",
+            "cd /d `"$pgvSrc`" || exit /b 1",
+            "nmake /nologo /F Makefile.win || exit /b 1",
+            "nmake /nologo /F Makefile.win install || exit /b 1"
+          ) | Set-Content -Path $buildCmd -Encoding ascii
+          cmd /c $buildCmd
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error::pgvector build/install failed"; exit 1 }
+          & "$env:PGBIN\psql.exe" -h 127.0.0.1 -U postgres -d uc1_acceptance_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error::CREATE EXTENSION vector failed after install"; exit 1 }
           choco install memurai-developer -y --no-progress
           if ($LASTEXITCODE -ne 0) { Write-Output "::error::Memurai install failed"; exit 1 }
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\minio-data" | Out-Null

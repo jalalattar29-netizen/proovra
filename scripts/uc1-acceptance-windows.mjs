@@ -105,6 +105,13 @@ function fail(msg) {
 }
 function reportFatal(msg) {
   process.stderr.write(`\x1b[31m[uc1-acceptance] FATAL:\x1b[0m ${msg}\n`);
+  // On GitHub Actions also as an annotation: run logs need a signed-in viewer,
+  // annotations do not, so the reason a run failed is readable by anyone who
+  // can see the run. Workflow-command data must be %/CR/LF-escaped.
+  if (process.env.GITHUB_ACTIONS === "true") {
+    const data = String(msg).slice(0, 4000).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+    process.stdout.write(`::error title=uc1-acceptance FATAL::${data}\n`);
+  }
 }
 
 const config = {

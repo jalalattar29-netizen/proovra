@@ -12,20 +12,30 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const REDIS = process.env.P7_TEST_REDIS_URL;
-const runIf = REDIS && /^redis:\/\/(127\.0\.0\.1|localhost)(:\d+)?/.test(REDIS) ? describe : describe.skip;
+import { acquireIntegrationDatabase, type IntegrationDatabase } from "./integration-harness";
 
-runIf("rate limiter — cold-start concurrency on a global bound (live Redis)", () => {
+describe("rate limiter — cold-start concurrency on a global bound (live Redis)", () => {
   let rl: typeof import("../src/services/rate-limit.js");
+  let database: IntegrationDatabase;
 
   beforeAll(async () => {
-    process.env.REDIS_URL = REDIS;
+    // The limiter touches no database. Acquisition is the integration
+    // project's ONE entry gate: without the live-integration environment it
+    // REFUSES (never skips). The Redis is the disposable loopback one that
+    // setup/safe-environment.ts always assigns to REDIS_URL
+    // (P7_TEST_REDIS_URL, else the conventional local port) — never inherited.
+    database = await acquireIntegrationDatabase();
+    const redis = process.env.REDIS_URL ?? "";
+    expect(redis, "REDIS_URL must be the disposable loopback Redis").toMatch(
+      /^redis:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/\d+)?$/,
+    );
     vi.resetModules();
     rl = await import("../src/services/rate-limit.js");
   });
 
   afterAll(async () => {
     await rl?.clearAllRateLimitBuckets().catch(() => undefined);
+    await database?.release();
   });
 
   it("twenty concurrent first decisions on a fresh client are all answered from Redis, none refused", async () => {
