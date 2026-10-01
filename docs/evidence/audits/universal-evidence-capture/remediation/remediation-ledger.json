@@ -54,11 +54,11 @@
   ],
   "counts": {
     "total": 119,
-    "BLOCKED_EXTERNAL_PROOF": 16,
+    "BLOCKED_EXTERNAL_PROOF": 13,
     "FIXED_RUNTIME_PROVEN": 62,
-    "FIXED_SOURCE_AND_TEST_PROVEN": 41,
-    "fixed": 103,
-    "blocked": 16,
+    "FIXED_SOURCE_AND_TEST_PROVEN": 44,
+    "fixed": 106,
+    "blocked": 13,
     "remaining": 0
   },
   "gates": [
@@ -85,7 +85,7 @@
     {
       "name": "119 = fixed + externally-blocked",
       "ok": true,
-      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":16,\"FIXED_RUNTIME_PROVEN\":62,\"FIXED_SOURCE_AND_TEST_PROVEN\":41}"
+      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":13,\"FIXED_RUNTIME_PROVEN\":62,\"FIXED_SOURCE_AND_TEST_PROVEN\":44}"
     },
     {
       "name": "every disposition is allowed",
@@ -130,8 +130,8 @@
         "apps/mobile/app/(stack)/continuous-capture.tsx:428"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "src/capture/notification-permission.ts requests android.permission.POST_NOTIFICATIONS via PermissionsAndroid on API>=33 before either foreground service starts; a refusal shows what is lost (UC-2: only PROOVRA's own screen; UC-3: stop only in-app) and starts nothing until the user accepts. Manifest/app config unchanged (permission declared in the module manifest).",
+      "owner": "lead",
+      "decision": "src/capture/notification-permission.ts requests android.permission.POST_NOTIFICATIONS via PermissionsAndroid on API>=33 before either foreground service starts; a refusal shows what is lost (UC-2: only PROOVRA's own screen; UC-3: stop only in-app) and starts nothing until the user accepts. Manifest/app config unchanged (permission declared in the module manifest). LEAD ADJUDICATION: Code complete; the remaining proof is system-UI behaviour of a running Android build (notification actions on a fresh install).",
       "red": {
         "test": "continuous-capture-screen.render.test.mjs + screen-capture-screen.render.test.mjs ::UC-AND-003",
         "command": "node --test (HEAD screens)",
@@ -162,7 +162,7 @@
         "security": "none",
         "deployment": "native build"
       },
-      "externalProofRemaining": "device: fresh install Android 13/14, notification actions visible",
+      "externalProofRemaining": "Android 13/14 device — or an emulator with system-UI automation, which CI does not have — fresh install, notification actions visible and working",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -393,6 +393,10 @@
         {
           "sha": "6934514c6d49",
           "subject": "fix(capture): continuous/iOS/Android capture seals only what was truly recorded (UC-2 / UC-3 / UC-5)"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
         }
       ],
       "migrations": "none",
@@ -838,8 +842,8 @@
         "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt:124"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "Live session persisted at open and per declared segment; Kotlin exposes getContinuousSegments and discardContinuousSpool, and OnCreate re-binds the service's static callbacks to the new module instance; the screen reattaches (no second session) or offers recover/discard/stop-orphan.",
+      "owner": "lead",
+      "decision": "Live session persisted at open and per declared segment; Kotlin exposes getContinuousSegments and discardContinuousSpool, and OnCreate re-binds the service's static callbacks to the new module instance; the screen reattaches (no second session) or offers recover/discard/stop-orphan. LEAD ADJUDICATION: Code complete (segments listable, callbacks re-bind); the remaining proof is process death and relaunch of a running Android build.",
       "red": {
         "test": "android-capture-service-contract.test.mjs::UC-AND-004 + render reattach",
         "command": "node --test (HEAD)",
@@ -870,7 +874,7 @@
         "security": "none",
         "deployment": "native build"
       },
-      "externalProofRemaining": "device: kill UI during recording, relaunch, continue",
+      "externalProofRemaining": "Android device — or an emulator with MediaProjection consent automation, which CI does not have — kill the UI during recording, relaunch, recording continues and is recovered",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -947,7 +951,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "MediaRecorder.stop() failure is tracked: the file is deleted, SEGMENT_WRITE_FAILED recorded, nothing emitted; a clean stop with an incomplete limitation reports INTERRUPTED. LEAD ADJUDICATION: Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the instrumented test of MediaRecorder.stop() throwing has not executed.",
+      "decision": "MediaRecorder.stop() failure is tracked: the file is deleted, SEGMENT_WRITE_FAILED recorded, nothing emitted; a clean stop with an incomplete limitation reports INTERRUPTED. LEAD ADJUDICATION: RECLASSIFIED BLOCKED -> FIXED: the decision a throwing MediaRecorder.stop() takes now lives in pure Kotlin (CaptureDecisions.kt closeSegment, 5153c237), called by ContinuousScreenCaptureService.finalizeCurrentSegment, and the JUnit suite drives it with a stop() that throws: segment discarded (DISCARD_WRITE_FAILED -> SEGMENT_WRITE_FAILED recorded, nothing emitted), file deleted, recorder still released. NOT added: an emulator/instrumented test with a real MediaRecorder — CI has no Android emulator toolchain; the defect is the control-flow decision, which runs unchanged in the service.",
       "red": {
         "test": "android-capture-service-contract.test.mjs::UC-AND-007",
         "command": "node --test (HEAD Kotlin)",
@@ -955,16 +959,25 @@
       },
       "green": {
         "tests": [
-          "android-capture-service-contract.test.mjs::UC-AND-007"
+          "android-capture-service-contract.test.mjs::UC-AND-007",
+          "native-build.yml run 36940211660 @ 3ff95c0b (ios-simulator-build job 110629704934; android-debug-build job 110629704584) :: android-debug-build 'JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)' = success (CaptureDecisionsTest, 8 executed, 0 skipped; guard refuses < 8)"
         ],
-        "command": "node --test",
-        "result": "passed"
+        "command": "node --test ; Gradle <module>:testDebugUnitTest via GitHub Actions (8/8 also locally on JDK 17 against the module's sources)",
+        "result": "passed ; success"
       },
-      "proofKind": "source-structure",
+      "proofKind": "unit",
       "implementationCommits": [
         {
           "sha": "6934514c6d49",
           "subject": "fix(capture): continuous/iOS/Android capture seals only what was truly recorded (UC-2 / UC-3 / UC-5)"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
+        },
+        {
+          "sha": "5153c2377da9",
+          "subject": "fix: the signing-key seed uses an explicit key path exactly; native unit proofs for UC-IOS-012 / UC-AND-007 / UC-AND-013; Redis recovery proof"
         }
       ],
       "migrations": "none",
@@ -977,8 +990,8 @@
         "security": "none",
         "deployment": "native build"
       },
-      "externalProofRemaining": "Android instrumented test (emulator or device) of MediaRecorder.stop() throwing -> file deleted, SEGMENT_WRITE_FAILED, nothing emitted (Kotlin compile proven in CI)",
-      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
+      "externalProofRemaining": "none",
+      "finalDisposition": "FIXED_SOURCE_AND_TEST_PROVEN"
     },
     {
       "id": "UC-ARCH-001",
@@ -3486,6 +3499,10 @@
         {
           "sha": "786a28254e16",
           "subject": "ci(worker): require the real tesseract OCR run; reconcile the external-proof rows"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
         }
       ],
       "migrations": "none",
@@ -3546,6 +3563,10 @@
         {
           "sha": "786a28254e16",
           "subject": "ci(worker): require the real tesseract OCR run; reconcile the external-proof rows"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
         }
       ],
       "migrations": "none",
@@ -4437,6 +4458,10 @@
         {
           "sha": "6934514c6d49",
           "subject": "fix(capture): continuous/iOS/Android capture seals only what was truly recorded (UC-2 / UC-3 / UC-5)"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
         }
       ],
       "migrations": "none",
@@ -4470,8 +4495,8 @@
         "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:277"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "UC-2 service registers a DisplayListener, resizes VirtualDisplay/ImageReader on rotation, labels each frame with its image's real dimensions and records ORIENTATION_CHANGED_DURING_CAPTURE; the shared UC-2 validator refuses mixed-orientation frames without that limitation.",
+      "owner": "lead",
+      "decision": "UC-2 service registers a DisplayListener, resizes VirtualDisplay/ImageReader on rotation, labels each frame with its image's real dimensions and records ORIENTATION_CHANGED_DURING_CAPTURE; the shared UC-2 validator refuses mixed-orientation frames without that limitation. LEAD ADJUDICATION: Code complete (display listener, per-frame geometry, recorded change); the remaining proof is a real rotation during capture.",
       "red": {
         "test": "android-capture-service-contract.test.mjs::UC-AND-012",
         "command": "node --test (HEAD Kotlin)",
@@ -4503,7 +4528,7 @@
         "security": "none",
         "deployment": "native build; api redeploy"
       },
-      "externalProofRemaining": "device: rotate during UC-2 capture",
+      "externalProofRemaining": "Android device — or an emulator with MediaProjection consent automation, which CI does not have — rotate during UC-2 capture, frames carry the new geometry",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -4526,7 +4551,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "Both services wrap beginProjection in try/catch and call failStart (release resources, stopSelf, invoke onStartFailed); the module rejects the JS promise with the code. LEAD ADJUDICATION: Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the null-projection unit test has not executed.",
+      "decision": "Both services wrap beginProjection in try/catch and call failStart (release resources, stopSelf, invoke onStartFailed); the module rejects the JS promise with the code. LEAD ADJUDICATION: RECLASSIFIED BLOCKED -> FIXED: both services now take the consent / getMediaProjection decision through pure Kotlin obtainProjection (CaptureDecisions.kt, 5153c237); a NULL projection is refused with PROJECTION_UNAVAILABLE (Android asked once), no consent with NO_CONSENT_TOKEN (Android not asked), a throw with START_FAILED — every refusal routed to failStart, which rejects the JS start. Proven by the JUnit suite in CI; the source-contract test pins both services' routing.",
       "red": {
         "test": "android-capture-service-contract.test.mjs::UC-AND-013",
         "command": "node --test (HEAD Kotlin)",
@@ -4534,17 +4559,26 @@
       },
       "green": {
         "tests": [
-          "android-capture-service-contract.test.mjs::UC-AND-013"
+          "android-capture-service-contract.test.mjs::UC-AND-013",
+          "native-build.yml run 36940211660 @ 3ff95c0b (ios-simulator-build job 110629704934; android-debug-build job 110629704584) :: android-debug-build 'JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)' = success (CaptureDecisionsTest, 8 executed, 0 skipped)"
         ],
-        "command": "node --test",
-        "result": "passed"
+        "command": "node --test ; Gradle <module>:testDebugUnitTest via GitHub Actions",
+        "result": "passed ; success"
       },
-      "proofKind": "source-structure",
+      "proofKind": "unit",
       "implementationCommits": [
         {
           "sha": "6934514c6d49",
           "subject": "fix(capture): continuous/iOS/Android capture seals only what was truly recorded (UC-2 / UC-3 / UC-5)",
-          "attributedBy": "commit 6934514c cites 'UC-IOS-001..UC-IOS-012' / 'UC-AND-011..013' as a range; it is lane M's native batch"
+          "attributedBy": "lane M's native batch + the missing unit proof (ProovraDarwinNotify's own file + XCTest; CaptureDecisions.kt + JUnit), run by native-build"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
+        },
+        {
+          "sha": "5153c2377da9",
+          "subject": "fix: the signing-key seed uses an explicit key path exactly; native unit proofs for UC-IOS-012 / UC-AND-007 / UC-AND-013; Redis recovery proof"
         }
       ],
       "migrations": "none",
@@ -4557,8 +4591,8 @@
         "security": "none",
         "deployment": "native build"
       },
-      "externalProofRemaining": "JVM/instrumented unit test of beginProjection failing (null projection) -> failStart, stopSelf, JS promise rejected with the code (Kotlin compile proven in CI)",
-      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
+      "externalProofRemaining": "none",
+      "finalDisposition": "FIXED_SOURCE_AND_TEST_PROVEN"
     },
     {
       "id": "UC-AND-014",
@@ -5817,7 +5851,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "ProovraDarwinNotify is a singleton with ONE stable observer token, registers each name once, removes with the same token, guards handlers with a lock; drainSegments is serialised on a dedicated queue. LEAD ADJUDICATION: NOT closed by compilation. Feature CI now COMPILES the Swift (ProovraDarwinNotify singleton, serialised drainSegments) on macOS (ios-simulator-build, run 36865158339), but the proof this row names is a Swift UNIT TEST of the observer identity on macOS CI, and none has executed.",
+      "decision": "ProovraDarwinNotify is a singleton with ONE stable observer token, registers each name once, removes with the same token, guards handlers with a lock; drainSegments is serialised on a dedicated queue. LEAD ADJUDICATION: RECLASSIFIED BLOCKED -> FIXED: the missing proof was a test, not hardware. ProovraDarwinNotify moved unchanged into its own Foundation-only file in the same pod (5153c237); the XCTest package apps/mobile/modules/proovra-screen-capture/ios-tests compiles THAT shipped file and drives the real Darwin notify center on macOS. native-build's step refuses < 6 executed, any failure or any skip — it passed.",
       "red": {
         "test": "ios-broadcast-contract.test.mjs::app-side lifecycle",
         "command": "node --test (HEAD Swift)",
@@ -5825,16 +5859,25 @@
       },
       "green": {
         "tests": [
-          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+          "ios-broadcast-contract.test.mjs::app-side lifecycle",
+          "native-build.yml run 36940211660 @ 3ff95c0b (ios-simulator-build job 110629704934; android-debug-build job 110629704584) :: ios-simulator-build 'XCTest — ProovraDarwinNotify (UC-IOS-012)' = success (6 tests: real delivery; same name registered once / delivered once; removeAll with the same token; three sessions deliver 1+1+1; independent bridges; 64 concurrent observe() -> one registration)"
         ],
-        "command": "node --test",
-        "result": "passed"
+        "command": "node --test ; swift test (macos-14, Xcode 16.2) via GitHub Actions",
+        "result": "passed ; success"
       },
-      "proofKind": "source-structure",
+      "proofKind": "unit",
       "implementationCommits": [
         {
           "sha": "6934514c6d49",
           "subject": "fix(capture): continuous/iOS/Android capture seals only what was truly recorded (UC-2 / UC-3 / UC-5)"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
+        },
+        {
+          "sha": "5153c2377da9",
+          "subject": "fix: the signing-key seed uses an explicit key path exactly; native unit proofs for UC-IOS-012 / UC-AND-007 / UC-AND-013; Redis recovery proof"
         }
       ],
       "migrations": "none",
@@ -5847,8 +5890,8 @@
         "security": "none",
         "deployment": "native build (iOS)"
       },
-      "externalProofRemaining": "a Swift (XCTest) unit test of ProovraDarwinNotify's single observer token / register-once / remove-with-same-token, executed on a macOS CI runner (compilation alone is proven)",
-      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
+      "externalProofRemaining": "none",
+      "finalDisposition": "FIXED_SOURCE_AND_TEST_PROVEN"
     },
     {
       "id": "UC-LCH-002",
@@ -5955,6 +5998,10 @@
         {
           "sha": "0364d89aef47",
           "subject": "feat(web): web screen capture, installable PWA, honest capture states, CI shards for capture proofs"
+        },
+        {
+          "sha": "9af3c0eb9c65",
+          "subject": "docs(audit): ledger reconciled from observed feature CI — 103 fixed, 16 external"
         }
       ],
       "migrations": "none",

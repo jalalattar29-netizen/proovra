@@ -6,7 +6,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4`. The order the audit recomme
 
 Primary channels that cannot produce a record at all; no migration; mobile needs one native build, extension one store build.
 
-- **UC-IOS-001** (P1, runtime-proven) Every iOS continuous-capture manifest is refused at seal: the Swift result's device object lacks screenW/screenH/densityDpi/orientation that the server validator requires — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
+- **UC-IOS-001** (P1, runtime-proven) Every iOS continuous-capture manifest is refused at seal: the Swift result's device object lacks screenW/screenH/densityDpi/orientation that the server validator requires — BLOCKED_EXTERNAL_PROOF · 6934514c6d49, 9af3c0eb9c65
 - **UC-IOS-004** (P1, source-proven) Extension segment timing is wrong: the final segment is recorded with durationMs 0 and a start offset equal to the session end, so COMPLETE iOS sessions are refused as having an undeclared gap — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
 - **UC-IOS-002** (P1, source-proven) The app cannot stop the iOS broadcast: in-app Stop and every controlled stop post a Darwin note the extension never observes, then return a fabricated INTERRUPTED summary while recording continues — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
 - **UC-EXT-001** (P1, runtime-proven) Extension popup reads `workspaces`/`teams` from /v1/platform/context, which returns neither, so the workspace list is always empty and both Capture buttons are disabled — FIXED_RUNTIME_PROVEN · 1fd1813d6ca7
@@ -56,9 +56,9 @@ Wire the extension, native and Object-Lock suites into CI so the next regression
 
 - **UC-TQ-007** (P2, runtime-proven) The canonical UC-1 browser acceptance harness cannot pass on main: ET-DC-04 made the OAuth redirect allow-list fail closed, the harness never sets it, and the fixture-env safety scanner refuses to carry it — FIXED_RUNTIME_PROVEN · 1fd1813d6ca7
 - **UC-TQ-002** (P2, source-proven) UC-1 'Chrome + Edge' browser acceptance runs the same bundled Chromium under both projects and is not wired into any CI workflow — FIXED_RUNTIME_PROVEN · 1fd1813d6ca7, 0364d89aef47
-- **UC-TQ-003** (P2, source-proven) UC-4 worker screen-intelligence path has no CI-executed behavioural proof: the job handler is untested, the DB persistence suite is env-skipped in CI, and real OCR is never executed — FIXED_RUNTIME_PROVEN · 69e995c58803, 0364d89aef47, 786a28254e16
-- **UC-TQ-004** (P2, source-proven) Object-Lock package/report publication suite never runs in CI although ci.yml starts a MinIO and states it is for that suite — FIXED_RUNTIME_PROVEN · 0364d89aef47, 786a28254e16
-- **UC-LCH-003** (P3, source-proven) Native capture code is never compiled or executed in CI and the extension Playwright e2e runs in no workflow, so the UC-5 'Code PASS' rests on text-level checks and a fabricated server fixture — FIXED_RUNTIME_PROVEN · 0364d89aef47
+- **UC-TQ-003** (P2, source-proven) UC-4 worker screen-intelligence path has no CI-executed behavioural proof: the job handler is untested, the DB persistence suite is env-skipped in CI, and real OCR is never executed — FIXED_RUNTIME_PROVEN · 69e995c58803, 0364d89aef47, 786a28254e16, 9af3c0eb9c65
+- **UC-TQ-004** (P2, source-proven) Object-Lock package/report publication suite never runs in CI although ci.yml starts a MinIO and states it is for that suite — FIXED_RUNTIME_PROVEN · 0364d89aef47, 786a28254e16, 9af3c0eb9c65
+- **UC-LCH-003** (P3, source-proven) Native capture code is never compiled or executed in CI and the extension Playwright e2e runs in no workflow, so the UC-5 'Code PASS' rests on text-level checks and a fabricated server fixture — FIXED_RUNTIME_PROVEN · 0364d89aef47, 9af3c0eb9c65
 
 ## Wave 6 — Remaining P2/P3 by area
 
@@ -66,7 +66,7 @@ All other open findings, ordered by severity inside each area (see findings.json
 
 - **UC-AND-004** (P2, source-proven) A continuous recording is not resumable after the JS runtime or process restarts; the native session is orphaned and further segments are silently lost — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
 - **UC-AND-006** (P2, source-proven) Logout / account switch does not stop an active MediaProjection capture and does not clear the (user-unscoped) persisted capture session — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49
-- **UC-AND-007** (P2, source-proven) A segment whose MediaRecorder.stop() failed is still emitted, uploaded and sealed as an ORIGINAL segment — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
+- **UC-AND-007** (P2, source-proven) A segment whose MediaRecorder.stop() failed is still emitted, uploaded and sealed as an ORIGINAL segment — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49, 9af3c0eb9c65, 5153c2377da9
 - **UC-ARCH-004** (P2, source-proven) API-key resumable upload channel (/v1/integrations/api/uploads/*) can never open a session: it passes the API credential id as the OWNER principal, which never equals Evidence.ownerUserId — FIXED_SOURCE_AND_TEST_PROVEN · 718a4d15ec93
 - **UC-COM-001** (P2, source-proven) An unsealed reservation stops counting after 24h but can still be finalized, and settlement only counts EARLIER records, so FREE/PRO allowances can be exceeded without a credit — FIXED_RUNTIME_PROVEN · 718a4d15ec93, f0527e0c454a
 - **UC-DER-001** (P2, runtime-proven) Derived Review 'Retry' and 'Regenerate' never run: the reused run row is COMPLETED/DISMISSED and the worker claim refuses it, while the API answers 202 queued — FIXED_RUNTIME_PROVEN · 69e995c58803
@@ -100,9 +100,9 @@ All other open findings, ordered by severity inside each area (see findings.json
 - **UC-WEB-004** (P2, source-proven) Home 'Review submissions' priority links to /evidence-requests, a route with no page (404) — FIXED_SOURCE_AND_TEST_PROVEN · 0364d89aef47
 - **UC-AND-008** (P3, source-proven) UC-2 still classes the manifest part CAPTURE_MANIFEST after the seal, which ET-DC-11 recorded as removed — FIXED_RUNTIME_PROVEN · 6934514c6d49
 - **UC-AND-010** (P3, source-proven) UC-2 screenshot PNGs and the manifest are never deleted from the device cache after staging or discard — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49
-- **UC-AND-011** (P3, source-proven) UC-2 'SECURE_CONTENT_OMITTED' is assigned to any frame failure and never to actual FLAG_SECURE content — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49
+- **UC-AND-011** (P3, source-proven) UC-2 'SECURE_CONTENT_OMITTED' is assigned to any frame failure and never to actual FLAG_SECURE content — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49, 9af3c0eb9c65
 - **UC-AND-012** (P3, source-proven) UC-2 frames taken after a rotation are recorded at the session-start geometry and orientation, with no ORIENTATION_CHANGED limitation — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
-- **UC-AND-013** (P3, source-proven) If projection setup fails after consent, the native start promise is never settled and the screen stays busy — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
+- **UC-AND-013** (P3, source-proven) If projection setup fails after consent, the native start promise is never settled and the screen stays busy — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49, 9af3c0eb9c65, 5153c2377da9
 - **UC-AND-014** (P3, source-proven) iOS native module exposes 'stop' while the JS binding calls 'stopCapture' — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49
 - **UC-ARCH-006** (P3, source-proven) Multipart composite digest and streaming SHA-256 are implemented three times (API completion, worker integrity recheck, worker report gate) with no shared authority — FIXED_SOURCE_AND_TEST_PROVEN · 718a4d15ec93, b4b035380ac8
 - **UC-ARCH-007** (P3, source-proven) Device-bound signing, device registration, platform attestation and trust-timeline surfaces have no client caller; every production direct-capture session is unbound and unsigned — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49, 0364d89aef47
@@ -124,7 +124,7 @@ All other open findings, ordered by severity inside each area (see findings.json
 - **UC-EXT-009** (P3, source-proven) Extension sign-out does not revoke the server token; the token has no sid so per-session revocation cannot reach it — FIXED_RUNTIME_PROVEN · 1fd1813d6ca7
 - **UC-EXT-010** (P3, source-proven) Extension cannot file a capture to a case, while the UC-1 implementation record states case selection is sent and case-access checked — FIXED_RUNTIME_PROVEN · 1fd1813d6ca7, 6934514c6d49
 - **UC-IOS-011** (P3, source-proven) iOS continuous-capture copy describes Android: 'Android restrictions' and 'stop … from the capture notification' (iOS has no such notification) — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49
-- **UC-IOS-012** (P3, source-proven) Darwin observer lifecycle is broken: each registration uses a throw-away NSObject pointer, removeAll never removes them, and drainSegments runs on two threads — BLOCKED_EXTERNAL_PROOF · 6934514c6d49
+- **UC-IOS-012** (P3, source-proven) Darwin observer lifecycle is broken: each registration uses a throw-away NSObject pointer, removeAll never removes them, and drainSegments runs on two threads — FIXED_SOURCE_AND_TEST_PROVEN · 6934514c6d49, 9af3c0eb9c65, 5153c2377da9
 - **UC-LCH-002** (P3, source-proven) Capture has no monitoring: 0 of 32 alert rules cover direct/screen capture, no capture runbook exists, and alert delivery is not wired in production — FIXED_SOURCE_AND_TEST_PROVEN · 0364d89aef47, 7af5861c5013
 - **UC-LCH-004** (P3, source-proven) PWA is not installable by Chrome criteria and has no service worker: the manifest has one PNG icon with sizes 'any' — FIXED_RUNTIME_PROVEN · 0364d89aef47
 - **UC-LCH-005** (P3, source-proven) Capture-gating env vars are undocumented: EXTENSION_OAUTH_REDIRECT_ALLOW and NEXT_PUBLIC_EXTENSION_INSTALL_URL appear in no .env.example — FIXED_SOURCE_AND_TEST_PROVEN · 1fd1813d6ca7

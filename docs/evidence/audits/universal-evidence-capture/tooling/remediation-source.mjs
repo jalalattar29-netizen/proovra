@@ -39,15 +39,15 @@ export const INTEGRATION_SKIPS_ALLOWED = 0;
 export const EXTERNAL_PROOFS_ADDED = [
   {
     id: "EP-14",
-    item: "Native unit tests on CI runners (Swift XCTest on macOS; Android JVM/instrumented tests) and a stack-level Video -> OCR run with the real engine — the remainder after feature CI closed compilation, browser acceptance, real-tesseract OCR on fixtures and Object-Lock publication",
+    item: "A stack-level Video -> OCR run with the real Tesseract engine (journey R09b) — the remainder of the CI-executable proofs after feature CI closed compilation, native unit tests, browser acceptance, real-tesseract OCR on fixtures and Object-Lock publication",
     locallyProven:
-      "FEATURE CI, fix/universal-evidence-capture-closure (2026-10-01): native-build.yml run 36865158339 — Swift compiled for the iOS simulator on macos-14 / Xcode 16.2 with ProovraBroadcast.appex embedded (refusal gate passed) and Kotlin compiled (Gradle :app:assembleDebug); uc1-browser-acceptance.yml run 36870336646 — real Chrome 4/4 + real Edge 4/4 on Windows, Chrome 4/4 headed on Linux, per-browser results counted; ci.yml build-test run 36864604761 — 'Test — worker OCR with the real tesseract engine' (UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and 'Test — worker Object-Lock publication (MinIO, locked bucket)' both success; schema-reproducibility.yml run 36864604662 — the worker UC-4 live-PostgreSQL integration step success. These closed UC-TQ-003, UC-TQ-004, UC-LCH-003 and UC-AND-011.",
+      "FEATURE CI, fix/universal-evidence-capture-closure: native-build.yml run 36865158339 — Swift compiled for the iOS simulator on macos-14 / Xcode 16.2 with ProovraBroadcast.appex embedded and Kotlin compiled; native-build.yml run 36940211660 — XCTest of ProovraDarwinNotify on macOS (6) and JUnit CaptureDecisionsTest (8); uc1-browser-acceptance.yml run 36870336646 — real Chrome 4/4 + real Edge 4/4 on Windows, Chrome 4/4 on Linux; ci.yml build-test run 36864604761 — real-tesseract OCR (>= 5 executed, 0 skipped) and Object-Lock publication; schema-reproducibility.yml run 36864604662 — worker UC-4 live-PostgreSQL integration. These closed UC-TQ-003, UC-TQ-004, UC-LCH-003, UC-AND-011, UC-IOS-012, UC-AND-007 and UC-AND-013.",
     unproven:
-      "No Swift unit test (XCTest) exists or runs for ProovraDarwinNotify's observer identity (UC-IOS-012). The Android stop()-throws instrumented test (UC-AND-007) and the null-projection unit test (UC-AND-013) have not executed; those two also need EP-06 for device behaviour. Journey R09b (a recorded video through derived OCR on a running stack with the real engine) has not run: CI proves the engine on fixtures and the persistence path, and this host has no Tesseract binary.",
-    requires: "An XCTest target for the native module run on a macOS runner; an Android test source set run by Gradle on CI (an emulator for the instrumented case).",
-    procedure: "Add the tests, wire them into native-build.yml, push, read the job results.",
-    passCriteria: "The named tests execute (not skipped) and pass on the branch head.",
-    risk: "Native lifecycle regressions in the observer/teardown paths would be caught only on a device.",
+      "Journey R09b — a recorded video through derived OCR on a running stack with the real engine — has not run: CI proves the engine on fixtures and the persistence path, and this host has no Tesseract binary. No finding waits on this row any more.",
+    requires: "A stack (local or CI) whose worker image carries tesseract-ocr, with the workspace AI policy allowing OCR.",
+    procedure: "Seed a workspace with OCR allowed, capture a short screen video, run derived review, read the OCR text blocks.",
+    passCriteria: "Text blocks from the real engine are persisted for the record and shown in Derived Review.",
+    risk: "A regression in the video-to-OCR wiring on a real stack would be caught only by the fixture-level tests.",
   },
 ];
 
@@ -55,9 +55,7 @@ export const EXTERNAL_PROOFS_ADDED = [
 export const BLOCKED_EXTERNAL_PROOFS = {
   "UC-AND-003": ["EP-06"],
   "UC-AND-004": ["EP-06"],
-  "UC-AND-007": ["EP-06", "EP-14"],
   "UC-AND-012": ["EP-06"],
-  "UC-AND-013": ["EP-06", "EP-14"],
   "UC-IOS-001": ["EP-08"],
   "UC-IOS-002": ["EP-08"],
   "UC-IOS-003": ["EP-08"],
@@ -68,7 +66,6 @@ export const BLOCKED_EXTERNAL_PROOFS = {
   "UC-IOS-008": ["EP-08"],
   "UC-IOS-009": ["EP-08"],
   "UC-IOS-010": ["EP-08"],
-  "UC-IOS-012": ["EP-14"],
 };
 
 /**

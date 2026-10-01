@@ -10,8 +10,8 @@
       "P3": 53
     },
     "byStatus": {
-      "fixed": 103,
-      "blockedExternal": 16,
+      "fixed": 106,
+      "blockedExternal": 13,
       "partial": 0,
       "present": 0,
       "acceptedRisk": 0
@@ -19,8 +19,8 @@
     "unresolvedBySeverity": {
       "P0": 0,
       "P1": 4,
-      "P2": 9,
-      "P3": 3
+      "P2": 8,
+      "P3": 1
     }
   },
   "consolidations": [
@@ -60,7 +60,7 @@
           "continuous-capture-screen.render.test.mjs::UC-AND-003 (3)",
           "screen-capture-screen.render.test.mjs::UC-AND-003 (2)"
         ],
-        "externalProofRemaining": "device: fresh install Android 13/14, notification actions visible",
+        "externalProofRemaining": "Android 13/14 device — or an emulator with system-UI automation, which CI does not have — fresh install, notification actions visible and working",
         "externalProofs": [
           "EP-06"
         ]
@@ -341,7 +341,8 @@
         "disposition": "BLOCKED_EXTERNAL_PROOF",
         "proofKind": "contract-fixture",
         "commits": [
-          "6934514c6d49"
+          "6934514c6d49",
+          "9af3c0eb9c65"
         ],
         "migrations": "none",
         "redTest": "apps/mobile/test/ios-broadcast-contract.test.mjs (HEAD Swift) + shared probe",
@@ -975,7 +976,7 @@
           "android-capture-service-contract.test.mjs::UC-AND-004",
           "continuous-capture-screen.render.test.mjs::reattaches"
         ],
-        "externalProofRemaining": "device: kill UI during recording, relaunch, continue",
+        "externalProofRemaining": "Android device — or an emulator with MediaProjection consent automation, which CI does not have — kill the UI during recording, relaunch, recording continues and is recovered",
         "externalProofs": [
           "EP-06"
         ]
@@ -1092,23 +1093,23 @@
       "platforms": [
         "android"
       ],
-      "status": "blocked-external",
+      "status": "fixed",
       "resolution": {
-        "disposition": "BLOCKED_EXTERNAL_PROOF",
-        "proofKind": "source-structure",
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
         "commits": [
-          "6934514c6d49"
+          "6934514c6d49",
+          "9af3c0eb9c65",
+          "5153c2377da9"
         ],
         "migrations": "none",
         "redTest": "android-capture-service-contract.test.mjs::UC-AND-007",
         "greenTests": [
-          "android-capture-service-contract.test.mjs::UC-AND-007"
+          "android-capture-service-contract.test.mjs::UC-AND-007",
+          "native-build.yml run 36940211660 @ 3ff95c0b (ios-simulator-build job 110629704934; android-debug-build job 110629704584) :: android-debug-build 'JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)' = success (CaptureDecisionsTest, 8 executed, 0 skipped; guard refuses < 8)"
         ],
-        "externalProofRemaining": "Android instrumented test (emulator or device) of MediaRecorder.stop() throwing -> file deleted, SEGMENT_WRITE_FAILED, nothing emitted (Kotlin compile proven in CI)",
-        "externalProofs": [
-          "EP-06",
-          "EP-14"
-        ]
+        "externalProofRemaining": "none",
+        "externalProofs": []
       },
       "proof": "source-proven",
       "userImpact": "When stop() throws (e.g. a segment stopped almost immediately after start on rotation rollover or Stop, or encoder error), the partially written mp4 (no finalized moov) is still reported with a wall-clock durationMs and becomes part of the sealed evidence; playback/derived intelligence may fail on it while the manifest presents it as recorded video.",
@@ -4016,7 +4017,8 @@
         "commits": [
           "69e995c58803",
           "0364d89aef47",
-          "786a28254e16"
+          "786a28254e16",
+          "9af3c0eb9c65"
         ],
         "migrations": "none",
         "redTest": "services/worker/test/uc4-screen-intelligence-handler.test.ts (whole suite)",
@@ -4106,7 +4108,8 @@
         "proofKind": "runtime",
         "commits": [
           "0364d89aef47",
-          "786a28254e16"
+          "786a28254e16",
+          "9af3c0eb9c65"
         ],
         "migrations": "none",
         "redTest": "ci.yml",
@@ -5120,7 +5123,8 @@
         "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
         "proofKind": "unit",
         "commits": [
-          "6934514c6d49"
+          "6934514c6d49",
+          "9af3c0eb9c65"
         ],
         "migrations": "none",
         "redTest": "android-capture-service-contract.test.mjs::UC-AND-011",
@@ -5182,7 +5186,7 @@
           "android-capture-service-contract.test.mjs::UC-AND-012",
           "capture-manifest-facts.test.mjs::UC-AND-012"
         ],
-        "externalProofRemaining": "device: rotate during UC-2 capture",
+        "externalProofRemaining": "Android device — or an emulator with MediaProjection consent automation, which CI does not have — rotate during UC-2 capture, frames carry the new geometry",
         "externalProofs": [
           "EP-06"
         ]
@@ -5229,23 +5233,23 @@
       "platforms": [
         "android"
       ],
-      "status": "blocked-external",
+      "status": "fixed",
       "resolution": {
-        "disposition": "BLOCKED_EXTERNAL_PROOF",
-        "proofKind": "source-structure",
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
         "commits": [
-          "6934514c6d49"
+          "6934514c6d49",
+          "9af3c0eb9c65",
+          "5153c2377da9"
         ],
         "migrations": "none",
         "redTest": "android-capture-service-contract.test.mjs::UC-AND-013",
         "greenTests": [
-          "android-capture-service-contract.test.mjs::UC-AND-013"
+          "android-capture-service-contract.test.mjs::UC-AND-013",
+          "native-build.yml run 36940211660 @ 3ff95c0b (ios-simulator-build job 110629704934; android-debug-build job 110629704584) :: android-debug-build 'JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)' = success (CaptureDecisionsTest, 8 executed, 0 skipped)"
         ],
-        "externalProofRemaining": "JVM/instrumented unit test of beginProjection failing (null projection) -> failStart, stopSelf, JS promise rejected with the code (Kotlin compile proven in CI)",
-        "externalProofs": [
-          "EP-06",
-          "EP-14"
-        ]
+        "externalProofRemaining": "none",
+        "externalProofs": []
       },
       "proof": "source-proven",
       "userImpact": "When getMediaProjection returns null (or resultData is missing) the service calls finish(\"ERROR\") before onStartedCb is invoked; the JS start() awaits forever with the button spinning; the STOPPED event is ignored because the reducer is still in 'intro'. For UC-3 the server session was already opened.",
@@ -6606,22 +6610,23 @@
       "platforms": [
         "ios"
       ],
-      "status": "blocked-external",
+      "status": "fixed",
       "resolution": {
-        "disposition": "BLOCKED_EXTERNAL_PROOF",
-        "proofKind": "source-structure",
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
         "commits": [
-          "6934514c6d49"
+          "6934514c6d49",
+          "9af3c0eb9c65",
+          "5153c2377da9"
         ],
         "migrations": "none",
         "redTest": "ios-broadcast-contract.test.mjs::app-side lifecycle",
         "greenTests": [
-          "ios-broadcast-contract.test.mjs::app-side lifecycle"
+          "ios-broadcast-contract.test.mjs::app-side lifecycle",
+          "native-build.yml run 36940211660 @ 3ff95c0b (ios-simulator-build job 110629704934; android-debug-build job 110629704584) :: ios-simulator-build 'XCTest — ProovraDarwinNotify (UC-IOS-012)' = success (6 tests: real delivery; same name registered once / delivered once; removeAll with the same token; three sessions deliver 1+1+1; independent bridges; 64 concurrent observe() -> one registration)"
         ],
-        "externalProofRemaining": "a Swift (XCTest) unit test of ProovraDarwinNotify's single observer token / register-once / remove-with-same-token, executed on a macOS CI runner (compilation alone is proven)",
-        "externalProofs": [
-          "EP-14"
-        ]
+        "externalProofRemaining": "none",
+        "externalProofs": []
       },
       "proof": "source-proven",
       "userImpact": "Repeated sessions accumulate CF observers so each note triggers N drains/N stop events; a race between the Expo queue (stop) and main thread (Darwin callback) on lastEmittedSequence can emit a segment twice, leading to a failed duplicate upload toast or a duplicate partIndex that the validator refuses.",
@@ -6735,7 +6740,8 @@
         "disposition": "FIXED_RUNTIME_PROVEN",
         "proofKind": "runtime",
         "commits": [
-          "0364d89aef47"
+          "0364d89aef47",
+          "9af3c0eb9c65"
         ],
         "migrations": "none",
         "redTest": "grep 'extension/e2e|xcodebuild|macos' .github/workflows",

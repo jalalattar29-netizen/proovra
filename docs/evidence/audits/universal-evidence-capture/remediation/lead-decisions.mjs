@@ -17,6 +17,8 @@ const CI = {
     "schema-reproducibility.yml clean-db-boot, run 36864604662 job 110376873013 @ 7145ad51 (also green @ 394a3a2f, ae7f1b85, 705cfbf8, a7e022f0)",
   native:
     "native-build.yml run 36865158339 @ a7e022f0: ios-simulator-build job 110378735897 (macos-14, Xcode 16.2: xcodebuild app + ProovraBroadcast, then 'Refuse a build without the broadcast extension' PASSED) and android-debug-build job 110378735982 (Gradle :app:assembleDebug)",
+  nativeUnit:
+    "native-build.yml run 36940211660 @ 3ff95c0b (ios-simulator-build job 110629704934; android-debug-build job 110629704584)",
   browser:
     "uc1-browser-acceptance.yml run 36870336646 @ ca991687: windows-acceptance job 110396168173 (real Google Chrome 4/4 + real Microsoft Edge 153 4/4, 'UC-1 CLOSED (browser gate) [PASS]') and linux-extension-e2e job 110396167871 (Chrome 154 headed under xvfb, 4/4); each project's JSON result counted (executed > 0)",
 };
@@ -30,6 +32,13 @@ export const COMMIT_ATTRIBUTION = {
     ["UC-IOS-002", "UC-IOS-003", "UC-IOS-004", "UC-IOS-005", "UC-IOS-006", "UC-IOS-007", "UC-IOS-008", "UC-IOS-009", "UC-IOS-010", "UC-IOS-011", "UC-IOS-012", "UC-AND-011", "UC-AND-012", "UC-AND-013"],
     ["6934514c"],
     RANGE_M,
+  ),
+  // Overrides the range entries above for these three (an object spread keeps
+  // the LAST value), so each lists lane M's batch AND the unit-proof commit.
+  ...range(
+    ["UC-IOS-012", "UC-AND-013"],
+    ["6934514c", "5153c237"],
+    "lane M's native batch + the missing unit proof (ProovraDarwinNotify's own file + XCTest; CaptureDecisions.kt + JUnit), run by native-build",
   ),
   "UC-ARCH-005": { commits: ["718a4d15"], reason: "the part-writer intake refusal shipped inside lane A's batch" },
   "UC-DER-010": { commits: ["69e995c5", "b4b03538"], reason: "lane D route half + lane T report/package bridge half" },
@@ -216,19 +225,54 @@ export const DECISIONS = {
     },
   },
   "UC-IOS-012": {
-    status: "BLOCKED_EXTERNAL_PROOF",
-    note: "NOT closed by compilation. Feature CI now COMPILES the Swift (ProovraDarwinNotify singleton, serialised drainSegments) on macOS (ios-simulator-build, run 36865158339), but the proof this row names is a Swift UNIT TEST of the observer identity on macOS CI, and none has executed.",
-    externalProofRemaining: "a Swift (XCTest) unit test of ProovraDarwinNotify's single observer token / register-once / remove-with-same-token, executed on a macOS CI runner (compilation alone is proven)",
+    status: "FIXED",
+    proofKind: "unit",
+    note: "RECLASSIFIED BLOCKED -> FIXED: the missing proof was a test, not hardware. ProovraDarwinNotify moved unchanged into its own Foundation-only file in the same pod (5153c237); the XCTest package apps/mobile/modules/proovra-screen-capture/ios-tests compiles THAT shipped file and drives the real Darwin notify center on macOS. native-build's step refuses < 6 executed, any failure or any skip — it passed.",
+    externalProofRemaining: "none",
+    green: {
+      tests: [
+        `${CI.nativeUnit} :: ios-simulator-build 'XCTest — ProovraDarwinNotify (UC-IOS-012)' = success (6 tests: real delivery; same name registered once / delivered once; removeAll with the same token; three sessions deliver 1+1+1; independent bridges; 64 concurrent observe() -> one registration)`,
+      ],
+      command: "swift test (macos-14, Xcode 16.2) via GitHub Actions",
+      result: "success",
+    },
   },
   "UC-AND-007": {
-    status: "BLOCKED_EXTERNAL_PROOF",
-    note: "Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the instrumented test of MediaRecorder.stop() throwing has not executed.",
-    externalProofRemaining: "Android instrumented test (emulator or device) of MediaRecorder.stop() throwing -> file deleted, SEGMENT_WRITE_FAILED, nothing emitted (Kotlin compile proven in CI)",
+    status: "FIXED",
+    proofKind: "unit",
+    note: "RECLASSIFIED BLOCKED -> FIXED: the decision a throwing MediaRecorder.stop() takes now lives in pure Kotlin (CaptureDecisions.kt closeSegment, 5153c237), called by ContinuousScreenCaptureService.finalizeCurrentSegment, and the JUnit suite drives it with a stop() that throws: segment discarded (DISCARD_WRITE_FAILED -> SEGMENT_WRITE_FAILED recorded, nothing emitted), file deleted, recorder still released. NOT added: an emulator/instrumented test with a real MediaRecorder — CI has no Android emulator toolchain; the defect is the control-flow decision, which runs unchanged in the service.",
+    externalProofRemaining: "none",
+    green: {
+      tests: [`${CI.nativeUnit} :: android-debug-build 'JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)' = success (CaptureDecisionsTest, 8 executed, 0 skipped; guard refuses < 8)`],
+      command: "Gradle <module>:testDebugUnitTest via GitHub Actions (8/8 also locally on JDK 17 against the module's sources)",
+      result: "success",
+    },
   },
   "UC-AND-013": {
+    status: "FIXED",
+    proofKind: "unit",
+    note: "RECLASSIFIED BLOCKED -> FIXED: both services now take the consent / getMediaProjection decision through pure Kotlin obtainProjection (CaptureDecisions.kt, 5153c237); a NULL projection is refused with PROJECTION_UNAVAILABLE (Android asked once), no consent with NO_CONSENT_TOKEN (Android not asked), a throw with START_FAILED — every refusal routed to failStart, which rejects the JS start. Proven by the JUnit suite in CI; the source-contract test pins both services' routing.",
+    externalProofRemaining: "none",
+    green: {
+      tests: [`${CI.nativeUnit} :: android-debug-build 'JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)' = success (CaptureDecisionsTest, 8 executed, 0 skipped)`],
+      command: "Gradle <module>:testDebugUnitTest via GitHub Actions",
+      result: "success",
+    },
+  },
+  "UC-AND-003": {
     status: "BLOCKED_EXTERNAL_PROOF",
-    note: "Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the null-projection unit test has not executed.",
-    externalProofRemaining: "JVM/instrumented unit test of beginProjection failing (null projection) -> failStart, stopSelf, JS promise rejected with the code (Kotlin compile proven in CI)",
+    note: "Code complete; the remaining proof is system-UI behaviour of a running Android build (notification actions on a fresh install).",
+    externalProofRemaining: "Android 13/14 device — or an emulator with system-UI automation, which CI does not have — fresh install, notification actions visible and working",
+  },
+  "UC-AND-004": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Code complete (segments listable, callbacks re-bind); the remaining proof is process death and relaunch of a running Android build.",
+    externalProofRemaining: "Android device — or an emulator with MediaProjection consent automation, which CI does not have — kill the UI during recording, relaunch, recording continues and is recovered",
+  },
+  "UC-AND-012": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Code complete (display listener, per-frame geometry, recorded change); the remaining proof is a real rotation during capture.",
+    externalProofRemaining: "Android device — or an emulator with MediaProjection consent automation, which CI does not have — rotate during UC-2 capture, frames carry the new geometry",
   },
   "UC-IOS-001": {
     status: "BLOCKED_EXTERNAL_PROOF",

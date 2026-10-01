@@ -1,7 +1,7 @@
 {
   "schema": "PROOVRA_UNIVERSAL_CAPTURE_TRUTH_V1",
   "headline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
-  "headlineReason": "103 of 119 findings fixed with proof; 16 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.",
+  "headlineReason": "106 of 119 findings fixed with proof; 13 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.",
   "auditHeadline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
   "meta": {
     "title": "Definitive Universal Evidence Capture Truth",
@@ -57,11 +57,11 @@
     "ledger": "remediation/remediation-ledger.json",
     "ledgerCounts": {
       "total": 119,
-      "BLOCKED_EXTERNAL_PROOF": 16,
+      "BLOCKED_EXTERNAL_PROOF": 13,
       "FIXED_RUNTIME_PROVEN": 62,
-      "FIXED_SOURCE_AND_TEST_PROVEN": 41,
-      "fixed": 103,
-      "blocked": 16,
+      "FIXED_SOURCE_AND_TEST_PROVEN": 44,
+      "fixed": 106,
+      "blocked": 13,
       "remaining": 0
     }
   },
@@ -76,8 +76,8 @@
       "P3": 53
     },
     "byStatus": {
-      "fixed": 103,
-      "blockedExternal": 16,
+      "fixed": 106,
+      "blockedExternal": 13,
       "partial": 0,
       "present": 0,
       "acceptedRisk": 0
@@ -85,8 +85,8 @@
     "unresolvedBySeverity": {
       "P0": 0,
       "P1": 4,
-      "P2": 9,
-      "P3": 3
+      "P2": 8,
+      "P3": 1
     },
     "byProof": {
       "runtime-proven": 12,
@@ -209,10 +209,9 @@
       ],
       "blockers": [
         "EP-06",
-        "EP-07",
-        "EP-14"
+        "EP-07"
       ],
-      "rationale": "22 findings name this UC: 19 fixed, 3 code-complete awaiting external proof (UC-AND-003, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.",
+      "rationale": "22 findings name this UC: 20 fixed, 2 code-complete awaiting external proof (UC-AND-003, UC-AND-012), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07.",
       "auditRationale": "Server seal path runtime-proven (uc2-screen-capture integration); JS↔Kotlin parity, manifest service declarations and foreground-service typing verified; Android prebuild generated the native project; Hermes bundle builds. Unproven on any device; POST_NOTIFICATIONS is never requested, so on Android 13+ the capture-frame notification action (the only way to capture another app) is suppressed. No share-into-PROOVRA, logout does not stop capture.",
       "bucket": "blocked"
     },
@@ -229,10 +228,9 @@
         "UC-STR-006"
       ],
       "blockers": [
-        "EP-06",
-        "EP-14"
+        "EP-06"
       ],
-      "rationale": "27 findings name this UC: 23 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.",
+      "rationale": "27 findings name this UC: 25 fixed, 2 code-complete awaiting external proof (UC-AND-003, UC-AND-004), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06.",
       "auditRationale": "Seal refuses missing/duplicate/out-of-order/tampered declared segments (uc3 integration, real PG) and the full pipeline to Public Verify works for a sealed session (J09). But a lost TAIL segment seals as SIGNED COMPLETE_SESSION (runtime-proven), part index 200+ is refused while the client allows 600 segments so long recordings are discarded (runtime-proven), and a session is not resumable after app restart.",
       "bucket": "blocked"
     },
@@ -271,10 +269,9 @@
       ],
       "blockers": [
         "EP-08",
-        "EP-09",
-        "EP-14"
+        "EP-09"
       ],
-      "rationale": "35 findings name this UC: 24 fixed, 11 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.",
+      "rationale": "35 findings name this UC: 25 fixed, 10 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09.",
       "auditRationale": "Swift module, broadcast upload extension, App Group and entitlements exist and are internally consistent, and the server accepts DIRECT_SCREEN_CAPTURE_IOS. But no real iOS recording can be sealed: the device block the Swift code writes is refused by the shared validator (runtime-proven 422). The app cannot stop the broadcast, the last segment always has duration 0, and there is no crash recovery. Native compilation and ReplayKit behaviour are BLOCKED here (no macOS/Xcode).",
       "bucket": "blocked"
     },
@@ -3374,7 +3371,7 @@
     {
       "name": "findings = fixed + blocked-external + partial + present + accepted-risk",
       "ok": true,
-      "detail": "{\"fixed\":103,\"blockedExternal\":16,\"partial\":0,\"present\":0,\"acceptedRisk\":0}"
+      "detail": "{\"fixed\":106,\"blockedExternal\":13,\"partial\":0,\"present\":0,\"acceptedRisk\":0}"
     },
     {
       "name": "remediation ledger rows = findings (one row per finding, no extra row)",
@@ -3389,7 +3386,7 @@
     {
       "name": "ledger counts agree with finding statuses",
       "ok": true,
-      "detail": "{\"total\":119,\"BLOCKED_EXTERNAL_PROOF\":16,\"FIXED_RUNTIME_PROVEN\":62,\"FIXED_SOURCE_AND_TEST_PROVEN\":41,\"fixed\":103,\"blocked\":16,\"remaining\":0}"
+      "detail": "{\"total\":119,\"BLOCKED_EXTERNAL_PROOF\":13,\"FIXED_RUNTIME_PROVEN\":62,\"FIXED_SOURCE_AND_TEST_PROVEN\":44,\"fixed\":106,\"blocked\":13,\"remaining\":0}"
     },
     {
       "name": "ledger's own gates all pass",
