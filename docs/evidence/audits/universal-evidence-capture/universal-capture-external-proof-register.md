@@ -119,11 +119,11 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4`. A blocked external proof is
 - Pass criteria: Capture completes or records a truthful limitation; nothing claims more than viewport/DOM snapshot.
 - Production risk if omitted: Customer expectations for social evidence unproven.
 
-## EP-14 — First CI execution of the native-build and browser-acceptance workflows
+## EP-14 — First CI execution of the native-build and browser-acceptance workflows and of the CI steps that refuse skips (real tesseract OCR, Object-Lock publication)
 
 - Locally proven: Workflows authored (.github/workflows/native-build.yml, uc1-browser-acceptance.yml); the extension acceptance they run passes locally in real Chrome and Edge; the worker OCR test runs when the Tesseract binary exists.
-- Unproven: Kotlin and Swift compilation of the native capture modules, the Swift unit tests and the Tesseract-backed OCR assertion on GitHub runners (no push from this session, so no CI run could be observed).
+- Unproven: Kotlin and Swift compilation of the native capture modules, the Swift unit tests, the real-tesseract OCR assertion (ci.yml 'Test — worker OCR with the real tesseract engine', UC4_REQUIRE_TESSERACT=1) and the Object-Lock publication step on GitHub runners (no push from this session, so no CI run could be observed). On this host the OCR present-branch test is the worker suite's single skip: the binary is absent and installing it is a package download this session may not make.
 - Requires: The feature branch pushed to GitHub; macOS and Windows runners.
 - Procedure: Push the branch, let both workflows run, read their job logs.
-- Pass criteria: Both workflows green on the branch head; the OCR test executes (not skipped) in the worker job.
+- Pass criteria: Both workflows green on the branch head; the OCR step executes >= 5 tests with 0 skipped; the Object-Lock step executes 4 with 0 skipped.
 - Production risk if omitted: Native code that does not compile would only be discovered at release-build time.

@@ -8,42 +8,42 @@
         {
           "name": "chromium / static page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence 0bd0b179-9b96-45e6-8e9e-a91caec51b19"
+          "detail": "20/20 steps; evidence 90cd13ed-98be-421a-91d9-24b4722b380b"
         },
         {
           "name": "chromium / long page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence 5b03b4b6-3d29-4f6c-b921-745ff59aab8d"
+          "detail": "20/20 steps; evidence 771981b0-7276-45b9-8126-7a8da743e9bc"
         },
         {
           "name": "chromium / spa page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence 31a1033d-54f8-4483-872d-6c3dfc471fce"
+          "detail": "20/20 steps; evidence a989bcd4-9433-47be-a2ca-1c6c877b23bb"
         },
         {
           "name": "chromium / mutating page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence 36dde476-8301-41a1-8a05-9161deee9734"
+          "detail": "20/20 steps; evidence 54f73e21-7a98-4b06-85f8-ad5046fcd431"
         },
         {
           "name": "edge / static page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence 17346092-20f0-45d0-b565-11ce3acfbb52"
+          "detail": "20/20 steps; evidence ba610f2a-2ae9-4595-9da9-a5ad47e6e5b0"
         },
         {
           "name": "edge / long page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence 65d8c6e4-fc22-4584-8d76-c34a9a7930be"
+          "detail": "20/20 steps; evidence 1e1b0f85-6856-431d-8124-ae3f4b5ee643"
         },
         {
           "name": "edge / spa page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence 9ef7b686-5889-47e9-8e43-33ba11fac6cf"
+          "detail": "20/20 steps; evidence fe203967-d566-4f12-8f88-9529a7649b1c"
         },
         {
           "name": "edge / mutating page: 20 steps from OAuth to Public Verify",
           "ok": true,
-          "detail": "20/20 steps; evidence fe6c69c8-1712-4e76-a0f3-82d0f8288f2e"
+          "detail": "20/20 steps; evidence 6afb2de1-34f6-4d19-9b80-f77e66b18e87"
         },
         {
           "name": "harness verdict: chromium",

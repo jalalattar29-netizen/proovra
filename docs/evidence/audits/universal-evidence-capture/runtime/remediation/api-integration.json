@@ -1,7 +1,7 @@
 {
   "numTotalTestSuites": 876,
-  "numTotalTests": 2873,
-  "numPassedTests": 2873,
+  "numTotalTests": 2874,
+  "numPassedTests": 2874,
   "numFailedTests": 0,
   "numPendingTests": 0,
   "numTodoTests": 0,
@@ -1417,7 +1417,7 @@
     {
       "name": "test/public-verify-stored-bytes-truth.integration.test.ts",
       "status": "passed",
-      "tests": 8,
+      "tests": 9,
       "failed": [],
       "skipped": []
     },

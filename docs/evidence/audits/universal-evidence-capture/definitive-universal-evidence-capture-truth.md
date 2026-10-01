@@ -2,7 +2,7 @@
 
 **C. UNIVERSAL EVIDENCE CAPTURE NOT READY**
 
-101 of 119 findings fixed with proof; 18 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.
+99 of 119 findings fixed with proof; 20 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.
 
 At the audit baseline the headline was **C. UNIVERSAL EVIDENCE CAPTURE NOT READY**.
 
@@ -17,8 +17,8 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 - Remediated runtime evidence was produced on disposable loopback infrastructure only (PostgreSQL 16, Redis 7, MinIO); no Production system, credential or data was touched.
 - The audit's findings, observations and baseline verdicts are kept verbatim; the post-remediation state is added beside them, never written over them.
 
-- Findings: 119 = fixed 101 (runtime-proven 60 · source+test-proven 41) + blocked on external proof 18 + open 0.
-- Unresolved by severity: P0 0 · P1 4 · P2 9 · P3 5.
+- Findings: 119 = fixed 99 (runtime-proven 59 · source+test-proven 40) + blocked on external proof 20 + open 0.
+- Unresolved by severity: P0 0 · P1 4 · P2 11 · P3 5.
 
 | Finding | Sev | Disposition | Commits | External proof |
 |---|---|---|---|---|
@@ -75,8 +75,8 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-SEC-004 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 6934514c6d49 | — |
 | UC-STR-003 | P2 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
 | UC-TQ-002 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 0364d89aef47 | — |
-| UC-TQ-003 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803, 0364d89aef47 | — |
-| UC-TQ-004 | P2 | FIXED_RUNTIME_PROVEN | 0364d89aef47 | — |
+| UC-TQ-003 | P2 | BLOCKED_EXTERNAL_PROOF | 69e995c58803, 0364d89aef47, 786a28254e16 | EP-14 |
+| UC-TQ-004 | P2 | BLOCKED_EXTERNAL_PROOF | 0364d89aef47, 786a28254e16 | EP-14 |
 | UC-TQ-007 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
 | UC-TQ-008 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
 | UC-TRUST-001 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
@@ -84,7 +84,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-TRUST-003 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, 5b17f3321b08, d87a3673bb63, 9f3d8203c057 | — |
 | UC-TRUST-004 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, 5b17f3321b08, 24846684b41c, d87a3673bb63, 9f3d8203c057 | — |
 | UC-TRUST-005 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
-| UC-TRUST-008 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, a606dcaa5e29, d0034b073eb1 | — |
+| UC-TRUST-008 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, a606dcaa5e29, d0034b073eb1, bd87a9e52666 | — |
 | UC-WEB-001 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 718a4d15ec93, 9f3d8203c057 | — |
 | UC-WEB-003 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
 | UC-WEB-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
@@ -106,7 +106,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-DER-008 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 69e995c58803, b4b035380ac8 | — |
 | UC-DER-009 | P3 | FIXED_RUNTIME_PROVEN | 69e995c58803 | — |
 | UC-DER-011 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 69e995c58803 | — |
-| UC-DER-012 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 69e995c58803 | — |
+| UC-DER-012 | P3 | FIXED_RUNTIME_PROVEN | 69e995c58803, 786a28254e16 | — |
 | UC-DER-013 | P3 | FIXED_RUNTIME_PROVEN | 69e995c58803, 0408adaaa26b | — |
 | UC-DER-014 | P3 | FIXED_RUNTIME_PROVEN | 69e995c58803, d8e1f8605c5f, 9f3d8203c057 | — |
 | UC-DER-015 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
@@ -169,23 +169,23 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 
 | UC | Name | Verdict | Audit verdict | Key findings | External blockers |
 |---|---|---|---|---|---|
-| UC-0a | Provenance Truth Repair | **COMPLETE** | PRESENT BUT UNTRUTHFUL | UC-PROV-001, UC-PROV-002, UC-ARCH-001, UC-PROV-003, UC-PROV-004, UC-PROV-005 | — |
+| UC-0a | Provenance Truth Repair | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNTRUTHFUL | UC-PROV-001, UC-PROV-002, UC-ARCH-001, UC-PROV-003, UC-PROV-004, UC-PROV-005 | EP-14 |
 | UC-0b | Trust / Attestation Repair | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PARTIALLY COMPLETE | UC-TRUST-008, UC-TRUST-005, UC-TRUST-002, UC-TRUST-001, UC-TRUST-003, UC-TRUST-004 | EP-01, EP-02, EP-03 |
 | UC-0c | Derivative Lifecycle Closure | **COMPLETE** | PARTIALLY COMPLETE | UC-DER-002, UC-DER-006, UC-DER-005, UC-DER-007, UC-DER-013, UC-DER-014 | — |
 | UC-1 | Chrome / Edge Web Capture | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNREACHABLE | UC-EXT-001, UC-EXT-003, UC-SEC-002, UC-TQ-007, UC-EXT-004, UC-EXT-005 | EP-04, EP-05, EP-12, EP-14 |
 | UC-2 | Android Direct Screen Capture | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-AND-003, UC-AND-006, UC-AND-007, UC-AND-011, UC-AND-012 | EP-06, EP-07, EP-14 |
 | UC-3 | Continuous Capture + Streaming | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNTRUTHFUL | UC-STR-002, UC-STR-001, UC-AND-004, UC-STR-003, UC-STR-006 | EP-06, EP-14 |
-| UC-4 | Keyframes / OCR / Conversation Reconstruction | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PARTIALLY COMPLETE | UC-DER-001, UC-DER-003, UC-DER-004, UC-DER-005, UC-TQ-003, UC-DER-010 | EP-13, EP-14 |
+| UC-4 | Keyframes / OCR / Conversation Reconstruction | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-DER-001, UC-DER-003, UC-DER-004, UC-DER-005, UC-TQ-003, UC-DER-010 | EP-13, EP-14 |
 | UC-5 | iOS | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT DISCONNECTED | UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-010 | EP-08, EP-09, EP-14 |
 | UC-6 | Full Public Launch | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-LCH-001, UC-LCH-002, UC-LCH-003, UC-LCH-004, UC-TQ-002, UC-TQ-004 | EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14 |
 
-- **UC-0a** — 25 findings name this UC: 25 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R03 PASS. No external proof outstanding.
+- **UC-0a** — 25 findings name this UC: 24 fixed, 1 code-complete awaiting external proof (UC-TQ-004), 0 open. Journeys: R01 PASS, R03 PASS. External proofs outstanding: EP-14.
 - **UC-0b** — 8 findings name this UC: 8 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R17 PASS. External proofs outstanding: EP-01, EP-02, EP-03.
 - **UC-0c** — 7 findings name this UC: 7 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS. No external proof outstanding.
 - **UC-1** — 29 findings name this UC: 28 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R05 PASS. External proofs outstanding: EP-04, EP-05, EP-12, EP-14.
-- **UC-2** — 22 findings name this UC: 18 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.
-- **UC-3** — 27 findings name this UC: 23 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.
-- **UC-4** — 16 findings name this UC: 16 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.
+- **UC-2** — 22 findings name this UC: 17 fixed, 5 code-complete awaiting external proof (UC-AND-003, UC-TQ-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.
+- **UC-3** — 27 findings name this UC: 21 fixed, 6 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-TQ-003, UC-TQ-004, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.
+- **UC-4** — 16 findings name this UC: 15 fixed, 1 code-complete awaiting external proof (UC-TQ-003), 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.
 - **UC-5** — 35 findings name this UC: 23 fixed, 12 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012, UC-LCH-003), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.
 - **UC-6** — 8 findings name this UC: 7 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R01 PASS, R02 PASS, R03 PASS, R04 PASS, R11 PASS, R12 PASS, R13 PASS, R14a PASS, R14b PASS, R15a PASS, R15b BLOCKED, R16 PASS. External proofs outstanding: EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14.
 
@@ -206,12 +206,12 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 ## Counts
 
 - Findings at the audit baseline: 119 (P0 0 · P1 11 · P2 55 · P3 53); 2 consolidated into kept findings.
-- Status now: fixed 101 · blocked on external proof 18 · partial 0 · present 0 · accepted risk 0.
+- Status now: fixed 99 · blocked on external proof 20 · partial 0 · present 0 · accepted risk 0.
 - Proof (audit): runtime-proven 12 · source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED) 1 · source-proven 106
 - Required journeys: PASS 14 · FAIL 0 · BLOCKED 6 (of 20); at the audit baseline PASS 8 · FAIL 6 · BLOCKED 6.
 - Audit API integration (capture-relevant, real PG16/Redis/MinIO): 463/463 passed, 0 skipped, 64 files.
 - Audit worker suite: 1152/1156 passed, 4 skipped (the 4 skipped Object-Lock cases were run separately: see commands).
-- Remediated API integration (FULL suite, fresh migrated PG16 + Redis + MinIO): 2873/2873 passed, 0 failed, 0 skipped, 268 files.
+- Remediated API integration (FULL suite, fresh migrated PG16 + Redis + MinIO): 2874/2874 passed, 0 failed, 0 skipped, 268 files.
 - Remediated worker suite (live PG16/Redis/MinIO Object Lock): 1218/1219 passed, 0 failed, 1 skipped.
 
 ## Unresolved P0/P1 (code complete, external proof required)
@@ -284,23 +284,23 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | R01 | Web/PWA file upload → finalize → report → package → Public Verify | **PASS** | PASS | runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify<br>runtime/remediation/journeys-raw.json#J02-package-independent-recompute<br>runtime/remediation/package-recompute.json | — | J01-web-upload-to-public-verify: PASS (22/22); J02-package-independent-recompute: PASS (2/2) |
 | R02 | Web/PWA screen capture → outputs | **PASS** | FAIL | runtime/remediation/web-screen-capture.json#R02-web-screen-capture-real-chromium | — | R02-web-screen-capture-real-chromium: PASS (15/15) |
 | R03 | Intake-link submission → outputs | **PASS** | PASS | runtime/remediation/journeys-raw.json#J08-intake-link-to-public-verify | — | J08-intake-link-to-public-verify: PASS (10/10) |
-| R04 | Evidence Request submission → outputs | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J08-intake-link-to-public-verify<br>services/api/test/runtime-proof-evidence-capture-b.integration.test.ts::POST /v1/evidence-requests/:id/send — opens the intake link, notifies the recipient and marks SENT | — | J08-intake-link-to-public-verify: PASS (10/10). An Evidence Request delivers through an intake link (no separate byte path): send is proven on real PostgreSQL with the recording mail transport, the byte path by the intake journey on the stack. |
+| R04 | Evidence Request submission → outputs | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J14-evidence-request-to-record<br>services/api/test/runtime-proof-evidence-capture-b.integration.test.ts::POST /v1/evidence-requests/:id/send — opens the intake link, notifies the recipient and marks SENT | — | J14-evidence-request-to-record: PASS (10/10). Driven end to end on the stack (Evidence Requests enabled): create, send with intake link and recorded recipient notification, contributor submission, record in the requesting workspace, outputs. External mail delivery itself is not exercised (recording transport). |
 | R05 | Browser extension capture → outputs | **PASS** | FAIL | runtime/remediation/extension-acceptance.json#R05-extension-real-browsers | — | R05-extension-real-browsers: PASS (11/11) |
 | R06 | Android flow (strongest available environment) | **BLOCKED** | BLOCKED | services/api/test/uc2-android-screen-capture.integration.test.ts<br>services/api/test/uc3-continuous-capture.integration.test.ts<br>runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify | EP-06, EP-07 | Server side proven on the stack and on real PostgreSQL; MediaProjection, foreground service and notifications need a physical Android device. |
 | R07 | iOS flow (strongest available environment) | **BLOCKED** | FAIL | services/api/test/uc5-ios-screen-capture.integration.test.ts<br>apps/mobile/test/ios-broadcast-contract.test.mjs | EP-08, EP-09, EP-14 | The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline); ReplayKit itself needs macOS and a device. |
 | R08 | Continuous/streaming capture with interruption and resume | **BLOCKED** | FAIL | runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify<br>services/api/test/uc3-continuous-completeness.integration.test.ts | EP-06 | J09-continuous-direct-capture-to-public-verify: PASS (10/10). Missing tail/middle, duplicate and conflicting segments, seal racing and interruption are proven on real PostgreSQL; resume after an app/process restart needs a device. |
 | R09a | Video → keyframes | **PASS** | PASS | runtime/remediation/journeys-raw.json#J10-uc4-derived-review | — | J10-uc4-derived-review: PASS (2/2) |
-| R09b | Video → OCR | **BLOCKED** | BLOCKED | services/worker/test/uc4-tesseract-ocr.test.ts<br>services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts | EP-14 | OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host, so the extraction assertion runs in the worker CI job only. |
+| R09b | Video → OCR | **BLOCKED** | BLOCKED | services/worker/test/uc4-tesseract-ocr.test.ts<br>services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts | EP-14 | OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host (the worker suite's one skip), and the real-text assertion is REQUIRED in ci.yml's OCR step, which has not run yet. |
 | R10 | Conversation capture / reconstruction | **BLOCKED** | FAIL | packages/shared/tests/screen-reconstruction.test.mjs<br>services/worker/test/uc4-reconstruction.test.ts | EP-13, EP-14 | Reconstruction now merges realistic chat screens (UC-DER-004 fixtures); real conversation apps and real OCR remain external. |
 | R11 | Add capture to existing Case | **PASS** | PASS | runtime/remediation/journeys-raw.json#J03-case-attach-and-tenancy<br>services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE) | — | J03-case-attach-and-tenancy: PASS (18/18) |
 | R12 | Create new Evidence from capture | **PASS** | PASS | runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify | — | J01-web-upload-to-public-verify: PASS (22/22) |
 | R13 | Failure and recovery journey | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J12-failure-and-recovery | — | J12-failure-and-recovery: PASS (12/12) |
 | R14a | Trash / restore | **PASS** | PASS | runtime/remediation/journeys-raw.json#J04-trash-restore | — | J04-trash-restore: PASS (6/6) |
 | R14b | Permanent destruction | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J13-governed-permanent-destruction | — | J13-governed-permanent-destruction: PASS (10/10) |
-| R15a | FREE allowance: three records, fourth refused, trash keeps the slot | **PASS** | PASS | runtime/remediation/journeys-raw.json#J05-free-allowance | — | J05-free-allowance: PASS (3/3) |
+| R15a | FREE allowance: three records, fourth refused, trash keeps the slot | **PASS** | PASS | runtime/remediation/journeys-raw.json#J05-free-allowance<br>runtime/remediation/journeys-j16-raw.json#J16-free-reservation-concurrency | — | J05-free-allowance: PASS (3/3); J16-free-reservation-concurrency: PASS (3/3) |
 | R15b | Credit purchase / upgrade / downgrade / webhook replay | **BLOCKED** | BLOCKED | services/api/test/billing-paypal-integrity.integration.test.ts<br>services/api/test/billing-allowance-commitments.integration.test.ts | EP-10, EP-11 | Needs Stripe/PayPal sandboxes; the commercial rules are proven on real PostgreSQL. |
 | R16 | Share-link create / revoke / replace | **PASS** | PASS | runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify | — | J01-web-upload-to-public-verify: PASS (22/22) |
-| R17 | Integrity mismatch and stale-status journey | **PASS** | FAIL | runtime/remediation/journeys-raw.json#J06-integrity-tamper<br>services/api/test/public-verify-stored-bytes-truth.integration.test.ts | — | J06-integrity-tamper: PASS (7/7) |
+| R17 | Integrity mismatch and stale-status journey | **PASS** | FAIL | runtime/remediation/journeys-raw.json#J06-integrity-tamper<br>services/api/test/public-verify-stored-bytes-truth.integration.test.ts | — | J06-integrity-tamper: PASS (8/8) |
 
 ## Remediation journey runs (remediated stack)
 
@@ -311,14 +311,18 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | J03-case-attach-and-tenancy | **PASS** | 18/18 | — |
 | J04-trash-restore | **PASS** | 6/6 | — |
 | J05-free-allowance | **PASS** | 3/3 | — |
-| J06-integrity-tamper | **PASS** | 7/7 | — |
+| J06-integrity-tamper | **PASS** | 8/8 | — |
 | J07-upload-session-member-injection | **PASS** | 3/3 | — |
 | J08-intake-link-to-public-verify | **PASS** | 10/10 | — |
 | J09-continuous-direct-capture-to-public-verify | **PASS** | 10/10 | — |
 | J10-uc4-derived-review | **PASS** | 2/2 | — |
 | J12-failure-and-recovery | **PASS** | 12/12 | — |
 | J13-governed-permanent-destruction | **PASS** | 10/10 | — |
+| J14-evidence-request-to-record | **PASS** | 10/10 | — |
+| J15-legal-hold | **PASS** | 6/6 | — |
 | J11-destroy-and-free-slot | **PASS** | 2/2 | — |
+| J16-free-reservation-concurrency | **PASS** | 3/3 | — |
+| DER012-derived-thumbnails-cross-origin | **PASS** | 6/6 | — |
 | R02-web-screen-capture-real-chromium | **PASS** | 15/15 | — |
 | R05-extension-real-browsers | **PASS** | 11/11 | — |
 
@@ -346,10 +350,10 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | discovered mutations = dispositioned mutations | PASS | 59 mutations |
 | discovered queues = classified queues | PASS | 13 queue rows |
 | runtime journeys = passed + failed + blocked | PASS | {"PASS":14,"FAIL":0,"BLOCKED":6} |
-| findings = fixed + blocked-external + partial + present + accepted-risk | PASS | {"fixed":101,"blockedExternal":18,"partial":0,"present":0,"acceptedRisk":0} |
+| findings = fixed + blocked-external + partial + present + accepted-risk | PASS | {"fixed":99,"blockedExternal":20,"partial":0,"present":0,"acceptedRisk":0} |
 | remediation ledger rows = findings (one row per finding, no extra row) | PASS | 119 rows |
 | every ledger disposition is allowed | PASS |  |
-| ledger counts agree with finding statuses | PASS | {"total":119,"BLOCKED_EXTERNAL_PROOF":18,"FIXED_RUNTIME_PROVEN":60,"FIXED_SOURCE_AND_TEST_PROVEN":41,"fixed":101,"blocked":18,"remaining":0} |
+| ledger counts agree with finding statuses | PASS | {"total":119,"BLOCKED_EXTERNAL_PROOF":20,"FIXED_RUNTIME_PROVEN":59,"FIXED_SOURCE_AND_TEST_PROVEN":40,"fixed":99,"blocked":20,"remaining":0} |
 | ledger's own gates all pass | PASS | 9 gates |
 | every fixed finding names a commit and a green test | PASS |  |
 | every blocked-external finding names a registered external proof | PASS |  |
@@ -357,10 +361,10 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | every required journey has a post-remediation decision | PASS |  |
 | a BLOCKED journey names an external proof | PASS |  |
 | every UC-journey mapping names a required journey | PASS |  |
-| remediation API integration run executed (not skipped) and green | PASS | 2873/2873 (0 skipped) |
+| remediation API integration run executed (not skipped) and green | PASS | 2874/2874 (0 skipped) |
 | remediation worker run green | PASS | 1218/1219 (1 skipped) |
-| every remediation command has an exit code | PASS | 61 commands |
-| every UC = complete + partial + missing + blocked | PASS | {"complete":2,"partial":0,"missing":0,"blocked":7} |
+| every remediation command has an exit code | PASS | 103 commands |
+| every UC = complete + partial + missing + blocked | PASS | {"complete":1,"partial":0,"missing":0,"blocked":8} |
 | no UNKNOWN without explicit blocker | PASS |  |
 | no NOT_REVIEWED | PASS | 301 reviewed topics |
 | no duplicate finding IDs | PASS |  |
@@ -466,14 +470,14 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | journeys-final-j11 | 0 | journeys-final-j11.run6-superseded.log — SUPERSEDED (run 6): J11 PASS 2/2. |
 | web-screen-capture | 1 | web-screen-capture.run6-superseded.log — SUPERSEDED (run 6): 13/14 — every functional check passed; the only failure was a console 503 from the Evidence detail page listing Evidence Requests, a feature switched off on the stack (EVIDENCE_REQUESTS_ENABLED unset; the panel handles FEATURE_DISABLED by design). The stack now runs with the flag on. |
 | seed-journeys-18 | 0 | seed-r18.json |
-| uc1-acceptance-final | 0 | uc1-acceptance.log — FINAL stack (4a49635e, intake + Evidence Requests flags on); background run kept up for the journeys; stopped at teardown |
+| uc1-acceptance-final | 0 | uc1-acceptance.run7-superseded.log — SUPERSEDED by the run on 23cb5a0b (adds J14-J16, owner stored-file projection). Was: FINAL stack (4a49635e, intake + Evidence Requests flags on); background run kept up for the journeys; stopped at teardown |
 | seed-journeys-19 | 0 | seed-r19.json |
 | seed-journeys-20 | 0 | seed-r20.json |
 | seed-journeys-21 | 0 | seed-r21.json |
-| journeys-final | 0 | journeys-final.log |
-| journeys-final-j11 | 0 | journeys-final-j11.log |
-| web-screen-capture | 0 | web-screen-capture.log |
-| package-independent-recompute | 0 | package-recompute.log |
+| journeys-final | 0 | journeys-final.run7-superseded.log — SUPERSEDED (run 7, 4a49635e): 12/12 PASS; superseded only by later source (owner projection, J14-J16). |
+| journeys-final-j11 | 0 | journeys-final-j11.run7-superseded.log — SUPERSEDED (run 7). |
+| web-screen-capture | 0 | web-screen-capture.run7-superseded.log — SUPERSEDED (run 7): 15/15. |
+| package-independent-recompute | 0 | package-recompute.run7-superseded.log — SUPERSEDED (run 7): 14/14. |
 | mobile-export-android-ios | 0 | mobile-export.log |
 | api-integration-full | 0 | api-integration.tail.log — FULL suite at d0034b07 on a freshly migrated PG16 + Redis + MinIO: 2873/2873 passed, 0 failed, 0 skipped, 268 files; summary api-integration.json (recorded after the run; start/end are the record time) |
 | api-unit-full | 1 | api-unit.tail.log — at e7bf4315: 25618/25620 passed, 1 failed (phase-0-audit-self-reference: clean-tree gate counted the then-untracked runtime/remediation directory; re-run after commit is recorded separately), 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger) (recorded after the run; start/end are the record time) |
@@ -491,6 +495,48 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | build-extension | 0 | build-extension.tail.log — recorded after the run; start/end are the record time |
 | build-web | 0 | build-web.tail.log — recorded after the run; start/end are the record time |
 | api-unit-full-final | 0 | api-unit.tail.log — FINAL at 5f3be40a on a clean tree: 25619/25620 passed, 0 failed, 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger); supersedes api-unit-full (whose single failure was the clean-tree gate counting the then-untracked runtime directory). Recorded after the run. |
+| final-prisma-generate | 0 | final-prisma-generate.log |
+| final-safe-migrate-refuses-remote | 3 | final-safe-migrate-refusal.log — expected exit 3 (REFUSED) |
+| final-migrate-from-empty | 0 | final-migrate-from-empty.log |
+| final-drift-check | 0 | final-drift-check.log |
+| final-raw-schema-verify | 6 | final-raw-schema-verify.log |
+| final-db-preflight | 0 | final-db-preflight.log |
+| final-migration-inventory-check | 0 | final-migration-inventory.log |
+| final-raw-schema-verify-after-registration | 0 | final-raw-schema-verify-2.log |
+| final-build-api | 0 | final-build-api.log |
+| final-build-worker | 0 | final-build-worker.log |
+| final-build-extension | 0 | final-build-extension.log |
+| final-build-web-loopback | 0 | final-build-web.log |
+| final-mobile-export-android-ios | 0 | final-mobile-export.log |
+| final-pwa-installability | 0 | final-pwa-installability.log |
+| final-web-admin-routing-against-production-build | 0 | final-web-admin-routing.log — 7/7, 0 skipped: the 4 tests the full web run skips (no fixture web server) executed against the production web build |
+| final-layout-batch-a | 1 | layout-projects.json — 641 passed, 1 failed: capture-layout pinned the false trust-strip claim "End-to-end protected" that UC-PROV-011 removed; spec updated to the corrected wording (and now bans the false claim). Recorded after the run. |
+| final-layout-batch-b | 0 | layout-projects.json — 557/557. Recorded after the run. |
+| final-layout-capture-rerun | 0 | layout-projects.json — 32/32 after the spec followed UC-PROV-011. All 8 layout projects: 1199/1199. Recorded after the run. |
+| uc1-acceptance-final | 0 | uc1-acceptance.log — FINAL stack at 23cb5a0b (fresh disposable PG migrated from empty by the harness, API + worker booted; intake + Evidence Requests flags on); kept up for the journeys; stopped at teardown |
+| seed-journeys-final-40 | 0 | seed-r40.json |
+| seed-journeys-final-41 | 0 | seed-r41.json |
+| seed-journeys-final-42 | 0 | seed-r42.json |
+| seed-journeys-final-43 | 0 | seed-r43.json |
+| journeys-final | 0 | journeys-final.log |
+| journeys-final-j11 | 0 | journeys-final-j11.log |
+| journeys-final-j16 | 0 | journeys-final-j16.log |
+| web-screen-capture | 0 | web-screen-capture.log |
+| derived-thumbnails-cross-origin | 1 | derived-thumbnails.run1.log — 5/6: probe race — responses were recorded asynchronously after the check counted them (8 loads, 8 responses, all 200 with the session cookie in the written file); probe now awaits every record. Rerun below. |
+| package-independent-recompute | 0 | package-recompute.log |
+| derived-thumbnails-cross-origin | 0 | derived-thumbnails.log |
+| final-stack-boot-schema-validation | 0 | final-stack-boot.log — API booted on the harness-migrated (from empty) disposable PG16: schema_validation healthy (109 checked), 0 critical/degraded; worker booted and served every journey |
+| api-integration-full-at-1b955eaf | 0 | api-integration.tail.log — FULL suite at 1b955eaf on the database just migrated from empty (PG16) + Redis + MinIO: 2874/2874 passed, 0 failed, 0 skipped, 268 files; summary api-integration.json (recorded after the run; start/end are the record time) |
+| api-unit-full-at-59d272da | 0 | api-unit.tail.log — at 59d272da on a clean tree: 25619/25620 passed, 0 failed, 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger) (recorded after the run; start/end are the record time) |
+| worker-full-at-59d272da | 0 | worker-tests.tail.log — 1218/1219 passed, 1 skipped (Tesseract binary absent on this host: EP-14) (recorded after the run; start/end are the record time) |
+| web-node-final | 0 | web-node.tail.log — 3295 passed, 0 failed, 4 skipped here (need a running web server) — executed separately against the production build: final-web-admin-routing (7/7, 0 skipped) (recorded after the run; start/end are the record time) |
+| web-render-final | 0 | web-render.tail.log — 1660/1660 (recorded after the run; start/end are the record time) |
+| shared-final | 0 | shared.tail.log — 1069/1069 (recorded after the run; start/end are the record time) |
+| ui-final | 0 | ui.tail.log — 18/18 (recorded after the run; start/end are the record time) |
+| extension-unit-final | 0 | extension.tail.log — 85/85 (recorded after the run; start/end are the record time) |
+| mobile-unit-final | 0 | mobile.tail.log — 1893/1893 (recorded after the run; start/end are the record time) |
+| lint-final | 0 | lint.tail.log — 0 errors (2 web warnings that predate the branch) (recorded after the run; start/end are the record time) |
+| typecheck-final | 0 | typecheck.tail.log — 9 workspaces: extension, mobile, web, shared, shared-evidence-presentation, shared-runtime, ui, api, worker (recorded after the run; start/end are the record time) |
 
 ## Artifacts
 

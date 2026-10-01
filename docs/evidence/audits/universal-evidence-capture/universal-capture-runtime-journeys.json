@@ -42,11 +42,11 @@
       "title": "Evidence Request submission → outputs",
       "auditStatus": "BLOCKED",
       "evidence": [
-        "runtime/remediation/journeys-raw.json#J08-intake-link-to-public-verify",
+        "runtime/remediation/journeys-raw.json#J14-evidence-request-to-record",
         "services/api/test/runtime-proof-evidence-capture-b.integration.test.ts::POST /v1/evidence-requests/:id/send — opens the intake link, notifies the recipient and marks SENT"
       ],
       "blockers": [],
-      "note": "J08-intake-link-to-public-verify: PASS (10/10). An Evidence Request delivers through an intake link (no separate byte path): send is proven on real PostgreSQL with the recording mail transport, the byte path by the intake journey on the stack.",
+      "note": "J14-evidence-request-to-record: PASS (10/10). Driven end to end on the stack (Evidence Requests enabled): create, send with intake link and recorded recipient notification, contributor submission, record in the requesting workspace, outputs. External mail delivery itself is not exercised (recording transport).",
       "status": "PASS"
     },
     {
@@ -128,7 +128,7 @@
       "blockers": [
         "EP-14"
       ],
-      "note": "OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host, so the extraction assertion runs in the worker CI job only.",
+      "note": "OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host (the worker suite's one skip), and the real-text assertion is REQUIRED in ci.yml's OCR step, which has not run yet.",
       "status": "BLOCKED"
     },
     {
@@ -207,10 +207,11 @@
       "title": "FREE allowance: three records, fourth refused, trash keeps the slot",
       "auditStatus": "PASS",
       "evidence": [
-        "runtime/remediation/journeys-raw.json#J05-free-allowance"
+        "runtime/remediation/journeys-raw.json#J05-free-allowance",
+        "runtime/remediation/journeys-j16-raw.json#J16-free-reservation-concurrency"
       ],
       "blockers": [],
-      "note": "J05-free-allowance: PASS (3/3)",
+      "note": "J05-free-allowance: PASS (3/3); J16-free-reservation-concurrency: PASS (3/3)",
       "status": "PASS"
     },
     {
@@ -248,7 +249,7 @@
         "services/api/test/public-verify-stored-bytes-truth.integration.test.ts"
       ],
       "blockers": [],
-      "note": "J06-integrity-tamper: PASS (7/7)",
+      "note": "J06-integrity-tamper: PASS (8/8)",
       "status": "PASS"
     }
   ],
@@ -509,10 +510,10 @@
       "file": "runtime/remediation/journeys-raw.json",
       "title": "Tamper stored original bytes; the product must not keep saying verified",
       "verdict": "PASS",
-      "checksPassed": 7,
-      "checksTotal": 7,
+      "checksPassed": 8,
+      "checksTotal": 8,
       "failedChecks": [],
-      "requests": 13
+      "requests": 14
     },
     {
       "id": "J07-upload-session-member-injection",
@@ -575,6 +576,26 @@
       "requests": 22
     },
     {
+      "id": "J14-evidence-request-to-record",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Evidence Request: create → send (intake link, recipient notified) → contributor submits → record in the workspace, request answered, outputs",
+      "verdict": "PASS",
+      "checksPassed": 10,
+      "checksTotal": 10,
+      "failedChecks": [],
+      "requests": 9
+    },
+    {
+      "id": "J15-legal-hold",
+      "file": "runtime/remediation/journeys-raw.json",
+      "title": "Legal hold: placed on a record → destruction and byte release refused while held → released → bytes release again",
+      "verdict": "PASS",
+      "checksPassed": 6,
+      "checksTotal": 6,
+      "failedChecks": [],
+      "requests": 17
+    },
+    {
       "id": "J11-destroy-and-free-slot",
       "file": "runtime/remediation/journeys-j11-raw.json",
       "title": "FREE record: trash → governed destruction transitions → does the slot release?",
@@ -583,6 +604,26 @@
       "checksTotal": 2,
       "failedChecks": [],
       "requests": 16
+    },
+    {
+      "id": "J16-free-reservation-concurrency",
+      "file": "runtime/remediation/journeys-j16-raw.json",
+      "title": "FREE personal workspace: six concurrent creations admit exactly the three-record allowance",
+      "verdict": "PASS",
+      "checksPassed": 3,
+      "checksTotal": 3,
+      "failedChecks": [],
+      "requests": 6
+    },
+    {
+      "id": "DER012-derived-thumbnails-cross-origin",
+      "file": "runtime/remediation/derived-thumbnails.json",
+      "title": "Derived Review keyframes load cross-origin with credentials in real Chromium (component's img attributes)",
+      "verdict": "PASS",
+      "checksPassed": 6,
+      "checksTotal": 6,
+      "failedChecks": [],
+      "requests": 8
     },
     {
       "id": "R02-web-screen-capture-real-chromium",
@@ -1059,8 +1100,8 @@
       "apiIntegration": {
         "files": 268,
         "suites": 876,
-        "tests": 2873,
-        "passed": 2873,
+        "tests": 2874,
+        "passed": 2874,
         "failed": 0,
         "skipped": 0
       },

@@ -146,6 +146,16 @@ export const DECISIONS = {
       result: "lapsed-plan 9/9 + commitments 8/8 (red before 068efffd: 409 != 201)",
     },
   },
+  "UC-DER-012": {
+    status: "FIXED",
+    proofKind: "runtime",
+    note: "The finding's required proof (real browser, cross-origin API) was executed on the final stack: real Chromium on the web origin (:3311) opens the record's Derived Review tab and loads every real keyframe of the record (8) from the API origin (:4000) through an image carrying the component's exact attributes (crossOrigin=use-credentials): all load (non-zero size), every bytes request carries the session cookie and is answered 200. With no OCR engine on this host there are no text blocks, which is where the tab nests the thumbnails, so the component itself is exercised by its render test.",
+    green: {
+      tests: ["runtime/remediation/derived-thumbnails.json#DER012-derived-thumbnails-cross-origin (6/6)", "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012"],
+      command: "node tooling/derived-thumbnails-probe.mjs <seed> runtime/remediation/journeys-raw.json runtime/remediation/derived-thumbnails.json",
+      result: "6/6",
+    },
+  },
   "UC-TQ-003": {
     status: "BLOCKED_EXTERNAL_PROOF",
     note: "Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the code is complete (handler proof runs DB-free in CI's worker unit job; live-PG suites run in schema-reproducibility.yml; the real-text assertion exists and FAILS instead of skipping under UC4_REQUIRE_TESSERACT=1), but the finding requires an EXECUTED assertion on real tesseract output and none has run anywhere: no CI job installed the engine (the step 'Test — worker OCR with the real tesseract engine' is added to ci.yml now) and fetching the binary here is a package download this session may not make.",

@@ -33,6 +33,7 @@ check("J09 recorded the continuous capture's evidence id", evidenceId, evidenceI
 check("the web and API origins differ (cross-origin)", new URL(WEB).origin !== new URL(API).origin, `${new URL(WEB).origin} vs ${new URL(API).origin}`);
 
 const bytesResponses = [];
+const pendingRecords = [];
 const browser = await chromium.launch({ headless: true });
 try {
   if (evidenceId) {
@@ -40,11 +41,15 @@ try {
     // The session cookie is the API's; the web app calls the API cross-origin with credentials.
     await context.addCookies([{ name: "proovra_session", value: owner.bearer, domain: "localhost", path: "/", httpOnly: true, sameSite: "Lax" }]);
     const page = await context.newPage();
-    page.on("response", async (r) => {
+    page.on("response", (r) => {
       if (/\/derived-assets\/[^/]+\/bytes/.test(r.url())) {
-        // allHeaders() includes the Cookie header that headers() hides.
-        const sent = await r.request().allHeaders().catch(() => ({}));
-        bytesResponses.push({ status: r.status(), origin: new URL(r.url()).origin, sessionCookieSent: /proovra_session=/.test(sent.cookie ?? "") });
+        // allHeaders() includes the Cookie header that headers() hides. Recorded
+        // asynchronously, so every pending record is awaited before the check.
+        pendingRecords.push(
+          r.request().allHeaders().catch(() => ({})).then((sent) => {
+            bytesResponses.push({ status: r.status(), origin: new URL(r.url()).origin, sessionCookieSent: /proovra_session=/.test(sent.cookie ?? "") });
+          }),
+        );
       }
     });
     // The organization workspace holds the record.
@@ -83,6 +88,7 @@ try {
       return Promise.all(list.map(one));
     }, urls.slice(0, 8));
     check("every keyframe loads cross-origin with credentials (non-zero natural size)", loads.length > 0 && loads.every((l) => l.ok && l.w > 0 && l.h > 0 && l.cross === "use-credentials"), loads);
+    await Promise.all(pendingRecords);
     check("the authenticated bytes route answered 200 to the web origin, with the session cookie sent", bytesResponses.length >= loads.length && bytesResponses.every((r) => r.status === 200 && r.origin === new URL(API).origin && r.sessionCookieSent), bytesResponses);
     if (shotPath) await page.screenshot({ path: shotPath });
   }

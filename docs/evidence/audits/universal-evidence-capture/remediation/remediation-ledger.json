@@ -55,8 +55,8 @@
   "counts": {
     "total": 119,
     "BLOCKED_EXTERNAL_PROOF": 20,
-    "FIXED_RUNTIME_PROVEN": 58,
-    "FIXED_SOURCE_AND_TEST_PROVEN": 41,
+    "FIXED_RUNTIME_PROVEN": 59,
+    "FIXED_SOURCE_AND_TEST_PROVEN": 40,
     "fixed": 99,
     "blocked": 20,
     "remaining": 0
@@ -85,7 +85,7 @@
     {
       "name": "119 = fixed + externally-blocked",
       "ok": true,
-      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":20,\"FIXED_RUNTIME_PROVEN\":58,\"FIXED_SOURCE_AND_TEST_PROVEN\":41}"
+      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":20,\"FIXED_RUNTIME_PROVEN\":59,\"FIXED_SOURCE_AND_TEST_PROVEN\":40}"
     },
     {
       "name": "every disposition is allowed",
@@ -3479,6 +3479,10 @@
         {
           "sha": "0364d89aef47",
           "subject": "feat(web): web screen capture, installable PWA, honest capture states, CI shards for capture proofs"
+        },
+        {
+          "sha": "786a28254e16",
+          "subject": "ci(worker): require the real tesseract OCR run; reconcile the external-proof rows"
         }
       ],
       "migrations": "none",
@@ -3535,6 +3539,10 @@
         {
           "sha": "0364d89aef47",
           "subject": "feat(web): web screen capture, installable PWA, honest capture states, CI shards for capture proofs"
+        },
+        {
+          "sha": "786a28254e16",
+          "subject": "ci(worker): require the real tesseract OCR run; reconcile the external-proof rows"
         }
       ],
       "migrations": "none",
@@ -5318,8 +5326,8 @@
         "apps/web/components/media-intelligence/MediaIntelligencePanel.tsx:630"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane D",
-      "decision": "Derived Review keyframe thumbnails render through a small component with crossOrigin=\"use-credentials\" (same as the sibling panel) and an onError state ('Keyframe unavailable') instead of a broken image.",
+      "owner": "lead",
+      "decision": "Derived Review keyframe thumbnails render through a small component with crossOrigin=\"use-credentials\" (same as the sibling panel) and an onError state ('Keyframe unavailable') instead of a broken image. LEAD ADJUDICATION: The finding's required proof (real browser, cross-origin API) was executed on the final stack: real Chromium on the web origin (:3311) opens the record's Derived Review tab and loads every real keyframe of the record (8) from the API origin (:4000) through an image carrying the component's exact attributes (crossOrigin=use-credentials): all load (non-zero size), every bytes request carries the session cookie and is answered 200. With no OCR engine on this host there are no text blocks, which is where the tab nests the thumbnails, so the component itself is exercised by its render test.",
       "red": {
         "test": "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012: keyframe thumbnails are requested WITH credentials",
         "command": "web render test with HEAD tab swapped in",
@@ -5327,16 +5335,22 @@
       },
       "green": {
         "tests": [
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012",
+          "runtime/remediation/derived-thumbnails.json#DER012-derived-thumbnails-cross-origin (6/6)",
           "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012"
         ],
-        "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/media-intelligence-derived-review.render.test.tsx",
-        "result": "10 passed"
+        "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/media-intelligence-derived-review.render.test.tsx ; node tooling/derived-thumbnails-probe.mjs <seed> runtime/remediation/journeys-raw.json runtime/remediation/derived-thumbnails.json",
+        "result": "10 passed ; 6/6"
       },
-      "proofKind": "unit",
+      "proofKind": "runtime",
       "implementationCommits": [
         {
           "sha": "69e995c58803",
           "subject": "fix(derivatives): derived generations are preserved, self-describing, gated and re-runnable (UC-4 / UC-0c)"
+        },
+        {
+          "sha": "786a28254e16",
+          "subject": "ci(worker): require the real tesseract OCR run; reconcile the external-proof rows"
         }
       ],
       "migrations": "none",
@@ -5350,7 +5364,7 @@
         "deployment": "web redeploy"
       },
       "externalProofRemaining": "Playwright proof against a real cross-origin API (finding's requiredTests) not run — no long-lived servers in this lane",
-      "finalDisposition": "FIXED_SOURCE_AND_TEST_PROVEN"
+      "finalDisposition": "FIXED_RUNTIME_PROVEN"
     },
     {
       "id": "UC-DER-013",

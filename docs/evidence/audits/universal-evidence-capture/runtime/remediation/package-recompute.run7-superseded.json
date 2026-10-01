@@ -1,7 +1,7 @@
 {
   "tool": "node:crypto only (independent of product code)",
-  "evidenceId": "195c982c-1e02-44a5-aed8-699c884f2f3c",
-  "packageSha256": "0ab251a26eb969151522c3e83b62572cadabfdddafc66f75ce6f28af13e43b85",
+  "evidenceId": "e4179d8f-5a0f-4b8c-a3dc-e3f0bb29e698",
+  "packageSha256": "ac2ea7f50e058a9502459f0e2a58c22076850e194858415dc59454c2a0382773",
   "entries": 43,
   "passed": 14,
   "total": 14,
@@ -9,7 +9,7 @@
     {
       "name": "0. sha256(zip) equals Public Verify package.packageSha256",
       "ok": true,
-      "detail": "0ab251a26eb969151522c3e83b62572cadabfdddafc66f75ce6f28af13e43b85"
+      "detail": "ac2ea7f50e058a9502459f0e2a58c22076850e194858415dc59454c2a0382773"
     },
     {
       "name": "1a. sha256(package-seal.json) equals seal signature's sealSha256",
@@ -49,7 +49,7 @@
     {
       "name": "3. sha256(fingerprint.json) equals seal.fingerprintHash and Public Verify",
       "ok": true,
-      "detail": "63bdd514616fa441202f44015b49241a1c748b4f2636d6de022ecd88406ce3bf"
+      "detail": "a235fa78f05fa5f419dd193d7bad3f96808e594d441e92c18e5c05ae806b3887"
     },
     {
       "name": "4. evidence signature verifies over the fingerprint hash",
@@ -60,9 +60,9 @@
       "name": "5. original bytes hash to the SIGNED fingerprint's file digest and to Public Verify",
       "ok": true,
       "detail": {
-        "originalName": "digital-evidence-record-2026-10-01t09-26z.png",
-        "origSha": "fece0f05f23435c462197d846889f947330e4a05b653ccda5bfa3dab106932c6",
-        "signedSha": "fece0f05f23435c462197d846889f947330e4a05b653ccda5bfa3dab106932c6"
+        "originalName": "digital-evidence-record-2026-10-01t06-01z.png",
+        "origSha": "b46938d69db4eb3bf65171cb87b21c45348575dd81db3f5082b8011e359f8cb0",
+        "signedSha": "b46938d69db4eb3bf65171cb87b21c45348575dd81db3f5082b8011e359f8cb0"
       }
     },
     {

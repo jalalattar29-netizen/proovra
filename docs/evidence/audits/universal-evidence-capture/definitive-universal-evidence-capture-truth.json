@@ -1,7 +1,7 @@
 {
   "schema": "PROOVRA_UNIVERSAL_CAPTURE_TRUTH_V1",
   "headline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
-  "headlineReason": "101 of 119 findings fixed with proof; 18 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.",
+  "headlineReason": "99 of 119 findings fixed with proof; 20 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.",
   "auditHeadline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
   "meta": {
     "title": "Definitive Universal Evidence Capture Truth",
@@ -57,11 +57,11 @@
     "ledger": "remediation/remediation-ledger.json",
     "ledgerCounts": {
       "total": 119,
-      "BLOCKED_EXTERNAL_PROOF": 18,
-      "FIXED_RUNTIME_PROVEN": 60,
-      "FIXED_SOURCE_AND_TEST_PROVEN": 41,
-      "fixed": 101,
-      "blocked": 18,
+      "BLOCKED_EXTERNAL_PROOF": 20,
+      "FIXED_RUNTIME_PROVEN": 59,
+      "FIXED_SOURCE_AND_TEST_PROVEN": 40,
+      "fixed": 99,
+      "blocked": 20,
       "remaining": 0
     }
   },
@@ -76,8 +76,8 @@
       "P3": 53
     },
     "byStatus": {
-      "fixed": 101,
-      "blockedExternal": 18,
+      "fixed": 99,
+      "blockedExternal": 20,
       "partial": 0,
       "present": 0,
       "acceptedRisk": 0
@@ -85,7 +85,7 @@
     "unresolvedBySeverity": {
       "P0": 0,
       "P1": 4,
-      "P2": 9,
+      "P2": 11,
       "P3": 5
     },
     "byProof": {
@@ -104,10 +104,10 @@
       "BLOCKED": 6
     },
     "ucBuckets": {
-      "complete": 2,
+      "complete": 1,
       "partial": 0,
       "missing": 0,
-      "blocked": 7
+      "blocked": 8
     },
     "surfaces": 27,
     "mutations": 59,
@@ -118,7 +118,7 @@
     {
       "uc": "UC-0a",
       "name": "Provenance Truth Repair",
-      "verdict": "COMPLETE",
+      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
       "auditVerdict": "PRESENT BUT UNTRUTHFUL",
       "keyFindings": [
         "UC-PROV-001",
@@ -128,10 +128,12 @@
         "UC-PROV-004",
         "UC-PROV-005"
       ],
-      "blockers": [],
-      "rationale": "25 findings name this UC: 25 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R03 PASS. No external proof outstanding.",
+      "blockers": [
+        "EP-14"
+      ],
+      "rationale": "25 findings name this UC: 24 fixed, 1 code-complete awaiting external proof (UC-TQ-004), 0 open. Journeys: R01 PASS, R03 PASS. External proofs outstanding: EP-14.",
       "auditRationale": "The acquisition-mode authority, set-once trigger and fail-closed attestation are real and runtime-visible (J01/J08/J09 report snapshots and Public Verify carry the server-recorded mode and IMPORTED_EXISTING_MEDIA tier). But server record-creation time is presented as capture time and on Public Verify as 'declared by the capturing device'; every direct-capture record reads 'Capture Method: Not recorded' in the rendered report (runtime-proven on an Android continuous record) and package; the client still chooses the direct-capture mode label; validated manifest facts (URL, title, browser, completeness) are dropped.",
-      "bucket": "complete"
+      "bucket": "blocked"
     },
     {
       "uc": "UC-0b",
@@ -213,7 +215,7 @@
         "EP-07",
         "EP-14"
       ],
-      "rationale": "22 findings name this UC: 18 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.",
+      "rationale": "22 findings name this UC: 17 fixed, 5 code-complete awaiting external proof (UC-AND-003, UC-TQ-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.",
       "auditRationale": "Server seal path runtime-proven (uc2-screen-capture integration); JS↔Kotlin parity, manifest service declarations and foreground-service typing verified; Android prebuild generated the native project; Hermes bundle builds. Unproven on any device; POST_NOTIFICATIONS is never requested, so on Android 13+ the capture-frame notification action (the only way to capture another app) is suppressed. No share-into-PROOVRA, logout does not stop capture.",
       "bucket": "blocked"
     },
@@ -233,14 +235,14 @@
         "EP-06",
         "EP-14"
       ],
-      "rationale": "27 findings name this UC: 23 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.",
+      "rationale": "27 findings name this UC: 21 fixed, 6 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-TQ-003, UC-TQ-004, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.",
       "auditRationale": "Seal refuses missing/duplicate/out-of-order/tampered declared segments (uc3 integration, real PG) and the full pipeline to Public Verify works for a sealed session (J09). But a lost TAIL segment seals as SIGNED COMPLETE_SESSION (runtime-proven), part index 200+ is refused while the client allows 600 segments so long recordings are discarded (runtime-proven), and a session is not resumable after app restart.",
       "bucket": "blocked"
     },
     {
       "uc": "UC-4",
       "name": "Keyframes / OCR / Conversation Reconstruction",
-      "verdict": "COMPLETE LOCALLY, EXTERNAL PROOF PENDING",
+      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
       "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-DER-001",
@@ -254,7 +256,7 @@
         "EP-13",
         "EP-14"
       ],
-      "rationale": "16 findings name this UC: 16 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.",
+      "rationale": "16 findings name this UC: 15 fixed, 1 code-complete awaiting external proof (UC-TQ-003), 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.",
       "auditRationale": "Runtime J10 (real worker, real ffmpeg-static): Generate → reconstruct_screen COMPLETED with 4 keyframes and 1 reconstruction descriptor, labelled DERIVED_RECONSTRUCTED; OCR did not run (ocrAllowed defaults OFF; coverage PARTIAL). A single manual 'Generate Derived Review' path exists, labelled as derived and never as original, with no actor-attribution claims. There is no conversation-capture channel; 'conversation' is OCR screen reconstruction. Retry/Regenerate never run again, OCR runs on ≤256 px keyframes for video sources, dedup cannot merge real chat screens, provenance fields are dropped, and the worker path has no CI-executed behavioural test.",
       "bucket": "blocked"
     },
@@ -653,8 +655,8 @@
       "apiIntegration": {
         "files": 268,
         "suites": 876,
-        "tests": 2873,
-        "passed": 2873,
+        "tests": 2874,
+        "passed": 2874,
         "failed": 0,
         "skipped": 0
       },
@@ -868,8 +870,8 @@
         {
           "label": "uc1-acceptance-final",
           "exit": 0,
-          "log": "uc1-acceptance.log",
-          "note": "FINAL stack (4a49635e, intake + Evidence Requests flags on); background run kept up for the journeys; stopped at teardown"
+          "log": "uc1-acceptance.run7-superseded.log",
+          "note": "SUPERSEDED by the run on 23cb5a0b (adds J14-J16, owner stored-file projection). Was: FINAL stack (4a49635e, intake + Evidence Requests flags on); background run kept up for the journeys; stopped at teardown"
         },
         {
           "label": "seed-journeys-19",
@@ -889,22 +891,26 @@
         {
           "label": "journeys-final",
           "exit": 0,
-          "log": "journeys-final.log"
+          "log": "journeys-final.run7-superseded.log",
+          "note": "SUPERSEDED (run 7, 4a49635e): 12/12 PASS; superseded only by later source (owner projection, J14-J16)."
         },
         {
           "label": "journeys-final-j11",
           "exit": 0,
-          "log": "journeys-final-j11.log"
+          "log": "journeys-final-j11.run7-superseded.log",
+          "note": "SUPERSEDED (run 7)."
         },
         {
           "label": "web-screen-capture",
           "exit": 0,
-          "log": "web-screen-capture.log"
+          "log": "web-screen-capture.run7-superseded.log",
+          "note": "SUPERSEDED (run 7): 15/15."
         },
         {
           "label": "package-independent-recompute",
           "exit": 0,
-          "log": "package-recompute.log"
+          "log": "package-recompute.run7-superseded.log",
+          "note": "SUPERSEDED (run 7): 14/14."
         },
         {
           "label": "mobile-export-android-ios",
@@ -1006,6 +1012,235 @@
           "exit": 0,
           "log": "api-unit.tail.log",
           "note": "FINAL at 5f3be40a on a clean tree: 25619/25620 passed, 0 failed, 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger); supersedes api-unit-full (whose single failure was the clean-tree gate counting the then-untracked runtime directory). Recorded after the run."
+        },
+        {
+          "label": "final-prisma-generate",
+          "exit": 0,
+          "log": "final-prisma-generate.log"
+        },
+        {
+          "label": "final-safe-migrate-refuses-remote",
+          "exit": 3,
+          "log": "final-safe-migrate-refusal.log",
+          "note": "expected exit 3 (REFUSED)"
+        },
+        {
+          "label": "final-migrate-from-empty",
+          "exit": 0,
+          "log": "final-migrate-from-empty.log"
+        },
+        {
+          "label": "final-drift-check",
+          "exit": 0,
+          "log": "final-drift-check.log"
+        },
+        {
+          "label": "final-raw-schema-verify",
+          "exit": 6,
+          "log": "final-raw-schema-verify.log"
+        },
+        {
+          "label": "final-db-preflight",
+          "exit": 0,
+          "log": "final-db-preflight.log"
+        },
+        {
+          "label": "final-migration-inventory-check",
+          "exit": 0,
+          "log": "final-migration-inventory.log"
+        },
+        {
+          "label": "final-raw-schema-verify-after-registration",
+          "exit": 0,
+          "log": "final-raw-schema-verify-2.log"
+        },
+        {
+          "label": "final-build-api",
+          "exit": 0,
+          "log": "final-build-api.log"
+        },
+        {
+          "label": "final-build-worker",
+          "exit": 0,
+          "log": "final-build-worker.log"
+        },
+        {
+          "label": "final-build-extension",
+          "exit": 0,
+          "log": "final-build-extension.log"
+        },
+        {
+          "label": "final-build-web-loopback",
+          "exit": 0,
+          "log": "final-build-web.log"
+        },
+        {
+          "label": "final-mobile-export-android-ios",
+          "exit": 0,
+          "log": "final-mobile-export.log"
+        },
+        {
+          "label": "final-pwa-installability",
+          "exit": 0,
+          "log": "final-pwa-installability.log"
+        },
+        {
+          "label": "final-web-admin-routing-against-production-build",
+          "exit": 0,
+          "log": "final-web-admin-routing.log",
+          "note": "7/7, 0 skipped: the 4 tests the full web run skips (no fixture web server) executed against the production web build"
+        },
+        {
+          "label": "final-layout-batch-a",
+          "exit": 1,
+          "log": "layout-projects.json",
+          "note": "641 passed, 1 failed: capture-layout pinned the false trust-strip claim \"End-to-end protected\" that UC-PROV-011 removed; spec updated to the corrected wording (and now bans the false claim). Recorded after the run."
+        },
+        {
+          "label": "final-layout-batch-b",
+          "exit": 0,
+          "log": "layout-projects.json",
+          "note": "557/557. Recorded after the run."
+        },
+        {
+          "label": "final-layout-capture-rerun",
+          "exit": 0,
+          "log": "layout-projects.json",
+          "note": "32/32 after the spec followed UC-PROV-011. All 8 layout projects: 1199/1199. Recorded after the run."
+        },
+        {
+          "label": "uc1-acceptance-final",
+          "exit": 0,
+          "log": "uc1-acceptance.log",
+          "note": "FINAL stack at 23cb5a0b (fresh disposable PG migrated from empty by the harness, API + worker booted; intake + Evidence Requests flags on); kept up for the journeys; stopped at teardown"
+        },
+        {
+          "label": "seed-journeys-final-40",
+          "exit": 0,
+          "log": "seed-r40.json"
+        },
+        {
+          "label": "seed-journeys-final-41",
+          "exit": 0,
+          "log": "seed-r41.json"
+        },
+        {
+          "label": "seed-journeys-final-42",
+          "exit": 0,
+          "log": "seed-r42.json"
+        },
+        {
+          "label": "seed-journeys-final-43",
+          "exit": 0,
+          "log": "seed-r43.json"
+        },
+        {
+          "label": "journeys-final",
+          "exit": 0,
+          "log": "journeys-final.log"
+        },
+        {
+          "label": "journeys-final-j11",
+          "exit": 0,
+          "log": "journeys-final-j11.log"
+        },
+        {
+          "label": "journeys-final-j16",
+          "exit": 0,
+          "log": "journeys-final-j16.log"
+        },
+        {
+          "label": "web-screen-capture",
+          "exit": 0,
+          "log": "web-screen-capture.log"
+        },
+        {
+          "label": "derived-thumbnails-cross-origin",
+          "exit": 1,
+          "log": "derived-thumbnails.run1.log",
+          "note": "5/6: probe race — responses were recorded asynchronously after the check counted them (8 loads, 8 responses, all 200 with the session cookie in the written file); probe now awaits every record. Rerun below."
+        },
+        {
+          "label": "package-independent-recompute",
+          "exit": 0,
+          "log": "package-recompute.log"
+        },
+        {
+          "label": "derived-thumbnails-cross-origin",
+          "exit": 0,
+          "log": "derived-thumbnails.log"
+        },
+        {
+          "label": "final-stack-boot-schema-validation",
+          "exit": 0,
+          "log": "final-stack-boot.log",
+          "note": "API booted on the harness-migrated (from empty) disposable PG16: schema_validation healthy (109 checked), 0 critical/degraded; worker booted and served every journey"
+        },
+        {
+          "label": "api-integration-full-at-1b955eaf",
+          "exit": 0,
+          "log": "api-integration.tail.log",
+          "note": "FULL suite at 1b955eaf on the database just migrated from empty (PG16) + Redis + MinIO: 2874/2874 passed, 0 failed, 0 skipped, 268 files; summary api-integration.json (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "api-unit-full-at-59d272da",
+          "exit": 0,
+          "log": "api-unit.tail.log",
+          "note": "at 59d272da on a clean tree: 25619/25620 passed, 0 failed, 1 skipped (point7 closure gate: needs the gitignored .p7tmp ledger) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "worker-full-at-59d272da",
+          "exit": 0,
+          "log": "worker-tests.tail.log",
+          "note": "1218/1219 passed, 1 skipped (Tesseract binary absent on this host: EP-14) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "web-node-final",
+          "exit": 0,
+          "log": "web-node.tail.log",
+          "note": "3295 passed, 0 failed, 4 skipped here (need a running web server) — executed separately against the production build: final-web-admin-routing (7/7, 0 skipped) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "web-render-final",
+          "exit": 0,
+          "log": "web-render.tail.log",
+          "note": "1660/1660 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "shared-final",
+          "exit": 0,
+          "log": "shared.tail.log",
+          "note": "1069/1069 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "ui-final",
+          "exit": 0,
+          "log": "ui.tail.log",
+          "note": "18/18 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "extension-unit-final",
+          "exit": 0,
+          "log": "extension.tail.log",
+          "note": "85/85 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "mobile-unit-final",
+          "exit": 0,
+          "log": "mobile.tail.log",
+          "note": "1893/1893 (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "lint-final",
+          "exit": 0,
+          "log": "lint.tail.log",
+          "note": "0 errors (2 web warnings that predate the branch) (recorded after the run; start/end are the record time)"
+        },
+        {
+          "label": "typecheck-final",
+          "exit": 0,
+          "log": "typecheck.tail.log",
+          "note": "9 workspaces: extension, mobile, web, shared, shared-evidence-presentation, shared-runtime, ui, api, worker (recorded after the run; start/end are the record time)"
         }
       ]
     }
@@ -3143,7 +3378,7 @@
     {
       "name": "findings = fixed + blocked-external + partial + present + accepted-risk",
       "ok": true,
-      "detail": "{\"fixed\":101,\"blockedExternal\":18,\"partial\":0,\"present\":0,\"acceptedRisk\":0}"
+      "detail": "{\"fixed\":99,\"blockedExternal\":20,\"partial\":0,\"present\":0,\"acceptedRisk\":0}"
     },
     {
       "name": "remediation ledger rows = findings (one row per finding, no extra row)",
@@ -3158,7 +3393,7 @@
     {
       "name": "ledger counts agree with finding statuses",
       "ok": true,
-      "detail": "{\"total\":119,\"BLOCKED_EXTERNAL_PROOF\":18,\"FIXED_RUNTIME_PROVEN\":60,\"FIXED_SOURCE_AND_TEST_PROVEN\":41,\"fixed\":101,\"blocked\":18,\"remaining\":0}"
+      "detail": "{\"total\":119,\"BLOCKED_EXTERNAL_PROOF\":20,\"FIXED_RUNTIME_PROVEN\":59,\"FIXED_SOURCE_AND_TEST_PROVEN\":40,\"fixed\":99,\"blocked\":20,\"remaining\":0}"
     },
     {
       "name": "ledger's own gates all pass",
@@ -3198,7 +3433,7 @@
     {
       "name": "remediation API integration run executed (not skipped) and green",
       "ok": true,
-      "detail": "2873/2873 (0 skipped)"
+      "detail": "2874/2874 (0 skipped)"
     },
     {
       "name": "remediation worker run green",
@@ -3208,12 +3443,12 @@
     {
       "name": "every remediation command has an exit code",
       "ok": true,
-      "detail": "61 commands"
+      "detail": "103 commands"
     },
     {
       "name": "every UC = complete + partial + missing + blocked",
       "ok": true,
-      "detail": "{\"complete\":2,\"partial\":0,\"missing\":0,\"blocked\":7}"
+      "detail": "{\"complete\":1,\"partial\":0,\"missing\":0,\"blocked\":8}"
     },
     {
       "name": "no UNKNOWN without explicit blocker",

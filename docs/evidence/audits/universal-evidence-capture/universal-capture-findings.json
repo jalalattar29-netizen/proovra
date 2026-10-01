@@ -10,8 +10,8 @@
       "P3": 53
     },
     "byStatus": {
-      "fixed": 101,
-      "blockedExternal": 18,
+      "fixed": 99,
+      "blockedExternal": 20,
       "partial": 0,
       "present": 0,
       "acceptedRisk": 0
@@ -19,7 +19,7 @@
     "unresolvedBySeverity": {
       "P0": 0,
       "P1": 4,
-      "P2": 9,
+      "P2": 11,
       "P3": 5
     }
   },
@@ -4009,13 +4009,14 @@
       "platforms": [
         "worker"
       ],
-      "status": "fixed",
+      "status": "blocked-external",
       "resolution": {
-        "disposition": "FIXED_RUNTIME_PROVEN",
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
         "proofKind": "integration-real-db",
         "commits": [
           "69e995c58803",
-          "0364d89aef47"
+          "0364d89aef47",
+          "786a28254e16"
         ],
         "migrations": "none",
         "redTest": "services/worker/test/uc4-screen-intelligence-handler.test.ts (whole suite)",
@@ -4027,11 +4028,15 @@
           "services/worker/test/uc4-tesseract-ocr.test.ts (4 passed + 1 skipped: engine absent on host)",
           "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
           "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
+          "services/worker/test/uc4-tesseract-ocr.test.ts (4 executed, 1 skipped: binary absent)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts",
           "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
           "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
         ],
-        "externalProofRemaining": "(1) The two worker live-PG suites only execute where TEST_DATABASE_URL is provided — CI's 'Test — worker' job provides none (cross-lane workflow request filed). (2) Real tesseract extraction: engine absent on this host and in every local worker image; building one requires apk network access (forbidden by lane rules). Run `UC4_REQUIRE_TESSERACT=1 npx vitest run test/uc4-tesseract-ocr.test.ts` inside the worker image.; first CI run; real-tesseract text assertion is a test change in services/worker (not lane W)",
-        "externalProofs": []
+        "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker OCR with the real tesseract engine' (apt tesseract-ocr, UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and of schema-reproducibility.yml's worker integration step",
+        "externalProofs": [
+          "EP-14"
+        ]
       },
       "proof": "source-proven",
       "userImpact": "A regression in the reconstruct_screen job (claim/lease/fence, storage wiring, real ffmpeg/tesseract invocation, persistence) ships green; derived keyframes/OCR/reconstruction could silently stop being produced.",
@@ -4099,20 +4104,24 @@
       "platforms": [
         "worker"
       ],
-      "status": "fixed",
+      "status": "blocked-external",
       "resolution": {
-        "disposition": "FIXED_RUNTIME_PROVEN",
+        "disposition": "BLOCKED_EXTERNAL_PROOF",
         "proofKind": "integration-real-db",
         "commits": [
-          "0364d89aef47"
+          "0364d89aef47",
+          "786a28254e16"
         ],
         "migrations": "none",
         "redTest": "ci.yml",
         "greenTests": [
-          "services/worker/test/verification-package-publication.minio.test.ts"
+          "services/worker/test/verification-package-publication.minio.test.ts",
+          "services/worker/test/verification-package-publication.minio.test.ts (4/4 against the local locked bucket uca-olc-locked)"
         ],
-        "externalProofRemaining": "real AWS Object-Lock acceptance (MinIO does not enforce the checksum rule)",
-        "externalProofs": []
+        "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' showing 4 executed, 0 skipped",
+        "externalProofs": [
+          "EP-14"
+        ]
       },
       "proof": "source-proven",
       "userImpact": "The streamed-package staging → checksum → promote → VersionId pin path (the one that failed in production, Sentry 150024171) has no gate; a regression publishes nothing or publishes unlocked.",
@@ -4732,7 +4741,8 @@
         "commits": [
           "b4b035380ac8",
           "a606dcaa5e29",
-          "d0034b073eb1"
+          "d0034b073eb1",
+          "bd87a9e52666"
         ],
         "migrations": "none",
         "redTest": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-008: a passing check 3 days old is STALE, not Verified",
@@ -6100,14 +6110,17 @@
       ],
       "status": "fixed",
       "resolution": {
-        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
-        "proofKind": "unit",
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
         "commits": [
-          "69e995c58803"
+          "69e995c58803",
+          "786a28254e16"
         ],
         "migrations": "none",
         "redTest": "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012: keyframe thumbnails are requested WITH credentials",
         "greenTests": [
+          "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012",
+          "runtime/remediation/derived-thumbnails.json#DER012-derived-thumbnails-cross-origin (6/6)",
           "apps/web/__tests__/render/media-intelligence-derived-review.render.test.tsx::DER-012"
         ],
         "externalProofRemaining": "Playwright proof against a real cross-origin API (finding's requiredTests) not run — no long-lived servers in this lane",
