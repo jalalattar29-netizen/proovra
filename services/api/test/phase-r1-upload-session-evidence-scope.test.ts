@@ -71,7 +71,9 @@ describe("Phase R1 — upload-session evidence ownership guard", () => {
   });
 
   it("both upload routes map evidence_not_found to an anti-enumeration 404", () => {
-    for (const src of [routeSrc, integrationsSrc]) {
+    // UC-ARCH-004 — the API-key channel is retired (410); only the web route remains.
+    expect(integrationsSrc).toContain("INTEGRATION_UPLOADS_RETIRED");
+    for (const src of [routeSrc]) {
       // The case sits inside the same block that returns 404.
       const idx = src.indexOf('case "evidence_not_found":');
       expect(idx).toBeGreaterThan(-1);

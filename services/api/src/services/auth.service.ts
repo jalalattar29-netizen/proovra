@@ -523,20 +523,10 @@ export async function upsertUserWithEmailLink(profile: AuthProfile) {
       .catch(() => null);
   }
 
-  const entitlement = await prisma.entitlement.findFirst({
-    where: { userId: user.id, active: true },
-  });
-
-  if (!entitlement) {
-    await prisma.entitlement.create({
-      data: {
-        userId: user.id,
-        plan: prismaPkg.PlanType.FREE,
-        credits: 0,
-        teamSeats: 0,
-        active: true,
-      },
-    });
+  // UC-COM-004 — the ONE initial-entitlement writer (serialised per user).
+  {
+    const { ensureEntitlement } = await import("./billing.service.js");
+    await ensureEntitlement(user.id);
   }
 
   // PERSONAL-FIRST RESCUE — eagerly bootstrap the personal workspace

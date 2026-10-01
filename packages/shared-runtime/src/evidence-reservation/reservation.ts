@@ -31,12 +31,29 @@ export const EVIDENCE_RESERVATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 const UNSEALED = [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING];
 
-/** An evidence record occupies an allowance slot when established or while its reservation is live. */
+/**
+ * An evidence record occupies an allowance slot when established or while its
+ * reservation is LIVE.
+ *
+ * UC-COM-001 — "live" is exactly the complement of "expired" as the sweep and
+ * completion decide it (`expiredEvidenceReservationWhere` +
+ * `isEvidenceReservationExpiredTx`): an unsealed record counts while it was
+ * created or touched inside the window, or while a live intake session or a
+ * recently active resumable upload holds it. It used to count only while its
+ * CREATION was inside the window, so a reservation kept alive (and still
+ * finalizable) silently stopped counting after 24 h and freed a slot twice.
+ * (A direct-capture session cannot outlive its record's creation window: its
+ * lifetime is bounded to 24 h from a start that precedes the reservation.)
+ */
 function countedEvidenceRecordWhere(now: Date = new Date()): Prisma.EvidenceWhereInput {
+  const cutoff = new Date(now.getTime() - EVIDENCE_RESERVATION_TTL_MS);
   return {
     OR: [
       { status: { notIn: UNSEALED } },
-      { createdAt: { gte: new Date(now.getTime() - EVIDENCE_RESERVATION_TTL_MS) } },
+      { createdAt: { gte: cutoff } },
+      { updatedAt: { gte: cutoff } },
+      { workflowIntakeSession: { is: { status: { in: LIVE_INTAKE }, expiresAtUtc: { gt: now } } } },
+      { uploadSession: { is: { lastActivityAtUtc: { gte: cutoff } } } },
     ],
   };
 }
@@ -119,6 +136,25 @@ async function heldByLiveSession(tx: Prisma.TransactionClient, evidenceId: strin
     }),
   ]);
   return intake > 0 || capture > 0;
+}
+
+/**
+ * UC-COM-001 — is this unsealed reservation EXPIRED (untouched for the whole
+ * window and held open by no live session)? An expired reservation no longer
+ * counts against the allowance, so it may not be finalized either: completion
+ * refuses it and the capture must be admitted afresh. Call inside the
+ * completion transaction (after the record's lock).
+ */
+export async function isEvidenceReservationExpiredTx(
+  tx: Prisma.TransactionClient,
+  evidenceId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const expired = await tx.evidence.count({
+    where: { AND: [{ id: evidenceId }, expiredEvidenceReservationWhere(now)] },
+  });
+  if (expired === 0) return false;
+  return !(await heldByLiveSession(tx, evidenceId, now));
 }
 
 export type ReservationReleaseReason =

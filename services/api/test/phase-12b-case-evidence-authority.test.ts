@@ -183,6 +183,11 @@ vi.mock("../src/db.js", () => {
         return { count };
       },
     },
+    // UC-CASE-001 / UC-CASE-004 — the per-pair advisory lock, the case-row
+    // lock and the case-hold read the link authority now takes in its transaction.
+    $executeRaw: async () => 1,
+    $queryRaw: async () => [],
+    evidenceLegalHold: { count: async () => 0 },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(client),
   };
   return { prisma: client };

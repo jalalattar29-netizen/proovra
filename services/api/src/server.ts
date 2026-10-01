@@ -263,41 +263,10 @@ import {
   isDomainError,
 } from "./errors.js";
 import { registerCanonicalNotFoundHandler } from "./http/not-found-handler.js";
+import { isCorsOriginAllowed } from "./http/cors-origin-policy.js";
+import { redactRequestUrl } from "./http/redact-request-url.js";
 
-const REQUIRED_ORIGINS = [
-  "https://www.proovra.com",
-  "https://proovra.com",
-  "https://app.proovra.com",
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:8081",
-];
-
-function normalizeOrigin(origin: string) {
-  return origin.trim().toLowerCase().replace(/\/+$/, "");
-}
-
-function parseCorsOrigins(): string[] {
-  const raw = process.env.CORS_ORIGINS ?? "";
-  const parsed = raw
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  const merged = [...parsed, ...REQUIRED_ORIGINS];
-  return Array.from(new Set(merged.map(normalizeOrigin)));
-}
-
-function isProovraOrigin(origin: string) {
-  const value = normalizeOrigin(origin);
-  return (
-    value === "https://proovra.com" ||
-    value === "https://www.proovra.com" ||
-    value === "https://app.proovra.com" ||
-    value.endsWith(".proovra.com") ||
-    value.endsWith(".vercel.app")
-  );
-}
+// UC-SEC-002 / UC-SEC-005 — the CORS origin decision lives in ONE module.
 
 type GeoContext = {
   country?: string;
@@ -337,6 +306,7 @@ function buildRequestContext(req: {
   id: string;
   method: string;
   url: string;
+  params?: unknown;
   user?: { sub?: string };
   evidenceId?: string;
   geo?: GeoContext;
@@ -344,7 +314,7 @@ function buildRequestContext(req: {
   const context: Record<string, unknown> = {
     requestId: req.id,
     method: req.method,
-    url: req.url,
+    url: redactRequestUrl(req.url, req.params),
   };
 
   if (req.user?.sub) context.userId = req.user.sub;
@@ -554,7 +524,13 @@ function readPrismaDiagnostic(
   };
 }
 
-export async function buildServer() {
+/**
+ * `logStream` (tests only) receives every serialized log line, so a test can
+ * prove what the request log writes (UC-SEC-003). Production passes nothing.
+ */
+export type BuildServerOptions = { logStream?: { write(msg: string): void } };
+
+export async function buildServer(options: BuildServerOptions = {}) {
   initSentry();
 
   // PHASE 13 §1 (NEW-022) — fail closed on an invalid proxy-trust policy.
@@ -588,6 +564,7 @@ export async function buildServer() {
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       base: { service: "api" },
+      ...(options.logStream ? { stream: options.logStream } : {}),
       redact: {
         paths: [
           "req.headers.authorization",
@@ -608,14 +585,6 @@ export async function buildServer() {
     genReqId: () => randomUUID(),
     disableRequestLogging: true,
   });
-
-  const allowlist = parseCorsOrigins();
-  const isProd = process.env.NODE_ENV === "production";
-  const allowedWebOrigins = [
-    "https://www.proovra.com",
-    "https://proovra.com",
-    "https://app.proovra.com",
-  ];
 
   await app.register(cors, {
     credentials: true,
@@ -654,21 +623,13 @@ allowedHeaders: [
   // against the grant). It was never allow-listed, so the browser blocked every
   // portal call after sign-in. Allowing the browser to send it trusts nothing.
   "x-portal-session",
+  // UC-WEB-003 — the public intake page presents its own open session id back
+  // to GET /v1/external-intake/:token to resume after a reload. Header, not
+  // URL, so it never reaches logs or Referer. The server re-binds it to the
+  // validated link, its open state and the same browser before trusting it.
+  "x-proovra-intake-session",
 ],
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
-
-      const normalized = normalizeOrigin(origin);
-
-      if (allowedWebOrigins.includes(normalized)) return cb(null, true);
-      if (isProovraOrigin(normalized)) return cb(null, true);
-      if (allowlist.length > 0 && allowlist.includes(normalized)) {
-        return cb(null, true);
-      }
-      if (!isProd) return cb(null, true);
-
-      return cb(null, false);
-    },
+    origin: (origin, cb) => cb(null, isCorsOriginAllowed(origin)),
   });
 
   await app.register(cookie);
@@ -783,16 +744,9 @@ allowedHeaders: [
    * Redaction is a backstop, not the fix. The fix is that Phase 2 stops
    * minting these links; this makes the ones already in flight non-toxic.
    */
-  const TOKEN_IN_PATH = [
-    /(\/v1\/collaboration-team-invites\/)[^/?]+/,
-    /(\/v1\/teams\/invites\/)[^/?]+/,
-    /(\/collaboration-teams\/invites\/)[^/?]+/,
-  ];
-  const redactUrlSecrets = (url: string): string => {
-    let out = url;
-    for (const re of TOKEN_IN_PATH) out = out.replace(re, "$1[redacted]");
-    return out;
-  };
+  // UC-SEC-003 — every token-bearing path segment and query value is redacted
+  // by the ONE canonical redactor (http/redact-request-url.ts), which also
+  // covers the invitation routes this hook used to list by hand.
 
   app.addHook("onResponse", async (req, reply) => {
     const requestWithMeta = req as typeof req & {
@@ -808,7 +762,7 @@ allowedHeaders: [
       requestId: req.id,
       statusCode: reply.statusCode,
       method: req.method,
-      url: redactUrlSecrets(req.url),
+      url: redactRequestUrl(req.url, req.params),
       durationMs,
     };
 

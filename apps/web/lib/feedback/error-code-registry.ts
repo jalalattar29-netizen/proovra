@@ -297,6 +297,16 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "customer",
     where: PUBLIC_INTAKE,
   },
+  /*
+   * UC-ARCH-005 — an OWNER byte write or finalize aimed at a record that
+   * receives files only through its intake submission. No product control
+   * offers that action on an intake record, so only a stale or crafted client
+   * reaches it; the status bucket is the right answer for that client.
+   */
+  INTAKE_SUBMISSION_REQUIRED: {
+    disposition: "generic",
+    why: "Only a stale or crafted client issues an owner write against an intake-bound record; no product control offers it.",
+  },
   INTAKE_LINK_BLOCKED_BY_POLICY: {
     disposition: "internal",
     why: "The machine-to-machine integrations API; the caller is a program.",
@@ -381,6 +391,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
   NOT_PUBLISHED: {
     disposition: "internal",
     why: "Reviewer criteria authoring; an operator console.",
+  },
+  INTEGRATION_UPLOADS_RETIRED: {
+    disposition: "internal",
+    why: "A retired machine-to-machine integrations endpoint; the caller is a program.",
   },
   API_KEYS_LEGACY_RETIRED: {
     disposition: "internal",

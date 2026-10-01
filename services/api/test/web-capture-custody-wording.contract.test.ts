@@ -29,7 +29,8 @@ describe("Web Capture custody wording — initial browser upload location", () =
     expect(service).not.toMatch(/browserUpload/);
     expect(service).toMatch(/acquisitionMode: EvidenceAcquisitionMode;/);
     expect(service).toContain(
-      "A presigned upload URL was issued for the initial ${UPLOAD_LOCATION_BY_ACQUISITION[params.acquisitionMode]} location.",
+      // UC-ARCH-008 — the location is reserved; no URL is issued for it.
+      "The ${UPLOAD_LOCATION_BY_ACQUISITION[params.acquisitionMode]} record's storage location was reserved. No upload URL was issued for it;",
     );
     expect(service).toMatch(/PROOVRA_WEB_UPLOAD: "browser upload"/);
     expect(service).toMatch(/SECURE_INTAKE_LINK: "intake"/);

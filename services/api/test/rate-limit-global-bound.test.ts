@@ -324,3 +324,31 @@ describe("every public write declares its bound global", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("UC-SEC-006 — the anonymous verify surface and the capture/presign limiters are global", () => {
+  it("each declares bound: \"global\"", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`, import.meta.url)), "utf8");
+    const GLOBAL_KEYS: Array<[string, string]> = [
+      ["routes/evidence.routes.ts", "ratelimit:verify:ip:"],
+      ["routes/evidence.routes.ts", "ratelimit:verify:evidence-clients:"],
+      ["routes/evidence.routes.ts", "ratelimit:evidence-part-presign:user:"],
+      ["routes/capture-trust.routes.ts", "ratelimit:capture:direct-session:open:"],
+    ];
+    const missing: string[] = [];
+    for (const [file, key] of GLOBAL_KEYS) {
+      const src = read(file);
+      const at = src.indexOf("`" + key);
+      if (at < 0) {
+        missing.push(`${file}: key ${key} not found`);
+        continue;
+      }
+      // The verify IP key is built into a variable first; follow it to its call.
+      const callStart = key === "ratelimit:verify:ip:" ? src.indexOf("enforceRateLimit({", at) : at;
+      const call = src.slice(callStart, src.indexOf("})", callStart));
+      if (!/bound:\s*"global"/.test(call)) missing.push(`${file}: ${key}`);
+    }
+    expect(missing).toEqual([]);
+  });
+});

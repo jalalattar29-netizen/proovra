@@ -443,20 +443,8 @@ export async function createOrLoadExternalEvidence(
   // (ET-INT-09 — the session was bound to this record by the conditional
   // claim above.)
 
-  // Phase 9.5 — external intake evidence also receives workspace
-  // retention policy. Same failure-safe wrapper as authenticated create.
-  try {
-    const { applyRetentionPolicyOnCreate } = await import(
-      "./governance.service.js"
-    );
-    await applyRetentionPolicyOnCreate({
-      evidenceId: evidence.id,
-      teamId: pair.link.teamId,
-      existingRetentionUntilUtc: updatedEvidence.retentionUntilUtc ?? null,
-    });
-  } catch {
-    /* observability-only — evidence creation already succeeded */
-  }
+  // UC-ARCH-002 — workspace retention is applied by createEvidence (the
+  // canonical writer) for every channel; no per-channel call here.
 
   // Emit the two intake-history custody events at the moment Evidence first
   // exists for this session. They land in the chain before any UPLOAD_*
@@ -993,11 +981,12 @@ export async function submitExternalIntake(
     });
   }
 
-  // Hand off to the EXISTING canonical completion pipeline. From this point
-  // forward the evidence is treated identically to authenticated capture:
-  // headObject verification, sha256 streaming, fingerprint, signature,
-  // EVIDENCE_COMPLETED custody event, report-v2 enqueue, OTS/TSA pipeline,
-  // anchor publishing.
+  // Hand off to the canonical completion authority. From this point forward
+  // the evidence is treated identically to every other channel: headObject
+  // verification, sha256 streaming, fingerprint, signature, TSA, and (UC-ARCH-003,
+  // now true — it was claimed here while only the web route wrote them) the
+  // EVIDENCE_COMPLETED custody event, the reviewer workflow and the
+  // evidence.complete audit, then the report / OTS / fan-out requests.
   // The ONE finalization governance gate (2026-09-29, audit D3), on the
   // authority of the link's owner — the same policy the web upload obeys.
   // ET-INT-13 — a RETRY after the record was already finalized (an earlier
@@ -1027,6 +1016,8 @@ export async function submitExternalIntake(
     await completeEvidence({
       evidenceId: evidence.id,
       ownerUserId: evidence.ownerUserId,
+      // UC-ARCH-005 — the ONE door an intake record is sealed through.
+      intakeSubmission: { sessionId: input.session.id },
     });
   } catch (err) {
     await releaseIntakeLinkUse(input.link.id, client);
@@ -1134,6 +1125,22 @@ export async function submitExternalIntake(
     submitted = current ?? input.session;
   }
 
+  // UC-CASE-003 — a link (or the evidence request that minted it) issued FOR a
+  // case puts the submitted record IN that case, through the canonical
+  // case-link authority (same-workspace proof, one active link per pair,
+  // link + audit in one transaction; idempotent on a retried submit). The
+  // case used to be stored as a label only, so the record was outside the
+  // matter's evidence list, exports and CASE-scoped legal holds.
+  await attachIntakeEvidenceToCase({
+    linkId: input.link.id,
+    linkCaseId: (input.link as { caseId?: string | null }).caseId ?? null,
+    linkCreatorUserId: input.link.createdByUserId,
+    evidenceId: evidence.id,
+    teamId: evidence.teamId ?? null,
+    intakeSessionId: input.session.id,
+    client,
+  });
+
   // Phase 7 — if this intake link was created by an EvidenceRequest, wire
   // the response into the request domain so reviewers see a new
   // EvidenceRequestResponse row, deliverables advance, and the request
@@ -1182,4 +1189,65 @@ export async function submitExternalIntake(
     session: submitted,
     evidenceId: evidence.id,
   };
+}
+
+/**
+ * UC-CASE-003 — attach a finalized intake record to the case its link (or the
+ * evidence request behind the link) was issued for. Never fails the
+ * contributor's submission: the record is already sealed. A case that is gone,
+ * in another workspace or otherwise refused is recorded in the tenant audit as
+ * a skipped link (an operator can re-link), never silently dropped.
+ */
+async function attachIntakeEvidenceToCase(input: {
+  linkId: string;
+  linkCaseId: string | null;
+  linkCreatorUserId: string;
+  evidenceId: string;
+  teamId: string | null;
+  intakeSessionId: string;
+  client: PrismaClient;
+}): Promise<void> {
+  let caseId = input.linkCaseId;
+  if (!caseId) {
+    const request = await input.client.evidenceRequest
+      .findFirst({ where: { intakeLinkId: input.linkId, caseId: { not: null } }, select: { caseId: true } })
+      .catch(() => null);
+    caseId = request?.caseId ?? null;
+  }
+  if (!caseId) return;
+  const { attachEvidenceToCase } = await import("./cases/case-evidence-link.service.js");
+  try {
+    const caseRow = await input.client.case.findUnique({ where: { id: caseId }, select: { teamId: true } });
+    if (!caseRow || caseRow.teamId !== input.teamId) throw new Error("case_not_in_workspace");
+    await attachEvidenceToCase(
+      {
+        caseId,
+        evidenceId: input.evidenceId,
+        // System attach on behalf of the link: the contributor has no account
+        // and the link creator did not act now. Tenancy is proven by the
+        // authority (same workspace) and by the link's own validated caseId.
+        actorUserId: null,
+        role: "PRIMARY",
+        source: "INTAKE",
+        reason: `Submitted through intake link ${input.linkId}`,
+      },
+      input.client,
+    );
+  } catch (err) {
+    await emitTenantAudit({
+      actorUserId: null,
+      action: "external_intake.case_link_skipped",
+      outcome: "error",
+      sourceApp: "API",
+      workspaceId: input.teamId,
+      resourceType: "evidence",
+      resourceId: input.evidenceId,
+      metadata: {
+        caseId,
+        intakeLinkId: input.linkId,
+        intakeSessionId: input.intakeSessionId,
+        reason: err instanceof Error ? err.message.slice(0, 120) : "unknown",
+      },
+    }).catch(() => undefined);
+  }
 }

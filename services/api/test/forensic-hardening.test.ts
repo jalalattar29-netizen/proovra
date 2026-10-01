@@ -270,7 +270,9 @@ describe("intake + TSA semantics", () => {
     expect(source).toContain("uploadKind: UPLOAD_KIND_BY_ACQUISITION[params.acquisitionMode]");
     expect(source).toContain('"web_upload_authorization"');
     expect(source).toContain('"intake_authorization"');
-    expect(source).toContain("final evidence structure may still become multipart");
+    // UC-ARCH-008 — no root upload URL is issued; the event says so.
+    expect(source).toContain("uploadUrlIssued: false");
+    expect(source).toContain("No upload URL was issued for it");
   });
 
   it("labels multipart timestamp input as canonical package digest", () => {

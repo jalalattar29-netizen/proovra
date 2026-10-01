@@ -1,11 +1,4 @@
-import { createHash } from "crypto";
-import type { Readable } from "stream";
-
-export async function sha256HexFromStream(stream: Readable): Promise<string> {
-  const hash = createHash("sha256");
-  return await new Promise((resolve, reject) => {
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("error", reject);
-    stream.on("end", () => resolve(hash.digest("hex")));
-  });
-}
+// UC-ARCH-006 — the ONE streaming SHA-256 lives in @proovra/shared-runtime
+// (integrity/digest.ts), shared with the worker's integrity recheck and report
+// gate. This module keeps the API's historical import path.
+export { sha256HexFromStream } from "@proovra/shared-runtime";

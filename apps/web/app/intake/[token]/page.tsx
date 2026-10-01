@@ -389,6 +389,42 @@ function humanFileKindLabel(mime: string): string {
   }
 }
 
+/**
+ * UC-WEB-003 — where this tab keeps its own open intake session id, so a
+ * reload resumes it (the id is sent back in a header, never in the URL). Keyed
+ * by a short token prefix; sessionStorage is per tab and per origin. Every
+ * access is guarded: storage can be unavailable (private mode, blocked).
+ */
+function intakeSessionStorageKey(token: string): string {
+  return `proovra.intake.session.${token.slice(0, 16)}`;
+}
+function readStoredIntakeSession(token: string): string | null {
+  try {
+    return window.sessionStorage.getItem(intakeSessionStorageKey(token));
+  } catch {
+    return null;
+  }
+}
+function writeStoredIntakeSession(token: string, sessionId: string | null): void {
+  try {
+    if (sessionId) window.sessionStorage.setItem(intakeSessionStorageKey(token), sessionId);
+    else window.sessionStorage.removeItem(intakeSessionStorageKey(token));
+  } catch {
+    /* resume is a convenience; the page works without it */
+  }
+}
+
+/** A file the server already holds for a resumed session. */
+type ResumedPartView = {
+  id: string;
+  partIndex: number;
+  originalFileName: string | null;
+  mimeType: string | null;
+  checklistStepId: string | null;
+  sizeBytes: number | null;
+  stored: boolean;
+};
+
 async function disclosureHash(text: string): Promise<string> {
   const buffer = new TextEncoder().encode(text);
   const digest = await crypto.subtle.digest("SHA-256", buffer);
@@ -455,14 +491,41 @@ export default function ExternalIntakePage({
   // 1. Validate token + open session
   useEffect(() => {
     let cancelled = false;
+    const resumeId = readStoredIntakeSession(token);
     apiFetch(`/v1/external-intake/${encodeURIComponent(token)}`, {
       method: "GET",
+      ...(resumeId ? { headers: { "x-proovra-intake-session": resumeId } } : {}),
     }, { auth: false })
-      .then((res: { link: LinkView; session: SessionView; request?: RequestView | null }) => {
+      .then((res: {
+        link: LinkView;
+        session: SessionView;
+        request?: RequestView | null;
+        resumed?: boolean;
+        parts?: ResumedPartView[];
+      }) => {
         if (cancelled) return;
         setLink(res.link);
         setSession(res.session);
         setRequest(res.request ?? null);
+        writeStoredIntakeSession(token, res.session.id);
+        // UC-WEB-003 — a resumed session brings back the files it already
+        // holds. A file whose upload never reached storage says so honestly.
+        if (res.resumed && Array.isArray(res.parts) && res.parts.length > 0) {
+          setParts(
+            res.parts.map((p) => ({
+              id: p.id,
+              fileName: p.originalFileName ?? `File ${p.partIndex + 1}`,
+              mimeType: p.mimeType ?? "application/octet-stream",
+              sizeBytes: p.sizeBytes ?? 0,
+              checklistStepId: p.checklistStepId,
+              uploadProgress: p.stored ? 100 : 0,
+              uploadedAtUtc: p.stored ? new Date().toISOString() : null,
+              error: p.stored ? null : "This file did not finish uploading. Choose the same file again to retry.",
+              partIndex: p.partIndex,
+              retryFile: null,
+            })),
+          );
+        }
         setPhase(res.session.consentAcceptedAtUtc ? "upload" : "consent");
       })
       .catch((err: { code?: string; message?: string }) => {
@@ -483,6 +546,17 @@ export default function ExternalIntakePage({
       cancelled = true;
     };
   }, [token]);
+
+  // UC-WEB-003 — warn before leaving while files are staged but not submitted.
+  useEffect(() => {
+    if (phase !== "upload" || parts.length === 0) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [phase, parts.length]);
 
   const expectedSteps = useMemo<WorkflowStep[]>(() => {
     return link?.steps ?? [];
@@ -939,6 +1013,7 @@ export default function ExternalIntakePage({
         { auth: false },
       );
       setSession(res.session);
+      writeStoredIntakeSession(token, null);
       setPhase("submitted");
     } catch (err) {
       const e = err as {

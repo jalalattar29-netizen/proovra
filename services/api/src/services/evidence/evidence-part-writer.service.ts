@@ -104,12 +104,19 @@ export async function lockEvidenceForByteWrite(
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${evidenceId}))`;
   const ev = await tx.evidence.findUnique({
     where: { id: evidenceId },
-    select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lockedAt: true, lifecycleState: true },
+    select: { id: true, teamId: true, ownerUserId: true, status: true, deletedAt: true, lockedAt: true, lifecycleState: true, acquisitionMode: true },
   });
   if (!ev || ev.deletedAt) throw new EvidencePartWriteRefused("EVIDENCE_NOT_FOUND");
   const principalUserId = principal.kind === "OWNER" ? principal.userId : principal.linkCreatorUserId;
   // Anti-enumeration: a record the principal does not own is "not found".
   if (ev.ownerUserId !== principalUserId) throw new EvidencePartWriteRefused("EVIDENCE_NOT_FOUND");
+  // UC-ARCH-005 — an intake record belongs to its contributor's submission while it is in
+  // flight. The link creator is the record's owner of record, but only the intake principal
+  // (the contributor's session) may add bytes to it: the authenticated OWNER door
+  // (/v1/evidence/:id/parts, resumable upload sessions) is closed for SECURE_INTAKE_LINK.
+  if (principal.kind === "OWNER" && ev.acquisitionMode === "SECURE_INTAKE_LINK") {
+    throw new EvidencePartWriteRefused("EVIDENCE_NOT_WRITABLE");
+  }
   const lifecycle = (ev as { lifecycleState?: string | null }).lifecycleState ?? "ACTIVE";
   if (!WRITABLE_STATUSES.has(ev.status) || ev.lockedAt || lifecycle !== "ACTIVE") {
     throw new EvidencePartWriteRefused("EVIDENCE_NOT_WRITABLE");

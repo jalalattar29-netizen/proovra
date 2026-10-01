@@ -51,6 +51,7 @@ import { prisma } from "../db.js";
 import { assertPersonalSpaceAllowed } from "../services/identity/identity-mode.service.js";
 import {
   abortStorageMultipart,
+  assertUploadSessionActor,
   abortUploadSession,
   completeStorageMultipart,
   completeUploadSession,
@@ -385,6 +386,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       });
       if (!actor) return;
 
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
+
       const result = await resumeUploadSession({
         teamId,
         sessionId,
@@ -418,6 +423,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         antiEnumeration: true,
       });
       if (!actor) return;
+
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
 
       const result = await resumeUploadSession({
         teamId,
@@ -458,6 +467,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         actor.actorUserId,
       );
       if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId: body.teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
 
       const result = await markPartUploaded({
         teamId: body.teamId,
@@ -549,6 +562,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       );
       if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId: body.teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
+
       const result = await completeUploadSession({
         teamId: body.teamId,
         sessionId,
@@ -633,6 +650,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
       );
       if (personalDenial) return sendPersonalDenial(reply, personalDenial);
 
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId: body.teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
+
       const result = await initiateStorageMultipart({
         teamId: body.teamId,
         sessionId,
@@ -676,6 +697,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         actor.actorUserId,
       );
       if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId: body.teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
 
       const result = await presignStorageUploadPart({
         teamId: body.teamId,
@@ -723,6 +748,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         actor.actorUserId,
       );
       if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId: body.teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
 
       const result = await completeStorageMultipart({
         teamId: body.teamId,
@@ -772,6 +801,10 @@ export async function uploadSessionsRoutes(app: FastifyInstance) {
         actor.actorUserId,
       );
       if (personalDenial) return sendPersonalDenial(reply, personalDenial);
+
+      // UC-SEC-001 — only the session's creator may act on it (anti-enumeration 404).
+      const owned = await assertUploadSessionActor({ teamId: body.teamId, sessionId, actorUserId: actor.actorUserId });
+      if (!owned.ok) return sendDenial(reply, owned.reason);
 
       const result = await abortStorageMultipart({
         teamId: body.teamId,

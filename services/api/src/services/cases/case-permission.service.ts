@@ -521,7 +521,11 @@ export async function resolveCaseRecordAccess(
     where: { teamId_userId: { teamId: c.teamId, userId: input.userId } },
     select: { role: true },
   });
-  return { allowed: true, role: c.access.length > 0 ? "MEMBER" : (membership?.role ?? "MEMBER") };
+  // UC-CASE-002 — the access list NARROWS who may open the case; it never
+  // widens the member's role. A VIEWER granted CaseAccess stays a VIEWER (the
+  // mutation matrix's VIEWER rule then applies). No membership row → VIEWER,
+  // never MEMBER (the workspace decision above already proved access).
+  return { allowed: true, role: membership?.role ?? "VIEWER" };
 }
 
 /**

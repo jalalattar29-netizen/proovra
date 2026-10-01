@@ -2326,6 +2326,8 @@ model GuestIdentity {
   @@map("guest_identities")
 }
 
+/// UC-COM-004 — at most one ACTIVE row per user: partial unique index
+/// entitlements_user_id_active_key (migration 20281001000300; raw-schema object).
 model Entitlement {
   id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId                  String    @map("user_id") @db.Uuid
@@ -10216,6 +10218,8 @@ model CaseEvidenceLink {
   case     Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@unique([caseId, evidenceId, role])
+  // UC-CASE-004 — one link row per pair (migration 20281001000200).
+  @@unique([caseId, evidenceId])
   @@index([teamId, linkedAtUtc(sort: Desc)])
   @@index([caseId])
   @@index([evidenceId])

@@ -37,6 +37,7 @@ import {
 import {
   getIntakeSession,
   openIntakeSession,
+  resumeIntakeSession,
   projectIntakeLinkForExternalView,
   projectIntakeSessionForExternalView,
   recordIntakeConsent,
@@ -808,6 +809,54 @@ function intakeUnhandled(
   reply.code(500).send({ error: { code: "INTERNAL_ERROR", requestId } });
 }
 
+/**
+ * UC-WEB-003 — the contributor's already-staged files on a resumed session:
+ * index, name, type, checklist step, and whether the object is actually in
+ * storage (a HEAD, not the contributor's word). No storage key, URL or digest.
+ */
+async function listResumableIntakeParts(evidenceId: string | null) {
+  if (!evidenceId) return [];
+  const rows = await prisma.evidencePart.findMany({
+    where: { evidenceId },
+    orderBy: { partIndex: "asc" },
+    take: 200,
+    select: {
+      id: true,
+      partIndex: true,
+      originalFileName: true,
+      mimeType: true,
+      checklistStepId: true,
+      storageBucket: true,
+      storageKey: true,
+    },
+  });
+  const { headObject } = await import("../storage.js");
+  return Promise.all(
+    rows.map(async (r) => {
+      let stored = false;
+      let sizeBytes: number | null = null;
+      if (r.storageBucket && r.storageKey) {
+        try {
+          const head = await headObject({ bucket: r.storageBucket, key: r.storageKey });
+          sizeBytes = head.sizeBytes ?? null;
+          stored = typeof head.sizeBytes === "number" && head.sizeBytes > 0;
+        } catch {
+          stored = false;
+        }
+      }
+      return {
+        id: r.id,
+        partIndex: r.partIndex,
+        originalFileName: r.originalFileName ?? null,
+        mimeType: r.mimeType ?? null,
+        checklistStepId: r.checklistStepId ?? null,
+        sizeBytes,
+        stored,
+      };
+    }),
+  );
+}
+
 export async function externalIntakeRoutes(app: FastifyInstance) {
   // GET /v1/external-intake/:token
   //
@@ -832,14 +881,24 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         // (the contributor is starting a new session). For single-use,
         // also create a fresh session — usedCount is incremented only at
         // SUBMITTED time so multiple page reloads remain idempotent.
-        const session = await openIntakeSession({
-          link,
-          submitterIp: clientIp(req),
-          submitterUserAgent:
-            typeof req.headers["user-agent"] === "string"
-              ? req.headers["user-agent"]
-              : null,
-        });
+        // UC-WEB-003 — a reload resumes the contributor's own open session
+        // (presented back in a header, never in the URL) instead of opening a
+        // fresh one and discarding consent and staged files.
+        const userAgent =
+          typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null;
+        const resumeHandle = req.headers["x-proovra-intake-session"];
+        const resumed =
+          typeof resumeHandle === "string" && resumeHandle.length > 0
+            ? await resumeIntakeSession({ link, sessionId: resumeHandle, submitterUserAgent: userAgent })
+            : null;
+        const session =
+          resumed ??
+          (await openIntakeSession({
+            link,
+            submitterIp: clientIp(req),
+            submitterUserAgent: userAgent,
+          }));
+        const stagedParts = resumed ? await listResumableIntakeParts(resumed.evidenceId ?? null) : [];
 
         // Phase 7 — if this link was created by an EvidenceRequest, attach
         // the contributor-safe projection of the request so the intake
@@ -855,6 +914,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
           link: projectIntakeLinkForExternalView(link),
           session: projectIntakeSessionForExternalView(session),
           request: requestView,
+          resumed: resumed !== null,
+          parts: stagedParts,
         });
       } catch (err) {
         if (err instanceof WorkflowIntakeSessionError) {

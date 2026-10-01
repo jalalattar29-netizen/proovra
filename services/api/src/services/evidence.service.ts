@@ -1,5 +1,6 @@
 import { prisma } from "../db.js";
-import { getPublicBaseUrl, presignPutObject } from "../storage.js";
+import { emitTenantAudit } from "./audit/tenant-audit.service.js";
+import { resolveRetentionOnCreate } from "./governance.service.js";
 import {
   assertWorkspaceAllowsEvidenceCreation,
   lockEvidenceCapacitySubject,
@@ -269,6 +270,13 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
    * transaction has committed.
    */
   transaction?: prismaPkg.Prisma.TransactionClient;
+  /**
+   * UC-ARCH-003 — the request that asked, for the ONE evidence.create tenant
+   * audit this writer now records for every channel (post-commit).
+   */
+  requestContext?: { ip?: string | null; userAgent?: string | null; correlationId?: string | null };
+  /** Extra non-secret facts for the evidence.create audit (e.g. a draft id). */
+  auditMetadata?: Record<string, unknown>;
 })
 {
   // Fail closed on a caller that bypasses the type system: an unrecorded or
@@ -442,8 +450,18 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
     : undefined;
 
   const bucket = must("S3_BUCKET");
-  const publicBase = getPublicBaseUrl();
   const capturedAt = new Date();
+
+  // UC-ARCH-002 — the workspace default retention, resolved ONCE here by the
+  // canonical writer for EVERY channel (web, intake, mobile, extension,
+  // Android, iOS). It used to be applied only by the web POST /v1/evidence
+  // route and the intake orchestration, so direct captures carried none.
+  // Read before the transaction on the global client: a policy read that fails
+  // must not abort the record's transaction (it degrades to "no default").
+  const retentionOnCreate = await resolveRetentionOnCreate({
+    teamId: effectiveTeamId,
+    now: capturedAt,
+  });
   const normalizedMimeType = normalizeUploadMimeType(params.mimeType);
   const resolvedFileNames = resolveRootEvidenceDisplayFileName({
   originalFileName: params.originalFileName ?? null,
@@ -603,8 +621,8 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
       } as prismaPkg.Prisma.InputJsonValue,
     });
 
-    // Truthful intake event: at this point a presigned URL is about to be
-    // issued and the storage location is reserved. NO bytes have been
+    // UC-ARCH-008 — no upload URL is issued for this location any more: every
+    // channel uploads its bytes as parts, each authorized with its own URL. NO bytes have been
     // uploaded yet. Previously written as UPLOAD_STARTED, which made the
     // chain claim something that had not happened. New records use
     // UPLOAD_AUTHORIZED; old records keep UPLOAD_STARTED for compatibility.
@@ -621,12 +639,8 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         bucket,
         key,
         contentType: normalizedMimeType,
-        // ET-INT-15 — an intake record never hands out this initial URL: each
-        // intake file gets its own upload URL when its part is authorized.
-        meaning:
-          params.acquisitionMode === "SECURE_INTAKE_LINK"
-            ? "The intake record's storage location was reserved. No upload URL was issued for it; each file the contributor sends receives its own upload URL, and no bytes have been confirmed uploaded yet."
-            : `A presigned upload URL was issued for the initial ${UPLOAD_LOCATION_BY_ACQUISITION[params.acquisitionMode]} location. No bytes have been confirmed uploaded yet, and the final evidence structure may still become multipart during completion.`,
+        uploadUrlIssued: false,
+        meaning: `The ${UPLOAD_LOCATION_BY_ACQUISITION[params.acquisitionMode]} record's storage location was reserved. No upload URL was issued for it; each file receives its own upload URL when its part is authorized, and no bytes have been confirmed uploaded yet.`,
       } as prismaPkg.Prisma.InputJsonValue,
     });
 
@@ -636,8 +650,24 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         status: EvidenceStatus.UPLOADING,
         storageBucket: bucket,
         storageKey: key,
+        ...(retentionOnCreate ? { retentionUntilUtc: retentionOnCreate.retentionUntilUtc } : {}),
       },
     });
+    if (retentionOnCreate) {
+      await appendCustodyEventTx(tx, {
+        evidenceId: evidence.id,
+        eventType: prismaPkg.CustodyEventType.RETENTION_POLICY_APPLIED,
+        atUtc: capturedAt,
+        payload: {
+          retentionPolicyApplied: true,
+          retentionUntilUtc: retentionOnCreate.retentionUntilUtc.toISOString(),
+          source: retentionOnCreate.source,
+          templateSlug: null,
+          templateVersion: null,
+          templateDbId: null,
+        } as prismaPkg.Prisma.InputJsonValue,
+      });
+    }
 
     /**
      * ARCH-005 (2026-08-07) — EVIDENCE_CREATED, inside THIS transaction.
@@ -671,23 +701,37 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
     ? await writeRecord(params.transaction)
     : await prisma.$transaction(writeRecord);
 
-  const putUrl = await presignPutObject({
-    bucket,
-    key: created.key,
-    contentType: normalizedMimeType,
-    checksumSha256Base64: params.checksumSha256Base64 ?? null,
-    contentMd5Base64: params.contentMd5Base64 ?? null,
-    expiresInSeconds: 600,
-  });
-
-  const publicUrl = publicBase
-    ? `${publicBase.replace(/\/+$/, "")}/${created.key}`
-    : null;
-
   // Post-commit steps: they describe a record that exists, so they run only
   // once the record's writes have committed (ET-DC-07: the caller's commit,
   // when the record was written in the caller's transaction).
   const afterCommit = async (): Promise<void> => {
+    // UC-ARCH-003 — THE evidence.create tenant audit, for every channel.
+    try {
+      await emitTenantAudit({
+        action: "evidence.create",
+        outcome: "success",
+        sourceApp: "API",
+        actorUserId: params.ownerUserId,
+        workspaceId: effectiveTeamId,
+        resourceType: "evidence",
+        resourceId: created.id,
+        correlationId: params.requestContext?.correlationId ?? null,
+        ipAddress: params.requestContext?.ip ?? null,
+        userAgent: params.requestContext?.userAgent ?? null,
+        metadata: {
+          type: params.type,
+          mimeType: normalizedMimeType,
+          acquisitionMode: params.acquisitionMode,
+          hasGps: Boolean(params.gps),
+          captureSessionId: params.captureSessionId ?? null,
+          ...(params.auditMetadata ?? {}),
+          severity: "info",
+        },
+      });
+    } catch {
+      // never fail evidence creation on audit delivery
+    }
+
     // Phase 12 — open the operations-side UploadSession and move it to
     // PRESIGNED. Best-effort: this row is purely observational and any
     // failure here MUST NOT fail evidence creation.
@@ -738,12 +782,8 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
     // personal captures return the owner's personal Team id.
     teamId: effectiveTeamId,
     status: EvidenceStatus.UPLOADING,
-    upload: {
-      bucket,
-      key: created.key,
-      putUrl,
-      publicUrl,
-      expiresInSeconds: 600,
-    },
+    // UC-ARCH-008 — no root upload URL: bytes arrive as parts, each authorized
+    // by POST /v1/evidence/:id/parts (or the channel's own part route).
+    retentionUntilUtc: retentionOnCreate?.retentionUntilUtc.toISOString() ?? null,
   };
 }

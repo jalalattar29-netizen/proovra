@@ -22,6 +22,7 @@ import {
 import {
   attachEvidenceToCase,
   detachEvidenceFromCase,
+  caseUnlinkRefusal,
 } from "../services/cases/case-evidence-link.service.js";
 // Phase O1.5A — bounded evidence + upload + finalize + verify-public
 // spans. Attributes bounded to teamId + evidenceId + operation only;
@@ -221,6 +222,7 @@ import { CertificationType as PrismaCertificationType } from "@prisma/client";
 import { prisma } from "../db.js";
 import {
   appendCustodyEventTx,
+  isEvidenceReservationExpiredTx,
   isVerificationShareTokenShape,
   legacyVerifyLinkActive,
   readStoredBytesIntegrity,
@@ -1449,6 +1451,98 @@ function mapEvidenceOutcome(
   if (outcome === "blocked") return "denied";
   if (outcome === "failure") return "error";
   return "success";
+}
+
+/**
+ * UC-WEB-001 — the unsealed record a web capture DRAFT already reserved, when
+ * Finish & Sign is retried: returned (with the parts it already holds) instead
+ * of minting a second record. Only the caller's own DRAFT (not a direct-capture
+ * session), bound to a record the caller owns that is still unsealed, not
+ * released and not an expired reservation. Anything else → null (create anew).
+ */
+/**
+ * UC-CASE-005 — the cases a record belongs to, as THIS viewer may see them:
+ * every CaseEvidenceLink (earliest first) whose case the viewer can open under
+ * the canonical case-access rule. A restricted case the viewer cannot open is
+ * omitted entirely — its id and name are not disclosed.
+ */
+async function resolveViewerCasesForEvidence(viewerUserId: string, evidenceId: string) {
+  const links = await prisma.caseEvidenceLink.findMany({
+    where: { evidenceId },
+    orderBy: { linkedAtUtc: "asc" },
+    take: 100,
+    select: { caseId: true, role: true, linkedAtUtc: true, case: { select: { name: true } } },
+  });
+  const out: Array<{ caseId: string; caseName: string | null; role: string; linkedAtUtc: string }> = [];
+  for (const l of links) {
+    const access = await resolveCaseRecordAccess({ userId: viewerUserId, caseId: l.caseId });
+    if (!access.allowed) continue;
+    out.push({
+      caseId: l.caseId,
+      caseName: l.case?.name ?? null,
+      role: String(l.role),
+      linkedAtUtc: l.linkedAtUtc.toISOString(),
+    });
+  }
+  return out;
+}
+
+/** UC-ARCH-005 — refuse owner-principal byte writes/finalize on an intake record. */
+async function assertNotIntakeBoundRecord(evidenceId: string): Promise<void> {
+  const row = await prisma.evidence.findUnique({
+    where: { id: evidenceId },
+    select: { acquisitionMode: true },
+  });
+  if (row?.acquisitionMode === "SECURE_INTAKE_LINK") {
+    throw Object.assign(
+      new Error("This record receives files only through its intake submission."),
+      { statusCode: 409, code: "INTAKE_SUBMISSION_REQUIRED" },
+    );
+  }
+}
+
+async function resolveResumableDraftRecord(ownerUserId: string, captureSessionId: string) {
+  const draft = await prisma.captureSession.findFirst({
+    where: {
+      id: captureSessionId,
+      ownerUserId,
+      status: prismaPkg.CaptureSessionStatus.DRAFT,
+      acquisitionMode: null,
+      finalizedEvidenceId: { not: null },
+    },
+    select: { finalizedEvidenceId: true },
+  });
+  if (!draft?.finalizedEvidenceId) return null;
+  const ev = await prisma.evidence.findFirst({
+    where: {
+      id: draft.finalizedEvidenceId,
+      ownerUserId,
+      deletedAt: null,
+      status: { in: [prismaPkg.EvidenceStatus.CREATED, prismaPkg.EvidenceStatus.UPLOADING] },
+    },
+    select: { id: true, teamId: true, status: true, retentionUntilUtc: true },
+  });
+  if (!ev) return null;
+  const expired = await prisma.$transaction((tx) => isEvidenceReservationExpiredTx(tx, ev.id, new Date()));
+  if (expired) return null;
+  const parts = await prisma.evidencePart.findMany({
+    where: { evidenceId: ev.id },
+    orderBy: { partIndex: "asc" },
+    select: { partIndex: true, originalFileName: true, mimeType: true, sizeBytes: true },
+  });
+  return {
+    id: ev.id,
+    teamId: ev.teamId,
+    status: ev.status,
+    retentionUntilUtc: ev.retentionUntilUtc?.toISOString() ?? null,
+    resumed: true as const,
+    parts: parts.map((p) => ({
+      partIndex: p.partIndex,
+      originalFileName: p.originalFileName ?? null,
+      mimeType: p.mimeType ?? null,
+      sizeBytes: p.sizeBytes === null || p.sizeBytes === undefined ? null : p.sizeBytes.toString(),
+    })),
+  };
 }
 
 function auditEvidenceAction(
@@ -5508,6 +5602,17 @@ export async function evidenceRoutes(app: FastifyInstance) {
       // ET-ACQ-01 — the canonical evidence.create decision for the target
       // workspace, before anything is written.
       await assertInteractiveEvidenceCreateAllowed({ ownerUserId, teamId: body.teamId ?? null });
+
+      // UC-WEB-001 — FINISH & SIGN IS RESUMABLE. A draft is bound to the record
+      // it reserved (finalizedEvidenceId) but stays DRAFT until that record is
+      // sealed (completeEvidence finalizes it). A retry after a mid-upload
+      // failure therefore returns the SAME unsealed record, with the parts it
+      // already holds, instead of minting a second one and orphaning the first.
+      if (body.captureSessionId) {
+        const resumable = await resolveResumableDraftRecord(ownerUserId, body.captureSessionId);
+        if (resumable) return reply.code(200).send(resumable);
+      }
+
 const result = await createEvidence({
   ownerUserId,
   // Phase HOME-DATA-OWNERSHIP — pass the client's active workspace id
@@ -5532,6 +5637,9 @@ intakePlanJson:
   // submits through the direct-capture session adapter instead
   // (/v1/capture/direct-sessions), which records PROOVRA_MOBILE_APP.
   acquisitionMode: "PROOVRA_WEB_UPLOAD",
+  // UC-ARCH-003 — the evidence.create audit is written by createEvidence.
+  requestContext: { ip: req.ip, userAgent: readUserAgent(req), correlationId: req.id ?? null },
+  auditMetadata: { captureSessionId: body.captureSessionId ?? null },
       });
 
       // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE DUPLICATE QUOTA
@@ -5554,31 +5662,8 @@ intakePlanJson:
       // `createEvidence` has already run the canonical gate before this point.
       // There is now one quota authority, and it is the plan catalog.
       //
-      // PHASE 11 §3 Batch A — the persisted-teamId lookup is retained: the
-      // create-success audit below reads the AUTHORITATIVE teamId from it.
-      let createdForQuota: { teamId: string | null } | null = null;
-      try {
-        createdForQuota = await prisma.evidence.findUnique({
-          where: { id: result.id },
-          select: { teamId: true },
-        });
-      } catch {
-        /* audit-only lookup; never blocks evidence creation */
-      }
-
-      auditEvidenceAction(req, {
-        userId: ownerUserId,
-        action: "evidence.create",
-        outcome: "success",
-        resourceId: result.id,
-        teamId: createdForQuota?.teamId ?? null,
-        metadata: {
-          type: body.type,
-          mimeType: body.mimeType ?? null,
-          hasGps: Boolean(body.gps),
-          captureSessionId: body.captureSessionId ?? null,
-        },
-      });
+      // UC-ARCH-003 — the evidence.create success audit is recorded by the
+      // canonical writer (createEvidence) for every channel.
 
       // Enterprise Capture Environment layer — record the privacy-safe
       // PROOVRA upload environment (parsed browser/OS/device + timezone /
@@ -5613,33 +5698,8 @@ intakePlanJson:
         });
       }
 
-      // Phase 9.5 — apply workspace retention policy on create. Resolves
-      // the workspace's defaultRetentionDays; only sets retentionUntilUtc
-      // when it is longer than any existing explicit retention. Never
-      // shortens. Failure-safe: if the policy lookup fails the evidence
-      // creation has already succeeded — retention application is
-      // observability and can be re-run later.
-      try {
-        const createdEvidence = await prisma.evidence.findUnique({
-          where: { id: result.id },
-          select: { teamId: true, retentionUntilUtc: true },
-        });
-        if (createdEvidence?.teamId) {
-          const { applyRetentionPolicyOnCreate } = await import(
-            "../services/governance.service.js"
-          );
-          await applyRetentionPolicyOnCreate({
-            evidenceId: result.id,
-            teamId: createdEvidence.teamId,
-            existingRetentionUntilUtc: createdEvidence.retentionUntilUtc ?? null,
-          });
-        }
-      } catch (err) {
-        req.log?.warn?.(
-          { err, evidenceId: result.id },
-          "governance.retention.apply_failed",
-        );
-      }
+      // UC-ARCH-002 — workspace retention is applied by createEvidence (the
+      // canonical writer) for every channel.
 
       // Phase T — propagate the canonical template-identity trio
       // (templateSlug + templateVersion + optional templateDbId) from the
@@ -5705,44 +5765,36 @@ intakePlanJson:
         }
       }
 
-      // If this Evidence was created from a CaptureSession draft, finalize the
-      // draft so the audit trail is preserved (DRAFT → FINALIZED). Failures
-      // here must NOT fail the create; the draft can be reaped/cleaned later.
+      // UC-WEB-001 — BIND the draft to the record it reserved. The draft stays
+      // DRAFT (still listed as an unfinished session, still resumable): the
+      // canonical finalization authority moves it to FINALIZED when the record
+      // is sealed. Binding is conditional, so two racing creates bind one.
       if (body.captureSessionId) {
         try {
-          const draft = await prisma.captureSession.findUnique({
-            where: { id: body.captureSessionId },
+          const bound = await prisma.captureSession.updateMany({
+            where: {
+              id: body.captureSessionId,
+              ownerUserId,
+              status: prismaPkg.CaptureSessionStatus.DRAFT,
+              acquisitionMode: null,
+              OR: [{ finalizedEvidenceId: null }, { finalizedEvidenceId: { not: result.id } }],
+            },
+            data: { finalizedEvidenceId: result.id },
           });
-          if (
-            draft &&
-            draft.ownerUserId === ownerUserId &&
-            draft.status === prismaPkg.CaptureSessionStatus.DRAFT
-          ) {
-            await prisma.$transaction(async (tx) => {
-              await tx.captureSession.update({
-                where: { id: draft.id },
-                data: {
-                  status: prismaPkg.CaptureSessionStatus.FINALIZED,
-                  finalizedEvidenceId: result.id,
-                  finalizedAtUtc: new Date(),
-                },
-              });
-              await tx.captureSessionEvent.create({
-                data: {
-                  sessionId: draft.id,
-                  actorUserId: ownerUserId,
-                  eventType: prismaPkg.CaptureSessionEventType.FINALIZED,
-                  payload: {
-                    evidenceId: result.id,
-                  } as prismaPkg.Prisma.InputJsonValue,
-                },
-              });
+          if (bound.count === 1) {
+            await prisma.captureSessionEvent.create({
+              data: {
+                sessionId: body.captureSessionId,
+                actorUserId: ownerUserId,
+                eventType: prismaPkg.CaptureSessionEventType.UPDATED,
+                payload: { evidenceId: result.id, reason: "record_reserved" } as prismaPkg.Prisma.InputJsonValue,
+              },
             });
           }
         } catch (sessionErr) {
           req.log?.warn?.(
             { err: sessionErr, captureSessionId: body.captureSessionId, evidenceId: result.id },
-            "capture_session_finalize_link_failed"
+            "capture_session_bind_failed"
           );
         }
       }
@@ -6088,6 +6140,9 @@ const storage = await getStorageProtectionSummary(
       // ET-ACQ-07 — each call mints a presigned upload URL; bounded per user.
       const partRate = await enforceRateLimit({
         key: `ratelimit:evidence-part-presign:user:${ownerUserId}`,
+        // UC-SEC-006 — a bound on minting write URLs is only meaningful if every
+        // replica shares it: decided by the shared store or refused.
+        bound: "global",
         max: readPositiveIntEnv("EVIDENCE_PART_PRESIGN_RATE_LIMIT_PER_USER", 600),
         windowSec: readPositiveIntEnv("EVIDENCE_PART_PRESIGN_RATE_WINDOW_SEC", 3600),
       });
@@ -6119,6 +6174,10 @@ let evidence: SelectedEvidence;
 try {
   evidence = await getEvidenceWithRecordAccess(ownerUserId, id, "evidence.update_metadata");
   assertEvidenceNotLocked(evidence);
+  // UC-ARCH-005 — an intake record receives files only from its contributor,
+  // through the intake session; its owner of record (the link creator) cannot
+  // add parts to a contributor's in-flight submission here.
+  await assertNotIntakeBoundRecord(id);
 
   // PHASE 10 §13.2 STEP 6 (2026-07-23) — NO-PERSONAL enforcement on ADDING a
   // part. Personal scope = teamId null (legacy) OR the evidence's Team is the
@@ -7435,16 +7494,38 @@ return {
                 throw new Error(caseAuth.status === 404 ? "Case not found" : "Forbidden");
               }
             }
+            // UC-CASE-001 — a record leaves NONE of its cases when any of them
+            // is under an active case hold (decided before any detach; each
+            // detach re-checks under the case row lock).
+            {
+              const held = await prisma.evidenceLegalHold
+                .count({
+                  where: {
+                    caseId: { in: evidenceCaseLinks.map((l) => l.caseId) },
+                    status: "ACTIVE",
+                    OR: [{ scope: "CASE" }, { historical: true }],
+                  },
+                })
+                .catch(() => null);
+              if (held === null) throw new Error("LEGAL_HOLD_STATE_UNAVAILABLE");
+              if (held > 0) throw new Error("LEGAL_HOLD_BLOCKED");
+            }
             // Detach through the CANONICAL case-evidence authority. Leaving a
             // case never changes the record's workspace (ET-SEC-02).
             for (const link of evidenceCaseLinks) {
-              await detachEvidenceFromCase({
-                caseId: link.caseId,
-                evidenceId,
-                actorUserId: userId,
-                ipAddress: req.ip,
-                userAgent: normalizeUserHeader(req),
-              });
+              try {
+                await detachEvidenceFromCase({
+                  caseId: link.caseId,
+                  evidenceId,
+                  actorUserId: userId,
+                  ipAddress: req.ip,
+                  userAgent: normalizeUserHeader(req),
+                });
+              } catch (err) {
+                const refusal = caseUnlinkRefusal(err);
+                if (refusal) throw new Error(refusal.body.code);
+                throw err;
+              }
             }
             const updated = await prisma.evidence.findUniqueOrThrow({
               where: { id: evidenceId },
@@ -9088,7 +9169,7 @@ return {
           allCustodyEvents,
           latestReport,
           latestVerificationPackage,
-          caseItem,
+          viewerCases,
           publicVerifyCount,
           lastPublicVerify,
           authenticatedVerifyCount,
@@ -9181,12 +9262,10 @@ return {
               sealSigningKeySha256: true,
             },
           }),
-          primaryCaseIdOf(evidence)
-            ? prisma.case.findUnique({
-                where: { id: primaryCaseIdOf(evidence)! },
-                select: { id: true, name: true, teamId: true },
-              })
-            : Promise.resolve(null),
+          // UC-CASE-005 — every linked case the VIEWER may open (narrowed by
+          // the canonical case-access rule), not just the earliest link read
+          // without any access check.
+          resolveViewerCasesForEvidence(ownerUserId, id),
           prisma.verificationView.count({
             where: {
               evidenceId: id,
@@ -9691,7 +9770,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
 
         const sourceContext = buildSourceContext({ evidence, parts });
         // `artifactStatus` is resolved once, above, before its first consumer.
-        const primaryCaseId = primaryCaseIdOf(evidence);
+        const caseItem = viewerCases[0]
+          ? { id: viewerCases[0].caseId, name: viewerCases[0].caseName }
+          : null;
+        const primaryCaseId = caseItem?.id ?? null;
         const relatedEvidenceCount = primaryCaseId
           ? await prisma.evidence.count({
               where: {
@@ -10009,8 +10091,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
               },
             },
             relationships: {
-              caseId: caseItem?.id ?? primaryCaseId ?? null,
+              // Deprecated single-case alias: the first case the viewer may open.
+              caseId: caseItem?.id ?? null,
               caseName: caseItem?.name ?? null,
+              cases: viewerCases,
               relatedEvidenceCount,
               multipart: content.summary.structure === "multipart",
               itemCount: content.summary.itemCount,
@@ -10483,7 +10567,15 @@ try {
       }
 
       try {
-        const result = await completeEvidence({ evidenceId: id, ownerUserId });
+        const result = await completeEvidence({
+          evidenceId: id,
+          ownerUserId,
+          requestContext: {
+            ip: req.ip,
+            userAgent: readUserAgent(req),
+            correlationId: req.id ?? null,
+          },
+        });
 
         // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE DUPLICATE STORAGE
         // QUOTA AUTHORITY WAS DELETED HERE.
@@ -10500,82 +10592,10 @@ try {
         // silently capped every shared workspace at 1 GiB a month regardless
         // of what it had bought. One authority now owns storage.
 
-        // A duplicate complete records nothing new (2026-09-29, audit D11).
-        if (!result.alreadyFinalized) {
-          await appendCustodyEvent({
-            evidenceId: id,
-            eventType: prismaPkg.CustodyEventType.EVIDENCE_COMPLETED,
-            payload: {
-              completedByUserId: ownerUserId,
-              completedAtUtc: new Date().toISOString(),
-            } as Prisma.InputJsonValue,
-            ip: req.ip,
-            userAgent: req.headers["user-agent"],
-          }).catch(noteCustodyFailure);
-        }
-
-        // Initialize the EvidenceReviewWorkflow at NOT_STARTED so the
-        // evidence shows up in the reviewer queue immediately on completion.
-        // upsert is idempotent — replays / re-completions don't create duplicates.
-        //
-        // Phase T — read the canonical template-identity trio off the
-        // Evidence row (which was stamped at create time on the capture
-        // path). Thread it into the upsert so the workflow row carries
-        // the same trio. Legacy evidence with NULL trio writes NULL
-        // workflow trio — never throws.
-        try {
-          const evidenceForWorkflow = await prisma.evidence.findUnique({
-            where: { id },
-            select: {
-              teamId: true,
-              ownerUserId: true,
-              templateSlug: true,
-              templateVersion: true,
-              templateDbId: true,
-            },
-          });
-          if (evidenceForWorkflow) {
-            // Phase T — build the trio defensively. We accept that any
-            // field may be NULL (legacy evidence created before Phase T,
-            // or direct uploads with no template attached). When all
-            // three are NULL the upsert writes NULL columns and skips
-            // the audit emission.
-            let workflowTrio: TemplateIdentityTrio | null = null;
-            try {
-              workflowTrio = {
-                templateSlug: evidenceForWorkflow.templateSlug ?? null,
-                templateVersion: evidenceForWorkflow.templateVersion ?? null,
-                templateDbId: evidenceForWorkflow.templateDbId ?? null,
-              };
-            } catch (trioReadErr) {
-              req.log?.warn?.(
-                { err: trioReadErr, evidenceId: id },
-                "reviewer_workflow_trio_read_failed",
-              );
-              workflowTrio = {
-                templateSlug: null,
-                templateVersion: null,
-                templateDbId: null,
-              };
-            }
-            await upsertEvidenceReviewerWorkflow({
-              evidenceId: id,
-              workspaceType: evidenceForWorkflow.teamId ? "TEAM" : "PERSONAL",
-              teamId: evidenceForWorkflow.teamId,
-              actorUserId: ownerUserId,
-              status: prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED,
-              priority: prismaPkg.EvidenceReviewWorkflowPriority.NORMAL,
-              note: "Created automatically on Capture finalization.",
-              templateIdentity: workflowTrio,
-              templateIdentitySource: "capture",
-            });
-          }
-        } catch (workflowErr) {
-          req.log?.warn?.(
-            { err: workflowErr, evidenceId: id },
-            "capture_finalize_workflow_init_failed"
-          );
-        }
+        // UC-ARCH-003 — the EVIDENCE_COMPLETED custody event, the reviewer
+        // workflow and the evidence.complete tenant audit are written by the
+        // canonical finalization authority (completeEvidence and its once-only
+        // fan-out) for every channel. This route no longer writes its own copy.
 
         const refreshed = await prisma.evidence.findUnique({
           where: { id },
@@ -10585,19 +10605,6 @@ try {
         if (!refreshed) {
           return reply.code(404).send({ message: "Evidence not found" });
         }
-
-        auditEvidenceAction(req, {
-          userId: ownerUserId,
-          action: "evidence.complete",
-          outcome: "success",
-          resourceId: id,
-          teamId: refreshed.teamId,
-          metadata: {
-            status: refreshed.status,
-            verificationStatus: refreshed.verificationStatus,
-            result: "completed",
-          },
-        });
 
         const storage = await getStorageProtectionSummary(
           refreshed.storageBucket,
@@ -10835,6 +10842,31 @@ if (
           });
 
           return reply.code(409).send(payload);
+        }
+
+        // UC-ARCH-005 / UC-COM-001 — governed refusals of the finalization
+        // authority: an intake record sealed outside its submission, or an
+        // expired reservation. Expected denials, answered and audited as such.
+        {
+          const code = (err as { code?: unknown }).code;
+          if (code === "INTAKE_SUBMISSION_REQUIRED" || code === "EVIDENCE_RESERVATION_EXPIRED") {
+            auditEvidenceAction(req, {
+              userId: ownerUserId,
+              action: "evidence.complete",
+              outcome: "blocked",
+              severity: "warning",
+              resourceId: id,
+              teamId: evidence.teamId,
+              metadata: { reason: code },
+            });
+            return reply.code(409).send({
+              code,
+              message:
+                code === "INTAKE_SUBMISSION_REQUIRED"
+                  ? "This record is sealed only through its intake submission."
+                  : "This capture's reservation expired before it was finalized. Start the capture again.",
+            });
+          }
         }
 
         auditEvidenceAction(req, {
@@ -12554,6 +12586,8 @@ action: "evidence.certification_requested",
       key: ipKey,
       max: limit.max,
       windowSec: limit.windowSec,
+      // UC-SEC-006 — one budget across every replica, never a per-process count.
+      bound: "global",
     });
 
     if (!ipRate.allowed) {
@@ -12649,6 +12683,7 @@ action: "evidence.certification_requested",
       member: trustedClientIpKey(req),
       max: perEvidenceLimit.max,
       windowSec: perEvidenceLimit.windowSec,
+      bound: "global",
     });
 
     if (!perEvidenceRate.allowed) {
@@ -13048,7 +13083,8 @@ action: "evidence.certification_requested",
           version: evidence.signingKeyVersion,
         },
       },
-      select: { publicKeyPem: true },
+      // UC-TRUST-003 — revocation is read, not ignored.
+      select: { publicKeyPem: true, revokedAt: true },
     });
 
     if (!signingKey) {
@@ -13343,16 +13379,69 @@ await recordOriginalRelease({
     const canonicalHashMatches =
       recomputedFingerprintHash === evidence.fingerprintHash;
 
-    let signatureValid = false;
+    let signatureCryptographicallyValid = false;
     try {
-      signatureValid = ed25519VerifyHexSignature({
+      signatureCryptographicallyValid = ed25519VerifyHexSignature({
         messageHex: recomputedFingerprintHash,
         signatureBase64: evidence.signatureBase64,
         publicKeyPem: signingKey.publicKeyPem,
       });
     } catch {
-      signatureValid = false;
+      signatureCryptographicallyValid = false;
     }
+    // UC-TRUST-003 — a signature made with a REVOKED key is not presented as a
+    // valid signature: the key can no longer vouch for anything. The revocation
+    // time is surfaced so a reviewer sees "signed with a key revoked at T".
+    const signingKeyRevokedAtUtc = signingKey.revokedAt ? signingKey.revokedAt.toISOString() : null;
+    const signatureValid = signatureCryptographicallyValid && signingKeyRevokedAtUtc === null;
+
+    const publicVerifyTrustShared = await import("@proovra/shared");
+    // UC-TRUST-001 — the unsigned digest columns must agree with the digests
+    // the signed fingerprint certifies; a disagreement is an integrity failure.
+    const digestColumnsMatchSignedFingerprint = publicVerifyTrustShared.digestColumnsMatchSignedFingerprint(
+      {
+        fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
+        fileSha256: evidence.fileSha256,
+        parts: (
+          await prisma.evidencePart.findMany({
+            where: { evidenceId: id },
+            select: { partIndex: true, sha256: true },
+          })
+        ).map((p) => ({ partIndex: p.partIndex, sha256: p.sha256 ?? null })),
+      },
+      sha256Hex,
+    );
+
+    /*
+     * ET-SM-07 / UC-TRUST-005 / UC-TRUST-008 — THE STORED BYTES. The checks
+     * above are made over PROOVRA's signed records; whether the stored file
+     * (its pinned version) still matches the signed digest is only as fresh as
+     * the last recheck. Only a passing recheck inside the short freshness
+     * window is current; anything else asks the recheck authority for one now
+     * (idempotent) and says "pending"/"last verified" rather than "Verified".
+     * The state is an INPUT to the verdict below, not a row beside it.
+     */
+    const storedBytesCheckedAt = new Date();
+    let storedBytes = readStoredBytesIntegrity(evidence, storedBytesCheckedAt);
+    if (storedBytes.state !== "verified_current" && storedBytes.state !== "failed") {
+      const requested = await requestIntegrityRecheck(prisma, evidence.id, storedBytesCheckedAt).catch(() => false);
+      if (requested) {
+        storedBytes = readStoredBytesIntegrity(
+          {
+            status: evidence.status,
+            integrityVerifiedAtUtc: evidence.integrityVerifiedAtUtc,
+            integrityCheckedAtUtc: evidence.integrityCheckedAtUtc,
+            integrityCheckOutcome: evidence.integrityCheckOutcome,
+            integrityCheckFailureCode: evidence.integrityCheckFailureCode,
+            integrityRecheckRequestedAtUtc: storedBytesCheckedAt,
+            storageVersionId: evidence.storageVersionId ?? null,
+            fileSha256: evidence.fileSha256 ?? null,
+          },
+          storedBytesCheckedAt,
+        );
+      }
+    }
+    const storedBytesContradict = publicVerifyTrustShared.storedBytesIntegrityContradicts(storedBytes);
 
 // ET-TSA-01: a STAMPED row whose token was never validated is presented as
 // RECORDED_NOT_VALIDATED — never as a trusted timestamp.
@@ -13476,8 +13565,18 @@ const liveTrustDecision = buildEvidenceTrustDecision({
 // ET-SEC-10 (Invariant F) — a stored snapshot is what was true when the
 // report/package was issued. When the LIVE hash, signature or custody check
 // fails now, the live decision is the truth and the snapshot may not mask it.
-const liveCoreChecksFailed = !(canonicalHashMatches && signatureValid && custodyChain.valid);
-const trustDecision = liveCoreChecksFailed ? liveTrustDecision : snapshotTrustDecision ?? liveTrustDecision;
+const liveCoreChecksFailed =
+  !(canonicalHashMatches && signatureValid && custodyChain.valid) ||
+  storedBytesContradict ||
+  digestColumnsMatchSignedFingerprint === false;
+// UC-TRUST-005 — the stored-bytes state is an input to the headline: a gone or
+// substituted original forces review; one not re-verified inside the freshness
+// window never keeps a "high reliance" verdict.
+const trustDecision = publicVerifyTrustShared.applyStoredBytesToTrustDecision(
+  liveCoreChecksFailed ? liveTrustDecision : snapshotTrustDecision ?? liveTrustDecision,
+  storedBytes,
+  { digestColumnsMatchSignedFingerprint },
+);
 const trustDecisionConsistencySource = !liveCoreChecksFailed && snapshotTrustDecision
   ? latestReport?.trustDecisionSnapshot
     ? "REPORT_SNAPSHOT"
@@ -13491,7 +13590,10 @@ const overallIntegrity =
   signatureValid &&
   custodyChain.valid &&
   !timestampLayerBlocksIntegrity &&
-  otsHashMatches !== false;
+  otsHashMatches !== false &&
+  // UC-TRUST-001 / UC-TRUST-005 — the stored bytes and the digest columns.
+  digestColumnsMatchSignedFingerprint !== false &&
+  !storedBytesContradict;
 
     const verifiedAt = new Date();
     const responseVerificationStatus = evidence.verificationStatus ?? null;
@@ -13824,10 +13926,18 @@ verificationPackageVersion:
       overallIntegrity,
     });
 
-    const integrityProof: PublicVerifyIntegrityProof = {
+    const integrityProof: PublicVerifyIntegrityProof & {
+      digestColumnsMatchSignedFingerprint: boolean | null;
+      signingKeyRevokedAtUtc: string | null;
+      storedBytesCheck: string;
+    } = {
   overallIntegrity,
   canonicalHashMatches,
   signatureValid,
+  // UC-TRUST-001 / 003 / 008 — what the verdict also rests on.
+  digestColumnsMatchSignedFingerprint,
+  signingKeyRevokedAtUtc,
+  storedBytesCheck: publicVerifyTrustShared.storedBytesCheckStatusOf(storedBytes),
   custodyChainValid: custodyChain.valid,
   custodyChainMode: custodyChain.mode,
   custodyChainFailureReason: custodyChain.reason,
@@ -14031,6 +14141,22 @@ const acquisition = await (async () => {
   }
 })();
 
+// UC-PROV-003 — the validated capture-manifest facts the capture client
+// reported, DATA-MINIMIZED for the public page (publicCaptureManifestFacts
+// drops the private source URL and page title; the domain remains). Never
+// throws; null when the record has no manifest facts.
+const captureManifest = await (async () => {
+  try {
+    const { loadProvenanceChain } = await import("@proovra/shared-runtime");
+    const chain = await loadProvenanceChain(prisma, evidence.id);
+    return chain.captureManifestFacts
+      ? publicVerifyTrustShared.publicCaptureManifestFacts(chain.captureManifestFacts)
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
 // PHASE 12B (Evidence Operations) — bounded public-safe redaction
 // projection. This is the CANONICAL public home of the redaction
 // verification badge: the anonymous evidenceId probe
@@ -14095,34 +14221,12 @@ const pairedPackageForBasic = latestReport
       },
     })
   : null;
-/*
- * ET-SM-07 — THE STORED BYTES ARE A SEPARATE STATEMENT. The checks above are
- * made over PROOVRA's signed records. Whether the stored file itself still
- * matches its signed hash is only as fresh as the last recheck, so it is
- * stated with its own state and date: only a recheck inside the cadence is
- * presented as current. Anything else asks the recheck authority for one now
- * (idempotent), and says "pending" rather than nothing.
- */
-let storedBytes = readStoredBytesIntegrity(evidence, verifiedAt);
-if (storedBytes.state !== "verified_current" && storedBytes.state !== "failed") {
-  const requested = await requestIntegrityRecheck(prisma, evidence.id, verifiedAt).catch(() => false);
-  if (requested) {
-    storedBytes = readStoredBytesIntegrity(
-      {
-        status: evidence.status,
-        integrityVerifiedAtUtc: evidence.integrityVerifiedAtUtc,
-        integrityCheckedAtUtc: evidence.integrityCheckedAtUtc,
-        integrityCheckOutcome: evidence.integrityCheckOutcome,
-        integrityCheckFailureCode: evidence.integrityCheckFailureCode,
-        integrityRecheckRequestedAtUtc: verifiedAt,
-      },
-      verifiedAt,
-    );
-  }
-}
+// ET-SM-07 — `storedBytes` was resolved (and a recheck requested when it is
+// not current) above, before the verdict, because it is an input to it.
 const basicVerification = buildBasicVerification({
   now: verifiedAt,
   storedBytes,
+  digestColumnsMatchSignedFingerprint,
   integrity: {
     fingerprintMatches: canonicalHashMatches,
     signatureValid,
@@ -14130,7 +14234,10 @@ const basicVerification = buildBasicVerification({
   },
   fileSha256: evidence.fileSha256 ?? null,
   fingerprintHash: evidence.fingerprintHash ?? null,
+  // UC-PROV-001 — the server clock at record creation; projected as
+  // `serverReceivedAtUtc`, never as a device-declared capture time.
   capturedAtUtc: evidence.capturedAtUtc ?? null,
+  deviceTimeIso: evidence.deviceTimeIso ?? null,
   signedAtUtc: evidence.signedAtUtc ?? null,
   tsaStatus: presentedTsa ?? null,
   tsaImprintMatches: timestampDigestMatches ?? null,
@@ -14203,6 +14310,8 @@ return reply.code(200).send({
   evidenceId: evidence.id,
   mediaIntelligenceAdvisory,
   acquisition,
+  // UC-PROV-003 — reported by the capture client; public-safe (no source URL / title).
+  captureManifest,
   // PHASE 12B — redaction verification badge (converged from the
   // deleted anonymous /v1/redaction/public/verify/:evidenceId probe).
   redaction,
@@ -14288,6 +14397,8 @@ defaultPreviewItemId: defaultPreviewItem?.id ?? null,
     storage: storageProtection,
     tsa: {
       status: presentedTsa,
+      // UC-TRUST-002 — VALIDATED / RECORDED_NOT_VALIDATED / FAILED / …
+      proofStatus: publicVerifyTrustShared.resolveTsaProofStatus(evidence),
       provider: evidence.tsaProvider,
       url: evidence.tsaUrl,
       serialNumber: evidence.tsaSerialNumber,
@@ -14339,9 +14450,34 @@ timestampedDigestNote:
         proofPresent: Boolean(evidence.otsProofBase64),
         bitcoinTxid: evidence.otsBitcoinTxid ?? null,
       }),
+      // UC-TRUST-002 — the one OTS status every surface shows.
+      proofStatus: publicVerifyTrustShared.resolveOtsProofStatus({
+        status: evidence.otsStatus,
+        anchoredAtUtc: effectiveOtsAnchoredAtUtc,
+        anchorCheck: evidence.otsAnchorCheck,
+        proofPresent: Boolean(evidence.otsProofBase64),
+        bitcoinTxid: evidence.otsBitcoinTxid ?? null,
+        upgradedAtUtc: evidence.otsUpgradedAtUtc,
+        submittedAtUtc: evidence.signedAtUtc,
+        now: verifiedAt,
+      }),
     },
     anchor,
   },
+  // UC-PROV-001 — every time, named by what observed it.
+  provenanceTime: publicVerifyTrustShared.buildProvenanceTimeline({
+    serverReceivedAtUtc: evidence.capturedAtUtc,
+    recordCreatedAtUtc: evidence.createdAt,
+    finalizedAtUtc: evidence.signedAtUtc,
+    deviceTimeIso: evidence.deviceTimeIso ?? null,
+    tsa: { status: evidence.tsaStatus, validatedAtUtc: evidence.tsaValidatedAtUtc, genTimeUtc: evidence.tsaGenTimeUtc },
+    ots: {
+      status: evidence.otsStatus,
+      anchoredAtUtc: effectiveOtsAnchoredAtUtc,
+      anchorCheck: evidence.otsAnchorCheck,
+      bitcoinTxid: evidence.otsBitcoinTxid ?? null,
+    },
+  }),
   technicalMaterials,
   versioning,
 });

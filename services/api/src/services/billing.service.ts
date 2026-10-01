@@ -138,25 +138,54 @@ export function listStorageAddonDefinitions() {
   return [...STORAGE_ADDON_DEFINITIONS];
 }
 
+/**
+ * THE writer of a user's initial active entitlement (UC-COM-004).
+ *
+ * It was check-then-create with no uniqueness, so two concurrent first
+ * requests inserted two ACTIVE entitlements and the wallet/plan readers could
+ * disagree about which one holds a purchase. The check and the insert now run
+ * in ONE transaction under a per-user advisory lock, so concurrent callers
+ * serialise and exactly one row is created; the requested partial unique index
+ * (entitlements(user_id) WHERE active) is the database backstop, and a unique
+ * violation from it is answered with the winner's row.
+ */
 export async function ensureEntitlement(userId: string) {
   const existing = await prisma.entitlement.findFirst({
     where: { userId, active: true },
     orderBy: { createdAt: "desc" },
   });
+  if (existing) return existing;
 
-  if (existing) {
-    return existing;
-  }
-
-  const created = await prisma.entitlement.create({
-    data: {
-      userId,
-      plan: prismaPkg.PlanType.FREE,
-      credits: 0,
-      teamSeats: 0,
-      active: true,
-    },
-  });
+  const outcome = await prisma
+    .$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`entitlement:${userId}`}))`;
+      const winner = await tx.entitlement.findFirst({
+        where: { userId, active: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (winner) return { row: winner, created: false };
+      const row = await tx.entitlement.create({
+        data: {
+          userId,
+          plan: prismaPkg.PlanType.FREE,
+          credits: 0,
+          teamSeats: 0,
+          active: true,
+        },
+      });
+      return { row, created: true };
+    })
+    .catch(async (err: unknown) => {
+      if ((err as { code?: string }).code !== "P2002") throw err;
+      const row = await prisma.entitlement.findFirst({
+        where: { userId, active: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!row) throw err;
+      return { row, created: false };
+    });
+  if (!outcome.created) return outcome.row;
+  const created = outcome.row;
 
   await trackBillingEvent({
     eventType: "billing_plan_changed",

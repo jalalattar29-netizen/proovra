@@ -386,6 +386,8 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         key: `ratelimit:capture:direct-session:open:${userId}`,
         max: DIRECT_SESSION_OPEN_LIMIT_PER_MIN,
         windowSec: 60,
+        // UC-SEC-006 — one bound across replicas (shared store or refused), never per replica.
+        bound: "global",
       });
       if (!rate.allowed) {
         return reply.code(429).send({ denial: "RATE_LIMITED" });

@@ -30,6 +30,8 @@ import {
   attachEvidenceToCase,
   detachEvidenceFromCase,
   detachAllEvidenceFromCase,
+  caseUnlinkRefusal,
+  CaseEvidenceAuthorityError,
 } from "../services/cases/case-evidence-link.service.js";
 // Phase O-blockers / A-1 + A-2 — destructive-case mutation gate and
 // cross-team evidence attach gate. Single source of truth in the
@@ -1440,15 +1442,26 @@ export async function casesRoutes(app: FastifyInstance) {
       // re-attaching an already-linked record is a no-op success.
       // (The old direct write also stamped teamId, which the strict
       // cross-team equality gate above had already made a no-op.)
-      await attachEvidenceToCase({
-        caseId: id,
-        evidenceId: body.evidenceId,
-        actorUserId: userId,
-        role: "PRIMARY",
-        source: "USER",
-        ipAddress: req.ip,
-        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
-      });
+      try {
+        await attachEvidenceToCase({
+          caseId: id,
+          evidenceId: body.evidenceId,
+          actorUserId: userId,
+          role: "PRIMARY",
+          source: "USER",
+          ipAddress: req.ip,
+          userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        });
+      } catch (err) {
+        // UC-CASE-002 — an authority refusal is an answer, never a 500: every
+        // record-side refusal is the anti-enumeration 404, a missing case 404.
+        if (err instanceof CaseEvidenceAuthorityError) {
+          return reply
+            .code(404)
+            .send({ message: err.code === "case_not_found" ? "Case not found" : "Evidence not found" });
+        }
+        throw err;
+      }
 
       const updatedRow = await prisma.evidence.findUniqueOrThrow({
         where: { id: body.evidenceId },
@@ -1568,14 +1581,31 @@ export async function casesRoutes(app: FastifyInstance) {
       // NOTHING binds the pair (no link row, caseId points elsewhere)
       // the service performs ZERO mutation and reports detached:false,
       // which this route surfaces as the historical 400.
-      const detachResult = await detachEvidenceFromCase({
-        caseId: id,
-        evidenceId,
-        actorUserId: userId,
-        // Leaving a case never changes the record's workspace (ET-SEC-02).
-        ipAddress: req.ip,
-        userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
-      });
+      let detachResult: Awaited<ReturnType<typeof detachEvidenceFromCase>>;
+      try {
+        detachResult = await detachEvidenceFromCase({
+          caseId: id,
+          evidenceId,
+          actorUserId: userId,
+          // Leaving a case never changes the record's workspace (ET-SEC-02).
+          ipAddress: req.ip,
+          userAgent: (req.headers["user-agent"] as string | undefined) ?? null,
+        });
+      } catch (err) {
+        // UC-CASE-001 — refused under an active case hold (zero mutation).
+        const refusal = caseUnlinkRefusal(err);
+        if (!refusal) throw err;
+        auditCaseAction(req, {
+          userId,
+          action: "cases.remove_evidence",
+          outcome: "blocked",
+          severity: "warning",
+          resourceId: id,
+          teamId: caseItem.teamId,
+          metadata: { reason: refusal.body.code, evidenceId },
+        });
+        return reply.code(refusal.status).send(refusal.body);
+      }
 
       if (!detachResult.detached) {
         auditCaseAction(req, {

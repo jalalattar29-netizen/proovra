@@ -27,6 +27,7 @@ import {
   attachEvidenceToCase,
   detachEvidenceFromCase,
   CaseEvidenceAuthorityError,
+  caseUnlinkRefusalError,
 } from "./case-evidence-link.service.js";
 
 export type CaseErrorCode =
@@ -684,17 +685,22 @@ export async function removeEvidenceLink(
   if (!existing) throw new CaseError("evidence_not_found");
   // Track 1B — detach through the CANONICAL authority: link removal +
   // legacy Evidence.caseId re-sync + tenant-audit in ONE transaction.
-  await detachEvidenceFromCase(
-    {
-      caseId: input.caseId,
-      evidenceId: existing.evidenceId,
-      actorUserId: input.actorUserId,
-      auditMetadata: { role: existing.role, linkId: existing.id },
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
-    },
-    client,
-  );
+  try {
+    await detachEvidenceFromCase(
+      {
+        caseId: input.caseId,
+        evidenceId: existing.evidenceId,
+        actorUserId: input.actorUserId,
+        auditMetadata: { role: existing.role, linkId: existing.id },
+        ipAddress: input.ipAddress ?? null,
+        userAgent: input.userAgent ?? null,
+      },
+      client,
+    );
+  } catch (err) {
+    // UC-CASE-001 — refused under an active case hold (409) / unreadable hold state (503).
+    throw caseUnlinkRefusalError(err) ?? err;
+  }
   return { removed: true };
 }
 

@@ -546,65 +546,14 @@ describe("Phase 30.8 — multipart API-key routes", () => {
     }
   });
 
-  // The API-key file has multiple "Phase 30.8" mentions (the
-  // markPartUploaded etag wiring inside the existing route).
-  // Anchor on the section header instead.
-  const apiMultipartSectionStart = src.indexOf(
-    "Phase 30.8 — API-key S3 NATIVE MULTIPART ROUTES",
-  );
-
-  it("API-key file contains the dedicated multipart routes section", () => {
-    expect(apiMultipartSectionStart).toBeGreaterThan(-1);
-  });
-
-  it("every multipart route requires requireApiKey + integration.evidence.upload scope", () => {
-    const block = src.slice(apiMultipartSectionStart);
-    const audits = block.match(/runWithApiAudit\(req,\s*reply,\s*"multipart\.\w+"/g) ?? [];
-    expect(audits.length).toBe(4);
-    const apiKeyCalls = block.match(/await requireApiKey\(req, reply\)/g) ?? [];
-    expect(apiKeyCalls.length).toBe(4);
-    const scopeCalls = block.match(
-      /requireApiScope\(req,\s*reply,\s*"integration\.evidence\.upload"\)/g,
-    ) ?? [];
-    expect(scopeCalls.length).toBe(4);
-  });
-
-  it("teamId always sourced from cred.teamId — never body / query / path", () => {
-    const block = src.slice(apiMultipartSectionStart);
-    const serviceCalls = block.match(
-      /(initiateStorageMultipart|presignStorageUploadPart|completeStorageMultipart|abortStorageMultipart)\(\{[\s\S]*?\}\)/g,
-    ) ?? [];
-    expect(serviceCalls.length).toBe(4);
-    for (const call of serviceCalls) {
-      expect(call).toMatch(/teamId:\s*cred\.teamId/);
-      expect(call).not.toMatch(/teamId:\s*body\./);
+  // UC-ARCH-004 — the four API-key multipart routes are kept only as 410
+  // retirement answers (phase-30-6-integrations-uploads.test.ts proves it
+  // behaviourally). None may reach the storage lifecycle.
+  it("the API-key multipart routes are retired and reach no storage lifecycle", () => {
+    expect(src).toContain("INTEGRATION_UPLOADS_RETIRED");
+    for (const fn of ["initiateStorageMultipart", "presignStorageUploadPart", "completeStorageMultipart", "abortStorageMultipart"]) {
+      expect(src).not.toContain(fn);
     }
-  });
-
-  it("API responses NEVER project storage_bucket / storage_key / multipart_upload_id", () => {
-    const block = src
-      .slice(apiMultipartSectionStart)
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
-    for (const banned of [
-      "storageBucket",
-      "storage_bucket",
-      "storageKey",
-      "storage_key",
-      "multipartUploadId",
-      "multipart_upload_id",
-    ]) {
-      expect(block, `API multipart routes leak ${banned}`).not.toContain(
-        banned,
-      );
-    }
-  });
-
-  it("every API multipart response carries requestId", () => {
-    const block = src.slice(apiMultipartSectionStart);
-    const requestIds = block.match(/requestId:\s*req\.id\s*\?\?\s*null/g) ?? [];
-    // 4 success responses, each with requestId.
-    expect(requestIds.length).toBeGreaterThanOrEqual(4);
   });
 });
 

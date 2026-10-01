@@ -288,9 +288,15 @@ async function createAndFinalizeEvidence(input: {
     captureFileName: null,
     acquisitionMode: "PROOVRA_WEB_UPLOAD",
   });
+  // UC-ARCH-008 — createEvidence no longer presigns a root URL; the record's
+  // reserved single-object location is read from the row (dev seeding only).
+  const reserved = await prisma.evidence.findUniqueOrThrow({
+    where: { id: created.id },
+    select: { storageBucket: true, storageKey: true },
+  });
   await putObjectBuffer({
-    bucket: created.upload.bucket,
-    key: created.upload.key,
+    bucket: reserved.storageBucket!,
+    key: reserved.storageKey!,
     body: input.bytes,
     contentType: input.mimeType,
   });

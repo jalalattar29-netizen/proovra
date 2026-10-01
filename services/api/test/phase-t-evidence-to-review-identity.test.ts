@@ -624,28 +624,27 @@ function readSource(rel: string): string {
   return readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 }
 
-describe("Phase T — evidence.routes.ts capture-finalize wiring", () => {
+describe("Phase T — capture-finalize wiring (canonical finalization authority)", () => {
   const src = readSource("../src/routes/evidence.routes.ts");
+  // UC-ARCH-003 — the finalize-time reviewer workflow moved out of the web
+  // route into the ONE completion fan-out, so every channel gets it.
+  const completion = readSource("../src/services/evidence-complete.service.ts");
 
   it("reads the trio off the freshly-completed Evidence row before upsert", () => {
-    // The select block at the workflow-init call site must request the
-    // three template columns alongside teamId/ownerUserId.
-    expect(src).toMatch(
-      /select:\s*\{\s*teamId:\s*true,\s*ownerUserId:\s*true,\s*templateSlug:\s*true,\s*templateVersion:\s*true,\s*templateDbId:\s*true/,
-    );
+    expect(completion).toMatch(/templateSlug:\s*true,\s*templateVersion:\s*true,\s*templateDbId:\s*true/);
   });
 
   it("passes templateIdentity + templateIdentitySource into upsertEvidenceReviewerWorkflow", () => {
-    expect(src).toContain("templateIdentity: workflowTrio");
-    expect(src).toMatch(/templateIdentitySource:\s*"capture"/);
+    expect(completion).toMatch(/templateIdentity:\s*\{\s*templateSlug:\s*ev\.templateSlug/);
+    expect(completion).toMatch(/templateIdentitySource:\s*"capture"/);
   });
 
-  it("wraps the trio read in its own try/catch with a non-fatal warn log", () => {
-    expect(src).toContain("reviewer_workflow_trio_read_failed");
+  it("a workflow-init failure is logged and never fails completion", () => {
+    expect(completion).toContain("evidence_complete.workflow_init_failed");
   });
 
-  it("keeps the outer capture_finalize_workflow_init_failed log in place", () => {
-    expect(src).toContain("capture_finalize_workflow_init_failed");
+  it("the web route no longer writes its own copy", () => {
+    expect(src).not.toContain("capture_finalize_workflow_init_failed");
   });
 
   it("manual reviewer-workflow PATCH route also threads the trio with source: direct", () => {

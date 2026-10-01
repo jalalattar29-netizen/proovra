@@ -30,6 +30,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
+import { DomainError } from "../../errors.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.service.js";
 import { evaluateCrossTeamAttach } from "./case-permission.service.js";
@@ -38,7 +39,12 @@ export type CaseEvidenceAuthorityErrorCode =
   | "case_not_found"
   | "evidence_not_found"
   | "evidence_deleted"
-  | "cross_workspace_denied";
+  | "cross_workspace_denied"
+  // UC-CASE-001 — the case carries an ACTIVE case-scoped legal hold; its
+  // evidence scope may not be reduced.
+  | "case_hold_active"
+  // UC-CASE-001 — hold state could not be read: fail closed.
+  | "hold_state_unavailable";
 
 export class CaseEvidenceAuthorityError extends Error {
   code: CaseEvidenceAuthorityErrorCode;
@@ -97,6 +103,32 @@ export type AttachEvidenceToCaseResult = {
 };
 
 /**
+ * UC-CASE-001 — THE preservation gate for any mutation that removes evidence
+ * from a case. A CASE-scoped legal hold covers exactly the records linked to
+ * the case (the effective-hold evaluator resolves holds through the links), so
+ * removing a link silently removes that record from the hold. Refused while an
+ * ACTIVE hold (or an ACTIVE historical hold) names this case.
+ *
+ * Serialised against hold placement on the CASE ROW: this takes the row
+ * FOR UPDATE inside the caller's transaction, and a hold insert references the
+ * case through its foreign key (FOR KEY SHARE), so a hold placed concurrently
+ * either commits first and is seen here, or waits for this unlink to commit.
+ * Fails closed: a hold store that cannot be read refuses the unlink.
+ */
+async function assertCaseNotHeldForUnlinkTx(tx: Prisma.TransactionClient, caseId: string): Promise<void> {
+  let held: number;
+  try {
+    await tx.$queryRaw`SELECT "id" FROM "cases" WHERE "id" = ${caseId}::uuid FOR UPDATE`;
+    held = await tx.evidenceLegalHold.count({
+      where: { caseId, status: "ACTIVE", OR: [{ scope: "CASE" }, { historical: true }] },
+    });
+  } catch {
+    throw new CaseEvidenceAuthorityError("hold_state_unavailable");
+  }
+  if (held > 0) throw new CaseEvidenceAuthorityError("case_hold_active");
+}
+
+/**
  * Atomic, idempotent attach. Repeat attach of the same (case, evidence)
  * pair — with ANY role — is a no-op success and never creates a
  * duplicate active link.
@@ -147,19 +179,22 @@ export async function attachEvidenceToCase(
   }
 
 
-  // Any-role lookup: ONE active link per (case, evidence) pair.
-  const existing = await client.caseEvidenceLink.findFirst({
-    where: { caseId: caseRow.id, evidenceId: evidence.id },
-  });
-  if (existing) {
-    // Already linked — idempotent no-op success.
-    return { created: false, link: existing as LinkRow };
-  }
-
   const role = (input.role ?? "PRIMARY") as Prisma.CaseEvidenceLinkCreateInput["role"];
   const source = (input.source ?? "USER") as Prisma.CaseEvidenceLinkCreateInput["source"];
 
-  const link = await client.$transaction(async (tx) => {
+  // UC-CASE-004 — ONE active link per (case, evidence) pair, decided INSIDE the
+  // transaction under a per-pair advisory lock: the any-role lookup used to run
+  // before the transaction, so two concurrent attaches (even with different
+  // roles) both inserted. Concurrent callers now serialise; the loser sees the
+  // winner's row and answers the idempotent created:false. (A partial unique
+  // index on (case_id, evidence_id) is requested as the DB backstop; a unique
+  // violation from it is mapped to the same answer.)
+  const outcome = await client.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`case-evidence-link:${caseRow.id}:${evidence.id}`}))`;
+    const existing = await tx.caseEvidenceLink.findFirst({
+      where: { caseId: caseRow.id, evidenceId: evidence.id },
+    });
+    if (existing) return { created: false as const, link: existing as LinkRow };
     const created = await tx.caseEvidenceLink.create({
       data: {
         teamId: caseRow.teamId,
@@ -193,10 +228,18 @@ export async function attachEvidenceToCase(
       tx as unknown as PrismaClient,
     );
 
-    return created as LinkRow;
+    return { created: true as const, link: created as LinkRow };
+  }).catch(async (err: unknown) => {
+    if ((err as { code?: string }).code === "P2002") {
+      const winner = await client.caseEvidenceLink.findFirst({
+        where: { caseId: caseRow.id, evidenceId: evidence.id },
+      });
+      if (winner) return { created: false as const, link: winner as LinkRow };
+    }
+    throw err;
   });
 
-  return { created: true, link };
+  return outcome;
 }
 
 export type DetachEvidenceFromCaseInput = CaseEvidenceActorContext & {
@@ -242,6 +285,7 @@ export async function detachEvidenceFromCase(
   }
 
   const outcome = await client.$transaction(async (tx) => {
+    await assertCaseNotHeldForUnlinkTx(tx, caseRow.id);
     const res = await tx.caseEvidenceLink.deleteMany({
       where: { caseId: caseRow.id, evidenceId: evidence.id },
     });
@@ -304,6 +348,7 @@ export async function detachAllEvidenceFromCase(
   if (!caseRow) throw new CaseEvidenceAuthorityError("case_not_found");
 
   return client.$transaction(async (tx) => {
+    await assertCaseNotHeldForUnlinkTx(tx, caseRow.id);
     const removed = await tx.caseEvidenceLink.deleteMany({
       where: { caseId: caseRow.id },
     });
@@ -382,4 +427,47 @@ export async function listCasesForEvidence(
     linkedAtUtc: l.linkedAtUtc,
     reason: l.reason ?? null,
   }));
+}
+
+/**
+ * UC-CASE-001 — the ONE HTTP mapping of a preservation refusal, shared by every
+ * route that unlinks evidence from a case (case route, case-workspace links,
+ * evidence bulk). `null` for any other error.
+ */
+export function caseUnlinkRefusal(
+  err: unknown,
+): { status: 409 | 503; body: { code: string; message: string } } | null {
+  if (!(err instanceof CaseEvidenceAuthorityError)) return null;
+  if (err.code === "case_hold_active") {
+    return {
+      status: 409,
+      body: {
+        code: "LEGAL_HOLD_BLOCKED",
+        message: "This case is under an active legal hold. Evidence cannot be removed from it until the hold is released.",
+      },
+    };
+  }
+  if (err.code === "hold_state_unavailable") {
+    return {
+      status: 503,
+      body: {
+        code: "LEGAL_HOLD_STATE_UNAVAILABLE",
+        message: "Legal hold status could not be confirmed. Nothing was changed; try again.",
+      },
+    };
+  }
+  return null;
+}
+
+/** UC-CASE-001 — the same refusal as a DomainError, for service-layer callers. */
+export function caseUnlinkRefusalError(err: unknown): DomainError | null {
+  const refusal = caseUnlinkRefusal(err);
+  if (!refusal) return null;
+  return new DomainError(refusal.body.code, {
+    httpStatus: refusal.status,
+    publicCode: refusal.body.code,
+    publicMessage: refusal.body.message,
+    reportability: refusal.status === 409 ? "EXPECTED_DENIAL" : "OPERATIONAL_WARNING",
+    severity: refusal.status === 409 ? "info" : "warning",
+  });
 }

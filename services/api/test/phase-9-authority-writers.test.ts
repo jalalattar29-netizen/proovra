@@ -44,8 +44,9 @@ const AUTHORITY_WRITERS: Array<{
     write: /\.entitlement\.(create|update|upsert|updateMany|delete|deleteMany)\b/,
     allowed: {
       "services/billing.service.ts": "canonical: ensureEntitlement/setPersonalPlan",
-      "services/auth.service.ts": "bootstrap FREE entitlement on account creation",
-      "services/email-password-auth.service.ts": "bootstrap FREE entitlement on email-password signup",
+      // UC-COM-004 — neither auth.service nor email-password-auth.service writes: every
+      // sign-up path bootstraps the FREE entitlement through billing.service
+      // ensureEntitlement, backed by entitlements_user_id_active_key.
       // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — the credit BALANCE moved
       // out of billing-enforcement into the canonical wallet, which owns the
       // conditional decrement and the matching ledger entry in ONE transaction.

@@ -61,7 +61,10 @@ describe("evidence reservation has one authority", () => {
     // object with an AND of its own (which dropped the predicate at settlement).
     const enforcement = files.find((f) => f.path === "services/api/src/services/billing-enforcement.service.ts")!;
     expect(enforcement.source).not.toMatch(/\.\.\.createdBeforeEvidence/);
-    expect(enforcement.source).toMatch(/AND: \[\s*allowanceSlotEvidenceWhere\(\),\s*createdBeforeEvidenceCondition\(settlingEvidence\),\s*\]/);
+    // UC-COM-001 — the population (with the slot predicate) is ONE base
+    // condition, and the settlement cursor is composed beside it inside AND.
+    expect(enforcement.source).toMatch(/AND: \[\s*population,\s*allowanceSlotEvidenceWhere\(\),/);
+    expect(enforcement.source).toMatch(/AND: \[base, \{ status: \{ in: UNSEALED_STATUSES \} \}, createdBeforeEvidenceCondition\(options\.settling\)\]/);
   });
 
   it("every releaser goes through releaseEvidenceReservationTx", () => {

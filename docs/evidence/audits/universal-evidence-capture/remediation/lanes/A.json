@@ -1,0 +1,930 @@
+{
+  "lane": "A",
+  "findings": {
+    "UC-ARCH-002": {
+      "decision": "Workspace default retention is resolved once in createEvidence (the canonical writer) for every channel: resolveRetentionOnCreate is read before the record transaction and retentionUntilUtc + a RETENTION_POLICY_APPLIED custody event are written inside it. The per-route calls in POST /v1/evidence and the intake orchestration were deleted. Existing direct-capture rows need the requested backfill.",
+      "red": {
+        "test": "services/api/test/completion-cross-channel.integration.test.ts::web upload / direct capture / intake ... retention",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "suite red on HEAD services (direct-capture record carried no retention; first failing assertion of each case was the EVIDENCE_COMPLETED count)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::web upload: one completion custody event, audit pair, reviewer row and retention — repeated complete adds none",
+          "services/api/test/completion-cross-channel.integration.test.ts::direct capture: the same effects, exactly once, including a repeated complete",
+          "services/api/test/completion-cross-channel.integration.test.ts::intake submission: the same effects, exactly once, including a repeated submit"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts",
+        "result": "9 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/evidence.service.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "retention stamped at creation for mobile/extension/Android/iOS records",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "retention policy now binds every channel",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION"
+    },
+    "UC-ARCH-003": {
+      "decision": "completeEvidence is now the ONE finalization authority for every channel: EVIDENCE_COMPLETED is appended inside the completion transaction that wins the finalize claim (so exactly once, never without the signature), and the reviewer workflow (NOT_STARTED) and the evidence.complete tenant audit run in the existing durable once-only fan-out claim (runCompletionFanoutOnce, ET-ACQ-03). evidence.create audit moved into createEvidence's post-commit step. The duplicate custody/workflow/audit code was removed from the web /complete and POST /v1/evidence routes; the stale intake comment was corrected. Intake completions record completedBy EXTERNAL_CONTRIBUTOR with no user id.",
+      "red": {
+        "test": "services/api/test/completion-cross-channel.integration.test.ts::web upload: one completion custody event ...",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "web: EVIDENCE_COMPLETED: expected +0 to be 1 (direct-capture and intake identical)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::web upload: one completion custody event, audit pair, reviewer row and retention — repeated complete adds none",
+          "services/api/test/completion-cross-channel.integration.test.ts::direct capture: the same effects, exactly once, including a repeated complete",
+          "services/api/test/completion-cross-channel.integration.test.ts::intake submission: the same effects, exactly once, including a repeated submit",
+          "services/api/test/completion-fanout-once.integration.test.ts",
+          "services/api/test/phase-t-evidence-to-review-identity.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts test/completion-fanout-once.integration.test.ts",
+        "result": "9 passed; fan-out suite passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/src/services/evidence.service.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/test/phase-t-evidence-to-review-identity.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "intake/mobile/extension records now enter reviewer queues",
+        "api": "custody chain order: EVIDENCE_COMPLETED now precedes EVIDENCE_LOCKED/STORAGE_PROTECTION_UNAVAILABLE",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "tenant audit has evidence.create/evidence.complete for every channel",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "see migrationRequests (optional workflow backfill)",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-ARCH-004": {
+      "decision": "Retired. The nine /v1/integrations/api/uploads/* routes could never open a session (credential id passed as OWNER) and no API route can create an integration-owned record; no client, SDK or doc calls them. They now answer 410 INTEGRATION_UPLOADS_RETIRED (kept mounted so callers learn the channel is gone). The source-regex Phase 30.6/30.8/30.12/R1 pins were rewritten to the retirement contract.",
+      "red": {
+        "test": "services/api/test/phase-30-6-integrations-uploads.test.ts::all nine former routes answer 410 INTEGRATION_UPLOADS_RETIRED",
+        "command": "timeout 600 npx vitest run test/phase-30-6-integrations-uploads.test.ts (HEAD routes swapped in)",
+        "observed": "Target cannot be null or undefined (no retirement surface; HEAD create path answers 404 per source finding)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/phase-30-6-integrations-uploads.test.ts",
+          "services/api/test/phase-30-8-multipart.test.ts",
+          "services/api/test/phase-30-12-consumer-integration.test.ts",
+          "services/api/test/phase-r1-upload-session-evidence-scope.test.ts"
+        ],
+        "command": "timeout 900 npx vitest run <those files>",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/integrations-uploads.routes.ts",
+        "services/api/test/phase-30-6-integrations-uploads.test.ts",
+        "services/api/test/phase-30-8-multipart.test.ts",
+        "services/api/test/phase-30-12-consumer-integration.test.ts",
+        "services/api/test/phase-r1-upload-session-evidence-scope.test.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "9 API-key routes answer 410",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "dead machine-ingest surface removed",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-ARCH-005": {
+      "decision": "completeEvidence refuses a SECURE_INTAKE_LINK record unless called with the intake orchestration's bound session (intakeSubmission, verified against workflow_intake_sessions.evidence_id): the owner's /complete gets 409 INTAKE_SUBMISSION_REQUIRED. POST /v1/evidence/:id/parts refuses intake records (409). The link-submissions projection no longer discloses evidenceId before SUBMITTED. The canonical byte-write authority (evidence-part-writer, lane M) should also refuse OWNER principals on intake records — see crossLaneRequests.",
+      "red": {
+        "test": "services/api/test/completion-cross-channel.integration.test.ts::the link creator cannot add parts to, or seal, a contributor's in-flight intake record",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "owner POST /v1/evidence/:intakeId/complete: expected 200 to be 409 (the owner sealed the contributor's record)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::the link creator cannot add parts to, or seal, a contributor's in-flight intake record",
+          "services/api/test/completion-cross-channel.integration.test.ts::intake submission: the same effects, exactly once, including a repeated submit"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts",
+        "result": "9 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/external-intake-orchestration.service.ts",
+        "services/api/src/services/intake-link-lifecycle.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "submissions list shows evidenceId only for SUBMITTED sessions",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "insider tampering with contributor submissions closed on the /v1/evidence doors",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-ARCH-006": {
+      "decision": "One digest module: packages/shared-runtime/src/integrity/digest.ts exports sha256HexFromStream, compositeSha256, multipartManifestSha256 and recordDigestFromParts; API completion and services/api/src/stream-hash.ts use it, pinned by golden vectors. The worker copies (integrity-recheck.ts, processor.ts) are lane T files — exact edits requested.",
+      "red": {
+        "test": "services/api/test/integrity-digest-golden.test.ts",
+        "command": "timeout 600 npx vitest run test/integrity-digest-golden.test.ts",
+        "observed": "source-structure: three private copies (evidence-complete.service.ts sha256Hex(join('|')), worker integrity-recheck.ts compositeSha256, processor.ts sha256HexFromStrings); no shared export existed"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/integrity-digest-golden.test.ts"
+        ],
+        "command": "timeout 600 npx vitest run test/integrity-digest-golden.test.ts",
+        "result": "3 passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/integrity/digest.ts",
+        "packages/shared-runtime/src/index.ts",
+        "services/api/src/stream-hash.ts",
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/test/integrity-digest-golden.test.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "to import the shared module (lane T)",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-ARCH-008": {
+      "decision": "createEvidence no longer presigns a root PUT URL (no client used it; the storage location is still reserved on the row) and returns no upload object; UPLOAD_AUTHORIZED now says uploadUrlIssued:false and that each file receives its own URL when its part is authorized. The one non-product consumer (scripts/dev-populate-investigation.ts) reads the reserved key from the row.",
+      "red": {
+        "test": "services/api/test/completion-cross-channel.integration.test.ts::creation mints no root upload URL, and custody says none was issued",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "expected { bucket: 'point7-local-bucket', …(4) } to be undefined"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::creation mints no root upload URL, and custody says none was issued",
+          "services/api/test/forensic-hardening.test.ts",
+          "services/api/test/web-capture-custody-wording.contract.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts",
+        "result": "9 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/evidence.service.ts",
+        "services/api/scripts/dev-populate-investigation.ts",
+        "services/api/test/forensic-hardening.test.ts",
+        "services/api/test/web-capture-custody-wording.contract.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "POST /v1/evidence response has no `upload`",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "no live 10-minute root write URL handed out",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-SEC-001": {
+      "decision": "assertUploadSessionActor (upload-session.service) is THE caller check: every user route on a resumable session (GET, status, parts/uploaded, complete, multipart initiate/presign/complete/abort) requires the caller to be the session's actor, else the canonical anti-enumeration 404 with zero mutation. Abort keeps its existing actor-or-owner check; /verified stays internal-service-auth only.",
+      "red": {
+        "test": "services/api/test/upload-session-actor-binding.integration.test.ts::another member is refused (404, zero mutation) at every step; the creator completes the upload",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/upload-session-actor-binding.integration.test.ts (HEAD upload-sessions.routes.ts swapped in)",
+        "observed": "step 0: {\"session\":{...}}: expected 200 to be 404"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/upload-session-actor-binding.integration.test.ts::another member is refused (404, zero mutation) at every step; the creator completes the upload",
+          "services/api/test/upload-session-key-and-terminal.integration.test.ts",
+          "services/api/test/phase-30-5-upload-session-routes.test.ts",
+          "services/api/test/phase-30-8-multipart.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/upload-session-actor-binding.integration.test.ts (real MinIO 59711)",
+        "result": "1 passed (member 404 at 8 steps; owner real PUT + multipart complete + serverSha256 match)"
+      },
+      "filesChanged": [
+        "services/api/src/services/uploads/upload-session.service.ts",
+        "services/api/src/routes/upload-sessions.routes.ts",
+        "services/api/test/upload-session-actor-binding.integration.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "intra-tenant byte injection into a colleague's upload closed",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-SEC-002": {
+      "decision": "Server half per the lead's contract: the CORS decision moved into services/api/src/http/cors-origin-policy.ts; a chrome-extension:// origin is admitted ONLY when isAllowedExtensionOrigin (lane E: EXTENSION_OAUTH_REDIRECT_ALLOW ids + EXTENSION_ALLOWED_ORIGINS) says so, in every NODE_ENV; unset → every extension origin refused (fail closed). Methods/headers the extension sends (authorization, content-type, x-proovra-workspace-id) are in the global allow-list. Bucket CORS documentation remains lane E's.",
+      "red": {
+        "test": "services/api/test/cors-request-log.integration.test.ts::SEC-002: a pinned extension origin is admitted in production; unpinned / unconfigured are refused",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/cors-request-log.integration.test.ts (HEAD server.ts + logStream seam)",
+        "observed": "expected 'chrome-extension://ponmlkjihgfedcbapo…' to be undefined"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/cors-request-log.integration.test.ts::SEC-002: a pinned extension origin is admitted in production; unpinned / unconfigured are refused",
+          "services/api/test/cors-browser-headers.integration.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/cors-request-log.integration.test.ts",
+        "result": "3 passed"
+      },
+      "filesChanged": [
+        "services/api/src/http/cors-origin-policy.ts",
+        "services/api/src/server.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "API reachable from the pinned extension origin",
+        "security": "none",
+        "deployment": "api redeploy + set EXTENSION_OAUTH_REDIRECT_ALLOW / EXTENSION_ALLOWED_ORIGINS"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-SEC-003": {
+      "decision": "One canonical redactor (services/api/src/http/redact-request-url.ts) for every URL the request log writes (onResponse request.completed* and the error-handler context): token-named route params, the segment after every token-bearing prefix (intake, external-review access, org/team/collaboration invites — also for unmatched 404 paths), pvs_ share tokens anywhere, and token/code/secret/signature query values. buildServer gained an optional logStream seam so a test can read what the log writes.",
+      "red": {
+        "test": "services/api/test/cors-request-log.integration.test.ts::SEC-003: no token-bearing path or query value reaches the request log",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/cors-request-log.integration.test.ts (HEAD server.ts + logStream seam)",
+        "observed": "intake token leaked into the request log: expected true to be false"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/cors-request-log.integration.test.ts::SEC-003: no token-bearing path or query value reaches the request log"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/cors-request-log.integration.test.ts",
+        "result": "3 passed"
+      },
+      "filesChanged": [
+        "services/api/src/http/redact-request-url.ts",
+        "services/api/src/server.ts",
+        "services/api/test/cors-request-log.integration.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "bearer capabilities no longer written to logs",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-SEC-005": {
+      "decision": "Production CORS no longer trusts *.vercel.app or localhost: admitted are the Proovra https origins (+ https subdomains of proovra.com), exact CORS_ORIGINS entries (where an operator names a preview) and pinned extension origins; the NODE_ENV decision is read per request. auth.routes maybeSetWebCookie uses exact host/origin parsing (isProovraProductionRequest) instead of a 'proovra.com' substring test.",
+      "red": {
+        "test": "services/api/test/cors-request-log.integration.test.ts::SEC-005: production refuses *.vercel.app and localhost; keeps the Proovra origins",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/cors-request-log.integration.test.ts (HEAD server.ts + logStream seam)",
+        "observed": "https://evil.vercel.app: expected 'https://evil.vercel.app' to be undefined"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/cors-request-log.integration.test.ts::SEC-005: production refuses *.vercel.app and localhost; keeps the Proovra origins"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/cors-request-log.integration.test.ts",
+        "result": "3 passed"
+      },
+      "filesChanged": [
+        "services/api/src/http/cors-origin-policy.ts",
+        "services/api/src/server.ts",
+        "services/api/src/routes/auth.routes.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "third-party preview origins no longer credentialed",
+        "deployment": "api redeploy; previews needing the production API must be listed in CORS_ORIGINS"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-SEC-006": {
+      "decision": "The part-presign limiter (evidence.routes, lane A region) now declares bound:'global'. The Public Verify IP + per-evidence limiters live in the GET /public/verify/:id region (lane T) and the direct-session open limiter in capture-trust.routes.ts (lane M) — exact one-line edits requested. The source test pins all four keys and stays red until both lanes apply them.",
+      "red": {
+        "test": "services/api/test/rate-limit-global-bound.test.ts::UC-SEC-006 — ... each declares bound: \"global\"",
+        "command": "timeout 900 npx vitest run test/rate-limit-global-bound.test.ts",
+        "observed": "missing: evidence.routes.ts ratelimit:verify:ip:, ratelimit:verify:evidence-clients:, capture-trust.routes.ts ratelimit:capture:direct-session:open: (presign fixed)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/rate-limit-global-bound.test.ts (12 existing cases pass)"
+        ],
+        "command": "timeout 900 npx vitest run test/rate-limit-global-bound.test.ts",
+        "result": "12 passed, 1 red pending lanes T + M"
+      },
+      "filesChanged": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/test/rate-limit-global-bound.test.ts"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "anonymous/capture limiters shared across replicas, refused during a store outage",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-CASE-001": {
+      "decision": "The ONE detach authority (detachEvidenceFromCase / detachAllEvidenceFromCase) now takes the case row FOR UPDATE inside its transaction and refuses while an ACTIVE CASE (or historical) hold names the case — fail closed (503) when hold state is unreadable. A hold insert references the case through its FK (FOR KEY SHARE), so a concurrent hold either commits first and is seen, or waits for the unlink. Mapped once (caseUnlinkRefusal → 409 LEGAL_HOLD_BLOCKED / 503) for the case route, case-workspace link route (via DomainError) and bulk REMOVE_FROM_CASE (pre-checked so a record leaves none of its cases).",
+      "red": {
+        "test": "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: single, bulk and case-workspace unlink are refused under an active case hold, zero mutation",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "single unlink: expected 200 to be 409; race test: expected true to be false (unlink completed while the hold was uncommitted)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: single, bulk and case-workspace unlink are refused under an active case hold, zero mutation",
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: an unlink racing an in-flight hold placement waits for it and is refused (row lock vs the hold's FK)",
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-001: hold-vs-unlink races always end consistent (never: hold active AND link gone after the hold)",
+          "services/api/test/case-link-authority.integration.test.ts",
+          "services/api/test/phase-12b-case-evidence-authority.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts test/case-link-authority.integration.test.ts",
+        "result": "6 + 7 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/cases/case-evidence-link.service.ts",
+        "services/api/src/services/cases/case-lifecycle.service.ts",
+        "services/api/src/routes/cases.routes.ts",
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/test/phase-12b-case-evidence-authority.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Remove from case under hold now answers 409 LEGAL_HOLD_BLOCKED (web should show the governed message)",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "preservation bypass closed",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-CASE-002": {
+      "decision": "resolveCaseRecordAccess returns the member's real workspace role for access-list grantees (VIEWER stays VIEWER; no row → VIEWER, never MEMBER), so the case mutation matrix's VIEWER rule refuses link/unlink with 403. POST /v1/cases/:id/evidence maps CaseEvidenceAuthorityError to 404 instead of a 500.",
+      "red": {
+        "test": "services/api/test/case-hold-and-links.integration.test.ts::CASE-002: a VIEWER on the case's access list stays a viewer (403, never 500, no mutation); a MEMBER on it may",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "viewer unlink: expected 200 to be 403"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-002: a VIEWER on the case's access list stays a viewer (403, never 500, no mutation); a MEMBER on it may",
+          "services/api/test/matter-access-tab.integration.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts test/matter-access-tab.integration.test.ts",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/cases/case-permission.service.ts",
+        "services/api/src/routes/cases.routes.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "VIEWER → case-writer escalation closed",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-CASE-003": {
+      "decision": "At intake finalization the orchestration attaches the sealed record to the case named by the link (or by the evidence request that minted it) through the canonical attachEvidenceToCase (source INTAKE, system actor, same-workspace proof, per-pair idempotency). A refused attach (case gone / other workspace) never fails the contributor; it is recorded as external_intake.case_link_skipped in the tenant audit.",
+      "red": {
+        "test": "services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE)",
+        "command": "source-proven: no writer used CaseEvidenceLinkSource INTAKE on HEAD (a HEAD-swap red is not clean because the new intake completion guard refuses HEAD's orchestration first)",
+        "observed": "case_evidence_links had no row for the submitted record (finding reproduction)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE)"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts",
+        "result": "9 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/external-intake-orchestration.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "intake evidence now appears in the matter's evidence list/exports",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "CASE holds cover evidence collected through the case's own links",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-CASE-004": {
+      "decision": "attachEvidenceToCase decides 'one link per pair' inside its transaction under a per-(case,evidence) advisory lock; a P2002 from the requested partial-free unique index is answered with the winner's row (created:false). The DB backstop (dedupe + UNIQUE(case_id, evidence_id)) is a migration request; its SQL was validated on the lane-A test DB.",
+      "red": {
+        "test": "services/api/test/case-hold-and-links.integration.test.ts::CASE-004: concurrent attaches with mixed roles create exactly one link and no caller errors",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "PrismaClientKnownRequestError at tx.caseEvidenceLink.create (duplicate pair)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-004: concurrent attaches with mixed roles create exactly one link and no caller errors"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts",
+        "result": "6 passed (also with the unique index applied)"
+      },
+      "filesChanged": [
+        "services/api/src/services/cases/case-evidence-link.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION"
+    },
+    "UC-CASE-005": {
+      "decision": "Server half: GET /v1/evidence/:id/review-workspace projects relationships.cases[] — every linked case the viewer may open under resolveCaseRecordAccess (earliest first, with role and linkedAt); a restricted case is omitted (no id, no name). relationships.caseId/caseName remain as a deprecated alias for the first visible case. Lane W renders cases[] with per-case unlink.",
+      "red": {
+        "test": "services/api/test/case-hold-and-links.integration.test.ts::CASE-005: the review workspace lists every case the viewer may open and hides a restricted one",
+        "command": "source-proven (primaryCaseIdOf took caseLinks[0] and read the case name without access narrowing); evidence.routes.ts cannot be swapped to HEAD (shared with lane T)",
+        "observed": "relationships carried one case id and the restricted case's name"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/case-hold-and-links.integration.test.ts::CASE-005: the review workspace lists every case the viewer may open and hides a restricted one"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts",
+        "result": "6 passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/evidence.routes.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "lane W: render relationships.cases[]",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "restricted case names no longer disclosed",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-COM-001": {
+      "decision": "The allowance population now equals the finalizable population: an unsealed record counts while created OR touched within 24 h, or held by a live intake session / active resumable upload (exact complement of the sweep's expired predicate), and completeEvidence refuses an expired reservation (409 EVIDENCE_RESERVATION_EXPIRED, via the new isEvidenceReservationExpiredTx). Settlement counts every plan-funded sealed record whatever its creation order plus the live unsealed records admitted before the settling one (credit-funded rows excluded).",
+      "red": {
+        "test": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: settlement counts every plan-funded record whatever its creation order",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts (HEAD billing-enforcement.service.ts swapped in)",
+        "observed": "promise resolved \"{ funding: 'PLAN' }\" instead of rejecting (count/expiry cases: source-proven, they ran against the rebuilt shared-runtime dist)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: a reservation kept alive past 24 h still counts — the 4th FREE record is refused",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: a truly expired reservation stops counting and can no longer be finalized",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: settlement counts every plan-funded record whatever its creation order",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: unsealed records admitted earlier still take their plan slots ahead of a later record",
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-001: concurrent creations on FREE never exceed the allowance",
+          "services/api/test/billing-personal-funding-boundary.integration.test.ts",
+          "services/api/test/trash-keeps-allowance-slot.integration.test.ts",
+          "services/api/test/reservation-sweep.integration.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts",
+        "result": "8 passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/evidence-reservation/reservation.ts",
+        "services/api/src/services/billing-enforcement.service.ts",
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/api/test/reservation-authority.test.ts",
+        "services/api/test/billing-commercial-correctness.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "a capture finalized after its reservation expired gets 409 EVIDENCE_RESERVATION_EXPIRED",
+        "api": "allowance meter (billing-account-projection) still counts slot rows; it equals the gate except after a plan-funded record is destroyed",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-COM-002": {
+      "decision": "lockEvidenceCapacitySubject keys on commercialPrincipalOf(scope) (SINGLE_OCCUPANT → PERSONAL:<owner>, SHARED → WORKSPACE:<team>), so admission (teamId null) and completion (personal team id) take the same lock; the rolling-window population is chosen by billing shape, not scope.teamId (personal = legacy NULL-team + personal team rows) at both phases.",
+      "red": {
+        "test": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-002: admission and completion lock the SAME capacity subject for a personal record",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts (HEAD billing swapped in)",
+        "observed": "expected 'evidence-capacity:personal:…' to be 'evidence-capacity:team:…'"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-002: admission and completion lock the SAME capacity subject for a personal record"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts",
+        "result": "8 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/billing-enforcement.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-COM-003": {
+      "decision": "Admission subtracts credits already committed to admitted, unsealed over-allowance records (pending = planOccupying − cap) from the wallet before deciding, for both lifetime and rolling-window plans, so one banked credit admits exactly one over-allowance capture.",
+      "red": {
+        "test": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-003: one banked credit admits exactly one over-allowance capture",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts (HEAD billing swapped in)",
+        "observed": "promise resolved \"undefined\" instead of rejecting"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-003: one banked credit admits exactly one over-allowance capture"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts",
+        "result": "8 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/billing-enforcement.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "a second over-allowance capture is refused up front instead of failing 402 at seal",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-COM-004": {
+      "decision": "ensureEntitlement is the one initial-entitlement writer: check + insert in one transaction under a per-user advisory lock, P2002 from the requested partial unique index answered with the winner's row. auth.service (OAuth sign-in) now calls it instead of its own check-then-create. email-password-auth.service.ts still has its own create (not lane A's file) — cross-lane request. DB invariant = migration request (SQL validated on the lane-A DB).",
+      "red": {
+        "test": "services/api/test/billing-allowance-commitments.integration.test.ts::COM-004: ten concurrent first ensureEntitlement calls create exactly one active entitlement",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts -t COM-004 (HEAD billing.service swapped in)",
+        "observed": "not reproduced locally (HEAD passed the 10-way race: the window was not hit); defect source-proven (no lock, no uniqueness)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/billing-allowance-commitments.integration.test.ts::COM-004: ten concurrent first ensureEntitlement calls create exactly one active entitlement",
+          "services/api/test/phase-9-authority-writers.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-allowance-commitments.integration.test.ts",
+        "result": "8 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/billing.service.ts",
+        "services/api/src/services/auth.service.ts",
+        "services/api/test/phase-9-authority-writers.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION"
+    },
+    "UC-WEB-001": {
+      "decision": "Server half: POST /v1/evidence with a captureSessionId BINDS the draft (finalizedEvidenceId) but leaves it DRAFT; completeEvidence moves bound DRAFTs to FINALIZED inside the sealing transaction. A retried create for the same draft returns 200 {id (same record), resumed:true, parts:[{partIndex, originalFileName, mimeType, sizeBytes}]} while the record is unsealed, live and not an expired reservation — no second record. Lane W must keep evidenceId, skip uploaded part indexes and reset per-item state in catch.",
+      "red": {
+        "test": "services/api/test/completion-cross-channel.integration.test.ts::a web draft stays DRAFT until the record is sealed, and a retried finalize resumes the same record",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
+        "observed": "expected 'DRAFT' to be 'FINALIZED' (HEAD completion never finalized the draft; HEAD create finalized it at reservation)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::a web draft stays DRAFT until the record is sealed, and a retried finalize resumes the same record"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts",
+        "result": "9 passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/evidence.routes.ts",
+        "services/api/src/services/evidence-complete.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "lane W: consume resumed/parts",
+        "api": "POST /v1/evidence may answer 200 resumed",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE"
+    },
+    "UC-WEB-003": {
+      "decision": "Both halves (the page is lane A's). Server: GET /v1/external-intake/:token resumes the contributor's open session when the page presents its id in x-proovra-intake-session (header, never URL; allow-listed for CORS) and it is bound to this link, still open, unexpired and opened by the same User-Agent; it returns resumed:true and the staged parts with a storage HEAD (stored:true/false), no keys or URLs. Page: keeps the session id in sessionStorage (guarded), restores staged files (a file that never reached storage says so), clears it on submit, and warns on beforeunload while files are staged.",
+      "red": {
+        "test": "services/api/test/completion-cross-channel.integration.test.ts::a reload resumes the contributor's open intake session with its staged files; another browser does not",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts -t \"reload resumes\" (HEAD external-intake.routes.ts swapped in)",
+        "observed": "expected undefined to be true (no resumption; a fresh session every GET)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/completion-cross-channel.integration.test.ts::a reload resumes the contributor's open intake session with its staged files; another browser does not",
+          "apps/web/__tests__/intake-session-resume.test.ts",
+          "apps/web intake suite (152 tests)"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts; node ./scripts/run-tests.mjs intake (apps/web)",
+        "result": "9 passed; 152 + 4 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/workflow-intake-session.service.ts",
+        "services/api/src/routes/external-intake.routes.ts",
+        "services/api/src/server.ts",
+        "apps/web/app/intake/[token]/page.tsx",
+        "apps/web/__tests__/intake-session-resume.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "reload keeps consent + staged files; leave-page warning",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api redeploy + web redeploy"
+      },
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED"
+    },
+    "UC-PROV-009": {
+      "decision": "Needs the trigger function replaced: on UPDATE a record whose acquisition_mode_source was NULL may only receive a BACKFILL_* source; RECORDED_AT_CREATION is INSERT-only. Exact SQL in migrationRequests; it was applied to the disposable lane-A DB only to prove it, where the new PG test passes (and fails without it).",
+      "red": {
+        "test": "services/api/test/acquisition-set-once-trigger.integration.test.ts::NULL -> RECORDED_AT_CREATION on UPDATE is refused",
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/acquisition-set-once-trigger.integration.test.ts",
+        "observed": "promise resolved \"1\" instead of rejecting"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/acquisition-set-once-trigger.integration.test.ts::NULL -> RECORDED_AT_CREATION on UPDATE is refused",
+          "services/api/test/acquisition-set-once-trigger.integration.test.ts::a BACKFILL_* source may still be written once"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/acquisition-set-once-trigger.integration.test.ts (after applying the requested SQL to the lane-A DB)",
+        "result": "2 passed"
+      },
+      "filesChanged": [
+        "services/api/test/acquisition-set-once-trigger.integration.test.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "privileged writers can no longer retro-label legacy evidence as contemporaneous",
+        "deployment": "api+worker redeploy"
+      },
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION"
+    }
+  },
+  "crossLaneRequests": [
+    {
+      "finding": "UC-ARCH-005",
+      "file": "services/api/src/services/evidence/evidence-part-writer.service.ts (lane M)",
+      "change": "In lockEvidenceForByteWrite add acquisitionMode to the evidence select and, after the owner check, `if (principal.kind === \"OWNER\" && ev.acquisitionMode === \"SECURE_INTAKE_LINK\") throw new EvidencePartWriteRefused(\"EVIDENCE_NOT_WRITABLE\");` — closes the resumable-upload-session (createUploadSession → assertEvidenceAcceptsByteWrites OWNER) door for intake records at the canonical byte-write authority."
+    },
+    {
+      "finding": "UC-SEC-006",
+      "file": "services/api/src/routes/evidence.routes.ts GET /public/verify/:id region (lane T)",
+      "change": "Add `bound: \"global\",` to the enforceRateLimit({ key: ipKey, ... }) call (key ratelimit:verify:ip:) and to the enforceDistinctClientLimit({ key: `ratelimit:verify:evidence-clients:${id}`, ... }) call. test/rate-limit-global-bound.test.ts 'UC-SEC-006' then passes."
+    },
+    {
+      "finding": "UC-SEC-006",
+      "file": "services/api/src/routes/capture-trust.routes.ts (lane M)",
+      "change": "Add `bound: \"global\",` to enforceRateLimit({ key: `ratelimit:capture:direct-session:open:${userId}`, ... })."
+    },
+    {
+      "finding": "UC-ARCH-006",
+      "file": "services/worker/src/integrity-recheck.ts and services/worker/src/processor.ts (lane T)",
+      "change": "Delete the private sha256HexFromStream (integrity-recheck.ts ~L90, processor.ts ~L1236) and compositeSha256 (integrity-recheck.ts) / sha256HexFromStrings (processor.ts ~L912); import { sha256HexFromStream, compositeSha256 } from \"@proovra/shared-runtime\" (keep `export { compositeSha256 }` re-export in integrity-recheck.ts if worker tests import it). shared-runtime dist already rebuilt."
+    },
+    {
+      "finding": "UC-WEB-001",
+      "file": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts (lane W)",
+      "change": "Keep the evidenceId from POST /v1/evidence in the orchestrator/draft; on retry the same POST (same captureSessionId) answers 200 { id, resumed: true, parts: [{ partIndex, ... }] } — upload only items whose index is not in parts, then /complete. Reset item.uploading/uploadProgress and mark error in the catch path."
+    },
+    {
+      "finding": "UC-CASE-005",
+      "file": "apps/web/app/(app)/evidence/[id]/page.tsx (lane W)",
+      "change": "Render relationships.cases[] ({caseId, caseName, role, linkedAtUtc}) from GET /v1/evidence/:id/review-workspace with a per-case 'Remove from case' (DELETE /v1/cases/:caseId/evidence/:id); show the 409 LEGAL_HOLD_BLOCKED message. relationships.caseId is now a deprecated alias for the first visible case."
+    },
+    {
+      "finding": "UC-COM-004",
+      "file": "services/api/src/services/email-password-auth.service.ts (~L176-190)",
+      "change": "Replace the findFirst/create entitlement bootstrap with `await ensureEntitlement(user.id)` from ./billing.service.js, and drop that file from the Entitlement writer allow-list in test/phase-9-authority-writers.test.ts."
+    },
+    {
+      "finding": "info",
+      "file": "services/api/src/routes/evidence.routes.ts GET /public/verify/:id region (lane T)",
+      "change": "FYI: test/intake-customer-id.test.ts 'public verify ... builds its response from a literal, never a spread of the row' now fails on `{ ...evidence, integrityRecheckRequestedAtUtc: storedBytesCheckedAt }` (~L13427) — a verify-region edit, not lane A's."
+    }
+  ],
+  "migrationRequests": [
+    {
+      "finding": "UC-PROV-009",
+      "sql": "CREATE OR REPLACE FUNCTION \"evidence_acquisition_set_once\"() RETURNS trigger\nLANGUAGE plpgsql AS $$\nBEGIN\n  IF OLD.\"acquisition_mode\" IS NOT NULL\n     AND (NEW.\"acquisition_mode\" IS NULL\n          OR NEW.\"acquisition_mode\" <> OLD.\"acquisition_mode\") THEN\n    RAISE EXCEPTION 'evidence.acquisition_mode is immutable once recorded'\n      USING ERRCODE = 'check_violation';\n  END IF;\n  IF OLD.\"acquisition_mode_source\" IS NOT NULL\n     AND (NEW.\"acquisition_mode_source\" IS NULL\n          OR NEW.\"acquisition_mode_source\" <> OLD.\"acquisition_mode_source\") THEN\n    RAISE EXCEPTION 'evidence.acquisition_mode_source is immutable once recorded'\n      USING ERRCODE = 'check_violation';\n  END IF;\n  -- UC-PROV-009 — a record that had no acquisition may only receive a BACKFILL_*\n  -- source later; RECORDED_AT_CREATION is written by INSERT (createEvidence) only.\n  IF OLD.\"acquisition_mode_source\" IS NULL\n     AND NEW.\"acquisition_mode_source\" IS NOT NULL\n     AND NEW.\"acquisition_mode_source\" NOT LIKE 'BACKFILL\\_%' THEN\n    RAISE EXCEPTION 'evidence.acquisition_mode_source % cannot be assigned after creation', NEW.\"acquisition_mode_source\"\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND $$;\n",
+      "prisma": "none (trigger function only)"
+    },
+    {
+      "finding": "UC-CASE-004",
+      "sql": "-- UC-CASE-004 — one link row per (case, evidence) pair, enforced by the database.\n-- 1) de-duplicate: keep the earliest link of each pair (its role/provenance), drop later duplicates.\nDELETE FROM \"case_evidence_links\" l\n USING \"case_evidence_links\" k\n WHERE l.\"case_id\" = k.\"case_id\"\n   AND l.\"evidence_id\" = k.\"evidence_id\"\n   AND (l.\"linked_at_utc\", l.\"id\") > (k.\"linked_at_utc\", k.\"id\");\n-- 2) the invariant.\nCREATE UNIQUE INDEX IF NOT EXISTS \"case_evidence_links_case_id_evidence_id_key\"\n  ON \"case_evidence_links\" (\"case_id\", \"evidence_id\");\n",
+      "prisma": "model CaseEvidenceLink: replace `@@unique([caseId, evidenceId, role])` with `@@unique([caseId, evidenceId])` (the old 3-column unique becomes redundant; drop its index \"case_evidence_links_case_id_evidence_id_role_key\" in the same migration if the lead prefers one constraint)."
+    },
+    {
+      "finding": "UC-COM-004",
+      "sql": "-- UC-COM-004 — at most one ACTIVE entitlement per user.\n-- 1) merge duplicates: the newest active row keeps the summed credits of the others, which are deactivated.\nWITH ranked AS (\n  SELECT \"id\", \"user_id\", \"credits\",\n         row_number() OVER (PARTITION BY \"user_id\" ORDER BY \"created_at\" DESC, \"id\" DESC) AS rn\n    FROM \"entitlements\" WHERE \"active\" = true\n), extra AS (\n  SELECT \"user_id\", SUM(\"credits\") AS credits FROM ranked WHERE rn > 1 GROUP BY \"user_id\"\n)\nUPDATE \"entitlements\" e\n   SET \"credits\" = e.\"credits\" + extra.credits\n  FROM ranked r JOIN extra ON extra.\"user_id\" = r.\"user_id\"\n WHERE r.rn = 1 AND e.\"id\" = r.\"id\";\nWITH ranked AS (\n  SELECT \"id\", row_number() OVER (PARTITION BY \"user_id\" ORDER BY \"created_at\" DESC, \"id\" DESC) AS rn\n    FROM \"entitlements\" WHERE \"active\" = true\n)\nUPDATE \"entitlements\" SET \"active\" = false WHERE \"id\" IN (SELECT \"id\" FROM ranked WHERE rn > 1);\n-- 2) the invariant.\nCREATE UNIQUE INDEX IF NOT EXISTS \"entitlements_user_id_active_key\"\n  ON \"entitlements\" (\"user_id\") WHERE \"active\" = true;\n",
+      "prisma": "none expressible (partial unique index WHERE active); add a /// comment on model Entitlement naming entitlements_user_id_active_key. Review: duplicate active rows are merged by summing credits into the newest and deactivating the rest."
+    },
+    {
+      "finding": "UC-ARCH-002",
+      "sql": "UPDATE \"evidence\" AS e\n   SET \"retention_until_utc\" = e.\"created_at\" + make_interval(days => p.\"default_retention_days\")\n  FROM \"workspace_governance_policies\" AS p\n WHERE p.\"team_id\" = e.\"team_id\"\n   AND p.\"default_retention_days\" > 0\n   AND e.\"retention_until_utc\" IS NULL\n   AND e.\"deleted_at\" IS NULL\n   AND e.\"acquisition_mode\" IN ('PROOVRA_MOBILE_APP','DIRECT_WEB_CAPTURE_EXTENSION','DIRECT_SCREEN_CAPTURE_ANDROID','DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS','DIRECT_SCREEN_CAPTURE_IOS');\n",
+      "prisma": "none (data backfill; validated in a rolled-back transaction on the lane-A DB). Optional: also append RETENTION_POLICY_APPLIED custody per backfilled row via the app reconciler instead of SQL if the chain must record it."
+    },
+    {
+      "finding": "UC-ARCH-003",
+      "sql": "-- optional backfill: reviewer workflow rows for finalized records that never got one\nINSERT INTO \"evidence_review_workflows\" (\"id\", \"evidence_id\", \"workspace_type\", \"team_id\", \"status\", \"priority\", \"created_at\", \"updated_at\")\nSELECT gen_random_uuid(), e.\"id\", CASE WHEN e.\"team_id\" IS NULL THEN 'PERSONAL' ELSE 'TEAM' END, e.\"team_id\", 'NOT_STARTED', 'NORMAL', now(), now()\n  FROM \"evidence\" e\n WHERE e.\"status\" IN ('SIGNED','REPORTED') AND e.\"deleted_at\" IS NULL\n   AND NOT EXISTS (SELECT 1 FROM \"evidence_review_workflows\" w WHERE w.\"evidence_id\" = e.\"id\");\n-- (verify the column list against the live table; EVIDENCE_COMPLETED custody is NOT backfilled: the chain is append-only)",
+      "prisma": "none"
+    }
+  ],
+  "governanceFollowUps": [
+    "Byte pins on services/api/src/services/evidence-complete.service.ts moved (now ~79.6 KB): phase-cr4-verify-decomposition (44,078 exact), phase-cr5-capture-safety / phase-r10-visual-maturity / phase-r11-browser-qa-accessibility (44,078 exact 'finalize tx'), phase-e10-2-operational-readiness (71,631 ±10%). Growth = canonical completion custody/workflow/audit, draft finalization, intake + reservation guards.",
+    "Not lane A: CR5/R10/R11 byte pins and phase-32-7 'pollArtifacts' pin on apps/web/app/(app)/capture/page.tsx and useCaptureSessionOrchestration.ts fail on the current tree (lane W edits).",
+    "Retired /v1/integrations/api/uploads/* (9 routes → 410): regenerate capability map / route dispositions / route-classification; the permission scope integration.evidence.upload (packages/shared/src/permissions.ts, identity.ts INTEGRATION_ADMIN) now gates no route — decide whether to retire it.",
+    "New CORS allowed header x-proovra-intake-session; new module services/api/src/http/{cors-origin-policy,redact-request-url}.ts; buildServer(options) signature (optional logStream).",
+    "New shared-runtime exports: integrity/digest.ts (sha256HexFromStream, compositeSha256, multipartManifestSha256, recordDigestFromParts) and isEvidenceReservationExpiredTx; shared-runtime dist was rebuilt locally.",
+    "The lane-A disposable DB (proovra_ucc_a_test) has the PROV-009 function, the CASE-004 and COM-004 unique indexes applied ad hoc to validate the requested SQL; other lanes' DBs do not.",
+    "API typecheck (run once): only remaining errors in lane A scope were scripts/dev-populate-investigation.ts (createEvidence no longer returns upload) — fixed after the run, not re-typechecked; test/signing-key-identity.integration.test.ts(21) error is not lane A's."
+  ],
+  "commandsRun": [
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/cors-request-log.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/upload-session-actor-binding.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/case-hold-and-links.integration.test.ts test/case-link-authority.integration.test.ts test/billing-allowance-commitments.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/acquisition-set-once-trigger.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/billing-personal-funding-boundary.integration.test.ts test/evidence-commercial-denial-contract.integration.test.ts test/admin-evidence-credit-grant.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-fanout-once.integration.test.ts test/completion-size-and-prehash.integration.test.ts test/reservation-sweep.integration.test.ts test/trash-keeps-allowance-slot.integration.test.ts test/billing-closure-invariants.integration.test.ts test/upload-session-key-and-terminal.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/matter-access-tab.integration.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "timeout 900 npx vitest run test/rate-limit-global-bound.test.ts",
+      "exit": 1
+    },
+    {
+      "command": "timeout 900 npx vitest run <259 unit files reading lane-A sources, in chunks>",
+      "exit": 1
+    },
+    {
+      "command": "timeout 900 npx vitest run test/phase-30-*.test.ts test/phase-r1-upload-session-evidence-scope.test.ts test/reservation-authority.test.ts test/billing-commercial-correctness.test.ts test/phase-t-evidence-to-review-identity.test.ts test/phase-12b-case-evidence-authority.test.ts test/phase-9-authority-writers.test.ts test/forensic-hardening.test.ts test/web-capture-custody-wording.contract.test.ts test/integrity-digest-golden.test.ts",
+      "exit": 0
+    },
+    {
+      "command": "node ./scripts/run-tests.mjs intake (apps/web)",
+      "exit": 0
+    },
+    {
+      "command": "DATABASE_URL=<lane db> pnpm --filter @proovra/shared-runtime build",
+      "exit": 0
+    },
+    {
+      "command": "pnpm --filter proovra-api typecheck",
+      "exit": 2
+    }
+  ]
+}

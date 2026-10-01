@@ -1,7 +1,8 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypto";
 import { prisma } from "../db.js";
-import { AuthProvider, PlanType } from "@prisma/client";
+import { AuthProvider } from "@prisma/client";
 import { ensurePersonalWorkspace } from "./platform-context/workspace-bootstrap.service.js";
+import { ensureEntitlement } from "./billing.service.js";
 import { error as logError } from "../utils/logger.js";
 
 function normalizeEmail(email: string): string {
@@ -172,24 +173,9 @@ export async function registerWithEmailPassword(params: {
     throw err;
   }
 
-  const entitlement = await prisma.entitlement.findFirst({
-    where: {
-      userId: user.id,
-      active: true
-    }
-  });
-
-  if (!entitlement) {
-    await prisma.entitlement.create({
-      data: {
-        userId: user.id,
-        plan: PlanType.FREE,
-        credits: 0,
-        teamSeats: 0,
-        active: true
-      }
-    });
-  }
+  // UC-COM-004 — the ONE entitlement bootstrap (create, then re-read the winner on a unique
+  // violation of entitlements_user_id_active_key). Never check-then-create here.
+  await ensureEntitlement(user.id);
 
   // PERSONAL-FIRST RESCUE — eagerly bootstrap the personal workspace
   // and set users.current_workspace_id so the user can immediately

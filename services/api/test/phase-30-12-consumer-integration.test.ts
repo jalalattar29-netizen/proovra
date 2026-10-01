@@ -271,19 +271,14 @@ describe("Phase 30.12 — route bodies accept bridge fields", () => {
     expect(src).toMatch(/expectedMimeType:\s*body\.expectedMimeType/);
   });
 
-  it("API-key CreateSessionBodySchema accepts the bridge fields", () => {
+  // UC-ARCH-004 — the API-key upload channel is retired (410); it has no
+  // session body any more (see phase-30-6-integrations-uploads.test.ts).
+  it("API-key upload routes are retired", () => {
     const src = readSource(
       "../../../services/api/src/routes/integrations-uploads.routes.ts",
     );
-    expect(src).toMatch(
-      /targetPartIndex:\s*z\.number\(\)\.int\(\)\.min\(0\)\.max\(9_999\)\.optional\(\)/,
-    );
-    expect(src).toMatch(
-      /originalFileName:\s*z\.string\(\)\.min\(1\)\.max\(255\)\.optional\(\)/,
-    );
-    expect(src).toMatch(
-      /expectedMimeType:\s*z\.string\(\)\.min\(1\)\.max\(128\)\.optional\(\)/,
-    );
+    expect(src).toContain("INTEGRATION_UPLOADS_RETIRED");
+    expect(src).not.toContain("createUploadSession(");
   });
 });
 

@@ -1,6 +1,11 @@
 import { prisma } from "../db.js";
 import { readMaxEvidenceSizeBytes } from "@proovra/shared";
-import { recordIntegrityCheckTx } from "@proovra/shared-runtime";
+import {
+  compositeSha256,
+  isEvidenceReservationExpiredTx,
+  multipartManifestSha256,
+  recordIntegrityCheckTx,
+} from "@proovra/shared-runtime";
 import { canonicalJson, sha256Hex } from "../crypto.js";
 import {
   outputEarnedFactFromDecision,
@@ -582,6 +587,19 @@ export async function completeEvidence(params: {
    * be completed through that session and nothing else.
    */
   captureSession?: CaptureSessionCompletion;
+  /**
+   * UC-ARCH-005 — present ONLY when the external-intake orchestration submits
+   * the contributor's session. A SECURE_INTAKE_LINK record is completed through
+   * its bound intake session and nothing else: its owner of record (the link
+   * creator) cannot seal a contributor's in-flight submission through the
+   * authenticated /v1/evidence/:id/complete door.
+   */
+  intakeSubmission?: { sessionId: string };
+  /**
+   * UC-ARCH-003 — who asked and from where, for the ONE completion custody
+   * event and tenant audit this authority now writes for every channel.
+   */
+  requestContext?: { ip?: string | null; userAgent?: string | null; correlationId?: string | null };
 }): Promise<CompleteEvidenceReturn> {
   const signer = getEvidenceSigner();
 
@@ -726,6 +744,14 @@ export async function completeEvidence(params: {
         };
       }
 
+      // UC-COM-001 — an EXPIRED reservation (untouched for the whole window and
+      // held by no live session) has stopped counting against the allowance, so
+      // it may not be sealed: sealing it would fund a record the admission
+      // population no longer contains. The capture must be admitted afresh.
+      if (await isEvidenceReservationExpiredTx(tx, evidence.id, new Date())) {
+        throw captureCompletionError("EVIDENCE_RESERVATION_EXPIRED");
+      }
+
       // Phase 30.7 — custody-safe finalize gate.
       //
       // If a Phase 30 resumable upload session exists for this
@@ -790,6 +816,22 @@ export async function completeEvidence(params: {
         }
       } else if (params.captureSession) {
         throw captureCompletionError("CAPTURE_SESSION_NOT_BOUND_TO_EVIDENCE");
+      }
+
+      // UC-ARCH-005 — an intake record seals only through its bound intake
+      // session (the contributor's submit). The link creator owns the record of
+      // record but may not finalize a contributor's in-flight submission.
+      if (evidence.acquisitionMode === "SECURE_INTAKE_LINK") {
+        if (!params.intakeSubmission) {
+          throw captureCompletionError("INTAKE_SUBMISSION_REQUIRED");
+        }
+        const boundIntake = await tx.workflowIntakeSession.findFirst({
+          where: { id: params.intakeSubmission.sessionId, evidenceId: evidence.id },
+          select: { id: true },
+        });
+        if (!boundIntake) throw captureCompletionError("INTAKE_SESSION_NOT_BOUND_TO_EVIDENCE");
+      } else if (params.intakeSubmission) {
+        throw captureCompletionError("INTAKE_SESSION_NOT_BOUND_TO_EVIDENCE");
       }
 
       // Phase 12 — move the operations-side session to VERIFYING. Best
@@ -996,17 +1038,16 @@ const isMultipartPackage = updatedParts.length > 1;
 // multipartManifestSha256 computed deterministically from the per-part
 // hashes in part-index order, joined by newlines. The package-checksums.json
 // in the verification package is the same source of truth.
+// UC-ARCH-006 — the shared digest rules (same module the worker re-derives with).
 fileSha256 = isMultipartPackage
-  ? sha256Hex(updatedParts.map((p) => p.sha256).join("|"))
+  ? compositeSha256([...updatedParts].sort((a, b) => a.partIndex - b.partIndex).map((p) => p.sha256))
   : updatedParts[0]!.sha256;
 
 const sortedPartsForManifest = [...updatedParts].sort(
   (a, b) => a.partIndex - b.partIndex
 );
 multipartManifestSha256Out = isMultipartPackage
-  ? sha256Hex(
-      sortedPartsForManifest.map((p) => p.sha256).join("\n")
-    )
+  ? multipartManifestSha256(sortedPartsForManifest.map((p) => p.sha256))
   : null;
 hashSemanticsOut = isMultipartPackage
   ? "multipart_composite"
@@ -1368,6 +1409,56 @@ const captureMethod =
         });
       }
 
+      // UC-ARCH-003 — THE completion custody event, for EVERY channel, inside
+      // the transaction that won the finalize claim above: exactly once per
+      // record (a duplicate complete returns before reaching here), and never
+      // without the signature it announces. It used to be appended only by the
+      // web /complete route, so direct-capture and intake records had none.
+      const completedViaIntake = evidence.acquisitionMode === "SECURE_INTAKE_LINK";
+      await appendCustodyEventTx(tx, {
+        evidenceId: evidence.id,
+        eventType: prismaPkg.CustodyEventType.EVIDENCE_COMPLETED,
+        atUtc: now,
+        payload: {
+          // An intake record is completed by the external contributor, who
+          // has no user account; its owner of record did not complete it.
+          completedByUserId: completedViaIntake ? null : params.ownerUserId,
+          completedBy: completedViaIntake ? "EXTERNAL_CONTRIBUTOR" : "OWNER",
+          completedAtUtc: now.toISOString(),
+          acquisitionMode: evidence.acquisitionMode ?? null,
+          captureSessionId: params.captureSession?.sessionId ?? null,
+          intakeSessionId: params.intakeSubmission?.sessionId ?? null,
+        } as prismaPkg.Prisma.InputJsonValue,
+        ip: params.requestContext?.ip ?? null,
+        userAgent: params.requestContext?.userAgent ?? null,
+      });
+
+      // UC-WEB-001 — a web capture DRAFT bound to this record is FINALIZED
+      // here, when the record is sealed — not when it was reserved. A draft
+      // whose finalize failed mid-upload therefore stays resumable.
+      const boundDrafts = await tx.captureSession.findMany({
+        where: {
+          finalizedEvidenceId: evidence.id,
+          acquisitionMode: null,
+          status: prismaPkg.CaptureSessionStatus.DRAFT,
+        },
+        select: { id: true },
+      });
+      for (const draft of boundDrafts) {
+        await tx.captureSession.update({
+          where: { id: draft.id },
+          data: { status: prismaPkg.CaptureSessionStatus.FINALIZED, finalizedAtUtc: now },
+        });
+        await tx.captureSessionEvent.create({
+          data: {
+            sessionId: draft.id,
+            actorUserId: params.ownerUserId,
+            eventType: prismaPkg.CaptureSessionEventType.FINALIZED,
+            payload: { evidenceId: evidence.id } as prismaPkg.Prisma.InputJsonValue,
+          },
+        });
+      }
+
       // BILLING COMMERCIAL CORRECTNESS (2026-08-27) — settle the commercial
       // cost of this completion INSIDE the completion transaction.
       //
@@ -1707,6 +1798,7 @@ const captureMethod =
   await runCompletionFanoutOnce({
     evidenceId: final.result.id,
     signingKeyVersion: final.result.signingKeyVersion ?? null,
+    requestContext: params.requestContext ?? null,
   });
 
   return final.result;
@@ -1729,6 +1821,7 @@ const COMPLETION_FANOUT_LEASE_MS = 10 * 60_000;
 export async function runCompletionFanoutOnce(input: {
   evidenceId: string;
   signingKeyVersion: number | null;
+  requestContext?: { ip?: string | null; userAgent?: string | null; correlationId?: string | null } | null;
 }): Promise<{ ran: boolean }> {
   const claimedAt = new Date();
   const claim = await prisma.evidence.updateMany({
@@ -1745,6 +1838,12 @@ export async function runCompletionFanoutOnce(input: {
   });
   if (claim.count === 0) return { ran: false };
   const final = { result: { id: input.evidenceId, signingKeyVersion: input.signingKeyVersion } };
+
+  // UC-ARCH-003 — the channel-independent completion effects that used to live
+  // only in the web /complete route: the reviewer-queue workflow row and the
+  // evidence.complete tenant audit. Here they run once per record for web,
+  // direct capture (mobile / extension / screen) and intake alike.
+  await initializeCompletionReviewAndAudit(input.evidenceId, input.requestContext ?? null);
 
   // Phase 10 — fire `evidence.completed` to any subscribed webhook
   // endpoints in this workspace. The dispatcher is feature-flag gated
@@ -1828,6 +1927,88 @@ export async function runCompletionFanoutOnce(input: {
     data: { completionFanoutDoneAtUtc: new Date() },
   });
   return { ran: true };
+}
+
+/**
+ * UC-ARCH-003 — the reviewer workflow (NOT_STARTED, so the record enters the
+ * reviewer queue on completion) and the evidence.complete tenant audit.
+ * Best-effort like every fan-out step: a failure is logged, never thrown.
+ */
+async function initializeCompletionReviewAndAudit(
+  evidenceId: string,
+  requestContext: { ip?: string | null; userAgent?: string | null; correlationId?: string | null } | null,
+): Promise<void> {
+  const ev = await prisma.evidence
+    .findUnique({
+      where: { id: evidenceId },
+      select: {
+        id: true,
+        teamId: true,
+        ownerUserId: true,
+        status: true,
+        verificationStatus: true,
+        acquisitionMode: true,
+        templateSlug: true,
+        templateVersion: true,
+        templateDbId: true,
+      },
+    })
+    .catch(() => null);
+  if (!ev) return;
+  const viaIntake = ev.acquisitionMode === "SECURE_INTAKE_LINK";
+  try {
+    const { upsertEvidenceReviewerWorkflow } = await import(
+      "./evidence-review/reviewer-workflow.service.js"
+    );
+    await upsertEvidenceReviewerWorkflow({
+      evidenceId: ev.id,
+      workspaceType: ev.teamId ? "TEAM" : "PERSONAL",
+      teamId: ev.teamId,
+      actorUserId: ev.ownerUserId,
+      status: prismaPkg.EvidenceReviewWorkflowStatus.NOT_STARTED,
+      priority: prismaPkg.EvidenceReviewWorkflowPriority.NORMAL,
+      note: "Created automatically on Capture finalization.",
+      templateIdentity: {
+        templateSlug: ev.templateSlug ?? null,
+        templateVersion: ev.templateVersion ?? null,
+        templateDbId: ev.templateDbId ?? null,
+      },
+      templateIdentitySource: "capture",
+    });
+  } catch (err) {
+    logWarn("evidence_complete.workflow_init_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      evidenceId,
+    });
+  }
+  try {
+    const { emitTenantAudit } = await import("./audit/tenant-audit.service.js");
+    await emitTenantAudit({
+      action: "evidence.complete",
+      outcome: "success",
+      sourceApp: "API",
+      // The external contributor of an intake record has no user account.
+      actorUserId: viaIntake ? null : ev.ownerUserId,
+      workspaceId: ev.teamId ?? null,
+      resourceType: "evidence",
+      resourceId: ev.id,
+      correlationId: requestContext?.correlationId ?? null,
+      ipAddress: requestContext?.ip ?? null,
+      userAgent: requestContext?.userAgent ?? null,
+      metadata: {
+        status: ev.status,
+        verificationStatus: ev.verificationStatus,
+        acquisitionMode: ev.acquisitionMode ?? null,
+        result: "completed",
+        severity: "info",
+      },
+    });
+  } catch (err) {
+    logWarn("evidence_complete.audit_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      evidenceId,
+    });
+  }
 }
 
 /**

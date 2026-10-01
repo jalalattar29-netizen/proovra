@@ -736,7 +736,10 @@ export async function loadIntakeLinkSubmissions(
     revokedAtUtc: s.revokedAtUtc?.toISOString() ?? null,
     expiresAtUtc: s.expiresAtUtc.toISOString(),
     consentAcceptedAtUtc: s.consentAcceptedAtUtc?.toISOString() ?? null,
-    evidenceId: s.evidenceId,
+    // UC-ARCH-005 — the record id is disclosed only once the contributor has
+    // SUBMITTED. An in-flight record belongs to the contributor's session; its
+    // id is no handle for the link creator to write into it.
+    evidenceId: s.status === "SUBMITTED" ? s.evidenceId : null,
   }));
 
   const snapshot = link.workflowTemplateSnapshot as { name?: string } | null;
@@ -754,7 +757,7 @@ export async function loadIntakeLinkSubmissions(
         s.status === "UPLOAD_STARTED" ||
         s.status === "UPLOAD_COMPLETED",
     ).length,
-    evidenceProduced: sessions.filter((s) => s.evidenceId !== null).length,
+    evidenceProduced: rows.filter((s) => s.evidenceId !== null).length,
   };
 
   return {

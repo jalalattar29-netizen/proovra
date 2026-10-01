@@ -71,6 +71,102 @@ function createdBeforeEvidenceCondition(
   };
 }
 
+const UNSEALED_STATUSES: prismaPkg.EvidenceStatus[] = [
+  prismaPkg.EvidenceStatus.CREATED,
+  prismaPkg.EvidenceStatus.UPLOADING,
+];
+
+type AllowancePopulationClient = Pick<prismaPkg.Prisma.TransactionClient, "team" | "evidence"> & {
+  evidenceCreditLedgerEntry: Pick<prismaPkg.Prisma.TransactionClient["evidenceCreditLedgerEntry"], "count">;
+};
+
+/**
+ * UC-COM-002 — THE allowance population of a commercial principal: a SHARED
+ * workspace's records, or a Personal subject's records (legacy NULL-team rows
+ * and its personal Team). Admission and settlement both ask this, so the
+ * rolling-window count can no longer differ by which scope builder ran.
+ */
+async function allowancePopulationWhere(
+  scope: WorkspaceScope,
+  client: Pick<prismaPkg.Prisma.TransactionClient, "team">,
+): Promise<prismaPkg.Prisma.EvidenceWhereInput> {
+  if (scope.billingShape === "SHARED") {
+    return { teamId: scope.teamId };
+  }
+  const personalTeam = await client.team.findFirst({
+    where: { ownerUserId: scope.ownerUserId, isPersonal: true },
+    select: { id: true },
+  });
+  return {
+    ownerUserId: scope.ownerUserId,
+    OR: [{ teamId: null }, ...(personalTeam ? [{ teamId: personalTeam.id }] : [])],
+  };
+}
+
+/**
+ * UC-COM-001 / UC-COM-003 — the allowance, measured as COMMITMENTS rather than
+ * rows.
+ *
+ *   planOccupying — records holding (or about to take) a PLAN slot: every
+ *     slot-holding record except those already funded by a consumed credit.
+ *   planPrior     — for settling ONE record: the other records that take a
+ *     plan slot ahead of it — every sealed plan-funded record (whatever its
+ *     creation order) plus the live unsealed records admitted before it. It
+ *     used to count only records CREATED before the one being settled, so a
+ *     later record sealed first did not occupy the slot it had taken.
+ */
+async function measureAllowance(
+  scope: WorkspaceScope,
+  client: AllowancePopulationClient,
+  options: { since?: Date | null; settling?: EvidenceCapacityCursor | null } = {},
+): Promise<{ planOccupying: number; planPrior: number }> {
+  const population = await allowancePopulationWhere(scope, client);
+  const base: prismaPkg.Prisma.EvidenceWhereInput = {
+    AND: [
+      population,
+      allowanceSlotEvidenceWhere(),
+      ...(options.since ? [{ createdAt: { gte: options.since } }] : []),
+      ...(options.settling ? [{ NOT: { id: options.settling.id } }] : []),
+    ],
+  };
+  const sealed = await client.evidence.findMany({
+    where: { AND: [base, { status: { notIn: UNSEALED_STATUSES } }] },
+    select: { id: true },
+  });
+  const creditFunded =
+    sealed.length === 0
+      ? 0
+      : await client.evidenceCreditLedgerEntry.count({
+          where: {
+            evidenceId: { in: sealed.map((r) => r.id) },
+            entryType: prismaPkg.EvidenceCreditEntryType.CONSUMPTION,
+          },
+        });
+  const unsealed = await client.evidence.count({
+    where: { AND: [base, { status: { in: UNSEALED_STATUSES } }] },
+  });
+  const unsealedPrior = options.settling
+    ? await client.evidence.count({
+        where: {
+          AND: [base, { status: { in: UNSEALED_STATUSES } }, createdBeforeEvidenceCondition(options.settling)],
+        },
+      })
+    : unsealed;
+  const sealedPlan = sealed.length - creditFunded;
+  return { planOccupying: sealedPlan + unsealed, planPrior: sealedPlan + unsealedPrior };
+}
+
+/**
+ * UC-COM-003 — credits already COMMITTED to admitted, unsealed records beyond
+ * the allowance. A banked credit is spent at completion, so without this one
+ * credit admitted any number of over-allowance captures and all but one were
+ * refused at seal after their bytes were uploaded.
+ */
+function uncommittedCredits(scope: WorkspaceScope, planOccupying: number, cap: number | null): number {
+  const pending = cap === null ? 0 : Math.max(0, planOccupying - cap);
+  return Math.max(0, Math.max(0, scope.credits ?? 0) - pending);
+}
+
 /**
  * The per-workspace capacity lock (transaction-scoped). ET-SEC-28 — exported so
  * the completion's STORAGE check runs under it too: the check used to run
@@ -83,9 +179,12 @@ export async function lockEvidenceCapacitySubject(
   scope: WorkspaceScope,
   client: Pick<EvidenceCapacitySettlementClient, "$executeRaw">,
 ) {
-  const subject = scope.teamId
-    ? `team:${scope.teamId}`
-    : `personal:${scope.ownerUserId}`;
+  // UC-COM-002 — keyed on the COMMERCIAL PRINCIPAL, never on scope.teamId.
+  // Admission resolves a personal capture with teamId null and completion
+  // resolves the same record with its personal Team id; keyed on teamId the two
+  // phases took different locks and were not serialized. The principal is the
+  // same for both (SINGLE_OCCUPANT -> PERSONAL:<owner>).
+  const subject = commercialPrincipalOf(scope);
   await client.$executeRaw`
     SELECT pg_advisory_xact_lock(hashtext(${`evidence-capacity:${subject}`}))
   `;
@@ -287,17 +386,8 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     // shared workspace counts by team id, a Personal subject counts the
     // personal population through the canonical predicate.
     const since = new Date(Date.now() - THIRTY_DAYS_MS);
-    const monthlyCount = scope.teamId
-      ? await prisma.evidence.count({
-          where: {
-            teamId: scope.teamId,
-            createdAt: { gte: since },
-            AND: [allowanceSlotEvidenceWhere()],
-          },
-        })
-      : await countPersonalEvidenceRecords(scope.ownerUserId, {
-          createdSince: since,
-        });
+    const monthly = await measureAllowance(scope, prisma, { since });
+    const monthlyCount = monthly.planOccupying;
 
     if (monthlyCount < contractedMonthlyCap) return;
 
@@ -342,7 +432,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
       plan: scope.plan,
       currentRecordCount: 0,
       effectiveLifetimeRecordCap: 0,
-      availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
+      availableEvidenceCredits: uncommittedCredits(scope, monthlyCount, contractedMonthlyCap),
     });
 
     if (monthlyAdmission.allowed) return;
@@ -372,7 +462,10 @@ export async function assertWorkspaceAllowsEvidenceCreation(
   // id, and the backfill migrates legacy NULL rows to it. Count both
   // shapes so plan limits survive the migration. (Evidence has no
   // `team` relation field, so the personal team id is resolved first.)
-  const evidenceCount = await countPersonalEvidenceRecords(scope.ownerUserId);
+  // UC-COM-003 — measured as plan commitments; credits already committed to
+  // admitted over-allowance reservations are not available again.
+  const lifetime = await measureAllowance(scope, prisma);
+  const evidenceCount = lifetime.planOccupying;
 
   // §9.7 — the effective lifetime cap is resolved by the CANONICAL ENVELOPE
   // (`resolveCommercialContext(...).limits`, attached at the enforcement
@@ -397,7 +490,7 @@ export async function assertWorkspaceAllowsEvidenceCreation(
     plan: scope.plan,
     currentRecordCount: evidenceCount,
     effectiveLifetimeRecordCap: effectiveLifetimeCap,
-    availableEvidenceCredits: Math.max(0, scope.credits ?? 0),
+    availableEvidenceCredits: uncommittedCredits(scope, evidenceCount, effectiveLifetimeCap ?? null),
   });
 
   if (admission.allowed) {
@@ -852,22 +945,8 @@ export async function settleEvidenceCompletionFunding(
     !contractEvidenceCapIsHardMaximum({ contract: scope.contractLimits })
   ) {
     const since = new Date(Date.now() - THIRTY_DAYS_MS);
-    const priorMonthlyCount = scope.teamId
-      ? await client.evidence.count({
-          where: {
-            teamId: scope.teamId,
-            createdAt: { gte: since },
-            AND: [
-              allowanceSlotEvidenceWhere(),
-              createdBeforeEvidenceCondition(settlingEvidence),
-            ],
-          },
-        })
-      : await countPersonalEvidenceRecords(scope.ownerUserId, {
-          createdSince: since,
-          createdBeforeEvidence: settlingEvidence,
-          client,
-        });
+    const priorMonthlyCount = (await measureAllowance(scope, client, { since, settling: settlingEvidence }))
+      .planPrior;
 
     if (priorMonthlyCount < monthlyCap) return { funding: "PLAN" };
 
@@ -908,10 +987,9 @@ export async function settleEvidenceCompletionFunding(
   // Removing the parameter removes the class of error: there is no number a
   // caller can get wrong, and the admission decision at completion now asks
   // exactly the question the creation gate asks.
-  const priorRecordCount = await countPersonalEvidenceRecords(scope.ownerUserId, {
-    createdBeforeEvidence: settlingEvidence,
-    client,
-  });
+  // UC-COM-001 — every other record holding a plan slot, whatever its creation
+  // order (see measureAllowance).
+  const priorRecordCount = (await measureAllowance(scope, client, { settling: settlingEvidence })).planPrior;
 
   const admission = resolvePersonalEvidenceAdmission({
     plan: scope.plan,

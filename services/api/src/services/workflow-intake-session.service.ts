@@ -301,6 +301,36 @@ export async function openIntakeSession(
   });
 }
 
+/**
+ * UC-WEB-003 — RESUME the contributor's own open session after a reload.
+ *
+ * The token page used to open a fresh session on every GET, so a reload (or a
+ * mobile browser evicting the tab) discarded consent and every staged file.
+ * The page now presents the session id it was given back to the token route.
+ * It is resumed only when it is bound to THIS validated link, still open
+ * (OPENED / UPLOAD_STARTED / UPLOAD_COMPLETED), not expired, and opened by the
+ * same browser (same User-Agent as recorded at open). Anything else → null,
+ * and the caller opens a fresh session exactly as before.
+ */
+export async function resumeIntakeSession(
+  input: { link: DbWorkflowIntakeLink; sessionId: string; submitterUserAgent: string | null },
+  client: PrismaClient = defaultPrisma,
+): Promise<DbWorkflowIntakeSession | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(input.sessionId)) return null;
+  const session = await client.workflowIntakeSession.findFirst({
+    where: {
+      id: input.sessionId,
+      intakeLinkId: input.link.id,
+      status: { in: ["OPENED", "UPLOAD_STARTED", "UPLOAD_COMPLETED"] },
+      expiresAtUtc: { gt: new Date() },
+    },
+  });
+  if (!session) return null;
+  const ua = input.submitterUserAgent?.slice(0, 512) ?? null;
+  if ((session.submitterUserAgent ?? null) !== ua) return null;
+  return session;
+}
+
 // -----------------------------------------------------------------------------
 // Record submitter identity (the ONE writer of the three identity columns)
 // -----------------------------------------------------------------------------

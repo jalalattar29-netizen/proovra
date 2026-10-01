@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { isProovraProductionRequest } from "../http/cors-origin-policy.js";
 import { z } from "zod";
 
 import {
@@ -408,10 +409,12 @@ export async function authRoutes(app: FastifyInstance) {
       return;
     }
 
-    const host = req.headers.host ?? "";
-    const origin = req.headers.origin ?? "";
-    const isProductionDomain =
-      host.includes("proovra.com") || origin.includes("proovra.com");
+    // UC-SEC-005 — exact host/origin parsing (a substring test admitted
+    // look-alike origins such as https://proovra.com.attacker.example).
+    const isProductionDomain = isProovraProductionRequest(
+      req.headers.host,
+      typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+    );
 
     const cookieOpts = isProductionDomain
       ? {

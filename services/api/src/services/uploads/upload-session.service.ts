@@ -541,6 +541,37 @@ export type ResumeSessionResult =
     }
   | { ok: false; reason: UploadSessionDenialCode };
 
+/**
+ * UC-SEC-001 — THE caller check for every mutation and read of a resumable
+ * upload session. A session is bound to the member who created it (its
+ * actor, who must own the record at creation — ET-UPL-01); another member of
+ * the same workspace answers exactly like an unknown session (anti-
+ * enumeration). The bridge writes the session's bytes into the record AS the
+ * session actor, so a caller who is not that actor must never reach it: it
+ * used to be checked only at create and abort, so any member holding the
+ * session id could presign, mark uploaded and complete parts of a
+ * colleague's in-flight record.
+ */
+export async function assertUploadSessionActor(
+  input: { teamId: string; sessionId: string; actorUserId: string },
+  client: PrismaClient = defaultPrisma,
+): Promise<{ ok: true } | { ok: false; reason: UploadSessionDenialCode }> {
+  try {
+    const rows = (await client.$queryRawUnsafe(
+      `SELECT 1 AS "one"
+         FROM "evidence_upload_sessions"
+         WHERE "id" = $1 AND "team_id" = $2 AND "actor_user_id" = $3
+         LIMIT 1`,
+      input.sessionId,
+      input.teamId,
+      input.actorUserId,
+    )) as Array<{ one: number }>;
+    return rows.length === 1 ? { ok: true } : { ok: false, reason: "session_not_found" };
+  } catch {
+    return { ok: false, reason: "service_unavailable" };
+  }
+}
+
 export async function resumeUploadSession(
   input: ResumeSessionInput,
   client: PrismaClient = defaultPrisma,
