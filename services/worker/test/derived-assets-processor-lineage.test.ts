@@ -28,7 +28,7 @@ const s = vi.hoisted(() => ({
   streamCalls: [] as Array<Record<string, unknown>>,
   puts: [] as string[],
   deletes: [] as string[],
-  writes: [] as Array<Record<string, any>>,
+  writes: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("../src/canonical-job.js", () => ({
@@ -90,7 +90,7 @@ vi.mock("../src/ffmpeg-derived-assets.js", async (orig) => {
 vi.mock("@proovra/shared-runtime/media-intelligence", async (orig) => ({
   ...(await orig<typeof import("@proovra/shared-runtime/media-intelligence")>()),
   evaluateDerivedProductionEligibility: vi.fn(async () => s.eligibility),
-  recordDerivedAsset: vi.fn(async (input: Record<string, any>) => {
+  recordDerivedAsset: vi.fn(async (input: Record<string, unknown>) => {
     s.writes.push(input);
     return { ok: true, id: s.request.id, previousStorage: null, supersededAssetId: null };
   }),
@@ -150,9 +150,10 @@ describe("derived-assets processor — lineage (DER-005 / DER-014)", () => {
     const res = await processDerivedAssetJob(job as never);
     expect(res.status).toBe("COMPLETED");
     const done = s.writes.find((w) => w.status === "COMPLETED")!;
-    expect(done.generationParameters.sourceRead.wholeSource).toBe(false);
-    expect(done.generationParameters.sourceRead.bytesRead).toBe(50 * 1024 * 1024);
-    expect(done.generationParameters.sourceRead.digestMatchesRecorded).toBeNull();
+    const sourceRead = (done.generationParameters as { sourceRead: Record<string, unknown> }).sourceRead;
+    expect(sourceRead.wholeSource).toBe(false);
+    expect(sourceRead.bytesRead).toBe(50 * 1024 * 1024);
+    expect(sourceRead.digestMatchesRecorded).toBeNull();
   });
 
   it("bytes that do not match the recorded ORIGINAL digest are refused (FAILED, nothing stored)", async () => {

@@ -19,6 +19,7 @@
  * build assets (/_next/static/, immutable, cache-first), the brand/icon assets,
  * the manifest and the offline page (stale-while-revalidate).
  */
+/* global self */
 (function (root) {
   var VERSION = "proovra-sw-v1";
   var CACHE_PREFIX = "proovra-";
@@ -46,7 +47,7 @@
     var url;
     try {
       url = new URL(req.url);
-    } catch (e) {
+    } catch {
       return { strategy: "bypass" };
     }
     if (url.origin !== req.origin) return { strategy: "bypass" };
@@ -72,7 +73,7 @@
     var cc = "";
     try {
       cc = (res.headers && res.headers.get && res.headers.get("cache-control")) || "";
-    } catch (e) {
+    } catch {
       cc = "";
     }
     return !/no-store|private/i.test(cc);

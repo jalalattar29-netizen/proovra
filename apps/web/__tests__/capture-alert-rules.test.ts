@@ -29,7 +29,7 @@ const METRICS = read("packages/shared-runtime/src/ops/metrics.service.ts");
 
 type Rule = { uid: string; block: string };
 function rules(): Rule[] {
-  const parts = RULES.split(/\n(?=      - uid: )/).slice(1);
+  const parts = RULES.split(/\n(?= {6}- uid: )/).slice(1);
   return parts.map((block) => ({ uid: /- uid: (\S+)/.exec(block)![1], block }));
 }
 const kebab = (m: string) => m.toLowerCase().replace(/_/g, "-");

@@ -410,7 +410,7 @@ runIf("UC-4 persisted screen intelligence (DB + storage)", () => {
     const params = (await prisma.$queryRawUnsafe(
       `SELECT generation_parameters FROM evidence_part_derived_assets WHERE id=$1::uuid`,
       kf.id,
-    )) as Array<{ generation_parameters: Record<string, any> }>;
+    )) as Array<{ generation_parameters: Record<string, unknown> }>;
     expect(params[0]!.generation_parameters.sourceRead).toMatchObject({
       storageVersionId: "ver-123",
       wholeSource: true,

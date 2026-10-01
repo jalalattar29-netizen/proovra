@@ -228,7 +228,7 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
           redirectUri: q.redirect_uri,
           codeChallenge: q.code_challenge,
           codeChallengeMethod: q.code_challenge_method,
-          scope: normalizeExtensionScope(q.scope),
+          scope: normalizeExtensionScope(),
           provenance,
         });
         const url = new URL(q.redirect_uri);

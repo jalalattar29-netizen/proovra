@@ -24,8 +24,8 @@ export const EXTENSION_OAUTH_CODE_MAX_LENGTH = 512;
  */
 export const EXTENSION_OAUTH_SCOPES = ["capture.direct"] as const;
 
-/** The scope actually granted: capture.direct, whatever else was requested. */
-export function normalizeExtensionScope(_requested: string | null | undefined): string {
+/** The scope actually granted: capture.direct, whatever the request carried (the requested scope is deliberately not an input). */
+export function normalizeExtensionScope(): string {
   return "capture.direct";
 }
 
@@ -203,7 +203,7 @@ export async function createExtensionAuthCode(input: {
       clientId: input.clientId,
       redirectUri: input.redirectUri,
       codeChallenge: input.codeChallenge,
-      scope: normalizeExtensionScope(input.scope),
+      scope: normalizeExtensionScope(),
       expiresAtUtc: new Date(now.getTime() + EXTENSION_OAUTH_CODE_TTL_SECONDS * 1000),
     } as never,
   });

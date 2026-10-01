@@ -139,7 +139,7 @@ export type ScreenReconstructionResult = {
 export function normaliseObservationText(text: string): string {
   return (text ?? "")
     .normalize("NFKC")
-    .replace(/[​-‏⁠﻿]/g, "")
+    .replace(/[\u200B-\u200F\u2060\uFEFF]/g, "")
     .replace(/[‘’‚‛`´]/g, "'")
     .replace(/[“”„‟]/g, '"')
     .replace(/\s+/g, " ")

@@ -20,6 +20,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Readable } from "node:stream";
 
+
+type Orchestrator = typeof import("@proovra/shared-runtime/media-intelligence").runAndPersistScreenIntelligence;
 const state = vi.hoisted(() => ({
   runKey: "reconstruct_screen:11111111-1111-4111-8111-111111111111" as string | null,
   parts: [] as Array<Record<string, unknown>>,
@@ -32,7 +34,7 @@ const state = vi.hoisted(() => ({
     | { ok: false; reason: string },
   objects: new Map<string, Buffer>(),
   streamCalls: [] as Array<{ bucket: string; key: string; versionId?: string | null }>,
-  orchestratorCalls: [] as Array<{ input: any; deps: any }>,
+  orchestratorCalls: [] as Array<{ input: Parameters<Orchestrator>[0]; deps: Parameters<Orchestrator>[1] }>,
   orchestratorResult: {
     ok: true,
     status: "COMPLETE",
@@ -48,7 +50,7 @@ const state = vi.hoisted(() => ({
     descriptorSha256: "e".repeat(64),
     supersededAssetCount: 0,
     limitations: [],
-  } as any,
+  } as Record<string, unknown>,
   completed: [] as Array<unknown[]>,
   failed: [] as Array<unknown[]>,
 }));
@@ -138,9 +140,9 @@ vi.mock("@proovra/shared-runtime/media-intelligence", async (orig) => ({
   }),
   resolveWorkspaceOcrAllowed: vi.fn(async () => state.ocrAllowed),
   evaluateDerivedProductionEligibility: vi.fn(async () => state.eligibility),
-  runAndPersistScreenIntelligence: vi.fn(async (input: unknown, deps: unknown) => {
+  runAndPersistScreenIntelligence: vi.fn(async (input: Parameters<Orchestrator>[0], deps: Parameters<Orchestrator>[1]) => {
     state.orchestratorCalls.push({ input, deps });
-    return state.orchestratorResult;
+    return state.orchestratorResult as Awaited<ReturnType<Orchestrator>>;
   }),
 }));
 

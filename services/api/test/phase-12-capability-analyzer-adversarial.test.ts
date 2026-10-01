@@ -390,7 +390,7 @@ describe("capability analyzer — route registration and authorization", () => {
       const ids = routes.map((r: any) => `${r.methods[0].toUpperCase()} ${r.route}`).sort();
       assert.deepEqual(ids, ["GET /v1/fixture/b/:id", "POST /v1/fixture/a"]);
       assert.equal(dynamicUnresolved.length, 1, "the unreadable table must stay unresolved");
-      assert.match(dynamicUnresolved[0].file, /fixture-unreadable/);
+      assert.match((dynamicUnresolved[0] as { file: string }).file, /fixture-unreadable/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

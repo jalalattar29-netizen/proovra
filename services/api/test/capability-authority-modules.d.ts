@@ -207,6 +207,7 @@ declare module "*/capability-authority/call-graph.mjs" {
   export const REPO: string;
   export const ts: any;
   export function buildCallGraph(): { graph: Map<string, any>; fileSet: Set<string> };
+  export function resolveDynamicNamespaceCall(call: unknown, file: string, cg: unknown): ({ name: string; file: string } & Record<string, unknown>) | null;
   export function resolveCall(call: unknown, file: string, cg: unknown): Record<string, any>;
   export function resolveValueDeclaration(node: unknown, file: string, cg: unknown): Record<string, any> | null;
   export function traverse(

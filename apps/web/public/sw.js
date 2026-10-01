@@ -12,7 +12,7 @@
  * survives sign-out. Only static shell assets are ever cached, but they are
  * cleared anyway.
  */
-/* global self, caches, fetch, importScripts */
+/* global self, caches, importScripts */
 importScripts("/sw-policy.js");
 
 var P = self.ProovraSwPolicy;
