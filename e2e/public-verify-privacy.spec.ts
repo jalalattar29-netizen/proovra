@@ -164,7 +164,9 @@ test.describe("public verify privacy @critical", () => {
       expect(basic?.original?.fileSha256).toMatch(/^[0-9a-f]{64}$/);
       // ET-SM-07 — finalization read the stored bytes, so a record this stack
       // just signed is "verified, current" with a date; it is never silently
-      // assumed.
+      // assumed. UC-TRUST-008: "current" also requires the read to be a pinned
+      // object version, so this stack's bucket is versioned like production
+      // (playwright-e2e.yml "Provision MinIO bucket").
       expect(basic?.storedBytes?.state).toBe("verified_current");
       expect(basic?.storedBytes?.lastVerifiedAtUtc).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       // The headline is honest: it is "verified" exactly when every check

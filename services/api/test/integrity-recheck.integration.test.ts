@@ -283,13 +283,37 @@ describe("integrity recheck — every signed record, recorded and honest (live P
         trigger: "REPORT_ISSUANCE",
         correlationId: "job-1",
       }),
-      recheck.recheckEvidenceIntegrity({ evidenceId: ok.id, trigger: "SCHEDULED", reader: store.reader }),
+      // FORCED, so the race is the one under test (two writers recording at
+      // once) and not the unrelated question of whether the record is still
+      // DUE: unforced, the recheck lost whenever the report's VERIFIED
+      // committed first — the record was then no longer due and the claim
+      // correctly declined (feature CI saw exactly that). That ordering is
+      // pinned on its own below.
+      recheck.recheckEvidenceIntegrity({ evidenceId: ok.id, trigger: "SCHEDULED", force: true, reader: store.reader }),
     ]);
     expect(fromReport.rejected).toBe(false);
     expect(fromRecheck).toMatchObject({ checked: true, outcome: "VERIFIED" });
     expect((await checks(ok.id)).map((c) => c.trigger).sort()).toEqual(["REPORT_ISSUANCE", "SCHEDULED"]);
     expect(await row(ok.id)).toMatchObject({ status: "SIGNED", integrityRecheckClaimedAtUtc: null });
     expect(readState(await row(ok.id)).state).toBe("verified_current");
+
+    // The other ordering, pinned: once a report-time VERIFIED has been
+    // recorded, an UNFORCED scheduled recheck finds the record not due and
+    // touches nothing — no read, no history row.
+    const fresh = await signedRecord(t);
+    await recheck.recordIntegrityObservation({
+      evidenceId: fresh.id,
+      teamId: t.personalTeamId,
+      expectedDigest: fresh.fileSha256,
+      observation: { ...verified, checkedDigest: fresh.fileSha256, storageVersionId: fresh.versionId, checkedObjects: [{ partIndex: null, versionId: fresh.versionId, sha256: fresh.fileSha256 }] },
+      trigger: "REPORT_ISSUANCE",
+    });
+    const readsBefore = store.reads.length;
+    expect(
+      await recheck.recheckEvidenceIntegrity({ evidenceId: fresh.id, trigger: "SCHEDULED", reader: store.reader }),
+    ).toEqual({ checked: false, reason: "NOT_ELIGIBLE_OR_HELD" });
+    expect(store.reads.length).toBe(readsBefore);
+    expect((await checks(fresh.id)).map((c) => c.trigger)).toEqual(["REPORT_ISSUANCE"]);
 
     const bad = await signedRecord(t);
     store.objects.get(bad.key)!.set(bad.versionId, Buffer.from("drift"));
@@ -309,7 +333,7 @@ describe("integrity recheck — every signed record, recorded and honest (live P
         trigger: "REPORT_ISSUANCE",
         rejectionSource: "worker.report.single_file",
       }),
-      recheck.recheckEvidenceIntegrity({ evidenceId: bad.id, trigger: "SCHEDULED", reader: store.reader }),
+      recheck.recheckEvidenceIntegrity({ evidenceId: bad.id, trigger: "SCHEDULED", force: true, reader: store.reader }),
     ]);
     expect((await row(bad.id)).status).toBe("FAILED_HASH_MISMATCH");
     expect(

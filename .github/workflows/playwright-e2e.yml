@@ -188,12 +188,17 @@ jobs:
           docker logs --tail 50 minio || true
           exit 1
 
+      # VERSIONED, like production evidence storage (Object Lock requires
+      # versioning). UC-TRUST-008: stored bytes are "verified, current" only when
+      # every object the check read is a pinned, immutable version — on an
+      # unversioned bucket a freshly signed record is correctly
+      # "verified_stale", which is what the critical public-verify spec saw.
       - name: Provision MinIO bucket
         run: |
-          docker run --rm --network host \
-            -e MC_HOST_local=http://minio:minio_password@localhost:9000 \
-            pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd \
-            mb --ignore-existing local/proovra-e2e
+          MC="docker run --rm --network host -e MC_HOST_local=http://minio:minio_password@localhost:9000 pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd"
+          $MC mb --ignore-existing local/proovra-e2e
+          $MC version enable local/proovra-e2e
+          $MC version info local/proovra-e2e | grep -qi "enabled" || { echo "::error::proovra-e2e is not versioned"; exit 1; }
 
       - name: Build shared + API + worker
         run: |
