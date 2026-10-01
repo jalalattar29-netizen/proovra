@@ -302,7 +302,9 @@ describe("32.7 Test 4 — artifact status polling is side-effect-free", () => {
     // The polling loop must NOT hit /report/latest or /verification-package.
     // Find each "for" loop pollArtifacts and assert the URL inside is
     // status, not download.
-    const pollFn = src.match(/pollArtifacts[\s\S]*?return false;\s*\}/);
+    // UC-WEB-005 — the poll now returns the last outcome it saw ("return last;"), so the
+    // function body runs to that statement rather than to the former "return false;".
+    const pollFn = src.match(/const pollArtifacts[\s\S]*?return last;\s*\}/);
     expect(pollFn).toBeTruthy();
     const body = pollFn![0];
     expect(body).not.toMatch(/\/report\/latest/);

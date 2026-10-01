@@ -247,7 +247,7 @@ describe("CR4 Group 1 — file-size guards", () => {
     // Rebaselined 2026-09-30: 67,985 -> 68,686 — ET-ACQ-05: the checklist plan comes from the owner's capture session and its template
     // Rebaselined 2026-09-30: 68,686 -> 69,911 — ET-COM-04: the completion transaction takes the issuance decision once and stores the record's earned funding fact
     // Rebaselined 2026-09-30: 69,911 -> 71,631 — ET-SM-07 / ET-PKG-07: the completion transaction records the first integrity check and finalizes every record NOT_PUBLISHED
-    expect(sz).toBe(71631);
+    expect(sz).toBe(79841) // Rebaselined 2026-10-01: 71,631 -> 79,841 — UC-ARCH-003: completeEvidence is the ONE finalization authority (EVIDENCE_COM…;
   });
 
   it("custody-events.service.ts remains the ONE custody writer (CR1.6)", () => {

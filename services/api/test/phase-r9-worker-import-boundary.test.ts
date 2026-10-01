@@ -70,7 +70,8 @@ describe("Phase R9 — worker → API boundary (provenance-chain pipeline)", () 
   it("loader delegates to the shared-runtime projection (UC-0)", () => {
     const loader = readFileSync(FILES_UNDER_CONTRACT[0]!, "utf8");
     expect(loader).toMatch(
-      /import\s*\{\s*loadProvenanceChain\s*\}\s*from\s+["']@proovra\/shared-runtime["']/,
+      // UC-TRUST-004 — the loader also imports loadTrustEventRecords from the same module.
+      /import\s*\{[^}]*\bloadProvenanceChain\b[^}]*\}\s*from\s+["']@proovra\/shared-runtime["']/,
     );
     expect(loader).not.toMatch(/from\s+["']\.\/provenance-projection(?:\.js)?["']/);
   });

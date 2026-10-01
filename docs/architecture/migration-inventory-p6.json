@@ -36,10 +36,9 @@
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
       "SAFE_TO_APPLY_NOW": 101,
-      "WAIT_FOR_BACKFILL_READINESS": 13,
+      "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
-      "WAIT_FOR_RUNTIME_CUTOVER": 2,
-      "OWNER_ACTION_AFTER_BACKUP": 1
+      "WAIT_FOR_RUNTIME_CUTOVER": 2
     },
     "MigrationInventoryUnknown": 0,
     "UnclassifiedMigrations": 0,
@@ -23848,7 +23847,7 @@
       "checksumSha256": "6f1c741579e2eebe104b2a7eb0b4d73d4ba538b8d2d6d3bb78052d8ff9c86614",
       "checksumSha256Raw": "6f1c741579e2eebe104b2a7eb0b4d73d4ba538b8d2d6d3bb78052d8ff9c86614",
       "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
-      "gitTracked": false,
+      "gitTracked": true,
       "gitIntroductionCommit": null,
       "sqlChangedSinceIntroduction": false,
       "classification": "BACKFILL",
@@ -23899,10 +23898,10 @@
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM evidence e JOIN workspace_governance_policies p ON p.team_id = e.team_id WHERE p.default_retention_days > 0 AND e.retention_until_utc IS NULL AND e.deleted_at IS NULL AND e.acquisition_mode IN ('PROOVRA_MOBILE_APP','DIRECT_WEB_CAPTURE_EXTENSION','DIRECT_SCREEN_CAPTURE_ANDROID','DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS','DIRECT_SCREEN_CAPTURE_IOS')\"",
       "blockingReadinessCategories": [],
       "rollbackDisposition": null,
-      "releaseWave": "OWNER_ACTION_AFTER_BACKUP",
+      "releaseWave": "WAIT_FOR_BACKFILL_READINESS",
       "ownerAction": null,
       "removalCondition": null,
-      "evidence": "LEGACY CAPTURE RETENTION BACKFILL (2026-10-01, UC-ARCH-002). Sets retention_until_utc = created_at + the workspace default_retention_days on non-deleted mobile / extension / Android / iOS capture records that were created with NULL because only the web route and intake applied the default. Never shortens or overrides an existing date. The retention sweeper only FLAGS expired rows for triage (never deletes; held records skipped), so a date already in the past surfaces the record to operators, which is the policy the workspace configured. OWNER_ACTION_AFTER_BACKUP: apply after a backup, with the owner aware that previously unflagged capture records will appear as retention candidates. Idempotent (conditioned on NULL; proven by retention-backfill-direct-capture.integration.test.ts). ROLLBACK: reset to NULL for these channels where the value equals created_at + policy days. NOT APPLIED TO PRODUCTION."
+      "evidence": "LEGACY CAPTURE RETENTION BACKFILL (2026-10-01, UC-ARCH-002). Sets retention_until_utc = created_at + the workspace default_retention_days on non-deleted mobile / extension / Android / iOS capture records that were created with NULL because only the web route and intake applied the default. Never shortens or overrides an existing date. The retention sweeper only FLAGS expired rows for triage (never deletes; held records skipped), so a date already in the past surfaces the record to operators, which is the policy the workspace configured. WAIT_FOR_BACKFILL_READINESS (Release C): apply after a backup, once the owner accepts that previously unflagged capture records will appear as retention candidates. Idempotent (conditioned on NULL; proven by retention-backfill-direct-capture.integration.test.ts). ROLLBACK: reset to NULL for these channels where the value equals created_at + policy days. NOT APPLIED TO PRODUCTION."
     },
     {
       "name": "email_password_auth",

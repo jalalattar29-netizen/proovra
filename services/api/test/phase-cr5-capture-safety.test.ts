@@ -210,7 +210,11 @@ const CAPTURE_AI_FILES = captureAiSurfaceFiles();
 // _lib/CaptureDirectWebCaptureCard.tsx; no logic, no new POST surface, no
 // re-absorbed mechanism enters page.tsx, which is exactly the ground the
 // earlier rebaselines above stand on.
-export const PRE_CR5_PAGE_BYTES = 52678;
+// UC-WEB rebaseline (2026-10-01): 52,678 → 53,761. The web screen-capture entry
+// (<CaptureScreenRecorderCard/>, audit journey R02) and the leave/workspace-switch guard
+// (useCaptureLeaveGuard, UC-WEB-002) are mounted — imports and render lines; both are
+// self-contained modules in _lib/ and _hooks/, no mechanism re-absorbed into page.tsx.
+export const PRE_CR5_PAGE_BYTES = 53761;
 // Phase HOME-DATA-OWNERSHIP rebaseline: 34,411 → 34,744. The capture
 // orchestration now stamps the ACTIVE workspace id (useActiveSpaceId →
 // `teamId` in the POST /v1/evidence body) so personal evidence is never
@@ -239,7 +243,11 @@ export const PRE_CR5_PAGE_BYTES = 52678;
 // identity never needed to change) so the capture page can list it as the
 // dependency of its unmount cleanup instead of omitting it. One useCallback
 // plus its rationale; no capture behaviour change.
-export const PRE_CR5_ORCH_BYTES = 36645;
+// UC-WEB rebaseline (2026-10-01): 36,645 → 42,297. UC-WEB-001: a failed Finish & Sign
+// resumes into the SAME record (the server answers resumed:true with the parts present;
+// only missing items upload) instead of orphaning it; UC-WEB-005: the artifact poll
+// returns the terminal outcome it saw so a failed report is never 'still generating'.
+export const PRE_CR5_ORCH_BYTES = 42297;
 // PHASE 13 rebaseline (2026-08-17): 13,423 → 13,630 — NEW-036. `StartResumableInput`
 // gained one optional pass-through flag, `multipartAlreadyInitiated`, and the one
 // line that forwards it to `MultipartUploader`. The capture orchestration runs
@@ -345,7 +353,8 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23876;
 // Rebaselined 2026-09-30: 67,985 -> 68,686 — ET-ACQ-05: the checklist plan comes from the owner's capture session and its template
 // Rebaselined 2026-09-30: 68,686 -> 69,911 — ET-COM-04: the completion transaction takes the issuance decision once and stores the record's earned funding fact
 // Rebaselined 2026-09-30: 69,911 -> 71,631 — ET-SM-07 / ET-PKG-07: the completion transaction records the first integrity check and finalizes every record NOT_PUBLISHED
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 71631;
+// Rebaselined 2026-10-01: 71,631 -> 79,841 — UC-ARCH-003: completeEvidence is the ONE finalization authority (EVIDENCE_COMPLETED custody, reviewer workflow and evidence.complete audit moved in from the web route, exactly once for every channel); UC-TRUST-003 persists the signing-key fingerprint; UC-STR-002 refuses a part set that differs from the claimed seal plan.
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 79841;
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.

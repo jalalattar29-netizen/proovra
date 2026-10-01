@@ -3446,11 +3446,11 @@
     },
     "20281001000700_retention_backfill_direct_capture": {
       "classification": "BACKFILL",
-      "releaseWave": "OWNER_ACTION_AFTER_BACKUP",
+      "releaseWave": "WAIT_FOR_BACKFILL_READINESS",
       "safeBeforeCodeDeployment": true,
       "requiresBackfill": false,
       "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM evidence e JOIN workspace_governance_policies p ON p.team_id = e.team_id WHERE p.default_retention_days > 0 AND e.retention_until_utc IS NULL AND e.deleted_at IS NULL AND e.acquisition_mode IN ('PROOVRA_MOBILE_APP','DIRECT_WEB_CAPTURE_EXTENSION','DIRECT_SCREEN_CAPTURE_ANDROID','DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS','DIRECT_SCREEN_CAPTURE_IOS')\"",
-      "evidence": "LEGACY CAPTURE RETENTION BACKFILL (2026-10-01, UC-ARCH-002). Sets retention_until_utc = created_at + the workspace default_retention_days on non-deleted mobile / extension / Android / iOS capture records that were created with NULL because only the web route and intake applied the default. Never shortens or overrides an existing date. The retention sweeper only FLAGS expired rows for triage (never deletes; held records skipped), so a date already in the past surfaces the record to operators, which is the policy the workspace configured. OWNER_ACTION_AFTER_BACKUP: apply after a backup, with the owner aware that previously unflagged capture records will appear as retention candidates. Idempotent (conditioned on NULL; proven by retention-backfill-direct-capture.integration.test.ts). ROLLBACK: reset to NULL for these channels where the value equals created_at + policy days. NOT APPLIED TO PRODUCTION."
+      "evidence": "LEGACY CAPTURE RETENTION BACKFILL (2026-10-01, UC-ARCH-002). Sets retention_until_utc = created_at + the workspace default_retention_days on non-deleted mobile / extension / Android / iOS capture records that were created with NULL because only the web route and intake applied the default. Never shortens or overrides an existing date. The retention sweeper only FLAGS expired rows for triage (never deletes; held records skipped), so a date already in the past surfaces the record to operators, which is the policy the workspace configured. WAIT_FOR_BACKFILL_READINESS (Release C): apply after a backup, once the owner accepts that previously unflagged capture records will appear as retention candidates. Idempotent (conditioned on NULL; proven by retention-backfill-direct-capture.integration.test.ts). ROLLBACK: reset to NULL for these channels where the value equals created_at + policy days. NOT APPLIED TO PRODUCTION."
     }
   }
 }

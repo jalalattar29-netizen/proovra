@@ -176,9 +176,14 @@ describe("signing-key seed — 5-step public-key resolver", () => {
 
   // ── Group D: idempotency + safety unchanged from the prior version ──
 
-  it("(D1) row write still uses upsert (idempotent re-runs)", () => {
-    expect(SEED_SRC).toMatch(/prisma\.signingKey\.upsert/);
-    expect(SEED_SRC).toMatch(/revokedAt:\s*null/);
+  it("(D1) row write is idempotent WITHOUT rewriting identity or clearing a revocation", () => {
+    // UC-TRUST-003 — the seed used to upsert public_key_pem and set revokedAt: null, so a
+    // re-run could replace the key under old signatures and un-revoke it. It now registers
+    // through the key registry (create if absent; same key = no-op; different key = refused),
+    // and the signing_keys triggers refuse identity changes at the database.
+    expect(SEED_SRC).toMatch(/registerSigningKey\(prisma,/);
+    expect(SEED_SRC).not.toMatch(/prisma\.signingKey\.upsert/);
+    expect(SEED_SRC).not.toMatch(/revokedAt:\s*null/);
   });
 
   it("(D2) PEM validator still enforces Ed25519 algorithm", () => {

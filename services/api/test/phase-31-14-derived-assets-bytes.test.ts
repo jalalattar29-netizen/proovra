@@ -58,9 +58,11 @@ describe("Phase 31.14 — derived-assets bytes proxy route", () => {
     const block = src.match(
       /"\/v1\/evidence\/:evidenceId\/derived-assets\/:assetId\/bytes"[\s\S]*?\n\s*\}\s*,\s*\n\s*\)/,
     )?.[0];
-    expect(block!).toMatch(/evidence\.teamId !== teamId/);
-    expect(block!).toMatch(
-      /reply\.code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"\s*\}/,
+    // UC-DER-010 — bound through the record's resolved workspace (bindDerivedRecord); a record
+    // outside it answers the same anti-enumeration 404 `not_found`.
+    expect(block!).toMatch(/bindDerivedRecord\(reply,/);
+    expect(src).toMatch(
+      /async function bindDerivedRecord[\s\S]*?reply\.code\(404\)\.send\(\{\s*error:\s*\{\s*code:\s*"not_found"\s*\}/,
     );
   });
 
@@ -331,8 +333,11 @@ describe("Phase 31.14 — verification package intelligence bridge", () => {
     );
   });
 
-  it("refuses without teamId (anti-enumeration)", () => {
-    expect(src).toMatch(/if\s*\(!input\.teamId\)\s*\{?\s*return\s+null/);
+  it("refuses without a resolvable workspace (anti-enumeration)", () => {
+    // UC-DER-010 — a NULL-team record resolves its owner's personal workspace; only a record
+    // with NO resolvable workspace is refused.
+    expect(src).toMatch(/resolveEvidenceWorkspaceId\(/);
+    expect(src).toMatch(/if\s*\(!workspaceId\)\s*return\s+null/);
   });
 
   it("filters derived assets to COMPLETED + bounded size + non-null hash + supported kind", () => {

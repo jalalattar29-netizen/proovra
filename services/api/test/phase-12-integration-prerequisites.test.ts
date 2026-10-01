@@ -144,7 +144,10 @@ describe("PHASE 12 — integration-test prerequisites", () => {
       .split("\n")
       .filter(Boolean)
       .filter((f) => /\.(json|ya?ml|mjs|cjs|js|ts|sh|ps1)$/.test(f))
-      .filter((f) => !f.includes("phase-12-integration-prerequisites"));
+      .filter((f) => !f.includes("phase-12-integration-prerequisites"))
+      // Evidence records under docs/evidence/ DOCUMENT commands that were run (audit and
+      // remediation ledgers); they invoke nothing.
+      .filter((f) => !f.startsWith("docs/evidence/"));
 
     const invokers = files.filter((f) => {
       let body = "";

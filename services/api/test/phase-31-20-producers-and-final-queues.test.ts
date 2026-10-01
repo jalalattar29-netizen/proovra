@@ -195,8 +195,9 @@ describe("Phase 31.20 — ffmpeg-derived asset producers", () => {
   it("each producer probes ffmpeg capability before spawning", () => {
     const code = stripComments(FFMPEG_PRODUCERS_SRC);
     const calls = code.match(/await detectFfmpegCapability\(\)/g) ?? [];
-    // Three Phase-31.20 producers + the UC-4 keyframe producer × one probe each.
-    expect(calls.length).toBe(4);
+    // Three Phase-31.20 producers + the UC-4 keyframe producer × one probe each, plus the
+    // UC-DER-005 version probe (getFfmpegVersion) that records the real tool version.
+    expect(calls.length).toBe(5);
   });
 
   it("each producer returns UNSUPPORTED (not FAILED) when ffmpeg is missing", () => {

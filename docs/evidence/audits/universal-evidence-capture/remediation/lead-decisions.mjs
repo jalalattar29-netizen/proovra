@@ -52,8 +52,8 @@ export const DECISIONS = {
   "UC-ARCH-002": {
     status: "FIXED",
     proofKind: "integration-real-db",
-    note: "Forward fix in createEvidence (all channels) plus the legacy backfill 20281001000700 (BACKFILL, owner action after backup), proven by executing the migration SQL verbatim against seeded legacy rows and controls.",
-    migration: "20281001000700_retention_backfill_direct_capture (BACKFILL, OWNER_ACTION_AFTER_BACKUP)",
+    note: "Forward fix in createEvidence (all channels) plus the legacy backfill 20281001000700 (BACKFILL, Release C after a backup), proven by executing the migration SQL verbatim against seeded legacy rows and controls.",
+    migration: "20281001000700_retention_backfill_direct_capture (BACKFILL, Release C WAIT_FOR_BACKFILL_READINESS, after a backup)",
     green: { tests: ["services/api/test/completion-cross-channel.integration.test.ts", "services/api/test/retention-backfill-direct-capture.integration.test.ts"], command: RERUN_API, result: "8 + 1 passed" },
   },
   "UC-ARCH-005": {

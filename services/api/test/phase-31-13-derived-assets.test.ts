@@ -273,7 +273,9 @@ describe("Phase 31.13 — worker derived-assets processor", () => {
 
   it("uses bounded 4MB range fetch (no full-original pull)", () => {
     expect(src).toMatch(/SOURCE_RANGE_BYTES\s*=\s*4\s*\*\s*1024\s*\*\s*1024/);
-    expect(src).toMatch(/range:\s*`bytes=0-\$\{SOURCE_RANGE_BYTES - 1\}`/);
+    // UC-DER-014 — still bounded by SOURCE_RANGE_BYTES, now through the version-pinned,
+    // hashed source read (never an unbounded or unpinned full-original pull).
+    expect(src).toMatch(/readSourceForDerivation\([\s\S]{0,200}?SOURCE_RANGE_BYTES,?\s*\)/);
   });
 
   it("256-px max edge thumbnail (bounded output)", () => {
@@ -397,8 +399,12 @@ describe("Phase 31.13 — derived-assets API routes", () => {
     const block = src.match(
       /"\/v1\/evidence\/:evidenceId\/derived-assets"[\s\S]*?\n\s*\}\s*,\s*\n\s*\)/,
     )?.[0];
-    expect(block!).toMatch(/evidence\.teamId !== teamId/);
-    expect(block!).toMatch(/reply\.code\(404\)/);
+    // UC-DER-010 — the binding resolves the record's workspace (a personal NULL-team record
+    // binds through its owner's personal workspace); anything else is the 404. The 404 itself
+    // lives in bindDerivedRecord and is proven at runtime by
+    // derived-review-release-and-generations.integration.test.ts.
+    expect(block!).toMatch(/bindDerivedRecord\(reply,/);
+    expect(src).toMatch(/async function bindDerivedRecord[\s\S]*?reply\.code\(404\)/);
   });
 
   it("POST run route requires evidence.update_metadata (not just read)", () => {

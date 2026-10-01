@@ -1053,7 +1053,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "Workspace default retention is resolved once in createEvidence (the canonical writer) for every channel: resolveRetentionOnCreate is read before the record transaction and retentionUntilUtc + a RETENTION_POLICY_APPLIED custody event are written inside it. The per-route calls in POST /v1/evidence and the intake orchestration were deleted. Existing direct-capture rows need the requested backfill. LEAD ADJUDICATION: Forward fix in createEvidence (all channels) plus the legacy backfill 20281001000700 (BACKFILL, owner action after backup), proven by executing the migration SQL verbatim against seeded legacy rows and controls.",
+      "decision": "Workspace default retention is resolved once in createEvidence (the canonical writer) for every channel: resolveRetentionOnCreate is read before the record transaction and retentionUntilUtc + a RETENTION_POLICY_APPLIED custody event are written inside it. The per-route calls in POST /v1/evidence and the intake orchestration were deleted. Existing direct-capture rows need the requested backfill. LEAD ADJUDICATION: Forward fix in createEvidence (all channels) plus the legacy backfill 20281001000700 (BACKFILL, Release C after a backup), proven by executing the migration SQL verbatim against seeded legacy rows and controls.",
       "red": {
         "test": "services/api/test/completion-cross-channel.integration.test.ts::web upload / direct capture / intake ... retention",
         "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_a_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/5 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 timeout 1200 npx vitest run --config vitest.integration.config.ts test/completion-cross-channel.integration.test.ts (red = same test with HEAD copies of the lane's service files swapped in temporarily (restored after))",
@@ -1081,7 +1081,7 @@
           "subject": "fix(retention): legacy capture records get their workspace's default retention (UC-ARCH-002)"
         }
       ],
-      "migrations": "20281001000700_retention_backfill_direct_capture (BACKFILL, OWNER_ACTION_AFTER_BACKUP)",
+      "migrations": "20281001000700_retention_backfill_direct_capture (BACKFILL, Release C WAIT_FOR_BACKFILL_READINESS, after a backup)",
       "impacts": {
         "ui": "none",
         "api": "retention stamped at creation for mobile/extension/Android/iOS records",
