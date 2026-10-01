@@ -15,14 +15,14 @@ const RULES = [
   // A token a log line truncated to its first segments is still credential material.
   [/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}[A-Za-z0-9_.…-]*/g, "<jwt-redacted>"],
   [/pvs_[A-Za-z0-9_-]{20,}/g, "pvs_<redacted>"],
-  [/(X-Amz-(?:Signature|Credential|Security-Token)=)[^&"\s\\]+/g, "$1<redacted>"],
-  [/("(?:rawToken|token|secretBase32|otpauthUri|accessToken|access_token|code_verifier|sessionBearer|bearer)"\s*:\s*")[^"]+"/g, '$1<redacted>"'],
+  [/(X-Amz-(?:Signature|Credential|Security-Token)=)(?!<redacted>)[^&"\s\\]+/g, "$1<redacted>"],
+  [/("(?:rawToken|token|secretBase32|otpauthUri|accessToken|access_token|code_verifier|sessionBearer|bearer)"\s*:\s*")(?!<redacted>")[^"]+"/g, '$1<redacted>"'],
   // The same keys inside a stored response-body STRING, where the quotes are escaped.
-  [/(\\"(?:rawToken|token|secretBase32|otpauthUri|accessToken|access_token|code_verifier|sessionBearer|bearer)\\"\s*:\s*\\")[^"\\]+/g, "$1<redacted>"],
+  [/(\\"(?:rawToken|token|secretBase32|otpauthUri|accessToken|access_token|code_verifier|sessionBearer|bearer)\\"\s*:\s*\\")(?!<redacted>)[^"\\]+/g, "$1<redacted>"],
   [/([?&]secret=)[A-Z2-7]{16,}/g, "$1<redacted>"],
-  [/("recoveryCodes"\s*:\s*)\[[^\]]*\]/g, '$1["<redacted>"]'],
+  [/("recoveryCodes"\s*:\s*)\[(?!"<redacted>"\])[^\]]*\]/g, '$1["<redacted>"]'],
   // Escaped form: the replacement keeps the quotes escaped so the stored body stays a valid JSON string.
-  [/(\\"recoveryCodes\\"\s*:\s*)\[[^\]]*\]/g, '$1[\\"<redacted>\\"]'],
+  [/(\\"recoveryCodes\\"\s*:\s*)\[(?!\\"<redacted>\\"\])[^\]]*\]/g, '$1[\\"<redacted>\\"]'],
   [/(\/v1\/external-intake\/)[A-Za-z0-9_.%-]{16,}/g, "$1<intake-token-redacted>"],
   [/(\/public\/verify\/)(?!pvs_<redacted>)[A-Za-z0-9_-]{40,}/g, "$1<token-redacted>"],
 ];
