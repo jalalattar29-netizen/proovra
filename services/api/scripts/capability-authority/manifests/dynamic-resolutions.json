@@ -127,10 +127,10 @@
       "reviewedAtUtc": "2026-08-15"
     },
     {
-      "site": "scripts/smoke-prod.mjs:48",
+      "site": "scripts/smoke-prod.mjs:60",
       "class": "OBJECT_STORE",
-      "evidence": "fetch(created.upload.putUrl, { method: \"PUT\" }) — presigned upload in the production smoke script.",
-      "reviewedAtUtc": "2026-08-15"
+      "evidence": "fetch(created.upload.putUrl, { method: \"PUT\" }) — presigned upload in the production smoke script. | Re-anchored :48 -> :60 on 2026-10-01 (Universal Evidence Capture feature CI): UC-ARCH-008 removed the record reservation's own upload URL, so the script now declares part 0 through its api() wrapper (POST /v1/evidence/:id/parts) and PUTs to THAT part's presigned URL. Verified BY READING: `fetch(part.upload.putUrl, { method: \"PUT\" ... })` — still a runtime presigned object-store URL, not a route of ours.",
+      "reviewedAtUtc": "2026-10-01"
     },
     {
       "site": "scripts/load/runner.mjs:287",

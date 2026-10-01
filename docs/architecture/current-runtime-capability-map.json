@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "15186f4ee595ad42bfc266df1155fb7e87b1f9741d0e45881a7d33bd79267ff2",
-  "consumerInventoryHash": "3284b6bdd27f9464f66d2d709656ab6aa0eb2c3c1d70dee153da3e885e2904d0",
+  "consumerInventoryHash": "c12d3235b2f7fb41761bf4b88a07d25ed0a10f8e4c7708739452c9d94978f6a7",
   "dispositionsHash": "7ce0efcbac0afa47ee18090874ee245cf55c5a3b37568b204c7be9c17bbe4d15",
   "totals": {
     "RegisteredRoutes": 1177,
@@ -808,7 +808,7 @@
       "route": "/healthz",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
       "productConsumer": null,
-      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:619",
+      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:626",
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -844,7 +844,7 @@
       "route": "/readyz",
       "registeringFile": "services/api/src/routes/ops.routes.ts",
       "productConsumer": null,
-      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:620",
+      "machineConsumer": "scripts/uc1-acceptance-windows.mjs:627",
       "authorization": "PUBLIC_UNGUARDED",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -2800,7 +2800,7 @@
       "route": "/v1/evidence/:id/report/latest",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
       "productConsumer": "apps/mobile/app/(stack)/evidence/[id].tsx:373",
-      "machineConsumer": "scripts/smoke-prod.mjs:73",
+      "machineConsumer": "scripts/smoke-prod.mjs:85",
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -9604,7 +9604,7 @@
       "route": "/v1/evidence/:id/complete",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
       "productConsumer": "apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:1020",
-      "machineConsumer": "scripts/smoke-prod.mjs:64",
+      "machineConsumer": "scripts/smoke-prod.mjs:76",
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -9640,7 +9640,7 @@
       "route": "/v1/evidence/:id/parts",
       "registeringFile": "services/api/src/routes/evidence.routes.ts",
       "productConsumer": "apps/mobile/src/direct-capture.ts:169",
-      "machineConsumer": null,
+      "machineConsumer": "scripts/smoke-prod.mjs:50",
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "BEHAVIORALLY_PROVEN"
@@ -92482,7 +92482,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/uc1-acceptance-windows.mjs",
-          "line": 619,
+          "line": 626,
           "caller": "main",
           "class": "CLI",
           "primitive": "waitForHttp"
@@ -92658,7 +92658,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/uc1-acceptance-windows.mjs",
-          "line": 620,
+          "line": 627,
           "caller": "main",
           "class": "CLI",
           "primitive": "waitForHttp"
@@ -103888,7 +103888,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/smoke-prod.mjs",
-          "line": 73,
+          "line": 85,
           "caller": "main",
           "class": "CLI",
           "primitive": "api"
@@ -143865,7 +143865,7 @@
       "nonProductConsumers": [
         {
           "file": "scripts/smoke-prod.mjs",
-          "line": 64,
+          "line": 76,
           "caller": "main",
           "class": "CLI",
           "primitive": "api"
@@ -144132,7 +144132,15 @@
           "viaResolution": false
         }
       ],
-      "nonProductConsumers": [],
+      "nonProductConsumers": [
+        {
+          "file": "scripts/smoke-prod.mjs",
+          "line": 50,
+          "caller": "main",
+          "class": "CLI",
+          "primitive": "api"
+        }
+      ],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
       "dispositionEvidence": "apps/mobile/src/direct-capture.ts:169 (uploadDirectCaptureItem, MOBILE); apps/web/app/(app)/capture/_hooks/useCaptureSessionOrchestration.ts:884 (finalizeSession, WEB)",
