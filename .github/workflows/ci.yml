@@ -436,6 +436,35 @@ jobs:
           '
           exit $rc
 
+      # UC-TQ-003 / EP-14 — the REAL OCR engine run. The extraction test
+      # `ctx.skip()`s on a host without the tesseract binary, so without this
+      # step a green build never asserted recognised text anywhere. Installed
+      # here (the worker image carries the same engine) and REQUIRED: with
+      # UC4_REQUIRE_TESSERACT=1 a missing binary fails instead of skipping, and
+      # the JSON report must show every test executed, none pending.
+      - name: Test — worker OCR with the real tesseract engine
+        working-directory: services/worker
+        env:
+          UC4_REQUIRE_TESSERACT: "1"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-eng
+          tesseract --version | head -1
+          set +e
+          npx vitest run test/uc4-tesseract-ocr.test.ts \
+            --reporter=default --reporter=json --outputFile=/tmp/worker-ocr.json
+          rc=$?
+          set -e
+          node -e '
+            const r = require("/tmp/worker-ocr.json");
+            const s = { total: r.numTotalTests, passed: r.numPassedTests, failed: r.numFailedTests, pending: r.numPendingTests + (r.numTodoTests || 0) };
+            console.log("tesseract OCR:", JSON.stringify(s));
+            if (!(s.total >= 5)) { console.log("::error::tesseract OCR executed " + s.total + " tests (expected >= 5)"); process.exit(1); }
+            if (s.pending > 0) { console.log("::error::tesseract OCR SKIPPED " + s.pending + " tests"); process.exit(1); }
+            if (s.failed > 0 || s.passed !== s.total) { console.log("::error::tesseract OCR failed"); process.exit(1); }
+          '
+          exit $rc
+
       - name: Test — worker
         run: |
           set +e

@@ -523,6 +523,7 @@ await journey("J09-continuous-direct-capture-to-public-verify", "Android continu
   const res = await call(ownerA, "POST", `/v1/capture/direct-sessions/${sessionId}/evidence`, { type: "VIDEO", mimeType: "video/mp4" });
   check("record reserved", res.status === 201, res.json);
   contId = res.json?.evidence?.evidenceId;
+  obs.evidenceId = contId;
   const segs = [];
   const mp4 = readFileSync(process.env.UCA_SAMPLE_MP4);
   for (let i = 0; i < 2; i += 1) {

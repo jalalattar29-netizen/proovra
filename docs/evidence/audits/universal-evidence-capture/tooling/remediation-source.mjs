@@ -36,14 +36,14 @@ export const INTEGRATION_SKIPS_ALLOWED = 0;
 export const EXTERNAL_PROOFS_ADDED = [
   {
     id: "EP-14",
-    item: "First CI execution of the native-build and browser-acceptance workflows",
+    item: "First CI execution of the native-build and browser-acceptance workflows and of the CI steps that refuse skips (real tesseract OCR, Object-Lock publication)",
     locallyProven:
       "Workflows authored (.github/workflows/native-build.yml, uc1-browser-acceptance.yml); the extension acceptance they run passes locally in real Chrome and Edge; the worker OCR test runs when the Tesseract binary exists.",
     unproven:
-      "Kotlin and Swift compilation of the native capture modules, the Swift unit tests and the Tesseract-backed OCR assertion on GitHub runners (no push from this session, so no CI run could be observed).",
+      "Kotlin and Swift compilation of the native capture modules, the Swift unit tests, the real-tesseract OCR assertion (ci.yml 'Test — worker OCR with the real tesseract engine', UC4_REQUIRE_TESSERACT=1) and the Object-Lock publication step on GitHub runners (no push from this session, so no CI run could be observed). On this host the OCR present-branch test is the worker suite's single skip: the binary is absent and installing it is a package download this session may not make.",
     requires: "The feature branch pushed to GitHub; macOS and Windows runners.",
     procedure: "Push the branch, let both workflows run, read their job logs.",
-    passCriteria: "Both workflows green on the branch head; the OCR test executes (not skipped) in the worker job.",
+    passCriteria: "Both workflows green on the branch head; the OCR step executes >= 5 tests with 0 skipped; the Object-Lock step executes 4 with 0 skipped.",
     risk: "Native code that does not compile would only be discovered at release-build time.",
   },
 ];
@@ -68,6 +68,8 @@ export const BLOCKED_EXTERNAL_PROOFS = {
   "UC-IOS-010": ["EP-08"],
   "UC-IOS-012": ["EP-14"],
   "UC-LCH-003": ["EP-14"],
+  "UC-TQ-003": ["EP-14"],
+  "UC-TQ-004": ["EP-14"],
 };
 
 /**
@@ -108,7 +110,7 @@ export const JOURNEYS_AFTER = {
     status: "BLOCKED",
     blockers: ["EP-14"],
     evidence: ["services/worker/test/uc4-tesseract-ocr.test.ts", "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"],
-    note: "OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host, so the extraction assertion runs in the worker CI job only.",
+    note: "OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host (the worker suite's one skip), and the real-text assertion is REQUIRED in ci.yml's OCR step, which has not run yet.",
   },
   R10: {
     status: "BLOCKED",

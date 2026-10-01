@@ -146,6 +146,26 @@ export const DECISIONS = {
       result: "lapsed-plan 9/9 + commitments 8/8 (red before 068efffd: 409 != 201)",
     },
   },
+  "UC-TQ-003": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the code is complete (handler proof runs DB-free in CI's worker unit job; live-PG suites run in schema-reproducibility.yml; the real-text assertion exists and FAILS instead of skipping under UC4_REQUIRE_TESSERACT=1), but the finding requires an EXECUTED assertion on real tesseract output and none has run anywhere: no CI job installed the engine (the step 'Test — worker OCR with the real tesseract engine' is added to ci.yml now) and fetching the binary here is a package download this session may not make.",
+    externalProofRemaining: "EP-14: first CI run of ci.yml 'Test — worker OCR with the real tesseract engine' (apt tesseract-ocr, UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and of schema-reproducibility.yml's worker integration step",
+    green: {
+      tests: ["services/worker/test/uc4-tesseract-ocr.test.ts (4 executed, 1 skipped: binary absent)", "services/worker/test/uc4-screen-intelligence-handler.test.ts", "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts", "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"],
+      command: "services/worker: npx vitest run (live PG16/Redis/MinIO)",
+      result: "worker suite 1218 passed, 1 skipped",
+    },
+  },
+  "UC-TQ-004": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the finding's required proof is 'the existing 4 cases executed in CI'. The ci.yml step (locked bucket + OBJECT_LOCK_MINIO_* + refusal of skips) is in place and the suite passes locally 4/4 against a locked MinIO bucket, but no CI run of the branch has been observed (push refused).",
+    externalProofRemaining: "EP-14: first CI run of ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' showing 4 executed, 0 skipped",
+    green: {
+      tests: ["services/worker/test/verification-package-publication.minio.test.ts (4/4 against the local locked bucket uca-olc-locked)"],
+      command: "OBJECT_LOCK_MINIO_* npx vitest run test/verification-package-publication.minio.test.ts",
+      result: "4 passed, 0 pending",
+    },
+  },
   "UC-TRUST-008": {
     status: "FIXED",
     note: "The remediation journey rerun (J06, disposable stack, unversioned MinIO) showed the lane fix incomplete: after in-place substitution Public Verify still said storedBytes verified_current / VERIFIED inside the 24 h window, because 'current' never required a pinned version. Fixed in a606dcaa: current only when every object the check read is a pinned, immutable version (fail closed); J06 now asserts the stored-bytes row, not only the headline.",

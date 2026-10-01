@@ -54,11 +54,11 @@
   ],
   "counts": {
     "total": 119,
-    "BLOCKED_EXTERNAL_PROOF": 18,
-    "FIXED_RUNTIME_PROVEN": 60,
+    "BLOCKED_EXTERNAL_PROOF": 20,
+    "FIXED_RUNTIME_PROVEN": 58,
     "FIXED_SOURCE_AND_TEST_PROVEN": 41,
-    "fixed": 101,
-    "blocked": 18,
+    "fixed": 99,
+    "blocked": 20,
     "remaining": 0
   },
   "gates": [
@@ -85,7 +85,7 @@
     {
       "name": "119 = fixed + externally-blocked",
       "ok": true,
-      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":18,\"FIXED_RUNTIME_PROVEN\":60,\"FIXED_SOURCE_AND_TEST_PROVEN\":41}"
+      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":20,\"FIXED_RUNTIME_PROVEN\":58,\"FIXED_SOURCE_AND_TEST_PROVEN\":41}"
     },
     {
       "name": "every disposition is allowed",
@@ -3447,7 +3447,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "[D] processReconstructScreenJob now has behavioural proof in two layers: a DB-free unit suite that drives the REAL handler with its ports replaced (claim/fence, refused claim, structural failure, generation, OCR status, tool versions, pinned bounded read, personal scope, lifecycle) and therefore runs in CI's worker unit job with no env skip; and a live-PG16 suite (handler + run tracker + orchestrator + derived writer for real: happy path, regeneration, lease-lost fence, OCR-disabled PARTIAL, trashed, personal) plus the reworked persistence suite. The keyframe producer test now FAILS in CI when ffmpeg-static is missing instead of skipping. The tesseract test gains a present-branch assertion on real recognised text from a rendered fixture (and fails instead of skipping when UC4_REQUIRE_TESSERACT=1). [W] schema-reproducibility.yml now creates and migrates a dedicated proovra_worker_integration_test database on the same Postgres+Redis services and runs services/worker uc4-screen-intelligence-persistence + uc4-screen-intelligence-handler integration suites with a JSON report that fails on zero executed, any skipped, or any failed test. Verified locally against the lane DB: 22/22 executed. LEAD ADJUDICATION: Behavioural handler tests (DB-free in the unit job, live PG in the new worker-integration CI step).",
+      "decision": "[D] processReconstructScreenJob now has behavioural proof in two layers: a DB-free unit suite that drives the REAL handler with its ports replaced (claim/fence, refused claim, structural failure, generation, OCR status, tool versions, pinned bounded read, personal scope, lifecycle) and therefore runs in CI's worker unit job with no env skip; and a live-PG16 suite (handler + run tracker + orchestrator + derived writer for real: happy path, regeneration, lease-lost fence, OCR-disabled PARTIAL, trashed, personal) plus the reworked persistence suite. The keyframe producer test now FAILS in CI when ffmpeg-static is missing instead of skipping. The tesseract test gains a present-branch assertion on real recognised text from a rendered fixture (and fails instead of skipping when UC4_REQUIRE_TESSERACT=1). [W] schema-reproducibility.yml now creates and migrates a dedicated proovra_worker_integration_test database on the same Postgres+Redis services and runs services/worker uc4-screen-intelligence-persistence + uc4-screen-intelligence-handler integration suites with a JSON report that fails on zero executed, any skipped, or any failed test. Verified locally against the lane DB: 22/22 executed. LEAD ADJUDICATION: Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the code is complete (handler proof runs DB-free in CI's worker unit job; live-PG suites run in schema-reproducibility.yml; the real-text assertion exists and FAILS instead of skipping under UC4_REQUIRE_TESSERACT=1), but the finding requires an EXECUTED assertion on real tesseract output and none has run anywhere: no CI job installed the engine (the step 'Test — worker OCR with the real tesseract engine' is added to ci.yml now) and fetching the binary here is a package download this session may not make.",
       "red": {
         "test": "services/worker/test/uc4-screen-intelligence-handler.test.ts (whole suite)",
         "command": "cd services/worker && npx vitest run test/uc4-screen-intelligence-handler.test.ts (HEAD handler)",
@@ -3462,11 +3462,13 @@
           "services/worker/test/uc4-tesseract-ocr.test.ts (4 passed + 1 skipped: engine absent on host)",
           "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
           "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
+          "services/worker/test/uc4-tesseract-ocr.test.ts (4 executed, 1 skipped: binary absent)",
+          "services/worker/test/uc4-screen-intelligence-handler.test.ts",
           "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
           "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
         ],
-        "command": "cd services/worker && npx vitest run (no DB: 91 files / 1165 passed / 29 skipped) and with TEST_DATABASE_URL + P7_TEST_REDIS_URL + P7_HOST_S3_PORT (94 files / 1189 passed / 5 skipped) ; cd services/worker && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_w_test P7_TEST_REDIS_URL=redis://127.0.0.1:58812/6 npx vitest run <both> --reporter=json ; lanes D + W",
-        "result": "[D] all passed [W] 22 passed, 0 pending, 0 failed ; 22/22"
+        "command": "cd services/worker && npx vitest run (no DB: 91 files / 1165 passed / 29 skipped) and with TEST_DATABASE_URL + P7_TEST_REDIS_URL + P7_HOST_S3_PORT (94 files / 1189 passed / 5 skipped) ; cd services/worker && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_w_test P7_TEST_REDIS_URL=redis://127.0.0.1:58812/6 npx vitest run <both> --reporter=json ; services/worker: npx vitest run (live PG16/Redis/MinIO)",
+        "result": "[D] all passed [W] 22 passed, 0 pending, 0 failed ; worker suite 1218 passed, 1 skipped"
       },
       "proofKind": "integration-real-db",
       "implementationCommits": [
@@ -3489,8 +3491,8 @@
         "security": "none",
         "deployment": "none"
       },
-      "externalProofRemaining": "(1) The two worker live-PG suites only execute where TEST_DATABASE_URL is provided — CI's 'Test — worker' job provides none (cross-lane workflow request filed). (2) Real tesseract extraction: engine absent on this host and in every local worker image; building one requires apk network access (forbidden by lane rules). Run `UC4_REQUIRE_TESSERACT=1 npx vitest run test/uc4-tesseract-ocr.test.ts` inside the worker image.; first CI run; real-tesseract text assertion is a test change in services/worker (not lane W)",
-      "finalDisposition": "FIXED_RUNTIME_PROVEN"
+      "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker OCR with the real tesseract engine' (apt tesseract-ocr, UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and of schema-reproducibility.yml's worker integration step",
+      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
       "id": "UC-TQ-004",
@@ -3513,8 +3515,8 @@
         ".github/workflows/ci.yml:389"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane W",
-      "decision": "ci.yml MinIO step now also creates olc-locked WITH object lock and default COMPLIANCE 1d retention; a dedicated step runs verification-package-publication.minio.test.ts with OBJECT_LOCK_MINIO_* and fails unless >= 4 tests executed, none skipped, none failed; the stale comment is annotated. Verified locally against the lane MinIO's locked bucket: 4/4.",
+      "owner": "lead",
+      "decision": "ci.yml MinIO step now also creates olc-locked WITH object lock and default COMPLIANCE 1d retention; a dedicated step runs verification-package-publication.minio.test.ts with OBJECT_LOCK_MINIO_* and fails unless >= 4 tests executed, none skipped, none failed; the stale comment is annotated. Verified locally against the lane MinIO's locked bucket: 4/4. LEAD ADJUDICATION: Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the finding's required proof is 'the existing 4 cases executed in CI'. The ci.yml step (locked bucket + OBJECT_LOCK_MINIO_* + refusal of skips) is in place and the suite passes locally 4/4 against a locked MinIO bucket, but no CI run of the branch has been observed (push refused).",
       "red": {
         "test": "ci.yml",
         "command": "grep -rn OBJECT_LOCK_MINIO .github (pre-change)",
@@ -3522,10 +3524,11 @@
       },
       "green": {
         "tests": [
-          "services/worker/test/verification-package-publication.minio.test.ts"
+          "services/worker/test/verification-package-publication.minio.test.ts",
+          "services/worker/test/verification-package-publication.minio.test.ts (4/4 against the local locked bucket uca-olc-locked)"
         ],
-        "command": "cd services/worker && OBJECT_LOCK_MINIO_ENDPOINT=http://127.0.0.1:59711 OBJECT_LOCK_MINIO_BUCKET=uca-olc-locked ... npx vitest run test/verification-package-publication.minio.test.ts --reporter=json",
-        "result": "4 passed, 0 pending"
+        "command": "cd services/worker && OBJECT_LOCK_MINIO_ENDPOINT=http://127.0.0.1:59711 OBJECT_LOCK_MINIO_BUCKET=uca-olc-locked ... npx vitest run test/verification-package-publication.minio.test.ts --reporter=json ; OBJECT_LOCK_MINIO_* npx vitest run test/verification-package-publication.minio.test.ts",
+        "result": "4 passed, 0 pending ; 4 passed, 0 pending"
       },
       "proofKind": "integration-real-db",
       "implementationCommits": [
@@ -3544,8 +3547,8 @@
         "security": "none",
         "deployment": "none"
       },
-      "externalProofRemaining": "real AWS Object-Lock acceptance (MinIO does not enforce the checksum rule)",
-      "finalDisposition": "FIXED_RUNTIME_PROVEN"
+      "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' showing 4 executed, 0 skipped",
+      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
       "id": "UC-TQ-007",
@@ -4077,6 +4080,10 @@
         {
           "sha": "d0034b073eb1",
           "subject": "fix(verify): Public Verify reads the stored-bytes facts by name, never by spreading the evidence row (UC-TRUST-008 follow-up)"
+        },
+        {
+          "sha": "bd87a9e52666",
+          "subject": "fix(trust): the owner's evidence page states the current stored file like Public Verify (UC-TRUST-008)"
         }
       ],
       "migrations": "none",
