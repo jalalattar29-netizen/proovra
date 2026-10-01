@@ -152,17 +152,29 @@ function mapMethod(raw: AcquisitionRawInput, deliveryChannel: string | null): st
     }
     return "Intake Link";
   }
-  switch (resolveEvidenceAcquisition({ acquisitionMode: raw.acquisitionMode }).mode) {
-    case "PROOVRA_WEB_UPLOAD":
-      return "Direct Upload";
-    case "PROOVRA_MOBILE_APP":
-      return "PROOVRA Mobile App";
-    default:
-      return "Not recorded";
-  }
+  // UC-PROV-002 — exhaustive over the acquisition modes; a direct capture is
+  // named, never "Not recorded".
+  return ACQUISITION_METHOD_LABELS[resolveEvidenceAcquisition({ acquisitionMode: raw.acquisitionMode }).mode];
 }
 
+const ACQUISITION_METHOD_LABELS: Readonly<Record<import("@proovra/shared").ProjectedAcquisitionMode, string>> = {
+  PROOVRA_WEB_UPLOAD: "Direct Upload",
+  SECURE_INTAKE_LINK: "Intake Link",
+  PROOVRA_MOBILE_APP: "PROOVRA Mobile App",
+  DIRECT_WEB_CAPTURE_EXTENSION: "Web capture — PROOVRA browser extension (client-attested)",
+  DIRECT_SCREEN_CAPTURE_ANDROID: "Android screen capture — PROOVRA app (client-attested)",
+  DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: "Android screen recording — PROOVRA app (client-attested)",
+  DIRECT_SCREEN_CAPTURE_IOS: "iOS screen recording — PROOVRA app (client-attested)",
+  LEGACY_NOT_RECORDED: "Not recorded",
+};
+
 function mapIdentityVerification(raw: AcquisitionRawInput): string {
+  // UC-PROV-006 — an intake record's identity snapshot is the LINK CREATOR's
+  // (the record's owner), not the remote contributor's. Nothing verified the
+  // contributor, so nothing is projected as verified.
+  if (isIntakeAcquisition(raw)) {
+    return up(raw.intakeMode).includes("ANONYMOUS") ? "Anonymous" : "Not independently verified";
+  }
   switch (up(raw.identityLevel)) {
     case "ORGANIZATION_ACCOUNT":
     case "VERIFIED_ORGANIZATION":
@@ -183,9 +195,9 @@ function mapIdentityVerification(raw: AcquisitionRawInput): string {
 function mapSubmissionType(raw: AcquisitionRawInput): string {
   const mode = up(raw.intakeMode);
   if (mode.startsWith("AUTHENTICATED")) {
-    return up(raw.identityLevel).includes("ORGANIZATION")
-      ? "Organization User"
-      : "Authenticated User";
+    // UC-PROV-006 — the identity snapshot is the link creator's; the
+    // contributor authenticated, which is all that is known about them.
+    return "Authenticated User";
   }
   if (mode.includes("ANONYMOUS")) return "Anonymous Contributor";
   if (mode.startsWith("EXTERNAL") || mode.includes("FIELD_TEAM")) {
@@ -318,5 +330,16 @@ export function getCaptureContextTimestampLabel(input: {
   isIntake?: boolean | null;
 }): string {
   const a = resolveEvidenceAcquisition({ acquisitionMode: input.acquisitionMode });
+  // UC-PROV-001 — for a direct capture the record is created when the server
+  // receives the capture session (the extension reserves it AFTER the capture
+  // ran), so the value is the server-received time, never a capture time.
+  if (
+    a.mode === "DIRECT_WEB_CAPTURE_EXTENSION" ||
+    a.mode === "DIRECT_SCREEN_CAPTURE_ANDROID" ||
+    a.mode === "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS" ||
+    a.mode === "DIRECT_SCREEN_CAPTURE_IOS"
+  ) {
+    return "Server received at (server UTC)";
+  }
   return acquisitionTimestampLabel(a.mode, input.isIntake === true);
 }

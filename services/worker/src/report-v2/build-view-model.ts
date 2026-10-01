@@ -1,6 +1,7 @@
 import { INTAKE_SUBMITTED_BY_LABEL } from "@proovra/shared";
 import QRCode from "qrcode";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
+import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE } from "@proovra/shared";
 import sharp from "sharp";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -364,6 +365,17 @@ function buildExecutiveRows(
   const isIntake = acquisition?.isIntake === true;
   add("Recorded at intake (server UTC)", formatReportTimestamp(evidence.capturedAtUtc));
   add("Signed (server UTC)", formatReportTimestamp(evidence.signedAtUtc));
+  // UC-PROV-001 — the capture time is stated only from a client-declared
+  // source (device clock), labelled as such; a server time is never one.
+  {
+    const timeline = buildProvenanceTimeline({ deviceTimeIso: evidence.deviceTimeIso ?? null });
+    add(
+      "Capture time (client-declared)",
+      timeline.captureTime
+        ? `${formatReportTimestamp(timeline.captureTime.atUtc)} — ${timeline.captureTime.label}, not proven`
+        : CAPTURE_TIME_NOT_AVAILABLE,
+    );
+  }
   // Role modeling: for remote intake, the authenticated workspace account is
   // the requester/link-creator — NOT the person who captured the evidence.
   // Never imply the workspace owner submitted it; show a contributor role.
@@ -1468,8 +1480,10 @@ const primaryContentItem = resolvePrimaryContentItem(
     (Boolean(input.downloadUrl) ||
       process.env.REPORT_INCLUDE_TECHNICAL_QR === "true");
 
+  // UC-OUT-001 — no QR code to a page that answers "not found".
+  const publicVerificationPublished = input.publicVerificationPublished !== false;
   const [publicQrDataUrl, technicalQrDataUrl] = await Promise.all([
-    generateQrDataUrl(verifyUrl),
+    publicVerificationPublished ? generateQrDataUrl(verifyUrl) : Promise.resolve(null),
     technicalQrEnabled
       ? generateQrDataUrl(technicalUrl)
       : Promise.resolve(null),
@@ -1651,10 +1665,10 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       accuracyRadius:
         captureLocationModel?.accuracyLabel ??
         formatCaptureLocationAccuracy(input.evidence.gps.accuracyMeters),
+      // UC-PROV-001 — a "(server UTC)" label never falls back to the
+      // device clock.
       capturedAtLabel: formatReportTimestamp(
-        input.evidence.capturedAtUtc ??
-          input.evidence.deviceTimeIso ??
-          input.evidence.createdAtUtc
+        input.evidence.capturedAtUtc ?? input.evidence.createdAtUtc
       ),
       // Provenance-aware source label. Defaults to the historical
       // CAPTURE label when locationSource is null so every report
@@ -1713,6 +1727,9 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     buildInfo: input.buildInfo ?? null,
     verifyUrl,
     technicalUrl,
+    publicVerificationPublished,
+    captureManifest: input.captureManifest ?? null,
+    certifiedOriginal: input.certifiedOriginal ?? null,
     version: input.version,
 
     title: display.displayTitle,

@@ -70,6 +70,8 @@ export function BasicVerificationView({ data }: { data: BasicVerification }) {
     <View style={{ gap: 12 }}>
       <ProovraSection title="Original evidence">
         <ProovraCard>
+          {/* UC-TRUST-005 — the headline incorporates the stored bytes. */}
+          {data.verdict ? <ProovraText variant="bodySm">{data.verdict.label}</ProovraText> : null}
           <Row
             label="Integrity"
             state={o.state}
@@ -77,7 +79,9 @@ export function BasicVerificationView({ data }: { data: BasicVerification }) {
               o.state === "verified"
                 ? "The signed fingerprint matches the recorded digest, the signature is valid, and the custody chain is intact."
                 : o.state === "failed"
-                  ? "At least one integrity check did not pass."
+                  ? data.storedBytes && (data.storedBytes.checkStatus === "MISMATCH" || data.storedBytes.state === "failed")
+                    ? "The stored original does not match the digest in the signed fingerprint, or it is no longer available at its recorded version."
+                    : "At least one integrity check did not pass."
                   : "The integrity checks could not all be performed."
             }
           />
@@ -119,7 +123,13 @@ export function BasicVerificationView({ data }: { data: BasicVerification }) {
                     : "No anchoring proof exists for this record."
             }
           />
-          <ProovraText variant="bodySm">Captured (declared by device): {fmt(o.capturedAtUtcDeclared)}</ProovraText>
+          {/* UC-PROV-001 — the server clock at record creation is never a device-declared capture time. */}
+          <ProovraText variant="bodySm">Server received at (PROOVRA server clock): {fmt(o.serverReceivedAtUtc ?? o.capturedAtUtcDeclared)}</ProovraText>
+          <ProovraText variant="bodySm">
+            {o.deviceDeclaredCaptureAtUtc
+              ? `Device-declared capture time (reported by the capture client, not proven): ${fmt(o.deviceDeclaredCaptureAtUtc)}`
+              : "Capture time not available"}
+          </ProovraText>
           <ProovraText variant="bodySm">Finalized and signed (server): {fmt(o.finalizedAtUtc)}</ProovraText>
           <ProovraText variant="bodySm" mono selectable>
             SHA-256: {o.fileSha256 ?? "—"}

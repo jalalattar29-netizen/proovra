@@ -437,3 +437,29 @@ describe("Public verification links — owner controls", () => {
     await waitFor(() => expect(container.querySelector("[data-verification-links='active']")).not.toBeNull());
   });
 });
+
+describe("UC-OUT-001 — a printed link on a private record is not labelled Active", () => {
+  it("an ACTIVE REPORT link on an unpublished record reads 'Inactive — record not published'", async () => {
+    routes[`GET ${BASE}`] = () =>
+      listing({
+        publicVerifyState: "NOT_PUBLISHED",
+        links: [link({ id: "link-report", purpose: "REPORT", reportVersion: 1, audience: null })],
+      });
+    const { container } = await mount();
+    const row = container.querySelector("[data-verification-link='link-report']") as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(row.getAttribute("data-verification-link-usable")).toBe("false");
+    expect(row.textContent).toContain("Inactive — record not published");
+    expect(row.querySelector(".evidence-detail-link-row__main")?.textContent).not.toMatch(/\bActive\b/);
+    expect(container.textContent).toContain("Links printed in reports or packages do not open while the record is private.");
+  });
+
+  it("the same link on a published record is Active and usable", async () => {
+    routes[`GET ${BASE}`] = () =>
+      listing({ links: [link({ id: "link-report", purpose: "REPORT", reportVersion: 1, audience: null })] });
+    const { container } = await mount();
+    const row = container.querySelector("[data-verification-link='link-report']") as HTMLElement;
+    expect(row.getAttribute("data-verification-link-usable")).toBe("true");
+    expect(row.textContent).toContain("Active");
+  });
+});

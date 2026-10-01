@@ -23,7 +23,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { workspaceEvidenceWhere } from "@proovra/shared-runtime";
-import { presentedTsaStatus, TSA_RECORDED_NOT_VALIDATED } from "@proovra/shared";
+import { presentedTsaStatus, resolveOtsAnchorClaim, TSA_RECORDED_NOT_VALIDATED } from "@proovra/shared";
 // COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
 // product decision out of the operational "stuck" counters.
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
@@ -42,8 +42,10 @@ export type TrustSummary = {
     none: number;
   };
   ots: {
-    /** otsStatus IN ('ANCHORED','VERIFIED') — anchored on-chain. */
+    /** UC-TRUST-007 — anchored AND verified against the Bitcoin chain. */
     anchored: number;
+    /** Recorded as anchored; the Bitcoin chain was not checked. Never "anchored". */
+    anchoredNotChecked: number;
     pending: number;
     failed: number;
     none: number;
@@ -123,11 +125,30 @@ function tsaBucket(
   return "none";
 }
 
-function otsBucket(raw: string | null): "anchored" | "pending" | "failed" | "none" {
-  const v = (raw ?? "").toUpperCase();
-  if (v === "ANCHORED" || v === "VERIFIED" || v === "OK") return "anchored";
-  if (v === "PENDING" || v === "UPGRADING" || v === "QUEUED") return "pending";
-  if (v === "FAILED" || v === "ERRORED" || v === "ERROR") return "failed";
+/**
+ * UC-TRUST-007 — the OTS bucket comes from the ONE claim: only an anchor
+ * verified against the Bitcoin chain counts as "anchored". A row recorded as
+ * ANCHORED whose chain was not checked is counted separately, never as
+ * anchored. The worker writes "ANCHORED", "PENDING" and "FAILED"
+ * (and "DISABLED"); the claim resolver reads every one of them.
+ */
+export function otsBucket(row: {
+  otsStatus: string | null;
+  otsAnchoredAtUtc?: Date | string | null;
+  otsAnchorCheck?: string | null;
+}): "anchored" | "anchoredNotChecked" | "pending" | "failed" | "none" {
+  const claim = resolveOtsAnchorClaim({
+    status: row.otsStatus,
+    anchoredAtUtc: row.otsAnchoredAtUtc ?? null,
+    anchorCheck: row.otsAnchorCheck ?? null,
+  });
+  if (claim === "VERIFIED") return "anchored";
+  if (claim === "ANCHORED_NOT_CHECKED") return "anchoredNotChecked";
+  if (claim === "PENDING") return "pending";
+  if (claim === "FAILED") return "failed";
+  const v = (row.otsStatus ?? "").toUpperCase();
+  if (v === "UPGRADING" || v === "QUEUED") return "pending";
+  if (v === "ERRORED" || v === "ERROR") return "failed";
   return "none";
 }
 
@@ -185,7 +206,8 @@ export async function buildTrustSummary(input: {
         _count: { _all: true },
       }),
       prisma.evidence.groupBy({
-        by: ["otsStatus"],
+        // UC-TRUST-007 — grouped by how the anchor was established too.
+        by: ["otsStatus", "otsAnchorCheck", "otsAnchoredAtUtc"],
         where: baseWhere,
         _count: { _all: true },
       }),
@@ -275,9 +297,9 @@ export async function buildTrustSummary(input: {
     tsa[bucket] += g._count._all;
   }
 
-  const ots = { anchored: 0, pending: 0, failed: 0, none: 0 };
+  const ots = { anchored: 0, anchoredNotChecked: 0, pending: 0, failed: 0, none: 0 };
   for (const g of otsGroups) {
-    ots[otsBucket(g.otsStatus)] += g._count._all;
+    ots[otsBucket(g)] += g._count._all;
   }
 
   const publicVerify = { published: 0, unpublished: 0, suspended: 0 };

@@ -201,8 +201,12 @@ export function buildEvidenceDigestSet(
  *
  * Compares the imprint the timestamping authority stamped with the digest the
  * record sent (`tsaInputDigestHex`, else `fileSha256`). It is a comparison of
- * two STORED values — it does not verify the token's signature or certificate
- * chain, which nothing in the platform does.
+ * two STORED values — it does not itself verify the token's signature or
+ * certificate chain. That validation happens once, when the token is issued
+ * (ET-TSA-01: services/api/src/services/timestamp/validate-tsa-token.ts), and
+ * is recorded as `tsaValidatedAtUtc`; `presentedTsaStatus` turns an
+ * unvalidated legacy STAMPED row into RECORDED_NOT_VALIDATED before any
+ * caller reaches this comparison (UC-TRUST-007).
  *
  *   true   both are present and equal
  *   false  both are present and DIFFER — a real mismatch

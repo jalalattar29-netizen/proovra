@@ -69,6 +69,7 @@ import { buildLifecycleAndExchangeManifests } from "./verification-package-lifec
 import { logger } from "./logger.js";
 // The ONE export-package meter writer, shared with the API's completion route.
 import { recordExportPackageUsage, workspaceEvidenceWhere } from "@proovra/shared-runtime";
+import { resolveEvidenceAcquisition } from "@proovra/shared";
 
 /**
  * THE WORK THIS MODULE RECOVERS.
@@ -356,6 +357,8 @@ async function appendKindContent(params: {
               sizeBytes: true,
               fileSha256: true,
               captureMethod: true,
+              acquisitionMode: true,
+              acquisitionModeSource: true,
               originalFileName: true,
               createdAt: true,
             },
@@ -381,7 +384,17 @@ async function appendKindContent(params: {
               mimeType: ev.mimeType ?? null,
               sizeBytes: ev.sizeBytes !== null ? Number(ev.sizeBytes) : null,
               fileSha256: ev.fileSha256 ?? null,
-              captureMethod: ev.captureMethod ?? null,
+              // UC-PROV-008 — HOW the record entered PROOVRA comes from the
+              // acquisition authority; the legacy captureMethod column is a
+              // STRUCTURE value (single file / multipart) and is named so.
+              acquisition: (() => {
+                const a = resolveEvidenceAcquisition({
+                  acquisitionMode: ev.acquisitionMode ?? null,
+                  acquisitionModeSource: ev.acquisitionModeSource ?? null,
+                });
+                return { mode: a.mode, label: a.label, recorded: a.recorded };
+              })(),
+              evidenceStructure: ev.captureMethod ?? null,
               originalFileName: ev.originalFileName ?? null,
               createdAt: ev.createdAt.toISOString(),
               // Phase 6 — surface template-identity trio in

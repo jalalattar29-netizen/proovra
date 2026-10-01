@@ -1510,7 +1510,8 @@ export function verifyRecordFields(
     ["Verification Package Version", numStr(num(ov["verificationPackageVersion"]) ?? num(hs["verificationPackageVersion"]))],
     ["Reviewer Summary Version", numStr(num(ov["reviewerSummaryVersion"]) ?? num(hs["reviewerSummaryVersion"]))],
     ["Created At", time("createdAt")],
-    ["Captured At", time("capturedAtUtc")],
+    // UC-PROV-001 — the server clock at record creation, never a capture time.
+    ["Server received at", time("capturedAtUtc")],
     ["Uploaded At", time("uploadedAtUtc")],
     ["Signed At", time("signedAtUtc")],
     ["Generated At", generatedAt ? fmt(generatedAt) : null],

@@ -33,7 +33,46 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link2, ShieldCheck } from "lucide-react";
 
-import type { ProvenanceChain } from "@proovra/shared";
+import {
+  OTS_PROOF_STATUS_LABELS,
+  TSA_PROOF_STATUS_LABELS,
+  parseOtsProofStatus,
+  parseTsaProofStatus,
+  type CaptureManifestFacts,
+  type ProvenanceChain,
+} from "@proovra/shared";
+
+/**
+ * UC-TRUST-002 / 004 / PROV-003 — what the server projection adds to the shared
+ * chain shape: the canonical proof status per time layer, the trust-event
+ * sub-chain verdict and the validated capture-manifest facts. Optional: an
+ * older server sends none of them.
+ */
+type ProvenanceChainView = ProvenanceChain & {
+  time: {
+    rfc3161: ProvenanceChain["time"]["rfc3161"] & { status?: string };
+    ots: ProvenanceChain["time"]["ots"] & { status?: string };
+  };
+  trustEventChain?: { valid: boolean | null; checked: number; unverifiableLegacy: number };
+  captureManifestFacts?: CaptureManifestFacts | null;
+};
+
+/** Only VALIDATED is an applied timestamp; anything else says what it is. */
+export function rfc3161LayerText(chain: ProvenanceChainView, fmt: (iso: string) => string): string {
+  const status = parseTsaProofStatus(chain.time.rfc3161.status);
+  const at = chain.time.rfc3161.appliedAtUtc ? ` · ${fmt(chain.time.rfc3161.appliedAtUtc)}` : "";
+  if (status === null) return chain.time.rfc3161.applied ? `Recorded${at}` : "Not applied";
+  if (status === "VALIDATED") return `${TSA_PROOF_STATUS_LABELS.VALIDATED}${at}`;
+  if (status === "RECORDED_NOT_VALIDATED") return `${TSA_PROOF_STATUS_LABELS.RECORDED_NOT_VALIDATED}${at}`;
+  return TSA_PROOF_STATUS_LABELS[status];
+}
+
+/** Only VERIFIED is "anchored"; a pending proof is never shown as an anchor. */
+export function otsLayerText(chain: ProvenanceChainView): string {
+  const status = parseOtsProofStatus(chain.time.ots.status);
+  if (status === null) return "Not stated";
+  return OTS_PROOF_STATUS_LABELS[status];
+}
 
 import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
@@ -48,7 +87,7 @@ type LoadState =
   | { kind: "loading" }
   | { kind: "denied"; message: string }
   | { kind: "error"; message: string }
-  | { kind: "ready"; chain: ProvenanceChain };
+  | { kind: "ready"; chain: ProvenanceChainView };
 
 /** Bounded, plain-language copy for the standing limitation codes. */
 const LIMITATION_COPY: Record<string, string> = {
@@ -84,7 +123,7 @@ export function EvidenceProvenanceChainSection({
       // §10.3 — a workspace switch mid-flight makes this another
       // tenant's projection. Drop it.
       if (isStale(captured)) return;
-      const chain = res?.chain as ProvenanceChain | undefined;
+      const chain = res?.chain as ProvenanceChainView | undefined;
       if (!chain || chain.evidenceId !== evidenceId) {
         // Never render a projection that is not for THIS record.
         setState({
@@ -170,7 +209,7 @@ export function EvidenceProvenanceChainSection({
   );
 }
 
-function ProvenanceChainBody({ chain }: { chain: ProvenanceChain }) {
+function ProvenanceChainBody({ chain }: { chain: ProvenanceChainView }) {
   // UC-0: acquisition truth is the canonical acquisition authority, and the
   // public Class A/B/C "capture record" copy was retired (D2) — it claimed a
   // "verified device check" that the fail-closed attestation can never support.
@@ -218,29 +257,67 @@ function ProvenanceChainBody({ chain }: { chain: ProvenanceChain }) {
     },
     {
       label: "Independent timestamp",
-      value: chain.time.rfc3161.applied
-        ? `Applied${
-            chain.time.rfc3161.appliedAtUtc
-              ? ` · ${formatUserDateTime(chain.time.rfc3161.appliedAtUtc)}`
-              : ""
-          }`
-        : "Not applied",
+      value: rfc3161LayerText(chain, formatUserDateTime),
     },
     {
       label: "Public anchor",
-      value: chain.time.ots.applied
-        ? `Anchored${
-            chain.time.ots.confirmations !== null
-              ? ` · ${chain.time.ots.confirmations} confirmations`
-              : ""
-          }`
-        : "Not anchored",
+      value: otsLayerText(chain),
     },
   ];
+  if (chain.trustEventChain && chain.trustEventChain.valid !== null) {
+    preservationItems.push({
+      label: "Capture event chain",
+      value: chain.trustEventChain.valid
+        ? `Verified (${chain.trustEventChain.checked} events${
+            chain.trustEventChain.unverifiableLegacy > 0
+              ? `; ${chain.trustEventChain.unverifiableLegacy} older events cannot be recomputed`
+              : ""
+          })`
+        : "Broken — an event was changed, removed or reordered",
+    });
+  }
+  // UC-PROV-003 — what the capture client reported about the capture, and
+  // validated at seal. Labelled as client-reported, never as proven.
+  const facts = chain.captureManifestFacts ?? null;
+  const manifestItems: Array<{ label: string; value: string }> = [];
+  if (facts) {
+    if (facts.web?.sourceUrlPrivate) manifestItems.push({ label: "Captured page (reported by the capture client)", value: facts.web.sourceUrlPrivate });
+    if (facts.web?.titlePrivate) manifestItems.push({ label: "Page title (reported)", value: facts.web.titlePrivate });
+    if (facts.clientCaptureWindow?.startedAtUtc) {
+      manifestItems.push({
+        label: "Capture window (reported by the capture client)",
+        value: `${formatUserDateTime(facts.clientCaptureWindow.startedAtUtc)}${
+          facts.clientCaptureWindow.endedAtUtc ? ` – ${formatUserDateTime(facts.clientCaptureWindow.endedAtUtc)}` : ""
+        }`,
+      });
+    }
+    const client = [facts.client?.browserName, facts.client?.browserVersion].filter(Boolean).join(" ");
+    if (client) manifestItems.push({ label: "Browser (reported)", value: client });
+    if (facts.client?.appVersion) manifestItems.push({ label: "Capture app version (reported)", value: facts.client.appVersion });
+    manifestItems.push({ label: "Completeness (reported)", value: humaniseEnum(String(facts.completeness)) });
+    if (facts.web?.pageMutatedDuringCapture) {
+      manifestItems.push({ label: "Page changed during capture", value: "Yes — the page was still changing while it was captured" });
+    }
+    if (facts.limitations.length > 0) {
+      manifestItems.push({ label: "Limitations detected", value: facts.limitations.map((l) => humaniseEnum(String(l))).join(", ") });
+    }
+  }
 
   return (
     <div data-evidence-provenance-body>
       <KeyValueGrid items={captureItems} />
+
+      {manifestItems.length > 0 ? (
+        <div className="evd-block" data-evidence-provenance-manifest>
+          <strong className="evd-kicker">Capture details reported by the capture client</strong>
+          {facts && !facts.reportedComplete ? (
+            <p className="evd-muted" data-evidence-provenance-partial>
+              The capture client reported this capture as not complete. Review the limitations below.
+            </p>
+          ) : null}
+          <KeyValueGrid items={manifestItems} />
+        </div>
+      ) : null}
 
       <div className="evd-block">
         <strong className="evd-kicker">Preservation steps recorded</strong>

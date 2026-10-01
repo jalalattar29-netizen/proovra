@@ -241,7 +241,32 @@ const integrityBadgeText = decision.shortLabel;
 
   const verifyUrl = vm.verifyUrl.trim();
 
-  const verificationBlock = `
+  // UC-TRUST-008 — the report says which stored bytes it certifies, and as
+  // of when; it is not a statement about the stored object afterwards.
+  const certified = vm.certifiedOriginal;
+  const certifiedBlock = certified
+    ? `<div class="cover-verify-hint" data-certified-original>
+        Certifies the original with SHA-256 ${escapeHtml(certified.recordedSha256)}
+        (stored object version${certified.objectVersionIds.length === 1 ? "" : "s"}
+        ${escapeHtml(certified.objectVersionIds.map((v) => v ?? "unversioned").join(", "))}),
+        re-read from storage and matched to the signed fingerprint at ${escapeHtml(certified.rereadAtUtc)}.
+        Later changes to the stored object are not covered by this report; check Public Verify for its current state.
+      </div>`
+    : "";
+
+  // UC-OUT-001 — a private record's report prints no verification link: the
+  // page would answer "not found" to every reader. It says so, and who can
+  // change it.
+  const verificationBlock = vm.publicVerificationPublished === false
+    ? `
+    <div class="cover-verify-texts" data-public-verification="not-published">
+      <div class="cover-verify-title">Public Verification</div>
+      <div class="cover-verify-hint">Not published — the owner can create a verification link</div>
+      <div class="cover-verify-hint">This record was private when this report was issued, so no public verification link is printed. Its owner can publish it and share a verification link.</div>
+      ${certifiedBlock}
+    </div>
+  `
+    : `
     <div class="cover-verify-qr-wrap">
       ${
         vm.qr.publicDataUrl
@@ -252,6 +277,7 @@ const integrityBadgeText = decision.shortLabel;
     <div class="cover-verify-texts">
       <div class="cover-verify-title">Public Verification</div>
       <div class="cover-verify-hint">Scan QR code or open verification page</div>
+      ${certifiedBlock}
       <a
         class="cover-verify-url"
         href="${escapeHtml(verifyUrl)}"
@@ -260,6 +286,7 @@ const integrityBadgeText = decision.shortLabel;
       >${escapeHtml(verifyUrl)}</a>
     </div>
   `;
+
 
   return `
     <section class="report-cover report-cover-premium cover-tone-${presentationTone}">

@@ -982,11 +982,12 @@ export function buildSourceContextFacts(rw: unknown, fmt: (iso: string) => strin
   const sourceTypeLabel = displaySourceType(s(sc["sourceType"]));
   if (sourceTypeLabel !== "Not recorded") items.push({ label: "Source type", value: sourceTypeLabel });
   const cap = s(sc["capturedAtUtc"]);
-  if (cap) items.push({ label: "Captured at", value: fmt(cap) });
+  // UC-PROV-001 — the PROOVRA server clock at record creation, never a capture time.
+  if (cap) items.push({ label: "Server received at", value: fmt(cap) });
   const up = s(sc["uploadedAtUtc"]);
   if (up) items.push({ label: "Uploaded at", value: fmt(up) });
   const dev = s(sc["deviceTimeIso"]);
-  if (dev) items.push({ label: "Device time", value: dev });
+  if (dev) items.push({ label: "Device-declared capture time (not proven)", value: dev });
   if (sc["locationIncluded"] === true) items.push({ label: "Location included", value: "Included" });
   const cs = o(sc["clientSignalsSummary"]);
   if (showSignal(cs["screenshotLikeStatus"])) items.push({ label: "Screenshot indicators", value: describeClientSignalState(String(cs["screenshotLikeStatus"]).toUpperCase()) });

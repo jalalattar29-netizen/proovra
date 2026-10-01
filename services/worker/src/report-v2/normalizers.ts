@@ -575,7 +575,9 @@ export function normalizeReviewerText(value: string | null | undefined): string 
   return safe(value, "")
     .replace(/\bOAUTH_BACKED_IDENTITY\b/g, "OAuth-backed identity")
     .replace(/\bMULTIPART_PACKAGE\b/g, "Multipart package")
-    .replace(/\bSECURE_CAMERA\b/g, "PROOVRA secure camera")
+    // UC-PROV-008 — no production writer emits SECURE_CAMERA; a legacy value
+    // is named as what it is, never as a PROOVRA secure-camera capture.
+    .replace(/\bSECURE_CAMERA\b/g, "Legacy capture-method value")
     .replace(/\bUPLOADED_FILE\b/g, "Uploaded existing file")
     .replace(/\bIMPORTED_DOCUMENT\b/g, "Imported document")
     .replace(/\bBASIC_ACCOUNT\b/g, "Basic account")

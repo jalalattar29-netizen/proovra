@@ -8,7 +8,7 @@
  *   * status enums read as plain English.
  */
 
-import { resolveEvidenceAcquisition } from "@proovra/shared";
+import { resolveEvidenceAcquisition, type ProjectedAcquisitionMode } from "@proovra/shared";
 
 import type { MetadataStatus, ParseResult } from "./types.js";
 
@@ -35,15 +35,23 @@ export function captureMethodDisplayLabel(input: {
   if (input.isIntake === true || a.mode === "SECURE_INTAKE_LINK") {
     return "Secure Intake Link";
   }
-  switch (a.mode) {
-    case "PROOVRA_WEB_UPLOAD":
-      return "PROOVRA Web Upload";
-    case "PROOVRA_MOBILE_APP":
-      return "PROOVRA Mobile App";
-    default:
-      return "Not recorded";
-  }
+  // UC-PROV-002 — EXHAUSTIVE over the acquisition modes (a Record, so a new
+  // mode is a compile error, not a silent "Not recorded"). Only a record
+  // whose acquisition was never recorded reads "Not recorded".
+  return CAPTURE_METHOD_DISPLAY_LABELS[a.mode];
 }
+
+/** UC-PROV-002 — one label per acquisition mode; LEGACY only is "Not recorded". */
+export const CAPTURE_METHOD_DISPLAY_LABELS: Readonly<Record<ProjectedAcquisitionMode, string>> = {
+  PROOVRA_WEB_UPLOAD: "PROOVRA Web Upload",
+  SECURE_INTAKE_LINK: "Secure Intake Link",
+  PROOVRA_MOBILE_APP: "PROOVRA Mobile App",
+  DIRECT_WEB_CAPTURE_EXTENSION: "Web capture — PROOVRA browser extension (client-attested)",
+  DIRECT_SCREEN_CAPTURE_ANDROID: "Android screen capture — PROOVRA app (client-attested)",
+  DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: "Android screen recording — PROOVRA app (client-attested)",
+  DIRECT_SCREEN_CAPTURE_IOS: "iOS screen recording — PROOVRA app (client-attested)",
+  LEGACY_NOT_RECORDED: "Not recorded",
+};
 
 /** Plain-English label for the parse/metadata status enums. */
 export function metadataStatusLabel(

@@ -24,18 +24,21 @@
  *     identifiers beyond what the projection emits.
  */
 
-import type { ProvenanceChain } from "@proovra/shared";
+import type { ProvenanceChainProjection } from "@proovra/shared-runtime";
 
-import { loadProvenanceChain } from "@proovra/shared-runtime";
+import { loadProvenanceChain, loadTrustEventRecords } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 
 export async function loadProvenanceChainForPackage(
   evidenceId: string,
-): Promise<ProvenanceChain | null> {
+): Promise<ProvenanceChainProjection | null> {
   if (!evidenceId) return null;
   try {
-    return await loadProvenanceChain(prisma, evidenceId);
+    // UC-TRUST-004 — the package carries the trust-event rows with their hashes,
+    // so a reviewer can recompute the capture sub-chain.
+    const chain = await loadProvenanceChain(prisma, evidenceId);
+    return { ...chain, trustEventRecords: await loadTrustEventRecords(prisma, evidenceId) };
   } catch {
     return null;
   }

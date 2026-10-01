@@ -7,6 +7,7 @@ import {
   type EvidenceHealthCohort,
 } from "./evidence-health-cohorts.service.js";
 import { liveEvidenceWhere } from "@proovra/shared-runtime";
+import { presentedTsaStatus } from "@proovra/shared";
 
 /**
  * PLATFORM ADMIN — EVIDENCE-HEALTH DRILL-DOWN (ADM-029).
@@ -207,6 +208,8 @@ export async function listAdminEvidenceRecords(
         status: true,
         verificationStatus: true,
         tsaStatus: true,
+        // UC-TRUST-007 — the presented TSA status needs the validation time.
+        tsaValidatedAtUtc: true,
         otsStatus: true,
         createdAt: true,
         updatedAt: true,
@@ -290,7 +293,9 @@ export async function listAdminEvidenceRecords(
         verificationStatus: r.verificationStatus
           ? String(r.verificationStatus)
           : null,
-        tsaStatus: r.tsaStatus ?? null,
+        // UC-TRUST-007 — an unvalidated legacy token reads
+        // RECORDED_NOT_VALIDATED, never a raw "STAMPED".
+        tsaStatus: presentedTsaStatus(r) ?? null,
         otsStatus: r.otsStatus ?? null,
         createdAt: r.createdAt.toISOString(),
         workspace: team

@@ -179,3 +179,19 @@ export const FORBIDDEN_ARTIFACT_PHRASES = [
   "forensic proof",
   "guaranteed",
 ] as const;
+
+/**
+ * UC-PROV-007 — the forbidden phrases found in a text, matched as whole words
+ * (case-insensitive), so "authenticity" or "authentication" in a legal
+ * boundary sentence is not mistaken for the claim "authentic". Used for
+ * package entry names and PROOVRA-authored package values.
+ */
+export function findForbiddenArtifactPhrases(text: string): string[] {
+  const t = text.toLowerCase().replace(/_/g, " ");
+  return FORBIDDEN_ARTIFACT_PHRASES.filter((p) => {
+    // The phrases are plain lowercase words, spaces and hyphens; a space or a
+    // hyphen matches either.
+    const escaped = p.replace(/[- ]/g, "[- ]");
+    return new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`).test(t);
+  });
+}

@@ -32,6 +32,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import {
   INTEGRITY_RECHECK_INTERVAL_DAYS_DEFAULT,
+  STORED_BYTES_FRESHNESS_HOURS_DEFAULT,
   resolveStoredBytesIntegrity,
   type IntegrityCheckFailureCode,
   type IntegrityCheckOutcome,
@@ -54,6 +55,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function integrityRecheckIntervalDays(env: NodeJS.ProcessEnv = process.env): number {
   const raw = Number(env.INTEGRITY_RECHECK_INTERVAL_DAYS);
   return Number.isFinite(raw) && raw > 0 ? raw : INTEGRITY_RECHECK_INTERVAL_DAYS_DEFAULT;
+}
+
+/**
+ * UC-TRUST-008 — the window inside which a passing check is presented as
+ * CURRENT. `STORED_BYTES_FRESHNESS_HOURS` configures it; anything that is not
+ * a positive number falls back to the default (24). Deliberately separate
+ * from the recheck cadence: a 30-day-old check is due-later, never current.
+ */
+export function storedBytesFreshnessHours(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number(env.STORED_BYTES_FRESHNESS_HOURS);
+  return Number.isFinite(raw) && raw > 0 ? raw : STORED_BYTES_FRESHNESS_HOURS_DEFAULT;
 }
 
 const SIGNED: prismaPkg.EvidenceStatus[] = [
@@ -248,6 +260,9 @@ export const STORED_BYTES_INTEGRITY_SELECT = {
   integrityCheckOutcome: true,
   integrityCheckFailureCode: true,
   integrityRecheckRequestedAtUtc: true,
+  // UC-TRUST-008 — the pinned version and the recorded digest the state is about.
+  storageVersionId: true,
+  fileSha256: true,
 } as const;
 
 export type StoredBytesIntegrityRow = {
@@ -257,13 +272,19 @@ export type StoredBytesIntegrityRow = {
   integrityCheckOutcome: string | null;
   integrityCheckFailureCode: string | null;
   integrityRecheckRequestedAtUtc: Date | null;
+  storageVersionId?: string | null;
+  fileSha256?: string | null;
 };
 
-/** The state a surface may present for this record, judged against the cadence. */
+/**
+ * The state a surface may present for this record: CURRENT only inside the
+ * freshness window (UC-TRUST-008), judged against the pinned version.
+ */
 export function readStoredBytesIntegrity(
   row: StoredBytesIntegrityRow,
   now: Date = new Date(),
   intervalDays: number = integrityRecheckIntervalDays(),
+  freshnessHours: number = storedBytesFreshnessHours(),
 ): StoredBytesIntegrity {
   return resolveStoredBytesIntegrity(
     {
@@ -273,8 +294,11 @@ export function readStoredBytesIntegrity(
       lastOutcome: row.integrityCheckOutcome,
       lastFailureCode: row.integrityCheckFailureCode,
       recheckRequestedAtUtc: row.integrityRecheckRequestedAtUtc,
+      pinnedVersionId: row.storageVersionId ?? null,
+      recordedDigest: row.fileSha256 ?? null,
     },
     now,
     intervalDays,
+    freshnessHours,
   );
 }

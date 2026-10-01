@@ -7,7 +7,10 @@
  * the report renders byte-identical for evidence without UC-4.
  */
 
-import { UC4_RESOURCE_BOUNDS } from "@proovra/shared";
+import { createHash } from "node:crypto";
+
+import { UC4_RESOURCE_BOUNDS, resolveScreenOcrStatus } from "@proovra/shared";
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 
 import { prisma } from "../db.js";
 import { getObjectStream } from "../storage.js";
@@ -16,14 +19,29 @@ import type { DerivedReviewSection } from "./sections/derived-review.js";
 export async function buildReportDerivedReview(input: {
   teamId: string | null;
   evidenceId: string;
+  /** The record's owner — resolves a legacy NULL-team record's personal workspace. */
+  ownerUserId?: string | null;
 }): Promise<DerivedReviewSection | null> {
-  if (!input.teamId) return null;
   try {
+    // UC-DER-010 (report half) — a legacy Personal record stored with team_id
+    // NULL belongs to its owner's personal workspace; it is not skipped.
+    const owner =
+      input.teamId
+        ? null
+        : (input.ownerUserId ??
+          (await prisma.evidence.findUnique({ where: { id: input.evidenceId }, select: { ownerUserId: true } }))
+            ?.ownerUserId ??
+          null);
+    const workspaceId = input.teamId ?? (await resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: owner }, prisma));
+    if (!workspaceId) return null;
     const { readScreenReconstructionDescriptor } = await import(
       "@proovra/shared-runtime/media-intelligence"
     );
+    // UC-DER-015 — the digest of the EXACT descriptor bytes this section is
+    // built from, so the report is bound to the reconstruction it describes.
+    let descriptorBytes: Buffer | null = null;
     const read = await readScreenReconstructionDescriptor(
-      input.teamId,
+      workspaceId,
       input.evidenceId,
       {
         prisma,
@@ -42,7 +60,8 @@ export async function buildReportDerivedReview(input: {
             }
             chunks.push(buf);
           }
-          return Buffer.concat(chunks);
+          descriptorBytes = Buffer.concat(chunks);
+          return descriptorBytes;
         },
       },
     );
@@ -63,6 +82,11 @@ export async function buildReportDerivedReview(input: {
       },
       limitations: d.limitations,
       generatedAtUtc: d.generatedAtUtc,
+      // UC-DER-008 — policy-off vs engine-missing, from the descriptor itself.
+      ocrStatus: resolveScreenOcrStatus(d),
+      descriptorSha256: descriptorBytes
+        ? createHash("sha256").update(descriptorBytes as Buffer).digest("hex")
+        : null,
     };
   } catch {
     return null;

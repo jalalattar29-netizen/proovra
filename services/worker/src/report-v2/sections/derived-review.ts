@@ -33,6 +33,12 @@ export type DerivedReviewSection = {
   };
   limitations: ReadonlyArray<string>;
   generatedAtUtc: string;
+  /**
+   * UC-DER-015 — SHA-256 of the exact reconstruction descriptor bytes these
+   * figures were read from; with generatedAtUtc it binds the report to one
+   * descriptor across regenerations.
+   */
+  descriptorSha256?: string | null;
 };
 
 export function renderDerivedReviewSection(
@@ -106,6 +112,13 @@ export function renderDerivedReviewSection(
         <span class="redaction-chip">${escapeHtml(section.transformationVersions.reconstruction)}</span>
       </p>
       ${limitationsBlock}
+      <p class="muted small" data-derived-review-binding>
+        Reconstruction descriptor generated ${escapeHtml(section.generatedAtUtc)}${
+          section.descriptorSha256
+            ? ` · SHA-256 <span class="mono">${escapeHtml(section.descriptorSha256)}</span>`
+            : ""
+        }
+      </p>
       <p class="muted small">
         Reconstruction coverage is separate from acquisition completeness — an
         interrupted capture never reconstructs as a complete conversation. The

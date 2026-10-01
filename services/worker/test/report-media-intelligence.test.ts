@@ -517,7 +517,9 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     // Evidence Overview fields live in the SAME grid — merged, not a second
     // key/value table.
     const gridSlice = renderedElement(html, 'class="executive-unified-grid"');
-    expect(gridSlice).toContain("Operating system"); // device field
+    // UC-PROV-005 — the uploading browser, labelled as its User-Agent, never as the capture device.
+    expect(gridSlice).toContain("Uploading OS (User-Agent)"); // device field
+    expect(gridSlice).not.toContain("Capture Device");
     expect(gridSlice).toContain("Evidence Type"); // overview field
     // No wasteful standalone "Technical Summary" page section.
     expect(html).not.toContain("technical-summary-section");

@@ -84,6 +84,8 @@ test("public Verify (basic tier): verified only with the chain check; otherwise 
     basis: "BITCOIN_BLOCK_CONFIRMED_BY_OTS_VERIFY",
     anchoredAtUtc: AT,
     bitcoinTxid: TXID,
+    // UC-TRUST-002 — the canonical OTS proof status travels with the claim.
+    status: "VERIFIED",
   });
   // (2026-09-29) A historical anchor with NO recorded check does not claim a
   // proof-structure check that never ran; one checked offline does.

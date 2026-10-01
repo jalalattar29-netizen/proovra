@@ -7,6 +7,7 @@ import {
   isAccessCustodyEventType,
   normalizeOtsStatusValue,
   OTS_ANCHOR_CLAIM_LABELS,
+  resolveTsaProofStatus,
   resolveOtsAnchorClaim,
   type OtsAnchorClaim,
 } from "@proovra/shared";
@@ -61,6 +62,8 @@ type EvidenceIntelligenceInput = {
     signingKeyId: string | null;
     signingKeyVersion: number | null;
     tsaStatus: string | null;
+    /** ET-TSA-01 / UC-TRUST-007 — a STAMPED token is "recorded" only once validated. */
+    tsaValidatedAtUtc?: Date | string | null;
     otsStatus: string | null;
     /** 2026-09-29: the one OTS claim needs the anchor time and how it was established. */
     otsAnchoredAtUtc?: Date | string | null;
@@ -517,30 +520,51 @@ function buildEvidenceReviewDecision(params: {
   };
 }
 
-function buildVerificationProof(params: EvidenceIntelligenceInput["evidence"]): EvidenceIntelligence["verificationProof"] {
+/**
+ * UC-TRUST-007 — the review-workspace proof summary states only what a check
+ * established. A digest column being present is not a match: "MATCH" requires
+ * the record's recorded-integrity state to have been explicitly verified (the
+ * canonical hash, signature and custody checks passed at issuance) and the
+ * record not to have been rejected; a rejected record is "MISMATCH"; anything
+ * else is "NOT_CHECKED". The timestamp and anchor go through the canonical
+ * resolvers (a legacy unvalidated token is not "RECORDED"; an anchor whose
+ * chain was not checked is not "ANCHORED").
+ */
+export function buildVerificationProof(params: EvidenceIntelligenceInput["evidence"]): EvidenceIntelligence["verificationProof"] {
   const hasHash = Boolean(params.fileSha256 || params.fingerprintHash);
-  const signaturePresent = Boolean(params.signatureBase64 || params.signingKeyId || params.signingKeyVersion);
-  const tsaStatus = params.tsaStatus ? String(params.tsaStatus).trim().toUpperCase() : "UNKNOWN";
-  const otsStatus = normalizeOtsStatusValue(params.otsStatus) ?? "UNKNOWN";
+  const signaturePresent = Boolean(params.signatureBase64 && params.signingKeyId && params.signingKeyVersion);
+  const tsa = resolveTsaProofStatus({ tsaStatus: params.tsaStatus, tsaValidatedAtUtc: params.tsaValidatedAtUtc ?? null });
+  const otsClaim = resolveOtsAnchorClaim({
+    status: params.otsStatus,
+    anchoredAtUtc: params.otsAnchoredAtUtc ?? null,
+    anchorCheck: params.otsAnchorCheck ?? null,
+  });
+  const rawOts = normalizeOtsStatusValue(params.otsStatus);
+  const otsStatus: EvidenceIntelligence["verificationProof"]["otsStatus"] =
+    otsClaim === "VERIFIED"
+      ? "ANCHORED"
+      : otsClaim === "PENDING"
+        ? "PENDING"
+        : otsClaim === "FAILED"
+          ? "FAILED"
+          : rawOts === "DISABLED"
+            ? "DISABLED"
+            : "UNKNOWN";
+  const rejected = String(params.status) === "FAILED_HASH_MISMATCH";
+  const explicitlyVerified =
+    String(params.verificationStatus ?? "") === "RECORDED_INTEGRITY_VERIFIED" ||
+    Boolean(params.recordedIntegrityVerifiedAtUtc);
 
   return {
-    hashMatch: hasHash ? "MATCH" : "NOT_CHECKED",
+    hashMatch: rejected ? "MISMATCH" : hasHash && explicitlyVerified ? "MATCH" : "NOT_CHECKED",
     sha256Recorded: Boolean(params.fileSha256),
     signatureStatus: signaturePresent ? "APPLIED" : "MISSING",
     tsaStatus:
-      [
-        "RECORDED",
-        "SIGNED",
-        "COMPLETE",
-        "STAMPED",
-        "GRANTED",
-        "VERIFIED",
-        "SUCCEEDED",
-      ].includes(tsaStatus)
+      tsa === "VALIDATED"
         ? "RECORDED"
-        : tsaStatus === "FAILED" || tsaStatus === "ERROR" || tsaStatus === "UNAVAILABLE"
+        : tsa === "FAILED"
           ? "FAILED"
-          : tsaStatus === "PENDING"
+          : tsa === "PENDING"
             ? "PENDING"
             : "UNKNOWN",
                 otsStatus,

@@ -319,8 +319,11 @@ export async function putObjectBuffer(params: {
       "proovra.size_bytes": params.body.length,
       "proovra.immutable": Boolean(params.immutable),
     },
-    async () => {
-      await s3.send(
+    async (): Promise<{ versionId: string | null }> => {
+      // UC-DER-006 — the object VERSION written is returned, so a producer can
+      // record it next to the key and digest (a versioned bucket keeps older
+      // versions at the same key; the key alone does not identify the bytes).
+      const res = await s3.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: key,
@@ -338,6 +341,7 @@ export async function putObjectBuffer(params: {
           // No ObjectLockLegalHoldStatus. See readObjectLockDefaults.
         }),
       );
+      return { versionId: (res as { VersionId?: string } | undefined)?.VersionId ?? null };
     },
   );
 }

@@ -382,6 +382,29 @@ export type ReportV2Input = {
   generatedAtUtc: string;
   buildInfo?: string | null;
   verifyUrl?: string | null;
+  /**
+   * UC-OUT-001 — was the record PUBLISHED for public verification when this
+   * report was issued? A link to Public Verify answers only for a published
+   * record; for a private one the report prints no link or QR code and says
+   * the owner can publish and create a link. Absent = published (legacy).
+   */
+  publicVerificationPublished?: boolean | null;
+  /**
+   * UC-PROV-003 — the validated capture-manifest facts the capture client
+   * reported (private projection: the report is an owner artifact). Rendered
+   * as "reported by the capture client". Absent = no manifest facts.
+   */
+  captureManifest?: import("@proovra/shared").CaptureManifestFacts | null;
+  /**
+   * UC-TRUST-008 — WHICH stored bytes this report certifies: the digest from
+   * the signed fingerprint, the exact object version(s) re-read, and when they
+   * were re-read and matched (at issuance).
+   */
+  certifiedOriginal?: {
+    recordedSha256: string;
+    objectVersionIds: ReadonlyArray<string | null>;
+    rereadAtUtc: string;
+  } | null;
   downloadUrl?: string | null;
   externalMode?: boolean;
   /**
@@ -588,6 +611,12 @@ export type ReportViewModel = {
   buildInfo: string | null;
   verifyUrl: string;
   technicalUrl: string;
+  /** UC-OUT-001 — false: the record was private at issuance; no link is printed. */
+  publicVerificationPublished?: boolean;
+  /** UC-PROV-003 — see ReportV2Input.captureManifest. */
+  captureManifest?: import("@proovra/shared").CaptureManifestFacts | null;
+  /** UC-TRUST-008 — see ReportV2Input.certifiedOriginal. */
+  certifiedOriginal?: ReportV2Input["certifiedOriginal"];
   version: number;
 
   title: string;

@@ -1236,7 +1236,8 @@ describe("PDF report: Capture Device & Camera Metadata section", () => {
     // Integrated Technical Summary — grouped compact tables, not a
     // standalone near-empty "Camera Metadata" page.
     expect(html).toContain("Technical Summary");
-    expect(html).toContain("Capture Device");
+    // UC-PROV-005 — the UA rows are the SUBMISSION environment, not the capture device.
+    expect(html).toContain("Submission environment (uploading browser, as reported by its User-Agent)");
     expect(html).toContain("Camera");
     expect(html).toContain("Exposure");
     // Humanized labels — never the raw enum. Web ingest reads as an upload,

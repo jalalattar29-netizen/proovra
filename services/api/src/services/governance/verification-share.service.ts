@@ -19,6 +19,7 @@ import {
   VERIFICATION_SHARE_MAX_ACTIVE_OWNER_LINKS,
   legacyVerifyLinkActive,
   mintVerificationShareTokenTx,
+  resolveEvidenceWorkspaceId,
   revokeVerificationShareTokenTx,
   rotateVerificationShareTokenTx,
   verificationShareStateOf,
@@ -55,6 +56,15 @@ export type VerificationLinkView = {
   audience: string | null;
   reportVersion: number | null;
   state: VerificationShareState;
+  /**
+   * UC-OUT-001 — does following this link answer right now? A link is
+   * necessary, not sufficient: the record must also be PUBLISHED. An ACTIVE
+   * link on an unpublished record is NOT usable (Public Verify answers "not
+   * found"), and the owner is told so instead of a green "Active".
+   */
+  usable: boolean;
+  /** Why an ACTIVE link does not answer; null when usable or not ACTIVE. */
+  inactiveReason: "RECORD_NOT_PUBLISHED" | null;
   createdAtUtc: string;
   createdByUserId: string | null;
   expiresAtUtc: string | null;
@@ -77,14 +87,24 @@ export type LegacyVerifyLinkView = {
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
-export function projectVerificationLink(row: VerificationShareRow, now: Date = new Date()): VerificationLinkView {
+export function projectVerificationLink(
+  row: VerificationShareRow,
+  now: Date = new Date(),
+  publication: { publicVerifyState: string } | null = null,
+): VerificationLinkView {
+  const state = verificationShareStateOf(row, now);
+  // Without the record's publication state the answer is not known; every
+  // owner-facing listing passes it.
+  const published = publication === null ? null : publication.publicVerifyState === "PUBLISHED";
   return {
     id: row.id,
     purpose: row.purpose,
     projection: row.projection,
     audience: row.audience,
     reportVersion: row.reportVersion,
-    state: verificationShareStateOf(row, now),
+    state,
+    usable: state === "ACTIVE" && published !== false,
+    inactiveReason: state === "ACTIVE" && published === false ? "RECORD_NOT_PUBLISHED" : null,
     createdAtUtc: row.createdAtUtc.toISOString(),
     createdByUserId: row.createdByUserId,
     expiresAtUtc: iso(row.expiresAtUtc),
@@ -101,6 +121,7 @@ export function projectVerificationLink(row: VerificationShareRow, now: Date = n
 type RecordForShare = {
   id: string;
   teamId: string | null;
+  ownerUserId?: string | null;
   status: string;
   lifecycleState: string;
   deletedAt: Date | null;
@@ -117,6 +138,7 @@ export async function loadRecordForShare(
     select: {
       id: true,
       teamId: true,
+      ownerUserId: true,
       status: true,
       lifecycleState: true,
       deletedAt: true,
@@ -153,7 +175,7 @@ export async function listVerificationLinks(
   })) as VerificationShareRow[];
   return {
     publicVerifyState: record.publicVerifyState,
-    links: rows.map((r) => projectVerificationLink(r, now)),
+    links: rows.map((r) => projectVerificationLink(r, now, record)),
     legacy: record.legacyVerifyUuidUntilUtc
       ? {
           active: legacyVerifyLinkActive(record, now),
@@ -215,8 +237,22 @@ export async function createVerificationLink(
     const row = (await tx.verificationShareToken.findUniqueOrThrow({
       where: { id: minted.id },
     })) as VerificationShareRow;
-    return { link: projectVerificationLink(row, now), token: minted.token };
+    return { link: projectVerificationLink(row, now, record), token: minted.token };
   });
+}
+
+/**
+ * UC-OUT-005 — THE WORKSPACE a record is published in: its team, or — for a
+ * legacy Personal record stored with team_id NULL — its owner's personal
+ * workspace (the rule the report and package writers already use). Null only
+ * when neither exists.
+ */
+export async function resolveShareWorkspaceId(
+  record: Pick<RecordForShare, "teamId" | "ownerUserId">,
+  client: PrismaClient = defaultPrisma,
+): Promise<string | null> {
+  if (record.teamId) return record.teamId;
+  return resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: record.ownerUserId ?? null }, client);
 }
 
 export async function revokeVerificationLink(
@@ -239,7 +275,7 @@ export async function revokeVerificationLink(
     const row = (await tx.verificationShareToken.findUniqueOrThrow({
       where: { id: current.id },
     })) as VerificationShareRow;
-    return { link: projectVerificationLink(row, now), changed };
+    return { link: projectVerificationLink(row, now, input.record), changed };
   });
 }
 
@@ -269,7 +305,7 @@ export async function rotateVerificationLink(
     const row = (await tx.verificationShareToken.findUniqueOrThrow({
       where: { id: minted.id },
     })) as VerificationShareRow;
-    return { link: projectVerificationLink(row, now), token: minted.token, replacedLinkId: current.id };
+    return { link: projectVerificationLink(row, now, input.record), token: minted.token, replacedLinkId: current.id };
   });
 }
 
@@ -309,8 +345,18 @@ export async function legacyVerifyLinkInventory(
   graceDays: number;
   records: Array<{ evidenceId: string; title: string | null; expiresAtUtc: string }>;
 }> {
+  // UC-OUT-005 — a personal workspace also owns its owner's legacy records
+  // stored with team_id NULL (the resolveEvidenceWorkspaceId rule).
+  const team = await client.team.findUnique({
+    where: { id: input.teamId },
+    select: { isPersonal: true, ownerUserId: true },
+  });
+  const scope =
+    team?.isPersonal && team.ownerUserId
+      ? { OR: [{ teamId: input.teamId }, { teamId: null, ownerUserId: team.ownerUserId }] }
+      : { teamId: input.teamId };
   const where = {
-    teamId: input.teamId,
+    ...scope,
     legacyVerifyUuidUntilUtc: { gt: now },
     publicVerifyState: "PUBLISHED" as const,
     lifecycleState: { notIn: ["TRASHED" as const, "DESTROYED" as const] },

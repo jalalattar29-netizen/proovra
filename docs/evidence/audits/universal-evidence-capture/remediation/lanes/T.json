@@ -1,0 +1,962 @@
+{
+  "lane": "T",
+  "findings": {
+    "UC-TRUST-001": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Added the shared resolver signedDigestsFromFingerprint / signedRecordDigest / digestColumnsMatchSignedFingerprint (packages/shared/src/stored-bytes-integrity.ts). The worker recheck (resolveExpectedOriginalDigest in integrity-recheck.ts) and the report-issuance byte gate (processor.ts) now take the expected digest from the SIGNED fingerprint, check every part against its signed per-part digest, and treat unsigned columns that disagree with the fingerprint as DIGEST_MISMATCH; the recorded expectedDigest is the signed one. Public Verify computes digestColumnsMatchSignedFingerprint and feeds it into overallIntegrity, the trust decision and Basic Verify original.state.",
+      "red": {
+        "test": "services/worker/test/integrity-recheck-signed-digest.test.ts::bytes + columns rewritten consistently: FAILED / DIGEST_MISMATCH",
+        "command": "cd services/worker && npx vitest run test/integrity-recheck-signed-digest.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected 'VERIFIED' to be 'FAILED' (3 failed: consistent rewrite and single-file rewrite VERIFIED; no expectedDigest)"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/integrity-recheck-signed-digest.test.ts",
+          "services/worker/test/integrity-recheck-digest-rule.test.ts",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-001: bytes and digest columns rewritten consistently (real MinIO)",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-001"
+        ],
+        "command": "worker: npx vitest run test/integrity-recheck-*.test.ts; api: TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/public-verify-stored-bytes-truth.integration.test.ts",
+        "result": "worker 27 passed; api integration 6 passed; shared 1066 passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/stored-bytes-integrity.ts",
+        "packages/shared/src/basic-verification.ts",
+        "services/worker/src/integrity-recheck.ts",
+        "services/worker/src/processor.ts",
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Verify shows failed original when columns disagree with the fingerprint",
+        "api": "public verify integrityProof.digestColumnsMatchSignedFingerprint",
+        "worker": "recheck + report gate bind to signed digests",
+        "mobile": "none",
+        "extension": "none",
+        "security": "insider column+bytes rewrite now detected",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-TRUST-002": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "New canonical resolvers in packages/shared/src/ots-status.ts: resolveOtsProofStatus (NOT_REQUESTED/SUBMITTED/PENDING/ANCHORED_UNVERIFIED/VERIFIED/FAILED/STALE_UNKNOWN, built on resolveOtsAnchorClaim; only VERIFIED is anchored) and resolveTsaProofStatus (VALIDATED/RECORDED_NOT_VALIDATED/...). loadProvenanceChain no longer infers layers from OTS_APPLIED/TIMESTAMP_APPLIED custody event types; it reads the Evidence row (time.ots.applied only for VERIFIED, time.rfc3161.applied only for VALIDATED, plus status/statusLabel). Applied to web provenance section, native provenance rows, Public Verify (basicVerification.anchoring.status, ots.proofStatus, tsa.proofStatus), package provenance/chain.json (same projection), admin records (presentedTsaStatus) and dashboard OTS bucket.",
+      "red": {
+        "test": "services/api/test/provenance-chain-truth.integration.test.ts::TRUST-002: PENDING OTS + unvalidated legacy STAMPED -> not anchored",
+        "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/provenance-chain-truth.integration.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit) (shared-runtime dist rebuilt from HEAD for the red run)",
+        "observed": "expected true to be false (time.ots.applied true for a PENDING proof)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/provenance-chain-truth.integration.test.ts",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-002",
+          "apps/web/__tests__/render/provenance-chain-layer-status.render.test.tsx",
+          "apps/mobile/test/provenance.render.test.mjs::UC-TRUST-002"
+        ],
+        "command": "api integration as above; web: npx vitest run --config vitest.render.config.ts __tests__/render/provenance-chain-layer-status.render.test.tsx; mobile: node --test test/provenance.render.test.mjs",
+        "result": "api 5 passed; web 3 passed; mobile all passed; shared 1066 passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/ots-status.ts (new)",
+        "packages/shared/src/basic-verification.ts",
+        "packages/shared/tests/ots-anchor-claim.test.mjs (additive status field in deepEqual)",
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx",
+        "apps/mobile/src/product/provenance.ts",
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)",
+        "services/api/src/services/admin/evidence-records.service.ts",
+        "services/api/src/services/dashboard/trust-summary.service.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Provenance section says 'Submitted…'/'Recorded, not validated' instead of Anchored/Applied",
+        "api": "provenance + public verify carry canonical statuses",
+        "worker": "package chain.json honest",
+        "mobile": "native provenance rows honest",
+        "extension": "none",
+        "security": "none",
+        "deployment": "web redeploy + api+worker redeploy + native build"
+      }
+    },
+    "UC-TRUST-003": {
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION",
+      "decision": "New services/api/src/signing/key-registry.ts: insert-only registerSigningKey (a different PEM for an existing (keyId,version) is SIGNING_KEY_IDENTITY_CONFLICT; revocation never cleared) and assertSignatureVerifiesWithRegisteredKey. The controlled evidence signer (signer.ts) self-verifies every signature against the REGISTERED key before returning (fail closed on mismatched private key, unregistered key with no derivable public key, revoked key) and returns publicKeySha256 (SPKI fingerprint). seed-signing-key.ts no longer upserts. Public Verify reads signing_keys.revokedAt: a revoked key's signature is not presented as valid and signingKeyRevokedAtUtc is surfaced. The per-record key fingerprint column needs a migration (see migrationRequests).",
+      "red": {
+        "test": "services/api/test/signing-key-identity.integration.test.ts::a private key that is not the registered key is refused at signing time",
+        "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/signing-key-identity.integration.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "promise resolved \"{ …(3) }\" instead of rejecting (mismatched key and revoked key both signed)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/signing-key-identity.integration.test.ts",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-003",
+          "services/api/test/completion-fanout-once.integration.test.ts",
+          "services/api/test/runtime-proof-evidence-capture-a.integration.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts <files>",
+        "result": "3 + 6 + 29 passed"
+      },
+      "filesChanged": [
+        "services/api/src/signing/key-registry.ts (new)",
+        "services/api/src/signing/signer.ts",
+        "services/api/src/seed-signing-key.ts",
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Verify shows signature not valid for a revoked key",
+        "api": "completion refuses to commit a signature the registry key does not verify",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "seed can no longer overwrite/un-revoke a key; revocation enforced",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-TRUST-004": {
+      "migration": "see migrationRequests",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_MIGRATION",
+      "decision": "loadProvenanceChain now verifies the capture trust-event sub-chain on read (evaluateTrustEventChain: prev-link, contiguous sequence, eventHash recompute); a broken chain is provenance class C and is surfaced as trustEventChain {valid, checked, unverifiableLegacy, failures}. New reproducible hash formula buildTrustEventHashV2 (full-depth canonicalJsonValue, the custody canon) exported from shared-runtime; v1 rows still verify where recomputable, v1 rows with nested payloads are counted as unverifiableLegacy rather than falsely failed. The package (provenance/chain.json) carries the rows with hashes (loadTrustEventRecords). The writer (trust-event.service.ts, lane M) must switch to V2 and the append-only trigger needs a migration.",
+      "red": {
+        "test": "services/api/test/provenance-chain-truth.integration.test.ts::TRUST-004: v2 chain … edited payload and a deleted middle row break it -> class C",
+        "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/provenance-chain-truth.integration.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "runtime.buildTrustEventHashV2 is not a function (no evaluator / no reproducible formula existed)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/provenance-chain-truth.integration.test.ts::TRUST-004 (2 tests)"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/provenance-chain-truth.integration.test.ts",
+        "result": "5 passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts",
+        "services/worker/src/capture-trust/load-provenance-chain.ts",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Provenance section shows 'Capture event chain: Verified / Broken'",
+        "api": "provenance projection carries trustEventChain",
+        "worker": "package chain.json carries trust-event rows",
+        "mobile": "none",
+        "extension": "none",
+        "security": "edited/deleted trust events detected on read",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-TRUST-005": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "The stored-bytes state is now an INPUT to every verdict: Public Verify resolves storedBytes before the verdict, overallIntegrity is false when the stored original is missing/substituted (or columns disagree with the fingerprint), applyStoredBytesToTrustDecision (shared) forces REVIEW_REQUIRED on contradiction and caps a 'high reliance' verdict to conditional when not re-verified inside the freshness window; Basic Verify gains verdict {state: verified|recorded_only|failed|not_checked} and original.state fails on contradiction. Web buildVerificationVerdict, BasicVerificationView and the native basic view consume the same signal.",
+      "red": {
+        "test": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-005: OBJECT_VERSION_MISSING makes the original and the headline failed",
+        "command": "cd packages/shared && node --test tests/stored-bytes-trust-closure.test.mjs (against the pre-change dist)",
+        "observed": "AssertionError: expected 'verified' to equal 'failed' / TypeError reading 'state' of undefined verdict"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-005 (object deleted from real MinIO -> overallIntegrity false, REVIEW_REQUIRED, Basic failed)",
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs",
+          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::TRUST-005",
+          "apps/mobile/test/basic-verification-view-truth.render.test.mjs::TRUST-005 / 008"
+        ],
+        "command": "api integration as above; shared node --test; web render; mobile node --test",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/stored-bytes-integrity.ts",
+        "packages/shared/src/basic-verification.ts",
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)",
+        "apps/web/app/verify/[token]/page.tsx",
+        "apps/web/app/verify/[token]/_verify-types.ts",
+        "apps/web/app/verify/[token]/BasicVerificationView.tsx",
+        "apps/mobile/src/ui/basic-verification-view.tsx"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "headline never green while the stored original is gone/substituted",
+        "api": "public verify verdict incorporates stored bytes",
+        "worker": "none",
+        "mobile": "native basic view headline",
+        "extension": "none",
+        "security": "none",
+        "deployment": "web redeploy + api redeploy + native build"
+      }
+    },
+    "UC-TRUST-006": {
+      "migration": "none",
+      "externalProofRemaining": "A real production TSA chain validated end to end (external-proof-register row 2).",
+      "status": "FIXED",
+      "decision": "validate-tsa-token.ts: production = NODE_ENV production OR PROOVRA_ENV production/prod (isTsaProductionEnv); TSA_ACCEPTED_POLICY_OIDS required in production; TSA_TRUST_ANCHOR_SHA256 pin refuses a bundle whose anchors are not pinned; a token with no parsed genTime is never validated (tsa_token_untrusted -> FAILED, never verified 'at now'); tsaTrustConfigurationIssues() reports missing anchor/policy/pin. /readyz answers 503 tsa_trust_configuration_incomplete in production when issues exist. TSA_USERNAME/PASSWORD optional (curl -K only when both set). .env.example gains the template block from docs/operations/tsa-trust-configuration.md.",
+      "red": {
+        "test": "services/api/test/tsa-trust-configuration.test.ts",
+        "command": "cd services/api && npx vitest run test/tsa-trust-configuration.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "TSA_USERNAME is not set (x3); genTime null validated; tsaTrustConfigurationIssues is not a function"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/tsa-trust-configuration.test.ts",
+          "services/api/test/tsa-token-validation.test.ts",
+          "services/api/test/phase-ia-tsa-false-failed.test.ts"
+        ],
+        "command": "cd services/api && npx vitest run <files>",
+        "result": "5 + 13 + 48 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/timestamp/validate-tsa-token.ts",
+        "services/api/src/services/timestamp.service.ts",
+        "services/api/src/routes/ops.routes.ts (/readyz, at lead request)",
+        "services/api/.env.example (template lines, at lead request)"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "readiness fails on incomplete TSA trust config in production",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "anchor pin + policy allow-list required; PROOVRA_ENV honoured",
+        "deployment": "api+worker redeploy (set TSA_ACCEPTED_POLICY_OIDS and TSA_TRUST_ANCHOR_SHA256 in production first)"
+      }
+    },
+    "UC-TRUST-007": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "evidenceIntelligence.verificationProof: hashMatch is MATCH only for an explicitly verified recorded-integrity state, MISMATCH for a rejected record, else NOT_CHECKED (never from column presence); tsaStatus via resolveTsaProofStatus (legacy unvalidated token is not RECORDED); otsStatus ANCHORED only for a chain-verified claim. Dashboard otsBucket uses resolveOtsAnchorClaim with a separate anchoredNotChecked bucket. Admin evidence-records projects presentedTsaStatus. The stale compareTimestampDigest doc in evidence-digest-policy.ts now states where validation happens.",
+      "red": {
+        "test": "services/api/test/trust-projections-truth.test.ts",
+        "command": "cd services/api && npx vitest run test/trust-projections-truth.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "buildVerificationProof / otsBucket not exported (private presence-based derivations: hashMatch = hasHash ? 'MATCH')"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/trust-projections-truth.test.ts",
+          "services/api/test/ots-worker-exists.contract.test.ts",
+          "services/api/test/evidence-intelligence-anchor-readiness.test.ts"
+        ],
+        "command": "cd services/api && npx vitest run <files>",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/evidence-intelligence.service.ts",
+        "services/api/src/services/dashboard/trust-summary.service.ts",
+        "services/api/src/services/admin/evidence-records.service.ts",
+        "packages/shared/src/evidence-digest-policy.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "dashboard 'anchored' counts only chain-verified anchors (new anchoredNotChecked field)",
+        "api": "review-workspace verificationProof honest",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api redeploy"
+      }
+    },
+    "UC-TRUST-008": {
+      "migration": "none",
+      "externalProofRemaining": "Behaviour against an Object-Lock-retained AWS bucket (EP-01); MinIO proves the read path only.",
+      "status": "FIXED",
+      "decision": "Separated the recorded (signed) digest from the current object state: StoredBytesIntegrity gains checkStatus (VERIFIED/MISMATCH/UNAVAILABLE/STALE/PENDING/UNKNOWN), pinnedVersionId, recordedDigest and a SHORT freshness window (STORED_BYTES_FRESHNESS_HOURS, default 24h) distinct from the 30-day recheck cadence; only a passing pinned-version check inside the window is 'Verified', older is 'Stale — last verified <time>' and Public Verify requests a pinned-version recheck. The report cover states which digest / object version(s) it certifies and when they were re-read; package original-linkage carries storageVersionId per original. Real-MinIO tamper test through the worker recheck + public verify projection. Fixed the API test harness (safe-environment.ts) which scrubbed P7_HOST_S3_PORT so integration runs silently used the default MinIO port.",
+      "red": {
+        "test": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-008: a passing check 3 days old is STALE, not Verified",
+        "command": "cd packages/shared && node --test tests/stored-bytes-trust-closure.test.mjs (pre-change dist)",
+        "observed": "expected 'verified_current' to equal 'verified_stale'"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-008 (2 tests, real MinIO 127.0.0.1:59711 point7-local-bucket: overwrite -> STALE, never Verified; requested recheck reads the real object -> MISMATCH)",
+          "services/api/test/integrity-recheck.integration.test.ts",
+          "services/worker/test/report-trust-truth.test.ts::UC-TRUST-008",
+          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::TRUST-008"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/public-verify-stored-bytes-truth.integration.test.ts test/integrity-recheck.integration.test.ts",
+        "result": "6 + 13 passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/stored-bytes-integrity.ts",
+        "packages/shared/src/basic-verification.ts",
+        "packages/shared-runtime/src/integrity-recheck/authority.ts",
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)",
+        "services/worker/src/report-v2/{types.ts,build-view-model.ts,sections/cover.ts}",
+        "services/worker/src/processor.ts",
+        "services/worker/src/verification-package.ts",
+        "services/api/test/setup/safe-environment.ts (harness: keep P7_HOST_S3_PORT)"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "Verify stored-file row 'Stale' with last-verified time outside 24h",
+        "api": "storedBytes.checkStatus/pinnedVersionId/recordedDigest",
+        "worker": "report certifies digest+version; package lists version per original",
+        "mobile": "native badge via shared row",
+        "extension": "none",
+        "security": "storage-side substitution no longer shown as current Verified",
+        "deployment": "api+worker redeploy (optional STORED_BYTES_FRESHNESS_HOURS)"
+      }
+    },
+    "UC-OUT-001": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Report issuance reads publicVerifyState: a private record's report prints no verification link or QR and states 'Not published — the owner can create a verification link'; the REPORT share token is minted only when the report prints it. Package README step 2c says when Public Verify cannot answer (private at assembly). Owner listing projects usable/inactiveReason (RECORD_NOT_PUBLISHED) and the links panel shows 'Inactive — record not published' instead of a green Active. The unauthenticated 404 for a valid token on an unpublished record is kept and documented (no state disclosure).",
+      "red": {
+        "test": "services/worker/test/report-trust-truth.test.ts::unpublished at issuance: no link, no QR, an explicit 'Not published' caveat",
+        "command": "cd services/worker && npx vitest run test/report-trust-truth.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected 'data:image/png;base64,…' to be null (QR printed for a private record); web panel: expected null to be 'false'; API listing: expected undefined to be false"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/report-trust-truth.test.ts::UC-OUT-001",
+          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-001",
+          "apps/web/__tests__/render/public-verification-links-panel.render.test.tsx::UC-OUT-001",
+          "services/worker/test/package-readme-seal-instructions.test.ts"
+        ],
+        "command": "worker vitest; api TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/verification-share-links.integration.test.ts; web render",
+        "result": "worker passed; api 18 passed; web 16 passed"
+      },
+      "filesChanged": [
+        "services/worker/src/processor.ts",
+        "services/worker/src/report-v2/{types.ts,build-view-model.ts,sections/cover.ts}",
+        "services/worker/src/verification-package.ts",
+        "services/api/src/services/governance/verification-share.service.ts",
+        "apps/web/components/evidence-outputs/PublicVerificationLinksPanel.tsx"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "links panel marks unusable printed links",
+        "api": "listing.links[].usable/inactiveReason",
+        "worker": "no dead link printed; README accurate",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "web redeploy + api+worker redeploy"
+      }
+    },
+    "UC-OUT-003": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "readVerifiedStoredReport (processor.ts) reads the committed report object at its recorded s3VersionId (HEAD and GET), like the originals; exported with an injectable storage port for the test.",
+      "red": {
+        "test": "services/worker/test/report-pinned-version-read.test.ts",
+        "command": "cd services/worker && npx vitest run test/report-pinned-version-read.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "readVerifiedStoredReport is not a function (private, unpinned read: headObject/getObjectStream without versionId)"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/report-pinned-version-read.test.ts"
+        ],
+        "command": "cd services/worker && npx vitest run test/report-pinned-version-read.test.ts",
+        "result": "1 passed"
+      },
+      "filesChanged": [
+        "services/worker/src/processor.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "package recovery no longer fails on a stray later version",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-OUT-005": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE",
+      "decision": "Share/publication path resolves a NULL-team legacy Personal record's workspace with resolveEvidenceWorkspaceId (resolveShareWorkspaceId) for the step-up and publish calls, and the legacy-link inventory of a personal workspace includes its owner's NULL-team records. publication.service.ts assertWorkspace (lane A file) still compares evidence.teamId === teamId, so the publish call refuses until the cross-lane change lands.",
+      "red": {
+        "test": "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005",
+        "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/verification-share-links.integration.test.ts -t UC-OUT (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "resolveShareWorkspaceId is not a function / inventory omitted the NULL-team record"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/verification-share-links.integration.test.ts",
+        "result": "18 passed"
+      },
+      "filesChanged": [
+        "services/api/src/services/governance/verification-share.service.ts",
+        "services/api/src/routes/verification-share.routes.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "NULL-team records resolvable for publication + inventory",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api redeploy"
+      }
+    },
+    "UC-PROV-001": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "New canonical provenance time model packages/shared/src/provenance-time.ts (SOURCE_DECLARED_CAPTURE, DEVICE_OBSERVED, APPLICATION_OBSERVED, SERVER_RECEIVED, UPLOAD_STARTED, RECORD_CREATED, FINALIZED, TSA, OTS — each with source and confidence; captureTime only from client-declared sources; 'Capture time not available' otherwise; no history fabricated). Basic Verify projects serverReceivedAtUtc / deviceDeclaredCaptureAtUtc / captureTimeStatement (capturedAtUtcDeclared kept as deprecated alias); RICH Verify adds provenanceTime. Relabelled: web Basic view, Verify 'Captured At' and capture-location 'Capture timestamp' -> 'Server received at' (no device-clock fallback), evidence Integrity tab, native basic view, native public verify + evidence record, report exec grid ('Server received & signed (UTC)' + 'Capture time'), report capture-context timestamp (no deviceTimeIso fallback), direct-capture timestamp label, package original-linkage meaning fields.",
+      "red": {
+        "test": "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::PROV-001",
+        "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/basic-verification-view-claims.render.test.tsx (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected 'Evidence verification…' not to match /declared by the capturing device/i; report: expected html not to contain 'Captured &amp; Signed'; mobile: PROV-001 failed"
+      },
+      "green": {
+        "tests": [
+          "packages/shared/tests/stored-bytes-trust-closure.test.mjs::PROV-001",
+          "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::PROV-001",
+          "apps/mobile/test/basic-verification-view-truth.render.test.mjs::PROV-001",
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-001 (2 tests)"
+        ],
+        "command": "shared node --test; web render; mobile node --test; worker vitest",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "packages/shared/src/provenance-time.ts (new)",
+        "packages/shared/src/basic-verification.ts",
+        "packages/shared-runtime/src/technical-metadata/acquisition.ts",
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)",
+        "apps/web/app/verify/[token]/BasicVerificationView.tsx",
+        "apps/web/app/verify/[token]/page.tsx",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+        "apps/mobile/src/ui/basic-verification-view.tsx",
+        "apps/mobile/src/product/public-verify.ts",
+        "apps/mobile/src/product/evidence-record.ts (label only; native counterpart of the Integrity tab)",
+        "services/worker/src/report-v2/build-view-model.ts",
+        "services/worker/src/report-v2/sections/executive-summary.ts",
+        "services/worker/src/verification-package.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "no surface calls the server time a capture time",
+        "api": "basicVerification.original.serverReceivedAtUtc etc.; provenanceTime",
+        "worker": "report/package labels",
+        "mobile": "native labels",
+        "extension": "none",
+        "security": "none",
+        "deployment": "web redeploy + api+worker redeploy + native build"
+      }
+    },
+    "UC-PROV-002": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "captureMethodDisplayLabel and acquisition mapMethod are exhaustive Records over ProjectedAcquisitionMode (compile-time); only LEGACY_NOT_RECORDED reads 'Not recorded'. Every report/package/custody/verify caller already routes through these authorities.",
+      "red": {
+        "test": "services/worker/test/report-trust-truth.test.ts::no recorded mode reads 'Not recorded'",
+        "command": "cd services/worker && npx vitest run test/report-trust-truth.test.ts -t PROV (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit) (shared-runtime dist rebuilt from HEAD)",
+        "observed": "DIRECT_WEB_CAPTURE_EXTENSION: expected 'Not recorded' not to be 'Not recorded'; case-metadata contained \"Not recorded\""
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-002 (2 tests)",
+          "services/worker/test/technical-metadata.test.ts",
+          "services/worker/test/uc0-package-acquisition.test.ts"
+        ],
+        "command": "cd services/worker && npx vitest run <files>",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/technical-metadata/display-helpers.ts",
+        "packages/shared-runtime/src/technical-metadata/acquisition.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "Capture method names direct captures",
+        "api": "verify technical metadata channel label",
+        "worker": "report + package labels",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "web redeploy + api+worker redeploy"
+      }
+    },
+    "UC-PROV-003": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Display half on lane M's persisted facts: loadProvenanceChain projects captureManifestFacts = selectCaptureManifestFacts(trustEvents, {manifestSha256: digest of the record's CAPTURE_MANIFEST part}). Rendered with 'reported by the capture client' labelling and a not-complete banner in: web evidence-detail provenance section (private: URL/title), report acquisition statement (private), package provenance/chain.json (private), Public Verify RICH response `captureManifest` = publicCaptureManifestFacts(...) (domain only, no URL/title) rendered by VerifyCaptureManifestSection.",
+      "red": {
+        "test": "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::UC-PROV-003",
+        "command": "test written against the new projection; before this change no surface read the facts (source-proven in the finding)",
+        "observed": "no projection existed: chain had no captureManifestFacts and public verify had no captureManifest field"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::UC-PROV-003 (public: domain only, private URL/title absent)",
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-003",
+          "apps/web/__tests__/render/provenance-chain-layer-status.render.test.tsx::UC-PROV-003"
+        ],
+        "command": "api integration; worker vitest; web render",
+        "result": "all passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts",
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)",
+        "apps/web/app/verify/[token]/VerifyCaptureManifestSection.tsx (new)",
+        "apps/web/app/verify/[token]/page.tsx",
+        "apps/web/app/(app)/evidence/[id]/_tabs/EvidenceProvenanceChainSection.tsx",
+        "services/worker/src/report-v2/{types.ts,build-view-model.ts,sections/executive-summary.ts}",
+        "services/worker/src/processor.ts",
+        "services/worker/src/capture-trust/load-provenance-chain.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "detail + verify show client-reported capture facts and PARTIAL banner",
+        "api": "public verify captureManifest (data-minimized)",
+        "worker": "report + package carry the facts",
+        "mobile": "none",
+        "extension": "none",
+        "security": "public projection omits private URL/title",
+        "deployment": "web redeploy + api+worker redeploy"
+      }
+    },
+    "UC-PROV-005": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Report technical summary group renamed 'Submission environment (uploading browser, as reported by its User-Agent)' (EXIF camera stays under its own Camera heading, no longer a 'Capture Device' row) and the exec-grid rows read 'Uploading OS/device class/browser (User-Agent)' and 'Timezone (reported by the uploading browser)'.",
+      "red": {
+        "test": "services/worker/test/technical-metadata.test.ts::PDF report: Capture Device & Camera Metadata section (expectation updated to the honest label)",
+        "command": "cd services/worker && npx vitest run test/technical-metadata.test.ts test/report-media-intelligence.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected section to contain 'Submission environment (uploading bro…' ; exec grid lacked 'Uploading OS (User-Agent)'"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/technical-metadata.test.ts",
+          "services/worker/test/report-media-intelligence.test.ts"
+        ],
+        "command": "cd services/worker && npx vitest run <files>",
+        "result": "87 passed"
+      },
+      "filesChanged": [
+        "services/worker/src/report-v2/sections/technical-summary.ts",
+        "services/worker/src/report-v2/sections/executive-summary.ts",
+        "services/worker/test/technical-metadata.test.ts (expectation changed to the required label)",
+        "services/worker/test/report-media-intelligence.test.ts (expectation changed to the required label)"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "report labels",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-PROV-006": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "buildEvidenceAcquisitionContext: for intake, identityVerification is 'Not independently verified' (or 'Anonymous') regardless of the link creator's identity snapshot, and an authenticated intake submissionType is 'Authenticated User' (never 'Organization User' from the creator). Feeds public verify technical metadata and report executiveRows.",
+      "red": {
+        "test": "services/worker/test/report-trust-truth.test.ts::intake + VERIFIED_EMAIL owner snapshot -> 'Not independently verified'",
+        "command": "cd services/worker && npx vitest run test/report-trust-truth.test.ts -t PROV (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected 'Verified' to be 'Not independently verified'"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/report-trust-truth.test.ts::UC-PROV-006"
+        ],
+        "command": "cd services/worker && npx vitest run test/report-trust-truth.test.ts",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "packages/shared-runtime/src/technical-metadata/acquisition.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "public verify JSON no longer claims contributor 'Verified'",
+        "worker": "report executiveRows",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-PROV-007": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Package checklist renamed reviewer-readiness-checklist.json with packetProfile SUPPORTING_REVIEW_PACKET; new whole-word matcher findForbiddenArtifactPhrases (report-artifact.ts) guards every PROOVRA-named package entry at append time (assertPackageEntryNameHonest) and a source guard scans the builder's code literals. No external tooling (recompute-package.mjs) referenced the old name.",
+      "red": {
+        "test": "services/worker/test/package-honest-naming.test.ts",
+        "command": "cd services/worker && npx vitest run test/package-honest-naming.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected [ '\"COURT_READY_SUPPORTING_PACKET\"' ] to deeply equal []"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/package-honest-naming.test.ts",
+          "services/worker/test/package-manifest-contents-truth.test.ts"
+        ],
+        "command": "cd services/worker && npx vitest run <files>",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/worker/src/verification-package.ts",
+        "packages/shared/src/report-artifact.ts",
+        "packages/shared/src/basic-verification.ts (re-export)",
+        "services/worker/test/package-manifest-contents-truth.test.ts (entry name)"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "package file/profile renamed",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-PROV-008": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Exchange package metadata.json carries acquisition {mode,label,recorded} from resolveEvidenceAcquisition and names the structure column evidenceStructure (no origin 'captureMethod'); package file names no longer embed the structure value; normalizeReviewerText no longer turns SECURE_CAMERA into 'PROOVRA secure camera'; the dead web getCaptureMethodLabel (no callers) is deleted.",
+      "red": {
+        "test": "services/api/test/exchange-acquisition-truth.integration.test.ts",
+        "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/exchange-acquisition-truth.integration.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected undefined to match object { mode: 'DIRECT_SCREEN_CAPTURE_ANDROID', … }"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/exchange-acquisition-truth.integration.test.ts",
+          "services/api/test/defects-exchange-rebuild.integration.test.ts"
+        ],
+        "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts <files>",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/worker/src/exchange-package-builder.ts",
+        "services/worker/src/verification-package.ts",
+        "services/worker/src/report-v2/normalizers.ts",
+        "apps/web/app/(app)/evidence/lib/evidence-library-status.ts",
+        "services/api/test/helpers/read-zip.ts (new)"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "exchange metadata + package names",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-DER-007": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Package derived-assets manifest states totalCount, truncated and listBound and carries variantKey/sourceOffsetMs per entry; derived/derived-manifest.json states count/totalCount/truncated; review-artifact-boundaries derivedCount comes from a COUNT query (derivedArtifactsCompletedCount) in the provenance projection, which also exposes derivedArtifactsTotalCount/Truncated.",
+      "red": {
+        "test": "services/api/test/provenance-chain-truth.integration.test.ts::DER-007 (503 rows) + services/worker/test/derived-binding-and-bounds.test.ts::600 derived assets",
+        "command": "api integration + worker vitest (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected undefined to be 503; buildDerivedAssetsManifest is not a function (count was min(len,200), no truncation flag)"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/provenance-chain-truth.integration.test.ts::DER-007",
+          "services/worker/test/derived-binding-and-bounds.test.ts::DER-007 (2 tests)",
+          "services/worker/test/uc4-package-manifest.test.ts"
+        ],
+        "command": "api integration; worker vitest",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/worker/src/verification-package-intelligence.ts",
+        "services/worker/src/verification-package-intelligence-bridge.ts",
+        "services/worker/src/verification-package.ts",
+        "packages/shared-runtime/src/capture-trust/provenance-chain.ts"
+      ],
+      "proofKind": "integration-real-db",
+      "impacts": {
+        "ui": "none",
+        "api": "provenance projection counts",
+        "worker": "package manifests honest about bounds",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-DER-015": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Both bridges hash the EXACT descriptor bytes they read: the package's reconstruction descriptorSha256/size come from those bytes (not a row listed earlier), and the report section carries descriptorSha256 and renders it with generatedAtUtc (data-derived-review-binding).",
+      "red": {
+        "test": "services/worker/test/derived-binding-and-bounds.test.ts::package: digest is sha256(bytes read)",
+        "command": "cd services/worker && npx vitest run test/derived-binding-and-bounds.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "report: expected null not to be null; package digest taken from the stale row"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/derived-binding-and-bounds.test.ts::DER-015 (2 tests)",
+          "services/worker/test/uc4-report-section.test.ts"
+        ],
+        "command": "cd services/worker && npx vitest run <files>",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/worker/src/verification-package-intelligence-bridge.ts",
+        "services/worker/src/report-v2/derived-review-bridge.ts",
+        "services/worker/src/report-v2/sections/derived-review.ts (input shape + one binding line)"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "report/package bound to the descriptor bytes",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-DER-010 / UC-DER-008 (lane D cross-lane: report + package halves)": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "derived-review-bridge.ts resolves the record's workspace with resolveEvidenceWorkspaceId({teamId, ownerUserId}) for NULL-team records and passes ocrStatus: resolveScreenOcrStatus(d); verification-package-intelligence-bridge.ts resolves the workspace the same way for listDerivedAssetsForEvidence and readScreenReconstructionDescriptor; processor passes ownerUserId to both.",
+      "red": {
+        "test": "services/worker/test/derived-binding-and-bounds.test.ts::NULL-team resolves",
+        "command": "worker vitest (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected [] to deeply equal [ 'personal-ws-1' ] (NULL-team skipped)"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/derived-binding-and-bounds.test.ts"
+        ],
+        "command": "cd services/worker && npx vitest run test/derived-binding-and-bounds.test.ts",
+        "result": "4 passed"
+      },
+      "filesChanged": [
+        "services/worker/src/report-v2/derived-review-bridge.ts",
+        "services/worker/src/verification-package-intelligence-bridge.ts",
+        "services/worker/src/processor.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "personal records' reconstruction reaches report + package",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-DER-006 (lane D cross-lane: version)": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "NEEDS_CROSS_LANE",
+      "decision": "storage.ts putObjectBuffer returns { versionId: res.VersionId ?? null }. Recording it next to derived outputs needs lane D's derived-asset version column (D marked UC-DER-006 NEEDS_MIGRATION) and edits in derived-assets.processor.ts / screen-intelligence.handler.ts (lane D files) — recorded as a cross-lane request.",
+      "red": {
+        "test": "services/worker/test/storage-put-version.test.ts",
+        "command": "cd services/worker && npx vitest run test/storage-put-version.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
+        "observed": "expected undefined to deeply equal { versionId: 'v-123' }"
+      },
+      "green": {
+        "tests": [
+          "services/worker/test/storage-put-version.test.ts"
+        ],
+        "command": "cd services/worker && npx vitest run test/storage-put-version.test.ts",
+        "result": "1 passed"
+      },
+      "filesChanged": [
+        "services/worker/src/storage.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "version available to producers",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    },
+    "UC-SEC-006 (lead request)": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "GET /public/verify/:id per-IP enforceRateLimit and per-evidence enforceDistinctClientLimit declare bound: \"global\".",
+      "red": {
+        "test": "services/api/test/rate-limit-global-bound.test.ts::UC-SEC-006",
+        "command": "provided by lead (failing before the edit)",
+        "observed": "missing evidence.routes.ts: ratelimit:verify:ip: / ratelimit:verify:evidence-clients:"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/rate-limit-global-bound.test.ts"
+        ],
+        "command": "cd services/api && npx vitest run test/rate-limit-global-bound.test.ts",
+        "result": "passed"
+      },
+      "filesChanged": [
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)"
+      ],
+      "proofKind": "source-structure",
+      "impacts": {
+        "ui": "none",
+        "api": "verify limiter global",
+        "worker": "none",
+        "mobile": "none",
+        "extension": "none",
+        "security": "rate limit not per-replica",
+        "deployment": "api redeploy"
+      }
+    },
+    "UC-ARCH-006 (lead request)": {
+      "migration": "none",
+      "externalProofRemaining": "none",
+      "status": "FIXED",
+      "decision": "Deleted the private sha256HexFromStream / compositeSha256 / sha256HexFromStrings copies in integrity-recheck.ts and processor.ts; both import them from @proovra/shared-runtime (integrity/digest.ts); integrity-recheck.ts re-exports compositeSha256 for its tests.",
+      "red": {
+        "test": "services/api/test/integrity-digest-golden.test.ts",
+        "command": "provided by lead",
+        "observed": "private copies present"
+      },
+      "green": {
+        "tests": [
+          "services/api/test/integrity-digest-golden.test.ts",
+          "services/worker/test/integrity-recheck-digest-rule.test.ts",
+          "services/worker/test/integrity-recheck-signed-digest.test.ts",
+          "services/worker/test/phase-a0-integrity-hard-gate.test.ts"
+        ],
+        "command": "api + worker vitest",
+        "result": "3 + 27 passed"
+      },
+      "filesChanged": [
+        "services/worker/src/integrity-recheck.ts",
+        "services/worker/src/processor.ts"
+      ],
+      "proofKind": "unit",
+      "impacts": {
+        "ui": "none",
+        "api": "none",
+        "worker": "one digest authority",
+        "mobile": "none",
+        "extension": "none",
+        "security": "none",
+        "deployment": "api+worker redeploy"
+      }
+    }
+  },
+  "crossLaneRequests": [
+    {
+      "finding": "UC-OUT-005",
+      "file": "services/api/src/services/governance/publication.service.ts",
+      "change": "assertWorkspace(evidence, teamId): accept a record with teamId NULL when resolveEvidenceWorkspaceId({teamId:null, ownerUserId: evidence.ownerUserId}) === teamId (select ownerUserId in publishPublicVerify/unpublishPublicVerify). verification-share.routes.ts already passes the resolved workspace id (resolveShareWorkspaceId)."
+    },
+    {
+      "finding": "UC-TRUST-003",
+      "file": "services/api/src/services/evidence-complete.service.ts",
+      "change": "After the migration below: persist signingKeySha256: signResult.publicKeySha256 in finalizeData (ControlledEvidenceSigner now returns it after self-verification). Public Verify then compares it with publicKeySpkiSha256(signingKey.publicKeyPem) (lane T will add once the column exists)."
+    },
+    {
+      "finding": "UC-TRUST-004",
+      "file": "services/api/src/services/capture-trust/trust-event.service.ts",
+      "change": "Replace the private buildTrustEventHash with buildTrustEventHashV2 from @proovra/shared-runtime (full-depth canonicalJsonValue, v:2) so new rows are reproducible from stored JSONB; the evaluator in loadProvenanceChain already accepts v1 and v2."
+    },
+    {
+      "finding": "UC-TRUST-005",
+      "file": "packages/shared/src/trust-decision.ts",
+      "change": "Optional: add a native 'stored_bytes' TrustSignalKey/signal fed by StoredBytesIntegrity so snapshot decisions carry it; today applyStoredBytesToTrustDecision (stored-bytes-integrity.ts) overlays the verdict at Public Verify."
+    },
+    {
+      "finding": "UC-PROV-001",
+      "file": "packages/shared/src/evidence-acquisition.ts",
+      "change": "acquisitionTimestampLabel: direct-capture modes should read 'Server received at (server UTC)' (the value is the server-received/reservation time, after an extension capture ran). Lane T overrides it in shared-runtime getCaptureContextTimestampLabel; the shared function is still used by other callers."
+    },
+    {
+      "finding": "UC-OUT-001",
+      "file": "apps/web/lib/api/verification-links.ts",
+      "change": "Add `usable: boolean; inactiveReason: \"RECORD_NOT_PUBLISHED\" | null` to VerificationLink (the API now projects them); the panel currently derives usability from listing.publicVerifyState."
+    },
+    {
+      "finding": "UC-DER-006",
+      "file": "services/worker/src/derived-assets.processor.ts, services/worker/src/screen-intelligence.handler.ts",
+      "change": "Store `(await putObjectBuffer(...)).versionId` with the derived asset row once lane D's version column migration lands."
+    }
+  ],
+  "migrationRequests": [
+    {
+      "finding": "UC-TRUST-003",
+      "sql": "ALTER TABLE \"evidence\" ADD COLUMN IF NOT EXISTS \"signing_key_sha256\" VARCHAR(64);\nCREATE OR REPLACE FUNCTION signing_keys_identity_immutable() RETURNS trigger AS $$\nBEGIN\n  IF NEW.public_key_pem IS DISTINCT FROM OLD.public_key_pem OR NEW.key_id IS DISTINCT FROM OLD.key_id OR NEW.version IS DISTINCT FROM OLD.version THEN\n    RAISE EXCEPTION 'signing_keys identity is immutable (rotate with a new version)';\n  END IF;\n  IF OLD.revoked_at IS NOT NULL AND NEW.revoked_at IS NULL THEN\n    RAISE EXCEPTION 'a signing key revocation cannot be cleared';\n  END IF;\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\nDROP TRIGGER IF EXISTS signing_keys_identity_immutable ON \"signing_keys\";\nCREATE TRIGGER signing_keys_identity_immutable BEFORE UPDATE ON \"signing_keys\" FOR EACH ROW EXECUTE FUNCTION signing_keys_identity_immutable();\nCREATE OR REPLACE FUNCTION signing_keys_no_delete() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'signing_keys rows are never deleted'; END; $$ LANGUAGE plpgsql;\nDROP TRIGGER IF EXISTS signing_keys_no_delete ON \"signing_keys\";\nCREATE TRIGGER signing_keys_no_delete BEFORE DELETE ON \"signing_keys\" FOR EACH ROW EXECUTE FUNCTION signing_keys_no_delete();",
+      "prisma": "model Evidence { … signingKeySha256 String? @map(\"signing_key_sha256\") @db.VarChar(64) … }"
+    },
+    {
+      "finding": "UC-TRUST-004",
+      "sql": "CREATE OR REPLACE FUNCTION capture_trust_event_records_append_only() RETURNS trigger AS $$\nBEGIN\n  RAISE EXCEPTION 'capture_trust_event_records is append-only';\nEND;\n$$ LANGUAGE plpgsql;\nDROP TRIGGER IF EXISTS capture_trust_event_records_append_only ON \"capture_trust_event_records\";\nCREATE TRIGGER capture_trust_event_records_append_only BEFORE UPDATE OR DELETE ON \"capture_trust_event_records\" FOR EACH ROW EXECUTE FUNCTION capture_trust_event_records_append_only();\n-- Mirror the custody_append_only migration (20280805000000) incl. any destruction-executor bypass it grants (e.g. a session GUC checked before RAISE) so lawful record destruction still works.",
+      "prisma": "none (trigger only)"
+    }
+  ],
+  "governanceFollowUps": [
+    "services/api/test/setup/safe-environment.ts edited (outside the lane list): HARNESS_OWNED lacked P7_HOST_S3_PORT, so every integration run re-pointed S3_ENDPOINT at the default 59000 and silently ignored the lane's MinIO; the preload already kept it.",
+    "Out-of-list edits made at lead request or as the direct counterpart of an owned surface: services/api/src/routes/ops.routes.ts (/readyz TSA check), services/api/.env.example (TSA template), apps/web/components/evidence-outputs/PublicVerificationLinksPanel.tsx, apps/mobile/src/product/evidence-record.ts (two labels), services/worker/src/capture-trust/load-provenance-chain.ts.",
+    "New exported symbols (shared: ots-status/provenance-time modules re-exported via basic-verification.ts, findForbiddenArtifactPhrases, applyStoredBytesToTrustDecision, signed-digest resolvers; shared-runtime: buildTrustEventHashV1/V2, evaluateTrustEventChain, loadTrustEventRecords, ProvenanceChainProjection, storedBytesFreshnessHours, CAPTURE_METHOD_DISPLAY_LABELS; api: signing/key-registry.ts, tsaTrustConfigurationIssues/isTsaProductionEnv) and a renamed package entry (reviewer-readiness-checklist.json) — capability map / package-entry inventories may need regeneration.",
+    "services/api/test/ots-worker-exists.contract.test.ts pins the literal \"ANCHORED\" in trust-summary.service.ts; satisfied by a truthful doc comment after otsBucket moved to the claim resolver.",
+    "API typecheck (tsc --noEmit, 6 GB) shows only errors in other lanes' files: capture-trust.routes.ts (bumpCaptureFailure/isCaptureFailure not exported from @proovra/shared-runtime index), extension-oauth.routes.ts (bump), external-intake.routes.ts (bumpCaptureFailure). Worker, web and mobile typecheck clean.",
+    "services/api/test/phase-32-7-final-production-stabilization.test.ts 'frontend capture polling hits the side-effect-free status endpoint' fails on a web capture file outside lane T.",
+    "Package format: README step 2c gains a publication note; checklist file renamed; original-linkage adds storageVersionId and *Meaning fields. recompute-package.mjs (seal/checksums/fingerprint/custody) is unaffected; sealKeyFingerprint/packageSha256 unchanged."
+  ],
+  "commandsRun": [
+    {
+      "command": "cd packages/shared && node --test tests/*.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "pnpm --filter @proovra/shared build; (cd packages/shared-runtime && npx tsc -p tsconfig.json)",
+      "exit": 0
+    },
+    {
+      "command": "cd services/worker && npx vitest run (full unit suite)",
+      "exit": 0
+    },
+    {
+      "command": "cd services/worker && npx tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "cd apps/web && npx tsc --noEmit; render tests (5 files, 103 tests); node scripts/run-tests.mjs <17 verify/evidence filters>",
+      "exit": 0
+    },
+    {
+      "command": "cd apps/mobile && npx tsc --noEmit; node --test provenance/public-verify/basic-view/evidence tests",
+      "exit": 0
+    },
+    {
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts (19 files: public-verify-*, integrity-recheck, provenance-chain-truth, signing-key-identity, exchange-*, verification-share-links, tsa-finalize-persistence, ots-integrity-lifecycle, capture-trust-chain-concurrency, intake-verify-attribution, completion-fanout-once, …)",
+      "exit": 0
+    },
+    {
+      "command": "cd services/api && npx vitest run (unit: public-verify-consistency, tsa-*, trust-projections-truth, rate-limit-global-bound, intake-customer-id, integrity-digest-golden, phase-a2-pdf-artifact-status, commercial-output-verify-closure, ots-worker-exists, technical-metadata-verify-projection, …)",
+      "exit": 0
+    },
+    {
+      "command": "cd services/api && node --max-old-space-size=6144 tsc --noEmit (once)",
+      "exit": 2
+    }
+  ]
+}

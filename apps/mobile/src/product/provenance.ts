@@ -23,8 +23,12 @@ export interface ProvenanceView {
   countersignedAtUtc: string | null;
   rfc3161Applied: boolean;
   rfc3161AppliedAtUtc: string | null;
+  /** UC-TRUST-002 — the canonical RFC 3161 status (only VALIDATED is applied). */
+  rfc3161Status: string | null;
   otsApplied: boolean;
   otsConfirmations: number | null;
+  /** UC-TRUST-002 — the canonical OTS status (only VERIFIED is anchored). */
+  otsStatus: string | null;
   derivations: Array<{ derivedEvidenceId: string; transformLabel: string | null; derivedAtUtc: string }>;
   limitations: string[];
 }
@@ -58,8 +62,10 @@ export function parseProvenanceChain(payload: unknown, evidenceId: string): Prov
     countersignedAtUtc: s(srv.countersignedAtUtc),
     rfc3161Applied: rfc.applied === true,
     rfc3161AppliedAtUtc: s(rfc.appliedAtUtc),
+    rfc3161Status: s(rfc.status),
     otsApplied: ots.applied === true,
     otsConfirmations: typeof ots.confirmations === "number" ? (ots.confirmations as number) : null,
+    otsStatus: s(ots.status),
     derivations: (Array.isArray(c.derivations) ? c.derivations : [])
       .map((x) => o(x))
       .filter((x) => s(x.derivedEvidenceId) && s(x.derivedAtUtc))
@@ -89,11 +95,45 @@ export function provenanceCaptureRows(p: ProvenanceView, fmt: (iso: string) => s
   return rows;
 }
 
+/** UC-TRUST-002 — the canonical status labels (same words as web). */
+const TSA_LABELS: Record<string, string> = {
+  NOT_REQUESTED: "Not requested",
+  PENDING: "Pending",
+  VALIDATED: "RFC 3161 timestamp validated",
+  RECORDED_NOT_VALIDATED: "Recorded, not validated",
+  FAILED: "Timestamp failed",
+};
+const OTS_LABELS: Record<string, string> = {
+  NOT_REQUESTED: "Not requested",
+  SUBMITTED: "Submitted to OpenTimestamps calendars; Bitcoin anchoring not yet attempted",
+  PENDING: "Bitcoin anchoring pending",
+  ANCHORED_UNVERIFIED: "Recorded as anchored; not checked against the Bitcoin chain",
+  VERIFIED: "Anchored in Bitcoin and verified",
+  FAILED: "Anchoring failed",
+  STALE_UNKNOWN: "Anchoring state unknown (pending longer than expected)",
+};
+function rfc3161Text(p: ProvenanceView, fmt: (iso: string) => string): string {
+  const at = p.rfc3161AppliedAtUtc ? ` · ${fmt(p.rfc3161AppliedAtUtc)}` : "";
+  if (p.rfc3161Status && TSA_LABELS[p.rfc3161Status]) {
+    return p.rfc3161Status === "VALIDATED" || p.rfc3161Status === "RECORDED_NOT_VALIDATED"
+      ? `${TSA_LABELS[p.rfc3161Status]}${at}`
+      : TSA_LABELS[p.rfc3161Status]!;
+  }
+  // An older server: "applied" only ever claimed a recorded token.
+  return p.rfc3161Applied ? `Recorded${at}` : "Not applied";
+}
+function otsText(p: ProvenanceView): string {
+  if (p.otsStatus && OTS_LABELS[p.otsStatus]) return OTS_LABELS[p.otsStatus]!;
+  // An older server set "applied" even for a PENDING proof, so "applied" is
+  // never read as "Anchored" here; its "not applied" stays "Not anchored".
+  return p.otsApplied ? "Not stated" : "Not anchored";
+}
+
 export function provenancePreservationRows(p: ProvenanceView, fmt: (iso: string) => string): Array<{ label: string; value: string }> {
   return [
     { label: "PROOVRA countersignature", value: p.countersigned ? `Applied${p.countersignedAtUtc ? ` · ${fmt(p.countersignedAtUtc)}` : ""}` : "Not applied" },
-    { label: "Independent timestamp", value: p.rfc3161Applied ? `Applied${p.rfc3161AppliedAtUtc ? ` · ${fmt(p.rfc3161AppliedAtUtc)}` : ""}` : "Not applied" },
-    { label: "Public anchor", value: p.otsApplied ? `Anchored${p.otsConfirmations !== null ? ` · ${p.otsConfirmations} confirmations` : ""}` : "Not anchored" },
+    { label: "Independent timestamp", value: rfc3161Text(p, fmt) },
+    { label: "Public anchor", value: otsText(p) },
   ];
 }
 

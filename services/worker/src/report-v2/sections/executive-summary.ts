@@ -51,9 +51,48 @@ function renderAcquisitionStatement(vm: ReportViewModel): string {
       </div>
       <div class="capture-context-note">${escapeHtml(a.statement)}</div>
       <ul class="acquisition-limitations">${limitations}</ul>
+      ${renderCaptureManifestFacts(vm)}
       <div class="capture-context-note">${escapeHtml(ACQUISITION_GLOBAL_QUALIFIER)}</div>
     </section>
   `;
+}
+
+/**
+ * UC-PROV-003 — what the capture client reported about this capture, as
+ * validated at seal: the page URL and title (owner artifact), the client and
+ * its version, the client-reported capture window, completeness, a page that
+ * changed during capture and every limitation the client detected. Labelled
+ * as reported by the capture client; none of it is proven by PROOVRA.
+ */
+function renderCaptureManifestFacts(vm: ReportViewModel): string {
+  const f = vm.captureManifest;
+  if (!f) return "";
+  const humanise = (code: string) => {
+    const s = code.replace(/_/g, " ").toLowerCase();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+  const rows: Array<[string, string]> = [];
+  if (f.web?.sourceUrlPrivate) rows.push(["Captured page URL", f.web.sourceUrlPrivate]);
+  if (f.web?.titlePrivate) rows.push(["Page title", f.web.titlePrivate]);
+  const browser = [f.client.browserName, f.client.browserVersion].filter(Boolean).join(" ");
+  rows.push([
+    "Capture client",
+    `${f.client.kind === "BROWSER_EXTENSION" ? "PROOVRA browser extension" : "PROOVRA app"} ${f.client.appVersion}${browser ? ` · ${browser}` : ""}${f.client.platform ? ` · ${f.client.platform}` : ""}`,
+  ]);
+  rows.push(["Capture window", `${f.clientCaptureWindow.startedAtUtc} – ${f.clientCaptureWindow.endedAtUtc}`]);
+  rows.push(["Completeness", f.reportedComplete ? "Reported complete" : `Not complete (${humanise(f.completeness)})`]);
+  if (f.web?.pageMutatedDuringCapture) rows.push(["Page changed during capture", "Yes"]);
+  if (f.limitations.length > 0) rows.push(["Limitations detected", f.limitations.map(humanise).join(", ")]);
+  const items = rows
+    .map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</li>`)
+    .join("");
+  return `
+      <div class="capture-context-note" data-capture-manifest="${f.reportedComplete ? "complete" : "partial"}">
+        <strong>Reported by the capture client</strong> (checked for shape at seal; not proven by PROOVRA)${
+          f.reportedComplete ? "" : " — the client reported this capture as NOT complete"
+        }:
+        <ul class="acquisition-limitations">${items}</ul>
+      </div>`;
 }
 
 /**
@@ -81,13 +120,15 @@ function buildCaptureDeviceRows(
     const v = (value ?? "").trim();
     if (v && v.toUpperCase() !== "UNKNOWN") rows.push({ label, value: v });
   };
+  // UC-PROV-005 — the SUBMISSION environment (the uploading browser's
+  // User-Agent), never presented as the capture device.
   push(
-    "Operating system",
+    "Uploading OS (User-Agent)",
     [ce.osName, ce.osVersion].filter(Boolean).join(" ") || null,
   );
-  push("Device", ce.deviceClass ? titleCaseWord(ce.deviceClass) : null);
+  push("Uploading device class (User-Agent)", ce.deviceClass ? titleCaseWord(ce.deviceClass) : null);
   push(
-    "Browser",
+    "Uploading browser (User-Agent)",
     [ce.browserName, ce.browserVersion].filter(Boolean).join(" ") || null,
   );
   // UC-0 — the acquisition authority, not the environment's legacy labels.
@@ -95,7 +136,7 @@ function buildCaptureDeviceRows(
     "Submitted through",
     captureMethodDisplayLabel({ acquisitionMode: vm.meta.acquisitionMode ?? null }),
   );
-  push("Timezone", ce.timezone);
+  push("Timezone (reported by the uploading browser)", ce.timezone);
   return rows;
 }
 
@@ -353,7 +394,8 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       value: findRowValue(vm.executiveRows, "Total Content Size"),
     },
     {
-      label: "Captured & Signed",
+      // UC-PROV-001 — both are PROOVRA server clocks; neither is a capture time.
+      label: "Server received & signed (UTC)",
       value:
         [
           findRowValue(vm.executiveRows, "Recorded at intake (server UTC)", ""),
@@ -361,6 +403,10 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
         ]
           .filter(Boolean)
           .join(" / ") || "Not recorded",
+    },
+    {
+      label: "Capture time",
+      value: findRowValue(vm.executiveRows, "Capture time (client-declared)", "Capture time not available"),
     },
     {
       label: "Submitted By",

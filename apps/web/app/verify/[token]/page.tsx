@@ -26,6 +26,7 @@ import {
   maskPublicEmailsInText,
   OTS_FAILURE_CODE_LABELS,
   OTS_FAILURE_CODES,
+  storedBytesCheckStatusOf,
   type OtsFailureCode,
 } from "@proovra/shared";
 import {
@@ -47,6 +48,7 @@ import BasicVerificationView, {
   type VerifyLinkInfo,
 } from "./BasicVerificationView";
 import type { BasicVerification } from "@proovra/shared";
+import { VerifyCaptureManifestSection, readPublicCaptureManifest } from "./VerifyCaptureManifestSection";
 import { useLocale } from "../../providers";
 import { apiFetch } from "../../../lib/api";
 import { captureException } from "../../../lib/sentry";
@@ -1549,12 +1551,21 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
     (isFailedTsa(input.tsaStatus) || !String(input.tsaStatus ?? "").trim()) &&
     input.timestampDigestMatches !== true;
 
+  // UC-TRUST-005 — the stored bytes are an input to the verdict: a substituted
+  // or missing original is a failed signal; one not re-verified inside the
+  // freshness window never yields the unqualified "Low risk / may rely".
+  const storedBytesContradict =
+    input.storedBytesCheck === "MISMATCH" ||
+    (input.storedBytesCheck === "UNAVAILABLE" && input.storedBytesFailed === true);
+  const storedBytesNotCurrent =
+    input.storedBytesCheck !== undefined && input.storedBytesCheck !== "VERIFIED";
   const failedSignals = [
     input.canonicalHashMatches === false,
     input.signatureValid === false,
     input.custodyChainValid === false,
     timestampMismatch,
     input.otsHashMatches === false,
+    storedBytesContradict,
   ].filter(Boolean).length;
 
   const passedSignals = [
@@ -1606,6 +1617,23 @@ function buildVerificationVerdict(input: VerificationSignalInput): VerificationV
         "The record contains usable verification materials, but at least one integrity layer requires manual review before this evidence should be relied upon without qualification.",
       confidenceScore,
       tone: "danger",
+    };
+  }
+
+  if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable && storedBytesNotCurrent) {
+    return {
+      status: "partial",
+      title: "Final Verification Verdict",
+      label: "Recorded integrity verified; stored file not re-verified recently",
+      riskLevel: "Medium",
+      actionRequired:
+        "The recorded integrity checks pass, but the stored original has not been re-read against its signed digest recently. Rely on the recorded state only together with a current stored-file recheck, and separately assess authorship, factual context, relevance, and legal admissibility.",
+      legalStatement:
+        "The cryptographic and custody signals returned in this response support the recorded integrity state. The current stored file is not stated as verified on this page. This does not independently prove factual truth, authorship, legal admissibility, or the real-world meaning of the evidence content.",
+      reviewerSummary:
+        "The recorded integrity state is supported; the stored file's current state is stated separately with its last-verified time.",
+      confidenceScore,
+      tone: "warning",
     };
   }
 
@@ -2909,6 +2937,9 @@ export default function VerifyPage() {
   // no valid projection; a legacy record arrives as "Not recorded".
   const [acquisition, setAcquisition] =
     useState<PublicVerifyAcquisition | null>(null);
+  // UC-PROV-003 — the public (data-minimized) capture-manifest facts.
+  const [captureManifest, setCaptureManifest] =
+    useState<ReturnType<typeof readPublicCaptureManifest>>(null);
 
   // Enterprise Technical Metadata layer — privacy-safe Media / EXIF /
   // Capture Environment projection. Null when the API has nothing to
@@ -3029,6 +3060,7 @@ function isAccessEventType(eventType?: string | null): boolean {
     );
     // UC-0 — the ONE typed contract; no reshaping, no fallback guesses.
     setAcquisition(readPublicVerifyAcquisition(data));
+    setCaptureManifest(readPublicCaptureManifest(data));
 
     const reviewTrailForensic =
       data.reviewTrail?.forensicCustodyEvents ??
@@ -3658,9 +3690,10 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
   const captureLocationCapturedAtLabel = useMemo(
     () =>
       formatDateTime(
-        captureContext?.capturedAtUtc ?? captureContext?.deviceTimeIso ?? null
+        // UC-PROV-001 — a server-time label never falls back to the device clock.
+        captureContext?.capturedAtUtc ?? null
       ),
-    [captureContext?.capturedAtUtc, captureContext?.deviceTimeIso]
+    [captureContext?.capturedAtUtc]
   );
 
     const verificationVerdict = useMemo(
@@ -3677,8 +3710,15 @@ setServerVerificationPackageIntegrity(data.verificationPackageIntegrity ?? null)
         tsaStatus,
         storageVerified: storageProtection?.verified ?? null,
         immutableStorage: storageProtection?.immutable ?? null,
+        ...(storedBytes
+          ? {
+              storedBytesCheck: storedBytesCheckStatusOf(storedBytes),
+              storedBytesFailed: storedBytes.state === "failed",
+            }
+          : {}),
       }),
     [
+      storedBytes,
       serverTrustDecision,
       overallIntegrity,
       verificationStatus,
@@ -4095,7 +4135,8 @@ const executiveBadges = useMemo<
           show: Boolean(humanSummary?.createdAt ?? overview?.createdAt),
         },
         {
-          label: "Captured At",
+          // UC-PROV-001 — the server clock at record creation, never a capture time.
+          label: "Server received at",
           value: humanSummary?.capturedAtUtc
             ? formatDateTime(humanSummary.capturedAtUtc)
             : overview?.capturedAtUtc
@@ -4471,7 +4512,7 @@ tone={
           "Verification Package Version",
           "Reviewer Summary Version",
           "Created At",
-          "Captured At",
+          "Server received at",
           "Uploaded At",
           "Signed At",
           "Generated At",
@@ -4919,7 +4960,7 @@ with this evidence record.
                               captureContext?.accuracyMeters
                             ),
                           ],
-                          ["Capture timestamp", captureLocationCapturedAtLabel],
+                          ["Server received at", captureLocationCapturedAtLabel],
                           [
                             "Source",
                             captureContext?.source ?? CAPTURE_LOCATION_SOURCE_LABEL,
@@ -5492,6 +5533,7 @@ Reviewer Action
   typo={VERIFY_TYPO}
   brand={VERIFY_BRAND}
 />
+<VerifyCaptureManifestSection facts={captureManifest} />
 
 {/*
   PHASE 12B — redaction verification badge. Reads the `redaction` key of

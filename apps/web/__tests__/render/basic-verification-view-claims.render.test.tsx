@@ -117,3 +117,57 @@ describe("Basic Verify — honest 'not checked'", () => {
     expect(b.container.textContent).not.toMatch(/bound by one signature/);
   });
 });
+
+describe("Lane T — capture time, stored bytes and the headline (UC-PROV-001 / UC-TRUST-005 / UC-TRUST-008)", () => {
+  it("PROV-001: the server-received time is never 'declared by the capturing device'; no capture time -> 'Capture time not available'", () => {
+    const d = data({});
+    (d.original as Record<string, unknown>).capturedAtUtcDeclared = AT;
+    (d.original as Record<string, unknown>).serverReceivedAtUtc = AT;
+    (d.original as Record<string, unknown>).deviceDeclaredCaptureAtUtc = null;
+    const { container } = render(<BasicVerificationView data={d} />);
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/declared by the capturing device/i);
+    expect(text).toContain("Server received at");
+    expect(text).toContain("Capture time not available");
+  });
+
+  it("TRUST-005: a failed verdict (stored original missing) is the headline, not a green 'Verified'", () => {
+    const d = data({});
+    (d.original as Record<string, unknown>).state = "failed";
+    (d as Record<string, unknown>).storedBytes = {
+      state: "failed",
+      checkStatus: "UNAVAILABLE",
+      failureCode: "OBJECT_VERSION_MISSING",
+      lastVerifiedAtUtc: null,
+      lastCheckedAtUtc: AT,
+      intervalDays: 30,
+    };
+    (d as Record<string, unknown>).verdict = {
+      state: "failed",
+      storedBytesCheck: "UNAVAILABLE",
+      label: "Integrity review required: the stored file does not match its signed digest",
+    };
+    const { container } = render(<BasicVerificationView data={d} />);
+    expect(container.querySelector("[data-verify-verdict='failed']")).not.toBeNull();
+    expect(container.textContent).toContain("no longer available at its recorded version");
+    expect(container.querySelector("[data-verify-stored-bytes]")?.textContent).toContain("Unavailable");
+  });
+
+  it("TRUST-008: a stale passing check reads 'Stale' with its last-verified time, never 'Verified'", () => {
+    const d = data({});
+    (d as Record<string, unknown>).storedBytes = {
+      state: "verified_stale",
+      checkStatus: "STALE",
+      failureCode: null,
+      lastVerifiedAtUtc: "2026-09-20T10:00:00.000Z",
+      lastCheckedAtUtc: "2026-09-20T10:00:00.000Z",
+      intervalDays: 30,
+      freshnessHours: 24,
+    };
+    const { container } = render(<BasicVerificationView data={d} />);
+    const row = container.querySelector("[data-verify-stored-bytes]")?.textContent ?? "";
+    expect(row).toContain("Stale");
+    expect(row).toMatch(/last verified 2026-09-20 10:00 UTC/i);
+    expect(row).not.toMatch(/\bVerified\b(?! )/);
+  });
+});

@@ -35,7 +35,7 @@ const FLAG_ENTRY: Record<string, string | null> = {
   forensicCustody: '"forensic-custody.json"',
   accessActivity: '"access-activity.json"',
   reportArtifact: "reportEntryPath",
-  courtReadiness: '"court-admissibility-checklist.json"',
+  courtReadiness: '"reviewer-readiness-checklist.json"',
   certificationTemplates: '"certifications/custodian-declaration-template.md"',
   verifyHtml: null,
   readme: '"README.txt"',

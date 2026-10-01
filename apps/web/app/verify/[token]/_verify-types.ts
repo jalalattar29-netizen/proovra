@@ -431,6 +431,10 @@ export type VerificationSignalInput = {
   tsaStatus?: string | null;
   storageVerified: boolean | null;
   immutableStorage: boolean | null;
+  /** UC-TRUST-005 — the stored-bytes check status (VERIFIED / MISMATCH / UNAVAILABLE / STALE / PENDING / UNKNOWN). */
+  storedBytesCheck?: string;
+  /** The stored-bytes state is "failed" (a missing version is a failure, a transient outage is not). */
+  storedBytesFailed?: boolean;
 };
 
 export type VerificationPackageIntegrity = {

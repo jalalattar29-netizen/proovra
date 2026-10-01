@@ -88,8 +88,24 @@ function fail(code: TsaValidationFailureCode): TsaValidationResult {
   return { ok: false, code, reason: REASONS[code] };
 }
 
-function isProduction(env: NodeJS.ProcessEnv): boolean {
-  return (env.NODE_ENV ?? "").trim().toLowerCase() === "production";
+/**
+ * UC-TRUST-006 — production is NODE_ENV=production OR PROOVRA_ENV naming
+ * production. The test-anchor refusal and the policy requirement used to key
+ * on NODE_ENV alone.
+ */
+export function isTsaProductionEnv(env: NodeJS.ProcessEnv): boolean {
+  const node = (env.NODE_ENV ?? "").trim().toLowerCase();
+  const proovra = (env.PROOVRA_ENV ?? "").trim().toLowerCase();
+  return node === "production" || proovra === "production" || proovra === "prod";
+}
+const isProduction = isTsaProductionEnv;
+
+/** TSA_TRUST_ANCHOR_SHA256 — comma-separated SHA-256 fingerprints the bundle's anchors must match. */
+function pinnedAnchorFingerprints(env: NodeJS.ProcessEnv): string[] {
+  return (env.TSA_TRUST_ANCHOR_SHA256 ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase().replace(/:/g, ""))
+    .filter(Boolean);
 }
 
 function splitPem(text: string): string[] {
@@ -109,6 +125,12 @@ async function resolveTrustAnchor(
   }
   if (certs.length === 0) return { ok: false, code: "tsa_trust_anchor_not_configured" };
   if (isProduction(env) && certs.some((c) => c.subject.includes(TEST_TSA_ANCHOR_SUBJECT_MARKER))) {
+    return { ok: false, code: "tsa_trust_anchor_refused" };
+  }
+  // UC-TRUST-006 — an anchor pin, when configured, is checked by identity: a
+  // mistakenly mounted bundle (e.g. a staging root) is refused, not trusted.
+  const pins = pinnedAnchorFingerprints(env);
+  if (pins.length > 0 && !certs.every((c) => pins.includes(c.fingerprint256.replace(/:/g, "").toLowerCase()))) {
     return { ok: false, code: "tsa_trust_anchor_refused" };
   }
   return { ok: true, path: p };
@@ -176,8 +198,18 @@ export async function validateTsaToken(input: {
   if (!anchor.ok) return fail(anchor.code);
 
   const policies = acceptedPolicies(env);
+  // UC-TRUST-006 — in production the accepted-policy list is REQUIRED: an
+  // empty list would accept any policy OID the authority chose.
+  if (isProduction(env) && policies.length === 0) {
+    return fail("tsa_policy_not_accepted");
+  }
   if (policies.length > 0 && (!input.policyOid || !policies.includes(input.policyOid))) {
     return fail("tsa_policy_not_accepted");
+  }
+  // UC-TRUST-006 — without a parsed genTime the signer's validity can only be
+  // checked "now", not at the stamped time; such a token is not validated.
+  if (!input.genTimeUtc) {
+    return fail("tsa_token_untrusted");
   }
 
   const args = ["ts", "-verify", "-in", input.responseFile, "-CAfile", anchor.path];
@@ -200,6 +232,25 @@ export async function validateTsaToken(input: {
     signerCertSha256: await signerFingerprint(input.responseFile, input.workDir),
     policyOid: input.policyOid,
   };
+}
+
+/**
+ * UC-TRUST-006 — what a readiness check reports about the RFC 3161 trust
+ * configuration, without contacting anything. Empty = ready. Readiness and
+ * the operations surface call this so a production deploy without an anchor or
+ * a policy list is seen BEFORE every timestamp silently records FAILED.
+ */
+export async function tsaTrustConfigurationIssues(env: NodeJS.ProcessEnv = process.env): Promise<string[]> {
+  const enabled = String(env.TSA_ENABLED ?? "").trim().toLowerCase();
+  if (enabled !== "true" && enabled !== "1") return [];
+  const issues: string[] = [];
+  const anchor = await resolveTrustAnchor(env);
+  if (!anchor.ok) issues.push(anchor.code);
+  if (isProduction(env)) {
+    if (acceptedPolicies(env).length === 0) issues.push("tsa_accepted_policy_oids_not_configured");
+    if (pinnedAnchorFingerprints(env).length === 0) issues.push("tsa_trust_anchor_sha256_not_configured");
+  }
+  return issues;
 }
 
 /** Writes a curl config carrying the credentials, so they never enter argv. */

@@ -58,6 +58,8 @@ describe("observeOriginalDigest", () => {
     const { reader, asked } = readerOf({ "k@v1": "hello" });
     const o = await observeOriginalDigest(single(sha("hello")), [], reader);
     expect(o).toEqual({
+      // UC-TRUST-001 — the observation names the digest it compared against.
+      expectedDigest: sha("hello"),
       outcome: "VERIFIED",
       failureCode: null,
       checkedDigest: sha("hello"),

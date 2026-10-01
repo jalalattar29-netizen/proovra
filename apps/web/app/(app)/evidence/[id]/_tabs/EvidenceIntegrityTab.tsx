@@ -375,7 +375,9 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
             ? formatUserDateTime(sc.capturedAtUtc)
             : null;
           if (capturedAt) {
-            items.push({ label: "Captured at", value: capturedAt });
+            // UC-PROV-001 — Evidence.capturedAtUtc is the PROOVRA server clock
+            // when the record was created, never a capture time.
+            items.push({ label: "Server received at", value: capturedAt });
           }
           const uploadedAt = sc.uploadedAtUtc
             ? formatUserDateTime(sc.uploadedAtUtc)

@@ -422,4 +422,65 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     await api("POST", `/v1/evidence/${id}/verify-links/${made[0]}/revoke`, A.ownerToken);
     await createLink(A, id, { audience: "Fits now" });
   });
+  describe("UC-OUT-001 / UC-OUT-005 — printed links on private records, and NULL-team records", () => {
+    it("UC-OUT-001: a valid REPORT link on an unpublished record answers the documented 404, and the owner listing marks it unusable", async () => {
+      const A = h.fixtures.teamA;
+      const id = await signedRecord(A);
+      const { mintVerificationShareTokenTx } = await import("@proovra/shared-runtime");
+      const minted = await prisma.$transaction((tx) =>
+        mintVerificationShareTokenTx(tx, {
+          evidenceId: id,
+          teamId: A.teamId,
+          purpose: "REPORT",
+          reportVersion: 1,
+          audience: "Report version 1",
+        }),
+      );
+      // Documented response: a private record answers exactly like a missing one
+      // (no state is disclosed to an unauthenticated caller). The report that
+      // would carry this link prints "Not published" instead (worker test).
+      const res = await verify(minted.token);
+      expect(res.statusCode).toBe(404);
+      expect(res.body).toBe(NOT_FOUND);
+
+      const listing = await api("GET", `/v1/evidence/${id}/verify-links`, A.ownerToken);
+      expect(listing.statusCode, listing.body).toBe(200);
+      const link = (listing.json().links as Array<{ purpose: string; state: string; usable: boolean; inactiveReason: string | null }>).find(
+        (l) => l.purpose === "REPORT",
+      )!;
+      expect(link.state).toBe("ACTIVE");
+      expect(link.usable).toBe(false);
+      expect(link.inactiveReason).toBe("RECORD_NOT_PUBLISHED");
+
+      // Publishing makes the same link usable.
+      await prisma.evidence.update({ where: { id }, data: { publicVerifyState: "PUBLISHED" } });
+      const after = await api("GET", `/v1/evidence/${id}/verify-links`, A.ownerToken);
+      const again = (after.json().links as Array<{ purpose: string; usable: boolean }>).find((l) => l.purpose === "REPORT")!;
+      expect(again.usable).toBe(true);
+      expect((await verify(minted.token)).statusCode).toBe(200);
+    });
+
+    it("UC-OUT-005: a NULL-team personal record resolves to its owner's personal workspace for publication and the legacy inventory", async () => {
+      const P = h.fixtures.personal;
+      const { resolveShareWorkspaceId, legacyVerifyLinkInventory } = await import(
+        "../src/services/governance/verification-share.service.js"
+      );
+      const row = await prisma.evidence.create({
+        data: {
+          title: "legacy NULL-team",
+          type: "PHOTO",
+          status: "SIGNED",
+          teamId: null,
+          ownerUserId: P.userId,
+          signedAtUtc: new Date(),
+          publicVerifyState: "PUBLISHED",
+          legacyVerifyUuidUntilUtc: new Date(Date.now() + 10 * DAY),
+        } as never,
+        select: { id: true, teamId: true, ownerUserId: true },
+      });
+      expect(await resolveShareWorkspaceId(row)).toBe(P.teamId);
+      const inventory = await legacyVerifyLinkInventory({ teamId: P.teamId });
+      expect(inventory.records.map((r) => r.evidenceId)).toContain(row.id);
+    });
+  });
 });

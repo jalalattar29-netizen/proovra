@@ -77,6 +77,7 @@ import { createPublicKey } from "node:crypto";
 import { KMSClient, GetPublicKeyCommand } from "@aws-sdk/client-kms";
 
 import { prisma } from "./db.js";
+import { registerSigningKey } from "./signing/key-registry.js";
 
 type Provider = "aws-kms" | "local-pem";
 
@@ -347,15 +348,21 @@ export function resolvePublicKeyPemFromLocalPem(): ResolvedPublicKey {
   );
 }
 
+/**
+ * UC-TRUST-003 — INSERT-ONLY. The seed never replaces the public key of an
+ * existing (keyId, version) — that would silently invalidate every signature
+ * made with it — and never clears a revocation. Re-running it with the same key
+ * is a no-op; with a different key it fails (rotate with a new version).
+ */
 async function upsertSigningKeyRow(
   keyId: string,
   version: number,
   publicKeyPem: string,
 ): Promise<{ id: string; keyId: string; version: number }> {
-  const saved = await prisma.signingKey.upsert({
+  await registerSigningKey(prisma, { keyId, version, publicKeyPem });
+  const saved = await prisma.signingKey.findUniqueOrThrow({
     where: { keyId_version: { keyId, version } },
-    update: { publicKeyPem, revokedAt: null },
-    create: { keyId, version, publicKeyPem },
+    select: { id: true, keyId: true, version: true },
   });
   return { id: saved.id, keyId: saved.keyId, version: saved.version };
 }

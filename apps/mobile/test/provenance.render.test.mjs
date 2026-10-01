@@ -88,3 +88,19 @@ test("403 names the organisation-workspace rule; a 500 is an error with Try agai
   r = await openIntegrity();
   assert.equal(r.byTestId("provenance-error").length, 1);
 });
+
+test("UC-TRUST-002: a PENDING OTS proof is never 'Anchored'; an unvalidated token is 'Recorded, not validated'", async () => {
+  routes["/v1/provenance/ev-1"] = () => ({
+    body: CHAIN({
+      time: {
+        rfc3161: { applied: false, appliedAtUtc: "2026-09-20T10:02:00Z", status: "RECORDED_NOT_VALIDATED" },
+        // The pre-fix projection sent applied:true for a PENDING proof.
+        ots: { applied: true, confirmations: null, status: "SUBMITTED" },
+      },
+    }),
+  });
+  const r = await openIntegrity();
+  assert.ok(!r.hasText("Anchored"), "a pending proof was shown as anchored");
+  assert.ok(r.hasText("Submitted to OpenTimestamps calendars; Bitcoin anchoring not yet attempted"));
+  assert.ok(r.hasText("Recorded, not validated"));
+});

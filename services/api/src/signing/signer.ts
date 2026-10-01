@@ -1,6 +1,8 @@
 import { assertNotCommittedFixture } from "@proovra/shared-runtime";
 
-import { ed25519SignHexWithKeyPath } from "../crypto.js";
+import { ed25519SignHexWithKeyPath, loadPemFromPathEnv } from "../crypto.js";
+import { prisma } from "../db.js";
+import { assertSignatureVerifiesWithRegisteredKey, publicKeyPemFromPrivateKeyPem } from "./key-registry.js";
 import { assertSignerUsable } from "../services/operations/signer-control-state.service.js";
 import {
   currentSignerIdForPurpose,
@@ -41,13 +43,32 @@ export type SignFingerprintResult = {
   signatureBase64: string;
   keyId: string;
   keyVersion: number;
+  /**
+   * UC-TRUST-003 — SHA-256 of the DER SubjectPublicKeyInfo of the REGISTERED
+   * key the signature was self-verified with. Present on every signature the
+   * controlled signer returns.
+   */
+  publicKeySha256?: string;
 };
 
 export interface EvidenceSigner {
   signFingerprintHex(messageHex: string): Promise<SignFingerprintResult>;
+  /** The signer's own public key, when it can derive it (local PEM). */
+  ownPublicKeyPem?(): string | null;
 }
 
 class LocalPemEvidenceSigner implements EvidenceSigner {
+  ownPublicKeyPem(): string | null {
+    try {
+      const pem = process.env.SIGNING_PRIVATE_KEY_PEM?.trim()
+        ? process.env.SIGNING_PRIVATE_KEY_PEM
+        : loadPemFromPathEnv("SIGNING_PRIVATE_KEY_PATH");
+      return publicKeyPemFromPrivateKeyPem(pem!);
+    } catch {
+      return null;
+    }
+  }
+
   async signFingerprintHex(messageHex: string): Promise<SignFingerprintResult> {
     const normalizedHex = messageHex.trim().toLowerCase();
 
@@ -116,7 +137,20 @@ class ControlledEvidenceSigner implements EvidenceSigner {
 
   async signFingerprintHex(messageHex: string): Promise<SignFingerprintResult> {
     await assertSignerUsable(currentSignerIdForPurpose(this.purpose));
-    return this.inner.signFingerprintHex(messageHex);
+    const result = await this.inner.signFingerprintHex(messageHex);
+    // UC-TRUST-003 — SELF-VERIFY against the REGISTERED key before anything
+    // commits. A private key that does not match its registered public key
+    // (rotation without a version bump, a wrong mounted PEM) or a revoked key
+    // fails here, at capture time, instead of producing a record every
+    // verifier reports invalid.
+    const verified = await assertSignatureVerifiesWithRegisteredKey(prisma, {
+      keyId: result.keyId,
+      version: result.keyVersion,
+      messageHex: messageHex.trim().toLowerCase(),
+      signatureBase64: result.signatureBase64,
+      selfPublicKeyPem: this.inner.ownPublicKeyPem?.() ?? null,
+    });
+    return { ...result, publicKeySha256: verified.publicKeySha256 };
   }
 }
 

@@ -80,6 +80,10 @@ export type IntelligencePackageInput = {
     sizeBytes: number;
     contentType: string;
     createdAtUtc: string;
+    /** UC-DER-007 — distinguishes many-per-part variants (keyframe kf-NNNN). */
+    variantKey?: string | null;
+    /** UC-DER-007 — the keyframe's offset in its source part. */
+    sourceOffsetMs?: number | null;
   }>;
   /**
    * UC-4 — bounded reconstruction lineage manifest (no reconstructed prose, no
@@ -310,7 +314,7 @@ export function buildMediaIntelligenceManifest(
   };
 }
 
-function buildDerivedAssetsManifest(
+export function buildDerivedAssetsManifest(
   assets: NonNullable<IntelligencePackageInput["derivedAssets"]>,
 ) {
   return {
@@ -320,9 +324,17 @@ function buildDerivedAssetsManifest(
     advisory:
       "Derived assets are operator-facing thumbnails and previews provided as advisory aids only. They are not a substitute for the preserved original material.",
     algorithm: "SHA-256",
+    // UC-DER-007 — the bound is stated, never hidden: totalCount is the full
+    // inventory, count the number listed, truncated whether the list stops
+    // short of it.
     count: Math.min(assets.length, MAX_DERIVED_ASSETS),
+    totalCount: assets.length,
+    truncated: assets.length > MAX_DERIVED_ASSETS,
+    listBound: MAX_DERIVED_ASSETS,
     items: assets.slice(0, MAX_DERIVED_ASSETS).map((a) => ({
       id: bound(a.id, IDENT_CHAR_MAX),
+      variantKey: a.variantKey ? bound(a.variantKey, IDENT_CHAR_MAX) : null,
+      sourceOffsetMs: typeof a.sourceOffsetMs === "number" ? clampInt(a.sourceOffsetMs, 0, Number.MAX_SAFE_INTEGER) : null,
       assetKind: ALLOWED_DERIVED_KINDS.has(a.assetKind)
         ? a.assetKind
         : "low_res_proxy",

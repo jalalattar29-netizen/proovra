@@ -19,7 +19,23 @@
  */
 import { normalizeOtsAnchorCheck, resolveOtsAnchorClaim } from "./ots.js";
 
-import { storedBytesIntegrityCopy, type StoredBytesIntegrity } from "./stored-bytes-integrity.js";
+import { resolveOtsProofStatus, type OtsProofStatus } from "./ots-status.js";
+import { buildProvenanceTimeline, CAPTURE_TIME_NOT_AVAILABLE } from "./provenance-time.js";
+import {
+  storedBytesCheckStatusOf,
+  storedBytesIntegrityContradicts,
+  storedBytesIntegrityCopy,
+  type StoredBytesCheckStatus,
+  type StoredBytesIntegrity,
+} from "./stored-bytes-integrity.js";
+
+// UC-TRUST-002 / UC-PROV-001 — the canonical proof-status and provenance-time
+// modules travel with this one (every consumer of Basic Verify needs them).
+export * from "./ots-status.js";
+export * from "./provenance-time.js";
+// UC-PROV-007 — the whole-word forbidden-phrase matcher (report-artifact.ts is
+// re-exported from the barrel by name).
+export { findForbiddenArtifactPhrases } from "./report-artifact.js";
 
 export const COMPONENT_VERIFICATION_STATES = [
   "verified",
@@ -43,12 +59,30 @@ export type BasicVerification = {
       fingerprintMatchesSignedHash: boolean | null;
       signatureValid: boolean | null;
       custodyChainValid: boolean | null;
+      /**
+       * UC-TRUST-001 — the unsigned digest columns agree with the digests the
+       * signed fingerprint certifies. Null when not compared (legacy payload).
+       */
+      digestColumnsMatchSignedFingerprint?: boolean | null;
     };
     /** SHA-256 (hex) of the original evidence, as signed at finalization. */
     fileSha256: string | null;
     /** SHA-256 of the canonical fingerprint the signature covers. */
     fingerprintHash: string | null;
-    /** Declared by the capturing client; not independently proven. */
+    /**
+     * UC-PROV-001 — the PROOVRA SERVER clock when the record was created from
+     * the submission. It is NOT a capture time and no device declared it.
+     */
+    serverReceivedAtUtc?: string | null;
+    /** The capturing device's own clock, as the client reported it; not proven. */
+    deviceDeclaredCaptureAtUtc?: string | null;
+    /** "Device-declared capture time …" or "Capture time not available". */
+    captureTimeStatement?: string;
+    /**
+     * @deprecated Wire alias of `serverReceivedAtUtc`, kept for older readers.
+     * Despite its name it is the server-received time; never render it as a
+     * device-declared capture time.
+     */
     capturedAtUtcDeclared: string | null;
     /** Server time the record was finalized and signed. */
     finalizedAtUtc: string | null;
@@ -63,6 +97,18 @@ export type BasicVerification = {
    * the wire: a payload from before this field carries none.
    */
   storedBytes?: StoredBytesIntegrity;
+  /**
+   * UC-TRUST-005 — THE HEADLINE, incorporating the stored bytes. The recorded
+   * checks alone never produce "verified": a stored file that does not match
+   * its signed digest (or is gone) makes the headline failed, and one not
+   * re-verified inside the freshness window makes it "recorded_only" (recorded
+   * integrity verified; the current stored file is not stated as verified).
+   */
+  verdict?: {
+    state: "verified" | "recorded_only" | "failed" | "not_checked";
+    storedBytesCheck: StoredBytesCheckStatus | null;
+    label: string;
+  };
   timestamp: {
     state: ComponentVerificationState;
     /**
@@ -114,6 +160,8 @@ export type BasicVerification = {
     /** When the anchor was confirmed — a fact that may post-date any report. */
     anchoredAtUtc: string | null;
     bitcoinTxid: string | null;
+    /** UC-TRUST-002 — the canonical OTS proof status (only VERIFIED is "anchored"). */
+    status?: OtsProofStatus;
   };
   report: {
     issued: boolean;
@@ -154,9 +202,14 @@ export function buildBasicVerification(input: {
   };
   fileSha256: string | null;
   fingerprintHash: string | null;
+  /** UC-TRUST-001 — do the digest columns agree with the signed fingerprint? */
+  digestColumnsMatchSignedFingerprint?: boolean | null;
   /** ET-SM-07 — the stored-bytes recheck state, resolved by the authority. */
   storedBytes?: StoredBytesIntegrity | null;
+  /** Evidence.capturedAtUtc — the SERVER clock at record creation (UC-PROV-001). */
   capturedAtUtc: Date | string | null;
+  /** Evidence.deviceTimeIso — the device clock the client reported. */
+  deviceTimeIso?: string | null;
   signedAtUtc: Date | string | null;
   tsaStatus: string | null;
   tsaImprintMatches: boolean | null;
@@ -179,9 +232,16 @@ export function buildBasicVerification(input: {
   const iso = (v: Date | string | null | undefined) =>
     v == null ? null : v instanceof Date ? v.toISOString() : String(v);
   const checks = input.integrity;
-  const anyFalse = [checks.fingerprintMatches, checks.signatureValid, checks.custodyChainValid].some(
-    (c) => c === false,
-  );
+  const columnsMatch = input.digestColumnsMatchSignedFingerprint ?? null;
+  // UC-TRUST-001 / UC-TRUST-005 — a digest column that disagrees with the
+  // signed fingerprint, or a stored file that contradicts the signed digest,
+  // is a failed original: the signature over the fingerprint no longer vouches
+  // for the bytes PROOVRA holds.
+  const storedContradicts = storedBytesIntegrityContradicts(input.storedBytes ?? null);
+  const anyFalse =
+    [checks.fingerprintMatches, checks.signatureValid, checks.custodyChainValid].some((c) => c === false) ||
+    columnsMatch === false ||
+    storedContradicts;
   const allTrue = [checks.fingerprintMatches, checks.signatureValid, checks.custodyChainValid].every(
     (c) => c === true,
   );
@@ -236,24 +296,63 @@ export function buildBasicVerification(input: {
 
   const latest = input.latestReport;
   const pkg = input.pairedPackage;
+  const originalState: ComponentVerificationState = anyFalse ? "failed" : allTrue ? "verified" : "not_checked";
+  const storedCheck = input.storedBytes ? storedBytesCheckStatusOf(input.storedBytes) : null;
+  const verdictState: NonNullable<BasicVerification["verdict"]>["state"] =
+    originalState === "failed"
+      ? "failed"
+      : originalState !== "verified"
+        ? "not_checked"
+        : storedCheck === "VERIFIED"
+          ? "verified"
+          : "recorded_only";
+  const timeline = buildProvenanceTimeline({
+    serverReceivedAtUtc: input.capturedAtUtc,
+    deviceTimeIso: input.deviceTimeIso ?? null,
+  });
+  const deviceDeclared = timeline.entries.find((e) => e.kind === "DEVICE_OBSERVED")?.atUtc ?? null;
   return {
     schema: "PROOVRA_BASIC_VERIFICATION",
     version: 1,
     checkedAtUtc: input.now.toISOString(),
     original: {
-      state: anyFalse ? "failed" : allTrue ? "verified" : "not_checked",
-      basis: allTrue ? "SIGNATURE_AND_FINGERPRINT_AND_CUSTODY_CHAIN" : null,
+      state: originalState,
+      basis: originalState === "verified" ? "SIGNATURE_AND_FINGERPRINT_AND_CUSTODY_CHAIN" : null,
       checks: {
         fingerprintMatchesSignedHash: checks.fingerprintMatches,
         signatureValid: checks.signatureValid,
         custodyChainValid: checks.custodyChainValid,
+        digestColumnsMatchSignedFingerprint: columnsMatch,
       },
       fileSha256: input.fileSha256,
       fingerprintHash: input.fingerprintHash,
+      serverReceivedAtUtc: iso(input.capturedAtUtc),
+      deviceDeclaredCaptureAtUtc: deviceDeclared,
+      captureTimeStatement: deviceDeclared
+        ? `Device-declared capture time (reported by the capture client, not proven): ${deviceDeclared}`
+        : CAPTURE_TIME_NOT_AVAILABLE,
       capturedAtUtcDeclared: iso(input.capturedAtUtc),
       finalizedAtUtc: iso(input.signedAtUtc),
     },
     ...(input.storedBytes ? { storedBytes: input.storedBytes } : {}),
+    verdict: {
+      state: verdictState,
+      storedBytesCheck: storedCheck,
+      label:
+        verdictState === "verified"
+          ? "Recorded integrity verified; stored file re-verified"
+          : verdictState === "recorded_only"
+            ? storedCheck === "STALE" && input.storedBytes?.lastVerifiedAtUtc
+              ? `Recorded integrity verified; stored file last verified ${input.storedBytes.lastVerifiedAtUtc}`
+              : "Recorded integrity verified; the current stored file is not stated as verified"
+            : verdictState === "failed"
+              ? storedContradicts
+                ? "Integrity review required: the stored file does not match its signed digest"
+                : columnsMatch === false
+                  ? "Integrity review required: recorded digests disagree with the signed fingerprint"
+                  : "Integrity review required"
+              : "Not checked",
+    },
     timestamp: {
       state: timestampState,
       basis: timestampBasis,
@@ -272,6 +371,13 @@ export function buildBasicVerification(input: {
             : null,
       anchoredAtUtc: anchored ? iso(input.otsAnchoredAtUtc) : null,
       bitcoinTxid: anchored && validTxid ? input.otsBitcoinTxid : null,
+      status: resolveOtsProofStatus({
+        status: input.otsStatus,
+        anchoredAtUtc: input.otsAnchoredAtUtc,
+        anchorCheck: input.otsAnchorCheck ?? null,
+        bitcoinTxid: input.otsBitcoinTxid ?? null,
+        now: input.now,
+      }),
     },
     report: {
       issued: latest !== null,
@@ -298,22 +404,32 @@ export function buildBasicVerification(input: {
  * the cadence reads "Verified"; an out-of-date or never-made one is
  * "Not checked" with its own badge, never a green tick.
  */
-const STORED_BYTES_ROW: Record<
-  StoredBytesIntegrity["state"],
-  { state: ComponentVerificationState; badge: string }
-> = {
-  verified_current: { state: "verified", badge: "Verified" },
-  verified_stale: { state: "not_checked", badge: "Out of date" },
-  pending: { state: "pending", badge: "Pending" },
-  failed: { state: "failed", badge: "Failed" },
-  unknown: { state: "not_checked", badge: "Not yet rechecked" },
+const STORED_BYTES_ROW: Record<StoredBytesCheckStatus, { state: ComponentVerificationState; badge: string }> = {
+  VERIFIED: { state: "verified", badge: "Verified" },
+  STALE: { state: "not_checked", badge: "Stale" },
+  PENDING: { state: "pending", badge: "Pending" },
+  MISMATCH: { state: "failed", badge: "Mismatch" },
+  UNAVAILABLE: { state: "failed", badge: "Unavailable" },
+  UNKNOWN: { state: "not_checked", badge: "Not yet rechecked" },
 };
 
+/**
+ * UC-TRUST-008 — ONLY a passing recheck of the pinned version inside the
+ * short freshness window reads "Verified"; an older one reads "Stale" with its
+ * last-verified time, never a green tick.
+ */
 export function storedBytesVerificationRow(integrity: StoredBytesIntegrity): {
   state: ComponentVerificationState;
   badge: string;
   label: string;
   detail: string;
+  checkStatus: StoredBytesCheckStatus;
 } {
-  return { ...STORED_BYTES_ROW[integrity.state], ...storedBytesIntegrityCopy(integrity) };
+  const checkStatus = storedBytesCheckStatusOf(integrity);
+  // A transient storage outage on a record never verified is not a failure.
+  const row =
+    checkStatus === "UNAVAILABLE" && integrity.state !== "failed"
+      ? { state: "not_checked" as const, badge: "Unavailable" }
+      : STORED_BYTES_ROW[checkStatus];
+  return { ...row, ...storedBytesIntegrityCopy(integrity), checkStatus };
 }

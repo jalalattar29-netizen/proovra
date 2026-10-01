@@ -20,9 +20,20 @@
  * Read-only. Callers authorize.
  */
 
+import { createHash } from "node:crypto";
+
 import type { PrismaClient } from "@prisma/client";
+import { canonicalJsonValue } from "@proovra/shared/custody-hash";
 import {
+  OTS_PROOF_STATUS_LABELS,
   PROVENANCE_CHAIN_SCHEMA_VERSION,
+  TSA_PROOF_STATUS_LABELS,
+  resolveOtsProofStatus,
+  resolveTsaProofStatus,
+  selectCaptureManifestFacts,
+  type CaptureManifestFacts,
+  type OtsProofStatus,
+  type TsaProofStatus,
   STANDING_PROVENANCE_LIMITATIONS,
   derivedAssetTransformationForKind,
   describeDeviceSignatureVerdict,
@@ -71,17 +82,209 @@ type TrustRow = {
   deviceId: string | null;
   captureSessionId: string | null;
   payload: unknown;
+  teamId?: string;
+  evidenceId?: string | null;
+  sequence?: number;
+  eventHash?: string;
+  prevEventHash?: string | null;
 };
+
+// ---------------------------------------------------------------------------
+// UC-TRUST-004 — THE TRUST-EVENT SUB-CHAIN, VERIFIED ON READ
+// ---------------------------------------------------------------------------
+
+/** The fields a trust-event hash covers. */
+export type TrustEventHashInput = {
+  teamId: string;
+  code: string;
+  captureSessionId: string | null;
+  evidenceId: string | null;
+  deviceId: string | null;
+  sequence: number;
+  atUtc: Date;
+  payload: Record<string, unknown> | null;
+  prevEventHash: string | null;
+};
+
+/**
+ * v1 — the original writer's line: top-level payload keys sorted, nested
+ * objects JSON.stringify'd in INSERTION order. A JSONB round-trip reorders
+ * nested keys, so v1 is not reproducible from stored rows when a payload
+ * nests objects. Kept so existing rows verify where they can.
+ */
+export function buildTrustEventHashV1(input: TrustEventHashInput): string {
+  const payload = input.payload ?? {};
+  const sortedPayload: Record<string, unknown> = {};
+  for (const k of Object.keys(payload).sort()) sortedPayload[k] = payload[k];
+  const line = JSON.stringify({
+    teamId: input.teamId,
+    code: input.code,
+    captureSessionId: input.captureSessionId,
+    evidenceId: input.evidenceId,
+    deviceId: input.deviceId,
+    sequence: input.sequence,
+    atUtc: input.atUtc.toISOString(),
+    payload: sortedPayload,
+    prevEventHash: input.prevEventHash,
+  });
+  return createHash("sha256").update(line).digest("hex");
+}
+
+/**
+ * v2 — full-depth canonical JSON (the SAME canon as the custody chain,
+ * `canonicalJsonValue`), so a reviewer can recompute every hash from stored
+ * rows, nested payloads included. THE formula for new rows.
+ */
+export function buildTrustEventHashV2(input: TrustEventHashInput): string {
+  return createHash("sha256")
+    .update(
+      canonicalJsonValue({
+        v: 2,
+        teamId: input.teamId,
+        code: input.code,
+        captureSessionId: input.captureSessionId,
+        evidenceId: input.evidenceId,
+        deviceId: input.deviceId,
+        sequence: input.sequence,
+        atUtc: input.atUtc.toISOString(),
+        payload: input.payload ?? {},
+        prevEventHash: input.prevEventHash,
+      }),
+    )
+    .digest("hex");
+}
+
+export type TrustEventChainVerdict = {
+  /** true: every link and every hash checked; false: a break; null: nothing to check. */
+  valid: boolean | null;
+  checked: number;
+  /** v1 rows whose nested payload cannot be recomputed after a JSONB round-trip. */
+  unverifiableLegacy: number;
+  failures: ReadonlyArray<{ sequence: number; reason: "HASH_MISMATCH" | "PREV_LINK_BROKEN" | "SEQUENCE_GAP" }>;
+  formula: "proovra-trust-event-hash/v1|v2";
+};
+
+function hasNestedObject(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  return Object.values(payload as Record<string, unknown>).some((v) => v !== null && typeof v === "object");
+}
+
+/**
+ * Walk the sub-chain in sequence order: each row's prevEventHash must be the
+ * previous row's eventHash, sequences must be contiguous, and each eventHash
+ * must recompute (v2, or v1 for an older row). An edited payload, a deleted
+ * middle row or a reordered sequence is a failure.
+ */
+export function evaluateTrustEventChain(rows: ReadonlyArray<TrustRow>): TrustEventChainVerdict {
+  const chain = rows
+    .filter((r) => typeof r.sequence === "number" && typeof r.eventHash === "string" && typeof r.teamId === "string")
+    .slice()
+    .sort((a, b) => (a.sequence as number) - (b.sequence as number));
+  const failures: Array<TrustEventChainVerdict["failures"][number]> = [];
+  let unverifiableLegacy = 0;
+  let prev: TrustRow | null = null;
+  for (const row of chain) {
+    const seq = row.sequence as number;
+    if (prev) {
+      if (seq !== (prev.sequence as number) + 1) failures.push({ sequence: seq, reason: "SEQUENCE_GAP" });
+      if ((row.prevEventHash ?? null) !== prev.eventHash) failures.push({ sequence: seq, reason: "PREV_LINK_BROKEN" });
+    } else if (row.prevEventHash != null && seq === 1) {
+      failures.push({ sequence: seq, reason: "PREV_LINK_BROKEN" });
+    }
+    const input: TrustEventHashInput = {
+      teamId: row.teamId as string,
+      code: row.code,
+      captureSessionId: row.captureSessionId ?? null,
+      evidenceId: row.evidenceId ?? null,
+      deviceId: row.deviceId ?? null,
+      sequence: seq,
+      atUtc: row.atUtc ?? new Date(0),
+      payload: (row.payload as Record<string, unknown> | null) ?? null,
+      prevEventHash: row.prevEventHash ?? null,
+    };
+    let ok = false;
+    try {
+      ok = buildTrustEventHashV2(input) === row.eventHash || buildTrustEventHashV1(input) === row.eventHash;
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      if (hasNestedObject(row.payload)) unverifiableLegacy += 1;
+      else failures.push({ sequence: seq, reason: "HASH_MISMATCH" });
+    }
+    prev = row;
+  }
+  return {
+    valid: chain.length === 0 ? null : failures.length === 0,
+    checked: chain.length,
+    unverifiableLegacy,
+    failures: failures.slice(0, 50),
+    formula: "proovra-trust-event-hash/v1|v2",
+  };
+}
+
+/**
+ * UC-TRUST-002 / 004 / UC-DER-007 / UC-PROV-003 — what this projection adds to
+ * the shared ProvenanceChain shape. The time layers carry the CANONICAL proof
+ * status (only VERIFIED is "anchored"; only VALIDATED is an applied RFC 3161
+ * timestamp); the trust-event sub-chain carries its verdict; the derived
+ * lineage states when it was bounded.
+ */
+export type ProvenanceChainTrustExtensions = {
+  time: {
+    rfc3161: { status: TsaProofStatus; statusLabel: string };
+    ots: { status: OtsProofStatus; statusLabel: string };
+  };
+  trustEventChain: TrustEventChainVerdict;
+  derivedArtifactsTotalCount: number;
+  /** UC-DER-007 — COMPLETED derivatives, counted (not the bounded list length). */
+  derivedArtifactsCompletedCount: number;
+  derivedArtifactsTruncated: boolean;
+  /** Validated capture-manifest facts the capture client reported (private projection). */
+  captureManifestFacts: CaptureManifestFacts | null;
+  /** Present only when asked for: the rows, with hashes, so the sub-chain can be recomputed. */
+  trustEventRecords?: ReadonlyArray<{
+    teamId: string;
+    code: string;
+    captureSessionId: string | null;
+    evidenceId: string | null;
+    deviceId: string | null;
+    sequence: number;
+    atUtc: string | null;
+    payload: unknown;
+    eventHash: string;
+    prevEventHash: string | null;
+  }>;
+};
+
+export type ProvenanceChainProjection = ProvenanceChain & ProvenanceChainTrustExtensions;
 
 export async function loadProvenanceChain(
   prisma: PrismaClient,
   evidenceId: string,
   now: Date = new Date(),
-): Promise<ProvenanceChain> {
+  opts: { includeTrustEventRecords?: boolean } = {},
+): Promise<ProvenanceChainProjection> {
   const generatedAtUtc = now.toISOString();
   const evidence = await prisma.evidence.findUnique({
     where: { id: evidenceId },
-    select: { id: true, acquisitionMode: true, acquisitionModeSource: true },
+    select: {
+      id: true,
+      acquisitionMode: true,
+      acquisitionModeSource: true,
+      // UC-TRUST-002 — the time layers come from the record's own proof state.
+      signedAtUtc: true,
+      tsaStatus: true,
+      tsaValidatedAtUtc: true,
+      tsaGenTimeUtc: true,
+      tsaUrl: true,
+      otsStatus: true,
+      otsAnchoredAtUtc: true,
+      otsAnchorCheck: true,
+      otsBitcoinTxid: true,
+      otsUpgradedAtUtc: true,
+      otsProofBase64: true,
+    },
   });
   const acquisition = resolveEvidenceAcquisition({
     acquisitionMode: evidence?.acquisitionMode ?? null,
@@ -113,6 +316,12 @@ export async function loadProvenanceChain(
           deviceId: true,
           captureSessionId: true,
           payload: true,
+          // UC-TRUST-004 — the sub-chain is verified on read.
+          teamId: true,
+          evidenceId: true,
+          sequence: true,
+          eventHash: true,
+          prevEventHash: true,
         },
         take: 400,
       })
@@ -157,6 +366,10 @@ export async function loadProvenanceChain(
     sessionIdFromEvents = sessionIdFromEvents ?? ev.captureSessionId;
   }
 
+  // UC-TRUST-004 — an edited, deleted or reordered trust event is detected:
+  // a broken sub-chain can vouch for nothing captured on it.
+  const trustEventChain = evaluateTrustEventChain(trustEvents);
+
   const signatureVerdict: CaptureSignatureVerdict = !sawSignature
     ? "MISSING"
     : allSignaturesValid
@@ -164,7 +377,9 @@ export async function loadProvenanceChain(
       : (firstNonValid ?? "INVALID_SIGNATURE");
 
   const provenanceClass: CaptureProvenanceClass =
-    session && signatureVerdict === "VALID"
+    trustEventChain.valid === false
+      ? "C"
+      : session && signatureVerdict === "VALID"
       ? "B"
       : legacyClass === "B" && signatureVerdict === "VALID"
         ? "B"
@@ -207,13 +422,11 @@ export async function loadProvenanceChain(
   let countersigned = false;
   let countersignKeyId: string | null = null;
   let countersignedAtUtc: string | null = null;
-  let rfc3161Applied = false;
-  let rfc3161TsaUrl: string | null = null;
-  let rfc3161AtUtc: string | null = null;
-  let otsApplied = false;
-  let otsTxId: string | null = null;
-  let otsAtUtc: string | null = null;
-  let otsConfirmations: number | null = null;
+  // UC-TRUST-002 — custody event TYPES are not states. "OTS_APPLIED" is
+  // written with the proof still PENDING, and "TIMESTAMP_APPLIED" was written
+  // for legacy tokens nobody validated. The layers are read from the record's
+  // proof state through the canonical resolvers instead.
+  let rfc3161TsaUrl: string | null = evidence?.tsaUrl ?? null;
   for (const ce of custodyEvents) {
     const p = (ce.payload ?? {}) as Record<string, unknown>;
     const type = String(ce.eventType);
@@ -223,17 +436,25 @@ export async function loadProvenanceChain(
       if (typeof keyId === "string") countersignKeyId = keyId;
       countersignedAtUtc = ce.atUtc.toISOString();
     } else if (type === "TIMESTAMP_APPLIED") {
-      rfc3161Applied = true;
       const url = p["tsaUrl"];
-      if (typeof url === "string") rfc3161TsaUrl = url;
-      rfc3161AtUtc = ce.atUtc.toISOString();
-    } else {
-      otsApplied = true;
-      if (typeof p["txId"] === "string") otsTxId = p["txId"];
-      otsAtUtc = ce.atUtc.toISOString();
-      if (typeof p["confirmations"] === "number") otsConfirmations = p["confirmations"];
+      if (typeof url === "string" && !rfc3161TsaUrl) rfc3161TsaUrl = url;
     }
   }
+  const tsaStatus = resolveTsaProofStatus({
+    tsaStatus: evidence?.tsaStatus ?? null,
+    tsaValidatedAtUtc: evidence?.tsaValidatedAtUtc ?? null,
+  });
+  const otsStatus = resolveOtsProofStatus({
+    status: evidence?.otsStatus ?? null,
+    anchoredAtUtc: evidence?.otsAnchoredAtUtc ?? null,
+    anchorCheck: evidence?.otsAnchorCheck ?? null,
+    bitcoinTxid: evidence?.otsBitcoinTxid ?? null,
+    proofPresent: Boolean(evidence?.otsProofBase64),
+    upgradedAtUtc: evidence?.otsUpgradedAtUtc ?? null,
+    submittedAtUtc: evidence?.signedAtUtc ?? null,
+    now,
+  });
+  const otsRecordedAnchor = otsStatus === "VERIFIED" || otsStatus === "ANCHORED_UNVERIFIED";
 
   // ----- V1 record-level derivation edges -------------------------------
   const derivations = trustEvents
@@ -250,6 +471,24 @@ export async function loadProvenanceChain(
 
   // ----- V2 part-level derived review materials -------------------------
   const derivedArtifacts = evidence ? await loadDerivedArtifacts(prisma, evidenceId) : [];
+  // UC-PROV-003 — the facts of the manifest that SEALED (a retried seal may
+  // have recorded facts for a manifest that did not).
+  const sealedManifestSha256 = evidence
+    ? ((
+        await prisma.evidencePart.findFirst({
+          where: { evidenceId, artifactClass: "CAPTURE_MANIFEST" },
+          orderBy: { partIndex: "desc" },
+          select: { sha256: true },
+        })
+      )?.sha256 ?? null)
+    : null;
+  // UC-DER-007 — the lineage is bounded; its true size is counted, not inferred.
+  const derivedArtifactsTotalCount = evidence
+    ? await prisma.evidencePartDerivedAsset.count({ where: { evidenceId } })
+    : 0;
+  const derivedArtifactsCompletedCount = evidence
+    ? await prisma.evidencePartDerivedAsset.count({ where: { evidenceId, status: "COMPLETED" } })
+    : 0;
 
   const failures = trustEvents.filter((e) => FAILURE_CODES.has(e.code)).length;
   const last = trustEvents[trustEvents.length - 1] ?? null;
@@ -283,14 +522,53 @@ export async function loadProvenanceChain(
     },
     server: { countersigned, countersignKeyId, countersignedAtUtc },
     time: {
-      rfc3161: { applied: rfc3161Applied, tsaUrl: rfc3161TsaUrl, appliedAtUtc: rfc3161AtUtc },
+      rfc3161: {
+        // Only a VALIDATED token is an applied trusted timestamp.
+        applied: tsaStatus === "VALIDATED",
+        tsaUrl: rfc3161TsaUrl,
+        appliedAtUtc:
+          tsaStatus === "VALIDATED" || tsaStatus === "RECORDED_NOT_VALIDATED"
+            ? (evidence?.tsaGenTimeUtc?.toISOString() ?? null)
+            : null,
+        status: tsaStatus,
+        statusLabel: TSA_PROOF_STATUS_LABELS[tsaStatus],
+      },
       ots: {
-        applied: otsApplied,
-        anchorTxId: otsTxId,
-        appliedAtUtc: otsAtUtc,
-        confirmations: otsConfirmations,
+        // Only an anchor VERIFIED against the Bitcoin chain is "applied".
+        applied: otsStatus === "VERIFIED",
+        anchorTxId: otsRecordedAnchor ? (evidence?.otsBitcoinTxid ?? null) : null,
+        appliedAtUtc: otsRecordedAnchor ? (evidence?.otsAnchoredAtUtc?.toISOString() ?? null) : null,
+        // Not recorded by any writer; never invented.
+        confirmations: null,
+        status: otsStatus,
+        statusLabel: OTS_PROOF_STATUS_LABELS[otsStatus],
       },
     },
+    trustEventChain,
+    derivedArtifactsTotalCount,
+    derivedArtifactsCompletedCount,
+    derivedArtifactsTruncated: derivedArtifactsTotalCount > derivedArtifacts.length,
+    // UC-PROV-003 — the manifest facts the capture client reported and the
+    // server validated (persisted as a trust event at seal).
+    captureManifestFacts: selectCaptureManifestFacts(trustEvents, { manifestSha256: sealedManifestSha256 }),
+    ...(opts.includeTrustEventRecords
+      ? {
+          trustEventRecords: trustEvents
+            .filter((e) => typeof e.sequence === "number" && typeof e.eventHash === "string")
+            .map((e) => ({
+              teamId: e.teamId as string,
+              code: e.code,
+              captureSessionId: e.captureSessionId ?? null,
+              evidenceId: e.evidenceId ?? null,
+              deviceId: e.deviceId ?? null,
+              sequence: e.sequence as number,
+              atUtc: e.atUtc ? e.atUtc.toISOString() : null,
+              payload: e.payload ?? null,
+              eventHash: e.eventHash as string,
+              prevEventHash: e.prevEventHash ?? null,
+            })),
+        }
+      : {}),
     derivations,
     trustEventSummary: {
       total: trustEvents.length,
@@ -341,4 +619,17 @@ export async function loadDerivedArtifacts(
     status: r.status,
     generatedAtUtc: r.generatedAtUtc?.toISOString() ?? null,
   }));
+}
+
+/**
+ * UC-TRUST-004 — the trust-event rows WITH their hashes, for the verification
+ * package (provenance/chain.json), so a reviewer can recompute the capture
+ * sub-chain with buildTrustEventHashV2 / V1.
+ */
+export async function loadTrustEventRecords(
+  prisma: PrismaClient,
+  evidenceId: string,
+): Promise<NonNullable<ProvenanceChainTrustExtensions["trustEventRecords"]>> {
+  const chain = await loadProvenanceChain(prisma, evidenceId, new Date(), { includeTrustEventRecords: true });
+  return chain.trustEventRecords ?? [];
 }

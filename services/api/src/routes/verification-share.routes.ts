@@ -42,6 +42,7 @@ import {
   listVerificationLinks,
   loadRecordForShare,
   recordIsShareable,
+  resolveShareWorkspaceId,
   revokeLegacyVerifyLink,
   revokeVerificationLink,
   rotateVerificationLink,
@@ -166,14 +167,18 @@ export async function verificationShareRoutes(app: FastifyInstance) {
     // THE FIRST LINK PUBLISHES — explicitly, through the publication authority.
     let published = false;
     if (record.publicVerifyState !== "PUBLISHED") {
-      if (!record.teamId) {
-        // A record with no workspace row has no publication workflow to run.
+      // UC-OUT-005 — a legacy Personal record stored with team_id NULL is
+      // published in its owner's personal workspace (the rule the report and
+      // package writers use), not refused for lacking a team row.
+      const workspaceId = await resolveShareWorkspaceId(record);
+      if (!workspaceId) {
+        // A record with no workspace at all has no publication workflow to run.
         return reply.code(409).send({ code: "PUBLICATION_NOT_AVAILABLE", reason: "record_has_no_workspace" });
       }
       const gate = await requireStepUpForSensitiveAction({
         req,
         reply,
-        teamId: record.teamId,
+        teamId: workspaceId,
         userId: ctx.actorUserId,
         purpose: "PUBLIC_VERIFY_PUBLISH",
         resourceKind: "evidence",
@@ -183,7 +188,7 @@ export async function verificationShareRoutes(app: FastifyInstance) {
       try {
         await publishPublicVerify({
           evidenceId: id,
-          teamId: record.teamId,
+          teamId: workspaceId,
           actorUserId: ctx.actorUserId,
           reason: `Public verification link created for: ${body.audience}`.slice(0, 400),
         });

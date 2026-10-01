@@ -542,6 +542,22 @@ export async function opsRoutes(app: FastifyInstance) {
         reason: "operations_writer_schema_mismatch",
       });
     }
+    // UC-TRUST-006 — RFC 3161 trust configuration. In production, a TSA that
+    // is enabled without a readable non-test anchor, an accepted-policy list
+    // or an anchor pin would record every new timestamp FAILED (or trust any
+    // anchor the mounted file holds). The instance is not ready.
+    {
+      const { isTsaProductionEnv, tsaTrustConfigurationIssues } = await import(
+        "../services/timestamp/validate-tsa-token.js"
+      );
+      if (isTsaProductionEnv(process.env)) {
+        const issues = await tsaTrustConfigurationIssues(process.env);
+        if (issues.length > 0) {
+          req.log?.error({ tsaTrustIssues: issues }, "tsa trust configuration incomplete");
+          return reply.code(503).send({ status: "degraded", reason: "tsa_trust_configuration_incomplete" });
+        }
+      }
+    }
     return reply.code(200).send({ status: "ok" });
   });
 

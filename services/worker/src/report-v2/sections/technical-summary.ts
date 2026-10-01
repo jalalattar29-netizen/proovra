@@ -114,9 +114,13 @@ function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlock
   // "Capture Device" prefers the EXIF camera (the physical capture device);
   // for desktop uploads with no EXIF it is omitted and the row set falls
   // back to the browser/OS context.
+  // UC-PROV-005 — the OS / device / browser rows come from the UPLOADING
+  // browser's User-Agent header and the timezone from the request body: they
+  // describe the SUBMISSION environment, not the device that captured the
+  // file. The EXIF camera is the file's own metadata and lives under its own
+  // heading below.
   const deviceRows = ce
     ? metadataRows([
-        { label: "Capture Device", value: camera },
         {
           label: "Operating system",
           value: ce.osName,
@@ -139,11 +143,14 @@ function buildTechnicalSummaryBlocks(vm: ReportViewModel): TechnicalSummaryBlock
               },
             ]
           : []),
-        { label: "Timezone", value: ce.timezone },
+        { label: "Timezone (reported by the uploading browser)", value: ce.timezone },
       ])
     : [];
 
-  const deviceBlock = renderGroup("Capture Device", deviceRows);
+  const deviceBlock = renderGroup(
+    "Submission environment (uploading browser, as reported by its User-Agent)",
+    deviceRows,
+  );
 
   // ---- Camera + Exposure (only when the file carried real EXIF) ----
   let cameraBlock = "";

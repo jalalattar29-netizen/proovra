@@ -157,7 +157,11 @@ export default function BasicVerificationView({
       ? // ET-PKG-06 — name what was checked: PROOVRA's records, not the stored bytes.
         "PROOVRA's signed fingerprint matches the digest recorded at finalization, the signature over it is valid, and the recorded custody chain is intact. These checks are made over PROOVRA's records; the stored original is not re-read on this page — see the stored file recheck below, and compare the SHA-256 with your own copy."
       : o.state === "failed"
-        ? "At least one integrity check did not pass."
+        ? data.storedBytes && (data.storedBytes.checkStatus === "MISMATCH" || data.storedBytes.state === "failed")
+          ? "The stored original does not match the digest in the signed fingerprint, or it is no longer available at its recorded version. Do not rely on this record until it has been investigated."
+          : o.checks.digestColumnsMatchSignedFingerprint === false
+            ? "The digest recorded for the file does not match the digest in the signed fingerprint."
+            : "At least one integrity check did not pass."
         : "The integrity checks could not all be performed.";
   // (2026-09-29) Each "not checked" names the check that was not performed.
   const tsaDetail =
@@ -203,6 +207,12 @@ export default function BasicVerificationView({
 
       <section aria-labelledby="verify-original" style={{ background: "#fff", borderRadius: 16, padding: "8px 20px 16px", border: "1px solid rgba(15,23,42,0.08)" }}>
         <h2 id="verify-original" style={{ fontSize: 17, margin: "14px 0 4px" }}>Original evidence</h2>
+        {/* UC-TRUST-005 — the headline incorporates the stored bytes. */}
+        {data.verdict ? (
+          <p data-verify-verdict={data.verdict.state} style={{ margin: "6px 0 10px", fontWeight: 600, color: data.verdict.state === "failed" ? "#b91c1c" : "#0f172a" }}>
+            {data.verdict.label}
+          </p>
+        ) : null}
         <Row label="Integrity" state={o.state} detail={originalDetail} />
         {/* ET-SM-07 — the stored file is a separate statement, with its own date. */}
         {data.storedBytes ? (
@@ -213,7 +223,13 @@ export default function BasicVerificationView({
         <Row label="Trusted timestamp (RFC 3161)" state={data.timestamp.state} detail={tsaDetail} />
         <Row label="Bitcoin anchoring (OpenTimestamps)" state={data.anchoring.state} detail={otsDetail} />
         <div style={{ paddingTop: 14, borderTop: "1px solid rgba(15,23,42,0.08)", fontSize: 14, color: "#334155" }}>
-          <div>Captured (declared by the capturing device): {fmt(o.capturedAtUtcDeclared)}</div>
+          {/* UC-PROV-001 — the server clock at record creation is never a device-declared capture time. */}
+          <div data-verify-time="server-received">Server received at (PROOVRA server clock): {fmt(o.serverReceivedAtUtc ?? o.capturedAtUtcDeclared)}</div>
+          <div data-verify-time="capture">
+            {o.deviceDeclaredCaptureAtUtc
+              ? <>Device-declared capture time (reported by the capture client, not proven): {fmt(o.deviceDeclaredCaptureAtUtc)}</>
+              : <>Capture time not available</>}
+          </div>
           <div>Finalized and signed (server): {fmt(o.finalizedAtUtc)}</div>
           <div style={{ marginTop: 8, overflowWrap: "anywhere" }}>
             SHA-256 of the original: <code>{o.fileSha256 ?? "—"}</code>

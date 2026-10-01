@@ -146,6 +146,8 @@ import { createVerificationPackage, PackageGateDeniedError } from "./verificatio
 import { loadProvenanceChainForPackage } from "./capture-trust/load-provenance-chain.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
 import { recheckEvidenceIntegrity, recordIntegrityObservation } from "./integrity-recheck.js";
+import { compositeSha256, sha256HexFromStream } from "@proovra/shared-runtime";
+import { resolveExpectedOriginalDigest } from "./integrity-recheck.js";
 // PHASE 12 — POINT 5: the payload carries a request id; the authority is a row.
 import { decodeCanonicalJob } from "./canonical-job.js";
 import {
@@ -362,6 +364,12 @@ type ReportBuildParams = {
   acquisition?: Parameters<typeof buildReportPdfV2>[0]["acquisition"];
   // UC-4 — OPTIONAL bounded DERIVED screen-review summary. NULL = no section.
   derivedReview?: Parameters<typeof buildReportPdfV2>[0]["derivedReview"];
+  /** UC-OUT-001 — the record's publication state at issuance. */
+  publicVerificationPublished?: boolean;
+  /** UC-PROV-003 — validated capture-manifest facts. */
+  captureManifest?: Parameters<typeof buildReportPdfV2>[0]["captureManifest"];
+  /** UC-TRUST-008 — the exact stored bytes this report certifies. */
+  certifiedOriginal?: Parameters<typeof buildReportPdfV2>[0]["certifiedOriginal"];
 };
 
 type PreparedReportArtifacts = {
@@ -376,6 +384,12 @@ type PreparedReportArtifacts = {
   verifyUrl: string;
   /** ET-PKG-07 — the share token inside `verifyUrl`; stored (hashed) when the report commits. */
   reportShareToken: string;
+  /**
+   * UC-OUT-001 — was the record PUBLISHED when this report was prepared? Only
+   * then is a REPORT link minted and printed; a private record's report says
+   * "Not published — the owner can create a verification link".
+   */
+  publicVerifyPublishedAtIssuance: boolean;
   downloadUrl: string;
     packageMetadataContext: {
     caseId: string | null;
@@ -900,10 +914,6 @@ function normalizeAnchorMode(
   return "ready";
 }
 
-function sha256HexFromStrings(parts: string[]) {
-  return createHash("sha256").update(parts.join("|")).digest("hex");
-}
-
 function verifyEd25519HexSignature(params: {
   messageHex: string;
   signatureBase64: string;
@@ -1149,7 +1159,7 @@ function buildFinalizedAnchorPayload(params: {
     fileSha256: params.fileSha256,
     fingerprintHash: params.fingerprintHash,
     lastEventHash: params.lastEventHash,
-    anchorHash: sha256HexFromStrings([
+    anchorHash: compositeSha256([
       params.evidenceId,
       String(params.reportVersion),
       params.fileSha256,
@@ -1224,13 +1234,8 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
  * gate reads each ORIGINAL part exactly once, in bounded chunks, so a large UC-3
  * continuous Evidence is verified without buffering any part in RAM.
  */
-async function sha256HexFromStream(stream: Readable): Promise<string> {
-  const hash = createHash("sha256");
-  for await (const chunk of stream) {
-    hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return hash.digest("hex");
-}
+// UC-ARCH-006 — sha256HexFromStream / compositeSha256 are the ONE digest
+// rules in @proovra/shared-runtime (integrity/digest.ts).
 
 // `deleteObjectIfExists` used to live here. Its only caller was the purge
 // job's inline storage loop, which is gone: physical deletion is performed by
@@ -1958,6 +1963,8 @@ async function prepareReportArtifacts(
       recordedIntegrityVerifiedAtUtc: true,
       lastVerifiedAtUtc: true,
       lastVerifiedSource: true,
+      // UC-OUT-001 — a link is printed only for a published record.
+      publicVerifyState: true,
       verificationPackageGeneratedAtUtc: true,
       verificationPackageVersion: true,
       // Phase D Blocker 3 — per-component artifact presence record.
@@ -2277,6 +2284,17 @@ if (primaryCaseId) {
 let storageBucket = evidence.storageBucket ?? null;
 let storageKey = evidence.storageKey ?? null;
 let fileSha256 = "";
+// UC-TRUST-001 — the bytes are compared with the digest the SIGNED fingerprint
+// certifies, never only with the unsigned fileSha256 / part columns; a column
+// that disagrees with the fingerprint is itself an integrity failure.
+const expectedOriginal = resolveExpectedOriginalDigest({
+  fingerprintCanonicalJson: evidence.fingerprintCanonicalJson,
+  fileSha256: evidence.fileSha256,
+  parts: parts.map((p) => ({ partIndex: p.partIndex, sha256: p.sha256 ?? null })),
+});
+const expectedOriginalDigest = expectedOriginal.expectedDigest ?? evidence.fileSha256;
+const signedPartMismatch = (partIndex: number, sha: string): boolean =>
+  expectedOriginal.signedPartDigests !== null && expectedOriginal.signedPartDigests.get(partIndex) !== sha;
 const verificationEvidenceFiles: VerificationEvidenceFile[] = [];
 const loadedArtifacts: LoadedEvidenceArtifact[] = [];
 
@@ -2391,14 +2409,16 @@ const loadedArtifacts: LoadedEvidenceArtifact[] = [];
     storageBucket = parts[0].storageBucket;
     storageKey = parts[0].storageKey;
 fileSha256 =
-  hashes.length === 1 ? hashes[0] : sha256HexFromStrings(hashes);
+  hashes.length === 1 ? hashes[0] : compositeSha256(hashes);
 
 const legacySinglePartCompositeSha =
-  hashes.length === 1 ? sha256HexFromStrings(hashes) : null;
+  hashes.length === 1 ? compositeSha256(hashes) : null;
 
 if (
-  fileSha256 !== evidence.fileSha256 &&
-  legacySinglePartCompositeSha !== evidence.fileSha256
+  (fileSha256 !== expectedOriginalDigest &&
+    legacySinglePartCompositeSha !== expectedOriginalDigest) ||
+  parts.some((p, i) => signedPartMismatch(p.partIndex, hashes[i] ?? "")) ||
+  expectedOriginal.columnsAgree === false
 ) {
   // Phase A0 — integrity hard-gate. Before we throw, transition the
   // Evidence row to FAILED_HASH_MISMATCH + append the custody
@@ -2410,7 +2430,7 @@ if (
   await recordIntegrityObservation({
     evidenceId: evidence.id,
     teamId: evidence.teamId ?? null,
-    expectedDigest: evidence.fileSha256 ?? null,
+    expectedDigest: expectedOriginalDigest ?? null,
     observation: {
       outcome: "FAILED",
       failureCode: "DIGEST_MISMATCH",
@@ -2434,7 +2454,7 @@ if (
 await recordIntegrityObservation({
   evidenceId: evidence.id,
   teamId: evidence.teamId ?? null,
-  expectedDigest: evidence.fileSha256 ?? null,
+  expectedDigest: expectedOriginalDigest ?? null,
   observation: {
     outcome: "VERIFIED",
     failureCode: null,
@@ -2473,7 +2493,7 @@ await recordIntegrityObservation({
     // Integrity re-hash by STREAMING — never buffer the whole single file.
     const singleSha256 = await sha256HexFromStream(body as unknown as Readable);
 
-    if (singleSha256 !== evidence.fileSha256) {
+    if (singleSha256 !== expectedOriginalDigest || expectedOriginal.columnsAgree === false) {
       // Phase A0 — integrity hard-gate (single-file path). See the
       // multipart branch above for the contract: status flip + custody
       // event + security event happen before the throw so a tampered
@@ -2481,7 +2501,7 @@ await recordIntegrityObservation({
       await recordIntegrityObservation({
         evidenceId: evidence.id,
         teamId: evidence.teamId ?? null,
-        expectedDigest: evidence.fileSha256 ?? null,
+        expectedDigest: expectedOriginalDigest ?? null,
         observation: {
           outcome: "FAILED",
           failureCode: "DIGEST_MISMATCH",
@@ -2502,7 +2522,7 @@ await recordIntegrityObservation({
     await recordIntegrityObservation({
       evidenceId: evidence.id,
       teamId: evidence.teamId ?? null,
-      expectedDigest: evidence.fileSha256 ?? null,
+      expectedDigest: expectedOriginalDigest ?? null,
       observation: {
         outcome: "VERIFIED",
         failureCode: null,
@@ -2684,6 +2704,10 @@ await recordIntegrityObservation({
   // no link behind, and a retry generates a fresh one.
   const reportShareToken = generateVerificationShareToken();
   const verifyUrl = buildVerifyUrl(reportShareToken);
+  // UC-OUT-001 — Public Verify answers only for a PUBLISHED record. A private
+  // record's report prints no link (and no REPORT link is minted): printing
+  // one would hand every reader a page that answers "Evidence not found".
+  const publicVerifyPublishedAtIssuance = evidence.publicVerifyState === "PUBLISHED";
 
   const workspaceVerified =
     workspaceTeam?.verificationState ===
@@ -2974,6 +2998,7 @@ const trustDecision = buildTrustDecision({
   const reportDerivedReview = await buildReportDerivedReview({
     teamId: evidence.teamId ?? null,
     evidenceId,
+    ownerUserId: evidence.ownerUserId ?? null,
   });
 
   const reportBuildParams: ReportBuildParams = {
@@ -2983,6 +3008,16 @@ const trustDecision = buildTrustDecision({
     generatedAtUtc: now.toISOString(),
     buildInfo: env.WORKER_BUILD_INFO ?? null,
     verifyUrl,
+    publicVerificationPublished: publicVerifyPublishedAtIssuance,
+    // UC-TRUST-008 — the exact bytes this report certifies (re-read above).
+    certifiedOriginal: {
+      recordedSha256: expectedOriginalDigest,
+      objectVersionIds:
+        parts.length > 0 ? parts.map((p) => p.storageVersionId ?? null) : [evidence.storageVersionId ?? null],
+      rereadAtUtc: now.toISOString(),
+    },
+    // UC-PROV-003 — the validated manifest facts of the capture that sealed.
+    captureManifest: (await loadProvenanceChainForPackage(evidence.id))?.captureManifestFacts ?? null,
     downloadUrl: evidenceDetailUrl,
     externalMode: false,
     mediaIntelligence: reportMediaIntelligence,
@@ -3027,6 +3062,7 @@ return {
   verificationZip,
   verifyUrl,
   reportShareToken,
+  publicVerifyPublishedAtIssuance,
   downloadUrl: evidenceDetailUrl,
   reportKey,
   verificationKey,
@@ -3227,24 +3263,33 @@ function toBoundedReasonCode(error: unknown): string {
  * replacement would put new bytes behind a version that is already published.
  * Only a transient read failure is retried.
  */
-async function readVerifiedStoredReport(report: {
-  version: number;
-  storageBucket: string;
-  storageKey: string;
-  sizeBytes: bigint | null;
-  pdfSha256: string | null;
-}): Promise<{ bytes: Buffer; sha256: string }> {
+export async function readVerifiedStoredReport(
+  report: {
+    version: number;
+    storageBucket: string;
+    storageKey: string;
+    sizeBytes: bigint | null;
+    pdfSha256: string | null;
+    /** UC-OUT-003 — the committed report object VERSION; read exactly it when recorded. */
+    s3VersionId?: string | null;
+  },
+  io: { head: typeof headObject; stream: typeof getObjectStream } = { head: headObject, stream: getObjectStream },
+): Promise<{ bytes: Buffer; sha256: string }> {
   const isNotFound = isStorageNotFound;
+  // UC-OUT-003 — pinned like the originals (ET-PKG-15): a later object version
+  // at the same key (an interrupted earlier attempt) must not be read in place
+  // of the committed one.
+  const versionId = report.s3VersionId ?? null;
   let head: Awaited<ReturnType<typeof headObject>>;
   try {
-    head = await headObject({ bucket: report.storageBucket, key: report.storageKey });
+    head = await io.head({ bucket: report.storageBucket, key: report.storageKey, versionId });
   } catch (err) {
     if (isNotFound(err)) throw createWorkerError("REPORT_OBJECT_MISSING", false);
     throw createWorkerError("REPORT_OBJECT_READ_FAILED", true);
   }
   let bytes: Buffer;
   try {
-    const body = await getObjectStream({ bucket: report.storageBucket, key: report.storageKey });
+    const body = await io.stream({ bucket: report.storageBucket, key: report.storageKey, versionId });
     bytes = await streamToBuffer(body as unknown as Readable);
   } catch (err) {
     if (isNotFound(err)) throw createWorkerError("REPORT_OBJECT_MISSING", false);
@@ -3985,6 +4030,7 @@ async function runReportGeneration(
         const finalizedReportDerivedReview = await buildReportDerivedReview({
           teamId: evidence.teamId ?? null,
           evidenceId: prepared.evidenceId,
+          ownerUserId: evidence.ownerUserId ?? null,
         });
         // ET-RPT-03 — the record's canonical legal hold (evidence, case and
         // workspace scope). A failed read is UNAVAILABLE, never "none".
@@ -4244,15 +4290,19 @@ async function runReportGeneration(
             // exists from the moment the report does, and not before. Only
             // the hash is stored. It opens nothing until the owner publishes
             // the record, and the owner can revoke or rotate it on its own.
-            await mintVerificationShareTokenTx(tx, {
-              evidenceId: prepared.evidenceId,
-              teamId: prepared.packageMetadataContext.teamId ?? null,
-              purpose: "REPORT",
-              reportVersion: prepared.version,
-              audience: `Report version ${prepared.version}`,
-              token: prepared.reportShareToken,
-              now: prepared.now,
-            });
+            // UC-OUT-001 — minted only when the report PRINTS it, i.e. the
+            // record was published at issuance.
+            if (prepared.publicVerifyPublishedAtIssuance) {
+              await mintVerificationShareTokenTx(tx, {
+                evidenceId: prepared.evidenceId,
+                teamId: prepared.packageMetadataContext.teamId ?? null,
+                purpose: "REPORT",
+                reportVersion: prepared.version,
+                audience: `Report version ${prepared.version}`,
+                token: prepared.reportShareToken,
+                now: prepared.now,
+              });
+            }
 
             await tx.report.create({
               data: {
@@ -4539,6 +4589,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           await buildVerificationPackageIntelligence({
             teamId: evidence.teamId ?? null,
             evidenceId: prepared.evidenceId,
+            ownerUserId: evidence.ownerUserId ?? null,
           });
 
         // Phase 3 — canonical evidence materials sealed at
@@ -4611,6 +4662,8 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           canonicalMaterials: packageCanonicalMaterials,
           intelligence: verificationPackageIntelligence,
           provenanceChain: verificationPackageProvenanceChain,
+          // UC-OUT-001 — README step 2c / 6 say whether Public Verify can be used.
+          publicVerification: { publishedAtIssuance: prepared.publicVerifyPublishedAtIssuance },
           evidenceFiles: prepared.verificationEvidenceFiles,
           reportPdf: finalized.finalizedReportPdf,
           reportFileName: `proovra-verification-report-v${prepared.version}.pdf`,

@@ -190,21 +190,6 @@ export function getVerificationStatusLabel(status: string | null | undefined): s
   }
 }
 
-export function getCaptureMethodLabel(value: string | null | undefined): string {
-  switch (String(value ?? "").trim().toUpperCase()) {
-    case "SECURE_CAMERA":
-      return "Captured with PROOVRA secure camera";
-    case "UPLOADED_FILE":
-      return "Uploaded existing file";
-    case "IMPORTED_DOCUMENT":
-      return "Imported document";
-    case "MULTIPART_PACKAGE":
-      return "Multipart package";
-    default:
-      return "Capture method not recorded";
-  }
-}
-
 export function getIdentityLevelLabel(value: string | null | undefined): string {
   switch (String(value ?? "").trim().toUpperCase()) {
     case "BASIC_ACCOUNT":

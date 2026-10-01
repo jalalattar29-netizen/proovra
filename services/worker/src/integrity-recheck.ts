@@ -34,6 +34,8 @@ import type { Readable } from "node:stream";
 
 import * as prismaPkg from "@prisma/client";
 import {
+  compositeSha256,
+  sha256HexFromStream,
   INTEGRITY_RECHECK_CLAIM_LEASE_MS,
   claimIntegrityRecheck,
   integrityRecheckDueWhere,
@@ -42,7 +44,14 @@ import {
   runGovernanceReconciliation,
   type IntegrityCheckedObject,
 } from "@proovra/shared-runtime";
-import type { IntegrityCheckFailureCode, IntegrityCheckOutcome, IntegrityCheckTrigger } from "@proovra/shared";
+import {
+  digestColumnsMatchSignedFingerprint,
+  signedDigestsFromFingerprint,
+  signedRecordDigest,
+  type IntegrityCheckFailureCode,
+  type IntegrityCheckOutcome,
+  type IntegrityCheckTrigger,
+} from "@proovra/shared";
 
 import { prisma } from "./db.js";
 import { rejectEvidenceIntegrity, type IntegrityRejectionSource } from "./integrity-rejection.service.js";
@@ -80,17 +89,51 @@ const workerReader: IntegrityObjectReader = {
   stream: async (o) => (await getObjectStream(o)) as unknown as Readable,
 };
 
-async function sha256HexFromStream(stream: Readable): Promise<string> {
-  const hash = createHash("sha256");
-  for await (const chunk of stream) {
-    hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return hash.digest("hex");
-}
+// UC-ARCH-006 — the ONE digest rules live in @proovra/shared-runtime
+// (integrity/digest.ts); re-exported for callers and tests of this module.
+export { compositeSha256 };
 
-/** The multipart digest rule the completion and report paths use. */
-export function compositeSha256(partHashes: readonly string[]): string {
-  return createHash("sha256").update(partHashes.join("|")).digest("hex");
+const sha256Text = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+/**
+ * UC-TRUST-001 — THE EXPECTED DIGEST OF EVERY BYTE CHECK.
+ *
+ * The unsigned `fileSha256` / `evidence_parts.sha256` columns are mutable; the
+ * fingerprint is what the Ed25519 signature covers. The expected digest is
+ * therefore read from the SIGNED fingerprint (single `file.sha256`, or the
+ * composite of `file.parts[].sha256` in partIndex order), and a column that
+ * disagrees with it is reported (`columnsAgree: false`) so the caller treats
+ * it as an integrity failure. A legacy record without a readable fingerprint
+ * falls back to the column and says so (`signed: false`).
+ */
+export function resolveExpectedOriginalDigest(input: {
+  fingerprintCanonicalJson?: string | null;
+  fileSha256: string | null;
+  parts?: ReadonlyArray<{ partIndex: number; sha256?: string | null }>;
+}): {
+  expectedDigest: string | null;
+  signed: boolean;
+  columnsAgree: boolean | null;
+  signedPartDigests: ReadonlyMap<number, string> | null;
+} {
+  const signed = signedDigestsFromFingerprint(input.fingerprintCanonicalJson ?? null);
+  if (!signed) {
+    return { expectedDigest: input.fileSha256 ?? null, signed: false, columnsAgree: null, signedPartDigests: null };
+  }
+  const columnsAgree = digestColumnsMatchSignedFingerprint(
+    {
+      fingerprintCanonicalJson: input.fingerprintCanonicalJson ?? null,
+      fileSha256: input.fileSha256,
+      parts: input.parts?.map((p) => ({ partIndex: p.partIndex, sha256: p.sha256 ?? null })),
+    },
+    sha256Text,
+  );
+  return {
+    expectedDigest: signedRecordDigest(signed, sha256Text),
+    signed: true,
+    columnsAgree,
+    signedPartDigests: signed.kind === "multipart" ? new Map(signed.parts.map((p) => [p.partIndex, p.sha256])) : null,
+  };
 }
 
 /** The store answered "not found" for this exact object version. */
@@ -108,6 +151,8 @@ function isNotFound(err: unknown): boolean {
 }
 
 export type IntegrityObservation = {
+  /** UC-TRUST-001 — the digest the check compared against (the SIGNED one when readable). */
+  expectedDigest?: string | null;
   outcome: IntegrityCheckOutcome;
   failureCode: IntegrityCheckFailureCode | null;
   /** The digest computed over the stored bytes; null when they could not all be read. */
@@ -119,12 +164,16 @@ export type IntegrityObservation = {
 type OriginalLocation = {
   id: string;
   fileSha256: string | null;
+  /** The signed fingerprint; the expected digest is read from it (UC-TRUST-001). */
+  fingerprintCanonicalJson?: string | null;
   storageBucket: string | null;
   storageKey: string | null;
   storageVersionId: string | null;
 };
 type PartLocation = {
   partIndex: number;
+  /** The unsigned per-part digest column, compared with the fingerprint. */
+  sha256?: string | null;
   storageBucket: string;
   storageKey: string;
   storageVersionId: string | null;
@@ -153,9 +202,15 @@ export async function observeOriginalDigest(
         : [];
   const single = parts.length === 0;
   const storageVersionId = single ? (evidence.storageVersionId ?? null) : null;
+  const expected = resolveExpectedOriginalDigest({
+    fingerprintCanonicalJson: evidence.fingerprintCanonicalJson ?? null,
+    fileSha256: evidence.fileSha256,
+    parts,
+  });
+  const expectedDigest = expected.expectedDigest;
 
-  if (objects.length === 0 || !evidence.fileSha256) {
-    return { outcome: "UNAVAILABLE", failureCode: "NOT_CHECKABLE", checkedDigest: null, storageVersionId, checkedObjects: [] };
+  if (objects.length === 0 || !expectedDigest) {
+    return { expectedDigest, outcome: "UNAVAILABLE", failureCode: "NOT_CHECKABLE", checkedDigest: null, storageVersionId, checkedObjects: [] };
   }
 
   const checked: IntegrityCheckedObject[] = [];
@@ -165,7 +220,7 @@ export async function observeOriginalDigest(
       const head = await reader.head(o);
       if (!head.sizeBytes || head.sizeBytes <= 0) {
         checked.push({ partIndex: o.partIndex, versionId: o.versionId, sha256: null });
-        return { outcome: "FAILED", failureCode: "OBJECT_VERSION_MISSING", checkedDigest: null, storageVersionId, checkedObjects: checked };
+        return { expectedDigest, outcome: "FAILED", failureCode: "OBJECT_VERSION_MISSING", checkedDigest: null, storageVersionId, checkedObjects: checked };
       }
       const sha = await sha256HexFromStream(await reader.stream(o));
       hashes.push(sha);
@@ -173,15 +228,26 @@ export async function observeOriginalDigest(
     } catch (err) {
       checked.push({ partIndex: o.partIndex, versionId: o.versionId, sha256: null });
       return isNotFound(err)
-        ? { outcome: "FAILED", failureCode: "OBJECT_VERSION_MISSING", checkedDigest: null, storageVersionId, checkedObjects: checked }
-        : { outcome: "UNAVAILABLE", failureCode: "STORAGE_UNAVAILABLE", checkedDigest: null, storageVersionId, checkedObjects: checked };
+        ? { expectedDigest, outcome: "FAILED", failureCode: "OBJECT_VERSION_MISSING", checkedDigest: null, storageVersionId, checkedObjects: checked }
+        : { expectedDigest, outcome: "UNAVAILABLE", failureCode: "STORAGE_UNAVAILABLE", checkedDigest: null, storageVersionId, checkedObjects: checked };
     }
   }
 
   const digest = single ? hashes[0]! : hashes.length === 1 ? hashes[0]! : compositeSha256(hashes);
   const legacySinglePartComposite = !single && hashes.length === 1 ? compositeSha256(hashes) : null;
-  const matches = digest === evidence.fileSha256 || legacySinglePartComposite === evidence.fileSha256;
+  // Every part must carry the digest the fingerprint signed for its index, the
+  // record digest must equal the signed one, and the unsigned columns must
+  // agree with the fingerprint (UC-TRUST-001): a consistent rewrite of bytes
+  // AND columns is a mismatch, not a pass.
+  const partsMatchSigned =
+    expected.signedPartDigests === null ||
+    checked.every((c) => c.partIndex === null || expected.signedPartDigests!.get(c.partIndex) === c.sha256);
+  const matches =
+    (digest === expectedDigest || legacySinglePartComposite === expectedDigest) &&
+    partsMatchSigned &&
+    expected.columnsAgree !== false;
   return {
+    expectedDigest,
     outcome: matches ? "VERIFIED" : "FAILED",
     failureCode: matches ? null : "DIGEST_MISMATCH",
     checkedDigest: digest,
@@ -215,6 +281,7 @@ export async function recordIntegrityObservation(input: {
   now?: Date;
 }): Promise<{ checkId: string; rejected: boolean }> {
   const { observation } = input;
+  const expectedDigest = observation.expectedDigest ?? input.expectedDigest;
   const recorded = await prisma.$transaction((tx) =>
     recordIntegrityCheckTx(tx, {
       evidenceId: input.evidenceId,
@@ -224,7 +291,7 @@ export async function recordIntegrityObservation(input: {
       trigger: input.trigger,
       storageVersionId: observation.storageVersionId,
       checkedObjects: observation.checkedObjects,
-      expectedDigest: input.expectedDigest,
+      expectedDigest,
       checkedDigest: observation.checkedDigest,
       correlationId: input.correlationId ?? null,
       checkedAtUtc: input.now,
@@ -235,7 +302,7 @@ export async function recordIntegrityObservation(input: {
   if (observation.outcome === "FAILED" && observation.failureCode === "DIGEST_MISMATCH" && observation.checkedDigest) {
     const result = await rejectEvidenceIntegrity({
       evidenceId: input.evidenceId,
-      expectedSha256: input.expectedDigest,
+      expectedSha256: expectedDigest,
       computedSha256: observation.checkedDigest,
       source: input.rejectionSource ?? "worker.reconciler",
       jobId: input.correlationId ?? null,
@@ -292,6 +359,7 @@ export async function recheckEvidenceIntegrity(input: {
       id: true,
       teamId: true,
       fileSha256: true,
+      fingerprintCanonicalJson: true,
       storageBucket: true,
       storageKey: true,
       storageVersionId: true,
@@ -301,7 +369,7 @@ export async function recheckEvidenceIntegrity(input: {
   const parts = await prisma.evidencePart.findMany({
     where: { evidenceId: evidence.id },
     orderBy: { partIndex: "asc" },
-    select: { partIndex: true, storageBucket: true, storageKey: true, storageVersionId: true },
+    select: { partIndex: true, sha256: true, storageBucket: true, storageKey: true, storageVersionId: true },
   });
 
   const observation = await observeOriginalDigest(evidence, parts, input.reader);

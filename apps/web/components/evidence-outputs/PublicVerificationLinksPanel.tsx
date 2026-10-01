@@ -276,10 +276,22 @@ export function PublicVerificationLinksPanel({
   };
 
   const row = (link: VerificationLink) => (
-    <li key={link.id} className="evidence-detail-link-row" data-verification-link={link.id} data-verification-link-state={link.state}>
+    <li
+      key={link.id}
+      className="evidence-detail-link-row"
+      data-verification-link={link.id}
+      data-verification-link-state={link.state}
+      // UC-OUT-001 — an ACTIVE link on an unpublished record does not answer
+      // (Public Verify says "not found"); it is never labelled "Active".
+      data-verification-link-usable={link.state === "ACTIVE" && published ? "true" : "false"}
+    >
       <div className="evidence-detail-link-row__main">
         <strong>{purposeLabel(link)}</strong>
-        <AppStatusBadge tone={STATE_TONE[link.state]}>{STATE_LABEL[link.state]}</AppStatusBadge>
+        {link.state === "ACTIVE" && !published ? (
+          <AppStatusBadge tone="slate">Inactive — record not published</AppStatusBadge>
+        ) : (
+          <AppStatusBadge tone={STATE_TONE[link.state]}>{STATE_LABEL[link.state]}</AppStatusBadge>
+        )}
         {link.projection === "BASIC" ? <AppStatusBadge tone="slate">Integrity result only</AppStatusBadge> : null}
       </div>
       <p className="app-field__help">
@@ -352,7 +364,7 @@ export function PublicVerificationLinksPanel({
           <p className="app-field__help" data-verification-links-state={published ? "published" : "private"}>
             {published
               ? "This record is published. Only someone holding one of the links below can open its public verification page — the record's id alone opens nothing."
-              : "This record is private. It has no public verification page until you create a link, which publishes it."}
+              : "This record is private. It has no public verification page until you create a link, which publishes it. Links printed in reports or packages do not open while the record is private."}
           </p>
 
           {created ? (

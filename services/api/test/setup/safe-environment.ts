@@ -98,6 +98,11 @@ const HARNESS_OWNED = new Set([
   "P7_SCENARIO",
   "P7_PROCESS",
   "P7_TEST_REDIS_URL",
+  // A port number for the loopback object store (it matches the "S3_"
+  // credential fragment by name only). The preload already keeps it; without
+  // it here this setup file scrubbed it and re-pointed S3_ENDPOINT at the
+  // default port, silently ignoring the selected disposable MinIO.
+  "P7_HOST_S3_PORT",
   "E2E_AUTH_BYPASS_SECRET",
   "IDENTITY_SECURITY_HASH_SECRET",
   "COMMUNICATIONS_RECIPIENT_HASH_SECRET",

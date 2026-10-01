@@ -56,8 +56,23 @@ const SIZE_CAPPED_KINDS = new Set([
 export async function buildVerificationPackageIntelligence(input: {
   teamId: string | null | undefined;
   evidenceId: string;
+  /** The record's owner — resolves a legacy NULL-team record's personal workspace. */
+  ownerUserId?: string | null;
 }): Promise<IntelligencePackageInput | null> {
-  if (!input.teamId) return null;
+  // UC-DER-010 (package half) — a legacy Personal record stored with team_id
+  // NULL belongs to its owner's personal workspace (the rule the report and
+  // package writers use); it is not silently skipped.
+  let workspaceId: string | null = input.teamId ?? null;
+  if (!workspaceId) {
+    const { resolveEvidenceWorkspaceId } = await import("@proovra/shared-runtime");
+    const owner =
+      input.ownerUserId ??
+      (await prisma.evidence.findUnique({ where: { id: input.evidenceId }, select: { ownerUserId: true } }))?.ownerUserId ??
+      null;
+    workspaceId = await resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: owner }, prisma).catch(() => null);
+  }
+  if (!workspaceId) return null;
+  const teamId = workspaceId;
   try {
     // 1. Media signals (re-uses the report projection's signal pull;
     //    the package shape needs fewer fields than the report).
@@ -65,7 +80,7 @@ export async function buildVerificationPackageIntelligence(input: {
       "@proovra/shared-runtime/media-intelligence"
     );
     const reportProjection = await projectMediaIntelligenceForReport(
-      { teamId: input.teamId, evidenceId: input.evidenceId },
+      { teamId, evidenceId: input.evidenceId },
       prisma,
     );
 
@@ -76,7 +91,7 @@ export async function buildVerificationPackageIntelligence(input: {
       "@proovra/shared-runtime/media-intelligence"
     );
     const derivedRows = await listDerivedAssetsForEvidence(
-      input.teamId,
+      teamId,
       input.evidenceId,
     );
 
@@ -100,6 +115,9 @@ export async function buildVerificationPackageIntelligence(input: {
         sizeBytes: a.sizeBytes!,
         contentType: a.contentType!,
         createdAtUtc: a.createdAtUtc,
+        // UC-DER-007 — keyframes are told apart by variant and offset.
+        variantKey: a.variantKey ?? null,
+        sourceOffsetMs: a.sourceOffsetMs ?? null,
       }));
 
     const mediaSignals = (reportProjection?.signals ?? []).map((s) => ({
@@ -120,8 +138,12 @@ export async function buildVerificationPackageIntelligence(input: {
         "@proovra/shared-runtime/media-intelligence"
       );
       const { UC4_RESOURCE_BOUNDS } = await import("@proovra/shared");
+      // UC-DER-015 — the digest is computed from the EXACT bytes read here,
+      // never taken from a row listed earlier (a regeneration in between
+      // would pair one descriptor's digest with another's content).
+      let descriptorBytes: Buffer | null = null;
       const read = await readScreenReconstructionDescriptor(
-        input.teamId,
+        teamId,
         input.evidenceId,
         {
           prisma,
@@ -141,19 +163,18 @@ export async function buildVerificationPackageIntelligence(input: {
               }
               chunks.push(buf);
             }
-            return Buffer.concat(chunks);
+            descriptorBytes = Buffer.concat(chunks);
+            return descriptorBytes;
           },
         },
       );
       if (read) {
         const d = read.descriptor;
-        // Find the descriptor derivative row for its digest + size.
-        const descRow = derivedRows.find(
-          (a) => a.assetKind === "screen_reconstruction" && a.status === "COMPLETED",
-        );
+        const bytes = descriptorBytes as Buffer | null;
+        const { createHash } = await import("node:crypto");
         reconstruction = {
-          descriptorSha256: descRow?.derivedSha256 ?? "",
-          descriptorSizeBytes: descRow?.sizeBytes ?? 0,
+          descriptorSha256: bytes ? createHash("sha256").update(bytes).digest("hex") : "",
+          descriptorSizeBytes: bytes ? bytes.byteLength : 0,
           coverage: d.coverage,
           ocrEnabled: d.ocrEnabled,
           acquisitionComplete: d.acquisitionComplete,

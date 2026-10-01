@@ -192,8 +192,10 @@ async function createEvidenceTimestampInner(params: {
   digestHex: string;
 }): Promise<TimestampResult | null> {
   const tsaUrl = must("TSA_URL");
-  const tsaUsername = must("TSA_USERNAME");
-  const tsaPassword = must("TSA_PASSWORD");
+  // UC-TRUST-006 — credentials are OPTIONAL (many authorities are
+  // unauthenticated); requiring them threw and blocked completion.
+  const tsaUsername = optional("TSA_USERNAME");
+  const tsaPassword = optional("TSA_PASSWORD");
   const provider = optional("TSA_PROVIDER") ?? "UNSPECIFIED_TSA";
   const hashAlgorithm = optional("TSA_HASH_ALGORITHM") ?? "sha256";
 
@@ -241,14 +243,20 @@ async function createEvidenceTimestampInner(params: {
         ["ts", "-query", "-digest", digestHex, `-${hashAlgorithm}`, "-cert", "-out", requestFile],
         { timeout: timeoutMs() },
       );
-      await writeCurlCredentialConfig(curlConfig, tsaUsername, tsaPassword);
+      let credentialArgs: string[] = [];
+      if (tsaUsername && tsaPassword) {
+        await writeCurlCredentialConfig(curlConfig, tsaUsername, tsaPassword);
+        credentialArgs = [
+          "-K",
+          curlConfig,
+        ];
+      }
       await execFileAsync(
         "curl",
         [
           "-sS",
           "--fail",
-          "-K",
-          curlConfig,
+          ...credentialArgs,
           "-H",
           "Content-Type: application/timestamp-query",
           "--data-binary",
