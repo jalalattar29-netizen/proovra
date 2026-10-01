@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9412,
+      "METHOD_ON_VALUE": 9413,
       "UNRESOLVED_IDENTIFIER": 1270
     },
     "MutationFixpointRounds": 9,
@@ -30848,8 +30848,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@1349",
-      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:1349",
+      "writerId": "services/api/src/services/billing-enforcement.service.ts#entitlementUsage.upsert@1357",
+      "terminalLocation": "services/api/src/services/billing-enforcement.service.ts:1357",
       "file": "services/api/src/services/billing-enforcement.service.ts",
       "enclosingDeclaration": "recordWorkspaceAiOperation",
       "kind": "DATABASE",
