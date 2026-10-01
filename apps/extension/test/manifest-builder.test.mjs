@@ -81,10 +81,12 @@ for (const code of [
   });
 }
 
-test("a missing DOM snapshot makes the capture PARTIAL and is disclosed in the notes", () => {
+test("a missing DOM snapshot makes the capture PARTIAL and is disclosed in the notes and as DOM_SNAPSHOT_MISSING", () => {
   const { manifest } = buildWebCaptureManifest(input({ domSnapshotMissing: true }));
   assert.equal(manifest.completeness, "PARTIAL");
   assert.ok(manifest.notes.some((n) => /DOM snapshot not produced/.test(n)));
+  // UC-EXT-004 — the machine-readable limitation code, not only prose.
+  assert.ok(manifest.limitations.includes("DOM_SNAPSHOT_MISSING"));
 });
 
 test("a mutated page always carries PAGE_MUTATED_DURING_CAPTURE", () => {

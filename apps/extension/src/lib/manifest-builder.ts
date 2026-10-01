@@ -107,10 +107,17 @@ export function buildWebCaptureManifest(input: BuildManifestInput): {
     pageMutatedDuringCapture: input.pageMutatedDuringCapture,
     // A mutated page always carries its limitation code, so the two facts
     // cannot disagree in the record.
-    limitations:
-      input.pageMutatedDuringCapture && !input.limitations.includes("PAGE_MUTATED_DURING_CAPTURE")
-        ? [...input.limitations, "PAGE_MUTATED_DURING_CAPTURE"]
-        : [...input.limitations],
+    // A mutated page and a missing DOM snapshot always carry their limitation codes
+    // (UC-EXT-004), so the facts and the codes cannot disagree in the record.
+    limitations: [
+      ...input.limitations,
+      ...(input.pageMutatedDuringCapture && !input.limitations.includes("PAGE_MUTATED_DURING_CAPTURE")
+        ? (["PAGE_MUTATED_DURING_CAPTURE"] as const)
+        : []),
+      ...(input.domSnapshotMissing && !input.limitations.includes("DOM_SNAPSHOT_MISSING")
+        ? (["DOM_SNAPSHOT_MISSING"] as const)
+        : []),
+    ],
     notes: [
       ...(input.domSnapshotMissing && !input.notes.includes(DOM_SNAPSHOT_MISSING_NOTE)
         ? [DOM_SNAPSHOT_MISSING_NOTE]
