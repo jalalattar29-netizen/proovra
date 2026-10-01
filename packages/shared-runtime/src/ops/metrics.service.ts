@@ -699,6 +699,19 @@ export const COUNTER_NAMES = [
   // O1.2 block above used to re-list it; that duplicate has been
   // removed so the snapshot key-count matches COUNTER_NAMES.length.
   "package_generation_failed_total",
+  // UC-LCH-002 — capture failures by acquisition channel (bumped through
+  // bumpCaptureFailure in ./capture-failure-metrics.ts), the two manifest
+  // validators and the extension OAuth refusals; the capture alert rules read them.
+  "capture_failed_proovra_web_upload_total",
+  "capture_failed_secure_intake_link_total",
+  "capture_failed_proovra_mobile_app_total",
+  "capture_failed_direct_web_capture_extension_total",
+  "capture_failed_direct_screen_capture_android_total",
+  "capture_failed_direct_screen_capture_android_continuous_total",
+  "capture_failed_direct_screen_capture_ios_total",
+  "capture_continuous_manifest_invalid_total",
+  "capture_screen_manifest_invalid_total",
+  "extension_oauth_failed_total",
   "package_generation_skipped_personal_workspace_total",
   "artifact_status_polled_total",
   "governance_schema_unavailable_total",

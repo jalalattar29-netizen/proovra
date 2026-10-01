@@ -60,6 +60,7 @@ import * as prismaPkg from "@prisma/client";
 
 import { getAuthUserId } from "../auth.js";
 import { prisma } from "../db.js";
+import { bumpCaptureFailure, isCaptureFailure } from "@proovra/shared-runtime";
 import { requireAuth } from "../middleware/auth.js";
 import { authorizeOrFail, evaluateCurrentWorkspace } from "../middleware/authorize.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -557,6 +558,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         const done = await completeGenericDirectCapture({ sessionId: id, ownerUserId: userId });
         return reply.code(200).send({ result: done });
       } catch (err) {
+        await recordCaptureSealFailure(id, err);
         return sendDirectCaptureError(reply, err);
       }
     },
@@ -616,6 +618,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         });
         return reply.code(200).send({ result: done });
       } catch (err) {
+        await recordCaptureSealFailure(id, err);
         return sendDirectCaptureError(reply, err);
       }
     },
@@ -647,6 +650,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         });
         return reply.code(200).send({ result: done });
       } catch (err) {
+        await recordCaptureSealFailure(id, err);
         return sendDirectCaptureError(reply, err);
       }
     },
@@ -679,6 +683,7 @@ export async function captureTrustRoutes(app: FastifyInstance) {
         });
         return reply.code(200).send({ result: done });
       } catch (err) {
+        await recordCaptureSealFailure(id, err);
         return sendDirectCaptureError(reply, err);
       }
     },
@@ -797,6 +802,27 @@ async function authorizeOwnedSession(
     return false;
   }
   return (await authorizeDirectCapture(req, reply, teamId, userId)) !== null;
+}
+
+/**
+ * UC-LCH-002 — count a FAILED seal against its acquisition channel. Only integrity and
+ * server failures count (isCaptureFailure); a caller-fixable refusal or a busy session does
+ * not. Never throws: a metrics read must not change the answer the caller gets.
+ */
+async function recordCaptureSealFailure(sessionId: string, err: unknown): Promise<void> {
+  try {
+    const e = err as { statusCode?: unknown; code?: unknown };
+    const statusCode = typeof e.statusCode === "number" ? e.statusCode : 500;
+    const code = typeof e.code === "string" ? e.code : null;
+    if (!isCaptureFailure({ statusCode, code })) return;
+    const session = await prisma.captureSession.findUnique({
+      where: { id: sessionId },
+      select: { acquisitionMode: true },
+    });
+    bumpCaptureFailure(session?.acquisitionMode ?? null, code);
+  } catch {
+    /* metrics are best-effort */
+  }
 }
 
 function sendDirectCaptureError(reply: FastifyReply, err: unknown): FastifyReply {

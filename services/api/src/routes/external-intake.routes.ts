@@ -21,6 +21,7 @@
  *     timing/oracle attacks gain nothing.
  */
 
+import { bumpCaptureFailure } from "@proovra/shared-runtime";
 import type {
   FastifyInstance,
   FastifyReply,
@@ -1455,6 +1456,8 @@ export async function externalIntakeRoutes(app: FastifyInstance) {
         //     pattern via the security dashboard
         // The raw error message NEVER reaches the contributor — only
         // the requestId, which is meaningless without the server logs.
+        // UC-LCH-002 — a genuine intake submission failure (bounded denials returned above).
+        bumpCaptureFailure("SECURE_INTAKE_LINK");
         const requestId = req.id ?? null;
         const errorMessage =
           err instanceof Error ? err.message : String(err);

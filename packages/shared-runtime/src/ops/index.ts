@@ -11,3 +11,5 @@ export * from "./condition-metric.js";
 // thirty-day retry budget, and the separate Operations aging policy that
 // decides when a still-pending proof becomes a condition an operator sees.
 export * from "./ots-aging.js";
+// UC-LCH-002 — the capture-failure metric authority (per-channel counters).
+export * from "./capture-failure-metrics.js";

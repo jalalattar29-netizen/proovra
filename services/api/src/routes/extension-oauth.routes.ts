@@ -16,6 +16,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { bump } from "@proovra/shared-runtime";
 
 import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
@@ -236,6 +237,8 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
         return reply.code(302).redirect(url.toString());
       } catch (err) {
         if (err instanceof ExtensionOAuthError) {
+          // UC-LCH-002 — an authorize/token refusal (the signed-out sign-in redirect is not one).
+          bump("extension_oauth_failed_total");
           return reply.code(err.httpStatus).send({ error: err.code });
         }
         throw err;
@@ -346,6 +349,8 @@ export async function extensionOAuthRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         if (err instanceof ExtensionOAuthError) {
+          // UC-LCH-002 — an authorize/token refusal (the signed-out sign-in redirect is not one).
+          bump("extension_oauth_failed_total");
           return reply.code(err.httpStatus).send({ error: err.code });
         }
         throw err;

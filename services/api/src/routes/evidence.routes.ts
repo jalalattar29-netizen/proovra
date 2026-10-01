@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { bumpCaptureFailure } from "@proovra/shared-runtime";
 
 import {
   lockEvidenceForByteWrite,
@@ -10880,6 +10881,13 @@ if (
             reason: err instanceof Error ? err.message : "unknown_error",
           },
         });
+
+        // UC-LCH-002 — an unexpected completion failure counts against the record's channel
+        // (web upload or mobile app). Best-effort: metrics never change the answer.
+        await prisma.evidence
+          .findUnique({ where: { id }, select: { acquisitionMode: true } })
+          .then((row) => bumpCaptureFailure(row?.acquisitionMode ?? null))
+          .catch(() => undefined);
 
         throw err;
       }
