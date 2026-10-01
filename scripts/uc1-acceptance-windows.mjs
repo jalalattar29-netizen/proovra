@@ -73,6 +73,13 @@ const PG_DB = "uc1_acceptance_test";
 const MINIO_USER = "uc1miniolocal";
 const MINIO_PASSWORD = "uc1miniolocalsecret";
 const MINIO_BUCKET = "uc1-acceptance";
+// MinIO Inc. withdrew its public images: docker.io/minio/* no longer exists, so
+// an unpinned `minio/minio` only ran where it was already cached (the first CI
+// run of this harness failed at the pull). Same pinned community rebuild ci.yml
+// uses (original Dockerfile, same `server /data` entrypoint); the digest makes
+// the pin immutable.
+const MINIO_IMAGE =
+  "pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372";
 const DEFAULT_DB_URL = `postgresql://${PG_USER}:${PG_PASSWORD}@127.0.0.1:${PG_HOST_PORT}/${PG_DB}`;
 const DEFAULT_REDIS_URL = `redis://127.0.0.1:${REDIS_HOST_PORT}/0`;
 const DEFAULT_S3_ENDPOINT = `http://127.0.0.1:${MINIO_HOST_PORT}`;
@@ -232,7 +239,7 @@ function startInfra() {
     "-p", `127.0.0.1:${MINIO_HOST_PORT}:9000`,
     "-e", `MINIO_ROOT_USER=${MINIO_USER}`,
     "-e", `MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}`,
-    "minio/minio", "server", "/data",
+    MINIO_IMAGE, "server", "/data",
   ]);
 }
 

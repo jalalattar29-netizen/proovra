@@ -108,10 +108,28 @@ jobs:
           Start-Service -Name $svc.Name
           $env:PGPASSWORD = "root"
           & "$env:PGBIN\psql.exe" -h 127.0.0.1 -U postgres -c "CREATE USER proovra WITH PASSWORD 'uc1_disposable' SUPERUSER;"
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error::psql CREATE USER failed"; exit 1 }
           & "$env:PGBIN\psql.exe" -h 127.0.0.1 -U postgres -c "CREATE DATABASE uc1_acceptance_test OWNER proovra;"
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error::psql CREATE DATABASE failed"; exit 1 }
           choco install memurai-developer -y --no-progress
+          if ($LASTEXITCODE -ne 0) { Write-Output "::error::Memurai install failed"; exit 1 }
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\minio-data" | Out-Null
-          Invoke-WebRequest -Uri "https://dl.min.io/server/minio/release/windows-amd64/minio.exe" -OutFile "$env:RUNNER_TEMP\minio.exe"
+          # MinIO Inc. withdrew its public distribution: dl.min.io's Windows
+          # binary answers 410 Gone (the first run of this job failed here).
+          # The same pinned community rebuild ci.yml runs as a container
+          # (pgsty, RELEASE.2026-08-04T00-00-00Z), as its published Windows
+          # archive, verified against the release's SHA-256 before it runs.
+          $minioTag = "RELEASE.2026-08-04T00-00-00Z"
+          $minioArchive = "minio_20260804000000.0.0_windows_amd64.tar.gz"
+          $minioSha256 = "c2160a4ccbb80ce1d45f69cc35137cb5ba68f638cc2f86ebfb3d0523ce3e0d74"
+          Invoke-WebRequest -Uri "https://github.com/pgsty/silo/releases/download/$minioTag/$minioArchive" -OutFile "$env:RUNNER_TEMP\$minioArchive"
+          $got = (Get-FileHash -Algorithm SHA256 "$env:RUNNER_TEMP\$minioArchive").Hash.ToLowerInvariant()
+          if ($got -ne $minioSha256) { Write-Output "::error::MinIO archive checksum mismatch: $got"; exit 1 }
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\minio-dist" | Out-Null
+          tar -xzf "$env:RUNNER_TEMP\$minioArchive" -C "$env:RUNNER_TEMP\minio-dist"
+          $minioExe = Get-ChildItem -Recurse -Path "$env:RUNNER_TEMP\minio-dist" -Filter "minio.exe" | Select-Object -First 1
+          if (-not $minioExe) { Write-Output "::error::minio.exe not found in $minioArchive"; Get-ChildItem -Recurse "$env:RUNNER_TEMP\minio-dist" | Out-String | Write-Output; exit 1 }
+          Copy-Item $minioExe.FullName "$env:RUNNER_TEMP\minio.exe"
           $env:MINIO_ROOT_USER = "uc1miniolocal"
           $env:MINIO_ROOT_PASSWORD = "uc1miniolocalsecret"
           Start-Process -FilePath "$env:RUNNER_TEMP\minio.exe" -ArgumentList "server","$env:RUNNER_TEMP\minio-data","--address","127.0.0.1:56423" -RedirectStandardOutput "$env:RUNNER_TEMP\minio.log" -NoNewWindow
