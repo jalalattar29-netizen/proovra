@@ -1,0 +1,143 @@
+{
+  "lane": "G",
+  "findings": {
+    "G-DEAD-WRITER-001": {
+      "severity": "product",
+      "status": "REPORTED_NOT_FIXED",
+      "summary": "applyRetentionPolicyOnCreate (services/api/src/services/governance.service.ts:1210, writer evidence.update@1224) has had no production caller since 718a4d15 moved workspace retention into createEvidence. It is a real DEAD_UNREACHABLE writer, so MutationClosurePass=false and --closure-check reports ReleaseBlockingClosure=FAIL (UNWIRED EXECUTABLE WRITERS: 1).",
+      "remedy": "Delete the function (product source; outside lane G) and re-point services/api/test/phase-t-downstream-traceability.test.ts Part D at createEvidence."
+    },
+    "G-RETENTION-PROVENANCE-002": {
+      "severity": "product (possible regression)",
+      "status": "REPORTED_NOT_FIXED",
+      "summary": "The live RETENTION_POLICY_APPLIED event written by createEvidence (services/api/src/services/evidence.service.ts ~656-668) hard-codes templateSlug/templateVersion/templateDbId null; the dead applyRetentionPolicyOnCreate threaded the template trio. phase-t-downstream-traceability Part D still passes only because it calls the dead function, so it no longer proves the live path."
+    }
+  },
+  "instrumentResolutions": [
+    {
+      "item": "DynamicUnresolvedRouteRegistrations=1 (integrations-uploads.routes.ts:44, nine UC-ARCH-004 routes registered from a literal table)",
+      "resolution": "Instrument: routes.mjs reads an object-form app.route({method: row.method, url: row.url}) inside for-of over a literal table, one route per row; an unreadable table stays unresolved as a whole. Adversarial case 31b added.",
+      "file": "services/api/scripts/capability-authority/routes.mjs; services/api/test/phase-12-capability-analyzer-adversarial.test.ts"
+    },
+    {
+      "item": "9 retired API-key upload routes (now PUBLIC_UNGUARDED, no consumer)",
+      "resolution": "COMPATIBILITY_TOMBSTONE dispositions with evidence (410 INTEGRATION_UPLOADS_RETIRED, pinned by phase-30-6-integrations-uploads.test.ts); slice-b classification corrected from PUBLIC_EXTERNAL_API to INTENTIONALLY_API_ONLY 410 tombstone",
+      "file": "services/api/scripts/capability-authority/manifests/route-dispositions.json; docs/architecture/route-classification/slice-b.json"
+    },
+    {
+      "item": "UndisposedRoutes=1 POST /v1/oauth/extension/revoke",
+      "resolution": "PRODUCT_CONNECTED — consumed by apps/extension/src/lib/api-client.ts:156 (UC-EXT-009), proven by uc1-extension-oauth-session.integration.test.ts",
+      "file": "services/api/scripts/capability-authority/manifests/route-dispositions.json"
+    },
+    {
+      "item": "ClassificationConflicts=8 (STALE_DYNAMIC_RESOLUTION) + DynamicUnresolvedConsumers=9",
+      "resolution": "Re-anchored after reading each site: intake page :795->:869; useEvidenceArtifactActions :149->:160, :450->:461; capture.tsx :1492->:1497; continuous-capture :123->:175, :320->:487; screen-capture.ts :142->:164. Removed continuous-capture :319 (sealDirectCapture no longer called there). Added continuous-capture :479 (UC-STR-002 retry upload, INTERNAL_API_DYNAMIC_SESSION_PATH) and notification-permission.ts:32 (PermissionsAndroid.request, new documented class PLATFORM_PERMISSION_API — not a network request).",
+      "file": "services/api/scripts/capability-authority/manifests/dynamic-resolutions.json"
+    },
+    {
+      "item": "UnreviewedOriginConsumers=1 scripts/uc1-acceptance-windows.mjs:258",
+      "resolution": "Re-anchored from :246; verdict corrected OURS->EXTERNAL (MinIO health endpoint, not this API)",
+      "file": "services/api/scripts/capability-authority/manifests/origin-resolutions.json"
+    },
+    {
+      "item": "6 derived-generation writers falsely DEAD_UNREACHABLE (worker now calls mi.runAndPersistScreenIntelligence after mi = await import(...))",
+      "resolution": "Instrument: call-graph records dynamic-import namespace bindings; mutation-closure directFacts follows ns.fn() through resolveDynamicNamespaceCall. Tenancy walk deliberately unchanged (a global change surfaced 19 tenant / 50 mutation false findings, so it was scoped). Adversarial case 23 added.",
+      "file": "services/api/scripts/capability-authority/call-graph.mjs; services/api/scripts/capability-authority/mutation-closure.mjs; services/api/test/phase-13-mutation-closure-adversarial.test.ts"
+    },
+    {
+      "item": "mobile contract coverage stale",
+      "resolution": "Regenerated with apps/mobile/tools/contract-audit.mjs --json: 171 bindings OK, 0 mismatch/unresolved",
+      "file": "apps/mobile/docs/contract-coverage.md; apps/mobile/docs/contract-coverage.json"
+    }
+  ],
+  "scalarChanges": [
+    {
+      "scalar": "RegisteredRoutes",
+      "from": 1176,
+      "to": 1177,
+      "why": "new POST /v1/oauth/extension/revoke"
+    },
+    {
+      "scalar": "ProductionRegisteredRoutes",
+      "from": 1175,
+      "to": 1176,
+      "why": "same"
+    },
+    {
+      "scalar": "NonProductDispositionedRoutes",
+      "from": 200,
+      "to": 201,
+      "why": "revoke is PRODUCT_CONNECTED by disposition (extension consumer not scanned)"
+    },
+    {
+      "scalar": "TerminalWriters",
+      "from": 1323,
+      "to": 1324,
+      "why": "route +9/-8 (one finalizer, seal claims, signing-key registry, extension revoke, entitlement dedupe), startup -1 (seed signing key), +1 dead retention writer"
+    },
+    {
+      "scalar": "ROUTE_ATTRIBUTED_REACHABLE",
+      "from": 1182,
+      "to": 1183,
+      "why": "same"
+    },
+    {
+      "scalar": "STARTUP_OR_SCHEDULED",
+      "from": 11,
+      "to": 10,
+      "why": "seed-signing-key upsert replaced by route-attributed registerSigningKey"
+    },
+    {
+      "scalar": "DEAD_UNREACHABLE / UnwiredExecutableWriters / DeadUnreachableWritersPending",
+      "from": 0,
+      "to": 1,
+      "why": "applyRetentionPolicyOnCreate (G-DEAD-WRITER-001)"
+    },
+    {
+      "scalar": "MutationClosurePass",
+      "from": true,
+      "to": false,
+      "why": "same"
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "node services/api/scripts/audit/index.mjs (initial)",
+      "exit": 1
+    },
+    {
+      "command": "node services/api/scripts/audit/index.mjs (x2 final, identical diff)",
+      "exit": 0
+    },
+    {
+      "command": "node services/api/scripts/audit/index.mjs --engine-check",
+      "exit": 0
+    },
+    {
+      "command": "node services/api/scripts/audit/index.mjs --closure-check",
+      "exit": 1
+    },
+    {
+      "command": "node apps/mobile/tools/contract-audit.mjs --check / --json",
+      "exit": 0
+    },
+    {
+      "command": "cd apps/mobile && node --test (1893 pass)",
+      "exit": 0
+    },
+    {
+      "command": "vitest run phase-0-audit-engine-governance phase-12-capability-analyzer-adversarial phase-12-route-consumer-authority phase-12a-reconciliation-gate (97/98)",
+      "exit": 1
+    },
+    {
+      "command": "timeout 3000 npx vitest run (full API unit: 25620 pass, 1 fail, 1 skipped)",
+      "exit": 1
+    }
+  ],
+  "remainingFailures": [
+    {
+      "test": "services/api/test/phase-0-audit-engine-governance.test.ts > --closure-check exit code follows RELEASE-BLOCKING findings, not the backlog",
+      "cause": "ReleaseBlockingClosure=FAIL from the 1 real dead writer applyRetentionPolicyOnCreate (G-DEAD-WRITER-001); requires a product-source deletion outside lane G. Not weakened."
+    }
+  ]
+}

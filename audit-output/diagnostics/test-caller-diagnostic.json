@@ -4,10 +4,10 @@
   "coverage": "LOWER BOUND, and deliberately so. These are call sites the analyzer RESOLVED through a request primitive (fetch / apiFetch / apiRequest / request / authedFetch). Fastify `app.inject({ url })` is not a request primitive and is not counted, so an API suite that exercises a route through inject does not appear here. The retired scanner's numbers were substring occurrences of the route path anywhere in a test file, which counted comments and prefixes and was not a measurement of anything; these are fewer and mean something. Read `testCallerCount = 0` as \"no resolved request-primitive call site\", never as \"no suite exercises this route\".",
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
-  "analyzerHash": "b2406769ab459f630efefcf7a0bfdf5dcee319a791008ebce99361afe536e314",
-  "capabilityRouteInventoryHash": "7d2264964e7ff63c50b5eed892b56f19aca52267f40d9ed0c1fc9c98610e84db",
+  "analyzerHash": "9c8fdb06bc90c7e69d4ed61019567c34ac63e1916513db6def9557edc89a0bda",
+  "capabilityRouteInventoryHash": "15186f4ee595ad42bfc266df1155fb7e87b1f9741d0e45881a7d33bd79267ff2",
   "totals": {
-    "routes": 1176,
+    "routes": 1177,
     "routesWithAnyTestCaller": 41,
     "testOnlyRoutes": 3,
     "testCallSites": 71,
@@ -5915,6 +5915,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/oauth/extension/revoke",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/oauth/extension/token",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7157,5 +7163,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "a45a6f71941c641d29aefcb2e2e2217afb04c954fd16202989f9f21d8398b2d4"
+  "contentHash": "11694f4110c904a25b79bf4a61c483af964b2180186624da83d6f26eebe7ea8b"
 }

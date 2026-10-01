@@ -45,7 +45,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
-import { resolveCall, resolveModuleExport, ts, REPO } from "./call-graph.mjs";
+import { resolveCall, resolveDynamicNamespaceCall, resolveModuleExport, ts, REPO } from "./call-graph.mjs";
 
 // ===========================================================================
 // PRISMA DELEGATES — derived from the schema, never hand-listed.
@@ -505,6 +505,7 @@ function directFacts(node, file, cg, writers, sf, text) {
   const direct = new Set();
   const callees = new Set();
   const unresolved = [];
+  let dyn = null;
   const visit = (n) => {
     const w = terminalWriterAt(n, text);
     if (w !== null) {
@@ -551,6 +552,10 @@ function directFacts(node, file, cg, writers, sf, text) {
             callees.add(`${r.file}#${r.name}@alt${i}`);
           }
         }
+      } else if (r.reason === "METHOD_ON_VALUE" && (dyn = resolveDynamicNamespaceCall(n, file, cg))) {
+        // `ns.fn()` on a namespace bound by `await import("…")` — the
+        // namespace form of the dynamic-import edge followed above.
+        callees.add(`${dyn.file}#${dyn.name}`);
       } else if (r.name) unresolved.push({ file, name: r.name, reason: r.reason });
     }
     ts.forEachChild(n, visit);

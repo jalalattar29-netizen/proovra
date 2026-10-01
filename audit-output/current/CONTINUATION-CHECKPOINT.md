@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1175
-RegisteredRoutes                            1176
+ProductionRegisteredRoutes                  1176
+RegisteredRoutes                            1177
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,12 +48,12 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1323
+TerminalWriters                             1322
 ROUTE_ATTRIBUTED_REACHABLE                  1182
 JOB_ATTRIBUTED_REACHABLE                     127
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
-STARTUP_OR_SCHEDULED                          11
+STARTUP_OR_SCHEDULED                          10
 MIGRATION_ONLY                                 0
 TEST_OR_BUILD_ONLY                             0
 PRESERVED_PLANNED_WRITER                       0
@@ -71,11 +71,11 @@ LegacyWriters                                  0
 ParallelMutationAuthorities                    0
 OrphanQueueProducers                           0
 UnprocessedQueueFamilies                       0
-MutationClosurePass                         true
+MutationClosurePass                        true
 
 PRODUCT (route disposition, from the generated map)
 ProductConsumedRoutes                        975
-NonProductDispositionedRoutes                200
+NonProductDispositionedRoutes                201
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
 
@@ -708,3 +708,58 @@ node services/api/scripts/audit/index.mjs --closure-check
 - Post-audit discoveries are accounted separately in
   `docs/evidence/audits/definitive-evidence-lifecycle-remediation/post-audit-discoveries.md`
   (8 found, 8 fixed, 0 open); the canonical ledger stays 153/153.
+
+### 2026-10-01 — UNIVERSAL EVIDENCE CAPTURE REMEDIATION, LANE G (routes 1176 -> 1177, writers 1323 -> 1324)
+
+- Instrument: `routes.mjs` now reads an object-form registration driven by a
+  literal table (`for (const route of TABLE) app.route({ method: route.method,
+  url: route.url, … })`), the shape UC-ARCH-004 gave the nine retired API-key
+  upload routes. They had dropped out of the inventory (DynamicUnresolvedRouteRegistrations
+  1) while still answering 410; they are back, classified PUBLIC_UNGUARDED (a
+  data-free 410 with no guard) and dispositioned COMPATIBILITY_TOMBSTONE.
+- New route `POST /v1/oauth/extension/revoke` (UC-EXT-009), dispositioned
+  PRODUCT_CONNECTED (consumer: apps/extension, not scanned by the web+mobile
+  analyzer): RegisteredRoutes 1176 -> 1177, ProductionRegisteredRoutes
+  1175 -> 1176, NonProductDispositionedRoutes 200 -> 201.
+- Instrument: the mutation-reachability pass now follows a dynamic-import
+  NAMESPACE (`mi = await import("…"); mi.fn()`), the form the screen-
+  reconstruction job adopted; six derived-generation writers it had reported
+  DEAD_UNREACHABLE are job-attributed again (JOB_ATTRIBUTED_REACHABLE stays
+  127). The tenancy walk is deliberately unchanged.
+- Writers, net of line moves (route-attributed +9 / -8): added
+  `authenticatedSession.updateMany` (extension revoke), `signingKey.create`
+  (registerSigningKey), `captureSession.updateMany` in evidence.routes and in
+  completeDirectCapture / declareDirectCapturePart / releaseSealClaim,
+  `evidencePart.updateMany` in hashAndSealClaimed, and `captureSession.update` +
+  `captureSessionEvent.create` in completeEvidence (UC-ARCH-003, one finalizer);
+  removed `captureSession.update` in evidence.routes and in
+  completeContinuousCaptureSession, `evidencePart.updateMany` in the continuous,
+  screen and web capture completions, `entitlement.create` in
+  upsertUserWithEmailLink and registerWithEmailPassword (UC-COM-004
+  ensureEntitlement), and the route attribution of applyRetentionPolicyOnCreate.
+  Job-attributed net 0: +1 capture-reaper `captureSession.updateMany`, +1
+  `supersedeDerivedAssets`, +2 produceGeneration deletes, -3 orchestrator-level
+  deletes, -1 derived-assets.processor delete. Startup -1:
+  `signingKey.upsert` in seed-signing-key. TerminalWriters 1323 -> 1324,
+  ROUTE_ATTRIBUTED_REACHABLE 1182 -> 1183, STARTUP_OR_SCHEDULED 11 -> 10.
+- DEAD_UNREACHABLE 0 -> 1, UnwiredExecutableWriters 0 -> 1,
+  DeadUnreachableWritersPending 0 -> 1, MutationClosurePass true -> false: the
+  `evidence.update` in `applyRetentionPolicyOnCreate`
+  (services/api/src/services/governance.service.ts) has had no caller since
+  718a4d15 moved workspace retention into `createEvidence`. It is a real dead
+  writer left by that retirement, not an instrument gap; product source is
+  outside this lane, so it is reported, not preserved or deleted here.
+
+### 2026-10-01 — UNIVERSAL EVIDENCE CAPTURE REMEDIATION, LEAD (writers 1324 -> 1322)
+
+- The dead writer lane G reported is removed: `applyRetentionPolicyOnCreate`
+  (services/api/src/services/governance.service.ts) is deleted — `createEvidence` is the one
+  writer of workspace retention and its RETENTION_POLICY_APPLIED event (UC-ARCH-002).
+  DEAD_UNREACHABLE 1 -> 0, UnwiredExecutableWriters 1 -> 0, DeadUnreachableWritersPending 1 -> 0,
+  MutationClosurePass false -> true.
+- Intake no longer post-updates the template-identity trio: the link's trio is resolved before
+  the record exists and stamped by `createEvidence` in its INSERT, so the retention custody event
+  of an intake record names the template again (a regression of 718a4d15 lane G found; proven by
+  test/retention-template-provenance.integration.test.ts, red on the previous code).
+  ROUTE_ATTRIBUTED_REACHABLE 1183 -> 1182.
+- TerminalWriters 1324 -> 1322 (the two writers above).

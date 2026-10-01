@@ -165,6 +165,7 @@ export function buildCallGraph() {
     const decls = new Map();
     const imports = new Map();
     const namespaces = new Map();
+    const dynamicNamespaces = new Map();
     const reExports = [];
     const exportAliases = new Map();
     const exportRenames = new Map();
@@ -289,6 +290,44 @@ export function buildCallGraph() {
           bindPatternOverRows(decl.name, rowsExpr.elements);
         }
       }
+      // A DYNAMIC NAMESPACE binding: `const mi = await import("…")`, or the
+      // hoisted form `let mi: typeof import("…"); … mi = await import("…")`.
+      //
+      // It is the dynamic twin of `import * as mi from "…"`, and `mi.fn()` is
+      // as followable as the static namespace call. Only the destructuring
+      // form was recognised, so `mi.runAndPersistScreenIntelligence(…)` read as
+      // a method on an arbitrary value and every writer behind it — the derived
+      // generation's object deletes, extracted-text rows and supersede — was
+      // reported DEAD_UNREACHABLE while the screen-reconstruction job called it
+      // on every run. Literal specifiers only; anything else stays unresolved.
+      {
+        let bindName = null;
+        let rhs = null;
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+          bindName = node.name.text;
+          rhs = node.initializer;
+        } else if (
+          ts.isBinaryExpression(node) &&
+          node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+          ts.isIdentifier(node.left)
+        ) {
+          bindName = node.left.text;
+          rhs = node.right;
+        }
+        while (rhs && (ts.isParenthesizedExpression(rhs) || ts.isAsExpression(rhs))) rhs = rhs.expression;
+        if (rhs && ts.isAwaitExpression(rhs)) rhs = rhs.expression;
+        if (
+          bindName !== null &&
+          rhs &&
+          ts.isCallExpression(rhs) &&
+          rhs.expression.kind === ts.SyntaxKind.ImportKeyword &&
+          rhs.arguments?.[0] &&
+          ts.isStringLiteralLike(rhs.arguments[0])
+        ) {
+          const target = resolveSpecifier(rhs.arguments[0].text, file, fileSet);
+          if (target && !dynamicNamespaces.has(bindName)) dynamicNamespaces.set(bindName, target);
+        }
+      }
       if (ts.isFunctionDeclaration(node) && node.name) record(node.name.text, node);
       else if (ts.isClassDeclaration(node) && node.name) record(node.name.text, node);
       else if (
@@ -366,7 +405,7 @@ export function buildCallGraph() {
       for (let i = 1; i < fns.length; i += 1) decls.set(`${name}@alt${i - 1}`, fns[i]);
     }
 
-    graph.set(file, { sf, decls, imports, namespaces, reExports, exportAliases, exportRenames, localFnBindings, localFnAliases });
+    graph.set(file, { sf, decls, imports, namespaces, dynamicNamespaces, reExports, exportAliases, exportRenames, localFnBindings, localFnAliases });
   }
 
   return { graph, fileSet };
@@ -545,6 +584,30 @@ export function resolveCall(call, file, cg, depthGuard = new Set()) {
   }
 
   return { ok: false, reason: "NON_STATIC_CALLEE" };
+}
+
+/**
+ * `ns.fn()` where `ns` was bound by `await import("<literal>")` in this file.
+ *
+ * Kept OUT of `resolveCall` on purpose. The tenancy walk (`traverse`) does not
+ * follow dynamic imports — it has no member context, and widening it changes
+ * the tenant verdict of every route that lazily imports a service. The
+ * mutation-reachability pass DOES follow dynamic imports (the destructuring
+ * form, through `dynamicImportBindings`), and this is the namespace form of
+ * the same edge: `mi.runAndPersistScreenIntelligence(…)` after
+ * `mi = await import("@proovra/shared-runtime/media-intelligence")`.
+ *
+ * @returns {{ok:true,file:string,name:string,node:any}|null}
+ */
+export function resolveDynamicNamespaceCall(call, file, cg) {
+  const entry = cg.graph.get(file);
+  if (!entry || !entry.dynamicNamespaces) return null;
+  const e = call.expression;
+  if (!ts.isPropertyAccessExpression(e) || !ts.isIdentifier(e.expression)) return null;
+  const target = entry.dynamicNamespaces.get(e.expression.text);
+  if (!target) return null;
+  const found = lookupExport(cg, target, e.name.text, new Set());
+  return found ? { ok: true, ...found } : null;
 }
 
 /**

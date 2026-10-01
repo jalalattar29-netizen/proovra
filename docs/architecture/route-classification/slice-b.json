@@ -76,11 +76,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:308",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key machine uploads (first-party uses /v1/uploads/sessions)",
-    "authMode": "requireApiKey + scope('integration.evidence.upload') + legal-hold gate + audit",
-    "evidence": "deliberate machine twin on API-key prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
   },
   {
@@ -88,11 +88,11 @@
     "methods": [
       "GET"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:363",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
   },
   {
@@ -100,11 +100,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:471",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
   },
   {
@@ -112,11 +112,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:437",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
   },
   {
@@ -124,11 +124,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:604",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
   },
   {
@@ -136,11 +136,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:569",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
   },
   {
@@ -148,11 +148,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:509",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
   },
   {
@@ -160,11 +160,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:537",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-8-multipart.test.ts"
   },
   {
@@ -172,11 +172,11 @@
     "methods": [
       "POST"
     ],
-    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:391",
-    "class": "PUBLIC_EXTERNAL_API",
-    "consumer": "external API-key integrations",
-    "authMode": "requireApiKey + scope",
-    "evidence": "API-key-only prefix",
+    "registeringFile": "services/api/src/routes/integrations-uploads.routes.ts:44",
+    "class": "INTENTIONALLY_API_ONLY",
+    "consumer": "none — deliberate 410 tombstone (UC-ARCH-004)",
+    "authMode": "none — unconditional 410 INTEGRATION_UPLOADS_RETIRED; reads and writes nothing",
+    "evidence": "UC-ARCH-004 retirement (718a4d15): the API-key upload channel could never authorize a byte write (credential id passed as owner); registered from RETIRED_INTEGRATION_UPLOAD_ROUTES. Machine ingest uses POST /v1/evidence + parts or a secure intake link.",
     "proofSuite": "services/api/test/phase-30-6-integrations-uploads.test.ts"
   },
   {

@@ -82,7 +82,7 @@ top level of it.
 | OK | `parseEvidenceRequestDetail` | `GET /v1/evidence-requests/:id` | request | assignedReviewerUserId, deliverables, instructions, priority, recipientLabel, recipientM… |
 | OK | `parseRequestDeliveries` | `GET /v1/evidence-requests/:id/deliveries` | deliveries | deliveries, items, map |
 | OK | `parseRequestEvents` | `GET /v1/evidence-requests/:id/events` | events | events, items, map |
-| OK | `parseDerivedReview` | `GET /v1/evidence/:evidenceId/derived-review` | <SPREAD>, evidenceId | evidenceId, keyframeBytesUrls, projection, status |
+| OK | `parseDerivedReview` | `GET /v1/evidence/:evidenceId/derived-review` | <SPREAD>, evidenceId, keyframeBytesUrls, projection, release, status | evidenceId, keyframeBytesUrls, projection, status |
 | OK | `parseMediaIntelligence` | `GET /v1/evidence/:evidenceId/media-intelligence` | catalog, evidenceId, latestRun, signals | catalog, latestRun, signals |
 | OK | `parseEvidenceLifecycle` | `GET /v1/evidence/:id` | evidence | evidence, lifecycle |
 | OK | `parseAiCategorization` | `GET /v1/evidence/:id/ai-categorization` | categorization | categories, categorization, model, riskFlags, status, suggestedTags, summary, updatedAt |
@@ -95,7 +95,7 @@ top level of it.
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
 | OK | `parseReviewerWorkflowEvents` | `GET /v1/evidence/:id/reviewer-workflow/events` | items | items |
 | OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, evidenceId, generatedAtUtc, key, latestAvailablePackageVersion, latestRepo… | url |
-| OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, request, session | link, request, session |
+| OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, parts, request, resumed, session | link, request, session |
 | OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason | lifecycleState, outcome, reason |
 | OK | `parseContactFactors` | `GET /v1/identity-security/contact-factors` | factors | factors |
 | OK | `parseRecoveryDetail` | `GET /v1/identity/mfa-admin/recovery-requests/detail/:requestId` | detail, error | detail, emailResendCount, emailVerified, expiresAt, id, status |

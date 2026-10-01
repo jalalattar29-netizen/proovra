@@ -534,8 +534,14 @@ export function extractRoutes(index, routesDir = ROUTES_DIR) {
         const isObjectForm = method === "route" && obj !== null && /^(app|server|fastify|instance)$/.test(obj);
 
         if (isRouteCall || isObjectForm) {
-          const record = readRegistration(node, method, isObjectForm, ctx, objectConsts);
-          if (record === null) {
+          const single = readRegistration(node, method, isObjectForm, ctx, objectConsts);
+          // An object-form registration inside a loop over a literal table
+          // registers one route per ROW. Each row is read; a table any row of
+          // which is unreadable stays dynamic-unresolved as a whole.
+          const rows =
+            single === null && isObjectForm ? readObjectFormTable(node, ctx, objectConsts, valueConsts) : null;
+          const records = single !== null ? [single] : rows;
+          if (records === null) {
             const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
             dynamicUnresolved.push({
               file,
@@ -544,21 +550,23 @@ export function extractRoutes(index, routesDir = ROUTES_DIR) {
               text: node.getText(sf).slice(0, 120).replace(/\s+/g, " "),
             });
           } else {
-            const guardNames = [
-              ...preHandlerNames(record.options, objectConsts, valueConsts),
-              ...inHandlerGuardNames(record.handler, knownGuards),
-            ];
-            record.guardNames = [...new Set(guardNames)];
-            record.devOnly = insideDevGate(node);
-            record.registeringFile = file;
-            const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
-            record.registrationLine = line + 1;
-            if (record.routeExpansions?.length > 0) {
-              for (const concrete of record.routeExpansions) {
-                routes.push({ ...record, route: concrete, routeExpansions: [] });
+            for (const record of records) {
+              const guardNames = [
+                ...preHandlerNames(record.options, objectConsts, valueConsts),
+                ...inHandlerGuardNames(record.handler, knownGuards),
+              ];
+              record.guardNames = [...new Set(guardNames)];
+              record.devOnly = insideDevGate(node);
+              record.registeringFile = file;
+              const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+              record.registrationLine = line + 1;
+              if (record.routeExpansions?.length > 0) {
+                for (const concrete of record.routeExpansions) {
+                  routes.push({ ...record, route: concrete, routeExpansions: [] });
+                }
+              } else {
+                routes.push(record);
               }
-            } else {
-              routes.push(record);
             }
           }
         }
@@ -569,6 +577,122 @@ export function extractRoutes(index, routesDir = ROUTES_DIR) {
   }
 
   return { routes, dynamicUnresolved, knownGuards };
+}
+
+/**
+ * The object registration form driven by a literal table:
+ *
+ *     const TABLE = [{ method: "POST", url: "/v1/a" }, { method: "GET", url: "/v1/b" }];
+ *     for (const route of TABLE) app.route({ method: route.method, url: route.url, handler })
+ *
+ * That registers one route per row. Reading `route.url` as an unresolvable
+ * expression dropped every one of them from the inventory — not an admitted
+ * unknown about a route, but routes that answer requests and were simply absent.
+ * The table is a literal in the same file, so each row is read exactly as an
+ * inline registration would be. Generic: it names no route and no file, and a
+ * table it cannot read IN FULL (a computed row, a non-literal field, a spread)
+ * returns null so the registration stays dynamic-unresolved.
+ *
+ * @returns {Array<object>|null} one registration record per row, or null
+ */
+function readObjectFormTable(node, ctx, objectConsts, valueConsts) {
+  const arg = node.arguments?.[0];
+  if (!arg || !ts.isObjectLiteralExpression(arg)) return null;
+
+  const unwrap = (n) => {
+    while (
+      n &&
+      (ts.isAsExpression(n) ||
+        ts.isParenthesizedExpression(n) ||
+        (ts.isSatisfiesExpression && ts.isSatisfiesExpression(n)))
+    ) {
+      n = n.expression;
+    }
+    return n;
+  };
+  const keyOf = (prop) =>
+    prop.name && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : null;
+
+  // The loop variable the url/method fields read from: `<loopVar>.<field>`.
+  let loopVar = null;
+  for (const prop of arg.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = keyOf(prop);
+    if (key !== "url" && key !== "method") continue;
+    const init = unwrap(prop.initializer);
+    if (ts.isPropertyAccessExpression(init) && ts.isIdentifier(init.expression)) {
+      if (loopVar !== null && loopVar.text !== init.expression.text) return null;
+      loopVar = init.expression;
+    }
+  }
+  if (loopVar === null) return null;
+
+  // The enclosing `for (const <loopVar> of <table>)`.
+  let table = null;
+  for (let cur = node.parent; cur; cur = cur.parent) {
+    if (!ts.isForOfStatement(cur) || !ts.isVariableDeclarationList(cur.initializer)) continue;
+    const decl = cur.initializer.declarations.find(
+      (d) => ts.isIdentifier(d.name) && d.name.text === loopVar.text,
+    );
+    if (!decl) continue;
+    table = unwrap(cur.expression);
+    if (table && ts.isIdentifier(table) && valueConsts?.has(table.text)) {
+      table = unwrap(valueConsts.get(table.text));
+    }
+    break;
+  }
+  if (!table || !ts.isArrayLiteralExpression(table) || table.elements.length === 0) return null;
+
+  const rows = [];
+  for (const raw of table.elements) {
+    const el = unwrap(raw);
+    if (!ts.isObjectLiteralExpression(el)) return null;
+    const row = new Map();
+    for (const p of el.properties) {
+      if (!ts.isPropertyAssignment(p)) return null;
+      const k = keyOf(p);
+      if (k === null) return null;
+      row.set(k, unwrap(p.initializer));
+    }
+    rows.push(row);
+  }
+
+  const out = [];
+  for (const row of rows) {
+    const field = (init) => {
+      const n = unwrap(init);
+      if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === loopVar.text) {
+        return row.get(n.name.text) ?? null;
+      }
+      return n;
+    };
+    let url = null;
+    const methods = [];
+    let handler = null;
+    for (const prop of arg.properties) {
+      if (!ts.isPropertyAssignment(prop)) continue;
+      const key = keyOf(prop);
+      if (key === "url") {
+        const n = field(prop.initializer);
+        if (n === null) return null;
+        const r = resolvePathExpr(n, ctx);
+        if (!r.resolved || String(r.value).includes(INTERP)) return null;
+        url = r.value;
+      } else if (key === "method") {
+        const n = field(prop.initializer);
+        if (n === null) return null;
+        const collect = (m) => {
+          if (ts.isStringLiteralLike(m)) methods.push(m.text.toLowerCase());
+          else if (ts.isArrayLiteralExpression(m)) m.elements.forEach((e) => collect(unwrap(e)));
+        };
+        collect(n);
+      } else if (key === "handler") handler = prop.initializer;
+    }
+    if (handler === null) handler = handlerFromOptions(arg, objectConsts);
+    if (url === null || methods.length === 0) return null;
+    out.push({ method: methods[0].toUpperCase(), methods, route: registrationPath(url), options: arg, handler });
+  }
+  return out;
 }
 
 function readRegistration(node, method, isObjectForm, ctx, objectConsts) {

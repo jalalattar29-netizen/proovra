@@ -399,3 +399,42 @@ describe("phase 13 §B — the canonical work registry is read, not re-derived",
     }
   });
 });
+
+describe("phase 13 §B — a dynamic-import NAMESPACE is followed like its destructured form", () => {
+  it("23. `mi = await import(\"…\"); mi.fn()` reaches fn, so its writers are not DEAD_UNREACHABLE", async () => {
+    // The screen-reconstruction job hoists `let mi: typeof import(…)` and calls
+    // `mi.runAndPersistScreenIntelligence(…)`. Only the destructuring form of a
+    // dynamic import was followed, so the namespace call read as a method on an
+    // arbitrary value and six writers of the derived generation (object deletes,
+    // extracted-text rows, supersede) were reported DEAD_UNREACHABLE while the
+    // job called them on every run.
+    const { buildCallGraph, resolveCall, resolveDynamicNamespaceCall } = await import(
+      "../scripts/capability-authority/call-graph.mjs"
+    );
+    const cg = buildCallGraph();
+    const file = "services/worker/src/screen-intelligence.handler.ts";
+    const entry = cg.graph.get(file);
+    assert.ok(entry, `${file} is not indexed`);
+    let call: any = null;
+    const visit = (n: any) => {
+      if (
+        call === null &&
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        n.expression.name.text === "runAndPersistScreenIntelligence"
+      ) {
+        call = n;
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(entry.sf);
+    assert.ok(call, "the namespace call site is gone — re-read the handler");
+    // The tenancy resolver deliberately does NOT follow it...
+    assert.equal(resolveCall(call, file, cg).ok, false);
+    // ...the mutation-reachability resolver does, to the implementing module.
+    const r = resolveDynamicNamespaceCall(call, file, cg);
+    assert.ok(r, "dynamic namespace call not resolved");
+    assert.equal(r.name, "runAndPersistScreenIntelligence");
+    assert.match(r.file, /media-intelligence\/screen-intelligence\.service\.ts$/);
+  });
+});

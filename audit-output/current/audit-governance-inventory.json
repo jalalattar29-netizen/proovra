@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 418,
+    "AuditFilesInventoried": 420,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -139,7 +139,7 @@
     "ProductionRuntimeFilesModifiedByPhase0": 0,
     "ProductBehaviorTestsRemoved": 0,
     "HistoricalMigrationsModifiedByPhase0": 0,
-    "ProductBehaviorTestsInventoried": 263
+    "ProductBehaviorTestsInventoried": 265
   },
   "reportRoles": {
     "counts": {
@@ -158,7 +158,7 @@
     }
   },
   "byRole": {
-    "PRODUCT_BEHAVIOR_TEST": 263,
+    "PRODUCT_BEHAVIOR_TEST": 265,
     "CONTINUATION_CHECKPOINT": 1,
     "DOMAIN_AUTHORITY": 73,
     "GENERATED_CURRENT_ARTIFACT": 3,
@@ -400,6 +400,23 @@
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "apps/web/__tests__/legal-screen-capture-disclosure.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [
+        "apps/web/app/legal/legal-hero-meta.ts"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -2573,6 +2590,7 @@
         "services/api/scripts/capability-authority/mutation-closure.mjs",
         "services/api/scripts/capability-authority/tenant-binding.mjs",
         "services/api/scripts/generate-runtime-capability-map.mjs",
+        "services/api/test/phase-13-mutation-closure-adversarial.test.ts",
         "services/api/test/phase-13-structural-reachability-adversarial.test.ts",
         "services/api/test/phase-37-98-command-center-projection-consumption.test.ts"
       ],
@@ -4835,7 +4853,9 @@
       "path": "services/api/test/phase-13-mutation-closure-adversarial.test.ts",
       "role": "AUDIT_ENGINE_TEST",
       "reason": "Drives the canonical engine or validates a current artifact.",
-      "imports": [],
+      "imports": [
+        "services/api/scripts/capability-authority/call-graph.mjs"
+      ],
       "importedBy": [],
       "spawns": [],
       "readsArtifacts": [],
@@ -6248,6 +6268,21 @@
     },
     {
       "path": "services/api/test/public-verify-storage-recorded.integration.test.ts",
+      "role": "PRODUCT_BEHAVIOR_TEST",
+      "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/test/public-verify-stored-bytes-truth.integration.test.ts",
       "role": "PRODUCT_BEHAVIOR_TEST",
       "reason": "Asserts product behaviour or a product security posture; not audit infrastructure.",
       "imports": [],

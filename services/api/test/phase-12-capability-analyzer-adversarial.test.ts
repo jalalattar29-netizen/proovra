@@ -350,6 +350,60 @@ describe("capability analyzer — route registration and authorization", () => {
     assert.ok(find(routes, "POST", "/v1/admin/orgs/:id/resume"), "resume leg missing");
   });
 
+  it("31b. expands an OBJECT-FORM registration driven by a literal table, and refuses an unreadable one", async () => {
+    // `for (const route of TABLE) app.route({ method: route.method, url: route.url, handler })`
+    // registers one route per row. Reading `route.url` as unresolvable dropped
+    // all nine retired API-key upload routes (UC-ARCH-004) out of the inventory
+    // while they still answer 410. A table with a row it cannot read must stay
+    // dynamic-unresolved as a WHOLE — never a partial inventory.
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const os = await import("node:os");
+    const nodePath = await import("node:path");
+    const { extractRoutes, indexApiFunctions } = await import("../scripts/capability-authority/routes.mjs");
+    const dir = mkdtempSync(nodePath.join(os.tmpdir(), "p12-object-table-"));
+    try {
+      writeFileSync(
+        nodePath.join(dir, "fixture-table.routes.ts"),
+        [
+          'const TABLE: ReadonlyArray<{ method: "GET" | "POST"; url: string }> = [',
+          '  { method: "POST", url: "/v1/fixture/a" },',
+          '  { method: "GET", url: "/v1/fixture/b/:id" },',
+          "];",
+          "export async function r(app: any) {",
+          "  for (const route of TABLE) {",
+          "    app.route({ method: route.method, url: route.url, handler: async (_q: any, s: any) => s.code(410).send({}) });",
+          "  }",
+          "}",
+        ].join("\n"),
+      );
+      writeFileSync(
+        nodePath.join(dir, "fixture-unreadable.routes.ts"),
+        [
+          "declare const dynamicUrl: string;",
+          'const ROWS = [{ method: "POST", url: "/v1/fixture/c" }, { method: "POST", url: dynamicUrl }];',
+          "export async function r(app: any) {",
+          "  for (const row of ROWS) app.route({ method: row.method, url: row.url, handler: async () => null });",
+          "}",
+        ].join("\n"),
+      );
+      const { routes, dynamicUnresolved } = extractRoutes(indexApiFunctions(), dir);
+      const ids = routes.map((r: any) => `${r.methods[0].toUpperCase()} ${r.route}`).sort();
+      assert.deepEqual(ids, ["GET /v1/fixture/b/:id", "POST /v1/fixture/a"]);
+      assert.equal(dynamicUnresolved.length, 1, "the unreadable table must stay unresolved");
+      assert.match(dynamicUnresolved[0].file, /fixture-unreadable/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    const { routes } = await live();
+    for (const [method, p] of [
+      ["POST", "/v1/integrations/api/uploads/sessions"],
+      ["GET", "/v1/integrations/api/uploads/sessions/:sessionId"],
+      ["POST", "/v1/integrations/api/uploads/sessions/:sessionId/multipart/abort"],
+    ] as const) {
+      assert.ok(find(routes, method, p), `${method} ${p} missing from the live inventory`);
+    }
+  });
+
   it("32. registers zero dynamically-unresolvable routes", async () => {
     const { extractRoutes, indexApiFunctions } = await import("../scripts/capability-authority/routes.mjs");
     const { dynamicUnresolved } = extractRoutes(indexApiFunctions());
