@@ -503,13 +503,23 @@ export function planServiceChildren({ fixtureEnv, config }) {
 
 function run(name, cmd, args, { cwd, env } = {}) {
   log(`${name}: ${cmd} ${args.join(" ")}`);
+  // Captured, then echoed in full: the step's own diagnostics must reach the
+  // fatal message (and so the CI annotation), not only a log that needs a
+  // signed-in viewer. "seed:signing-key failed (exit 1)" alone was not a cause.
   const r = spawnSync(cmd, args, {
     cwd: cwd ?? REPO_ROOT,
     env: env ?? process.env,
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
     shell: process.platform === "win32",
   });
-  if (r.status !== 0) fail(`${name} failed (exit ${r.status}).`);
+  process.stdout.write(r.stdout || "");
+  process.stderr.write(r.stderr || "");
+  if (r.status !== 0) {
+    const tail = `${r.stdout || ""}\n${r.stderr || ""}`.trim().split(/\r?\n/).slice(-40).join("\n");
+    fail(`${name} failed (exit ${r.status}${r.error ? `, ${r.error.message}` : ""}).\n${tail}`);
+  }
 }
 
 // ----------------------------------------------------------------------------
