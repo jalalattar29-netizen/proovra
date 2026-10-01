@@ -530,6 +530,16 @@
         "label": "uc1-acceptance-fullstack",
         "exit": 124,
         "log": "uc1-acceptance.log"
+      },
+      {
+        "label": "uc1-stack-phase2",
+        "exit": 124,
+        "log": "uc1-stack-phase2.log"
+      },
+      {
+        "label": "uc1-stack-phase2b",
+        "exit": 124,
+        "log": "uc1-stack-phase2b.log"
       }
     ]
   },
@@ -2741,7 +2751,7 @@
     {
       "name": "every command in the ledger has an exit code",
       "ok": true,
-      "detail": "40 commands"
+      "detail": "42 commands"
     },
     {
       "name": "API integration run executed (not skipped) and green",

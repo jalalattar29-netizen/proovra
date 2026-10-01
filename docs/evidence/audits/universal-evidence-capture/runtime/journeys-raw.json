@@ -1369,14 +1369,14 @@
           "method": "POST",
           "path": "/v1/identity/mfa/enroll/start",
           "status": 200,
-          "body": "{\"factorId\":\"a1bf9530-f0b2-408a-8aa8-648c7bba4b4f\",\"otpauthUri\":\"otpauth://totp/PROOVRA%3Auca-ownerA-1790801196147%40test.proovra.local?secret=GL23GEPJN2QGNEFSDTFWCJEHUCCT457K&issuer=PROOVRA&algorithm=SHA1&digits=6&period=30\",\"secretBase32\":\"GL23GEPJN2QGNEFSDTFWCJEHUCCT457K\"}"
+          "body": "{\"factorId\":\"a1bf9530-f0b2-408a-8aa8-648c7bba4b4f\",\"otpauthUri\":\"<redacted>\",\"secretBase32\":\"<redacted>\"}"
         },
         {
           "actor": "ownerA",
           "method": "POST",
           "path": "/v1/identity/mfa/enroll/verify",
           "status": 200,
-          "body": "{\"factorId\":\"a1bf9530-f0b2-408a-8aa8-648c7bba4b4f\",\"recoveryCodes\":[\"G4BWA-6VYJU\",\"SZT6D-4MPZ9\",\"ACKSK-S4HGH\",\"RYB75-NHPQS\",\"GRTN4-KXMPU\",\"Y3PD3-GNPVA\",\"Q54E8-SRXFS\",\"PY56Q-5C2YX\",\"TFSG5-FHPNN\",\"JY7MG-VWSQE\"]}"
+          "body": "{\"factorId\":\"a1bf9530-f0b2-408a-8aa8-648c7bba4b4f\",\"recoveryCodes\":[\"<redacted>\"]}"
         },
         {
           "actor": "ownerA",
@@ -1397,7 +1397,7 @@
           "method": "POST",
           "path": "/v1/evidence/7ccb5a00-7c68-40da-8ccc-d178a44593c3/verify-links",
           "status": 201,
-          "body": "{\"link\":{\"id\":\"9b61ee54-e712-4d76-acba-2025d1c5dce5\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"uca audit\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:24.015Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:24.015Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"pvs_<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
+          "body": "{\"link\":{\"id\":\"9b61ee54-e712-4d76-acba-2025d1c5dce5\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"uca audit\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:24.015Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:24.015Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
         },
         {
           "actor": "anonymous",
@@ -1425,14 +1425,14 @@
           "method": "POST",
           "path": "/v1/evidence/7ccb5a00-7c68-40da-8ccc-d178a44593c3/verify-links",
           "status": 201,
-          "body": "{\"link\":{\"id\":\"f5b7e12d-8b7e-4f79-8d1a-eb0deb8c12a4\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"uca rotate\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:24.589Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:24.589Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"pvs_<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":false}"
+          "body": "{\"link\":{\"id\":\"f5b7e12d-8b7e-4f79-8d1a-eb0deb8c12a4\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"uca rotate\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:24.589Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:24.589Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":false}"
         },
         {
           "actor": "ownerA",
           "method": "POST",
           "path": "/v1/evidence/7ccb5a00-7c68-40da-8ccc-d178a44593c3/verify-links/f5b7e12d-8b7e-4f79-8d1a-eb0deb8c12a4/rotate",
           "status": 201,
-          "body": "{\"link\":{\"id\":\"a8d7bd18-8324-48ee-9784-637d2ad6d199\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"uca rotate\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:24.606Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:24.589Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":\"f5b7e12d-8b7e-4f79-8d1a-eb0deb8c12a4\",\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"pvs_<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"replacedLinkId\":\"f5b7e12d-8b7e-4f79-8d1a-eb0deb8c12a4\"}"
+          "body": "{\"link\":{\"id\":\"a8d7bd18-8324-48ee-9784-637d2ad6d199\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"uca rotate\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:24.606Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:24.589Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":\"f5b7e12d-8b7e-4f79-8d1a-eb0deb8c12a4\",\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"replacedLinkId\":\"f5b7e12d-8b7e-4f79-8d1a-eb0deb8c12a4\"}"
         },
         {
           "actor": "anonymous",
@@ -4045,7 +4045,7 @@
           "method": "POST",
           "path": "/v1/evidence/5afb6479-7c6c-4645-804c-c593f4cb9d97/verify-links",
           "status": 201,
-          "body": "{\"link\":{\"id\":\"f4552c5c-9524-4441-8c36-30d961299810\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"tamper\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:34.861Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:34.861Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"pvs_<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
+          "body": "{\"link\":{\"id\":\"f4552c5c-9524-4441-8c36-30d961299810\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"tamper\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T20:47:34.861Z\",\"createdByUserId\":\"3fd7d39f-f271-406a-96f6-a55a12a65368\",\"expiresAtUtc\":\"2026-10-07T20:47:34.861Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
         },
         {
           "actor": "anonymous",

@@ -1,4 +1,4 @@
-OK   oauth token (authorize + PKCE exchange) (94ms) "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMzY3ZGI0Ni03MWU5LTRhNjEtOTU2Zi1mNGI4YWM2MzY4ODIiLCJwcm92aWRlciI6IkVNQUlMIiwiZW1haWwiOiJ1Y2Etb3duZXJBLTE3OTA4MDI3Mjk2NDVAdGVzdC5wcm9vdnJhLmxvY2FsIiwiYXV0aE1ldGhvZCI6IlNPQ0lBTF9PQVVUSCIsImF1dGhBdCI6MTc5MDgwMjc0MCwic2NvcGUiOiJjYXB0dXJlLmRpcmVjdCIsImlhdC
+OK   oauth token (authorize + PKCE exchange) (94ms) "<jwt-redacted>
 OK   extension service worker registered (46ms) "chrome-extension://olppppfmhlgnoiijmndmfchjophggnid/background.js"
 OK   extension id (0ms) "olppppfmhlgnoiijmndmfchjophggnid"
 OK   token stored in chrome.storage.session (as the spec does) (88ms) true

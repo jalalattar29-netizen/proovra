@@ -1647,4 +1647,8 @@ Error: No tests found
 c[90m[api][0m 23:32:15 [tsx] change in ./..\..\packages\shared-billing\dist\index.js Rerunning...
 c[90m[api][0m 23:32:16 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
 c[90m[worker][0m 23:32:16 [tsx] change in ./..\..\packages\shared-evidence-presentation\dist\index.js Rerunning...
-c
+c[90m[api][0m D:\pv-uca\services\api:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  proovra-api@1.0.0 dev: `tsx watch src/index.ts`
+Exit status 143
+[36m[uc1-acceptance][0m api exited (143)
+[36m[uc1-acceptance][0m worker exited (143)

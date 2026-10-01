@@ -148,7 +148,7 @@
           "method": "POST",
           "path": "/v1/workflow/intake-links",
           "status": 201,
-          "body": "{\"link\":{\"id\":\"8f2389fd-ed5e-48af-a7c2-7dba8f17aaa8\",\"teamId\":\"2e6138e1-1277-49db-8da0-9a1732ba7268\",\"workflowTemplateSlug\":\"general-evidence-record\",\"workflowTemplateVersion\":1,\"intakeMode\":\"EXTERNAL_REUSABLE\",\"caseId\":null,\"recipientLabel\":\"uca\",\"recipientEmailMasked\":null,\"recipientPhoneMasked\":null,\"recipientEmail\":null,\"recipientPhone\":null,\"hasRecipientEmail\":false,\"hasRecipientPhone\":false,\"recipientContactRevealAuthorized\":true,\"customerId\":null,\"maxUses\":1,\"usedCount\":0,\"maxFileCountPerSession\":null,\"maxBytesPerSession\":null,\"allowedAcceptedKinds\":[],\"consentPolicyVersion\":null,\"status\":\"ACTIVE\",\"expiresAtUtc\":\"2026-09-30T22:26:14.635Z\",\"revokedAtUtc\":null,\"revokedReason\":null,\"archivedAtUtc\":null,\"locationPolicy\":\"NONE\",\"createdAt\":\"2026-09-30T21:26:14.775Z\",\"updatedAt\":\"2026-09-30T21:26:14.775Z\"},\"rawToken\":\"pwi_v1_RWRuTusRCQ6SA1mhCItbd5jdhkxxSMIaqrlbmKSyOs4\",\"warning\":\"The raw token is shown exactly once. Capture it now — it is not retrievable later.\",\"delivery\":{\"method\":\"MANUAL\",\"status\":\"skipped\"}}"
+          "body": "{\"link\":{\"id\":\"8f2389fd-ed5e-48af-a7c2-7dba8f17aaa8\",\"teamId\":\"2e6138e1-1277-49db-8da0-9a1732ba7268\",\"workflowTemplateSlug\":\"general-evidence-record\",\"workflowTemplateVersion\":1,\"intakeMode\":\"EXTERNAL_REUSABLE\",\"caseId\":null,\"recipientLabel\":\"uca\",\"recipientEmailMasked\":null,\"recipientPhoneMasked\":null,\"recipientEmail\":null,\"recipientPhone\":null,\"hasRecipientEmail\":false,\"hasRecipientPhone\":false,\"recipientContactRevealAuthorized\":true,\"customerId\":null,\"maxUses\":1,\"usedCount\":0,\"maxFileCountPerSession\":null,\"maxBytesPerSession\":null,\"allowedAcceptedKinds\":[],\"consentPolicyVersion\":null,\"status\":\"ACTIVE\",\"expiresAtUtc\":\"2026-09-30T22:26:14.635Z\",\"revokedAtUtc\":null,\"revokedReason\":null,\"archivedAtUtc\":null,\"locationPolicy\":\"NONE\",\"createdAt\":\"2026-09-30T21:26:14.775Z\",\"updatedAt\":\"2026-09-30T21:26:14.775Z\"},\"rawToken\":\"<redacted>\",\"warning\":\"The raw token is shown exactly once. Capture it now — it is not retrievable later.\",\"delivery\":{\"method\":\"MANUAL\",\"status\":\"skipped\"}}"
         },
         {
           "actor": "anonymous",
@@ -204,14 +204,14 @@
           "method": "POST",
           "path": "/v1/identity/mfa/enroll/start",
           "status": 200,
-          "body": "{\"factorId\":\"672bce39-5daf-417e-8b5a-f0cba643be40\",\"otpauthUri\":\"otpauth://totp/PROOVRA%3Auca-ownerA-1790803564098%40test.proovra.local?secret=KUIISLHVXZPLKUZBO6WWAZKHQ2LQPWN2&issuer=PROOVRA&algorithm=SHA1&digits=6&period=30\",\"secretBase32\":\"KUIISLHVXZPLKUZBO6WWAZKHQ2LQPWN2\"}"
+          "body": "{\"factorId\":\"672bce39-5daf-417e-8b5a-f0cba643be40\",\"otpauthUri\":\"<redacted>\",\"secretBase32\":\"<redacted>\"}"
         },
         {
           "actor": "ownerA",
           "method": "POST",
           "path": "/v1/identity/mfa/enroll/verify",
           "status": 200,
-          "body": "{\"factorId\":\"672bce39-5daf-417e-8b5a-f0cba643be40\",\"recoveryCodes\":[\"DWX4V-NWJ4E\",\"69TER-5RQS8\",\"2Z485-4KGXV\",\"JM92K-4MR5T\",\"URYBE-FKRWX\",\"2H2K7-Q53VS\",\"5VZ6R-XWKSH\",\"9TFGW-HG9QT\",\"CU46S-9RN2F\",\"WGASU-8GJF4\"]}"
+          "body": "{\"factorId\":\"672bce39-5daf-417e-8b5a-f0cba643be40\",\"recoveryCodes\":[\"<redacted>\"]}"
         },
         {
           "actor": "ownerA",
@@ -232,7 +232,7 @@
           "method": "POST",
           "path": "/v1/evidence/61589c54-0cbd-4325-9159-c0a2b83a0844/verify-links",
           "status": 201,
-          "body": "{\"link\":{\"id\":\"095b0bcd-ab39-4711-8ae3-15b778f29eb9\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"intake\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T21:26:52.082Z\",\"createdByUserId\":\"a09bbdce-6477-4898-a94a-55fe2281ab06\",\"expiresAtUtc\":\"2026-10-07T21:26:52.082Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"pvs_<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
+          "body": "{\"link\":{\"id\":\"095b0bcd-ab39-4711-8ae3-15b778f29eb9\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"intake\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T21:26:52.082Z\",\"createdByUserId\":\"a09bbdce-6477-4898-a94a-55fe2281ab06\",\"expiresAtUtc\":\"2026-10-07T21:26:52.082Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
         },
         {
           "actor": "anonymous",
@@ -586,7 +586,7 @@
           "method": "POST",
           "path": "/v1/evidence/22926261-28f8-44a6-b9ed-44f77118c7ae/verify-links",
           "status": 201,
-          "body": "{\"link\":{\"id\":\"5f0fa1b5-5124-4cc1-a9fe-0ed6ad651aaa\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"continuous\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T21:27:02.923Z\",\"createdByUserId\":\"a09bbdce-6477-4898-a94a-55fe2281ab06\",\"expiresAtUtc\":\"2026-10-07T21:27:02.923Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"pvs_<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
+          "body": "{\"link\":{\"id\":\"5f0fa1b5-5124-4cc1-a9fe-0ed6ad651aaa\",\"purpose\":\"OWNER_SHARE\",\"projection\":\"STANDARD\",\"audience\":\"continuous\",\"reportVersion\":null,\"state\":\"ACTIVE\",\"createdAtUtc\":\"2026-09-30T21:27:02.923Z\",\"createdByUserId\":\"a09bbdce-6477-4898-a94a-55fe2281ab06\",\"expiresAtUtc\":\"2026-10-07T21:27:02.923Z\",\"revokedAtUtc\":null,\"revokedByUserId\":null,\"revocationReason\":null,\"rotatedFromId\":null,\"maxUses\":null,\"useCount\":0,\"lastUsedAtUtc\":null},\"token\":\"<redacted>\",\"verifyPath\":\"/verify/pvs_<redacted>\",\"published\":true}"
         },
         {
           "actor": "anonymous",

@@ -298,7 +298,7 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | executed-run overrides name executed runs | PASS |  |
 | runtime-bound findings exist | PASS |  |
 | every blocker names an external proof row | PASS |  |
-| every command in the ledger has an exit code | PASS | 40 commands |
+| every command in the ledger has an exit code | PASS | 42 commands |
 | API integration run executed (not skipped) and green | PASS | 463/463 |
 | independent package recompute passed (incl. negative controls) | PASS | 14/14 |
 | worker run green | PASS | 1152/1156 (4 skipped) |
@@ -349,6 +349,8 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4` (origin/main (== local main)
 | web-typecheck | 0 | web-typecheck.log |
 | audit-tooling-syntax | 0 | audit-tooling-syntax.log |
 | uc1-acceptance-fullstack | 124 | uc1-acceptance.log |
+| uc1-stack-phase2 | 124 | uc1-stack-phase2.log |
+| uc1-stack-phase2b | 124 | uc1-stack-phase2b.log |
 
 ## Artifacts
 
