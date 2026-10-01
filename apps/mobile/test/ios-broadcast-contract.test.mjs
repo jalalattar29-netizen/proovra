@@ -32,6 +32,9 @@ const fixture = JSON.parse(read("fixtures/ios-broadcast-result.json"));
 const handler = stripComments(read("../plugins/broadcast-extension/SampleHandler.swift"));
 const shared = stripComments(read("../modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift"));
 const module = stripComments(read("../modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift"));
+// UC-IOS-012 — the bridge has its own Foundation-only file, so the XCTest package
+// (ios-tests/, run by native-build.yml on macOS) compiles exactly what ships.
+const darwinNotify = stripComments(read("../modules/proovra-screen-capture/ios/ProovraDarwinNotify.swift"));
 const binding = read("../modules/proovra-screen-capture/index.ts");
 
 let C;
@@ -206,8 +209,10 @@ test("UC-IOS-005 / UC-IOS-006 / UC-IOS-010 / UC-IOS-012 / UC-AND-014 — app-sid
   assert.match(module, /AsyncFunction\("discardContinuousSpool"\)/);
   assert.match(module, /Function\("getContinuousSegments"\)/);
   // 012: one stable observer token, drained on one queue.
-  assert.ok(!/passUnretained\(NSObject\(\)\)/.test(shared), "a throw-away observer identity is back");
-  assert.match(shared, /CFNotificationCenterRemoveEveryObserver\(CFNotificationCenterGetDarwinNotifyCenter\(\), token\)/);
+  assert.ok(!/passUnretained\(NSObject\(\)\)/.test(darwinNotify + shared), "a throw-away observer identity is back");
+  assert.ok(!/class ProovraDarwinNotify/.test(shared), "the bridge is duplicated back into the UIKit file");
+  assert.match(darwinNotify, /^import Foundation\s*final class ProovraDarwinNotify/);
+  assert.match(darwinNotify, /CFNotificationCenterRemoveEveryObserver\(CFNotificationCenterGetDarwinNotifyCenter\(\), token\)/);
   assert.match(module, /drainQueue\.sync/);
   // AND-014: the frame stop carries the binding's name on iOS too.
   assert.match(module, /AsyncFunction\("stopCapture"\)/);

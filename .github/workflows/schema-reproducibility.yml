@@ -328,6 +328,12 @@ jobs:
 
       - name: Seed local-pem signing key
         working-directory: services/api
+        # Relative to THIS step's working directory. The job-level value is
+        # repo-root-relative (services/api/keys/…); the seed now uses an
+        # explicit path exactly and refuses one that does not exist, instead
+        # of rewriting it or substituting a fixture.
+        env:
+          SIGNING_PUBLIC_KEY_PATH: keys/signing-public.pem
         run: pnpm prisma:seed
 
       # ---------------------------------------------------------------

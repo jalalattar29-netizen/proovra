@@ -208,10 +208,12 @@ class ContinuousScreenCaptureService : Service() {
   }
 
   private fun beginProjection() {
-    val data = resultData ?: return failStart("NO_CONSENT_TOKEN", "The screen-capture consent was not available.")
     val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-    val mp = mpm.getMediaProjection(resultCode, data)
-      ?: return failStart("PROJECTION_UNAVAILABLE", "Android did not provide the screen-capture session.")
+    // The decision is obtainProjection (CaptureDecisions.kt), unit-tested on the JVM.
+    val mp = when (val outcome = obtainProjection(resultData) { mpm.getMediaProjection(resultCode, it) }) {
+      is ProjectionOutcome.Refused -> return failStart(outcome.code, outcome.message)
+      is ProjectionOutcome.Ready -> outcome.projection
+    }
     projection = mp
 
     val metrics = DisplayMetrics()
@@ -354,18 +356,21 @@ class ContinuousScreenCaptureService : Service() {
     // box: unplayable, yet it was uploaded and sealed as ORIGINAL video with a
     // wall-clock duration. It is now deleted and recorded as a limitation (which
     // makes the session INTERRUPTED), never emitted as a segment.
-    var stopFailed = false
-    try { r.stop() } catch (_: Throwable) { stopFailed = true }
-    try { r.reset(); r.release() } catch (_: Throwable) {}
+    // The decision is closeSegment (CaptureDecisions.kt), unit-tested on the JVM.
+    val outcome = closeSegment(
+      stop = { r.stop() },
+      release = { r.reset(); r.release() },
+      writtenBytes = { if (file != null && file.exists()) file.length() else 0L },
+      deleteFile = { file?.delete() },
+    )
     recorder = null
     try { virtualDisplay?.surface = null } catch (_: Throwable) {}
-    if (stopFailed) {
+    if (outcome == SegmentClose.DISCARD_WRITE_FAILED) {
       limitations.add("SEGMENT_WRITE_FAILED")
-      try { file?.delete() } catch (_: Throwable) {}
       currentFile = null
       return
     }
-    if (file != null && file.exists() && file.length() > 0) {
+    if (outcome == SegmentClose.EMIT && file != null) {
       val seq = segments.size
       // Record THIS segment's own geometry (segW/segH), which reflects any rotation
       // that took effect at its start boundary — so the manifest's per-segment

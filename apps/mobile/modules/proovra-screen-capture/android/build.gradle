@@ -28,4 +28,6 @@ android {
 
 dependencies {
   implementation project(':expo-modules-core')
+  // JVM unit tests of CaptureDecisions.kt (UC-AND-007 / UC-AND-013).
+  testImplementation 'junit:junit:4.13.2'
 }

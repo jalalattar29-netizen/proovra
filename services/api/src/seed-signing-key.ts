@@ -35,16 +35,18 @@ import "./env.js";
  *      file is awkward. Whitespace/EOL is normalised; the value must
  *      contain a `-----BEGIN PUBLIC KEY-----` header.
  *
- *   2. `SIGNING_PUBLIC_KEY_PATH` — file path. Tried verbatim, then with
- *      `services/api/` stripped (handles the CI case where the workflow
- *      sets `SIGNING_PUBLIC_KEY_PATH=services/api/keys/signing-public.pem`
- *      but pnpm runs this script from `services/api/` cwd), then with
- *      `services/api/` prepended (handles repo-root cwd with a workspace-
- *      relative path).
+ *   2. `SIGNING_PUBLIC_KEY_PATH` — file path, used EXACTLY (relative
+ *      paths resolve from the working directory; `pnpm prisma:seed` runs
+ *      from `services/api/`). Missing, not a regular file, unreadable or
+ *      invalid is a SigningKeyConfigurationError naming the path. It is
+ *      never rewritten and never replaced by the fixture: registering a
+ *      public key other than the configured one makes the runtime signer
+ *      refuse every signature (SIGNING_KEY_IDENTITY_CONFLICT).
  *
- *   3. Existing checked-in test fixture at `keys/signing-public.pem`
- *      (relative to either `services/api/` cwd or repo-root cwd). This
- *      is the dev baseline shipped in this repository.
+ *   3. Only when NO path is configured: the checked-in test fixture at
+ *      `keys/signing-public.pem` (relative to either `services/api/` cwd
+ *      or repo-root cwd). This is the dev baseline shipped in this
+ *      repository.
  *
  *   4. **CI / non-production fallback only:** a deterministic TEST_ONLY
  *      Ed25519 public key constant compiled into this script. Used ONLY
@@ -70,7 +72,7 @@ import "./env.js";
  *   pnpm --filter proovra-api seed:key
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { createPublicKey } from "node:crypto";
 
@@ -174,26 +176,43 @@ async function resolvePublicKeyPemFromKms(): Promise<string> {
 }
 
 /**
+ * A signing-key configuration the seed refuses. Its message names the
+ * variable and the path — never any key material.
+ */
+export class SigningKeyConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SigningKeyConfigurationError";
+  }
+}
+
+/**
  * Validate + canonicalise a PEM string. Throws if not a valid Ed25519
  * SPKI public key. The "where did this come from" context is folded
- * into the error so the operator knows which source failed.
+ * into the error so the operator knows which source failed. The error
+ * never quotes the material itself (nor the parser's message about it).
  */
 function validateAndCanonicalisePem(pem: string, sourceLabel: string): string {
   if (!pem.includes("BEGIN PUBLIC KEY")) {
-    throw new Error(
+    throw new SigningKeyConfigurationError(
       `${sourceLabel} does not look like a PEM public key — ` +
         `expected a "-----BEGIN PUBLIC KEY-----" header. Refusing to seed.`,
     );
   }
 
-  const keyObject = createPublicKey({
-    key: pem,
-    format: "pem",
-    type: "spki",
-  });
+  let keyObject: ReturnType<typeof createPublicKey>;
+  try {
+    keyObject = createPublicKey({ key: pem, format: "pem", type: "spki" });
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    throw new SigningKeyConfigurationError(
+      `${sourceLabel} is not a parseable SPKI public key` +
+        `${typeof code === "string" ? ` (${code})` : ""}. Refusing to seed.`,
+    );
+  }
 
   if (keyObject.asymmetricKeyType !== "ed25519") {
-    throw new Error(
+    throw new SigningKeyConfigurationError(
       `${sourceLabel} is not an Ed25519 key ` +
         `(got asymmetricKeyType=${keyObject.asymmetricKeyType ?? "unknown"}). ` +
         `The runtime signer expects Ed25519.`,
@@ -204,14 +223,49 @@ function validateAndCanonicalisePem(pem: string, sourceLabel: string): string {
 }
 
 /**
- * Try to read a PEM from disk. Returns `null` (not throwing) if the
- * file does not exist — callers chain multiple candidate paths.
- * Throws only if the file is present but unreadable.
+ * Read the file an operator NAMED in SIGNING_PUBLIC_KEY_PATH — that exact
+ * path (relative paths resolve from the process's working directory), and
+ * nothing else. Missing, not a regular file, or unreadable is a configuration
+ * error: substituting another key here would register a public key the
+ * runtime's private key does not match (the signer then refuses every
+ * signature — SIGNING_KEY_IDENTITY_CONFLICT — which is how the full-stack CI
+ * smoke failed when this used to fall back to the checked-in fixture).
  */
-function tryReadPemFromPath(
-  path: string,
-  sourceLabel: string,
-): { pem: string; absolutePath: string } | null {
+function readExplicitPublicKeyPath(envPath: string): { pem: string; absolutePath: string; label: string } {
+  const abs = resolve(envPath);
+  const label = `SIGNING_PUBLIC_KEY_PATH="${envPath}" (resolved to "${abs}")`;
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(abs);
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    throw new SigningKeyConfigurationError(
+      `${label} does not exist${typeof code === "string" && code !== "ENOENT" ? ` (${code})` : ""}. ` +
+        "An explicitly configured key path is used exactly; the seed never substitutes a fixture. " +
+        "Fix the path (relative paths resolve from the working directory) or unset the variable.",
+    );
+  }
+  if (!stat.isFile()) {
+    throw new SigningKeyConfigurationError(`${label} is not a regular file. Refusing to seed.`);
+  }
+  let pem: string;
+  try {
+    pem = readFileSync(abs, "utf8");
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code;
+    throw new SigningKeyConfigurationError(
+      `${label} could not be read${typeof code === "string" ? ` (${code})` : ""}. Refusing to seed.`,
+    );
+  }
+  return { pem, absolutePath: abs, label };
+}
+
+/**
+ * Try to read a checked-in FIXTURE. Returns `null` (not throwing) if the
+ * file does not exist — the fixture locations are tried in turn, and only
+ * when no key path was configured at all.
+ */
+function tryReadFixturePem(path: string): { pem: string; absolutePath: string } | null {
   const abs = resolve(path);
   if (!existsSync(abs)) {
     return null;
@@ -221,50 +275,17 @@ function tryReadPemFromPath(
   try {
     pem = readFileSync(abs, "utf8");
   } catch (error) {
-    throw new Error(
-      `${sourceLabel} (resolved to "${abs}") exists but could not be read: ` +
-        `${error instanceof Error ? error.message : String(error)}`,
+    const code = (error as { code?: unknown } | null)?.code;
+    throw new SigningKeyConfigurationError(
+      `Fixture public key "${abs}" exists but could not be read${typeof code === "string" ? ` (${code})` : ""}.`,
     );
   }
 
   return { pem, absolutePath: abs };
 }
 
-/**
- * Build the ordered list of candidate file paths to try, given an
- * (optional) env-supplied path. Order matters — first hit wins. The
- * list compensates for the fact that `pnpm prisma:seed` runs with
- * cwd=`services/api/` while CI workflow files often write paths as
- * `services/api/keys/...` (relative to the repo root).
- */
-function buildCandidatePaths(envPath: string | undefined): string[] {
-  const candidates: string[] = [];
-  const seen = new Set<string>();
-  const push = (p: string) => {
-    if (!p) return;
-    if (seen.has(p)) return;
-    seen.add(p);
-    candidates.push(p);
-  };
-
-  if (envPath && envPath.length > 0) {
-    push(envPath);
-    // `services/api/keys/foo.pem` ⇒ also try `keys/foo.pem`
-    if (envPath.startsWith("services/api/")) {
-      push(envPath.slice("services/api/".length));
-    }
-    // `keys/foo.pem` ⇒ also try `services/api/keys/foo.pem`
-    if (!envPath.includes("services/api/") && !envPath.startsWith("/")) {
-      push(`services/api/${envPath}`);
-    }
-  }
-
-  // Default checked-in fixture locations.
-  push("keys/signing-public.pem");
-  push("services/api/keys/signing-public.pem");
-
-  return candidates;
-}
+/** Checked-in fixture locations, for `services/api/` cwd and repo-root cwd. */
+const FIXTURE_PUBLIC_KEY_PATHS = ["keys/signing-public.pem", "services/api/keys/signing-public.pem"] as const;
 
 interface ResolvedPublicKey {
   pem: string;
@@ -289,33 +310,25 @@ export function resolvePublicKeyPemFromLocalPem(): ResolvedPublicKey {
     };
   }
 
-  // ── Step 2 + Step 3: file paths (env path + checked-in fixture) ─────
+  // ── Step 2: SIGNING_PUBLIC_KEY_PATH — EXACTLY that file, or fail ─────
   const envPath = process.env.SIGNING_PUBLIC_KEY_PATH?.trim();
-  const candidates = buildCandidatePaths(envPath);
-  const attempts: string[] = [];
+  if (envPath && envPath.length > 0) {
+    const found = readExplicitPublicKeyPath(envPath);
+    return {
+      pem: validateAndCanonicalisePem(found.pem, found.label),
+      source: `env:SIGNING_PUBLIC_KEY_PATH (resolved to ${found.absolutePath})`,
+      isTestOnlyFallback: false,
+    };
+  }
 
-  for (const candidate of candidates) {
-    const found = tryReadPemFromPath(
-      candidate,
-      `Public key path "${candidate}"`,
-    );
+  // ── Step 3: no path configured — the checked-in fixture ──────────────
+  const attempts: string[] = [];
+  for (const candidate of FIXTURE_PUBLIC_KEY_PATHS) {
+    const found = tryReadFixturePem(candidate);
     if (found) {
-      const canonical = validateAndCanonicalisePem(
-        found.pem,
-        `File "${found.absolutePath}"`,
-      );
-      // Was this the env-supplied path or the fixture fallback?
-      const isEnvPath =
-        envPath !== undefined &&
-        envPath.length > 0 &&
-        (candidate === envPath ||
-          candidate === envPath.replace(/^services\/api\//, "") ||
-          candidate === `services/api/${envPath}`);
       return {
-        pem: canonical,
-        source: isEnvPath
-          ? `env:SIGNING_PUBLIC_KEY_PATH (resolved to ${found.absolutePath})`
-          : `fixture:${found.absolutePath}`,
+        pem: validateAndCanonicalisePem(found.pem, `Fixture "${found.absolutePath}"`),
+        source: `fixture:${found.absolutePath}`,
         isTestOnlyFallback: false,
       };
     }
@@ -336,10 +349,10 @@ export function resolvePublicKeyPemFromLocalPem(): ResolvedPublicKey {
   }
 
   // ── Step 5: production hard failure ─────────────────────────────────
-  throw new Error(
+  throw new SigningKeyConfigurationError(
     "Could not resolve a signing public key in production. Tried (in order):\n" +
       "  1. env SIGNING_PUBLIC_KEY_PEM — not set\n" +
-      `  2. env SIGNING_PUBLIC_KEY_PATH (=${envPath ?? "unset"}) — not found at any candidate path\n` +
+      "  2. env SIGNING_PUBLIC_KEY_PATH — not set\n" +
       `  3. Checked-in fixture (keys/signing-public.pem) — not found\n` +
       "Refusing to fall back to TEST_ONLY material because NODE_ENV=production. " +
       "Set SIGNING_PUBLIC_KEY_PEM (inline PEM) or SIGNING_PUBLIC_KEY_PATH (mounted file) " +

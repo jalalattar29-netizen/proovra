@@ -24,11 +24,14 @@
  * ─── SAFETY INVARIANTS PINNED ──────────────────────────────────────────
  *
  *   1. `SIGNING_PUBLIC_KEY_PEM` env wins over `SIGNING_PUBLIC_KEY_PATH`.
- *   2. `SIGNING_PUBLIC_KEY_PATH` is tried verbatim AND with the
- *      `services/api/` prefix stripped — so the CI workflow's
- *      `services/api/keys/...` path works under cwd=services/api/.
- *   3. When neither env source produces material, the checked-in dev
- *      fixture (`keys/signing-public.pem`) is used.
+ *   2. `SIGNING_PUBLIC_KEY_PATH`, when set, is used EXACTLY (relative to
+ *      the working directory). A missing / non-file / unreadable / invalid
+ *      path is a SigningKeyConfigurationError — never rewritten, never
+ *      replaced by the fixture (that registered a key the signer did not
+ *      hold: SIGNING_KEY_IDENTITY_CONFLICT). The CI workflows now pass a
+ *      path that exists from their seed step's working directory.
+ *   3. Only when NO env source is configured, the checked-in dev fixture
+ *      (`keys/signing-public.pem`) is used.
  *   4. When even the fixture is missing (clean-checkout scenario),
  *      the TEST_ONLY built-in constant is used — but ONLY when
  *      NODE_ENV !== "production". The CI job runs with
@@ -82,12 +85,13 @@ describe("signing-key seed — 5-step public-key resolver", () => {
     expect(pathIdx).toBeGreaterThan(pemIdx);
   });
 
-  it("(A3) Step 2 — file path resolution compensates for cwd ambiguity", () => {
-    // The CI bug-fix: try the env path with `services/api/` stripped.
-    expect(SEED_SRC).toMatch(/services\/api\//);
-    expect(SEED_SRC).toMatch(/buildCandidatePaths/);
-    // The buildCandidatePaths function must mention the prefix strip.
-    expect(SEED_SRC).toMatch(/startsWith\(["']services\/api\/["']\)/);
+  it("(A3) Step 2 — an explicit SIGNING_PUBLIC_KEY_PATH is used exactly, never rewritten", () => {
+    // The old resolver rewrote the configured path (stripping/prepending
+    // services/api/) and then fell through to the checked-in fixture — which
+    // registered a key the runtime signer did not hold. Both are gone.
+    expect(SEED_SRC).toMatch(/readExplicitPublicKeyPath/);
+    expect(SEED_SRC).not.toMatch(/buildCandidatePaths/);
+    expect(SEED_SRC).not.toMatch(/startsWith\(["']services\/api\/["']\)/);
   });
 
   it("(A4) Step 3 — checked-in fixture is in the candidate list", () => {
@@ -217,17 +221,15 @@ describe("signing-key seed — 5-step public-key resolver", () => {
     }
   });
 
-  it("(E2) reads file when only SIGNING_PUBLIC_KEY_PATH is set (CI path-with-prefix case)", async () => {
+  it("(E2) reads exactly the file SIGNING_PUBLIC_KEY_PATH names (relative to the working directory)", async () => {
     const prev = { ...process.env };
     try {
       delete process.env.SIGNING_PUBLIC_KEY_PEM;
-      // This is the EXACT failing CI value. Pre-fix, this threw ENOENT.
-      // Post-fix, the resolver strips `services/api/` because cwd at
-      // test-run time is services/api/, and the path resolves correctly.
-      process.env.SIGNING_PUBLIC_KEY_PATH = "services/api/keys/signing-public.pem";
+      // The test runs from services/api/, like `pnpm prisma:seed`.
+      process.env.SIGNING_PUBLIC_KEY_PATH = "keys/signing-public.pem";
       const mod = await import("../src/seed-signing-key.js");
       const result = mod.resolvePublicKeyPemFromLocalPem();
-      expect(result.source).toMatch(/SIGNING_PUBLIC_KEY_PATH|fixture:/);
+      expect(result.source).toBe(`env:SIGNING_PUBLIC_KEY_PATH (resolved to ${PUBLIC_KEY_FIXTURE})`);
       expect(result.isTestOnlyFallback).toBe(false);
       expect(result.pem).toMatch(/BEGIN PUBLIC KEY/);
     } finally {
@@ -235,52 +237,28 @@ describe("signing-key seed — 5-step public-key resolver", () => {
     }
   });
 
-  it("(E3) falls back to TEST_ONLY constant when env+files all miss AND non-prod", async () => {
+  it("(E3) a repo-root-relative path under services/api cwd is REFUSED, not rewritten (the old CI value)", async () => {
     const prev = { ...process.env };
     try {
       delete process.env.SIGNING_PUBLIC_KEY_PEM;
-      // Point at a path that does NOT exist anywhere.
-      process.env.SIGNING_PUBLIC_KEY_PATH = "no/such/path/does/not/exist.pem";
+      process.env.SIGNING_PUBLIC_KEY_PATH = "services/api/keys/signing-public.pem";
       process.env.NODE_ENV = "development";
-      delete process.env.PROOVRA_ENV;
-      // We can't actually delete the fixture file, so this test relies
-      // on the path-not-found branch leading into the TEST_ONLY check.
-      // But because the fixture exists at keys/signing-public.pem, the
-      // resolver will hit step 3 (fixture) first. To force step 4 we
-      // must verify the source label is fixture-or-fallback — both are
-      // safe non-prod outcomes.
       const mod = await import("../src/seed-signing-key.js");
-      const result = mod.resolvePublicKeyPemFromLocalPem();
-      // In a clean checkout WITH the fixture present, source=fixture.
-      // In a hypothetical clean checkout WITHOUT the fixture, source
-      // would be TEST_ONLY. Either way: non-prod, no throw.
-      expect(result.pem).toMatch(/BEGIN PUBLIC KEY/);
-      expect(["fixture", "TEST_ONLY"]).toContain(
-        result.source.startsWith("fixture") ? "fixture" : "TEST_ONLY",
-      );
+      expect(() => mod.resolvePublicKeyPemFromLocalPem()).toThrow(mod.SigningKeyConfigurationError);
     } finally {
       process.env = prev;
     }
   });
 
-  it("(E4) HARD-FAILS in production when no key source resolves", async () => {
+  it("(E4) an explicit path that does not exist fails in production too — never the fixture", async () => {
     const prev = { ...process.env };
     try {
       delete process.env.SIGNING_PUBLIC_KEY_PEM;
       process.env.SIGNING_PUBLIC_KEY_PATH = "no/such/path/in/prod.pem";
       process.env.NODE_ENV = "production";
       delete process.env.PROOVRA_ENV;
-      // The committed fixture WILL be found in step 3 in this test env,
-      // so to force step 5 we need a way to skip the fixture. The
-      // resolver's contract: when NODE_ENV=production AND every source
-      // misses, it throws. We pin this behaviour by inspecting the
-      // throw message in source; behavioural pin is best-effort.
-      // Source-level pin already covers this (A6); the behavioural
-      // test is a smoke check: when the resolver completes in prod, it
-      // must NOT be via the TEST_ONLY fallback.
       const mod = await import("../src/seed-signing-key.js");
-      const result = mod.resolvePublicKeyPemFromLocalPem();
-      expect(result.isTestOnlyFallback).toBe(false);
+      expect(() => mod.resolvePublicKeyPemFromLocalPem()).toThrow(/no\/such\/path\/in\/prod\.pem.*does not exist/);
     } finally {
       process.env = prev;
     }

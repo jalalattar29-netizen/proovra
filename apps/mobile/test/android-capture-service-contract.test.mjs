@@ -23,10 +23,16 @@ const code = (f) => readFileSync(resolve(KT, f), "utf8").replace(/\/\*[\s\S]*?\*
 const continuous = code("ContinuousScreenCaptureService.kt");
 const frames = code("ScreenCaptureService.kt");
 const module = code("ProovraScreenCaptureModule.kt");
+const decisions = code("CaptureDecisions.kt");
 
 test("UC-AND-007: a segment whose MediaRecorder.stop() threw is deleted, recorded, and never emitted", () => {
-  assert.match(continuous, /try \{ r\.stop\(\) \} catch \(_: Throwable\) \{ stopFailed = true \}/);
-  assert.match(continuous, /if \(stopFailed\) \{\s*limitations\.add\("SEGMENT_WRITE_FAILED"\)[\s\S]*?file\?\.delete\(\)[\s\S]*?return\s*\}/);
+  // The decision lives in CaptureDecisions.kt (JVM-unit-tested by
+  // CaptureDecisionsTest.kt); the service must route stop() through it and act
+  // on the discard verdict.
+  assert.match(decisions, /try \{ stop\(\) \} catch \(_: Throwable\) \{ stopFailed = true \}/);
+  assert.match(decisions, /if \(stopFailed\) \{\s*try \{ deleteFile\(\) \}[\s\S]*?return SegmentClose\.DISCARD_WRITE_FAILED/);
+  assert.match(continuous, /closeSegment\(\s*stop = \{ r\.stop\(\) \}/);
+  assert.match(continuous, /if \(outcome == SegmentClose\.DISCARD_WRITE_FAILED\) \{\s*limitations\.add\("SEGMENT_WRITE_FAILED"\)[\s\S]*?return\s*\}/);
   assert.ok(!/try \{ r\.stop\(\) \} catch \(_: Throwable\) \{\}/.test(continuous), "the swallowed stop() is back");
   // A clean stop over a lost stretch is not COMPLETE.
   assert.match(continuous, /val complete = cleanEnd && limitations\.none \{ it in INCOMPLETE_LIMITATIONS \}/);
@@ -51,7 +57,12 @@ test("UC-AND-013: a setup failure after consent REJECTS the start (both services
     assert.match(src, /try \{\s*beginProjection\(\)\s*\} catch \(t: Throwable\) \{\s*failStart\(/, name);
     assert.match(src, /cb\?\.invoke\(code, message\)/, name);
     assert.ok(!/getMediaProjection\(resultCode, data\) \?: return finish\("ERROR"\)/.test(src), `${name}: the hung-start path is back`);
+    // Consent / null projection / a throw are decided by obtainProjection
+    // (JVM-unit-tested) and every refusal goes to failStart.
+    assert.match(src, /obtainProjection\(resultData\) \{ mpm\.getMediaProjection\(resultCode, it\) \}/, name);
+    assert.match(src, /is ProjectionOutcome\.Refused -> [\s\S]{0,20}failStart\(outcome\.code, outcome\.message\)/, name);
   }
+  assert.match(decisions, /if \(projection == null\) \{\s*ProjectionOutcome\.Refused\(PROJECTION_UNAVAILABLE/);
   assert.equal((module.match(/onStartFailed = \{ code, message -> promise\.reject\(CodedException\(code, message, null\)\) \}/g) ?? []).length, 2);
 });
 

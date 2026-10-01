@@ -207,17 +207,15 @@ class ScreenCaptureService : Service() {
   }
 
   private fun beginProjection() {
-    val data = resultData
-    if (data == null) {
-      failStart("NO_CONSENT_TOKEN", "The screen-capture consent was not available.")
-      return
-    }
     val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     // getMediaProjection MUST be called after startForeground on Android 14.
-    val mp = mpm.getMediaProjection(resultCode, data)
-    if (mp == null) {
-      failStart("PROJECTION_UNAVAILABLE", "Android did not provide the screen-capture session.")
-      return
+    // The decision is obtainProjection (CaptureDecisions.kt), unit-tested on the JVM.
+    val mp = when (val outcome = obtainProjection(resultData) { mpm.getMediaProjection(resultCode, it) }) {
+      is ProjectionOutcome.Refused -> {
+        failStart(outcome.code, outcome.message)
+        return
+      }
+      is ProjectionOutcome.Ready -> outcome.projection
     }
     projection = mp
 

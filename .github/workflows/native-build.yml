@@ -62,6 +62,25 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # UC-IOS-012 — XCTest of ProovraDarwinNotify against the REAL Darwin
+      # notify center on macOS. The package compiles the shipped file (copied
+      # in here, never a second copy in git). Refuses fewer than 6 executed.
+      - name: XCTest — ProovraDarwinNotify (UC-IOS-012)
+        working-directory: apps/mobile/modules/proovra-screen-capture/ios-tests
+        run: |
+          set -o pipefail
+          mkdir -p Sources/DarwinNotifyBridge
+          cp ../ios/ProovraDarwinNotify.swift Sources/DarwinNotifyBridge/
+          swift test 2>&1 | tee "$RUNNER_TEMP/xctest.log"
+          line=$(grep -E "Executed [0-9]+ tests?, with [0-9]+ failures?" "$RUNNER_TEMP/xctest.log" | tail -1)
+          echo "xctest: $line"
+          executed=$(echo "$line" | sed -E 's/.*Executed ([0-9]+) tests?.*/\1/')
+          failures=$(echo "$line" | sed -E 's/.*with ([0-9]+) failures?.*/\1/')
+          skipped=$(grep -cE "Test Case .* skipped" "$RUNNER_TEMP/xctest.log" || true)
+          if [ -z "$line" ] || [ "${executed:-0}" -lt 6 ]; then echo "::error::ProovraDarwinNotify XCTest executed ${executed:-0} tests (expected >= 6)"; exit 1; fi
+          if [ "${failures:-1}" -ne 0 ]; then echo "::error::ProovraDarwinNotify XCTest failures: $failures"; exit 1; fi
+          if [ "${skipped:-0}" -ne 0 ]; then echo "::error::ProovraDarwinNotify XCTest skipped $skipped"; exit 1; fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -169,3 +188,36 @@ jobs:
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      # UC-AND-007 / UC-AND-013 — the capture services' failure decisions
+      # (CaptureDecisions.kt: a throwing MediaRecorder.stop(), a null / refused
+      # / throwing media projection) on the JVM. Refuses a run that executed
+      # fewer than the 8 tests or skipped any.
+      - name: JVM unit tests — capture decisions (UC-AND-007, UC-AND-013)
+        working-directory: apps/mobile/android
+        env:
+          SENTRY_DISABLE_AUTO_UPLOAD: "true"
+        run: |
+          set -euo pipefail
+          proj=$(./gradlew -q projects --no-daemon | grep -o "':[^']*screen-capture[^']*'" | head -1 | tr -d "'")
+          if [ -z "$proj" ]; then
+            echo "::error::the proovra-screen-capture Gradle project was not found"
+            ./gradlew -q projects --no-daemon
+            exit 1
+          fi
+          echo "module project: $proj"
+          ./gradlew "${proj}:testDebugUnitTest" --no-daemon --stacktrace
+          node -e '
+            const fs = require("fs"), path = require("path");
+            const root = path.resolve("../modules/proovra-screen-capture/android/build/test-results/testDebugUnitTest");
+            const files = fs.existsSync(root) ? fs.readdirSync(root).filter((f) => /^TEST-.*\.xml$/.test(f)) : [];
+            const t = { tests: 0, skipped: 0, failures: 0, errors: 0 };
+            for (const f of files) {
+              const head = fs.readFileSync(path.join(root, f), "utf8").match(/<testsuite[^>]*>/)?.[0] ?? "";
+              for (const k of Object.keys(t)) t[k] += Number(head.match(new RegExp(` ${k}="(\\d+)"`))?.[1] ?? 0);
+            }
+            console.log("capture decisions JUnit:", JSON.stringify(t), files);
+            if (t.tests < 8) { console.log(`::error::capture-decision unit tests executed ${t.tests} (expected >= 8)`); process.exit(1); }
+            if (t.skipped > 0) { console.log(`::error::capture-decision unit tests SKIPPED ${t.skipped}`); process.exit(1); }
+            if (t.failures + t.errors > 0) { console.log("::error::capture-decision unit tests failed"); process.exit(1); }
+          '
