@@ -23,6 +23,7 @@ import {
   createGuestSession,
   disposeSession,
   mintVerifyLink,
+  authorizeOriginalPart,
 } from "./helpers/api-client";
 
 // Phase 1 — clear shared rate-limit buckets between tests so the
@@ -44,12 +45,10 @@ async function signedEvidence(session: Awaited<ReturnType<typeof createGuestSess
       `signedEvidence: POST /v1/evidence failed (HTTP ${create.status()}): ${await create.text()}`,
     );
   }
-  const c = (await create.json()) as {
-    id: string;
-    upload: { putUrl: string };
-  };
+  const c = (await create.json()) as { id: string };
+  const putUrl = await authorizeOriginalPart(session.api, c.id, { mimeType: "text/plain" });
 
-  const putRes = await fetch(c.upload.putUrl, {
+  const putRes = await fetch(putUrl, {
     method: "PUT",
     body: `verify-privacy ${Date.now()}\n`,
     headers: { "Content-Type": "text/plain" },

@@ -229,16 +229,14 @@ test("a report overflow item takes the selection lavender on hover, keeping its 
     "rgba(0, 0, 0, 0)",
   );
   await item.hover();
-  // The tint transitions over 120ms; read it after it has arrived.
-  await page.waitForTimeout(250);
-  const hovered = await item.evaluate((n) => ({
-    bg: getComputedStyle(n).backgroundColor,
-    color: getComputedStyle(n).color,
-  }));
   // `--accent-050`, the tint the canonical selectors already use. Not a grey
-  // block, and not a dark purple slab that would swallow the label.
-  expect(hovered.bg).toBe("rgb(242, 236, 254)");
-  expect(hovered.color, "the label must stay readable").toBe(CANONICAL_NAVY);
+  // block, and not a dark purple slab that would swallow the label. The tint
+  // TRANSITIONS (120ms): a single read after a fixed sleep caught it mid-way on
+  // a busy runner (rgba(242, 236, 254, 0.984), or not yet started). toHaveCSS
+  // waits for the computed value to ARRIVE and still fails if hover never
+  // applies it.
+  await expect(item).toHaveCSS("background-color", "rgb(242, 236, 254)");
+  await expect(item, "the label must stay readable").toHaveCSS("color", CANONICAL_NAVY);
 });
 
 // ===========================================================================

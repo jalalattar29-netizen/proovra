@@ -48,6 +48,7 @@ import {
   createGuestSession,
   disposeSession,
   type GuestSession,
+  authorizeOriginalPart,
 } from "./helpers/api-client";
 import {
   counter,
@@ -151,12 +152,10 @@ async function uploadAndFinalizeEvidence(opts: {
     createRes.ok(),
     `create evidence: ${await createRes.text()}`,
   ).toBe(true);
-  const created = (await createRes.json()) as {
-    id: string;
-    upload: { putUrl: string };
-  };
+  const created = (await createRes.json()) as { id: string };
+  const putUrl = await authorizeOriginalPart(opts.api, created.id, { mimeType: "text/plain" });
   const expectedSha = createHash("sha256").update(opts.body).digest("hex");
-  const putRes = await fetch(created.upload.putUrl, {
+  const putRes = await fetch(putUrl, {
     method: "PUT",
     body: opts.body,
     headers: { "Content-Type": "text/plain" },

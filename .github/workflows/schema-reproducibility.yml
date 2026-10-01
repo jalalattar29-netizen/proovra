@@ -232,6 +232,36 @@ jobs:
       # collected suites, while the 23 that failed to load never registered a
       # case at all. A green-looking "skipped" count was really 23 suites that
       # never executed.
+      # The integration suite includes REAL-object-store proofs (stored-bytes truth
+      # against MinIO, upload sessions through presigned PUTs). This job had no
+      # object store at all, so those cases failed against a dead endpoint (503
+      # storage_unavailable / connection refused). The same disposable MinIO the
+      # ci job starts, at the endpoint the test harness defaults to
+      # (127.0.0.1:59000, test/setup/local-s3-endpoint.mjs), with its bucket.
+      - name: Disposable object store for the integration suite
+        run: |
+          docker run -d --name schema-integration-minio --network host \
+            -e MINIO_ROOT_USER=point7-local-minio \
+            -e MINIO_ROOT_PASSWORD=point7-local-minio-secret \
+            pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372 \
+            server /data --address ':59000'
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:59000/minio/health/live >/dev/null 2>&1; then
+              echo "disposable MinIO ready after ${i}s"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::disposable MinIO never became healthy on 127.0.0.1:59000"
+              docker logs --tail 50 schema-integration-minio || true
+              exit 1
+            fi
+            sleep 1
+          done
+          docker run --rm --network host \
+            -e MC_HOST_local=http://point7-local-minio:point7-local-minio-secret@127.0.0.1:59000 \
+            pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd \
+            mb --ignore-existing local/point7-local-bucket
+
       - name: API integration suite (formerly the 21 skipped tests)
         working-directory: services/api
         env:

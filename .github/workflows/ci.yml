@@ -1016,10 +1016,18 @@ jobs:
       # quietly defaulting, because an extension shipped against the wrong
       # origin is indistinguishable from a working one until someone installs
       # it. Stated here in the open: it is a public endpoint, not a secret.
+      #
+      # UC-SEC-002 — the release also REQUIRES the storage origin(s) the presigned
+      # capture uploads go to, because the built manifest declares exactly those
+      # hosts. That origin is deployment configuration (the production bucket's
+      # endpoint), not something this file may guess: it comes from the
+      # repository variable PROOVRA_STORAGE_ORIGINS, and until the owner sets it
+      # release.mjs refuses the build with its own explicit message.
       - name: Build the store package
         working-directory: apps/extension
         env:
           PROOVRA_API_ORIGIN: https://api.proovra.com
+          PROOVRA_STORAGE_ORIGINS: ${{ vars.PROOVRA_STORAGE_ORIGINS }}
         run: pnpm run release
 
       - name: Record the artifact provenance

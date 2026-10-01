@@ -36,11 +36,11 @@ test("no child of the sign-out button paints its own background on hover", async
 
   const rest = await read();
   await button.hover();
-  await page.waitForTimeout(250);
+  // The button is the only thing that paints, and hovering changes it. Its
+  // background TRANSITIONS: wait for the change to arrive rather than reading
+  // once after a fixed sleep (which a busy runner can beat).
+  await expect.poll(async () => (await read()).buttonBg).not.toBe(rest.buttonBg);
   const hovered = await read();
-
-  // The button is the only thing that paints, and hovering changes it.
-  expect(hovered.buttonBg).not.toBe(rest.buttonBg);
 
   // NOTHING inside it has a background, in either state. An opaque child is
   // the artifact, and it is invisible until the parent moves underneath it.

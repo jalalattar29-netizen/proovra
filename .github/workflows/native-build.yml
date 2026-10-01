@@ -24,11 +24,13 @@ on:
       - "apps/mobile/**"
       - "packages/shared/src/**"
       - ".github/workflows/native-build.yml"
+  # Every branch, like ci / playwright-e2e / schema-reproducibility: a branch that
+  # changes native capture code proves it compiles before any PR or merge.
   push:
-    branches: [main]
     paths:
       - "apps/mobile/**"
       - "packages/shared/src/**"
+      - ".github/workflows/native-build.yml"
 
 concurrency:
   group: native-build-${{ github.ref }}

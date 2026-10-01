@@ -35,6 +35,16 @@ on:
       - "services/api/src/routes/extension-oauth.routes.ts"
       - "services/api/src/services/capture-trust/**"
       - ".github/workflows/uc1-browser-acceptance.yml"
+  # Like ci / playwright-e2e / schema-reproducibility, a push runs it too — so a
+  # branch that changes the capture path proves Chrome + Edge before any PR.
+  push:
+    paths:
+      - "apps/extension/**"
+      - "scripts/uc1-acceptance-windows.mjs"
+      - "services/api/src/routes/capture-trust.routes.ts"
+      - "services/api/src/routes/extension-oauth.routes.ts"
+      - "services/api/src/services/capture-trust/**"
+      - ".github/workflows/uc1-browser-acceptance.yml"
 
 concurrency:
   group: uc1-browser-acceptance-${{ github.ref }}
@@ -44,10 +54,16 @@ jobs:
   windows-acceptance:
     runs-on: windows-latest
     timeout-minutes: 45
-    env:
-      TEMP: ${{ runner.temp }}
-      TMP: ${{ runner.temp }}
     steps:
+      # The `runner` context is not available in job-level `env`; an expression
+      # there makes the whole file invalid (every push then showed a failed,
+      # job-less run). The runner's temp dir is exported from a step instead.
+      - name: Temp directories on the runner's temp volume
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TMP=$env:RUNNER_TEMP" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -149,9 +165,10 @@ jobs:
   linux-extension-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      TMPDIR: ${{ runner.temp }}
     steps:
+      - name: Temp directory on the runner's temp volume
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

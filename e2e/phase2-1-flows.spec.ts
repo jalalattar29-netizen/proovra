@@ -23,6 +23,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   disposeSession,
+  authorizeOriginalPart,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -66,11 +67,8 @@ test.describe("Phase 2.1 — workflow completion @critical", () => {
       const create = await session.api.post("/v1/evidence", {
         data: { type: "PHOTO", mimeType: "text/plain" },
       });
-      const c = (await create.json()) as {
-        id: string;
-        upload: { putUrl: string };
-      };
-      await fetch(c.upload.putUrl, {
+      const c = (await create.json()) as { id: string };
+      await fetch(await authorizeOriginalPart(session.api, c.id, { mimeType: "text/plain" }), {
         method: "PUT",
         body: "ai-test\n",
         headers: { "Content-Type": "text/plain" },
@@ -122,11 +120,8 @@ test.describe("Phase 2.1 — workflow completion @critical", () => {
         const r = await owner.api.post("/v1/evidence", {
           data: { type: "PHOTO", mimeType: "text/plain" },
         });
-        const j = (await r.json()) as {
-          id: string;
-          upload: { putUrl: string };
-        };
-        await fetch(j.upload.putUrl, {
+        const j = (await r.json()) as { id: string };
+        await fetch(await authorizeOriginalPart(owner.api, j.id, { mimeType: "text/plain" }), {
           method: "PUT",
           body: `${label}\n`,
           headers: { "Content-Type": "text/plain" },

@@ -174,6 +174,41 @@ function getRedis(options: { ignoreCooldown?: boolean } = {}): IORedis | null {
   }
 }
 
+/**
+ * ONE in-flight connection for every caller. The client is lazy, and only the
+ * caller that saw status "wait" used to connect it: every concurrent caller that
+ * arrived while it was "connecting" sent its command to a socket that was not
+ * ready (offline queue disabled), failed, and put the store into cooldown — so a
+ * `global` bound refused a cold process's first concurrent visitors (429).
+ */
+let connecting: Promise<void> | null = null;
+async function ensureConnected(client: IORedis): Promise<void> {
+  if (client.status === "ready") return;
+  if (client.status === "wait") {
+    connecting ??= client.connect().finally(() => {
+      connecting = null;
+    });
+  }
+  if (connecting) {
+    await connecting;
+    return;
+  }
+  if (client.status === "connecting" || client.status === "connect") {
+    await new Promise<void>((resolve, reject) => {
+      const onReady = () => {
+        client.off("error", onError);
+        resolve();
+      };
+      const onError = (err: unknown) => {
+        client.off("ready", onReady);
+        reject(err);
+      };
+      client.once("ready", onReady);
+      client.once("error", onError);
+    });
+  }
+}
+
 async function enforceMemoryRateLimit(params: {
   key: string;
   max: number;
@@ -243,9 +278,7 @@ async function enforceRedisRateLimit(params: {
   const redisKey = `${REDIS_KEY_PREFIX}${params.key}`;
 
   try {
-    if (params.redisClient.status === "wait") {
-      await params.redisClient.connect();
-    }
+    await ensureConnected(params.redisClient);
 
     const pipeline = params.redisClient.pipeline();
     pipeline.incr(redisKey);
@@ -393,7 +426,7 @@ export async function enforceDistinctClientLimit(params: {
   const now = Date.now();
   const redisKey = `${REDIS_KEY_PREFIX}${key}`;
   try {
-    if (redisClient.status === "wait") await redisClient.connect();
+    await ensureConnected(redisClient);
     // One atomic decision. Membership first: an admitted client never consumes
     // another slot and is never refused inside its window.
     const [allowed, size, ttl] = (await redisClient.eval(
@@ -450,9 +483,7 @@ export async function clearAllRateLimitBuckets(): Promise<{
   const client = getRedis();
   if (client) {
     try {
-      if (client.status === "wait") {
-        await client.connect();
-      }
+      await ensureConnected(client);
       let cursor = "0";
       do {
         const result = (await client.scan(
@@ -530,7 +561,7 @@ export async function acquireLease(rawKey: string, ttlMs: number): Promise<Lease
   const redisKey = `${REDIS_KEY_PREFIX}lease:${key}`;
   const token = leaseToken();
   try {
-    if (client.status === "wait") await client.connect();
+    await ensureConnected(client);
     const ok = await client.set(redisKey, token, "PX", ttl, "NX");
     if (ok !== "OK") return { acquired: false, release: async () => undefined };
     return {

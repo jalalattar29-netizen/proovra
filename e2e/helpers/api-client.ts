@@ -389,3 +389,28 @@ export function provisionEnterpriseOrg(
   }
   return JSON.parse(line) as ProvisionedOrg;
 }
+
+/**
+ * UC-ARCH-008 — evidence bytes are uploaded as PARTS. `POST /v1/evidence` reserves
+ * the record and issues no upload URL of its own; the original is declared as
+ * part 0 and uploaded to that part's own presigned URL, which is what every
+ * product channel does. Returns that URL (throws with the server's answer if the
+ * part is not authorized).
+ */
+export async function authorizeOriginalPart(
+  api: APIRequestContext,
+  evidenceId: string,
+  opts: { mimeType: string; originalFileName?: string },
+): Promise<string> {
+  const res = await api.post(`/v1/evidence/${evidenceId}/parts`, {
+    data: { partIndex: 0, mimeType: opts.mimeType, originalFileName: opts.originalFileName ?? "original.txt" },
+  });
+  if (!res.ok()) {
+    throw new Error(`POST /v1/evidence/${evidenceId}/parts failed (HTTP ${res.status()}): ${await res.text()}`);
+  }
+  const body = (await res.json()) as { upload?: { putUrl?: string } };
+  if (!body.upload?.putUrl) {
+    throw new Error(`part 0 of ${evidenceId} was declared but no upload URL was issued: ${JSON.stringify(body).slice(0, 300)}`);
+  }
+  return body.upload.putUrl;
+}

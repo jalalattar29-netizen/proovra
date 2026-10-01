@@ -22,6 +22,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   disposeSession,
+  authorizeOriginalPart,
 } from "./helpers/api-client";
 
 test.beforeEach(async () => {
@@ -41,17 +42,21 @@ test.describe("evidence flow @critical", () => {
       const created = (await createRes.json()) as {
         id: string;
         status: string;
-        upload: { putUrl: string; bucket: string; key: string };
+        upload?: unknown;
       };
       expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
       expect(created.status).toBe("UPLOADING");
-      expect(created.upload.putUrl).toContain("X-Amz-Signature=");
+      // UC-ARCH-008 — the record reservation issues NO upload URL of its own.
+      expect(created.upload).toBeUndefined();
 
-      // 2. Upload bytes directly to MinIO via the presigned URL.
+      // 2. Declare the original as part 0 and upload to that part's own
+      // presigned URL (the path every product channel uses).
+      const putUrl = await authorizeOriginalPart(session.api, created.id, { mimeType: "text/plain" });
+      expect(putUrl).toContain("X-Amz-Signature=");
       const body = `playwright e2e ${Date.now()}\n`;
       const expectedSha = createHash("sha256").update(body).digest("hex");
 
-      const putRes = await fetch(created.upload.putUrl, {
+      const putRes = await fetch(putUrl, {
         method: "PUT",
         body,
         headers: { "Content-Type": "text/plain" },
