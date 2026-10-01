@@ -727,8 +727,18 @@ jobs:
         env:
           DATABASE_URL: postgresql://proovra:proovra_password@localhost:5432/proovra
           DIRECT_URL: postgresql://proovra:proovra_password@localhost:5432/proovra
+          # THE HOST PATHS OF THE KEYS THE CONTAINERS MOUNT. The job-level
+          # SIGNING_*_PATH name /run/signing/…, which exists only INSIDE the
+          # containers; on the runner the seed found nothing there and silently
+          # registered the repository's fixture public key instead. The API
+          # then refused to sign with the minted private key —
+          # SIGNING_KEY_IDENTITY_CONFLICT, "POST /complete returned 500" —
+          # reproduced locally on this exact stack, and green with these paths.
+          SIGNING_PRIVATE_KEY_PATH: ${{ env.SIGNING_KEY_DIR }}/signer-private.pem
+          SIGNING_PUBLIC_KEY_PATH: ${{ env.SIGNING_KEY_DIR }}/signer-public.pem
         run: |
           set -euo pipefail
+          test -s "$SIGNING_PUBLIC_KEY_PATH" || { echo "::error::minted public key missing at $SIGNING_PUBLIC_KEY_PATH"; exit 1; }
           pnpm prisma migrate deploy
           pnpm prisma:seed
 
