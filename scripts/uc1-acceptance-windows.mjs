@@ -46,7 +46,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { closeSync, existsSync, mkdirSync, openSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 import { buildLocalFixtureEnv, describeLocalFixtureEnv } from "./local-fixture-env/index.mjs";
@@ -700,6 +700,42 @@ async function main() {
     stopChildren();
     reapPortListeners();
     stopInfra();
+    writeCiStackSummary();
+  }
+}
+
+/**
+ * On GitHub Actions, append each service's errors and log tail to the JOB
+ * SUMMARY. Step logs need a signed-in viewer; the summary does not, and the
+ * service logs (api, worker, web, fixtures) are where a capture's "ERROR"
+ * actually comes from. The stack is disposable and its environment is the
+ * scanned local fixture set, so nothing here is a real credential.
+ */
+function writeCiStackSummary() {
+  const out = process.env.GITHUB_STEP_SUMMARY;
+  if (!out || !existsSync(STACK_LOG_DIR)) return;
+  const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
+  const parts = [`### UC-1 acceptance stack logs (${process.platform})`];
+  for (const name of ["api", "worker", "web", "fixtures"]) {
+    const file = resolve(STACK_LOG_DIR, `${name}.log`);
+    if (!existsSync(file)) continue;
+    const lines = strip(readFileSync(file, "utf8")).split(/\r?\n/).filter(Boolean);
+    const errors = lines.filter((l) => /"level":(50|60)|\bError\b|ERR_|refus/i.test(l)).slice(-15);
+    parts.push(
+      `#### ${name} — ${lines.length} lines; error-like (last ${errors.length})`,
+      "```",
+      ...errors.map((l) => l.slice(0, 1500)),
+      "```",
+      `#### ${name} — tail`,
+      "```",
+      ...lines.slice(-25).map((l) => l.slice(0, 1500)),
+      "```",
+    );
+  }
+  try {
+    appendFileSync(out, `${parts.join("\n")}\n`);
+  } catch {
+    /* a summary that cannot be written never changes the verdict */
   }
 }
 

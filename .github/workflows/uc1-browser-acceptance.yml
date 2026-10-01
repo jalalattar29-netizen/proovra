@@ -177,11 +177,18 @@ jobs:
 
       - name: UC-1 acceptance — Chrome + Edge (native infra)
         if: steps.infra.outputs.mode == 'native'
-        run: >-
-          node scripts/uc1-acceptance-windows.mjs --browsers=chromium,edge
-          --db-url=postgresql://proovra:uc1_disposable@127.0.0.1:5432/uc1_acceptance_test
-          --redis-url=redis://127.0.0.1:6379/0
-          --s3-endpoint=http://127.0.0.1:56423
+        # bash (Git Bash on the runner) so the harness's own output also lands
+        # in the JOB SUMMARY, which — unlike a step log — needs no sign-in.
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/uc1-acceptance-windows.mjs --browsers=chromium,edge \
+            --db-url=postgresql://proovra:uc1_disposable@127.0.0.1:5432/uc1_acceptance_test \
+            --redis-url=redis://127.0.0.1:6379/0 \
+            --s3-endpoint=http://127.0.0.1:56423 2>&1 | tee "$RUNNER_TEMP/uc1-harness.log"
+          rc=${PIPESTATUS[0]}
+          { echo "### UC-1 harness output (windows, tail)"; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 150; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
 
       - name: Refuse an empty acceptance run
         if: always()
@@ -243,7 +250,15 @@ jobs:
           sudo apt-get install -y xvfb
 
       - name: UC-1 extension e2e — Chromium (headed under xvfb)
-        run: xvfb-run -a node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium
+        # The harness's own output also goes to the JOB SUMMARY (no sign-in
+        # needed): this step once "passed" in 21 seconds — far too short to
+        # have migrated, built and run a browser — and nothing readable said why.
+        run: |
+          set -o pipefail
+          xvfb-run -a node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium 2>&1 | tee "$RUNNER_TEMP/uc1-harness.log"
+          rc=${PIPESTATUS[0]}
+          { echo "### UC-1 harness output (linux, tail)"; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 150; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
 
       - name: Refuse an empty e2e run
         if: always()

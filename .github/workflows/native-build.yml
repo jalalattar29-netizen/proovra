@@ -5,8 +5,8 @@ name: native-build
 # services) was never COMPILED in CI: every workflow ran on ubuntu with
 # node --test text checks. These jobs compile it.
 #
-#   * ios-device-build — `expo prebuild -p ios` + `xcodebuild` for the app
-#     scheme on the iOS device SDK (generic iOS device), unsigned. The app embeds the
+#   * ios-simulator-build — `expo prebuild -p ios` + `xcodebuild` for the app
+#     scheme on the iOS Simulator SDK, unsigned. The app embeds the
 #     ProovraBroadcast extension, so the extension target compiles as a
 #     dependency; the job then REFUSES a build whose products lack
 #     ProovraBroadcast.appex (a silently dropped target is the defect class
@@ -37,29 +37,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ios-device-build:
+  ios-simulator-build:
     # PINNED, not macos-latest. macos-latest moved to macOS 26 (Xcode 26.x),
     # whose clang rejects React Native 0.76's bundled `fmt` pod ("call to
     # consteval function ... is not a constant expression" in
     # fmt/format-inl.h) — the first run of this job failed there, before any
     # project source compiled. Xcode 16.2 (the SDK-52 toolchain) is PROVEN to
-    # compile it here (RN 0.76.9 ships fmt 11.0.2 with no consteval fix, so
-    # 16.3+ fails the same way).
+    # compile it (RN 0.76.9 ships fmt 11.0.2 with no consteval fix, so 16.3+
+    # fails the same way).
     #
-    # DEVICE SDK, not the simulator: the macos-15 image installs no iOS 18.2
-    # SIMULATOR runtime for 16.2 (expo-dev-launcher's storyboard refused with
-    # "iOS 18.2 Platform Not Installed", and `xcodebuild -downloadPlatform iOS`
-    # exited 70 on the runner). The device SDK ships inside Xcode itself, and
-    # an unsigned generic-iOS-device build compiles the same Swift sources and
-    # embeds the same ProovraBroadcast.appex.
-    runs-on: macos-15
+    # macos-14, not macos-15: 16.2's storyboards (expo-dev-launcher) need the
+    # iOS 18.2 platform, for a device build as much as for the simulator
+    # ("iOS 18.2 Platform Not Installed" on macos-15 both ways), and
+    # `xcodebuild -downloadPlatform iOS` exited 70 there. The macos-14 image
+    # ships Xcode 16.2 WITH the iOS 18.2 simulator runtime installed.
+    runs-on: macos-14
     timeout-minutes: 75
     steps:
-      - name: Select Xcode 16.2 (the SDK-52 toolchain)
+      - name: Select Xcode 16.2 + its installed iOS 18.2 runtime (the SDK-52 toolchain)
         run: |
           sudo xcode-select -s /Applications/Xcode_16.2.app
           xcodebuild -version
-          xcodebuild -showsdks | grep -E "iphoneos18\.2" || { echo "::error::iOS 18.2 device SDK missing from Xcode 16.2"; exit 1; }
+          xcrun simctl list runtimes | grep -E "iOS 18\.2" || { echo "::error::iOS 18.2 simulator runtime missing on this image"; exit 1; }
 
       - uses: actions/checkout@v4
 
@@ -89,7 +88,7 @@ jobs:
         working-directory: apps/mobile/ios
         run: pod install
 
-      - name: xcodebuild — app + ProovraBroadcast (generic iOS device, unsigned)
+      - name: xcodebuild — app + ProovraBroadcast (iphonesimulator, unsigned)
         working-directory: apps/mobile/ios
         run: |
           set -o pipefail
@@ -97,8 +96,8 @@ jobs:
           SCHEME="${WS%.xcworkspace}"
           echo "workspace=$WS scheme=$SCHEME"
           xcodebuild -workspace "$WS" -scheme "$SCHEME" \
-            -configuration Debug -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
+            -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             build | tee "$RUNNER_TEMP/xcodebuild.log" | tail -200 || {
