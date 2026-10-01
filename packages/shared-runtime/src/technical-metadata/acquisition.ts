@@ -330,16 +330,6 @@ export function getCaptureContextTimestampLabel(input: {
   isIntake?: boolean | null;
 }): string {
   const a = resolveEvidenceAcquisition({ acquisitionMode: input.acquisitionMode });
-  // UC-PROV-001 — for a direct capture the record is created when the server
-  // receives the capture session (the extension reserves it AFTER the capture
-  // ran), so the value is the server-received time, never a capture time.
-  if (
-    a.mode === "DIRECT_WEB_CAPTURE_EXTENSION" ||
-    a.mode === "DIRECT_SCREEN_CAPTURE_ANDROID" ||
-    a.mode === "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS" ||
-    a.mode === "DIRECT_SCREEN_CAPTURE_IOS"
-  ) {
-    return "Server received at (server UTC)";
-  }
+  // UC-PROV-001 — the shared label names direct-capture times as server-received.
   return acquisitionTimestampLabel(a.mode, input.isIntake === true);
 }

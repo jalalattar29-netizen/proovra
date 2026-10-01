@@ -450,17 +450,16 @@ export function acquisitionTimestampLabel(
   if (mode === "PROOVRA_MOBILE_APP") {
     return "Recorded at mobile app submission (server UTC)";
   }
-  if (mode === "DIRECT_WEB_CAPTURE_EXTENSION") {
-    return "Captured from the web at (server UTC)";
-  }
-  if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID") {
-    return "Captured from an Android screen at (server UTC)";
-  }
-  if (mode === "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS") {
-    return "Recorded from an Android screen at (server UTC)";
-  }
-  if (mode === "DIRECT_SCREEN_CAPTURE_IOS") {
-    return "Recorded from an iOS screen at (server UTC)";
+  // UC-PROV-001 — for a direct capture the record is created when the server
+  // receives the capture session (the extension reserves it AFTER the capture
+  // ran): the value is the server-received time, never a capture time.
+  if (
+    mode === "DIRECT_WEB_CAPTURE_EXTENSION" ||
+    mode === "DIRECT_SCREEN_CAPTURE_ANDROID" ||
+    mode === "DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS" ||
+    mode === "DIRECT_SCREEN_CAPTURE_IOS"
+  ) {
+    return "Server received at (server UTC)";
   }
   return "Recorded at submission (server UTC)";
 }

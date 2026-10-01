@@ -12808,6 +12808,8 @@ action: "evidence.certification_requested",
         signatureBase64: true,
         signingKeyId: true,
         signingKeyVersion: true,
+        // UC-TRUST-003 — the key fingerprint bound to the record at signing.
+        signingKeySha256: true,
         fileSha256: true,
         tsaProvider: true,
         tsaUrl: true,
@@ -13401,7 +13403,16 @@ await recordOriginalRelease({
     // valid signature: the key can no longer vouch for anything. The revocation
     // time is surfaced so a reviewer sees "signed with a key revoked at T".
     const signingKeyRevokedAtUtc = signingKey.revokedAt ? signingKey.revokedAt.toISOString() : null;
-    const signatureValid = signatureCryptographicallyValid && signingKeyRevokedAtUtc === null;
+    // UC-TRUST-003 — the record names the key (SPKI SHA-256) it was signed
+    // with; a registry row whose key differs (replaced PEM, forged row) fails
+    // the signature. NULL on a record signed before the binding existed keeps
+    // the previous behaviour.
+    const signingKeyMatchesRecord: boolean | null = evidence.signingKeySha256
+      ? (await import("../signing/key-registry.js")).publicKeySpkiSha256(signingKey.publicKeyPem) ===
+        evidence.signingKeySha256.toLowerCase()
+      : null;
+    const signatureValid =
+      signatureCryptographicallyValid && signingKeyRevokedAtUtc === null && signingKeyMatchesRecord !== false;
 
     const publicVerifyTrustShared = await import("@proovra/shared");
     // UC-TRUST-001 — the unsigned digest columns must agree with the digests
@@ -13937,6 +13948,7 @@ verificationPackageVersion:
     const integrityProof: PublicVerifyIntegrityProof & {
       digestColumnsMatchSignedFingerprint: boolean | null;
       signingKeyRevokedAtUtc: string | null;
+      signingKeyMatchesRecord: boolean | null;
       storedBytesCheck: string;
     } = {
   overallIntegrity,
@@ -13945,6 +13957,7 @@ verificationPackageVersion:
   // UC-TRUST-001 / 003 / 008 — what the verdict also rests on.
   digestColumnsMatchSignedFingerprint,
   signingKeyRevokedAtUtc,
+  signingKeyMatchesRecord,
   storedBytesCheck: publicVerifyTrustShared.storedBytesCheckStatusOf(storedBytes),
   custodyChainValid: custodyChain.valid,
   custodyChainMode: custodyChain.mode,

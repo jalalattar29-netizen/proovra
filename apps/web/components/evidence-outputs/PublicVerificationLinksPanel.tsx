@@ -275,6 +275,14 @@ export function PublicVerificationLinksPanel({
     }
   };
 
+  // UC-OUT-001 — the server's projection decides whether a link answers; an
+  // older API without the field falls back to the record's publication state.
+  const linkUsable = (link: VerificationLink): boolean =>
+    link.usable ?? (link.state === "ACTIVE" && published);
+  const linkNotPublished = (link: VerificationLink): boolean =>
+    link.state === "ACTIVE" &&
+    (link.inactiveReason === "RECORD_NOT_PUBLISHED" || (link.inactiveReason === undefined && !published));
+
   const row = (link: VerificationLink) => (
     <li
       key={link.id}
@@ -283,11 +291,11 @@ export function PublicVerificationLinksPanel({
       data-verification-link-state={link.state}
       // UC-OUT-001 — an ACTIVE link on an unpublished record does not answer
       // (Public Verify says "not found"); it is never labelled "Active".
-      data-verification-link-usable={link.state === "ACTIVE" && published ? "true" : "false"}
+      data-verification-link-usable={linkUsable(link) ? "true" : "false"}
     >
       <div className="evidence-detail-link-row__main">
         <strong>{purposeLabel(link)}</strong>
-        {link.state === "ACTIVE" && !published ? (
+        {linkNotPublished(link) ? (
           <AppStatusBadge tone="slate">Inactive — record not published</AppStatusBadge>
         ) : (
           <AppStatusBadge tone={STATE_TONE[link.state]}>{STATE_LABEL[link.state]}</AppStatusBadge>

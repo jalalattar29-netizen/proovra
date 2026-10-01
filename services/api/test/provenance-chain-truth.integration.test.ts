@@ -136,9 +136,20 @@ describe("provenance chain truth (live PostgreSQL 16)", () => {
     const good = await runtime.loadProvenanceChain(prisma as never, ev.id);
     expect(good.trustEventChain).toMatchObject({ valid: true, checked: 3, unverifiableLegacy: 0 });
 
-    // Edit a payload.
+    // The table is append-only (migration 20281001000500): an ordinary UPDATE
+    // and DELETE are refused by the trigger.
     const second = await prisma.captureTrustEventRecord.findFirstOrThrow({ where: { evidenceId: ev.id, sequence: 2 } });
-    await prisma.captureTrustEventRecord.update({ where: { id: second.id }, data: { payload: { stage: "EDITED" } } });
+    await expect(
+      prisma.captureTrustEventRecord.update({ where: { id: second.id }, data: { payload: { stage: "EDITED" } } }),
+    ).rejects.toThrow(/append-only/);
+    await expect(prisma.captureTrustEventRecord.delete({ where: { id: second.id } })).rejects.toThrow(/append-only/);
+
+    // A privileged attacker who bypasses triggers (session_replication_role =
+    // replica, superuser) edits a payload: the verifier still detects it.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+      await tx.$executeRaw`UPDATE "capture_trust_event_records" SET "payload" = '{"stage":"EDITED"}'::jsonb WHERE "id" = ${second.id}::uuid`;
+    });
     const edited = await runtime.loadProvenanceChain(prisma as never, ev.id);
     expect(edited.trustEventChain.valid).toBe(false);
     expect(edited.trustEventChain.failures).toContainEqual({ sequence: 2, reason: "HASH_MISMATCH" });
@@ -147,7 +158,10 @@ describe("provenance chain truth (live PostgreSQL 16)", () => {
     // Delete a middle row from another chain.
     const ev2 = await record();
     await appendV2(ev2.id, [{ s: 1 }, { s: 2 }, { s: 3 }]);
-    await prisma.captureTrustEventRecord.deleteMany({ where: { evidenceId: ev2.id, sequence: 2 } });
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+      await tx.$executeRaw`DELETE FROM "capture_trust_event_records" WHERE "evidence_id" = ${ev2.id}::uuid AND "sequence" = 2`;
+    });
     const gap = await runtime.loadProvenanceChain(prisma as never, ev2.id);
     expect(gap.trustEventChain.valid).toBe(false);
     expect(gap.trustEventChain.failures.map((f) => f.reason)).toEqual(

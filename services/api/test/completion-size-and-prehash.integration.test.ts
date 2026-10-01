@@ -142,6 +142,17 @@ describe("completion size gate and pre-hash (live PostgreSQL 16)", () => {
       { sha256: sha(Buffer.alloc(4096, 65)), storageVersionId: "v1" },
       { sha256: sha(Buffer.alloc(8192, 66)), storageVersionId: "v1" },
     ]);
+    // UC-TRUST-003 — the sealed record is bound to the REGISTERED key it was
+    // self-verified with (SPKI SHA-256).
+    const sealed = await prisma.evidence.findUniqueOrThrow({
+      where: { id: ev.id },
+      select: { signingKeyId: true, signingKeyVersion: true, signingKeySha256: true },
+    });
+    const key = await prisma.signingKey.findUniqueOrThrow({
+      where: { keyId_version: { keyId: sealed.signingKeyId!, version: sealed.signingKeyVersion! } },
+    });
+    const { publicKeySpkiSha256 } = await import("../src/signing/key-registry.js");
+    expect(sealed.signingKeySha256).toBe(publicKeySpkiSha256(key.publicKeyPem));
   });
 
   it("a part replaced after it was pre-hashed is re-read at the version the transaction records", async () => {

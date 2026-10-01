@@ -117,7 +117,7 @@ import {
   type PublishedArtifact,
 } from "./immutable-publication.js";
 import type { PackageSealResult } from "./verification-package.js";
-import { createHash, randomUUID, verify as verifySignature } from "node:crypto";
+import { createHash, createPublicKey, randomUUID, verify as verifySignature } from "node:crypto";
 // Phase O1.5B — bounded integrity.signature.verify span on the
 // Ed25519 verification of report signing artifacts.
 // Phase O1.5C — report pipeline spans.
@@ -2002,6 +2002,7 @@ async function prepareReportArtifacts(
       signatureBase64: true,
       signingKeyId: true,
       signingKeyVersion: true,
+      signingKeySha256: true,
       tsaProvider: true,
       tsaUrl: true,
       tsaSerialNumber: true,
@@ -2685,6 +2686,16 @@ await recordIntegrityObservation({
 
   if (!signingKey) {
     throw createWorkerError("SIGNING_KEY_NOT_FOUND", false);
+  }
+  // UC-TRUST-003 — the registry key must be the one the record was signed
+  // with (its SPKI SHA-256 is bound to the record at signing). A replaced or
+  // forged registry row is refused; a legacy record without the binding keeps
+  // the previous behaviour.
+  if (evidence.signingKeySha256) {
+    const der = createPublicKey(signingKey.publicKeyPem.trim()).export({ type: "spki", format: "der" });
+    if (createHash("sha256").update(der).digest("hex") !== evidence.signingKeySha256.toLowerCase()) {
+      throw createWorkerError("SIGNING_KEY_IDENTITY_MISMATCH", false);
+    }
   }
 
   const currentMaxReport = await prisma.report.aggregate({

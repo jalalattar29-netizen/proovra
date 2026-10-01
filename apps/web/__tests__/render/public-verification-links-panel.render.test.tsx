@@ -462,4 +462,15 @@ describe("UC-OUT-001 — a printed link on a private record is not labelled Acti
     expect(row.getAttribute("data-verification-link-usable")).toBe("true");
     expect(row.textContent).toContain("Active");
   });
+
+  it("the server projection decides: usable:false / RECORD_NOT_PUBLISHED is shown inactive even if the listing says PUBLISHED", async () => {
+    routes[`GET ${BASE}`] = () =>
+      listing({
+        links: [link({ id: "link-report", purpose: "REPORT", reportVersion: 1, audience: null, usable: false, inactiveReason: "RECORD_NOT_PUBLISHED" })],
+      });
+    const { container } = await mount();
+    const row = container.querySelector("[data-verification-link='link-report']") as HTMLElement;
+    expect(row.getAttribute("data-verification-link-usable")).toBe("false");
+    expect(row.textContent).toContain("Inactive — record not published");
+  });
 });

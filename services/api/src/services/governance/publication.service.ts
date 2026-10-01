@@ -32,7 +32,7 @@ import type {
 import type * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { appendCustodyEventTx } from "@proovra/shared-runtime";
+import { appendCustodyEventTx, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 
 export class PublicationError extends Error {
   constructor(
@@ -55,13 +55,23 @@ const ALLOWED_TRANSITIONS: Record<PublicVerifyState, PublicVerifyState[]> = {
   UNPUBLISHED: ["PUBLISHED"],
 };
 
-function assertWorkspace(
-  evidence: { id: string; teamId: string | null },
+/**
+ * The record belongs to `teamId`: its own team, or — UC-OUT-005 — for a
+ * legacy Personal record stored with team_id NULL, its owner's personal
+ * workspace (resolveEvidenceWorkspaceId, the rule the report/package writers
+ * and the share routes use).
+ */
+async function assertWorkspace(
+  evidence: { id: string; teamId: string | null; ownerUserId?: string | null },
   teamId: string,
-): void {
-  if (evidence.teamId !== teamId) {
-    throw new PublicationError("evidence_not_in_workspace");
+  client: PrismaClient,
+): Promise<void> {
+  if (evidence.teamId === teamId) return;
+  if (evidence.teamId === null && evidence.ownerUserId) {
+    const resolved = await resolveEvidenceWorkspaceId({ teamId: null, ownerUserId: evidence.ownerUserId }, client);
+    if (resolved === teamId) return;
   }
+  throw new PublicationError("evidence_not_in_workspace");
 }
 
 async function applyTransition(
@@ -124,10 +134,10 @@ export async function publishPublicVerify(
 ): Promise<DbEvidence> {
   const ev = await client.evidence.findUnique({
     where: { id: input.evidenceId },
-    select: { id: true, teamId: true, publicVerifyState: true },
+    select: { id: true, teamId: true, ownerUserId: true, publicVerifyState: true },
   });
   if (!ev) throw new PublicationError("evidence_not_in_workspace");
-  assertWorkspace(ev, input.teamId);
+  await assertWorkspace(ev, input.teamId, client);
 
   const now = new Date();
   const updated = await applyTransition(
@@ -164,10 +174,10 @@ export async function unpublishPublicVerify(
 ): Promise<DbEvidence> {
   const ev = await client.evidence.findUnique({
     where: { id: input.evidenceId },
-    select: { id: true, teamId: true, publicVerifyState: true },
+    select: { id: true, teamId: true, ownerUserId: true, publicVerifyState: true },
   });
   if (!ev) throw new PublicationError("evidence_not_in_workspace");
-  assertWorkspace(ev, input.teamId);
+  await assertWorkspace(ev, input.teamId, client);
 
   const updated = await applyTransition(
     input.evidenceId,
@@ -195,10 +205,10 @@ export async function suspendPublicVerify(
   if (!reason) throw new PublicationError("reason_required");
   const ev = await client.evidence.findUnique({
     where: { id: input.evidenceId },
-    select: { id: true, teamId: true, publicVerifyState: true },
+    select: { id: true, teamId: true, ownerUserId: true, publicVerifyState: true },
   });
   if (!ev) throw new PublicationError("evidence_not_in_workspace");
-  assertWorkspace(ev, input.teamId);
+  await assertWorkspace(ev, input.teamId, client);
 
   const now = new Date();
   const updated = await applyTransition(

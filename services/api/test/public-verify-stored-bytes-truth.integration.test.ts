@@ -261,4 +261,26 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     expect(res.body).not.toContain("https://example.com/private/path");
     expect(res.body).not.toContain("Private title");
   });
+
+  it("UC-TRUST-003: the record is bound to its key fingerprint; the registry PEM cannot be replaced, and a mismatch fails the signature", async () => {
+    const { publicKeySpkiSha256 } = await import("../src/signing/key-registry.js");
+    const pemNow = publicKey.export({ type: "spki", format: "pem" }).toString().trim();
+    // Bound to the right key: valid.
+    const good = await signedRecordInStore({ signingKeySha256: publicKeySpkiSha256(pemNow) });
+    const ok = await verify(good.id, "81.2.70.8");
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(ok.json().integrityProof).toMatchObject({ signatureValid: true, signingKeyMatchesRecord: true });
+    // The registry row is immutable (trigger): the PEM cannot be swapped.
+    const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString().trim();
+    await expect(
+      prisma.signingKey.update({ where: { keyId_version: { keyId, version: 1 } }, data: { publicKeyPem: other } }),
+    ).rejects.toThrow();
+    // A record whose bound fingerprint is not the registered key fails.
+    const forged = await signedRecordInStore({ signingKeySha256: "0".repeat(64) });
+    const bad = await verify(forged.id, "81.2.70.9");
+    expect(bad.statusCode, bad.body).toBe(200);
+    const body = bad.json();
+    expect(body.integrityProof).toMatchObject({ signatureValid: false, signingKeyMatchesRecord: false });
+    expect(body.basicVerification.original.state).toBe("failed");
+  });
 });

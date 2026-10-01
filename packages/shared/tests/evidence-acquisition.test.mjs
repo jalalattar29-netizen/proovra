@@ -78,7 +78,8 @@ test("UC-1 direct web capture resolves to a direct-capture projection", () => {
   assert.equal(a.category, "DIRECT_WEB_CAPTURE");
   assert.equal(a.isDirectCapture, true);
   assert.equal(a.label, "Web capture — PROOVRA extension (client-attested)");
-  assert.equal(acquisitionTimestampLabel("DIRECT_WEB_CAPTURE_EXTENSION", false), "Captured from the web at (server UTC)");
+  // UC-PROV-001 — the value is the server-received time, never a capture time.
+  assert.equal(acquisitionTimestampLabel("DIRECT_WEB_CAPTURE_EXTENSION", false), "Server received at (server UTC)");
 });
 
 test("ET-DC-03 / owner decision 4: every direct-capture channel is CLIENT_ATTESTED, never server-observed", () => {

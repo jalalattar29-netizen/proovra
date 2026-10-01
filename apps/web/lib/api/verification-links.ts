@@ -16,6 +16,14 @@ export type VerificationLink = {
   audience: string | null;
   reportVersion: number | null;
   state: VerificationLinkState;
+  /**
+   * UC-OUT-001 — does following the link answer right now (the record must
+   * also be PUBLISHED)? Projected by the API; optional only so a web build
+   * deployed ahead of the API still renders (it then derives it).
+   */
+  usable?: boolean;
+  /** Why an ACTIVE link does not answer; null when usable or not ACTIVE. */
+  inactiveReason?: "RECORD_NOT_PUBLISHED" | null;
   createdAtUtc: string;
   createdByUserId: string | null;
   expiresAtUtc: string | null;

@@ -1233,6 +1233,9 @@ const captureMethod =
         signatureBase64: signResult.signatureBase64,
         signingKeyId: signResult.keyId,
         signingKeyVersion: signResult.keyVersion,
+        // UC-TRUST-003 — the SPKI fingerprint of the REGISTERED key the
+        // signature was self-verified with; verifiers require it to match.
+        signingKeySha256: signResult.publicKeySha256 ?? null,
         storageBucket: primaryBucket,
         storageKey: primaryKey,
         tsaProvider: tsaResult?.provider ?? null,

@@ -483,4 +483,42 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
       expect(inventory.records.map((r) => r.evidenceId)).toContain(row.id);
     });
   });
+
+  it("UC-OUT-005: the owner of a NULL-team legacy record can publish it by creating a link, and the link answers", async () => {
+    const P = h.fixtures.personal;
+    const row = await prisma.evidence.create({
+      data: { title: "legacy NULL-team publish", type: "PHOTO", status: "SIGNED", teamId: null, ownerUserId: P.userId, signedAtUtc: new Date() } as never,
+      select: { id: true },
+    });
+    const fileSha256 = sha(randomUUID());
+    const canonical = JSON.stringify({ v: 1, evidenceId: row.id, sha256: fileSha256 });
+    const fingerprintHash = sha(canonical);
+    await prisma.evidence.update({
+      where: { id: row.id },
+      data: {
+        fileSha256,
+        fingerprintCanonicalJson: canonical,
+        fingerprintHash,
+        signatureBase64: sign(null, Buffer.from(fingerprintHash, "hex"), privateKey).toString("base64"),
+        signingKeyId: keyId,
+        signingKeyVersion: 1,
+      } as never,
+    });
+    // The route resolves the personal workspace and reaches the publish
+    // step-up (it used to refuse 409 record_has_no_workspace).
+    const first = await api("POST", `/v1/evidence/${row.id}/verify-links`, P.token, { audience: "Court clerk", expiresInDays: 30 });
+    expect(first.statusCode, first.body).toBe(401);
+    expect(first.json().error.code).toBe("STEP_UP_REQUIRED");
+    // The publication authority accepts the NULL-team record in its owner's
+    // personal workspace (and refuses another workspace).
+    const { publishPublicVerify, PublicationError } = await import("../src/services/governance/publication.service.js");
+    await expect(
+      publishPublicVerify({ evidenceId: row.id, teamId: h.fixtures.teamA.teamId, actorUserId: P.userId, reason: "x" }),
+    ).rejects.toBeInstanceOf(PublicationError);
+    await publishPublicVerify({ evidenceId: row.id, teamId: P.teamId, actorUserId: P.userId, reason: "owner published" });
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: row.id } })).publicVerifyState).toBe("PUBLISHED");
+    const res = await api("POST", `/v1/evidence/${row.id}/verify-links`, P.token, { audience: "Court clerk", expiresInDays: 30 });
+    expect(res.statusCode, res.body).toBe(201);
+    expect((await verify(res.json().token as string)).statusCode).toBe(200);
+  });
 });

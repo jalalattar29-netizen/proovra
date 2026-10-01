@@ -82,21 +82,23 @@
       }
     },
     "UC-TRUST-003": {
-      "migration": "see migrationRequests",
+      "migration": "20281001000400_signing_key_identity_immutable (written and applied by the lead)",
       "externalProofRemaining": "none",
-      "status": "NEEDS_MIGRATION",
-      "decision": "New services/api/src/signing/key-registry.ts: insert-only registerSigningKey (a different PEM for an existing (keyId,version) is SIGNING_KEY_IDENTITY_CONFLICT; revocation never cleared) and assertSignatureVerifiesWithRegisteredKey. The controlled evidence signer (signer.ts) self-verifies every signature against the REGISTERED key before returning (fail closed on mismatched private key, unregistered key with no derivable public key, revoked key) and returns publicKeySha256 (SPKI fingerprint). seed-signing-key.ts no longer upserts. Public Verify reads signing_keys.revokedAt: a revoked key's signature is not presented as valid and signingKeyRevokedAtUtc is surfaced. The per-record key fingerprint column needs a migration (see migrationRequests).",
+      "status": "FIXED",
+      "decision": "New services/api/src/signing/key-registry.ts: insert-only registerSigningKey (a different PEM for an existing (keyId,version) is SIGNING_KEY_IDENTITY_CONFLICT; revocation never cleared) and assertSignatureVerifiesWithRegisteredKey. The controlled evidence signer (signer.ts) self-verifies every signature against the REGISTERED key before returning (fail closed on mismatched private key, unregistered key with no derivable public key, revoked key) and returns publicKeySha256 (SPKI fingerprint). seed-signing-key.ts no longer upserts. Public Verify reads signing_keys.revokedAt: a revoked key's signature is not presented as valid and signingKeyRevokedAtUtc is surfaced. The per-record key fingerprint column needs a migration (see migrationRequests). Follow-up after the migration: evidence-complete.service.ts persists signingKeySha256 = signResult.publicKeySha256; Public Verify compares it with publicKeySpkiSha256(registry PEM) (integrityProof.signingKeyMatchesRecord) and a mismatch fails the signature; the worker report pipeline refuses SIGNING_KEY_IDENTITY_MISMATCH. NULL on legacy rows keeps the previous behaviour. The signing_keys identity-immutable trigger refuses a PEM swap.",
       "red": {
         "test": "services/api/test/signing-key-identity.integration.test.ts::a private key that is not the registered key is refused at signing time",
         "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/signing-key-identity.integration.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
-        "observed": "promise resolved \"{ …(3) }\" instead of rejecting (mismatched key and revoked key both signed)"
+        "observed": "promise resolved \"{ …(3) }\" instead of rejecting (mismatched key and revoked key both signed); follow-up: completion-size-and-prehash 'expected null to be <spki sha256>' with the HEAD evidence-complete.service.ts"
       },
       "green": {
         "tests": [
           "services/api/test/signing-key-identity.integration.test.ts",
           "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::TRUST-003",
           "services/api/test/completion-fanout-once.integration.test.ts",
-          "services/api/test/runtime-proof-evidence-capture-a.integration.test.ts"
+          "services/api/test/runtime-proof-evidence-capture-a.integration.test.ts",
+          "services/api/test/public-verify-stored-bytes-truth.integration.test.ts::UC-TRUST-003 (bound fingerprint valid; PEM swap refused by trigger; forged mismatch fails)",
+          "services/api/test/completion-size-and-prehash.integration.test.ts (sealed row carries signingKeySha256 of the registered key)"
         ],
         "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts <files>",
         "result": "3 + 6 + 29 passed"
@@ -105,7 +107,9 @@
         "services/api/src/signing/key-registry.ts (new)",
         "services/api/src/signing/signer.ts",
         "services/api/src/seed-signing-key.ts",
-        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)"
+        "services/api/src/routes/evidence.routes.ts (GET /public/verify/:id only)",
+        "services/api/src/services/evidence-complete.service.ts",
+        "services/worker/src/processor.ts"
       ],
       "proofKind": "integration-real-db",
       "impacts": {
@@ -119,10 +123,10 @@
       }
     },
     "UC-TRUST-004": {
-      "migration": "see migrationRequests",
+      "migration": "20281001000500_capture_trust_events_append_only (written and applied by the lead)",
       "externalProofRemaining": "none",
-      "status": "NEEDS_MIGRATION",
-      "decision": "loadProvenanceChain now verifies the capture trust-event sub-chain on read (evaluateTrustEventChain: prev-link, contiguous sequence, eventHash recompute); a broken chain is provenance class C and is surfaced as trustEventChain {valid, checked, unverifiableLegacy, failures}. New reproducible hash formula buildTrustEventHashV2 (full-depth canonicalJsonValue, the custody canon) exported from shared-runtime; v1 rows still verify where recomputable, v1 rows with nested payloads are counted as unverifiableLegacy rather than falsely failed. The package (provenance/chain.json) carries the rows with hashes (loadTrustEventRecords). The writer (trust-event.service.ts, lane M) must switch to V2 and the append-only trigger needs a migration.",
+      "status": "FIXED",
+      "decision": "loadProvenanceChain now verifies the capture trust-event sub-chain on read (evaluateTrustEventChain: prev-link, contiguous sequence, eventHash recompute); a broken chain is provenance class C and is surfaced as trustEventChain {valid, checked, unverifiableLegacy, failures}. New reproducible hash formula buildTrustEventHashV2 (full-depth canonicalJsonValue, the custody canon) exported from shared-runtime; v1 rows still verify where recomputable, v1 rows with nested payloads are counted as unverifiableLegacy rather than falsely failed. The package (provenance/chain.json) carries the rows with hashes (loadTrustEventRecords). The writer (trust-event.service.ts, lane M) must switch to V2 and the append-only trigger needs a migration. Follow-up: the table is append-only; the test asserts an ordinary UPDATE and DELETE are refused ('append-only') and keeps proving the verifier by tampering as a privileged attacker (SET LOCAL session_replication_role = replica). Lane M switched trust-event.service.ts to buildTrustEventHashV2.",
       "red": {
         "test": "services/api/test/provenance-chain-truth.integration.test.ts::TRUST-004: v2 chain … edited payload and a deleted middle row break it -> class C",
         "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/provenance-chain-truth.integration.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
@@ -308,7 +312,7 @@
       "migration": "none",
       "externalProofRemaining": "none",
       "status": "FIXED",
-      "decision": "Report issuance reads publicVerifyState: a private record's report prints no verification link or QR and states 'Not published — the owner can create a verification link'; the REPORT share token is minted only when the report prints it. Package README step 2c says when Public Verify cannot answer (private at assembly). Owner listing projects usable/inactiveReason (RECORD_NOT_PUBLISHED) and the links panel shows 'Inactive — record not published' instead of a green Active. The unauthenticated 404 for a valid token on an unpublished record is kept and documented (no state disclosure).",
+      "decision": "Report issuance reads publicVerifyState: a private record's report prints no verification link or QR and states 'Not published — the owner can create a verification link'; the REPORT share token is minted only when the report prints it. Package README step 2c says when Public Verify cannot answer (private at assembly). Owner listing projects usable/inactiveReason (RECORD_NOT_PUBLISHED) and the links panel shows 'Inactive — record not published' instead of a green Active. The unauthenticated 404 for a valid token on an unpublished record is kept and documented (no state disclosure). Follow-up: apps/web/lib/api/verification-links.ts VerificationLink gains usable/inactiveReason and the panel uses the server projection (falling back to publication state only for an older API, since web deploys first).",
       "red": {
         "test": "services/worker/test/report-trust-truth.test.ts::unpublished at issuance: no link, no QR, an explicit 'Not published' caveat",
         "command": "cd services/worker && npx vitest run test/report-trust-truth.test.ts (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
@@ -319,7 +323,8 @@
           "services/worker/test/report-trust-truth.test.ts::UC-OUT-001",
           "services/api/test/verification-share-links.integration.test.ts::UC-OUT-001",
           "apps/web/__tests__/render/public-verification-links-panel.render.test.tsx::UC-OUT-001",
-          "services/worker/test/package-readme-seal-instructions.test.ts"
+          "services/worker/test/package-readme-seal-instructions.test.ts",
+          "apps/web/__tests__/render/public-verification-links-panel.render.test.tsx::the server projection decides"
         ],
         "command": "worker vitest; api TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/verification-share-links.integration.test.ts; web render",
         "result": "worker passed; api 18 passed; web 16 passed"
@@ -329,7 +334,8 @@
         "services/worker/src/report-v2/{types.ts,build-view-model.ts,sections/cover.ts}",
         "services/worker/src/verification-package.ts",
         "services/api/src/services/governance/verification-share.service.ts",
-        "apps/web/components/evidence-outputs/PublicVerificationLinksPanel.tsx"
+        "apps/web/components/evidence-outputs/PublicVerificationLinksPanel.tsx",
+        "apps/web/lib/api/verification-links.ts"
       ],
       "proofKind": "integration-real-db",
       "impacts": {
@@ -376,23 +382,25 @@
     "UC-OUT-005": {
       "migration": "none",
       "externalProofRemaining": "none",
-      "status": "NEEDS_CROSS_LANE",
-      "decision": "Share/publication path resolves a NULL-team legacy Personal record's workspace with resolveEvidenceWorkspaceId (resolveShareWorkspaceId) for the step-up and publish calls, and the legacy-link inventory of a personal workspace includes its owner's NULL-team records. publication.service.ts assertWorkspace (lane A file) still compares evidence.teamId === teamId, so the publish call refuses until the cross-lane change lands.",
+      "status": "FIXED",
+      "decision": "Share/publication path resolves a NULL-team legacy Personal record's workspace with resolveEvidenceWorkspaceId (resolveShareWorkspaceId) for the step-up and publish calls, and the legacy-link inventory of a personal workspace includes its owner's NULL-team records. publication.service.ts assertWorkspace (lane A file) still compares evidence.teamId === teamId, so the publish call refuses until the cross-lane change lands. Follow-up: publication.service.ts assertWorkspace accepts a NULL-team record when resolveEvidenceWorkspaceId({teamId:null, ownerUserId}) equals the workspace (publish/unpublish/suspend/restore select ownerUserId); another workspace is still refused.",
       "red": {
         "test": "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005",
         "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/verification-share-links.integration.test.ts -t UC-OUT (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
-        "observed": "resolveShareWorkspaceId is not a function / inventory omitted the NULL-team record"
+        "observed": "resolveShareWorkspaceId is not a function / inventory omitted the NULL-team record; follow-up: publishPublicVerify for the owner's personal workspace threw evidence_not_in_workspace with the HEAD publication.service.ts"
       },
       "green": {
         "tests": [
-          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005"
+          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005",
+          "services/api/test/verification-share-links.integration.test.ts::UC-OUT-005: the owner of a NULL-team legacy record can publish it by creating a link, and the link answers"
         ],
         "command": "TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_t_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:58812/4 P7_HOST_S3_PORT=59711 AUTH_JWT_SECRET=ucc-local-stub-secret-0123456789abcdef PROOVRA_ENV_BOOTSTRAPPED=1 npx vitest run --config vitest.integration.config.ts test/verification-share-links.integration.test.ts",
-        "result": "18 passed"
+        "result": "19 passed"
       },
       "filesChanged": [
         "services/api/src/services/governance/verification-share.service.ts",
-        "services/api/src/routes/verification-share.routes.ts"
+        "services/api/src/routes/verification-share.routes.ts",
+        "services/api/src/services/governance/publication.service.ts"
       ],
       "proofKind": "integration-real-db",
       "impacts": {
@@ -409,7 +417,7 @@
       "migration": "none",
       "externalProofRemaining": "none",
       "status": "FIXED",
-      "decision": "New canonical provenance time model packages/shared/src/provenance-time.ts (SOURCE_DECLARED_CAPTURE, DEVICE_OBSERVED, APPLICATION_OBSERVED, SERVER_RECEIVED, UPLOAD_STARTED, RECORD_CREATED, FINALIZED, TSA, OTS — each with source and confidence; captureTime only from client-declared sources; 'Capture time not available' otherwise; no history fabricated). Basic Verify projects serverReceivedAtUtc / deviceDeclaredCaptureAtUtc / captureTimeStatement (capturedAtUtcDeclared kept as deprecated alias); RICH Verify adds provenanceTime. Relabelled: web Basic view, Verify 'Captured At' and capture-location 'Capture timestamp' -> 'Server received at' (no device-clock fallback), evidence Integrity tab, native basic view, native public verify + evidence record, report exec grid ('Server received & signed (UTC)' + 'Capture time'), report capture-context timestamp (no deviceTimeIso fallback), direct-capture timestamp label, package original-linkage meaning fields.",
+      "decision": "New canonical provenance time model packages/shared/src/provenance-time.ts (SOURCE_DECLARED_CAPTURE, DEVICE_OBSERVED, APPLICATION_OBSERVED, SERVER_RECEIVED, UPLOAD_STARTED, RECORD_CREATED, FINALIZED, TSA, OTS — each with source and confidence; captureTime only from client-declared sources; 'Capture time not available' otherwise; no history fabricated). Basic Verify projects serverReceivedAtUtc / deviceDeclaredCaptureAtUtc / captureTimeStatement (capturedAtUtcDeclared kept as deprecated alias); RICH Verify adds provenanceTime. Relabelled: web Basic view, Verify 'Captured At' and capture-location 'Capture timestamp' -> 'Server received at' (no device-clock fallback), evidence Integrity tab, native basic view, native public verify + evidence record, report exec grid ('Server received & signed (UTC)' + 'Capture time'), report capture-context timestamp (no deviceTimeIso fallback), direct-capture timestamp label, package original-linkage meaning fields. Follow-up: the shared acquisitionTimestampLabel itself now reads 'Server received at (server UTC)' for every direct-capture mode (the shared-runtime override was removed); packages/shared/tests/evidence-acquisition.test.mjs expectation updated to the required label.",
       "red": {
         "test": "apps/web/__tests__/render/basic-verification-view-claims.render.test.tsx::PROV-001",
         "command": "cd apps/web && npx vitest run --config vitest.render.config.ts __tests__/render/basic-verification-view-claims.render.test.tsx (RED obtained by temporarily restoring the HEAD version of the named source files, running the new test, then restoring the edit)",
@@ -438,7 +446,9 @@
         "apps/mobile/src/product/evidence-record.ts (label only; native counterpart of the Integrity tab)",
         "services/worker/src/report-v2/build-view-model.ts",
         "services/worker/src/report-v2/sections/executive-summary.ts",
-        "services/worker/src/verification-package.ts"
+        "services/worker/src/verification-package.ts",
+        "packages/shared/src/evidence-acquisition.ts",
+        "packages/shared/tests/evidence-acquisition.test.mjs"
       ],
       "proofKind": "unit",
       "impacts": {
@@ -865,34 +875,9 @@
   },
   "crossLaneRequests": [
     {
-      "finding": "UC-OUT-005",
-      "file": "services/api/src/services/governance/publication.service.ts",
-      "change": "assertWorkspace(evidence, teamId): accept a record with teamId NULL when resolveEvidenceWorkspaceId({teamId:null, ownerUserId: evidence.ownerUserId}) === teamId (select ownerUserId in publishPublicVerify/unpublishPublicVerify). verification-share.routes.ts already passes the resolved workspace id (resolveShareWorkspaceId)."
-    },
-    {
-      "finding": "UC-TRUST-003",
-      "file": "services/api/src/services/evidence-complete.service.ts",
-      "change": "After the migration below: persist signingKeySha256: signResult.publicKeySha256 in finalizeData (ControlledEvidenceSigner now returns it after self-verification). Public Verify then compares it with publicKeySpkiSha256(signingKey.publicKeyPem) (lane T will add once the column exists)."
-    },
-    {
-      "finding": "UC-TRUST-004",
-      "file": "services/api/src/services/capture-trust/trust-event.service.ts",
-      "change": "Replace the private buildTrustEventHash with buildTrustEventHashV2 from @proovra/shared-runtime (full-depth canonicalJsonValue, v:2) so new rows are reproducible from stored JSONB; the evaluator in loadProvenanceChain already accepts v1 and v2."
-    },
-    {
       "finding": "UC-TRUST-005",
       "file": "packages/shared/src/trust-decision.ts",
       "change": "Optional: add a native 'stored_bytes' TrustSignalKey/signal fed by StoredBytesIntegrity so snapshot decisions carry it; today applyStoredBytesToTrustDecision (stored-bytes-integrity.ts) overlays the verdict at Public Verify."
-    },
-    {
-      "finding": "UC-PROV-001",
-      "file": "packages/shared/src/evidence-acquisition.ts",
-      "change": "acquisitionTimestampLabel: direct-capture modes should read 'Server received at (server UTC)' (the value is the server-received/reservation time, after an extension capture ran). Lane T overrides it in shared-runtime getCaptureContextTimestampLabel; the shared function is still used by other callers."
-    },
-    {
-      "finding": "UC-OUT-001",
-      "file": "apps/web/lib/api/verification-links.ts",
-      "change": "Add `usable: boolean; inactiveReason: \"RECORD_NOT_PUBLISHED\" | null` to VerificationLink (the API now projects them); the panel currently derives usability from listing.publicVerifyState."
     },
     {
       "finding": "UC-DER-006",
@@ -900,26 +885,15 @@
       "change": "Store `(await putObjectBuffer(...)).versionId` with the derived asset row once lane D's version column migration lands."
     }
   ],
-  "migrationRequests": [
-    {
-      "finding": "UC-TRUST-003",
-      "sql": "ALTER TABLE \"evidence\" ADD COLUMN IF NOT EXISTS \"signing_key_sha256\" VARCHAR(64);\nCREATE OR REPLACE FUNCTION signing_keys_identity_immutable() RETURNS trigger AS $$\nBEGIN\n  IF NEW.public_key_pem IS DISTINCT FROM OLD.public_key_pem OR NEW.key_id IS DISTINCT FROM OLD.key_id OR NEW.version IS DISTINCT FROM OLD.version THEN\n    RAISE EXCEPTION 'signing_keys identity is immutable (rotate with a new version)';\n  END IF;\n  IF OLD.revoked_at IS NOT NULL AND NEW.revoked_at IS NULL THEN\n    RAISE EXCEPTION 'a signing key revocation cannot be cleared';\n  END IF;\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\nDROP TRIGGER IF EXISTS signing_keys_identity_immutable ON \"signing_keys\";\nCREATE TRIGGER signing_keys_identity_immutable BEFORE UPDATE ON \"signing_keys\" FOR EACH ROW EXECUTE FUNCTION signing_keys_identity_immutable();\nCREATE OR REPLACE FUNCTION signing_keys_no_delete() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'signing_keys rows are never deleted'; END; $$ LANGUAGE plpgsql;\nDROP TRIGGER IF EXISTS signing_keys_no_delete ON \"signing_keys\";\nCREATE TRIGGER signing_keys_no_delete BEFORE DELETE ON \"signing_keys\" FOR EACH ROW EXECUTE FUNCTION signing_keys_no_delete();",
-      "prisma": "model Evidence { … signingKeySha256 String? @map(\"signing_key_sha256\") @db.VarChar(64) … }"
-    },
-    {
-      "finding": "UC-TRUST-004",
-      "sql": "CREATE OR REPLACE FUNCTION capture_trust_event_records_append_only() RETURNS trigger AS $$\nBEGIN\n  RAISE EXCEPTION 'capture_trust_event_records is append-only';\nEND;\n$$ LANGUAGE plpgsql;\nDROP TRIGGER IF EXISTS capture_trust_event_records_append_only ON \"capture_trust_event_records\";\nCREATE TRIGGER capture_trust_event_records_append_only BEFORE UPDATE OR DELETE ON \"capture_trust_event_records\" FOR EACH ROW EXECUTE FUNCTION capture_trust_event_records_append_only();\n-- Mirror the custody_append_only migration (20280805000000) incl. any destruction-executor bypass it grants (e.g. a session GUC checked before RAISE) so lawful record destruction still works.",
-      "prisma": "none (trigger only)"
-    }
-  ],
+  "migrationRequests": [],
   "governanceFollowUps": [
     "services/api/test/setup/safe-environment.ts edited (outside the lane list): HARNESS_OWNED lacked P7_HOST_S3_PORT, so every integration run re-pointed S3_ENDPOINT at the default 59000 and silently ignored the lane's MinIO; the preload already kept it.",
     "Out-of-list edits made at lead request or as the direct counterpart of an owned surface: services/api/src/routes/ops.routes.ts (/readyz TSA check), services/api/.env.example (TSA template), apps/web/components/evidence-outputs/PublicVerificationLinksPanel.tsx, apps/mobile/src/product/evidence-record.ts (two labels), services/worker/src/capture-trust/load-provenance-chain.ts.",
     "New exported symbols (shared: ots-status/provenance-time modules re-exported via basic-verification.ts, findForbiddenArtifactPhrases, applyStoredBytesToTrustDecision, signed-digest resolvers; shared-runtime: buildTrustEventHashV1/V2, evaluateTrustEventChain, loadTrustEventRecords, ProvenanceChainProjection, storedBytesFreshnessHours, CAPTURE_METHOD_DISPLAY_LABELS; api: signing/key-registry.ts, tsaTrustConfigurationIssues/isTsaProductionEnv) and a renamed package entry (reviewer-readiness-checklist.json) — capability map / package-entry inventories may need regeneration.",
     "services/api/test/ots-worker-exists.contract.test.ts pins the literal \"ANCHORED\" in trust-summary.service.ts; satisfied by a truthful doc comment after otsBucket moved to the claim resolver.",
-    "API typecheck (tsc --noEmit, 6 GB) shows only errors in other lanes' files: capture-trust.routes.ts (bumpCaptureFailure/isCaptureFailure not exported from @proovra/shared-runtime index), extension-oauth.routes.ts (bump), external-intake.routes.ts (bumpCaptureFailure). Worker, web and mobile typecheck clean.",
     "services/api/test/phase-32-7-final-production-stabilization.test.ts 'frontend capture polling hits the side-effect-free status endpoint' fails on a web capture file outside lane T.",
-    "Package format: README step 2c gains a publication note; checklist file renamed; original-linkage adds storageVersionId and *Meaning fields. recompute-package.mjs (seal/checksums/fingerprint/custody) is unaffected; sealKeyFingerprint/packageSha256 unchanged."
+    "Package format: README step 2c gains a publication note; checklist file renamed; original-linkage adds storageVersionId and *Meaning fields. recompute-package.mjs (seal/checksums/fingerprint/custody) is unaffected; sealKeyFingerprint/packageSha256 unchanged.",
+    "Follow-up pass: API, worker and web typechecks are clean (tsc --noEmit). The optional trust-decision 'stored_bytes' signal was skipped (the Public Verify overlay applyStoredBytesToTrustDecision stands)."
   ],
   "commandsRun": [
     {
@@ -955,8 +929,24 @@
       "exit": 0
     },
     {
-      "command": "cd services/api && node --max-old-space-size=6144 tsc --noEmit (once)",
-      "exit": 2
+      "command": "pnpm --filter @proovra/shared build; shared-runtime tsc; node --test packages/shared/tests/*.test.mjs (1066 pass)",
+      "exit": 0
+    },
+    {
+      "command": "cd services/api && TEST_DATABASE_URL=… P7_HOST_S3_PORT=59711 npx vitest run --config vitest.integration.config.ts public-verify-stored-bytes-truth, signing-key-identity, provenance-chain-truth, verification-share-links, completion-size-and-prehash, runtime-proof-evidence-capture-a, governance-custody-atomicity, integrity-recheck, public-verify-privacy-boundaries, tsa-finalize-persistence, capture-trust-chain-concurrency",
+      "exit": 0
+    },
+    {
+      "command": "cd services/api && node --max-old-space-size=6144 tsc --noEmit (follow-up)",
+      "exit": 0
+    },
+    {
+      "command": "cd services/worker && npx vitest run (97 files, 1189 passed) && npx tsc --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "cd apps/web && npx tsc --noEmit; vitest render public-verification-links-panel (17 passed)",
+      "exit": 0
     }
   ]
 }
