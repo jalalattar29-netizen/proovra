@@ -2,7 +2,7 @@
 
 **C. UNIVERSAL EVIDENCE CAPTURE NOT READY**
 
-99 of 119 findings fixed with proof; 20 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.
+103 of 119 findings fixed with proof; 16 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.
 
 At the audit baseline the headline was **C. UNIVERSAL EVIDENCE CAPTURE NOT READY**.
 
@@ -17,8 +17,8 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 - Remediated runtime evidence was produced on disposable loopback infrastructure only (PostgreSQL 16, Redis 7, MinIO); no Production system, credential or data was touched.
 - The audit's findings, observations and baseline verdicts are kept verbatim; the post-remediation state is added beside them, never written over them.
 
-- Findings: 119 = fixed 99 (runtime-proven 59 · source+test-proven 40) + blocked on external proof 20 + open 0.
-- Unresolved by severity: P0 0 · P1 4 · P2 11 · P3 5.
+- Findings: 119 = fixed 103 (runtime-proven 62 · source+test-proven 41) + blocked on external proof 16 + open 0.
+- Unresolved by severity: P0 0 · P1 4 · P2 9 · P3 3.
 
 | Finding | Sev | Disposition | Commits | External proof |
 |---|---|---|---|---|
@@ -26,9 +26,9 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-CASE-001 | P1 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
 | UC-EXT-001 | P1 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
 | UC-EXT-003 | P1 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
-| UC-IOS-001 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08, EP-14 |
+| UC-IOS-001 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
 | UC-IOS-002 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
-| UC-IOS-004 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08, EP-14 |
+| UC-IOS-004 | P1 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-08 |
 | UC-OUT-001 | P1 | FIXED_RUNTIME_PROVEN | b4b035380ac8, d87a3673bb63 | — |
 | UC-PROV-001 | P1 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8, d87a3673bb63 | — |
 | UC-STR-001 | P1 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
@@ -70,13 +70,13 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-PROV-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
 | UC-PROV-005 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | b4b035380ac8 | — |
 | UC-SEC-001 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
-| UC-SEC-002 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 718a4d15ec93 | — |
+| UC-SEC-002 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 718a4d15ec93, 482d69375a59 | — |
 | UC-SEC-003 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
 | UC-SEC-004 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 6934514c6d49 | — |
 | UC-STR-003 | P2 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
 | UC-TQ-002 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7, 0364d89aef47 | — |
-| UC-TQ-003 | P2 | BLOCKED_EXTERNAL_PROOF | 69e995c58803, 0364d89aef47, 786a28254e16 | EP-14 |
-| UC-TQ-004 | P2 | BLOCKED_EXTERNAL_PROOF | 0364d89aef47, 786a28254e16 | EP-14 |
+| UC-TQ-003 | P2 | FIXED_RUNTIME_PROVEN | 69e995c58803, 0364d89aef47, 786a28254e16 | — |
+| UC-TQ-004 | P2 | FIXED_RUNTIME_PROVEN | 0364d89aef47, 786a28254e16 | — |
 | UC-TQ-007 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
 | UC-TQ-008 | P2 | FIXED_RUNTIME_PROVEN | 1fd1813d6ca7 | — |
 | UC-TRUST-001 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
@@ -84,19 +84,19 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-TRUST-003 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, 5b17f3321b08, d87a3673bb63, 9f3d8203c057 | — |
 | UC-TRUST-004 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, 5b17f3321b08, 24846684b41c, d87a3673bb63, 9f3d8203c057 | — |
 | UC-TRUST-005 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8 | — |
-| UC-TRUST-008 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, a606dcaa5e29, d0034b073eb1, bd87a9e52666 | — |
+| UC-TRUST-008 | P2 | FIXED_RUNTIME_PROVEN | b4b035380ac8, a606dcaa5e29, d0034b073eb1, bd87a9e52666, 715ba79b2c4a | — |
 | UC-WEB-001 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 718a4d15ec93, 9f3d8203c057 | — |
 | UC-WEB-003 | P2 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
 | UC-WEB-004 | P2 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
 | UC-AND-008 | P3 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
 | UC-AND-010 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
-| UC-AND-011 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-14 |
+| UC-AND-011 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
 | UC-AND-012 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-06 |
 | UC-AND-013 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-06, EP-14 |
 | UC-AND-014 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
 | UC-ARCH-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 718a4d15ec93, b4b035380ac8 | — |
 | UC-ARCH-007 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49, 0364d89aef47 | — |
-| UC-ARCH-008 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
+| UC-ARCH-008 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, 482d69375a59, ac372da90ced, 58fb7e919694 | — |
 | UC-ARCH-009 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
 | UC-CASE-004 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93, d8e1f8605c5f | — |
 | UC-CASE-005 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 718a4d15ec93 | — |
@@ -116,7 +116,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-IOS-011 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
 | UC-IOS-012 | P3 | BLOCKED_EXTERNAL_PROOF | 6934514c6d49 | EP-14 |
 | UC-LCH-002 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47, 7af5861c5013 | — |
-| UC-LCH-003 | P3 | BLOCKED_EXTERNAL_PROOF | 0364d89aef47 | EP-14 |
+| UC-LCH-003 | P3 | FIXED_RUNTIME_PROVEN | 0364d89aef47 | — |
 | UC-LCH-004 | P3 | FIXED_RUNTIME_PROVEN | 0364d89aef47 | — |
 | UC-LCH-005 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 1fd1813d6ca7 | — |
 | UC-LCH-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
@@ -131,7 +131,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | UC-PROV-010 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
 | UC-PROV-011 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 0364d89aef47 | — |
 | UC-SEC-005 | P3 | FIXED_RUNTIME_PROVEN | 718a4d15ec93 | — |
-| UC-SEC-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49, 718a4d15ec93, b4b035380ac8 | — |
+| UC-SEC-006 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49, 718a4d15ec93, b4b035380ac8, 482d69375a59 | — |
 | UC-STR-004 | P3 | FIXED_SOURCE_AND_TEST_PROVEN | 6934514c6d49 | — |
 | UC-STR-006 | P3 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
 | UC-TQ-005 | P3 | FIXED_RUNTIME_PROVEN | 6934514c6d49 | — |
@@ -169,25 +169,25 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 
 | UC | Name | Verdict | Audit verdict | Key findings | External blockers |
 |---|---|---|---|---|---|
-| UC-0a | Provenance Truth Repair | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNTRUTHFUL | UC-PROV-001, UC-PROV-002, UC-ARCH-001, UC-PROV-003, UC-PROV-004, UC-PROV-005 | EP-14 |
+| UC-0a | Provenance Truth Repair | **COMPLETE** | PRESENT BUT UNTRUTHFUL | UC-PROV-001, UC-PROV-002, UC-ARCH-001, UC-PROV-003, UC-PROV-004, UC-PROV-005 | — |
 | UC-0b | Trust / Attestation Repair | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PARTIALLY COMPLETE | UC-TRUST-008, UC-TRUST-005, UC-TRUST-002, UC-TRUST-001, UC-TRUST-003, UC-TRUST-004 | EP-01, EP-02, EP-03 |
 | UC-0c | Derivative Lifecycle Closure | **COMPLETE** | PARTIALLY COMPLETE | UC-DER-002, UC-DER-006, UC-DER-005, UC-DER-007, UC-DER-013, UC-DER-014 | — |
-| UC-1 | Chrome / Edge Web Capture | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNREACHABLE | UC-EXT-001, UC-EXT-003, UC-SEC-002, UC-TQ-007, UC-EXT-004, UC-EXT-005 | EP-04, EP-05, EP-12, EP-14 |
+| UC-1 | Chrome / Edge Web Capture | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PRESENT BUT UNREACHABLE | UC-EXT-001, UC-EXT-003, UC-SEC-002, UC-TQ-007, UC-EXT-004, UC-EXT-005 | EP-04, EP-05, EP-12 |
 | UC-2 | Android Direct Screen Capture | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-AND-003, UC-AND-006, UC-AND-007, UC-AND-011, UC-AND-012 | EP-06, EP-07, EP-14 |
 | UC-3 | Continuous Capture + Streaming | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT UNTRUTHFUL | UC-STR-002, UC-STR-001, UC-AND-004, UC-STR-003, UC-STR-006 | EP-06, EP-14 |
-| UC-4 | Keyframes / OCR / Conversation Reconstruction | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-DER-001, UC-DER-003, UC-DER-004, UC-DER-005, UC-TQ-003, UC-DER-010 | EP-13, EP-14 |
+| UC-4 | Keyframes / OCR / Conversation Reconstruction | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PARTIALLY COMPLETE | UC-DER-001, UC-DER-003, UC-DER-004, UC-DER-005, UC-TQ-003, UC-DER-010 | EP-13, EP-14 |
 | UC-5 | iOS | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PRESENT BUT DISCONNECTED | UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-010 | EP-08, EP-09, EP-14 |
-| UC-6 | Full Public Launch | **CODE COMPLETE, EXTERNAL PROOF REQUIRED** | PARTIALLY COMPLETE | UC-LCH-001, UC-LCH-002, UC-LCH-003, UC-LCH-004, UC-TQ-002, UC-TQ-004 | EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14 |
+| UC-6 | Full Public Launch | **COMPLETE LOCALLY, EXTERNAL PROOF PENDING** | PARTIALLY COMPLETE | UC-LCH-001, UC-LCH-002, UC-LCH-003, UC-LCH-004, UC-TQ-002, UC-TQ-004 | EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11 |
 
-- **UC-0a** — 25 findings name this UC: 24 fixed, 1 code-complete awaiting external proof (UC-TQ-004), 0 open. Journeys: R01 PASS, R03 PASS. External proofs outstanding: EP-14.
+- **UC-0a** — 25 findings name this UC: 25 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R03 PASS. No external proof outstanding.
 - **UC-0b** — 8 findings name this UC: 8 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R17 PASS. External proofs outstanding: EP-01, EP-02, EP-03.
 - **UC-0c** — 7 findings name this UC: 7 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS. No external proof outstanding.
-- **UC-1** — 29 findings name this UC: 28 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R05 PASS. External proofs outstanding: EP-04, EP-05, EP-12, EP-14.
-- **UC-2** — 22 findings name this UC: 17 fixed, 5 code-complete awaiting external proof (UC-AND-003, UC-TQ-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.
-- **UC-3** — 27 findings name this UC: 21 fixed, 6 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-TQ-003, UC-TQ-004, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.
-- **UC-4** — 16 findings name this UC: 15 fixed, 1 code-complete awaiting external proof (UC-TQ-003), 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.
-- **UC-5** — 35 findings name this UC: 23 fixed, 12 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012, UC-LCH-003), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.
-- **UC-6** — 8 findings name this UC: 7 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R01 PASS, R02 PASS, R03 PASS, R04 PASS, R11 PASS, R12 PASS, R13 PASS, R14a PASS, R14b PASS, R15a PASS, R15b BLOCKED, R16 PASS. External proofs outstanding: EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14.
+- **UC-1** — 29 findings name this UC: 29 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R05 PASS. External proofs outstanding: EP-04, EP-05, EP-12.
+- **UC-2** — 22 findings name this UC: 19 fixed, 3 code-complete awaiting external proof (UC-AND-003, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.
+- **UC-3** — 27 findings name this UC: 23 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.
+- **UC-4** — 16 findings name this UC: 16 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.
+- **UC-5** — 35 findings name this UC: 24 fixed, 11 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.
+- **UC-6** — 8 findings name this UC: 8 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R02 PASS, R03 PASS, R04 PASS, R11 PASS, R12 PASS, R13 PASS, R14a PASS, R14b PASS, R15a PASS, R15b BLOCKED, R16 PASS. External proofs outstanding: EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11.
 
 ## Platform matrix
 
@@ -196,8 +196,8 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | Browser Extension | WORKS_LOCALLY | WORKS_LOCALLY | WORKS_LOCALLY | WORKS_LOCALLY | SEE_JOURNEY_R05 | BLOCKED | Workspace selection, case at capture and DOM-snapshot truth fixed; real Chrome and Edge acceptance on the remediated stack (R05). Store listing and production OAuth are EP-04/05/12. |
 | Web | WORKS_LOCALLY | WORKS_LOCALLY | NOT_IMPLEMENTED | WORKS_LOCALLY | SEE_JOURNEY_R02 | N/A | File/camera/mic upload (R01) and browser screen recording through getDisplayMedia in real Chromium (R02). The Capture page does not take a case; records are linked to a case afterwards (R11). |
 | PWA | WORKS_LOCALLY | WORKS_LOCALLY | NOT_IMPLEMENTED | WORKS_LOCALLY | WORKS_LOCALLY | WORKS_LOCALLY | Installable by Chromium's own criteria (CDP getInstallabilityErrors empty), service worker with a network-only policy for API and evidence bytes, offline page (UC-LCH-004). |
-| Android | BLOCKED | WORKS_LOCALLY | SERVER_ONLY | PARTIAL | N/A | BLOCKED | Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. Native compile and device behaviour are EP-06/07/14. |
-| iOS | BLOCKED | WORKS_LOCALLY | SERVER_ONLY | PARTIAL | N/A | BLOCKED | The device block the extension writes now seals SIGNED on the real server (golden fixture); Swift compile, ReplayKit and TestFlight are EP-08/09/14. The direct-session API accepts a case, the app does not yet send one. |
+| Android | BLOCKED | WORKS_LOCALLY | SERVER_ONLY | PARTIAL | N/A | BLOCKED | Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. The Kotlin capture services COMPILE in feature CI (native-build run 36865158339, Gradle :app:assembleDebug); device behaviour, the native unit/instrumented tests and the signed release are EP-06/14/07. |
+| iOS | BLOCKED | WORKS_LOCALLY | SERVER_ONLY | PARTIAL | N/A | BLOCKED | The device block the extension writes now seals SIGNED on the real server (golden fixture), and the app + ProovraBroadcast extension COMPILE and package in feature CI (native-build run 36865158339, macos-14 / Xcode 16.2, .appex embedded); ReplayKit on a device, the Swift unit test and TestFlight are EP-08/14/09. The direct-session API accepts a case, the app does not yet send one. |
 
 ## Capture-to-Public-Verify convergence
 
@@ -206,7 +206,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 ## Counts
 
 - Findings at the audit baseline: 119 (P0 0 · P1 11 · P2 55 · P3 53); 2 consolidated into kept findings.
-- Status now: fixed 99 · blocked on external proof 20 · partial 0 · present 0 · accepted risk 0.
+- Status now: fixed 103 · blocked on external proof 16 · partial 0 · present 0 · accepted risk 0.
 - Proof (audit): runtime-proven 12 · source-proven (device behaviour of the attachment per Apple ReplayKit documentation; device confirmation BLOCKED) 1 · source-proven 106
 - Required journeys: PASS 14 · FAIL 0 · BLOCKED 6 (of 20); at the audit baseline PASS 8 · FAIL 6 · BLOCKED 6.
 - Audit API integration (capture-relevant, real PG16/Redis/MinIO): 463/463 passed, 0 skipped, 64 files.
@@ -233,7 +233,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 
 ### UC-IOS-001 (P1, runtime-proven) — Every iOS continuous-capture manifest is refused at seal: the Swift result's device object lacks screenW/screenH/densityDpi/orientation that the server validator requires
 
-- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: Swift compile + physical iOS device broadcast sealed end to end (EP-08, EP-14)
+- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: physical iOS device: a ReplayKit broadcast sealed end to end with the extension's real device block accepted by the server (Swift compile proven in CI) (EP-08)
 - UCs: UC-5 · Platforms: api, ios
 - Where: `apps/mobile/modules/proovra-screen-capture/ios/ProovraBroadcastShared.swift:58`, `apps/mobile/src/continuous-capture.ts:121`, `packages/shared/src/screen-continuous-manifest.ts:286`, `packages/shared/src/screen-continuous-manifest.ts:289`, `services/api/src/services/capture-trust/continuous-capture.service.ts:94`, `services/api/test/uc5-ios-screen-capture.integration.test.ts:253`, `apps/mobile/test/native-module-contract.test.mjs:75`
 - Observed: Swift device map has 4 keys; validator requires 8. The UC-5 integration test hand-builds a device with screenW:1179, screenH:2556, densityDpi:460, orientation:'portrait' (uc5-ios-screen-capture.integration.test.ts:253-262) that the Swift never produces, so the suite passes against a fictional payload; the native contract test compares method/event NAMES only (native-module-contract.test.mjs:75-99). RUNTIME: Sealing with the exact device block ProovraBroadcastShared.swift writes ({platform, osVersion, model, appVersion}) → HTTP 422 CONTINUOUS_MANIFEST_INVALID; record stays UPLOADING.
@@ -264,7 +264,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 
 ### UC-IOS-004 (P1, source-proven) — Extension segment timing is wrong: the final segment is recorded with durationMs 0 and a start offset equal to the session end, so COMPLETE iOS sessions are refused as having an undeclared gap
 
-- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: Swift compile + device timing verification (EP-08, EP-14)
+- Remediation: **BLOCKED_EXTERNAL_PROOF** in 6934514c6d49; outstanding: physical iOS device: segment offsets/durations from a real broadcast match the PTS clock (contiguous segments, final segment ends at the last appended PTS) (Swift compile proven in CI) (EP-08)
 - UCs: UC-5 · Platforms: api, ios
 - Where: `apps/mobile/plugins/broadcast-extension/SampleHandler.swift:74`, `apps/mobile/plugins/broadcast-extension/SampleHandler.swift:121`, `packages/shared/src/screen-continuous-manifest.ts:391`, `packages/shared/src/screen-continuous-manifest.ts:402`
 - Observed: Final segment duration hard-coded to 0; offsets mix wall clock and PTS.
@@ -287,11 +287,11 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | R04 | Evidence Request submission → outputs | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J14-evidence-request-to-record<br>services/api/test/runtime-proof-evidence-capture-b.integration.test.ts::POST /v1/evidence-requests/:id/send — opens the intake link, notifies the recipient and marks SENT | — | J14-evidence-request-to-record: PASS (10/10). Driven end to end on the stack (Evidence Requests enabled): create, send with intake link and recorded recipient notification, contributor submission, record in the requesting workspace, outputs. External mail delivery itself is not exercised (recording transport). |
 | R05 | Browser extension capture → outputs | **PASS** | FAIL | runtime/remediation/extension-acceptance.json#R05-extension-real-browsers | — | R05-extension-real-browsers: PASS (11/11) |
 | R06 | Android flow (strongest available environment) | **BLOCKED** | BLOCKED | services/api/test/uc2-android-screen-capture.integration.test.ts<br>services/api/test/uc3-continuous-capture.integration.test.ts<br>runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify | EP-06, EP-07 | Server side proven on the stack and on real PostgreSQL; MediaProjection, foreground service and notifications need a physical Android device. |
-| R07 | iOS flow (strongest available environment) | **BLOCKED** | FAIL | services/api/test/uc5-ios-screen-capture.integration.test.ts<br>apps/mobile/test/ios-broadcast-contract.test.mjs | EP-08, EP-09, EP-14 | The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline); ReplayKit itself needs macOS and a device. |
+| R07 | iOS flow (strongest available environment) | **BLOCKED** | FAIL | services/api/test/uc5-ios-screen-capture.integration.test.ts<br>apps/mobile/test/ios-broadcast-contract.test.mjs<br>native-build.yml run 36865158339 ios-simulator-build (Swift compiled, ProovraBroadcast.appex embedded) | EP-08, EP-09 | The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline), and the app + Broadcast Upload Extension compile and package on macOS CI; ReplayKit broadcasting itself needs a physical device. |
 | R08 | Continuous/streaming capture with interruption and resume | **BLOCKED** | FAIL | runtime/remediation/journeys-raw.json#J09-continuous-direct-capture-to-public-verify<br>services/api/test/uc3-continuous-completeness.integration.test.ts | EP-06 | J09-continuous-direct-capture-to-public-verify: PASS (10/10). Missing tail/middle, duplicate and conflicting segments, seal racing and interruption are proven on real PostgreSQL; resume after an app/process restart needs a device. |
 | R09a | Video → keyframes | **PASS** | PASS | runtime/remediation/journeys-raw.json#J10-uc4-derived-review | — | J10-uc4-derived-review: PASS (2/2) |
-| R09b | Video → OCR | **BLOCKED** | BLOCKED | services/worker/test/uc4-tesseract-ocr.test.ts<br>services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts | EP-14 | OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host (the worker suite's one skip), and the real-text assertion is REQUIRED in ci.yml's OCR step, which has not run yet. |
-| R10 | Conversation capture / reconstruction | **BLOCKED** | FAIL | packages/shared/tests/screen-reconstruction.test.mjs<br>services/worker/test/uc4-reconstruction.test.ts | EP-13, EP-14 | Reconstruction now merges realistic chat screens (UC-DER-004 fixtures); real conversation apps and real OCR remain external. |
+| R09b | Video → OCR | **BLOCKED** | BLOCKED | services/worker/test/uc4-tesseract-ocr.test.ts<br>services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts<br>ci.yml build-test run 36864604761: 'Test — worker OCR with the real tesseract engine' success (UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped)<br>schema-reproducibility.yml run 36864604662: worker UC-4 live-PostgreSQL integration success | EP-14 | OCR wiring, bounds and persistence are proven against live PostgreSQL, and real-text extraction by the real Tesseract engine is now proven in feature CI on fixtures. The journey itself — a recorded video through derived OCR on a running stack — has not run with the real engine (this host has no binary). |
+| R10 | Conversation capture / reconstruction | **BLOCKED** | FAIL | packages/shared/tests/screen-reconstruction.test.mjs<br>services/worker/test/uc4-reconstruction.test.ts<br>ci.yml build-test run 36864604761: real-tesseract OCR step success | EP-13 | Reconstruction now merges realistic chat screens (UC-DER-004 fixtures) and the real OCR engine is CI-proven on fixtures; real conversation apps remain external. |
 | R11 | Add capture to existing Case | **PASS** | PASS | runtime/remediation/journeys-raw.json#J03-case-attach-and-tenancy<br>services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE) | — | J03-case-attach-and-tenancy: PASS (18/18) |
 | R12 | Create new Evidence from capture | **PASS** | PASS | runtime/remediation/journeys-raw.json#J01-web-upload-to-public-verify | — | J01-web-upload-to-public-verify: PASS (22/22) |
 | R13 | Failure and recovery journey | **PASS** | BLOCKED | runtime/remediation/journeys-raw.json#J12-failure-and-recovery | — | J12-failure-and-recovery: PASS (12/12) |
@@ -350,10 +350,10 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | discovered mutations = dispositioned mutations | PASS | 59 mutations |
 | discovered queues = classified queues | PASS | 13 queue rows |
 | runtime journeys = passed + failed + blocked | PASS | {"PASS":14,"FAIL":0,"BLOCKED":6} |
-| findings = fixed + blocked-external + partial + present + accepted-risk | PASS | {"fixed":99,"blockedExternal":20,"partial":0,"present":0,"acceptedRisk":0} |
+| findings = fixed + blocked-external + partial + present + accepted-risk | PASS | {"fixed":103,"blockedExternal":16,"partial":0,"present":0,"acceptedRisk":0} |
 | remediation ledger rows = findings (one row per finding, no extra row) | PASS | 119 rows |
 | every ledger disposition is allowed | PASS |  |
-| ledger counts agree with finding statuses | PASS | {"total":119,"BLOCKED_EXTERNAL_PROOF":20,"FIXED_RUNTIME_PROVEN":59,"FIXED_SOURCE_AND_TEST_PROVEN":40,"fixed":99,"blocked":20,"remaining":0} |
+| ledger counts agree with finding statuses | PASS | {"total":119,"BLOCKED_EXTERNAL_PROOF":16,"FIXED_RUNTIME_PROVEN":62,"FIXED_SOURCE_AND_TEST_PROVEN":41,"fixed":103,"blocked":16,"remaining":0} |
 | ledger's own gates all pass | PASS | 9 gates |
 | every fixed finding names a commit and a green test | PASS |  |
 | every blocked-external finding names a registered external proof | PASS |  |
@@ -364,7 +364,7 @@ Remediation branch `fix/universal-evidence-capture-closure` from `47034f45403e87
 | remediation API integration run executed (not skipped) and green | PASS | 2874/2874 (0 skipped) |
 | remediation worker run green | PASS | 1218/1219 (1 skipped) |
 | every remediation command has an exit code | PASS | 103 commands |
-| every UC = complete + partial + missing + blocked | PASS | {"complete":1,"partial":0,"missing":0,"blocked":8} |
+| every UC = complete + partial + missing + blocked | PASS | {"complete":2,"partial":0,"missing":0,"blocked":7} |
 | no UNKNOWN without explicit blocker | PASS |  |
 | no NOT_REVIEWED | PASS | 301 reviewed topics |
 | no duplicate finding IDs | PASS |  |

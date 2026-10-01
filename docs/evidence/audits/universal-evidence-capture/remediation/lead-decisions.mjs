@@ -5,9 +5,21 @@
  * migration or the other half landed — each with the resolving commits and the re-run proof.
  */
 export const AUDIT_BRANCH = "audit/universal-evidence-capture-truth";
-export const AUDIT_SHA = "dae43b40";
+export const AUDIT_SHA = "3bfffe6b";
 export const AUDIT_REMOTE_STATUS =
-  "NOT PUSHED — the push was refused by the session's permission classifier; the owner must push it (git push -u origin audit/universal-evidence-capture-truth)";
+  "PUSHED by the owner — origin/audit/universal-evidence-capture-truth = 3bfffe6b56ae18086c4f16d49ff5afff8385bbd6, equal to the local head (verified by fetch 2026-10-01)";
+
+/** Feature-CI runs (fix/universal-evidence-capture-closure) that executed the named external proofs. */
+const CI = {
+  buildTest:
+    "ci.yml build-test, run 36864604761 job 110376873717 @ 7145ad51 (also green @ a7e022f0, run 36865158391)",
+  schema:
+    "schema-reproducibility.yml clean-db-boot, run 36864604662 job 110376873013 @ 7145ad51 (also green @ 394a3a2f, ae7f1b85, 705cfbf8, a7e022f0)",
+  native:
+    "native-build.yml run 36865158339 @ a7e022f0: ios-simulator-build job 110378735897 (macos-14, Xcode 16.2: xcodebuild app + ProovraBroadcast, then 'Refuse a build without the broadcast extension' PASSED) and android-debug-build job 110378735982 (Gradle :app:assembleDebug)",
+  browser:
+    "uc1-browser-acceptance.yml run 36870336646 @ ca991687: windows-acceptance job 110396168173 (real Google Chrome 4/4 + real Microsoft Edge 153 4/4, 'UC-1 CLOSED (browser gate) [PASS]') and linux-extension-e2e job 110396167871 (Chrome 154 headed under xvfb, 4/4); each project's JSON result counted (executed > 0)",
+};
 export const BASE_SHA = "47034f45403e87089b29571e3e702311c9d1a2a4";
 
 const RANGE_M = "commit 6934514c cites 'UC-IOS-001..UC-IOS-012' / 'UC-AND-011..013' as a range; it is lane M's native batch";
@@ -101,8 +113,8 @@ export const DECISIONS = {
   "UC-TQ-002": {
     status: "FIXED",
     proofKind: "runtime",
-    note: "The spec launches the project's real channel and asserts browser identity; the shipped harness passed 4/4 fixtures in real Chrome 153 and real Edge 154. A CI workflow runs it (uc1-browser-acceptance.yml); its first GitHub run is not observed in this session because pushing was refused.",
-    green: { tests: ["node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge"], command: "lane E acceptance run", result: "UC-1 CLOSED (browser gate) [PASS]" },
+    note: "The spec launches the project's real channel and asserts browser identity; the shipped harness passed 4/4 fixtures in real Chrome 153 and real Edge 154. Feature CI now runs it on GitHub-hosted Windows and Linux runners and it passed (see the green tests); the workflow refuses a run whose per-browser JSON result executed nothing.",
+    green: { tests: ["node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge", CI.browser], command: "lane E acceptance run ; GitHub Actions (feature branch push)", result: "UC-1 CLOSED (browser gate) [PASS] ; Chrome 4/4 + Edge 4/4 (windows), Chrome 4/4 (linux)" },
   },
   "UC-TQ-003": {
     status: "FIXED",
@@ -157,24 +169,76 @@ export const DECISIONS = {
     },
   },
   "UC-TQ-003": {
-    status: "BLOCKED_EXTERNAL_PROOF",
-    note: "Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the code is complete (handler proof runs DB-free in CI's worker unit job; live-PG suites run in schema-reproducibility.yml; the real-text assertion exists and FAILS instead of skipping under UC4_REQUIRE_TESSERACT=1), but the finding requires an EXECUTED assertion on real tesseract output and none has run anywhere: no CI job installed the engine (the step 'Test — worker OCR with the real tesseract engine' is added to ci.yml now) and fetching the binary here is a package download this session may not make.",
-    externalProofRemaining: "EP-14: first CI run of ci.yml 'Test — worker OCR with the real tesseract engine' (apt tesseract-ocr, UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and of schema-reproducibility.yml's worker integration step",
+    status: "FIXED",
+    proofKind: "runtime",
+    note: "EP-14 CLOSED BY FEATURE CI. The external proof this row waited for has executed and passed: (1) ci.yml 'Test — worker OCR with the real tesseract engine' installs tesseract-ocr from apt, runs services/worker/test/uc4-tesseract-ocr.test.ts with UC4_REQUIRE_TESSERACT=1, and its guard fails the step unless >= 5 tests executed, 0 pending/skipped and all passed — the step succeeded; (2) schema-reproducibility.yml 'Worker UC-4 screen-intelligence integration (live PostgreSQL)' ran the handler + persistence integration suites with a guard refusing zero executed or any skipped — it succeeded.",
+    externalProofRemaining: "none",
     green: {
-      tests: ["services/worker/test/uc4-tesseract-ocr.test.ts (4 executed, 1 skipped: binary absent)", "services/worker/test/uc4-screen-intelligence-handler.test.ts", "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts", "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"],
-      command: "services/worker: npx vitest run (live PG16/Redis/MinIO)",
-      result: "worker suite 1218 passed, 1 skipped",
+      tests: [
+        `${CI.buildTest} :: step 'Test — worker OCR with the real tesseract engine' = success (guard: total >= 5, pending 0, failed 0)`,
+        `${CI.schema} :: step 'Worker UC-4 screen-intelligence integration (live PostgreSQL)' = success (guard: executed > 0, skipped 0)`,
+      ],
+      command: "GitHub Actions (feature branch push)",
+      result: "both steps success",
     },
   },
   "UC-TQ-004": {
-    status: "BLOCKED_EXTERNAL_PROOF",
-    note: "Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the finding's required proof is 'the existing 4 cases executed in CI'. The ci.yml step (locked bucket + OBJECT_LOCK_MINIO_* + refusal of skips) is in place and the suite passes locally 4/4 against a locked MinIO bucket, but no CI run of the branch has been observed (push refused).",
-    externalProofRemaining: "EP-14: first CI run of ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' showing 4 executed, 0 skipped",
+    status: "FIXED",
+    proofKind: "runtime",
+    note: "EP-14 CLOSED BY FEATURE CI. ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' ran the 4 publication cases against a disposable Object-Lock-enabled MinIO bucket with the step's refusal of skips — the step succeeded.",
+    externalProofRemaining: "none",
     green: {
-      tests: ["services/worker/test/verification-package-publication.minio.test.ts (4/4 against the local locked bucket uca-olc-locked)"],
-      command: "OBJECT_LOCK_MINIO_* npx vitest run test/verification-package-publication.minio.test.ts",
-      result: "4 passed, 0 pending",
+      tests: [`${CI.buildTest} :: step 'Test — worker Object-Lock publication (MinIO, locked bucket)' = success`],
+      command: "GitHub Actions (feature branch push)",
+      result: "success",
     },
+  },
+  "UC-LCH-003": {
+    status: "FIXED",
+    proofKind: "runtime",
+    note: "CLOSED BY FEATURE CI: both workflows the finding required ran on GitHub-hosted macOS and Windows runners and passed. Reaching green took toolchain corrections recorded in the branch history (macos-14 + Xcode 16.2, the SDK-52 toolchain whose fmt pod and iOS 18.2 runtime match; pinned MinIO in place of the withdrawn distribution; pgvector on the Windows runner; the harness's silent exit-0 and the reaped Windows object store), not changes to what the jobs assert. This proves COMPILATION, packaging and browser acceptance — not device behaviour, which stays with the device rows.",
+    externalProofRemaining: "none",
+    green: {
+      tests: [CI.native, CI.browser],
+      command: "GitHub Actions (feature branch push)",
+      result: "native-build success; uc1-browser-acceptance success",
+    },
+  },
+  "UC-AND-011": {
+    status: "FIXED",
+    proofKind: "unit",
+    note: "The only external proof this row named — Kotlin compilation of the capture services carrying FRAME_CAPTURE_FAILED — executed in CI and passed (android-debug-build: Gradle :app:assembleDebug). The behaviour itself (no SECURE_CONTENT_OMITTED emitted; read/write failures report FRAME_CAPTURE_FAILED) is covered by the contract tests; no device behaviour is claimed.",
+    externalProofRemaining: "none",
+    green: {
+      tests: [`${CI.native} :: android-debug-build 'Gradle assembleDebug (compiles the Kotlin capture services)' = success`],
+      command: "GitHub Actions (feature branch push)",
+      result: "success",
+    },
+  },
+  "UC-IOS-012": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "NOT closed by compilation. Feature CI now COMPILES the Swift (ProovraDarwinNotify singleton, serialised drainSegments) on macOS (ios-simulator-build, run 36865158339), but the proof this row names is a Swift UNIT TEST of the observer identity on macOS CI, and none has executed.",
+    externalProofRemaining: "a Swift (XCTest) unit test of ProovraDarwinNotify's single observer token / register-once / remove-with-same-token, executed on a macOS CI runner (compilation alone is proven)",
+  },
+  "UC-AND-007": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the instrumented test of MediaRecorder.stop() throwing has not executed.",
+    externalProofRemaining: "Android instrumented test (emulator or device) of MediaRecorder.stop() throwing -> file deleted, SEGMENT_WRITE_FAILED, nothing emitted (Kotlin compile proven in CI)",
+  },
+  "UC-AND-013": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the null-projection unit test has not executed.",
+    externalProofRemaining: "JVM/instrumented unit test of beginProjection failing (null projection) -> failStart, stopSelf, JS promise rejected with the code (Kotlin compile proven in CI)",
+  },
+  "UC-IOS-001": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Swift COMPILATION of SampleHandler / ProovraBroadcastResult and packaging of ProovraBroadcast.appex are now CI-proven (ios-simulator-build, run 36865158339). A broadcast sealed end to end needs a physical iOS device (ReplayKit does not broadcast in the simulator).",
+    externalProofRemaining: "physical iOS device: a ReplayKit broadcast sealed end to end with the extension's real device block accepted by the server (Swift compile proven in CI)",
+  },
+  "UC-IOS-004": {
+    status: "BLOCKED_EXTERNAL_PROOF",
+    note: "Swift COMPILATION of the single-PTS-clock segmenter is now CI-proven (ios-simulator-build, run 36865158339); the golden fixtures pass in node --test. Real segment timing needs a physical device.",
+    externalProofRemaining: "physical iOS device: segment offsets/durations from a real broadcast match the PTS clock (contiguous segments, final segment ends at the last appended PTS) (Swift compile proven in CI)",
   },
   "UC-TRUST-008": {
     status: "FIXED",

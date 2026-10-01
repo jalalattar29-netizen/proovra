@@ -39,15 +39,15 @@ export const INTEGRATION_SKIPS_ALLOWED = 0;
 export const EXTERNAL_PROOFS_ADDED = [
   {
     id: "EP-14",
-    item: "First CI execution of the native-build and browser-acceptance workflows and of the CI steps that refuse skips (real tesseract OCR, Object-Lock publication)",
+    item: "Native unit tests on CI runners (Swift XCTest on macOS; Android JVM/instrumented tests) and a stack-level Video -> OCR run with the real engine — the remainder after feature CI closed compilation, browser acceptance, real-tesseract OCR on fixtures and Object-Lock publication",
     locallyProven:
-      "Workflows authored (.github/workflows/native-build.yml, uc1-browser-acceptance.yml); the extension acceptance they run passes locally in real Chrome and Edge; the worker OCR test runs when the Tesseract binary exists.",
+      "FEATURE CI, fix/universal-evidence-capture-closure (2026-10-01): native-build.yml run 36865158339 — Swift compiled for the iOS simulator on macos-14 / Xcode 16.2 with ProovraBroadcast.appex embedded (refusal gate passed) and Kotlin compiled (Gradle :app:assembleDebug); uc1-browser-acceptance.yml run 36870336646 — real Chrome 4/4 + real Edge 4/4 on Windows, Chrome 4/4 headed on Linux, per-browser results counted; ci.yml build-test run 36864604761 — 'Test — worker OCR with the real tesseract engine' (UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and 'Test — worker Object-Lock publication (MinIO, locked bucket)' both success; schema-reproducibility.yml run 36864604662 — the worker UC-4 live-PostgreSQL integration step success. These closed UC-TQ-003, UC-TQ-004, UC-LCH-003 and UC-AND-011.",
     unproven:
-      "Kotlin and Swift compilation of the native capture modules, the Swift unit tests, the real-tesseract OCR assertion (ci.yml 'Test — worker OCR with the real tesseract engine', UC4_REQUIRE_TESSERACT=1) and the Object-Lock publication step on GitHub runners (no push from this session, so no CI run could be observed). On this host the OCR present-branch test is the worker suite's single skip: the binary is absent and installing it is a package download this session may not make.",
-    requires: "The feature branch pushed to GitHub; macOS and Windows runners.",
-    procedure: "Push the branch, let both workflows run, read their job logs.",
-    passCriteria: "Both workflows green on the branch head; the OCR step executes >= 5 tests with 0 skipped; the Object-Lock step executes 4 with 0 skipped.",
-    risk: "Native code that does not compile would only be discovered at release-build time.",
+      "No Swift unit test (XCTest) exists or runs for ProovraDarwinNotify's observer identity (UC-IOS-012). The Android stop()-throws instrumented test (UC-AND-007) and the null-projection unit test (UC-AND-013) have not executed; those two also need EP-06 for device behaviour. Journey R09b (a recorded video through derived OCR on a running stack with the real engine) has not run: CI proves the engine on fixtures and the persistence path, and this host has no Tesseract binary.",
+    requires: "An XCTest target for the native module run on a macOS runner; an Android test source set run by Gradle on CI (an emulator for the instrumented case).",
+    procedure: "Add the tests, wire them into native-build.yml, push, read the job results.",
+    passCriteria: "The named tests execute (not skipped) and pass on the branch head.",
+    risk: "Native lifecycle regressions in the observer/teardown paths would be caught only on a device.",
   },
 ];
 
@@ -56,13 +56,12 @@ export const BLOCKED_EXTERNAL_PROOFS = {
   "UC-AND-003": ["EP-06"],
   "UC-AND-004": ["EP-06"],
   "UC-AND-007": ["EP-06", "EP-14"],
-  "UC-AND-011": ["EP-14"],
   "UC-AND-012": ["EP-06"],
   "UC-AND-013": ["EP-06", "EP-14"],
-  "UC-IOS-001": ["EP-08", "EP-14"],
+  "UC-IOS-001": ["EP-08"],
   "UC-IOS-002": ["EP-08"],
   "UC-IOS-003": ["EP-08"],
-  "UC-IOS-004": ["EP-08", "EP-14"],
+  "UC-IOS-004": ["EP-08"],
   "UC-IOS-005": ["EP-08"],
   "UC-IOS-006": ["EP-08"],
   "UC-IOS-007": ["EP-08"],
@@ -70,9 +69,6 @@ export const BLOCKED_EXTERNAL_PROOFS = {
   "UC-IOS-009": ["EP-08"],
   "UC-IOS-010": ["EP-08"],
   "UC-IOS-012": ["EP-14"],
-  "UC-LCH-003": ["EP-14"],
-  "UC-TQ-003": ["EP-14"],
-  "UC-TQ-004": ["EP-14"],
 };
 
 /**
@@ -98,9 +94,9 @@ export const JOURNEYS_AFTER = {
   },
   R07: {
     status: "BLOCKED",
-    blockers: ["EP-08", "EP-09", "EP-14"],
-    evidence: ["services/api/test/uc5-ios-screen-capture.integration.test.ts", "apps/mobile/test/ios-broadcast-contract.test.mjs"],
-    note: "The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline); ReplayKit itself needs macOS and a device.",
+    blockers: ["EP-08", "EP-09"],
+    evidence: ["services/api/test/uc5-ios-screen-capture.integration.test.ts", "apps/mobile/test/ios-broadcast-contract.test.mjs", "native-build.yml run 36865158339 ios-simulator-build (Swift compiled, ProovraBroadcast.appex embedded)"],
+    note: "The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline), and the app + Broadcast Upload Extension compile and package on macOS CI; ReplayKit broadcasting itself needs a physical device.",
   },
   R08: {
     runs: ["J09-"],
@@ -112,14 +108,19 @@ export const JOURNEYS_AFTER = {
   R09b: {
     status: "BLOCKED",
     blockers: ["EP-14"],
-    evidence: ["services/worker/test/uc4-tesseract-ocr.test.ts", "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"],
-    note: "OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host (the worker suite's one skip), and the real-text assertion is REQUIRED in ci.yml's OCR step, which has not run yet.",
+    evidence: [
+      "services/worker/test/uc4-tesseract-ocr.test.ts",
+      "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
+      "ci.yml build-test run 36864604761: 'Test — worker OCR with the real tesseract engine' success (UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped)",
+      "schema-reproducibility.yml run 36864604662: worker UC-4 live-PostgreSQL integration success",
+    ],
+    note: "OCR wiring, bounds and persistence are proven against live PostgreSQL, and real-text extraction by the real Tesseract engine is now proven in feature CI on fixtures. The journey itself — a recorded video through derived OCR on a running stack — has not run with the real engine (this host has no binary).",
   },
   R10: {
     status: "BLOCKED",
-    blockers: ["EP-13", "EP-14"],
-    evidence: ["packages/shared/tests/screen-reconstruction.test.mjs", "services/worker/test/uc4-reconstruction.test.ts"],
-    note: "Reconstruction now merges realistic chat screens (UC-DER-004 fixtures); real conversation apps and real OCR remain external.",
+    blockers: ["EP-13"],
+    evidence: ["packages/shared/tests/screen-reconstruction.test.mjs", "services/worker/test/uc4-reconstruction.test.ts", "ci.yml build-test run 36864604761: real-tesseract OCR step success"],
+    note: "Reconstruction now merges realistic chat screens (UC-DER-004 fixtures) and the real OCR engine is CI-proven on fixtures; real conversation apps remain external.",
   },
   R11: { runs: ["J03-"], evidence: ["services/api/test/completion-cross-channel.integration.test.ts::an intake link issued for a case puts the submitted record IN the case (once, source INTAKE)"] },
   R12: { runs: ["J01-"] },
@@ -194,7 +195,7 @@ export const PLATFORM_AFTER = [
     build: "PARTIAL",
     realBrowser: "N/A",
     distribution: "BLOCKED",
-    note: "Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. Native compile and device behaviour are EP-06/07/14.",
+    note: "Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. The Kotlin capture services COMPILE in feature CI (native-build run 36865158339, Gradle :app:assembleDebug); device behaviour, the native unit/instrumented tests and the signed release are EP-06/14/07.",
   },
   {
     platform: "iOS",
@@ -204,7 +205,7 @@ export const PLATFORM_AFTER = [
     build: "PARTIAL",
     realBrowser: "N/A",
     distribution: "BLOCKED",
-    note: "The device block the extension writes now seals SIGNED on the real server (golden fixture); Swift compile, ReplayKit and TestFlight are EP-08/09/14. The direct-session API accepts a case, the app does not yet send one.",
+    note: "The device block the extension writes now seals SIGNED on the real server (golden fixture), and the app + ProovraBroadcast extension COMPILE and package in feature CI (native-build run 36865158339, macos-14 / Xcode 16.2, .appex embedded); ReplayKit on a device, the Swift unit test and TestFlight are EP-08/14/09. The direct-session API accepts a case, the app does not yet send one.",
   },
 ];
 

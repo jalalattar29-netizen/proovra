@@ -1,7 +1,7 @@
 {
   "schema": "PROOVRA_UNIVERSAL_CAPTURE_TRUTH_V1",
   "headline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
-  "headlineReason": "99 of 119 findings fixed with proof; 20 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.",
+  "headlineReason": "103 of 119 findings fixed with proof; 16 are code-complete but await device/store/external proof (4 of them P1: UC-AND-003, UC-IOS-001, UC-IOS-002, UC-IOS-004); required journeys PASS 14 · FAIL 0 · BLOCKED 6. A P0/P1 is resolved only when FIXED with proof, so an unproven device path keeps the headline where it is.",
   "auditHeadline": "C. UNIVERSAL EVIDENCE CAPTURE NOT READY",
   "meta": {
     "title": "Definitive Universal Evidence Capture Truth",
@@ -57,11 +57,11 @@
     "ledger": "remediation/remediation-ledger.json",
     "ledgerCounts": {
       "total": 119,
-      "BLOCKED_EXTERNAL_PROOF": 20,
-      "FIXED_RUNTIME_PROVEN": 59,
-      "FIXED_SOURCE_AND_TEST_PROVEN": 40,
-      "fixed": 99,
-      "blocked": 20,
+      "BLOCKED_EXTERNAL_PROOF": 16,
+      "FIXED_RUNTIME_PROVEN": 62,
+      "FIXED_SOURCE_AND_TEST_PROVEN": 41,
+      "fixed": 103,
+      "blocked": 16,
       "remaining": 0
     }
   },
@@ -76,8 +76,8 @@
       "P3": 53
     },
     "byStatus": {
-      "fixed": 99,
-      "blockedExternal": 20,
+      "fixed": 103,
+      "blockedExternal": 16,
       "partial": 0,
       "present": 0,
       "acceptedRisk": 0
@@ -85,8 +85,8 @@
     "unresolvedBySeverity": {
       "P0": 0,
       "P1": 4,
-      "P2": 11,
-      "P3": 5
+      "P2": 9,
+      "P3": 3
     },
     "byProof": {
       "runtime-proven": 12,
@@ -104,10 +104,10 @@
       "BLOCKED": 6
     },
     "ucBuckets": {
-      "complete": 1,
+      "complete": 2,
       "partial": 0,
       "missing": 0,
-      "blocked": 8
+      "blocked": 7
     },
     "surfaces": 27,
     "mutations": 59,
@@ -118,7 +118,7 @@
     {
       "uc": "UC-0a",
       "name": "Provenance Truth Repair",
-      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "verdict": "COMPLETE",
       "auditVerdict": "PRESENT BUT UNTRUTHFUL",
       "keyFindings": [
         "UC-PROV-001",
@@ -128,12 +128,10 @@
         "UC-PROV-004",
         "UC-PROV-005"
       ],
-      "blockers": [
-        "EP-14"
-      ],
-      "rationale": "25 findings name this UC: 24 fixed, 1 code-complete awaiting external proof (UC-TQ-004), 0 open. Journeys: R01 PASS, R03 PASS. External proofs outstanding: EP-14.",
+      "blockers": [],
+      "rationale": "25 findings name this UC: 25 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R03 PASS. No external proof outstanding.",
       "auditRationale": "The acquisition-mode authority, set-once trigger and fail-closed attestation are real and runtime-visible (J01/J08/J09 report snapshots and Public Verify carry the server-recorded mode and IMPORTED_EXISTING_MEDIA tier). But server record-creation time is presented as capture time and on Public Verify as 'declared by the capturing device'; every direct-capture record reads 'Capture Method: Not recorded' in the rendered report (runtime-proven on an Android continuous record) and package; the client still chooses the direct-capture mode label; validated manifest facts (URL, title, browser, completeness) are dropped.",
-      "bucket": "blocked"
+      "bucket": "complete"
     },
     {
       "uc": "UC-0b",
@@ -178,7 +176,7 @@
     {
       "uc": "UC-1",
       "name": "Chrome / Edge Web Capture",
-      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "verdict": "COMPLETE LOCALLY, EXTERNAL PROOF PENDING",
       "auditVerdict": "PRESENT BUT UNREACHABLE",
       "keyFindings": [
         "UC-EXT-001",
@@ -191,10 +189,9 @@
       "blockers": [
         "EP-04",
         "EP-05",
-        "EP-12",
-        "EP-14"
+        "EP-12"
       ],
-      "rationale": "29 findings name this UC: 28 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R05 PASS. External proofs outstanding: EP-04, EP-05, EP-12, EP-14.",
+      "rationale": "29 findings name this UC: 29 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R05 PASS. External proofs outstanding: EP-04, EP-05, EP-12.",
       "auditRationale": "The server side of Direct Web Capture works (uc1-web-capture + uc1-extension-oauth integration pass). A real user cannot capture: the popup never lists a workspace (runtime-proven), the extension origin is absent from production CORS and host_permissions, it is unpublished, and the shipped acceptance harness fails at AUTH on main. Full-page capture exceeds Chrome's captureVisibleTab quota by construction. No case selection.",
       "bucket": "blocked"
     },
@@ -215,7 +212,7 @@
         "EP-07",
         "EP-14"
       ],
-      "rationale": "22 findings name this UC: 17 fixed, 5 code-complete awaiting external proof (UC-AND-003, UC-TQ-003, UC-AND-011, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.",
+      "rationale": "22 findings name this UC: 19 fixed, 3 code-complete awaiting external proof (UC-AND-003, UC-AND-012, UC-AND-013), 0 open. Journeys: R06 BLOCKED. External proofs outstanding: EP-06, EP-07, EP-14.",
       "auditRationale": "Server seal path runtime-proven (uc2-screen-capture integration); JS↔Kotlin parity, manifest service declarations and foreground-service typing verified; Android prebuild generated the native project; Hermes bundle builds. Unproven on any device; POST_NOTIFICATIONS is never requested, so on Android 13+ the capture-frame notification action (the only way to capture another app) is suppressed. No share-into-PROOVRA, logout does not stop capture.",
       "bucket": "blocked"
     },
@@ -235,14 +232,14 @@
         "EP-06",
         "EP-14"
       ],
-      "rationale": "27 findings name this UC: 21 fixed, 6 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-TQ-003, UC-TQ-004, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.",
+      "rationale": "27 findings name this UC: 23 fixed, 4 code-complete awaiting external proof (UC-AND-003, UC-AND-004, UC-AND-007, UC-AND-013), 0 open. Journeys: R08 BLOCKED. External proofs outstanding: EP-06, EP-14.",
       "auditRationale": "Seal refuses missing/duplicate/out-of-order/tampered declared segments (uc3 integration, real PG) and the full pipeline to Public Verify works for a sealed session (J09). But a lost TAIL segment seals as SIGNED COMPLETE_SESSION (runtime-proven), part index 200+ is refused while the client allows 600 segments so long recordings are discarded (runtime-proven), and a session is not resumable after app restart.",
       "bucket": "blocked"
     },
     {
       "uc": "UC-4",
       "name": "Keyframes / OCR / Conversation Reconstruction",
-      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "verdict": "COMPLETE LOCALLY, EXTERNAL PROOF PENDING",
       "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-DER-001",
@@ -256,7 +253,7 @@
         "EP-13",
         "EP-14"
       ],
-      "rationale": "16 findings name this UC: 15 fixed, 1 code-complete awaiting external proof (UC-TQ-003), 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.",
+      "rationale": "16 findings name this UC: 16 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R09a PASS, R09b BLOCKED, R10 BLOCKED. External proofs outstanding: EP-13, EP-14.",
       "auditRationale": "Runtime J10 (real worker, real ffmpeg-static): Generate → reconstruct_screen COMPLETED with 4 keyframes and 1 reconstruction descriptor, labelled DERIVED_RECONSTRUCTED; OCR did not run (ocrAllowed defaults OFF; coverage PARTIAL). A single manual 'Generate Derived Review' path exists, labelled as derived and never as original, with no actor-attribution claims. There is no conversation-capture channel; 'conversation' is OCR screen reconstruction. Retry/Regenerate never run again, OCR runs on ≤256 px keyframes for video sources, dedup cannot merge real chat screens, provenance fields are dropped, and the worker path has no CI-executed behavioural test.",
       "bucket": "blocked"
     },
@@ -277,14 +274,14 @@
         "EP-09",
         "EP-14"
       ],
-      "rationale": "35 findings name this UC: 23 fixed, 12 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012, UC-LCH-003), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.",
+      "rationale": "35 findings name this UC: 24 fixed, 11 code-complete awaiting external proof (UC-IOS-001, UC-IOS-002, UC-IOS-004, UC-IOS-003, UC-IOS-005, UC-IOS-006, UC-IOS-007, UC-IOS-008, UC-IOS-009, UC-IOS-010, UC-IOS-012), 0 open. Journeys: R07 BLOCKED. External proofs outstanding: EP-08, EP-09, EP-14.",
       "auditRationale": "Swift module, broadcast upload extension, App Group and entitlements exist and are internally consistent, and the server accepts DIRECT_SCREEN_CAPTURE_IOS. But no real iOS recording can be sealed: the device block the Swift code writes is refused by the shared validator (runtime-proven 422). The app cannot stop the broadcast, the last segment always has duration 0, and there is no crash recovery. Native compilation and ReplayKit behaviour are BLOCKED here (no macOS/Xcode).",
       "bucket": "blocked"
     },
     {
       "uc": "UC-6",
       "name": "Full Public Launch",
-      "verdict": "CODE COMPLETE, EXTERNAL PROOF REQUIRED",
+      "verdict": "COMPLETE LOCALLY, EXTERNAL PROOF PENDING",
       "auditVerdict": "PARTIALLY COMPLETE",
       "keyFindings": [
         "UC-LCH-001",
@@ -302,10 +299,9 @@
         "EP-08",
         "EP-09",
         "EP-10",
-        "EP-11",
-        "EP-14"
+        "EP-11"
       ],
-      "rationale": "8 findings name this UC: 7 fixed, 1 code-complete awaiting external proof (UC-LCH-003), 0 open. Journeys: R01 PASS, R02 PASS, R03 PASS, R04 PASS, R11 PASS, R12 PASS, R13 PASS, R14a PASS, R14b PASS, R15a PASS, R15b BLOCKED, R16 PASS. External proofs outstanding: EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11, EP-14.",
+      "rationale": "8 findings name this UC: 8 fixed, 0 code-complete awaiting external proof, 0 open. Journeys: R01 PASS, R02 PASS, R03 PASS, R04 PASS, R11 PASS, R12 PASS, R13 PASS, R14a PASS, R14b PASS, R15a PASS, R15b BLOCKED, R16 PASS. External proofs outstanding: EP-04, EP-05, EP-06, EP-07, EP-08, EP-09, EP-10, EP-11.",
       "auditRationale": "Web build, extension build, both Hermes bundles and the API/worker suites are green locally; CI runs the API integration project against real PG. Not launched: extension unpublished and unusable, iOS cannot seal, Android unproven on device, PWA not installable, no capture monitoring/runbook, no mobile screen-recording privacy disclosure, extension/native never compiled or run in CI.",
       "bucket": "blocked"
     }
@@ -349,7 +345,7 @@
       "build": "PARTIAL",
       "realBrowser": "N/A",
       "distribution": "BLOCKED",
-      "note": "Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. Native compile and device behaviour are EP-06/07/14."
+      "note": "Server seal and outputs proven on the stack (J09) and real PostgreSQL; the direct-session API accepts a case, the app does not yet send one. The Kotlin capture services COMPILE in feature CI (native-build run 36865158339, Gradle :app:assembleDebug); device behaviour, the native unit/instrumented tests and the signed release are EP-06/14/07."
     },
     {
       "platform": "iOS",
@@ -359,7 +355,7 @@
       "build": "PARTIAL",
       "realBrowser": "N/A",
       "distribution": "BLOCKED",
-      "note": "The device block the extension writes now seals SIGNED on the real server (golden fixture); Swift compile, ReplayKit and TestFlight are EP-08/09/14. The direct-session API accepts a case, the app does not yet send one."
+      "note": "The device block the extension writes now seals SIGNED on the real server (golden fixture), and the app + ProovraBroadcast extension COMPILE and package in feature CI (native-build run 36865158339, macos-14 / Xcode 16.2, .appex embedded); ReplayKit on a device, the Swift unit test and TestFlight are EP-08/14/09. The direct-session API accepts a case, the app does not yet send one."
     }
   ],
   "auditPlatformMatrix": [
@@ -3378,7 +3374,7 @@
     {
       "name": "findings = fixed + blocked-external + partial + present + accepted-risk",
       "ok": true,
-      "detail": "{\"fixed\":99,\"blockedExternal\":20,\"partial\":0,\"present\":0,\"acceptedRisk\":0}"
+      "detail": "{\"fixed\":103,\"blockedExternal\":16,\"partial\":0,\"present\":0,\"acceptedRisk\":0}"
     },
     {
       "name": "remediation ledger rows = findings (one row per finding, no extra row)",
@@ -3393,7 +3389,7 @@
     {
       "name": "ledger counts agree with finding statuses",
       "ok": true,
-      "detail": "{\"total\":119,\"BLOCKED_EXTERNAL_PROOF\":20,\"FIXED_RUNTIME_PROVEN\":59,\"FIXED_SOURCE_AND_TEST_PROVEN\":40,\"fixed\":99,\"blocked\":20,\"remaining\":0}"
+      "detail": "{\"total\":119,\"BLOCKED_EXTERNAL_PROOF\":16,\"FIXED_RUNTIME_PROVEN\":62,\"FIXED_SOURCE_AND_TEST_PROVEN\":41,\"fixed\":103,\"blocked\":16,\"remaining\":0}"
     },
     {
       "name": "ledger's own gates all pass",
@@ -3448,7 +3444,7 @@
     {
       "name": "every UC = complete + partial + missing + blocked",
       "ok": true,
-      "detail": "{\"complete\":1,\"partial\":0,\"missing\":0,\"blocked\":8}"
+      "detail": "{\"complete\":2,\"partial\":0,\"missing\":0,\"blocked\":7}"
     },
     {
       "name": "no UNKNOWN without explicit blocker",

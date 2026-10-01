@@ -10,8 +10,8 @@
       "P3": 53
     },
     "byStatus": {
-      "fixed": 99,
-      "blockedExternal": 20,
+      "fixed": 103,
+      "blockedExternal": 16,
       "partial": 0,
       "present": 0,
       "acceptedRisk": 0
@@ -19,8 +19,8 @@
     "unresolvedBySeverity": {
       "P0": 0,
       "P1": 4,
-      "P2": 11,
-      "P3": 5
+      "P2": 9,
+      "P3": 3
     }
   },
   "consolidations": [
@@ -350,10 +350,9 @@
           "services/api/test/uc5-ios-screen-capture.integration.test.ts::accepts the DEVICE THE BROADCAST EXTENSION ACTUALLY REPORTS (200 SIGNED)",
           "::UC-IOS-001: a malformed native device block is refused with the specific validator error"
         ],
-        "externalProofRemaining": "Swift compile + physical iOS device broadcast sealed end to end",
+        "externalProofRemaining": "physical iOS device: a ReplayKit broadcast sealed end to end with the extension's real device block accepted by the server (Swift compile proven in CI)",
         "externalProofs": [
-          "EP-08",
-          "EP-14"
+          "EP-08"
         ]
       },
       "proof": "runtime-proven",
@@ -502,10 +501,9 @@
           "ios-broadcast-contract.test.mjs::UC-IOS-004 (2)",
           "::the exact Swift result builds a manifest the SERVER validator accepts as COMPLETE"
         ],
-        "externalProofRemaining": "Swift compile + device timing verification",
+        "externalProofRemaining": "physical iOS device: segment offsets/durations from a real broadcast match the PTS clock (contiguous segments, final segment ends at the last appended PTS) (Swift compile proven in CI)",
         "externalProofs": [
-          "EP-08",
-          "EP-14"
+          "EP-08"
         ]
       },
       "proof": "source-proven",
@@ -1106,7 +1104,7 @@
         "greenTests": [
           "android-capture-service-contract.test.mjs::UC-AND-007"
         ],
-        "externalProofRemaining": "Kotlin compile + instrumented test of stop() throwing",
+        "externalProofRemaining": "Android instrumented test (emulator or device) of MediaRecorder.stop() throwing -> file deleted, SEGMENT_WRITE_FAILED, nothing emitted (Kotlin compile proven in CI)",
         "externalProofs": [
           "EP-06",
           "EP-14"
@@ -3670,7 +3668,8 @@
         "proofKind": "integration-real-db",
         "commits": [
           "1fd1813d6ca7",
-          "718a4d15ec93"
+          "718a4d15ec93",
+          "482d69375a59"
         ],
         "migrations": "none",
         "redTest": "services/api/test/cors-request-log.integration.test.ts::SEC-002: a pinned extension origin is admitted in production; unpinned / unconfigured are refused",
@@ -3949,7 +3948,8 @@
         "greenTests": [
           "apps/extension/e2e/direct-web-capture.spec.ts x4 fixtures on project chromium (Chrome 153.0.8010.53) and edge (Edge 154.0.4258.37)",
           "yaml parse of uc1-browser-acceptance.yml",
-          "node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge"
+          "node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge",
+          "uc1-browser-acceptance.yml run 36870336646 @ ca991687: windows-acceptance job 110396168173 (real Google Chrome 4/4 + real Microsoft Edge 153 4/4, 'UC-1 CLOSED (browser gate) [PASS]') and linux-extension-e2e job 110396167871 (Chrome 154 headed under xvfb, 4/4); each project's JSON result counted (executed > 0)"
         ],
         "externalProofRemaining": "none (CI workflow wiring is a cross-lane request); first windows-latest run; spec channel fix (cross-lane)",
         "externalProofs": []
@@ -4009,10 +4009,10 @@
       "platforms": [
         "worker"
       ],
-      "status": "blocked-external",
+      "status": "fixed",
       "resolution": {
-        "disposition": "BLOCKED_EXTERNAL_PROOF",
-        "proofKind": "integration-real-db",
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
         "commits": [
           "69e995c58803",
           "0364d89aef47",
@@ -4028,15 +4028,11 @@
           "services/worker/test/uc4-tesseract-ocr.test.ts (4 passed + 1 skipped: engine absent on host)",
           "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
           "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
-          "services/worker/test/uc4-tesseract-ocr.test.ts (4 executed, 1 skipped: binary absent)",
-          "services/worker/test/uc4-screen-intelligence-handler.test.ts",
-          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
-          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
+          "ci.yml build-test, run 36864604761 job 110376873717 @ 7145ad51 (also green @ a7e022f0, run 36865158391) :: step 'Test — worker OCR with the real tesseract engine' = success (guard: total >= 5, pending 0, failed 0)",
+          "schema-reproducibility.yml clean-db-boot, run 36864604662 job 110376873013 @ 7145ad51 (also green @ 394a3a2f, ae7f1b85, 705cfbf8, a7e022f0) :: step 'Worker UC-4 screen-intelligence integration (live PostgreSQL)' = success (guard: executed > 0, skipped 0)"
         ],
-        "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker OCR with the real tesseract engine' (apt tesseract-ocr, UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and of schema-reproducibility.yml's worker integration step",
-        "externalProofs": [
-          "EP-14"
-        ]
+        "externalProofRemaining": "none",
+        "externalProofs": []
       },
       "proof": "source-proven",
       "userImpact": "A regression in the reconstruct_screen job (claim/lease/fence, storage wiring, real ffmpeg/tesseract invocation, persistence) ships green; derived keyframes/OCR/reconstruction could silently stop being produced.",
@@ -4104,10 +4100,10 @@
       "platforms": [
         "worker"
       ],
-      "status": "blocked-external",
+      "status": "fixed",
       "resolution": {
-        "disposition": "BLOCKED_EXTERNAL_PROOF",
-        "proofKind": "integration-real-db",
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
         "commits": [
           "0364d89aef47",
           "786a28254e16"
@@ -4116,12 +4112,10 @@
         "redTest": "ci.yml",
         "greenTests": [
           "services/worker/test/verification-package-publication.minio.test.ts",
-          "services/worker/test/verification-package-publication.minio.test.ts (4/4 against the local locked bucket uca-olc-locked)"
+          "ci.yml build-test, run 36864604761 job 110376873717 @ 7145ad51 (also green @ a7e022f0, run 36865158391) :: step 'Test — worker Object-Lock publication (MinIO, locked bucket)' = success"
         ],
-        "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' showing 4 executed, 0 skipped",
-        "externalProofs": [
-          "EP-14"
-        ]
+        "externalProofRemaining": "none",
+        "externalProofs": []
       },
       "proof": "source-proven",
       "userImpact": "The streamed-package staging → checksum → promote → VersionId pin path (the one that failed in production, Sentry 150024171) has no gate; a regression publishes nothing or publishes unlocked.",
@@ -4742,7 +4736,8 @@
           "b4b035380ac8",
           "a606dcaa5e29",
           "d0034b073eb1",
-          "bd87a9e52666"
+          "bd87a9e52666",
+          "715ba79b2c4a"
         ],
         "migrations": "none",
         "redTest": "packages/shared/tests/stored-bytes-trust-closure.test.mjs::TRUST-008: a passing check 3 days old is STALE, not Verified",
@@ -5120,10 +5115,10 @@
       "platforms": [
         "android"
       ],
-      "status": "blocked-external",
+      "status": "fixed",
       "resolution": {
-        "disposition": "BLOCKED_EXTERNAL_PROOF",
-        "proofKind": "source-structure",
+        "disposition": "FIXED_SOURCE_AND_TEST_PROVEN",
+        "proofKind": "unit",
         "commits": [
           "6934514c6d49"
         ],
@@ -5131,12 +5126,11 @@
         "redTest": "android-capture-service-contract.test.mjs::UC-AND-011",
         "greenTests": [
           "android-capture-service-contract.test.mjs::UC-AND-011",
-          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-AND-011"
+          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-AND-011",
+          "native-build.yml run 36865158339 @ a7e022f0: ios-simulator-build job 110378735897 (macos-14, Xcode 16.2: xcodebuild app + ProovraBroadcast, then 'Refuse a build without the broadcast extension' PASSED) and android-debug-build job 110378735982 (Gradle :app:assembleDebug) :: android-debug-build 'Gradle assembleDebug (compiles the Kotlin capture services)' = success"
         ],
-        "externalProofRemaining": "Kotlin compile",
-        "externalProofs": [
-          "EP-14"
-        ]
+        "externalProofRemaining": "none",
+        "externalProofs": []
       },
       "proof": "source-proven",
       "userImpact": "Secure windows are projected as black images (no exception), so a black frame is uploaded as CAPTURED with no limitation; conversely a disk-full/IO error is reported as 'secure content omitted'.",
@@ -5247,7 +5241,7 @@
         "greenTests": [
           "android-capture-service-contract.test.mjs::UC-AND-013"
         ],
-        "externalProofRemaining": "Kotlin compile + null-projection unit test",
+        "externalProofRemaining": "JVM/instrumented unit test of beginProjection failing (null projection) -> failStart, stopSelf, JS promise rejected with the code (Kotlin compile proven in CI)",
         "externalProofs": [
           "EP-06",
           "EP-14"
@@ -5511,7 +5505,10 @@
         "disposition": "FIXED_RUNTIME_PROVEN",
         "proofKind": "integration-real-db",
         "commits": [
-          "718a4d15ec93"
+          "718a4d15ec93",
+          "482d69375a59",
+          "ac372da90ced",
+          "58fb7e919694"
         ],
         "migrations": "none",
         "redTest": "services/api/test/completion-cross-channel.integration.test.ts::creation mints no root upload URL, and custody says none was issued",
@@ -6621,7 +6618,7 @@
         "greenTests": [
           "ios-broadcast-contract.test.mjs::app-side lifecycle"
         ],
-        "externalProofRemaining": "Swift unit test on macOS CI",
+        "externalProofRemaining": "a Swift (XCTest) unit test of ProovraDarwinNotify's single observer token / register-once / remove-with-same-token, executed on a macOS CI runner (compilation alone is proven)",
         "externalProofs": [
           "EP-14"
         ]
@@ -6733,22 +6730,22 @@
         "extension",
         "ios"
       ],
-      "status": "blocked-external",
+      "status": "fixed",
       "resolution": {
-        "disposition": "BLOCKED_EXTERNAL_PROOF",
-        "proofKind": "source-structure",
+        "disposition": "FIXED_RUNTIME_PROVEN",
+        "proofKind": "runtime",
         "commits": [
           "0364d89aef47"
         ],
         "migrations": "none",
         "redTest": "grep 'extension/e2e|xcodebuild|macos' .github/workflows",
         "greenTests": [
-          "yaml parse of native-build.yml + uc1-browser-acceptance.yml (jobs: ios-simulator-build, android-debug-build, windows-acceptance, linux-extension-e2e)"
+          "yaml parse of native-build.yml + uc1-browser-acceptance.yml (jobs: ios-simulator-build, android-debug-build, windows-acceptance, linux-extension-e2e)",
+          "native-build.yml run 36865158339 @ a7e022f0: ios-simulator-build job 110378735897 (macos-14, Xcode 16.2: xcodebuild app + ProovraBroadcast, then 'Refuse a build without the broadcast extension' PASSED) and android-debug-build job 110378735982 (Gradle :app:assembleDebug)",
+          "uc1-browser-acceptance.yml run 36870336646 @ ca991687: windows-acceptance job 110396168173 (real Google Chrome 4/4 + real Microsoft Edge 153 4/4, 'UC-1 CLOSED (browser gate) [PASS]') and linux-extension-e2e job 110396167871 (Chrome 154 headed under xvfb, 4/4); each project's JSON result counted (executed > 0)"
         ],
-        "externalProofRemaining": "first GitHub Actions run of both workflows (macOS runner, Windows runner)",
-        "externalProofs": [
-          "EP-14"
-        ]
+        "externalProofRemaining": "none",
+        "externalProofs": []
       },
       "proof": "source-proven",
       "userImpact": "Native regressions (UC-IOS-001..012) reach devices undetected.",
@@ -7618,7 +7615,8 @@
         "commits": [
           "6934514c6d49",
           "718a4d15ec93",
-          "b4b035380ac8"
+          "b4b035380ac8",
+          "482d69375a59"
         ],
         "migrations": "none",
         "redTest": "services/api/test/rate-limit-global-bound.test.ts::UC-SEC-006 — ... each declares bound: \"global\"",

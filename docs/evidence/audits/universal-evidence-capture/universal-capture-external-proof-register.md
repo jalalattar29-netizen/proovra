@@ -119,11 +119,11 @@ Baseline `47034f45403e87089b29571e3e702311c9d1a2a4`. A blocked external proof is
 - Pass criteria: Capture completes or records a truthful limitation; nothing claims more than viewport/DOM snapshot.
 - Production risk if omitted: Customer expectations for social evidence unproven.
 
-## EP-14 — First CI execution of the native-build and browser-acceptance workflows and of the CI steps that refuse skips (real tesseract OCR, Object-Lock publication)
+## EP-14 — Native unit tests on CI runners (Swift XCTest on macOS; Android JVM/instrumented tests) and a stack-level Video -> OCR run with the real engine — the remainder after feature CI closed compilation, browser acceptance, real-tesseract OCR on fixtures and Object-Lock publication
 
-- Locally proven: Workflows authored (.github/workflows/native-build.yml, uc1-browser-acceptance.yml); the extension acceptance they run passes locally in real Chrome and Edge; the worker OCR test runs when the Tesseract binary exists.
-- Unproven: Kotlin and Swift compilation of the native capture modules, the Swift unit tests, the real-tesseract OCR assertion (ci.yml 'Test — worker OCR with the real tesseract engine', UC4_REQUIRE_TESSERACT=1) and the Object-Lock publication step on GitHub runners (no push from this session, so no CI run could be observed). On this host the OCR present-branch test is the worker suite's single skip: the binary is absent and installing it is a package download this session may not make.
-- Requires: The feature branch pushed to GitHub; macOS and Windows runners.
-- Procedure: Push the branch, let both workflows run, read their job logs.
-- Pass criteria: Both workflows green on the branch head; the OCR step executes >= 5 tests with 0 skipped; the Object-Lock step executes 4 with 0 skipped.
-- Production risk if omitted: Native code that does not compile would only be discovered at release-build time.
+- Locally proven: FEATURE CI, fix/universal-evidence-capture-closure (2026-10-01): native-build.yml run 36865158339 — Swift compiled for the iOS simulator on macos-14 / Xcode 16.2 with ProovraBroadcast.appex embedded (refusal gate passed) and Kotlin compiled (Gradle :app:assembleDebug); uc1-browser-acceptance.yml run 36870336646 — real Chrome 4/4 + real Edge 4/4 on Windows, Chrome 4/4 headed on Linux, per-browser results counted; ci.yml build-test run 36864604761 — 'Test — worker OCR with the real tesseract engine' (UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and 'Test — worker Object-Lock publication (MinIO, locked bucket)' both success; schema-reproducibility.yml run 36864604662 — the worker UC-4 live-PostgreSQL integration step success. These closed UC-TQ-003, UC-TQ-004, UC-LCH-003 and UC-AND-011.
+- Unproven: No Swift unit test (XCTest) exists or runs for ProovraDarwinNotify's observer identity (UC-IOS-012). The Android stop()-throws instrumented test (UC-AND-007) and the null-projection unit test (UC-AND-013) have not executed; those two also need EP-06 for device behaviour. Journey R09b (a recorded video through derived OCR on a running stack with the real engine) has not run: CI proves the engine on fixtures and the persistence path, and this host has no Tesseract binary.
+- Requires: An XCTest target for the native module run on a macOS runner; an Android test source set run by Gradle on CI (an emulator for the instrumented case).
+- Procedure: Add the tests, wire them into native-build.yml, push, read the job results.
+- Pass criteria: The named tests execute (not skipped) and pass on the branch head.
+- Production risk if omitted: Native lifecycle regressions in the observer/teardown paths would be caught only on a device.

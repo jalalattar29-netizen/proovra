@@ -82,14 +82,14 @@
       "auditStatus": "FAIL",
       "evidence": [
         "services/api/test/uc5-ios-screen-capture.integration.test.ts",
-        "apps/mobile/test/ios-broadcast-contract.test.mjs"
+        "apps/mobile/test/ios-broadcast-contract.test.mjs",
+        "native-build.yml run 36865158339 ios-simulator-build (Swift compiled, ProovraBroadcast.appex embedded)"
       ],
       "blockers": [
         "EP-08",
-        "EP-09",
-        "EP-14"
+        "EP-09"
       ],
-      "note": "The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline); ReplayKit itself needs macOS and a device.",
+      "note": "The device block the Swift extension writes now seals 200 SIGNED on the real server (it was refused 422 at the baseline), and the app + Broadcast Upload Extension compile and package on macOS CI; ReplayKit broadcasting itself needs a physical device.",
       "status": "BLOCKED"
     },
     {
@@ -123,12 +123,14 @@
       "auditStatus": "BLOCKED",
       "evidence": [
         "services/worker/test/uc4-tesseract-ocr.test.ts",
-        "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
+        "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
+        "ci.yml build-test run 36864604761: 'Test — worker OCR with the real tesseract engine' success (UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped)",
+        "schema-reproducibility.yml run 36864604662: worker UC-4 live-PostgreSQL integration success"
       ],
       "blockers": [
         "EP-14"
       ],
-      "note": "OCR wiring, bounds and persistence are proven against live PostgreSQL; the Tesseract binary is absent on this host (the worker suite's one skip), and the real-text assertion is REQUIRED in ci.yml's OCR step, which has not run yet.",
+      "note": "OCR wiring, bounds and persistence are proven against live PostgreSQL, and real-text extraction by the real Tesseract engine is now proven in feature CI on fixtures. The journey itself — a recorded video through derived OCR on a running stack — has not run with the real engine (this host has no binary).",
       "status": "BLOCKED"
     },
     {
@@ -137,13 +139,13 @@
       "auditStatus": "FAIL",
       "evidence": [
         "packages/shared/tests/screen-reconstruction.test.mjs",
-        "services/worker/test/uc4-reconstruction.test.ts"
+        "services/worker/test/uc4-reconstruction.test.ts",
+        "ci.yml build-test run 36864604761: real-tesseract OCR step success"
       ],
       "blockers": [
-        "EP-13",
-        "EP-14"
+        "EP-13"
       ],
-      "note": "Reconstruction now merges realistic chat screens (UC-DER-004 fixtures); real conversation apps and real OCR remain external.",
+      "note": "Reconstruction now merges realistic chat screens (UC-DER-004 fixtures) and the real OCR engine is CI-proven on fixtures; real conversation apps remain external.",
       "status": "BLOCKED"
     },
     {

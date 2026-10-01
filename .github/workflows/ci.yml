@@ -1056,7 +1056,14 @@ jobs:
         env:
           PROOVRA_API_ORIGIN: https://api.proovra.com
           PROOVRA_STORAGE_ORIGINS: ${{ vars.PROOVRA_STORAGE_ORIGINS }}
-        run: pnpm run release
+        run: |
+          # Say WHY in an annotation (release.mjs's refusal goes to stderr,
+          # which only a signed-in viewer can read). Not a bypass: the release
+          # below still refuses without the value.
+          if [ -z "${PROOVRA_STORAGE_ORIGINS}" ]; then
+            echo "::error::Repository variable PROOVRA_STORAGE_ORIGINS is not set — the production capture-upload origin(s) (https://<bucket>.s3.<region>.amazonaws.com) are owner configuration; release.mjs refuses a release without them (UC-SEC-002)."
+          fi
+          pnpm run release
 
       - name: Record the artifact provenance
         working-directory: apps/extension

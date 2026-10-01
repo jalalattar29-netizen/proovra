@@ -1,8 +1,8 @@
 {
   "schema": "PROOVRA_UNIVERSAL_CAPTURE_REMEDIATION_LEDGER_V1",
   "auditBranch": "audit/universal-evidence-capture-truth",
-  "auditSha": "dae43b40",
-  "auditRemote": "NOT PUSHED — the push was refused by the session's permission classifier; the owner must push it (git push -u origin audit/universal-evidence-capture-truth)",
+  "auditSha": "3bfffe6b",
+  "auditRemote": "PUSHED by the owner — origin/audit/universal-evidence-capture-truth = 3bfffe6b56ae18086c4f16d49ff5afff8385bbd6, equal to the local head (verified by fetch 2026-10-01)",
   "baseSha": "47034f45403e87089b29571e3e702311c9d1a2a4",
   "extraWorkItems": [
     {
@@ -54,11 +54,11 @@
   ],
   "counts": {
     "total": 119,
-    "BLOCKED_EXTERNAL_PROOF": 20,
-    "FIXED_RUNTIME_PROVEN": 59,
-    "FIXED_SOURCE_AND_TEST_PROVEN": 40,
-    "fixed": 99,
-    "blocked": 20,
+    "BLOCKED_EXTERNAL_PROOF": 16,
+    "FIXED_RUNTIME_PROVEN": 62,
+    "FIXED_SOURCE_AND_TEST_PROVEN": 41,
+    "fixed": 103,
+    "blocked": 16,
     "remaining": 0
   },
   "gates": [
@@ -85,7 +85,7 @@
     {
       "name": "119 = fixed + externally-blocked",
       "ok": true,
-      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":20,\"FIXED_RUNTIME_PROVEN\":59,\"FIXED_SOURCE_AND_TEST_PROVEN\":40}"
+      "detail": "{\"BLOCKED_EXTERNAL_PROOF\":16,\"FIXED_RUNTIME_PROVEN\":62,\"FIXED_SOURCE_AND_TEST_PROVEN\":41}"
     },
     {
       "name": "every disposition is allowed",
@@ -372,8 +372,8 @@
         "apps/mobile/test/native-module-contract.test.mjs:75"
       ],
       "runtimeEvidenceStatus": "runtime-proven",
-      "owner": "lane M",
-      "decision": "One device contract (validateContinuousDeviceBlock: 8 keys, positive ints, orientation agrees with dims; iOS densityDpi = UIScreen.scale x 160). SampleHandler writes device{screenW,screenH,densityDpi,orientation} from the first frame's oriented geometry into result.json; ProovraBroadcastResult.toJsMap merges it with app facts (fallback UIScreen.nativeBounds). buildContinuousManifest validates the native device block. Golden fixture apps/mobile/test/fixtures/ios-broadcast-result.json is pinned to the Swift key sets and fed through the real builder, the shared validator, and a real API seal (uc5 suite imports the mobile builder + fixture).",
+      "owner": "lead",
+      "decision": "One device contract (validateContinuousDeviceBlock: 8 keys, positive ints, orientation agrees with dims; iOS densityDpi = UIScreen.scale x 160). SampleHandler writes device{screenW,screenH,densityDpi,orientation} from the first frame's oriented geometry into result.json; ProovraBroadcastResult.toJsMap merges it with app facts (fallback UIScreen.nativeBounds). buildContinuousManifest validates the native device block. Golden fixture apps/mobile/test/fixtures/ios-broadcast-result.json is pinned to the Swift key sets and fed through the real builder, the shared validator, and a real API seal (uc5 suite imports the mobile builder + fixture). LEAD ADJUDICATION: Swift COMPILATION of SampleHandler / ProovraBroadcastResult and packaging of ProovraBroadcast.appex are now CI-proven (ios-simulator-build, run 36865158339). A broadcast sealed end to end needs a physical iOS device (ReplayKit does not broadcast in the simulator).",
       "red": {
         "test": "apps/mobile/test/ios-broadcast-contract.test.mjs (HEAD Swift) + shared probe",
         "command": "node --test with HEAD Swift files",
@@ -405,7 +405,7 @@
         "security": "none",
         "deployment": "native build (iOS)"
       },
-      "externalProofRemaining": "Swift compile + physical iOS device broadcast sealed end to end",
+      "externalProofRemaining": "physical iOS device: a ReplayKit broadcast sealed end to end with the extension's real device block accepted by the server (Swift compile proven in CI)",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -486,8 +486,8 @@
         "packages/shared/src/screen-continuous-manifest.ts:402"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "Single PTS clock: offset = segmentStartPts - sessionFirstPts, duration = endPts - segmentStartPts; rotation happens BEFORE appending so a segment ends at the next frame's PTS (contiguous); the final segment ends at the last appended PTS (never literal 0); totalDurationMs = lastPts - first. Golden fixture 6s+6s+4s validates COMPLETE; the old rule is refused.",
+      "owner": "lead",
+      "decision": "Single PTS clock: offset = segmentStartPts - sessionFirstPts, duration = endPts - segmentStartPts; rotation happens BEFORE appending so a segment ends at the next frame's PTS (contiguous); the final segment ends at the last appended PTS (never literal 0); totalDurationMs = lastPts - first. Golden fixture 6s+6s+4s validates COMPLETE; the old rule is refused. LEAD ADJUDICATION: Swift COMPILATION of the single-PTS-clock segmenter is now CI-proven (ios-simulator-build, run 36865158339); the golden fixtures pass in node --test. Real segment timing needs a physical device.",
       "red": {
         "test": "ios-broadcast-contract.test.mjs::UC-IOS-004 one PTS clock",
         "command": "node --test (HEAD Swift)",
@@ -519,7 +519,7 @@
         "security": "none",
         "deployment": "native build (iOS)"
       },
-      "externalProofRemaining": "Swift compile + device timing verification",
+      "externalProofRemaining": "physical iOS device: segment offsets/durations from a real broadcast match the PTS clock (contiguous segments, final segment ends at the last appended PTS) (Swift compile proven in CI)",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -946,8 +946,8 @@
         "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ContinuousScreenCaptureService.kt:297"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "MediaRecorder.stop() failure is tracked: the file is deleted, SEGMENT_WRITE_FAILED recorded, nothing emitted; a clean stop with an incomplete limitation reports INTERRUPTED.",
+      "owner": "lead",
+      "decision": "MediaRecorder.stop() failure is tracked: the file is deleted, SEGMENT_WRITE_FAILED recorded, nothing emitted; a clean stop with an incomplete limitation reports INTERRUPTED. LEAD ADJUDICATION: Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the instrumented test of MediaRecorder.stop() throwing has not executed.",
       "red": {
         "test": "android-capture-service-contract.test.mjs::UC-AND-007",
         "command": "node --test (HEAD Kotlin)",
@@ -977,7 +977,7 @@
         "security": "none",
         "deployment": "native build"
       },
-      "externalProofRemaining": "Kotlin compile + instrumented test of stop() throwing",
+      "externalProofRemaining": "Android instrumented test (emulator or device) of MediaRecorder.stop() throwing -> file deleted, SEGMENT_WRITE_FAILED, nothing emitted (Kotlin compile proven in CI)",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -3164,6 +3164,10 @@
         {
           "sha": "718a4d15ec93",
           "subject": "fix(api): one canonical finalizer for every channel; upload sessions bound to their creator; case holds hold; allowances cannot be gamed"
+        },
+        {
+          "sha": "482d69375a59",
+          "subject": "fix(ci): feature-CI corrections — limiter cold-start race, integration object store, workflow validity, part-based e2e uploads"
         }
       ],
       "migrations": "none",
@@ -3381,7 +3385,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "[E] Each project now launches its REAL declared channel, and the spec reads project.use.channel ('chrome' / 'msedge'). Because branded Chrome 137+ ignores --load-extension, the unpacked E2E build is loaded over the browser's own CDP pipe (Extensions.loadUnpacked, --enable-unsafe-extension-debugging), with Playwright's default --disable-extensions dropped. Every test asserts the browser identity (Edge must say Edg/, Chrome must not), prints channel, version and UA, and annotates the result. The spec also no longer bypasses the extension's OAuth: it clicks the popup's Sign in. CI wiring is outside this lane's files (see crossLaneRequests). [W] CI half: .github/workflows/uc1-browser-acceptance.yml windows-latest job (45-minute timeout) records the installed Chrome + Edge versions, runs node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge when Docker reports a Linux engine, otherwise brings native loopback services (preinstalled PostgreSQL, Memurai, MinIO binary + the harness's own uc1-ensure-bucket) through the harness's bring-your-own flags, refuses a zero-test Playwright result, and uploads logs always. The spec-side channel fix (launchPersistentContext ignoring project channel) is in apps/extension (not lane W) — see crossLaneRequests; until it lands an 'edge' PASS is bundled Chromium (stated in the UC1 doc). LEAD ADJUDICATION: The spec launches the project's real channel and asserts browser identity; the shipped harness passed 4/4 fixtures in real Chrome 153 and real Edge 154. A CI workflow runs it (uc1-browser-acceptance.yml); its first GitHub run is not observed in this session because pushing was refused.",
+      "decision": "[E] Each project now launches its REAL declared channel, and the spec reads project.use.channel ('chrome' / 'msedge'). Because branded Chrome 137+ ignores --load-extension, the unpacked E2E build is loaded over the browser's own CDP pipe (Extensions.loadUnpacked, --enable-unsafe-extension-debugging), with Playwright's default --disable-extensions dropped. Every test asserts the browser identity (Edge must say Edg/, Chrome must not), prints channel, version and UA, and annotates the result. The spec also no longer bypasses the extension's OAuth: it clicks the popup's Sign in. CI wiring is outside this lane's files (see crossLaneRequests). [W] CI half: .github/workflows/uc1-browser-acceptance.yml windows-latest job (45-minute timeout) records the installed Chrome + Edge versions, runs node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge when Docker reports a Linux engine, otherwise brings native loopback services (preinstalled PostgreSQL, Memurai, MinIO binary + the harness's own uc1-ensure-bucket) through the harness's bring-your-own flags, refuses a zero-test Playwright result, and uploads logs always. The spec-side channel fix (launchPersistentContext ignoring project channel) is in apps/extension (not lane W) — see crossLaneRequests; until it lands an 'edge' PASS is bundled Chromium (stated in the UC1 doc). LEAD ADJUDICATION: The spec launches the project's real channel and asserts browser identity; the shipped harness passed 4/4 fixtures in real Chrome 153 and real Edge 154. Feature CI now runs it on GitHub-hosted Windows and Linux runners and it passed (see the green tests); the workflow refuses a run whose per-browser JSON result executed nothing.",
       "red": {
         "test": "apps/extension/e2e/direct-web-capture.spec.ts (HEAD launch)",
         "command": "probe: chromium.launchPersistentContext({channel:'chrome', args:[--load-extension]})",
@@ -3391,10 +3395,11 @@
         "tests": [
           "apps/extension/e2e/direct-web-capture.spec.ts x4 fixtures on project chromium (Chrome 153.0.8010.53) and edge (Edge 154.0.4258.37)",
           "yaml parse of uc1-browser-acceptance.yml",
-          "node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge"
+          "node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge",
+          "uc1-browser-acceptance.yml run 36870336646 @ ca991687: windows-acceptance job 110396168173 (real Google Chrome 4/4 + real Microsoft Edge 153 4/4, 'UC-1 CLOSED (browser gate) [PASS]') and linux-extension-e2e job 110396167871 (Chrome 154 headed under xvfb, 4/4); each project's JSON result counted (executed > 0)"
         ],
-        "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge ; node -e yaml.parse ; lane E acceptance run",
-        "result": "[E] chromium 4 passed, edge 4 passed; UC-1 CLOSED (browser gate) [PASS]; exit 0 [W] jobs windows-acceptance, linux-extension-e2e ; UC-1 CLOSED (browser gate) [PASS]"
+        "command": "timeout 2400 node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge ; node -e yaml.parse ; lane E acceptance run ; GitHub Actions (feature branch push)",
+        "result": "[E] chromium 4 passed, edge 4 passed; UC-1 CLOSED (browser gate) [PASS]; exit 0 [W] jobs windows-acceptance, linux-extension-e2e ; UC-1 CLOSED (browser gate) [PASS] ; Chrome 4/4 + Edge 4/4 (windows), Chrome 4/4 (linux)"
       },
       "proofKind": "runtime",
       "implementationCommits": [
@@ -3447,7 +3452,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "[D] processReconstructScreenJob now has behavioural proof in two layers: a DB-free unit suite that drives the REAL handler with its ports replaced (claim/fence, refused claim, structural failure, generation, OCR status, tool versions, pinned bounded read, personal scope, lifecycle) and therefore runs in CI's worker unit job with no env skip; and a live-PG16 suite (handler + run tracker + orchestrator + derived writer for real: happy path, regeneration, lease-lost fence, OCR-disabled PARTIAL, trashed, personal) plus the reworked persistence suite. The keyframe producer test now FAILS in CI when ffmpeg-static is missing instead of skipping. The tesseract test gains a present-branch assertion on real recognised text from a rendered fixture (and fails instead of skipping when UC4_REQUIRE_TESSERACT=1). [W] schema-reproducibility.yml now creates and migrates a dedicated proovra_worker_integration_test database on the same Postgres+Redis services and runs services/worker uc4-screen-intelligence-persistence + uc4-screen-intelligence-handler integration suites with a JSON report that fails on zero executed, any skipped, or any failed test. Verified locally against the lane DB: 22/22 executed. LEAD ADJUDICATION: Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the code is complete (handler proof runs DB-free in CI's worker unit job; live-PG suites run in schema-reproducibility.yml; the real-text assertion exists and FAILS instead of skipping under UC4_REQUIRE_TESSERACT=1), but the finding requires an EXECUTED assertion on real tesseract output and none has run anywhere: no CI job installed the engine (the step 'Test — worker OCR with the real tesseract engine' is added to ci.yml now) and fetching the binary here is a package download this session may not make.",
+      "decision": "[D] processReconstructScreenJob now has behavioural proof in two layers: a DB-free unit suite that drives the REAL handler with its ports replaced (claim/fence, refused claim, structural failure, generation, OCR status, tool versions, pinned bounded read, personal scope, lifecycle) and therefore runs in CI's worker unit job with no env skip; and a live-PG16 suite (handler + run tracker + orchestrator + derived writer for real: happy path, regeneration, lease-lost fence, OCR-disabled PARTIAL, trashed, personal) plus the reworked persistence suite. The keyframe producer test now FAILS in CI when ffmpeg-static is missing instead of skipping. The tesseract test gains a present-branch assertion on real recognised text from a rendered fixture (and fails instead of skipping when UC4_REQUIRE_TESSERACT=1). [W] schema-reproducibility.yml now creates and migrates a dedicated proovra_worker_integration_test database on the same Postgres+Redis services and runs services/worker uc4-screen-intelligence-persistence + uc4-screen-intelligence-handler integration suites with a JSON report that fails on zero executed, any skipped, or any failed test. Verified locally against the lane DB: 22/22 executed. LEAD ADJUDICATION: EP-14 CLOSED BY FEATURE CI. The external proof this row waited for has executed and passed: (1) ci.yml 'Test — worker OCR with the real tesseract engine' installs tesseract-ocr from apt, runs services/worker/test/uc4-tesseract-ocr.test.ts with UC4_REQUIRE_TESSERACT=1, and its guard fails the step unless >= 5 tests executed, 0 pending/skipped and all passed — the step succeeded; (2) schema-reproducibility.yml 'Worker UC-4 screen-intelligence integration (live PostgreSQL)' ran the handler + persistence integration suites with a guard refusing zero executed or any skipped — it succeeded.",
       "red": {
         "test": "services/worker/test/uc4-screen-intelligence-handler.test.ts (whole suite)",
         "command": "cd services/worker && npx vitest run test/uc4-screen-intelligence-handler.test.ts (HEAD handler)",
@@ -3462,15 +3467,13 @@
           "services/worker/test/uc4-tesseract-ocr.test.ts (4 passed + 1 skipped: engine absent on host)",
           "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts",
           "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
-          "services/worker/test/uc4-tesseract-ocr.test.ts (4 executed, 1 skipped: binary absent)",
-          "services/worker/test/uc4-screen-intelligence-handler.test.ts",
-          "services/worker/test/uc4-screen-intelligence-handler.integration.test.ts",
-          "services/worker/test/uc4-screen-intelligence-persistence.integration.test.ts"
+          "ci.yml build-test, run 36864604761 job 110376873717 @ 7145ad51 (also green @ a7e022f0, run 36865158391) :: step 'Test — worker OCR with the real tesseract engine' = success (guard: total >= 5, pending 0, failed 0)",
+          "schema-reproducibility.yml clean-db-boot, run 36864604662 job 110376873013 @ 7145ad51 (also green @ 394a3a2f, ae7f1b85, 705cfbf8, a7e022f0) :: step 'Worker UC-4 screen-intelligence integration (live PostgreSQL)' = success (guard: executed > 0, skipped 0)"
         ],
-        "command": "cd services/worker && npx vitest run (no DB: 91 files / 1165 passed / 29 skipped) and with TEST_DATABASE_URL + P7_TEST_REDIS_URL + P7_HOST_S3_PORT (94 files / 1189 passed / 5 skipped) ; cd services/worker && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_w_test P7_TEST_REDIS_URL=redis://127.0.0.1:58812/6 npx vitest run <both> --reporter=json ; services/worker: npx vitest run (live PG16/Redis/MinIO)",
-        "result": "[D] all passed [W] 22 passed, 0 pending, 0 failed ; worker suite 1218 passed, 1 skipped"
+        "command": "cd services/worker && npx vitest run (no DB: 91 files / 1165 passed / 29 skipped) and with TEST_DATABASE_URL + P7_TEST_REDIS_URL + P7_HOST_S3_PORT (94 files / 1189 passed / 5 skipped) ; cd services/worker && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:58811/proovra_ucc_w_test P7_TEST_REDIS_URL=redis://127.0.0.1:58812/6 npx vitest run <both> --reporter=json ; GitHub Actions (feature branch push)",
+        "result": "[D] all passed [W] 22 passed, 0 pending, 0 failed ; both steps success"
       },
-      "proofKind": "integration-real-db",
+      "proofKind": "runtime",
       "implementationCommits": [
         {
           "sha": "69e995c58803",
@@ -3495,8 +3498,8 @@
         "security": "none",
         "deployment": "none"
       },
-      "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker OCR with the real tesseract engine' (apt tesseract-ocr, UC4_REQUIRE_TESSERACT=1, >= 5 executed, 0 skipped) and of schema-reproducibility.yml's worker integration step",
-      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
+      "externalProofRemaining": "none",
+      "finalDisposition": "FIXED_RUNTIME_PROVEN"
     },
     {
       "id": "UC-TQ-004",
@@ -3520,7 +3523,7 @@
       ],
       "runtimeEvidenceStatus": "source-proven",
       "owner": "lead",
-      "decision": "ci.yml MinIO step now also creates olc-locked WITH object lock and default COMPLIANCE 1d retention; a dedicated step runs verification-package-publication.minio.test.ts with OBJECT_LOCK_MINIO_* and fails unless >= 4 tests executed, none skipped, none failed; the stale comment is annotated. Verified locally against the lane MinIO's locked bucket: 4/4. LEAD ADJUDICATION: Reclassified FIXED -> BLOCKED_EXTERNAL_PROOF at the external-proof reconciliation: the finding's required proof is 'the existing 4 cases executed in CI'. The ci.yml step (locked bucket + OBJECT_LOCK_MINIO_* + refusal of skips) is in place and the suite passes locally 4/4 against a locked MinIO bucket, but no CI run of the branch has been observed (push refused).",
+      "decision": "ci.yml MinIO step now also creates olc-locked WITH object lock and default COMPLIANCE 1d retention; a dedicated step runs verification-package-publication.minio.test.ts with OBJECT_LOCK_MINIO_* and fails unless >= 4 tests executed, none skipped, none failed; the stale comment is annotated. Verified locally against the lane MinIO's locked bucket: 4/4. LEAD ADJUDICATION: EP-14 CLOSED BY FEATURE CI. ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' ran the 4 publication cases against a disposable Object-Lock-enabled MinIO bucket with the step's refusal of skips — the step succeeded.",
       "red": {
         "test": "ci.yml",
         "command": "grep -rn OBJECT_LOCK_MINIO .github (pre-change)",
@@ -3529,12 +3532,12 @@
       "green": {
         "tests": [
           "services/worker/test/verification-package-publication.minio.test.ts",
-          "services/worker/test/verification-package-publication.minio.test.ts (4/4 against the local locked bucket uca-olc-locked)"
+          "ci.yml build-test, run 36864604761 job 110376873717 @ 7145ad51 (also green @ a7e022f0, run 36865158391) :: step 'Test — worker Object-Lock publication (MinIO, locked bucket)' = success"
         ],
-        "command": "cd services/worker && OBJECT_LOCK_MINIO_ENDPOINT=http://127.0.0.1:59711 OBJECT_LOCK_MINIO_BUCKET=uca-olc-locked ... npx vitest run test/verification-package-publication.minio.test.ts --reporter=json ; OBJECT_LOCK_MINIO_* npx vitest run test/verification-package-publication.minio.test.ts",
-        "result": "4 passed, 0 pending ; 4 passed, 0 pending"
+        "command": "cd services/worker && OBJECT_LOCK_MINIO_ENDPOINT=http://127.0.0.1:59711 OBJECT_LOCK_MINIO_BUCKET=uca-olc-locked ... npx vitest run test/verification-package-publication.minio.test.ts --reporter=json ; GitHub Actions (feature branch push)",
+        "result": "4 passed, 0 pending ; success"
       },
-      "proofKind": "integration-real-db",
+      "proofKind": "runtime",
       "implementationCommits": [
         {
           "sha": "0364d89aef47",
@@ -3555,8 +3558,8 @@
         "security": "none",
         "deployment": "none"
       },
-      "externalProofRemaining": "EP-14: first CI run of ci.yml 'Test — worker Object-Lock publication (MinIO, locked bucket)' showing 4 executed, 0 skipped",
-      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
+      "externalProofRemaining": "none",
+      "finalDisposition": "FIXED_RUNTIME_PROVEN"
     },
     {
       "id": "UC-TQ-007",
@@ -4092,6 +4095,10 @@
         {
           "sha": "bd87a9e52666",
           "subject": "fix(trust): the owner's evidence page states the current stored file like Public Verify (UC-TRUST-008)"
+        },
+        {
+          "sha": "715ba79b2c4a",
+          "subject": "fix(ci): Xcode 16.2 for the iOS proof, a versioned e2e bucket, and a deterministic recheck race test"
         }
       ],
       "migrations": "none",
@@ -4409,8 +4416,8 @@
         "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ScreenCaptureService.kt:242"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "Frame read/write failures report the new FRAME_CAPTURE_FAILED code; the service never emits SECURE_CONTENT_OMITTED (undetectable on Android). Code added to the shared UC-2 manifest and JS types; header copy corrected.",
+      "owner": "lead",
+      "decision": "Frame read/write failures report the new FRAME_CAPTURE_FAILED code; the service never emits SECURE_CONTENT_OMITTED (undetectable on Android). Code added to the shared UC-2 manifest and JS types; header copy corrected. LEAD ADJUDICATION: The only external proof this row named — Kotlin compilation of the capture services carrying FRAME_CAPTURE_FAILED — executed in CI and passed (android-debug-build: Gradle :app:assembleDebug). The behaviour itself (no SECURE_CONTENT_OMITTED emitted; read/write failures report FRAME_CAPTURE_FAILED) is covered by the contract tests; no device behaviour is claimed.",
       "red": {
         "test": "android-capture-service-contract.test.mjs::UC-AND-011",
         "command": "node --test (HEAD Kotlin)",
@@ -4419,12 +4426,13 @@
       "green": {
         "tests": [
           "android-capture-service-contract.test.mjs::UC-AND-011",
-          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-AND-011"
+          "packages/shared/tests/capture-manifest-facts.test.mjs::UC-AND-011",
+          "native-build.yml run 36865158339 @ a7e022f0: ios-simulator-build job 110378735897 (macos-14, Xcode 16.2: xcodebuild app + ProovraBroadcast, then 'Refuse a build without the broadcast extension' PASSED) and android-debug-build job 110378735982 (Gradle :app:assembleDebug) :: android-debug-build 'Gradle assembleDebug (compiles the Kotlin capture services)' = success"
         ],
-        "command": "node --test",
-        "result": "passed"
+        "command": "node --test ; GitHub Actions (feature branch push)",
+        "result": "passed ; success"
       },
-      "proofKind": "source-structure",
+      "proofKind": "unit",
       "implementationCommits": [
         {
           "sha": "6934514c6d49",
@@ -4441,8 +4449,8 @@
         "security": "none",
         "deployment": "native build; api redeploy"
       },
-      "externalProofRemaining": "Kotlin compile",
-      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
+      "externalProofRemaining": "none",
+      "finalDisposition": "FIXED_SOURCE_AND_TEST_PROVEN"
     },
     {
       "id": "UC-AND-012",
@@ -4517,8 +4525,8 @@
         "apps/mobile/modules/proovra-screen-capture/android/src/main/java/com/proovra/screencapture/ProovraScreenCaptureModule.kt:154"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "Both services wrap beginProjection in try/catch and call failStart (release resources, stopSelf, invoke onStartFailed); the module rejects the JS promise with the code.",
+      "owner": "lead",
+      "decision": "Both services wrap beginProjection in try/catch and call failStart (release resources, stopSelf, invoke onStartFailed); the module rejects the JS promise with the code. LEAD ADJUDICATION: Kotlin COMPILATION is now CI-proven (android-debug-build, run 36865158339); the null-projection unit test has not executed.",
       "red": {
         "test": "android-capture-service-contract.test.mjs::UC-AND-013",
         "command": "node --test (HEAD Kotlin)",
@@ -4549,7 +4557,7 @@
         "security": "none",
         "deployment": "native build"
       },
-      "externalProofRemaining": "Kotlin compile + null-projection unit test",
+      "externalProofRemaining": "JVM/instrumented unit test of beginProjection failing (null projection) -> failStart, stopSelf, JS promise rejected with the code (Kotlin compile proven in CI)",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -4781,6 +4789,18 @@
         {
           "sha": "718a4d15ec93",
           "subject": "fix(api): one canonical finalizer for every channel; upload sessions bound to their creator; case holds hold; allowances cannot be gamed"
+        },
+        {
+          "sha": "482d69375a59",
+          "subject": "fix(ci): feature-CI corrections — limiter cold-start race, integration object store, workflow validity, part-based e2e uploads"
+        },
+        {
+          "sha": "ac372da90ced",
+          "subject": "fix(ci): the full-stack smoke uploads through part 0, not the removed root URL (UC-ARCH-008)"
+        },
+        {
+          "sha": "58fb7e919694",
+          "subject": "chore(audit): re-anchor the two reviewed sites the CI corrections moved; facts regenerated"
         }
       ],
       "migrations": "none",
@@ -5796,8 +5816,8 @@
         "apps/mobile/modules/proovra-screen-capture/ios/ProovraScreenCaptureModule.swift:133"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane M",
-      "decision": "ProovraDarwinNotify is a singleton with ONE stable observer token, registers each name once, removes with the same token, guards handlers with a lock; drainSegments is serialised on a dedicated queue.",
+      "owner": "lead",
+      "decision": "ProovraDarwinNotify is a singleton with ONE stable observer token, registers each name once, removes with the same token, guards handlers with a lock; drainSegments is serialised on a dedicated queue. LEAD ADJUDICATION: NOT closed by compilation. Feature CI now COMPILES the Swift (ProovraDarwinNotify singleton, serialised drainSegments) on macOS (ios-simulator-build, run 36865158339), but the proof this row names is a Swift UNIT TEST of the observer identity on macOS CI, and none has executed.",
       "red": {
         "test": "ios-broadcast-contract.test.mjs::app-side lifecycle",
         "command": "node --test (HEAD Swift)",
@@ -5827,7 +5847,7 @@
         "security": "none",
         "deployment": "native build (iOS)"
       },
-      "externalProofRemaining": "Swift unit test on macOS CI",
+      "externalProofRemaining": "a Swift (XCTest) unit test of ProovraDarwinNotify's single observer token / register-once / remove-with-same-token, executed on a macOS CI runner (compilation alone is proven)",
       "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
     },
     {
@@ -5914,8 +5934,8 @@
         "docs/uc6-release-acceptance.md:141"
       ],
       "runtimeEvidenceStatus": "source-proven",
-      "owner": "lane W",
-      "decision": "New workflows: native-build.yml (macos-latest: expo prebuild -p ios + xcodebuild iphonesimulator unsigned, then REFUSES a build without ProovraBroadcast.appex; ubuntu: expo prebuild -p android + gradle assembleDebug compiling the Kotlin capture services) and uc1-browser-acceptance.yml (the apps/extension/e2e harness in CI: Windows Chrome+Edge and Linux Chromium under xvfb). YAML validated; the jobs themselves have not run (no GitHub runner here).",
+      "owner": "lead",
+      "decision": "New workflows: native-build.yml (macos-latest: expo prebuild -p ios + xcodebuild iphonesimulator unsigned, then REFUSES a build without ProovraBroadcast.appex; ubuntu: expo prebuild -p android + gradle assembleDebug compiling the Kotlin capture services) and uc1-browser-acceptance.yml (the apps/extension/e2e harness in CI: Windows Chrome+Edge and Linux Chromium under xvfb). YAML validated; the jobs themselves have not run (no GitHub runner here). LEAD ADJUDICATION: CLOSED BY FEATURE CI: both workflows the finding required ran on GitHub-hosted macOS and Windows runners and passed. Reaching green took toolchain corrections recorded in the branch history (macos-14 + Xcode 16.2, the SDK-52 toolchain whose fmt pod and iOS 18.2 runtime match; pinned MinIO in place of the withdrawn distribution; pgvector on the Windows runner; the harness's silent exit-0 and the reaped Windows object store), not changes to what the jobs assert. This proves COMPILATION, packaging and browser acceptance — not device behaviour, which stays with the device rows.",
       "red": {
         "test": "grep 'extension/e2e|xcodebuild|macos' .github/workflows",
         "command": "grep -rn 'xcodebuild\\|macos-\\|uc1-acceptance' .github/workflows (pre-change)",
@@ -5923,12 +5943,14 @@
       },
       "green": {
         "tests": [
-          "yaml parse of native-build.yml + uc1-browser-acceptance.yml (jobs: ios-simulator-build, android-debug-build, windows-acceptance, linux-extension-e2e)"
+          "yaml parse of native-build.yml + uc1-browser-acceptance.yml (jobs: ios-simulator-build, android-debug-build, windows-acceptance, linux-extension-e2e)",
+          "native-build.yml run 36865158339 @ a7e022f0: ios-simulator-build job 110378735897 (macos-14, Xcode 16.2: xcodebuild app + ProovraBroadcast, then 'Refuse a build without the broadcast extension' PASSED) and android-debug-build job 110378735982 (Gradle :app:assembleDebug)",
+          "uc1-browser-acceptance.yml run 36870336646 @ ca991687: windows-acceptance job 110396168173 (real Google Chrome 4/4 + real Microsoft Edge 153 4/4, 'UC-1 CLOSED (browser gate) [PASS]') and linux-extension-e2e job 110396167871 (Chrome 154 headed under xvfb, 4/4); each project's JSON result counted (executed > 0)"
         ],
-        "command": "node -e yaml.parse(...)",
-        "result": "parsed; jobs present"
+        "command": "node -e yaml.parse(...) ; GitHub Actions (feature branch push)",
+        "result": "parsed; jobs present ; native-build success; uc1-browser-acceptance success"
       },
-      "proofKind": "source-structure",
+      "proofKind": "runtime",
       "implementationCommits": [
         {
           "sha": "0364d89aef47",
@@ -5945,8 +5967,8 @@
         "security": "no signing/EAS/store access",
         "deployment": "none"
       },
-      "externalProofRemaining": "first GitHub Actions run of both workflows (macOS runner, Windows runner)",
-      "finalDisposition": "BLOCKED_EXTERNAL_PROOF"
+      "externalProofRemaining": "none",
+      "finalDisposition": "FIXED_RUNTIME_PROVEN"
     },
     {
       "id": "UC-LCH-004",
@@ -6761,6 +6783,10 @@
         {
           "sha": "b4b035380ac8",
           "subject": "fix(trust): Public Verify, reports and packages state only what was proven (UC-0a / UC-0b)"
+        },
+        {
+          "sha": "482d69375a59",
+          "subject": "fix(ci): feature-CI corrections — limiter cold-start race, integration object store, workflow validity, part-based e2e uploads"
         }
       ],
       "migrations": "none",
