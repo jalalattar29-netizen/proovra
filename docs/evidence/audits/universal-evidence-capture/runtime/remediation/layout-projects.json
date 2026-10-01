@@ -1,0 +1,66 @@
+{
+  "batchA": {
+    "stats": {
+      "startTime": "2026-10-01T09:02:32.335Z",
+      "duration": 431810.201,
+      "expected": 641,
+      "skipped": 0,
+      "unexpected": 1,
+      "flaky": 0
+    },
+    "projects": {
+      "search-layout": {
+        "passed": 390
+      },
+      "intake-links-layout": {
+        "passed": 112
+      },
+      "evidence-detail-layout": {
+        "passed": 108
+      },
+      "capture-layout": {
+        "passed": 31,
+        "failed": 1
+      }
+    }
+  },
+  "batchB": {
+    "stats": {
+      "startTime": "2026-10-01T09:09:45.208Z",
+      "duration": 677144.319,
+      "expected": 557,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "projects": {
+      "attention-layout": {
+        "passed": 148
+      },
+      "operations-layout": {
+        "passed": 264
+      },
+      "billing-layout": {
+        "passed": 52
+      },
+      "settings-layout": {
+        "passed": 93
+      }
+    }
+  },
+  "captureRerun": {
+    "stats": {
+      "startTime": "2026-10-01T09:21:40.640Z",
+      "duration": 23681.462,
+      "expected": 32,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "projects": {
+      "capture-layout": {
+        "passed": 32
+      }
+    }
+  }
+}

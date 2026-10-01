@@ -42,11 +42,15 @@ test.describe("capture — composition and hierarchy", () => {
     const items = page.locator("[data-capture-trust-item]");
     await expect(items).toHaveCount(3);
     await expect(items.nth(0)).toContainText("Integrity by design");
-    await expect(items.nth(1)).toContainText("End-to-end protected");
+    // UC-PROV-011 — bytes are uploaded over TLS to encrypted storage and hashed
+    // server-side; they are not end-to-end encrypted, so the strip says what is true.
+    await expect(items.nth(1)).toContainText("Encrypted in transit and at rest");
     await expect(items.nth(2)).toContainText("Verifiable audit trail");
 
     const body = (await page.locator("body").innerText()).toLowerCase();
     for (const banned of [
+      "end-to-end protected",
+      "end-to-end encrypted",
       "court-ready",
       "legally admissible",
       "court approved",
