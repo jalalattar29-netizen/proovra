@@ -197,11 +197,53 @@ describe("INCIDENT IDENTITY — concurrency, against live PostgreSQL 16", () => 
         | number
         | undefined) ?? 0;
 
+    // THE RACE IS FORCED, NOT HOPED FOR. Two bare concurrent calls overlap
+    // only usually: when one finished its read-then-create before the other
+    // read, the second simply found the row and no race happened — and this
+    // case failed in feature CI on exactly that. Each client's FIRST dedupe
+    // read now waits at a two-party barrier, so both have read "no row" before
+    // either creates; the loser's create then hits the real constraint every
+    // time. Later reads (the recovery re-read) pass straight through.
+    let arrived = 0;
+    let open!: () => void;
+    const bothRead = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const atBarrier = async () => {
+      arrived += 1;
+      if (arrived === 2) open();
+      await bothRead;
+    };
+    const firstReadWaits = <C extends { operationalIncident: object }>(client: C): C => {
+      let waited = false;
+      const delegate = client.operationalIncident;
+      const gated = new Proxy(delegate, {
+        get(target, prop, receiver) {
+          const value = Reflect.get(target, prop, receiver);
+          if (prop !== "findFirst" || typeof value !== "function") return value;
+          return async (...args: unknown[]) => {
+            const found = await (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+            if (!waited) {
+              waited = true;
+              await atBarrier();
+            }
+            return found;
+          };
+        },
+      });
+      return new Proxy(client, {
+        get(target, prop, receiver) {
+          return prop === "operationalIncident" ? gated : Reflect.get(target, prop, receiver);
+        },
+      });
+    };
+
     const fingerprint = fp("reachable");
     await Promise.all([
-      recordIncident(observation(fingerprint), prisma),
-      recordIncident(observation(fingerprint), second),
+      recordIncident(observation(fingerprint), firstReadWaits(prisma)),
+      recordIncident(observation(fingerprint), firstReadWaits(second)),
     ]);
+    expect(arrived, "both calls read before either wrote").toBe(2);
 
     const after =
       (snapshotMetrics().counters["operational_incident_create_raced"] as
