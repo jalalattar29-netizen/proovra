@@ -20,6 +20,22 @@
  *     genuine token replayed for another request fails.
  * The accepted-policy check is ours (TSA_ACCEPTED_POLICY_OIDS, optional).
  *
+ * TRUST CONFIGURATION CONTRACT (evidence-output incident, 2026-10-05):
+ *   - TSA_TRUST_BUNDLE_PATH — REQUIRED. The installed official CA chain (root +
+ *     the TSA's issuing CA) IS the trust authority: openssl anchors on it alone,
+ *     never on a certificate the token carries. It must contain at least one
+ *     self-signed root (partial chains are not accepted).
+ *   - TSA_TRUST_ANCHOR_SHA256 — OPTIONAL additional pin. Fingerprints are
+ *     computed from the installed bundle; when a pin is configured, EVERY root
+ *     in the bundle must be pinned (intermediates need not be). It was mandatory
+ *     in production, which duplicated the bundle and — because it demanded a
+ *     pin for every certificate — refused a root+intermediate bundle pinned by
+ *     its root.
+ *   - TSA_ACCEPTED_POLICY_OIDS — OPTIONAL allowlist. The signed TSTInfo policy
+ *     OID is always parsed and recorded (tsaPolicyOid); the list is enforced
+ *     only when configured. It was mandatory in production although no
+ *     provider contract supplies one.
+ *
  * Trust anchors are ENVIRONMENT-SPECIFIC (TSA_TRUST_BUNDLE_PATH). Unset means
  * FAIL CLOSED: the token is kept, the record says FAILED with
  * `tsa_trust_anchor_not_configured`, and the validation CLI can validate the
@@ -112,28 +128,84 @@ function splitPem(text: string): string[] {
   return text.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [];
 }
 
+/** The exact, bounded reason a trust bundle cannot be used (readiness names it). */
+export type TsaTrustBundleIssue =
+  | "tsa_trust_bundle_path_not_set"
+  | "tsa_trust_bundle_unreadable"
+  | "tsa_trust_bundle_no_certificates"
+  | "tsa_trust_bundle_no_root"
+  | "tsa_trust_anchor_test_certificate"
+  | "tsa_trust_anchor_pin_mismatch";
+
+export type TsaTrustBundleInspection =
+  | {
+      ok: true;
+      path: string;
+      /** SHA-256 (lower hex) of every certificate in the bundle, computed here. */
+      certificateSha256: string[];
+      /** SHA-256 of the bundle's self-signed roots — the anchors openssl ends on. */
+      rootSha256: string[];
+    }
+  | { ok: false; issue: TsaTrustBundleIssue; rootSha256?: string[] };
+
+const fp = (c: X509Certificate) => c.fingerprint256.replace(/:/g, "").toLowerCase();
+
+function isSelfSignedRoot(c: X509Certificate): boolean {
+  try {
+    return c.checkIssued(c) && c.verify(c.publicKey);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Read the installed bundle and decide whether it can anchor validation. Pure
+ * reads: no network, nothing written. The pin, when configured, must cover
+ * every self-signed root in the bundle.
+ */
+export async function inspectTsaTrustBundle(env: NodeJS.ProcessEnv = process.env): Promise<TsaTrustBundleInspection> {
+  const p = env.TSA_TRUST_BUNDLE_PATH?.trim();
+  if (!p) return { ok: false, issue: "tsa_trust_bundle_path_not_set" };
+  let text: string;
+  try {
+    text = await readFile(p, "utf8");
+  } catch {
+    return { ok: false, issue: "tsa_trust_bundle_unreadable" };
+  }
+  let certs: X509Certificate[];
+  try {
+    certs = splitPem(text).map((pem) => new X509Certificate(pem));
+  } catch {
+    return { ok: false, issue: "tsa_trust_bundle_unreadable" };
+  }
+  if (certs.length === 0) return { ok: false, issue: "tsa_trust_bundle_no_certificates" };
+  const roots = certs.filter(isSelfSignedRoot);
+  const rootSha256 = roots.map(fp);
+  if (roots.length === 0) return { ok: false, issue: "tsa_trust_bundle_no_root" };
+  if (isProduction(env) && certs.some((c) => c.subject.includes(TEST_TSA_ANCHOR_SUBJECT_MARKER))) {
+    return { ok: false, issue: "tsa_trust_anchor_test_certificate", rootSha256 };
+  }
+  const pins = pinnedAnchorFingerprints(env);
+  if (pins.length > 0 && !rootSha256.every((r) => pins.includes(r))) {
+    return { ok: false, issue: "tsa_trust_anchor_pin_mismatch", rootSha256 };
+  }
+  return { ok: true, path: p, certificateSha256: certs.map(fp), rootSha256 };
+}
+
 async function resolveTrustAnchor(
   env: NodeJS.ProcessEnv,
 ): Promise<{ ok: true; path: string } | { ok: false; code: TsaValidationFailureCode }> {
-  const p = env.TSA_TRUST_BUNDLE_PATH?.trim();
-  if (!p) return { ok: false, code: "tsa_trust_anchor_not_configured" };
-  let certs: X509Certificate[];
-  try {
-    certs = splitPem(await readFile(p, "utf8")).map((pem) => new X509Certificate(pem));
-  } catch {
-    return { ok: false, code: "tsa_trust_anchor_not_configured" };
-  }
-  if (certs.length === 0) return { ok: false, code: "tsa_trust_anchor_not_configured" };
-  if (isProduction(env) && certs.some((c) => c.subject.includes(TEST_TSA_ANCHOR_SUBJECT_MARKER))) {
-    return { ok: false, code: "tsa_trust_anchor_refused" };
-  }
-  // UC-TRUST-006 — an anchor pin, when configured, is checked by identity: a
-  // mistakenly mounted bundle (e.g. a staging root) is refused, not trusted.
-  const pins = pinnedAnchorFingerprints(env);
-  if (pins.length > 0 && !certs.every((c) => pins.includes(c.fingerprint256.replace(/:/g, "").toLowerCase()))) {
-    return { ok: false, code: "tsa_trust_anchor_refused" };
-  }
-  return { ok: true, path: p };
+  const inspection = await inspectTsaTrustBundle(env);
+  if (inspection.ok) return { ok: true, path: inspection.path };
+  // A test certificate or a pin the bundle does not satisfy is a REFUSAL of
+  // the anchor; every other issue means there is no usable anchor.
+  return {
+    ok: false,
+    code:
+      inspection.issue === "tsa_trust_anchor_test_certificate" || inspection.issue === "tsa_trust_anchor_pin_mismatch"
+        ? "tsa_trust_anchor_refused"
+        : "tsa_trust_anchor_not_configured",
+  };
 }
 
 function acceptedPolicies(env: NodeJS.ProcessEnv): string[] {
@@ -198,11 +270,9 @@ export async function validateTsaToken(input: {
   if (!anchor.ok) return fail(anchor.code);
 
   const policies = acceptedPolicies(env);
-  // UC-TRUST-006 — in production the accepted-policy list is REQUIRED: an
-  // empty list would accept any policy OID the authority chose.
-  if (isProduction(env) && policies.length === 0) {
-    return fail("tsa_policy_not_accepted");
-  }
+  // The allowlist is enforced when configured. Unconfigured, the token's
+  // signed policy OID is still parsed, returned and recorded (tsaPolicyOid);
+  // trust rests on the installed CA chain, not on a list no provider supplied.
   if (policies.length > 0 && (!input.policyOid || !policies.includes(input.policyOid))) {
     return fail("tsa_policy_not_accepted");
   }
@@ -251,16 +321,13 @@ export function isTsaEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return value === "true" || value === "1";
 }
 
-export async function tsaTrustConfigurationIssues(env: NodeJS.ProcessEnv = process.env): Promise<string[]> {
+export async function tsaTrustConfigurationIssues(env: NodeJS.ProcessEnv = process.env): Promise<TsaTrustBundleIssue[]> {
   if (!isTsaEnabled(env)) return [];
-  const issues: string[] = [];
-  const anchor = await resolveTrustAnchor(env);
-  if (!anchor.ok) issues.push(anchor.code);
-  if (isProduction(env)) {
-    if (acceptedPolicies(env).length === 0) issues.push("tsa_accepted_policy_oids_not_configured");
-    if (pinnedAnchorFingerprints(env).length === 0) issues.push("tsa_trust_anchor_sha256_not_configured");
-  }
-  return issues;
+  // The minimum secure configuration is a readable official bundle with a
+  // root (and, when configured, satisfying the pin). The policy allowlist and
+  // the pin are optional additions, never readiness requirements.
+  const inspection = await inspectTsaTrustBundle(env);
+  return inspection.ok ? [] : [inspection.issue];
 }
 
 /** Writes a curl config carrying the credentials, so they never enter argv. */

@@ -542,19 +542,32 @@ export async function opsRoutes(app: FastifyInstance) {
         reason: "operations_writer_schema_mismatch",
       });
     }
-    // UC-TRUST-006 — RFC 3161 trust configuration. In production, a TSA that
-    // is enabled without a readable non-test anchor, an accepted-policy list
-    // or an anchor pin would record every new timestamp FAILED (or trust any
-    // anchor the mounted file holds). The instance is not ready.
+    // UC-TRUST-006 — RFC 3161 trust configuration. In production a TSA that is
+    // enabled without a usable trust bundle records every new timestamp FAILED,
+    // so the instance is not ready. Only the MINIMUM secure configuration is
+    // required (a readable official bundle with a root, satisfying the pin when
+    // one is set); the policy allowlist and the pin are optional. The response
+    // names the exact issue — a bounded code, never a path or a value — so an
+    // operator is not left with "incomplete".
     {
-      const { isTsaProductionEnv, tsaTrustConfigurationIssues } = await import(
+      const { isTsaProductionEnv, tsaTrustConfigurationIssues, inspectTsaTrustBundle } = await import(
         "../services/timestamp/validate-tsa-token.js"
       );
       if (isTsaProductionEnv(process.env)) {
         const issues = await tsaTrustConfigurationIssues(process.env);
         if (issues.length > 0) {
-          req.log?.error({ tsaTrustIssues: issues }, "tsa trust configuration incomplete");
-          return reply.code(503).send({ status: "degraded", reason: "tsa_trust_configuration_incomplete" });
+          const inspection = await inspectTsaTrustBundle(process.env);
+          req.log?.error(
+            {
+              tsaTrustIssues: issues,
+              // Public certificate fingerprints only — what a pin must name.
+              tsaTrustBundleRootSha256: inspection.ok ? inspection.rootSha256 : (inspection.rootSha256 ?? []),
+            },
+            "tsa trust configuration incomplete",
+          );
+          return reply
+            .code(503)
+            .send({ status: "degraded", reason: "tsa_trust_configuration_incomplete", issues });
         }
       }
     }

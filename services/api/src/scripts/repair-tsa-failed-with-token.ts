@@ -150,6 +150,9 @@ async function main(): Promise<void> {
       tsaInputDigestHex: true,
       tsaInputKind: true,
       fileSha256: true,
+      tsaSerialNumber: true,
+      tsaGenTimeUtc: true,
+      tsaMessageImprint: true,
     },
     orderBy: { updatedAt: "asc" },
     take: args.limit,
@@ -178,6 +181,21 @@ async function main(): Promise<void> {
       continue;
     }
 
+    // PRESERVE what was recorded (evidence-output incident, 2026-10-05): the
+    // serial, genTime and imprint written at finalize came from this same kept
+    // reply. They are kept as recorded; a recorded value the token contradicts
+    // means the row is not what it claims — it is left FAILED, never rewritten.
+    const recordedGenTime = row.tsaGenTimeUtc ? row.tsaGenTimeUtc.getTime() : null;
+    const contradicted =
+      (row.tsaSerialNumber != null && row.tsaSerialNumber !== decision.serialNumber) ||
+      (recordedGenTime != null && recordedGenTime !== decision.genTimeUtc.getTime()) ||
+      (row.tsaMessageImprint != null && row.tsaMessageImprint.toLowerCase() !== decision.messageImprint.toLowerCase());
+    if (contradicted) {
+      summary.keptFailed += 1;
+      console.log(`[repair-tsa] NOT-VALIDATED ${idShort} status=${row.tsaStatus} code=tsa_recorded_fields_contradict_token`);
+      continue;
+    }
+
     summary.repairableDryRun += 1;
     console.log(
       `[repair-tsa] VALIDATED ${idShort} status=${row.tsaStatus} serial=${decision.serialNumber} genTime=${decision.genTimeUtc.toISOString()}`,
@@ -195,10 +213,11 @@ async function main(): Promise<void> {
           where: { id: row.id, tsaStatus: row.tsaStatus, tsaValidatedAtUtc: null },
           data: {
             tsaStatus: "STAMPED",
-            tsaSerialNumber: decision.serialNumber,
-            tsaGenTimeUtc: decision.genTimeUtc,
+            // Recorded values kept; a legacy null is filled from the same token.
+            tsaSerialNumber: row.tsaSerialNumber ?? decision.serialNumber,
+            tsaGenTimeUtc: row.tsaGenTimeUtc ?? decision.genTimeUtc,
             // ET-TSA-03: the imprint read from the token; the request digest stays.
-            tsaMessageImprint: decision.messageImprint,
+            tsaMessageImprint: row.tsaMessageImprint ?? decision.messageImprint,
             tsaInputDigestHex: row.tsaInputDigestHex ?? decision.messageImprint,
             tsaFailureReason: null,
             tsaFailureCode: null,

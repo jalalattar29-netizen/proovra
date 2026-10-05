@@ -102,8 +102,8 @@ describe("TSA_ENABLED — one reader", () => {
   });
 
   it("readiness and the timestamp service agree: an enabled TSA with no trust anchor is reported, a disabled one is not", async () => {
-    expect(await tsaTrustConfigurationIssues({ TSA_ENABLED: "1" })).toContain("tsa_trust_anchor_not_configured");
-    expect(await tsaTrustConfigurationIssues({ TSA_ENABLED: " true " })).toContain("tsa_trust_anchor_not_configured");
+    expect(await tsaTrustConfigurationIssues({ TSA_ENABLED: "1" })).toContain("tsa_trust_bundle_path_not_set");
+    expect(await tsaTrustConfigurationIssues({ TSA_ENABLED: " true " })).toContain("tsa_trust_bundle_path_not_set");
     expect(await tsaTrustConfigurationIssues({ TSA_ENABLED: "false" })).toEqual([]);
     const service = code(read("services/api/src/services/timestamp.service.ts"));
     expect(service).toMatch(/function enabled\(\): boolean \{\s*return isTsaEnabled\(process\.env\);/);

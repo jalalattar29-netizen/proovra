@@ -1,44 +1,46 @@
 # RFC 3161 TSA trust configuration
 
-Applies to `services/api` when `TSA_ENABLED=true`. Validation authority:
-`services/api/src/services/timestamp/validate-tsa-token.ts`. This page is the
-operator contract for the configuration that validator reads (UC-TRUST-006).
+Applies to `services/api` when `TSA_ENABLED=true` (the API is the only service
+that requests and validates RFC 3161 replies). Validation authority:
+`services/api/src/services/timestamp/validate-tsa-token.ts`.
 
-## Environment template
+## The contract (revised 2026-10-05, evidence-output incident)
 
-```dotenv
-# --- RFC 3161 timestamping ------------------------------------------------
-TSA_ENABLED=true
-TSA_URL=https://<authority>/tsr
-# PEM bundle of the authority's CA chain. Must be readable by the API process.
-# A bundle whose subject carries the test-anchor marker is refused in Production.
-TSA_TRUST_BUNDLE_PATH=/run/tsa/trust-bundle.pem
-# Comma list of the policy OIDs this deployment accepts. REQUIRED in Production:
-# without it any policy the chain signs would be accepted.
-TSA_ACCEPTED_POLICY_OIDS=<oid>[,<oid>]
-# SHA-256 (hex) of each accepted anchor certificate (DER), comma list. Pins the
-# anchor so swapping the bundle file cannot silently change who is trusted.
-TSA_TRUST_ANCHOR_SHA256=<hex>[,<hex>]
-# Only for authorities that require HTTP Basic auth. Leave both unset for an
-# unauthenticated TSA.
-TSA_USERNAME=
-TSA_PASSWORD=
-```
+| Variable | Status | Why |
+|---|---|---|
+| `TSA_TRUST_BUNDLE_PATH` | **required** | The installed official CA chain is the trust authority: `openssl ts -verify -CAfile` anchors on it alone, never on a certificate carried in the token. It must contain a self-signed root. Production compose fixes it to `/run/proovra/tsa/trust-bundle.pem` (read-only mount of `/opt/proovra/app/secrets/tsa`). |
+| `TSA_TRUST_ANCHOR_SHA256` | optional pin | Fingerprints are computed from the installed bundle. When set, every root in the bundle must be listed (intermediates need not be). It used to be mandatory and required a pin for every certificate, refusing a root+intermediate bundle pinned by its root. |
+| `TSA_ACCEPTED_POLICY_OIDS` | optional allowlist | The token's signed policy OID is always parsed and recorded (`tsaPolicyOid`); the list is enforced only when set. It used to be mandatory although no provider contract supplied one. |
+| `TSA_USERNAME` / `TSA_PASSWORD` | optional | Only for authorities that require HTTP Basic auth. |
 
-## What production readiness must refuse
+Every token is still fully verified: CMS signature over TSTInfo, message
+imprint, nonce (at issuance, from the query), signer validity at `genTime`
+(`-attime`; a token without a parsed `genTime` is never validated "now"), the
+signer's timeStamping purpose, and the chain to the installed root.
 
-| Condition | Required outcome |
+## Readiness (`GET /readyz`, Production)
+
+Fails only when TSA is enabled and the minimum secure configuration is missing;
+the body names the exact issue in `issues`:
+
+| Issue | Meaning |
 |---|---|
-| `TSA_ENABLED=true` and `TSA_TRUST_BUNDLE_PATH` unset or unreadable | readiness FAILS (`tsa_trust_anchor_not_configured`) — not a per-record warning |
-| bundle contains a test anchor | readiness FAILS in Production |
-| `TSA_ACCEPTED_POLICY_OIDS` empty | readiness FAILS in Production |
-| anchor SHA-256 not in `TSA_TRUST_ANCHOR_SHA256` | readiness FAILS |
-| a token whose `genTime` cannot be parsed | the record is NOT `STAMPED`; it is recorded as not validated (the signer must never be checked "at now" in place of `genTime`) |
-| `TSA_USERNAME`/`TSA_PASSWORD` unset | allowed — credentials are optional; an unauthenticated authority must not block completion |
+| `tsa_trust_bundle_path_not_set` | `TSA_TRUST_BUNDLE_PATH` empty |
+| `tsa_trust_bundle_unreadable` | file missing / unreadable / not PEM |
+| `tsa_trust_bundle_no_certificates` | no certificate in the file |
+| `tsa_trust_bundle_no_root` | no self-signed root (partial chains are not accepted) |
+| `tsa_trust_anchor_test_certificate` | a test anchor in Production |
+| `tsa_trust_anchor_pin_mismatch` | a pin is set and a bundle root is not in it (the log line `tsaTrustBundleRootSha256` lists the roots) |
 
-Status (2026-10-01): this page states the contract. The readiness check, anchor
-pin, unparsed-`genTime` refusal and optional credentials are implemented in the
-API's timestamp service and readiness surface (owned by the verify/report lane);
-see the UC-TRUST-006 row of the remediation ledger for whether each has landed.
-A real authority's chain has still never been validated outside Production —
-see `docs/operations/external-proof-register.md`, row 2.
+## GLOBALTRUST (Production authority)
+
+Install with `scripts/install-tsa-trust-bundle.sh` on the Production host. It
+downloads the root from `https://www.globaltrust.eu/static/globaltrust-2015.crt`
+and the CA set from `https://www.globaltrust.eu/static/all-stamm-cert.p7b`
+(the publisher's repository), refuses unless the root's SHA-256 is
+`416b1f9e84e74c1d19b23d8d7191c6ad81246e641601f599132729f507beb3cc` (GLOBALTRUST
+2015, crt.sh id 362150600) and the issuing CA "GLOBALTRUST 2015 QUALIFIED
+TIMESTAMP 1" is `945522340e54b7f2226be9e6272f18d2c3d6eca5a579764518dac7b0e0883fc9`
+and chains to that root, and writes ONLY those two certificates — the
+publisher's set also contains test CAs, which must never be trusted.
+Observed token policy: `1.2.40.0.36.1.1.8.1`.
