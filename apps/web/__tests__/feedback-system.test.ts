@@ -187,3 +187,34 @@ test("no raw developer language leaks in branded surfaces", () => {
     assert.ok(!/requestId:\s*\$\{/.test(src), `${f}: no inline requestId`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// RGA-01 — report generation / updated-report declines carry a specific,
+// actionable server message instead of collapsing to the generic 4xx sentence.
+// ---------------------------------------------------------------------------
+
+test("RGA-01: EVIDENCE_INTEGRITY_FAILED (409) shows the server message, not 'review your input'", () => {
+  const serverMessage =
+    "Report regeneration is not available for this record. The recomputed SHA-256 fingerprint did not match the value recorded at completion.";
+  const safe = toSafeUserError({ code: "EVIDENCE_INTEGRITY_FAILED", statusCode: 409, message: serverMessage });
+  assert.equal(safe.message, serverMessage);
+  assert.ok(!/review your input/i.test(safe.message), "must not collapse to the generic 4xx sentence");
+});
+
+test("RGA-01: the updated-report decline codes never collapse to the generic 4xx sentence", () => {
+  const cases: Array<{ code: string; statusCode: number }> = [
+    { code: "UPDATED_REPORT_REASON_REQUIRED", statusCode: 400 },
+    { code: "IDEMPOTENCY_KEY_REQUIRED", statusCode: 400 },
+    { code: "IDEMPOTENCY_KEY_INVALID", statusCode: 400 },
+    { code: "GENERATION_NOT_PERMITTED", statusCode: 403 },
+    { code: "CONCURRENCY_LIMITED", statusCode: 429 },
+    { code: "OUTPUT_ACTION_UNAVAILABLE", statusCode: 409 },
+  ];
+  for (const { code, statusCode } of cases) {
+    const msg = `specific server message for ${code}`;
+    const safe = toSafeUserError({ code, statusCode, message: msg });
+    assert.equal(safe.message, msg, `${code}: server message must be used`);
+    assert.ok(!/review your input/i.test(safe.message), `${code}: must not be the generic sentence`);
+    assert.ok(safe.title.length > 0, `${code}: has a title`);
+  }
+});

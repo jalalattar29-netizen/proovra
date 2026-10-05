@@ -945,6 +945,38 @@ export const SERVER_MESSAGE_ERROR_CODES: Record<
     title: "This action isn't available",
     severity: "warning",
   },
+  /*
+   * RGA-01 — the report generation / updated-report endpoint's bounded declines.
+   * Each carries a specific, actionable, safe server message; without an entry
+   * here `toSafeUserError` fell through to the transport status and told the
+   * customer "Please review your input and try again." about an integrity
+   * failure, a missing reason or a permission refusal. These codes are already
+   * classified `customer` in the error-code registry.
+   */
+  EVIDENCE_INTEGRITY_FAILED: {
+    title: "This record's integrity check did not pass",
+    severity: "error",
+  },
+  GENERATION_NOT_PERMITTED: {
+    title: "You don't have permission to do that",
+    severity: "warning",
+  },
+  UPDATED_REPORT_REASON_REQUIRED: {
+    title: "A reason is required",
+    severity: "warning",
+  },
+  IDEMPOTENCY_KEY_REQUIRED: {
+    title: "Couldn't start the updated report",
+    severity: "warning",
+  },
+  IDEMPOTENCY_KEY_INVALID: {
+    title: "Couldn't start the updated report",
+    severity: "warning",
+  },
+  CONCURRENCY_LIMITED: {
+    title: "Several updated reports are already in progress",
+    severity: "warning",
+  },
 };
 
 /** The placeholder a client substitutes when a body carries no message. */
