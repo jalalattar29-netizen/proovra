@@ -211,6 +211,13 @@ const FAMILY_RULES = Object.freeze([
    * dispute). Billing state for operator review, never an entitlement.
    */
   [/^billingReviewItem$/, "BILLING_SUBSCRIPTION_SEAT"],
+  /**
+   * INTERNAL PLAN GRANT (2026-10-02) — provider-independent, reversible plan
+   * access for a Personal account, written ONLY by
+   * services/billing/internal-plan-grant.service.ts (Platform Admin + step-up,
+   * or the operator CLI over the same service). Commercial access state.
+   */
+  [/^planGrant$/, "BILLING_SUBSCRIPTION_SEAT"],
   /** The public verification page's view record for a shared package. */
   [/^verificationView$/, "EXTERNAL_REVIEW_INTAKE_SHARE"],
   /**

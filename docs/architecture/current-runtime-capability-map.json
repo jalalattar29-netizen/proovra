@@ -4,20 +4,20 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "15186f4ee595ad42bfc266df1155fb7e87b1f9741d0e45881a7d33bd79267ff2",
+  "routeInventoryHash": "6913cadb4ce6adcbd39fedf3cf40d6d31b0595c1b84e71b2a3b38108a4fe49e6",
   "consumerInventoryHash": "739b03f37de529d561e2b372ad657b36d2109b1d12e50aa017e203fae9bc16ad",
   "dispositionsHash": "7ce0efcbac0afa47ee18090874ee245cf55c5a3b37568b204c7be9c17bbe4d15",
   "totals": {
-    "RegisteredRoutes": 1177,
-    "ProductionRegisteredRoutes": 1176,
+    "RegisteredRoutes": 1180,
+    "ProductionRegisteredRoutes": 1179,
     "DevelopmentOnlyRoutes": 1,
     "ProductConsumedRoutes": 975,
     "NonProductDispositionedRoutes": 201,
-    "UndisposedRoutes": 0,
+    "UndisposedRoutes": 3,
     "ConservationIdentityHolds": true,
     "ProductConsumerRoutes": 975,
     "MachineOnlyConsumerRoutes": 6,
-    "NoConsumerRoutes": 196,
+    "NoConsumerRoutes": 199,
     "AuthorizationUnresolved": 0,
     "PublicUnguardedRoutes": 33,
     "DynamicUnresolvedRouteRegistrations": 0,
@@ -56,9 +56,9 @@
       "MISSING_PRODUCT_UI_RELEASE_REQUIRED": 0,
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
-    "TerminalWriters": 1322,
-    "ReachableSensitiveMutations": 1319,
-    "ClassifiedSensitiveMutations": 1319,
+    "TerminalWriters": 1325,
+    "ReachableSensitiveMutations": 1322,
+    "ClassifiedSensitiveMutations": 1322,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
     "NonRequestWriters": 3,
@@ -80,7 +80,7 @@
       "EVIDENCE_CUSTODY_FINALIZATION": 307,
       "LEGAL_HOLD_RETENTION_DELETION": 51,
       "EXTERNAL_REVIEW_INTAKE_SHARE": 82,
-      "BILLING_SUBSCRIPTION_SEAT": 85,
+      "BILLING_SUBSCRIPTION_SEAT": 88,
       "SSO_OIDC_SCIM_PROVISIONING": 45,
       "AUTOMATION_QUEUE_WEBHOOK": 116,
       "REPORT_EXPORT_REDACTION": 53,
@@ -100,7 +100,7 @@
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1182,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1185,
       "JOB_ATTRIBUTED_REACHABLE": 127,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -124,7 +124,7 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9410,
+      "METHOD_ON_VALUE": 9432,
       "UNRESOLVED_IDENTIFIER": 1275
     },
     "MutationFixpointRounds": 9,
@@ -133,7 +133,7 @@
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 0,
+      "UNDISPOSED": 3,
       "PRODUCT_CONNECTED": 980,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 21,
@@ -146,7 +146,7 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1175,
+    "TenantBindingResolved": 1178,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
       "PUBLIC_DATA": 28,
@@ -154,7 +154,7 @@
       "PLATFORM_GLOBAL": 52,
       "WORKSPACE_SCOPED": 702,
       "ORGANIZATION_SCOPED": 109,
-      "MULTI_TENANT_PLATFORM_ADMIN": 121,
+      "MULTI_TENANT_PLATFORM_ADMIN": 124,
       "TOKEN_SCOPED": 35,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 16,
@@ -165,7 +165,7 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1175,
+    "ClassifiedSecurityRoutes": 1178,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
@@ -191,8 +191,8 @@
         "tagged": 109
       },
       "PLATFORM_ADMIN": {
-        "primary": 121,
-        "tagged": 121
+        "primary": 124,
+        "tagged": 124
       },
       "API_KEY_SCOPED": {
         "primary": 5,
@@ -240,8 +240,9 @@
       }
     }
   },
-  "totalRoutes": 1177,
+  "totalRoutes": 1180,
   "classificationCounts": {
+    "BACKEND_ONLY_UNWIRED": 3,
     "COMPATIBILITY_TEMPORARY": 16,
     "INTERNAL_REQUIRED": 186,
     "TARGET_COMPLETE": 975
@@ -250,14 +251,14 @@
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 245
+    "UNPROVEN": 248
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 451,
+    "PLATFORM_CORE": 454,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -932,6 +933,18 @@
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/admin/billing/internal-plan-grants",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/admin/billing/internal-plan-grants",
+      "registeringFile": "services/api/src/routes/admin-billing.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/admin/contact-sales",
@@ -7483,6 +7496,30 @@
       "machineConsumer": null,
       "authorization": "MULTI_GATE",
       "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/admin/billing/internal-plan-grants",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/admin/billing/internal-plan-grants",
+      "registeringFile": "services/api/src/routes/admin-billing.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "POST:/v1/admin/billing/internal-plan-grants/revoke",
+      "vertical": "PLATFORM_CORE",
+      "method": "POST",
+      "route": "/v1/admin/billing/internal-plan-grants/revoke",
+      "registeringFile": "services/api/src/routes/admin-billing.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "MULTI_GATE",
+      "classification": "BACKEND_ONLY_UNWIRED",
       "evidenceLevel": "UNPROVEN"
     },
     {
@@ -14957,6 +14994,8 @@
         "POST /stripe",
         "POST /v1/admin/audit-log",
         "POST /v1/admin/billing/evidence-credits",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/demo-requests/:id/follow-up/send",
         "POST /v1/admin/demo-requests/:id/route",
         "POST /v1/admin/demo-requests/follow-up/run",
@@ -19138,8 +19177,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/billing.routes.ts#workspaceStorageAddon.update@1092",
-      "terminalLocation": "services/api/src/routes/billing.routes.ts:1092",
+      "writerId": "services/api/src/routes/billing.routes.ts#workspaceStorageAddon.update@1093",
+      "terminalLocation": "services/api/src/routes/billing.routes.ts:1093",
       "file": "services/api/src/routes/billing.routes.ts",
       "enclosingDeclaration": "billingRoutes",
       "kind": "DATABASE",
@@ -19833,8 +19872,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@5777",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5777",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@5780",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5780",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19866,8 +19905,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5788",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5788",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5791",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5791",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19899,8 +19938,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@11915",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:11915",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@11918",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:11918",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19932,8 +19971,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13767",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13767",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13770",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13770",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19965,8 +20004,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5734",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5734",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5737",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5737",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19998,8 +20037,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6045",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6045",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6048",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6048",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20031,8 +20070,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@13755",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13755",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@13758",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13758",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20064,8 +20103,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6582",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6582",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6585",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6585",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20097,8 +20136,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6663",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6663",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6666",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6666",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20130,8 +20169,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6780",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6780",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6783",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6783",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20163,8 +20202,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@9044",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9044",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@9047",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9047",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20196,8 +20235,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7980",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7980",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@7983",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7983",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20229,8 +20268,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8059",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8059",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8062",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8062",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20262,8 +20301,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8138",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8138",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8141",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8141",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20295,8 +20334,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7810",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7810",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7813",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7813",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20328,8 +20367,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7866",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7866",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7869",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7869",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20361,8 +20400,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7921",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7921",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7924",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7924",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20394,8 +20433,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7652",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7652",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7655",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7655",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20427,8 +20466,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7708",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7708",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7711",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7711",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20460,8 +20499,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7763",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7763",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7766",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7766",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20493,8 +20532,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6587",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6587",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6590",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6590",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20526,8 +20565,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13773",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13773",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13776",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13776",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -26881,6 +26920,8 @@
         "POST /paypal",
         "POST /stripe",
         "POST /v1/admin/billing/evidence-credits",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -27917,6 +27958,8 @@
         "POST /paypal",
         "POST /stripe",
         "POST /v1/admin/billing/evidence-credits",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -28953,6 +28996,8 @@
         "POST /paypal",
         "POST /stripe",
         "POST /v1/admin/billing/evidence-credits",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -31341,6 +31386,8 @@
         "POST /paypal",
         "POST /stripe",
         "POST /v1/admin/billing/evidence-credits",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -33153,6 +33200,106 @@
       }
     },
     {
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.create@340",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:340",
+      "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
+      "enclosingDeclaration": "run",
+      "kind": "DATABASE",
+      "target": "planGrant",
+      "mutationKind": "create",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/admin/billing/internal-plan-grants"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@238",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:238",
+      "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
+      "enclosingDeclaration": "closeExpiredInTx",
+      "kind": "DATABASE",
+      "target": "planGrant",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": false,
+      "entryRoutes": [
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@417",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:417",
+      "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
+      "enclosingDeclaration": "revokeInternalPlanGrant",
+      "kind": "DATABASE",
+      "target": "planGrant",
+      "mutationKind": "update",
+      "primaryFamily": "BILLING_SUBSCRIPTION_SEAT",
+      "insideTransaction": true,
+      "entryRoutes": [
+        "POST /v1/admin/billing/internal-plan-grants/revoke"
+      ],
+      "entryJobs": [],
+      "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts"
+      ],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NAMED_AUTHORITY",
+        "authorizationBeforeMutation": true,
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "BOUND",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "ENFORCED",
+        "transactionAuthority": "INSIDE_TRANSACTION",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      }
+    },
+    {
       "writerId": "services/api/src/services/billing/paypal-settlement.service.ts#PAYMENT.capturePayPalOrder@616",
       "terminalLocation": "services/api/src/services/billing/paypal-settlement.service.ts:616",
       "file": "services/api/src/services/billing/paypal-settlement.service.ts",
@@ -33452,8 +33599,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.paypalRequest@646",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:646",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.paypalRequest@648",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:648",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyPayPalPlanChange",
       "kind": "EXTERNAL",
@@ -33485,8 +33632,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@506",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:506",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@508",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:508",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -33518,8 +33665,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@553",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:553",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@555",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:555",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -33551,8 +33698,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@588",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:588",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#PAYMENT.stripeRequest@590",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:590",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "applyStripePlanChange",
       "kind": "EXTERNAL",
@@ -33584,8 +33731,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@707",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:707",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.update@709",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:709",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "recordPendingPlan",
       "kind": "DATABASE",
@@ -33617,8 +33764,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@737",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:737",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@739",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:739",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "clearPendingPlan",
       "kind": "DATABASE",
@@ -33650,8 +33797,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@761",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:761",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@763",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:763",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "expireUnapprovedPlanChange",
       "kind": "DATABASE",
@@ -33688,8 +33835,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@779",
-      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:779",
+      "writerId": "services/api/src/services/billing/plan-transition.service.ts#subscription.updateMany@781",
+      "terminalLocation": "services/api/src/services/billing/plan-transition.service.ts:781",
       "file": "services/api/src/services/billing/plan-transition.service.ts",
       "enclosingDeclaration": "markPlanChangeApproved",
       "kind": "DATABASE",
@@ -44695,6 +44842,8 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/security-policy",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -44800,6 +44949,7 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
         "MODULE services/api/src/routes/enterprise-security.routes.ts",
@@ -44901,6 +45051,8 @@
         "PATCH /v1/identity/service-accounts/:id/hardening",
         "PATCH /v1/integrations/api-keys/:id",
         "PATCH /v1/security-policy",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -45006,6 +45158,7 @@
       ],
       "entryJobs": [],
       "entryModules": [
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
         "MODULE services/api/src/routes/enterprise-security.routes.ts",
@@ -51687,6 +51840,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -52117,6 +52272,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -52667,6 +52823,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -53094,6 +53252,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -53645,6 +53804,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -54075,6 +54236,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -54625,6 +54787,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -55052,6 +55216,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -55602,6 +55767,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -56029,6 +56196,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -56579,6 +56747,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -57006,6 +57176,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -57556,6 +57727,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -57983,6 +58156,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -58533,6 +58707,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -58960,6 +59136,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -59511,6 +59688,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -59941,6 +60120,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -60491,6 +60671,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -60918,6 +61100,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -61983,6 +62166,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -62410,6 +62595,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -62961,6 +63147,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -63388,6 +63576,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -63939,6 +64128,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -64366,6 +64557,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -64917,6 +65109,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -65344,6 +65538,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -65895,6 +66090,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -66322,6 +66519,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -66873,6 +67071,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -67300,6 +67500,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -67851,6 +68052,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -68278,6 +68481,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -68829,6 +69033,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -69259,6 +69465,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -69810,6 +70017,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -70240,6 +70449,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -70791,6 +71001,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -71218,6 +71430,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -71769,6 +71982,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -72199,6 +72414,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -72750,6 +72966,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -73177,6 +73395,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -73728,6 +73947,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -74158,6 +74379,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -81914,6 +82136,8 @@
         "PATCH /v2/scim/Users/:id",
         "POST /paypal",
         "POST /stripe",
+        "POST /v1/admin/billing/internal-plan-grants",
+        "POST /v1/admin/billing/internal-plan-grants/revoke",
         "POST /v1/admin/enterprise/provision",
         "POST /v1/admin/identity/elevations",
         "POST /v1/admin/identity/emergency-revoke",
@@ -82338,6 +82562,7 @@
       "entryModules": [
         "MODULE services/api/src/routes/account-closure.routes.ts",
         "MODULE services/api/src/routes/account-data-export.routes.ts",
+        "MODULE services/api/src/routes/admin-billing.routes.ts",
         "MODULE services/api/src/routes/admin-demo-requests.routes.ts",
         "MODULE services/api/src/routes/admin-identity.routes.ts",
         "MODULE services/api/src/routes/admin-provisioning.routes.ts",
@@ -90292,7 +90517,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6994",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6997",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90369,7 +90594,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8114",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8117",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90439,7 +90664,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7742",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7745",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90509,7 +90734,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7900",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7903",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90579,7 +90804,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8753",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8756",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -91463,6 +91688,7 @@
         "organization",
         "organizationDomain",
         "organizationMembership",
+        "planGrant",
         "report",
         "riskSignal",
         "stepUpChallenge",
@@ -92359,6 +92585,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "scimGroup",
         "scimProvisioningToken",
@@ -92429,6 +92656,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "scimProvisioningToken",
         "subscription",
@@ -92556,7 +92784,7 @@
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12606",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12609",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -92607,6 +92835,7 @@
         "evidenceCreditLedgerEntry",
         "evidencePart",
         "organization",
+        "planGrant",
         "report",
         "signingKey",
         "subscription",
@@ -93085,7 +93314,7 @@
       "method": "GET",
       "path": "/v1/admin/billing/detail",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:76",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:84",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -93144,6 +93373,52 @@
         "services/api/src/services/admin/billing.service.ts: workspaceStorageAddon.findMany — no tenant or self predicate",
         "services/api/src/services/admin/billing.service.ts: governanceReconciliationRun.findMany — no tenant or self predicate",
         "services/api/src/services/admin/billing.service.ts: subscription.aggregate — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refusal raised by the named authority",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/admin/billing/internal-plan-grants",
+      "method": "GET",
+      "path": "/v1/admin/billing/internal-plan-grants",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:378",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "planGrant",
+        "user"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -94123,6 +94398,7 @@
         "mfaFactor",
         "organization",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -94206,6 +94482,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "scimProvisioningToken",
         "subscription",
@@ -95551,6 +95828,7 @@
         "organization",
         "organizationMembership",
         "payment",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -95683,6 +95961,7 @@
         "evidencePartDerivedAsset",
         "operationalIncident",
         "organization",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -95764,6 +96043,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -97474,7 +97754,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:498",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:499",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "handler body -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -97555,7 +97835,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts/:type/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:516",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:517",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -97630,6 +97910,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "reportGenerationRequest",
         "ssoConnection",
@@ -97669,7 +97950,7 @@
       "method": "GET",
       "path": "/v1/billing/accounts/:type/:id/history",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:556",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:557",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -97758,7 +98039,7 @@
       "method": "GET",
       "path": "/v1/billing/overview",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:635",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:636",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -97832,6 +98113,7 @@
         "evidencePartDerivedAsset",
         "organization",
         "payment",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -97865,7 +98147,7 @@
       "method": "GET",
       "path": "/v1/billing/pricing",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:613",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:614",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -97921,7 +98203,7 @@
       "method": "GET",
       "path": "/v1/billing/subscription",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:679",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:680",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -99103,6 +99385,7 @@
         "operationalIncident",
         "operationalTimelineEvent",
         "operationalWorkflow",
+        "planGrant",
         "report",
         "reportGenerationRequest",
         "reviewEscalation",
@@ -100945,6 +101228,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -101562,6 +101846,7 @@
         "orgHealthProjection",
         "organization",
         "organizationalHealthSnapshot",
+        "planGrant",
         "queueTelemetrySnapshot",
         "report",
         "reviewEscalation",
@@ -101784,6 +102069,7 @@
         "evidenceCreditLedgerEntry",
         "evidenceRequest",
         "organization",
+        "planGrant",
         "subscription",
         "team",
         "teamMember",
@@ -101817,7 +102103,7 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7038",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7041",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -102617,7 +102903,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10311",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10314",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -102765,7 +103051,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8794",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8797",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -102839,7 +103125,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7937",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7940",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -102905,7 +103191,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10952",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10955",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103037,7 +103323,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12439",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12442",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103122,7 +103408,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7621",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7624",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103188,7 +103474,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8154",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8157",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103258,7 +103544,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8238",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8241",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103329,7 +103615,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8596",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8599",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -103467,7 +103753,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7779",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7782",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103601,7 +103887,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11859",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11862",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103693,7 +103979,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6392",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6395",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103760,7 +104046,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8650",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8653",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103811,7 +104097,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11362",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11365",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103943,7 +104229,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11612",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11615",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104019,7 +104305,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9098",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9101",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104101,6 +104387,7 @@
         "evidenceReviewWorkflow",
         "evidenceReviewerAuditEvent",
         "organization",
+        "planGrant",
         "report",
         "reportGenerationRequest",
         "signingKey",
@@ -104144,7 +104431,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8442",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8445",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104219,7 +104506,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8627",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8630",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104287,7 +104574,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5968",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5971",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104352,7 +104639,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12050",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12053",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104482,7 +104769,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11725",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11728",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104618,7 +104905,7 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7200",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7203",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -109154,6 +109441,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -109232,6 +109520,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -117631,6 +117920,7 @@
         "organization",
         "organizationDomain",
         "organizationMembership",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -117848,7 +118138,6 @@
         "collaborationTeamInvite",
         "collaborationTeamMember",
         "enterpriseContract",
-        "entitlement",
         "evidence",
         "organization",
         "organizationInvite",
@@ -119882,6 +120171,7 @@
         "evidenceLegalHold",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "reportGenerationRequest",
         "revokedSession",
@@ -123700,6 +123990,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -124770,6 +125061,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -124857,6 +125149,7 @@
         "evidenceReviewWorkflow",
         "integrationWebhookDelivery",
         "organization",
+        "planGrant",
         "report",
         "reviewEscalation",
         "subscription",
@@ -126898,6 +127191,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "scimGroup",
         "scimProvisioningToken",
@@ -126966,6 +127260,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "scimGroup",
         "scimProvisioningToken",
@@ -127034,6 +127329,7 @@
         "evidencePartDerivedAsset",
         "externalIdentityMapping",
         "organization",
+        "planGrant",
         "report",
         "scimProvisioningToken",
         "subscription",
@@ -127103,6 +127399,7 @@
         "evidencePartDerivedAsset",
         "externalIdentityMapping",
         "organization",
+        "planGrant",
         "report",
         "scimProvisioningToken",
         "subscription",
@@ -127666,6 +127963,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -127818,6 +128116,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -128035,6 +128334,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -128178,7 +128478,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8031",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8034",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128232,7 +128532,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7686",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7689",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128302,7 +128602,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6001",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6004",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128373,7 +128673,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7844",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7847",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128443,7 +128743,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8706",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8709",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128500,7 +128800,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8454",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8457",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -128788,6 +129088,7 @@
         "evidenceRetentionPolicy",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -128961,6 +129262,7 @@
         "mfaFactor",
         "organization",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -130032,6 +130334,7 @@
         "organizationDomain",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "scimGroup",
         "scimProvisioningToken",
@@ -130111,6 +130414,7 @@
         "organizationDomain",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "scimProvisioningToken",
         "ssoConnection",
@@ -130225,9 +130529,9 @@
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "services/api/src/services/billing/paypal-settlement.service.ts: subscription.findUnique — no tenant or self predicate",
+        "services/api/src/services/billing/plan-transition.service.ts: subscription.updateMany — no tenant or self predicate",
+        "services/api/src/services/billing/plan-transition.service.ts: subscription.updateMany — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -130414,7 +130718,7 @@
       "method": "POST",
       "path": "/v1/admin/billing/evidence-credits",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:126",
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:134",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
@@ -130468,6 +130772,118 @@
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
       "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/admin/billing/internal-plan-grants",
+      "method": "POST",
+      "path": "/v1/admin/billing/internal-plan-grants",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:291",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "mfaFactor",
+        "planGrant",
+        "riskSignal",
+        "stepUpChallenge",
+        "team",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "planGrant",
+        "securityEvent",
+        "stepUpChallenge"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 403",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "POST /v1/admin/billing/internal-plan-grants/revoke",
+      "method": "POST",
+      "path": "/v1/admin/billing/internal-plan-grants/revoke",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/admin-billing.routes.ts:336",
+      "authorizationClass": "MULTI_GATE",
+      "authorizationEvidence": [
+        "requirePlatformAdmin -> services/api/src/middleware/require-platform-admin.ts: reaches the platform-administrator lookup (resolvePlatformAdmin)",
+        "requirePlatformAdmin -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "ADMIN_GATED",
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "PLATFORM_ADMIN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "MULTI_GATE",
+      "authorizationAuthority": "MULTI_GATE",
+      "dataScope": "MULTI_TENANT_PLATFORM_ADMIN",
+      "tenantType": "PLATFORM",
+      "tenantBindingAuthority": "requirePlatformAdmin",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "mfaFactor",
+        "planGrant",
+        "riskSignal",
+        "stepUpChallenge",
+        "team",
+        "user"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "planGrant",
+        "securityEvent",
+        "stepUpChallenge"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/admin-billing.routes.ts: platform-admin scope (multi-tenant by design)"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 403",
       "tenantStampingInsertSites": [],
       "tenantUnboundInsertSites": []
     },
@@ -130954,6 +131370,7 @@
         "operationalIncident",
         "operationalIncidentEvent",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -131278,6 +131695,7 @@
         "operationalIncident",
         "operationalIncidentEvent",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -131367,6 +131785,7 @@
         "evidencePartDerivedAsset",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "riskSignal",
         "scimProvisioningToken",
@@ -131449,6 +131868,7 @@
         "evidencePartDerivedAsset",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -132348,6 +132768,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -132537,6 +132958,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -133950,6 +134372,7 @@
         "organizationDomain",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "scimProvisioningToken",
         "ssoCallbackAttempt",
@@ -134750,7 +135173,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/abandon",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1356",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1357",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -134836,7 +135259,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/checkout-attempts/:attemptId/recheck",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1330",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1331",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -134920,7 +135343,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/payments/:paymentId/abandon",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1545",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1546",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135008,7 +135431,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/payments/:paymentId/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1487",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1488",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135094,7 +135517,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/payments/:paymentId/recheck",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1411",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1412",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135188,7 +135611,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/reconcile",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1175",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1176",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135297,7 +135720,7 @@
       "method": "POST",
       "path": "/v1/billing/accounts/:type/:id/retry-storage-cancellation",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1733",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1739",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135387,7 +135810,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2272",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2278",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135458,6 +135881,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -135500,7 +135924,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal/pending/resolve",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1835",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1841",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135570,7 +135994,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal/returns/canceled",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2127",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2133",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135658,7 +136082,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/paypal/subscriptions/:subscriptionId/confirm",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2061",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2067",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -135753,7 +136177,7 @@
       "method": "POST",
       "path": "/v1/billing/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1618",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1619",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135815,6 +136239,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -135856,7 +136281,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1930",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1936",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -135941,7 +136366,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/paypal/:orderId/capture",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1990",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1996",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -136028,7 +136453,7 @@
       "method": "POST",
       "path": "/v1/billing/credits/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1880",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:1886",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -136103,7 +136528,7 @@
       "method": "POST",
       "path": "/v1/billing/plan",
       "productionRegistered": false,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2531",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2542",
       "authorizationClass": "DEVELOPMENT_ONLY",
       "authorizationEvidence": [
         "registered only inside `if (devAuthEnabled())` — production registration is zero"
@@ -136113,7 +136538,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "DEVELOPMENT_ONLY",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:2531 — registered only inside `if (devAuthEnabled())` — production registration is zero",
+      "dispositionEvidence": "services/api/src/routes/billing.routes.ts:2542 — registered only inside `if (devAuthEnabled())` — production registration is zero",
       "dispositionReason": "registered only behind the development auth gate",
       "replacement": null,
       "result": "DISPOSED_DEVELOPMENT_ONLY",
@@ -136133,6 +136558,7 @@
         "organization",
         "organizationSecurityPolicy",
         "payment",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -136168,7 +136594,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:991",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:992",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -136256,7 +136682,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/paypal",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2361",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2372",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -136309,6 +136735,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -136350,7 +136777,7 @@
       "method": "POST",
       "path": "/v1/billing/storage-addons/checkout/stripe",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2175",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:2181",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -136404,6 +136831,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -136441,7 +136869,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/cancel",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:836",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:837",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -136536,7 +136964,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/plan",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:726",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:727",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -136590,6 +137018,7 @@
         "organization",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -136630,7 +137059,7 @@
       "method": "POST",
       "path": "/v1/billing/subscription/resume",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/billing.routes.ts:939",
+      "registrationEvidence": "services/api/src/routes/billing.routes.ts:940",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "assertBillingCapability -> services/api/src/services/billing/billing-accounts.service.ts: reaches the canonical organization access evaluator (org lifecycle + ACTIVE org membership + role precedence + contract expiry) (checkOrgAccess)",
@@ -137100,7 +137529,6 @@
         "report",
         "revokedSession",
         "ssoConnection",
-        "subscription",
         "supportAccessGrant",
         "team",
         "teamMember",
@@ -137127,9 +137555,6 @@
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
         "services/api/src/services/identity/support-runtime.service.ts: supportAccessGrant.findUnique — no tenant or self predicate"
       ],
       "tenantIdSource": "CANONICAL_EVALUATOR_GUARD",
@@ -138114,7 +138539,6 @@
         "organizationSecurityPolicy",
         "report",
         "ssoConnection",
-        "subscription",
         "team",
         "teamMember",
         "user",
@@ -138136,10 +138560,7 @@
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
-        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -139291,6 +139712,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -139536,7 +139958,6 @@
         "evidencePartDerivedAsset",
         "organization",
         "report",
-        "subscription",
         "team",
         "teamMember",
         "user",
@@ -139556,10 +139977,10 @@
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.updateMany — no tenant or self predicate"
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.updateMany — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.findFirst — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.update — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -139627,7 +140048,6 @@
         "evidencePartDerivedAsset",
         "organization",
         "report",
-        "subscription",
         "team",
         "teamMember",
         "user",
@@ -139647,10 +140067,10 @@
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.updateMany — no tenant or self predicate"
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.updateMany — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.findFirst — no tenant or self predicate",
+        "services/api/src/services/collaboration-team/collaboration-team.service.ts: collaborationTeamInvite.update — no tenant or self predicate",
+        "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -139795,6 +140215,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -140062,6 +140483,7 @@
         "evidencePartDerivedAsset",
         "evidenceReviewWorkflow",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -140417,6 +140839,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -140515,6 +140938,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -140613,6 +141037,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -141958,7 +142383,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5526",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5529",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -142008,7 +142433,6 @@
       "tenantBindingAuthority": "evaluateMemberAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "automationRule",
         "captureSession",
         "custodyEvent",
@@ -142026,6 +142450,7 @@
         "organizationMembership",
         "organizationSecurityPolicy",
         "payment",
+        "planGrant",
         "report",
         "ssoConnection",
         "subscription",
@@ -142040,7 +142465,7 @@
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
-        "adminAuditLog",
+        "analyticsEvent",
         "automationRun",
         "captureSession",
         "captureSessionEvent",
@@ -142142,6 +142567,7 @@
         "evidencePartDerivedAsset",
         "evidenceRequest",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -143313,7 +143739,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8869",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8872",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143365,6 +143791,7 @@
         "evidencePart",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -143412,7 +143839,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7970",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7973",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143482,7 +143909,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6950",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6953",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143559,7 +143986,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12516",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12519",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143631,7 +144058,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12469",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12472",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143703,7 +144130,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12564",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12567",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143775,7 +144202,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7646",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7649",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143844,7 +144271,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10498",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10501",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143886,7 +144313,6 @@
       "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
       "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
       "modelsRead": [
-        "adminAuditLog",
         "captureSession",
         "custodyEvent",
         "enterpriseContract",
@@ -143901,6 +144327,7 @@
         "evidenceWorkflowInstanceEvidence",
         "fileSecurityScan",
         "organization",
+        "planGrant",
         "report",
         "reportGenerationRequest",
         "subscription",
@@ -143915,7 +144342,7 @@
         "workspaceStorageAddon"
       ],
       "modelsWritten": [
-        "adminAuditLog",
+        "analyticsEvent",
         "captureSession",
         "captureSessionEvent",
         "custodyEvent",
@@ -143964,7 +144391,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7804",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7807",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144033,7 +144460,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6618",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6621",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144106,7 +144533,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6104",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6107",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144188,7 +144615,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8664",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8667",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144260,7 +144687,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11045",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11048",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144399,7 +144826,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7013",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7016",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144484,7 +144911,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6969",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6972",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144569,7 +144996,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6736",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6739",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144926,7 +145353,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7353",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7356",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -145013,7 +145440,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6537",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6540",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146569,6 +146996,7 @@
         "evidencePartDerivedAsset",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -146699,6 +147127,7 @@
         "evidencePartDerivedAsset",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -148448,6 +148877,7 @@
         "evidencePartDerivedAsset",
         "evidenceRetentionPolicyVersion",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -148547,6 +148977,7 @@
         "operationalIncident",
         "operationalIncidentEvent",
         "organization",
+        "planGrant",
         "redactionDerivative",
         "report",
         "revokedSession",
@@ -149127,6 +149558,7 @@
         "evidenceRetentionPolicyVersion",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -149629,6 +150061,7 @@
         "evidencePartDerivedAsset",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -149718,6 +150151,7 @@
         "evidenceRetentionPolicy",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -150828,6 +151262,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -150905,6 +151340,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -151140,6 +151576,7 @@
         "evidencePartDerivedAsset",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "riskSignal",
@@ -151232,6 +151669,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -153738,6 +154176,7 @@
         "evidencePartDerivedAsset",
         "evidenceRequest",
         "organization",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -153819,6 +154258,7 @@
         "evidencePartDerivedAsset",
         "evidenceWorkflowTemplate",
         "organization",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -158738,6 +159178,7 @@
         "evidenceLegalHold",
         "operationalIncident",
         "organization",
+        "planGrant",
         "report",
         "reportGenerationRequest",
         "subscription",
@@ -160272,7 +160713,6 @@
         "report",
         "scimProvisioningToken",
         "ssoConnection",
-        "subscription",
         "team",
         "teamMember",
         "user",
@@ -160295,10 +160735,7 @@
         "services/api/src/services/workspace-usage.service.ts: evidence.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: report.aggregate — no tenant or self predicate",
         "services/api/src/services/workspace-usage.service.ts: verificationPackage.aggregate — no tenant or self predicate",
-        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findMany — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate",
-        "packages/shared-runtime/src/billing/commercial-lifecycle.ts: subscription.findFirst — no tenant or self predicate"
+        "services/api/src/services/workspace-usage.service.ts: evidence.count — no tenant or self predicate"
       ],
       "tenantIdSource": "MEMBERSHIP_LOOKUP",
       "organizationLifecycleRequirement": "NOT_APPLICABLE",
@@ -161518,6 +161955,7 @@
         "organization",
         "organizationDomain",
         "organizationMembership",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -161601,6 +162039,7 @@
         "organization",
         "organizationDomain",
         "organizationMembership",
+        "planGrant",
         "report",
         "riskSignal",
         "stepUpChallenge",
@@ -161837,7 +162276,6 @@
         "collaborationTeamInvite",
         "collaborationTeamMember",
         "enterpriseContract",
-        "entitlement",
         "evidence",
         "organization",
         "organizationInvite",
@@ -167402,6 +167840,7 @@
         "evidencePartDerivedAsset",
         "mfaFactor",
         "organization",
+        "planGrant",
         "report",
         "riskSignal",
         "stepUpChallenge",
@@ -167482,6 +167921,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "securityEvent",
         "subscription",
@@ -168285,6 +168725,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -168582,6 +169023,7 @@
         "evidence",
         "evidencePartDerivedAsset",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -168892,6 +169334,7 @@
         "evidencePartDerivedAsset",
         "organization",
         "organizationMembership",
+        "planGrant",
         "report",
         "subscription",
         "team",
@@ -170546,6 +170989,7 @@
         "evidencePartDerivedAsset",
         "evidenceWorkflowTemplate",
         "organization",
+        "planGrant",
         "report",
         "revokedSession",
         "subscription",
@@ -171439,6 +171883,7 @@
         "organizationDomain",
         "organizationMembership",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "scimGroup",
         "scimProvisioningToken",
@@ -171517,6 +171962,7 @@
         "organization",
         "organizationDomain",
         "organizationMembership",
+        "planGrant",
         "report",
         "scimProvisioningToken",
         "ssoConnection",
@@ -171809,6 +172255,7 @@
         "mfaFactor",
         "organization",
         "organizationSecurityPolicy",
+        "planGrant",
         "report",
         "riskSignal",
         "stepUpChallenge",

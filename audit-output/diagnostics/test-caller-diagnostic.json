@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "9c8fdb06bc90c7e69d4ed61019567c34ac63e1916513db6def9557edc89a0bda",
-  "capabilityRouteInventoryHash": "15186f4ee595ad42bfc266df1155fb7e87b1f9741d0e45881a7d33bd79267ff2",
+  "capabilityRouteInventoryHash": "6913cadb4ce6adcbd39fedf3cf40d6d31b0595c1b84e71b2a3b38108a4fe49e6",
   "totals": {
-    "routes": 1177,
+    "routes": 1180,
     "routesWithAnyTestCaller": 41,
     "testOnlyRoutes": 3,
     "testCallSites": 71,
@@ -354,6 +354,12 @@
     },
     {
       "routeId": "GET /v1/admin/billing/detail",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/admin/billing/internal-plan-grants",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -3684,6 +3690,18 @@
     },
     {
       "routeId": "POST /v1/admin/billing/evidence-credits",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/billing/internal-plan-grants",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "POST /v1/admin/billing/internal-plan-grants/revoke",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7163,5 +7181,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "11694f4110c904a25b79bf4a61c483af964b2180186624da83d6f26eebe7ea8b"
+  "contentHash": "469ab5c40b908da496f788c77a8dbbd46dbdaa6fc6d7fb24223f987dbe6c0dd3"
 }

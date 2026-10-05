@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,20 +21,20 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 539cfffb1b5043c5d2842a155f532817135021f2ab58b103c843ff61e95ce46f |
+| engineHash    | 3d9ddd20cbad9df8cfe60d42760a9595d82e8d87cc1e9105c32fad65c624f5b3 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1177  |
+| registeredRoutes              | 1180  |
 | developmentOnlyRoutes         | 1     |
 | productConsumerRoutes         | 975   |
 | machineOnlyConsumerRoutes     | 6     |
-| noConsumerRoutes              | 196   |
+| noConsumerRoutes              | 199   |
 | dispositionedNonProductRoutes | 201   |
-| undisposedRoutes              | 0     |
+| undisposedRoutes              | 3     |
 | authorizationUnresolved       | 0     |
 | publicUnguardedRoutes         | 33    |
 
@@ -204,4 +204,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-_(none)_
+- CHECKPOINT: 6 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1176, facts say 1179 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1177, facts say 1180 | SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 3 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1322, facts say 1325 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1182, facts say 1185
+- ArchitectureBacklog: UndisposedRoutes = 3 — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)
