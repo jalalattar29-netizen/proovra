@@ -44,6 +44,7 @@
  */
 
 import { prisma } from "../db.js";
+import { classifyStorageProtection } from "@proovra/shared";
 
 type Args = {
   evidenceId: string | null;
@@ -110,6 +111,10 @@ async function probeEvidence(evidenceId: string): Promise<ProbeResult[]> {
       tsaHashAlgorithm: true,
       tsaStatus: true,
       tsaFailureReason: true,
+      tsaFailureCode: true,
+      tsaValidatedAtUtc: true,
+      storageVersionId: true,
+      storageObjectLockLegalHoldStatus: true,
       otsStatus: true,
       otsHash: true,
       otsProofBase64: true,
@@ -135,14 +140,27 @@ async function probeEvidence(evidenceId: string): Promise<ProbeResult[]> {
     probes.push(fail("signature_present", "signatureBase64 / signingKeyId / fingerprintHash missing — KMS forward step did not complete"));
   }
 
-  // Object Lock
-  if (evidence.storageObjectLockMode && evidence.storageObjectLockRetainUntilUtc) {
-    probes.push(ok("object_lock_applied", `mode=${evidence.storageObjectLockMode} until=${evidence.storageObjectLockRetainUntilUtc.toISOString()}`));
-  } else if (evidence.storageBucket && evidence.storageKey) {
-    probes.push(fail("object_lock_applied", "object stored but Object Lock mode/retainUntil is null — confirm bucket policy"));
-  } else {
+  // Object Lock — the SAME classification the product shows (as RECORDED at
+  // sealing; this tool makes no S3 call).
+  if (!evidence.storageBucket || !evidence.storageKey) {
     probes.push(fail("object_lock_applied", "no storage location persisted on the evidence row"));
+  } else {
+    const protection = classifyStorageProtection({
+      mode: evidence.storageObjectLockMode,
+      retainUntil: evidence.storageObjectLockRetainUntilUtc,
+      legalHold: evidence.storageObjectLockLegalHoldStatus,
+    });
+    const detail = `${protection} — mode=${evidence.storageObjectLockMode ?? "none"} until=${
+      evidence.storageObjectLockRetainUntilUtc?.toISOString() ?? "none"
+    } legalHold=${evidence.storageObjectLockLegalHoldStatus ?? "none"}`;
+    probes.push(protection === "PROTECTED" ? ok("object_lock_applied", detail) : fail("object_lock_applied", detail));
   }
+  probes.push(
+    ok(
+      "storage_version_recorded",
+      evidence.storageVersionId ? "object version id recorded" : "no object version id (bucket not versioned at sealing, or legacy row)",
+    ),
+  );
 
   // ---------------------------------------------------------------------
   // 2. Custody chain
@@ -206,10 +224,23 @@ async function probeEvidence(evidenceId: string): Promise<ProbeResult[]> {
     } else {
       probes.push(ok("tsa_truth_failed_has_reason", evidence.tsaFailureReason.slice(0, 120)));
     }
-    if (evidence.tsaInputDigestHex !== null) {
-      probes.push(fail("tsa_truthful_semantics", "FAILED row has non-null tsaInputDigestHex — Issue #8 truthful semantics violated"));
+    // Evidence-output incident (2026-10-05): this probe was stale. Finalize
+    // records the digest that was SENT whenever a request was made (ET-TSA:
+    // tsaInputDigestHex = requestDigestHex), FAILED or not — it is null only
+    // when the TSA never ran. Every current FAILED row tripped the old check.
+    probes.push(
+      ok(
+        "tsa_request_recorded",
+        evidence.tsaInputDigestHex
+          ? `request digest recorded (${evidence.tsaInputKind ?? "kind unknown"})`
+          : "no request digest recorded (row predates request-digest recording)",
+      ),
+    );
+    probes.push(ok("tsa_failure_code", evidence.tsaFailureCode ?? "none recorded"));
+    if (evidence.tsaValidatedAtUtc) {
+      probes.push(fail("tsa_failed_not_validated", "FAILED row carries tsaValidatedAtUtc — a failure must never read as validated"));
     } else {
-      probes.push(ok("tsa_truthful_semantics", "FAILED row correctly has NULL tsaInputDigestHex"));
+      probes.push(ok("tsa_failed_not_validated", "not presented as validated"));
     }
     if (evidence.tsaTokenBase64 && evidence.tsaTokenBase64.length > 0) {
       probes.push(ok("tsa_token_preserved", `${evidence.tsaTokenBase64.length} base64 chars (repair script can re-parse)`));

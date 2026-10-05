@@ -101,12 +101,18 @@ describe("Phase IA-forward-path — smoke-evidence-forward-path safety contract"
     }
   });
 
-  it("enforces FAILED-row truthful semantics: tsaInputDigestHex must be NULL", () => {
-    // Truthful semantics (Issue #8): a FAILED row should NEVER carry an
-    // accepted-input digest because the provider did not accept anything.
-    expect(SCRIPT).toMatch(
-      /tsaInputDigestHex !== null[\s\S]{0,200}truthful semantics violated/,
-    );
+  it("FAILED-row truth matches what finalize writes: a recorded request digest is not a violation, a validated failure is", () => {
+    // Evidence-output incident (2026-10-05): finalize records the digest that
+    // was SENT whenever a request was made (evidence-complete.service:
+    // tsaInputDigestHex = requestDigestHex), FAILED included; Issue #8's NULL
+    // applies only when the TSA never ran. The old probe failed every current
+    // FAILED row — the diagnostic contradicted the writer it diagnoses.
+    expect(SCRIPT).not.toMatch(/truthful semantics violated/);
+    expect(SCRIPT).toMatch(/"tsa_request_recorded"/);
+    // A failure must never read as validated.
+    expect(SCRIPT).toMatch(/tsaValidatedAtUtc[\s\S]{0,120}fail\("tsa_failed_not_validated"/);
+    // …and the bounded code is printed beside the reason.
+    expect(SCRIPT).toMatch(/"tsa_failure_code"/);
   });
 
   it("recognises the ANCHOR_MATERIAL_RECOVERED legitimate intermediate state", () => {
