@@ -229,6 +229,27 @@ vi.mock("../../../worker/src/storage.js", async (importOriginal) => {
   };
 });
 
+/**
+ * The API's storage, for the recovery CLI's `status` (a HEAD of each stored
+ * output). The same in-process store the worker double writes — never ambient
+ * S3.
+ */
+vi.mock("../../src/storage.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/storage.js")>();
+  return {
+    ...actual,
+    headObject: async (p: { bucket: string; key: string }) => {
+      const o = storage.objects.get(storage.at(p.bucket, p.key));
+      if (!o) {
+        const err = new Error(`NoSuchKey: ${p.key}`) as Error & { name: string };
+        err.name = "NoSuchKey";
+        throw err;
+      }
+      return { sizeBytes: o.body.length, contentType: o.contentType, metadata: o.metadata } as never;
+    },
+  };
+});
+
 const FIXTURE_SIGNING_KEY_ID = "recovery-fixture-key";
 const sha256Hex = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
@@ -1221,4 +1242,109 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(note).toMatch(/cannot currently be read from storage/);
     expect(note).not.toMatch(/retries were exhausted/);
   });
+
+  // -------------------------------------------------------------------------
+  // EVIDENCE-OUTPUT INCIDENT (2026-10-05) — FREE skip → internal TEAM grant →
+  // the recovery command → exactly one report + one package, replay-safe.
+  // -------------------------------------------------------------------------
+  it("a record finalized while FREE is recovered after an internal TEAM grant: one report, one package, no duplicate on replay", async () => {
+    const { recoverEvidenceOutputs, evidenceOutputStatus } = await import("../../src/scripts/recover-evidence-outputs.js");
+    const { applyInternalPlanGrant } = await import("../../src/services/billing/internal-plan-grant.service.js");
+
+    // A Personal-workspace FREE account, as in the incident.
+    const tag = randomUUID().slice(0, 8);
+    const user = await prisma.user.create({
+      data: { email: `free-${tag}@example.test`, provider: "EMAIL", providerUserId: `free-${tag}` } as never,
+      select: { id: true },
+    });
+    const org = await prisma.organization.create({ data: { name: `Personal ${tag}` } as never, select: { id: true } });
+    const team = await prisma.team.create({
+      data: { name: `Personal ${tag}`, ownerUserId: user.id, organizationId: org.id, workspaceKind: "PERSONAL", isPersonal: true } as never,
+      select: { id: true },
+    });
+    await prisma.teamMember.create({ data: { teamId: team.id, userId: user.id, role: "OWNER" } as never }).catch(() => undefined);
+    await prisma.entitlement.create({ data: { userId: user.id, plan: "FREE", active: true } });
+
+    // SIGNED with its original stored — what finalization left behind.
+    const body = Buffer.from(`incident original ${tag}\n`);
+    const ev = await prisma.evidence.create({
+      data: { title: "Incident fixture", type: "PHOTO", status: "CREATED", teamId: team.id, organizationId: org.id, ownerUserId: user.id },
+      select: { id: true },
+    });
+    createdEvidence.push(ev.id);
+    const storageKey = `evidence/${ev.id}/original.txt`;
+    const { putObjectBuffer } = await import("../../../worker/src/storage.js");
+    await putObjectBuffer({ bucket: process.env.S3_BUCKET!, key: storageKey, body, contentType: "text/plain" });
+    await prisma.evidence.update({
+      where: { id: ev.id },
+      data: {
+        status: "SIGNED",
+        signedAtUtc: new Date(),
+        signatureBase64: "ZmFrZS1zaWduYXR1cmUtZm9yLXJlY292ZXJ5",
+        signingKeyId: FIXTURE_SIGNING_KEY_ID,
+        signingKeyVersion: 1,
+        fingerprintHash: "8".repeat(64),
+        fingerprintCanonicalJson: JSON.stringify({ incident: ev.id }),
+        storageBucket: process.env.S3_BUCKET!,
+        storageKey,
+        mimeType: "text/plain",
+        sizeBytes: BigInt(body.length),
+        fileSha256: sha256Hex(body),
+      },
+    });
+    const requestsFor = () => prisma.reportGenerationRequest.findMany({ where: { evidenceId: ev.id }, select: { id: true, purpose: true } });
+
+    // 1. FREE: recovery is refused as not entitled, and nothing is queued.
+    const free = await recoverEvidenceOutputs({ evidenceId: ev.id, apply: true });
+    expect(free.summary).toMatchObject({ notEntitled: 1, requested: 0 });
+    expect(await requestsFor()).toEqual([]);
+
+    // 2. The internal TEAM grant (the canonical service, never SQL).
+    const grant = await applyInternalPlanGrant({
+      userId: user.id,
+      plan: "TEAM",
+      reason: "Owner-authorized PROOVRA end-to-end product testing",
+      idempotencyKey: `owner-test:free-${tag}@example.test:team:2026-10`,
+      expiresAtUtc: new Date(Date.now() + 90 * 86_400_000),
+      actorUserId: randomUUID(),
+    });
+    expect(grant.created).toBe(true);
+
+    // 3. Dry-run decides without writing; apply writes exactly ONE request.
+    expect((await recoverEvidenceOutputs({ evidenceId: ev.id })).summary).toMatchObject({ wouldRequest: 1, requested: 0 });
+    expect(await requestsFor()).toEqual([]);
+    const applied = await recoverEvidenceOutputs({ evidenceId: ev.id, apply: true });
+    expect(applied.summary).toMatchObject({ requested: 1, refused: 0 });
+    const [req] = await requestsFor();
+    expect(req.purpose).toBe("first_issuance");
+    // A second apply before the worker ran collapses onto the same request.
+    const again = await recoverEvidenceOutputs({ evidenceId: ev.id, apply: true });
+    expect(again.summary.requested).toBe(0);
+    expect(await requestsFor()).toHaveLength(1);
+
+    // 4. The real processor: report + REPORTED, then the package for THAT version.
+    expect(await run(req.id)).toBeNull();
+    const done = await state(ev.id, req.id);
+    expect(done.req?.state).toBe("SUCCEEDED");
+    expect(done.reports.map((r) => r.version)).toEqual([1]);
+    expect(done.packages.map((p) => [p.version, p.reportVersion])).toEqual([[1, 1]]);
+    const evAfter = await prisma.evidence.findUniqueOrThrow({ where: { id: ev.id }, select: { status: true } });
+    expect(evAfter.status).toBe("REPORTED");
+    // Both objects are durable, and the package carries the exact stored report.
+    const reportBytes = stored(done.reports[0].storageBucket, done.reports[0].storageKey);
+    expect(reportBytes).toBeTruthy();
+    expect(packageReportBytes(done.packages[0], 1).equals(reportBytes!)).toBe(true);
+    expect(done.packages[0].reportSha256).toBe(sha256Hex(reportBytes!));
+
+    // 5. Replay: nothing to recover, no new request, report or package.
+    const replay = await recoverEvidenceOutputs({ evidenceId: ev.id, apply: true });
+    expect(replay.summary).toMatchObject({ notApplicable: 1, requested: 0 });
+    expect(await requestsFor()).toHaveLength(1);
+    const after = await state(ev.id);
+    expect(after.reports).toHaveLength(1);
+    expect(after.packages).toHaveLength(1);
+
+    // 6. The status command proves completeness (both objects exist).
+    expect(await evidenceOutputStatus({ evidenceId: ev.id, expectComplete: true })).toBe(0);
+  }, 180_000);
 });

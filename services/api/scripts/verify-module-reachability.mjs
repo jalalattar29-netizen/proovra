@@ -118,6 +118,9 @@ const ENTRYPOINTS = Object.freeze({
     // …and its READ-ONLY Production rollout checks: readiness, schema
     // verification, subject snapshots (pnpm --filter proovra-api ops:internal-grant-rollout).
     "services/api/src/scripts/internal-grant-rollout.ts",
+    // EVIDENCE OUTPUT RECOVERY — first issuance / package recovery through the
+    // canonical report authority (pnpm --filter proovra-api ops:recover-evidence-outputs).
+    "services/api/src/scripts/recover-evidence-outputs.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     "services/worker/src/scripts/diagnose-ots-evidence.ts",

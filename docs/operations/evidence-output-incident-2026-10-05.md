@@ -118,43 +118,25 @@ it. The record is simply private (every record finalizes `NOT_PUBLISHED`). Fixed
   (documented design). It is truthful while eligibility is computed from the current plan; revisit if
   that changes.
 
-## 4. Owner actions (Production — none performed by the investigation)
+## 4. Remediation shipped (2026-10-05, second pass)
 
-1. **TSA trust** (API only; the worker never validates):
-   * place the TSA authority's CA chain — PEM certificates only, no key — at
-     `/opt/proovra/app/secrets/tsa/trust-bundle.pem` on the host (directory `0750`, file `0640`);
-   * in `/opt/proovra/app/.env`: `TSA_TRUST_ANCHOR_SHA256=<sha256 of the anchor certificate, hex>`
-     and `TSA_ACCEPTED_POLICY_OIDS=<the authority's policy OID(s), comma-separated>` (production
-     requires both);
-   * non-secret check on the host: `openssl x509 -in /opt/proovra/app/secrets/tsa/trust-bundle.pem -noout -subject -issuer -dates -fingerprint -sha256`;
-   * deploy this branch's main SHA with `scripts/deploy-prod-pull.sh` (it recreates the API with the
-     mount, waits for `/readyz`); then `curl -s http://127.0.0.1:8080/readyz` must be 200.
-2. Optional: set `ANCHOR_PROVIDER` only if an external anchor is really used — it no longer affects
-   Public Verify.
+* **TSA contract** (`docs/operations/tsa-trust-configuration.md`): only the
+  official trust bundle is required; `TSA_TRUST_ANCHOR_SHA256` (pin over the
+  bundle's roots) and `TSA_ACCEPTED_POLICY_OIDS` (allowlist) are optional and
+  enforced when set; `/readyz` names the exact issue in `issues`.
+* **`scripts/install-tsa-trust-bundle.sh`** installs exactly GLOBALTRUST 2015
+  (root, `416b1f9e…b3cc`) + GLOBALTRUST 2015 QUALIFIED TIMESTAMP 1
+  (`94552234…3fc9`) from globaltrust.eu, verified by fingerprint and chain.
+* **Kept-token validation** (`repair-tsa-failed-with-token`) preserves the
+  recorded serial / genTime / imprint and refuses a token that contradicts them.
+* **`ops:recover-evidence-outputs`** (`status` / `recover`): first issuance and
+  package recovery through the canonical report authority; proven end to end
+  against the real worker processor (FREE skip → grant → one report + one
+  package → replay creates nothing).
 
-## 5. Read-only diagnosis of this record (owner, inside the API container)
+## 5. Owner procedure
 
-```bash
-C="docker compose -f infra/docker/docker-compose.prod.yml exec -T proovra-api node"
-E=c30b0572-96d8-44fb-80d0-94f4520b8980
-$C dist/scripts/smoke-evidence-forward-path.js --evidence-id $E --json      # status, signature, lock class, TSA code, OTS, report versions
-$C dist/scripts/internal-grant-rollout.js snapshot --email=reem.ammar@hotmail.com   # provider plan, grant, effective plan (same resolver as API/worker)
-$C dist/scripts/internal-grant-rollout.js verify-schema                      # migrations applied, plan_grants present
-$C dist/scripts/repair-tsa-failed-with-token.js --evidence-id $E            # DRY RUN: would the kept reply validate? (after §4.1)
-docker compose -f infra/docker/docker-compose.prod.yml logs --since 72h proovra-api proovra-worker 2>&1 | grep "$E" | head -50
-```
-
-## 6. Recovery of this record (after §4 and the deploy) — safe, no bytes rewritten
-
-1. TSA: dry-run the kept-reply validation (§5). If `VALIDATED`, run it again with `--apply`
-   (compare-and-set FAILED → STAMPED from the ORIGINAL reply and imprint; the authority is not
-   contacted; appends `TIMESTAMP_APPLIED`). If `NOT-VALIDATED`, the printed code is the real
-   remaining cause; the record stays truthfully FAILED.
-2. Activate the grant (rollout runbook §6–7). The record then shows **First issuance pending**.
-3. Press **Generate** on the record (or `POST /v1/evidence/:id/reports/regenerate` as an operator
-   with `evidence.generate_report`): one request row, idempotency-keyed; the worker commits the
-   report + `REPORTED` in one transaction, then the package at the same version. Do it AFTER step 1
-   so the report states the validated timestamp.
-4. Storage: read the `object_lock_applied` class from §5. `PROTECTED` → nothing to do (the alert
-   is gone with the fix). `NOT_APPLIED` → the object carries no retention; applying retention to the
-   existing version is a separate owner decision (it does not rewrite bytes) and no tool here does it.
+The exact, ordered copy-paste commands: [reem-team-grant-tsa-output-procedure.md](reem-team-grant-tsa-output-procedure.md)
+(trust bundle → compose render → schema → deploy with `/readyz == 200` → grant with
+before/after snapshots and replay → kept-timestamp validation → output recovery → proof →
+rollback). Nothing in it deletes evidence, reports or packages.
