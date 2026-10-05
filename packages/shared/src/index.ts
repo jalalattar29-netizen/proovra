@@ -320,6 +320,12 @@ export {
   OUTPUT_OPERATIONS,
   resolveEvidenceOutputActions,
   outputBlockingRestriction,
+  // TERMINAL-LOCKOUT CLOSURE (RGA-07) — the shared technical-terminal predicate
+  // and the bounded supersession ceiling, consulted by both the offer and the
+  // request writer so a dead TECHNICAL terminal cannot permanently lock a
+  // customer out of an updated report.
+  isTechnicalTerminalReason,
+  MAX_TERMINAL_SUPERSESSIONS,
 } from "./evidence-output-lifecycle.js";
 // The words for those actions — one table for web, PWA and native.
 export {

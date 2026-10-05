@@ -325,6 +325,39 @@ export function classifyTerminalReason(
   return "TECHNICAL";
 }
 
+/**
+ * A terminal request a later LEGITIMATE operation may supersede without an
+ * operator — but only a TECHNICAL one. A pipeline that exhausted its retries is
+ * the single failure class that "try again" can still resolve; INTEGRITY, POLICY
+ * and COMMERCIAL terminals are resolved by fixing the record, the policy or the
+ * plan, never by a fresh attempt, so they are NEVER customer-superseded here.
+ *
+ * TERMINAL-LOCKOUT CLOSURE (RGA-07): a customer updated-report (NEW_VERSION)
+ * request computes the same `REPORT:<id>:v<N>:force` idempotency key as an
+ * earlier attempt at the same baseline. When that earlier attempt is a dead
+ * TECHNICAL `FAILED_TERMINAL`, every later confirm used to collapse onto it and
+ * enqueue nothing — a permanent customer lockout. This predicate is the shared
+ * authority that both the offer (whether to OFFER the updated report) and the
+ * writer (whether to START a fresh request identity) consult, so they cannot
+ * disagree about what may be superseded.
+ */
+export function isTechnicalTerminalReason(
+  terminalReasonCode: string | null | undefined,
+): boolean {
+  return classifyTerminalReason(terminalReasonCode) === "TECHNICAL";
+}
+
+/**
+ * The bounded number of times a TECHNICAL terminal at one baseline may be
+ * superseded before the record is handed to an operator. A dead attempt is
+ * audit history, not a retry budget; without a ceiling a scripted client could
+ * grow the supersession chain without end. Deliberately generous — a person
+ * re-issuing an updated report will never approach it — and deliberately small
+ * enough that a genuinely broken record becomes an operator matter instead of an
+ * infinite customer loop. The writer enforces it against the chain HEAD ordinal.
+ */
+export const MAX_TERMINAL_SUPERSESSIONS = 5;
+
 // ===========================================================================
 // AXIS 3 — ARTIFACT AVAILABILITY
 // ===========================================================================
@@ -1239,7 +1272,19 @@ export function resolveEvidenceOutputActions(
     }
     if (f.reportRequest?.afterLatestReport) {
       const failed = failedRequestDecision(f.reportRequest, f.reportEligibility === "ELIGIBLE");
-      if (failed) return no(failed.reason ?? "RETRY_AVAILABLE");
+      if (failed) {
+        // TERMINAL-LOCKOUT CLOSURE (RGA-07). A SETTLED TECHNICAL terminal from an
+        // earlier updated-report attempt at this baseline no longer withholds the
+        // action: the writer starts a fresh request identity beside it, once, up
+        // to MAX_TERMINAL_SUPERSESSIONS (the writer is the authority on the
+        // budget). A still-retryable failure (RETRY the existing attempt first),
+        // or an INTEGRITY/POLICY/COMMERCIAL terminal (never resolved by trying
+        // again), still withdraws the action with its own reason.
+        const customerSupersedeable =
+          f.reportRequest.state === "FAILED_TERMINAL" &&
+          isTechnicalTerminalReason(f.reportRequest.terminalReasonCode);
+        if (!customerSupersedeable) return no(failed.reason ?? "RETRY_AVAILABLE");
+      }
     }
     if (!pairComplete) return no("PAIR_INCOMPLETE");
     if (f.reportEligibility === "UNRESOLVED") return no("ENTITLEMENT_UNAVAILABLE");

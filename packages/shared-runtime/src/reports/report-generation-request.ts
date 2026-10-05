@@ -33,6 +33,10 @@ import {
   // projection must not each hold their own list.
   isRecoverableBlockedTerminalReason,
   classifyTerminalReason,
+  // TERMINAL-LOCKOUT CLOSURE (RGA-07) — the shared ceiling on how many times a
+  // TECHNICAL terminal at one baseline may be superseded before the record is an
+  // operator matter. Shared so the offer and this writer cannot disagree.
+  MAX_TERMINAL_SUPERSESSIONS,
 } from "@proovra/shared";
 import { resolveEvidenceWorkspaceId } from "../workspace-scope.js";
 
@@ -448,7 +452,18 @@ export async function createReportGenerationRequest(
     head?.state === "FAILED_TERMINAL" &&
     classifyTerminalReason(head.terminalReasonCode) === "TECHNICAL";
 
-  if (commerciallyObsolete || blockerCleared || technicalTerminalSuperseded) {
+  // TERMINAL-LOCKOUT CLOSURE (RGA-07) — bounded supersession. The chain advances
+  // from its HEAD ordinal; once it reaches MAX_TERMINAL_SUPERSESSIONS no further
+  // identity is minted and the caller collapses onto the terminal head (a typed
+  // refusal the API turns into an operator escalation). A broken record can no
+  // longer grow an unbounded supersession chain, and two concurrent callers at
+  // the same ordinal still race the unique index for exactly one winner.
+  const withinSupersessionBudget = headOrdinal < MAX_TERMINAL_SUPERSESSIONS;
+
+  if (
+    (commerciallyObsolete || blockerCleared || technicalTerminalSuperseded) &&
+    withinSupersessionBudget
+  ) {
     idempotencyKey = `${baseKey}:s${headOrdinal + 1}`.slice(0, 160);
     superseded = true;
   }

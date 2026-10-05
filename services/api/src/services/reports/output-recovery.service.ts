@@ -584,6 +584,28 @@ export async function requestOutputRecovery(input: {
     if (!prior && actions.newVersion.action !== NEW_VERSION_ACTION) {
       return { kind: "declined", outcome: "NOT_RECOVERABLE", reason: actions.newVersion.reason, loaded };
     }
+    /*
+     * TERMINAL-LOCKOUT CLOSURE (RGA-07). An authorized updated report may start a
+     * fresh request identity past a DEAD TECHNICAL terminal at this baseline,
+     * instead of silently collapsing onto it and enqueuing nothing. This is NOT
+     * blanket "force past every failure": it is gated three ways, each proven
+     * elsewhere —
+     *   1. THE FRESH OFFER. We only reach here with the offer re-derived from
+     *      live facts (loadEvidenceOutputFacts above) reporting CREATE_NEW_VERSION
+     *      (or a replay of this caller's own key). The offer withholds the action
+     *      for an INTEGRITY/POLICY/COMMERCIAL terminal, an in-flight request, a
+     *      hold, an incomplete pair, an unmet entitlement or a storage limit.
+     *   2. THE WRITER'S CLASS GATE. createReportGenerationRequest supersedes ONLY
+     *      a FAILED_TERMINAL whose reason classifies TECHNICAL, and never an
+     *      active (QUEUED/PROCESSING) head — a concurrent confirm collapses onto
+     *      the live request for exactly one v(N+1).
+     *   3. THE BOUNDED BUDGET. MAX_TERMINAL_SUPERSESSIONS caps the chain; beyond
+     *      it the writer collapses onto the terminal and the record becomes an
+     *      operator matter.
+     * The previous terminal row is never rewritten — it stays as the immutable
+     * record of the failure, and the regenerate route audits the new request id
+     * and the SUPERSEDED outcome.
+     */
     return fromRequested(
       "NEW_VERSION",
       await requestReportGeneration({
@@ -591,6 +613,7 @@ export async function requestOutputRecovery(input: {
         forceRegenerate: true,
         intent: "NEW_VERSION",
         clientRequestKey: key,
+        supersedeTechnicalTerminal: true,
       }),
     );
   }
