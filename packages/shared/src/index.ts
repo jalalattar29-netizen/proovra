@@ -2512,3 +2512,7 @@ export * from "./plan-lapse-copy.js";
 // ET-SM-08 — THE one evidence record-status label and tone (web + mobile).
 export * from "./evidence-record-status.js";
 export * from "./stored-bytes-integrity.js";
+
+// STORAGE PROTECTION — one classification for the review alert, the Integrity
+// tab and the library filter (evidence-output incident, 2026-10-05).
+export * from "./storage-protection.js";

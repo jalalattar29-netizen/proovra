@@ -75,7 +75,7 @@ const FALLBACK_MESSAGE: Record<GenerationRequestOutcome, string> = {
   QUEUE_UNAVAILABLE:
     "We could not schedule generation right now. The request is saved and will be picked up automatically; the record is unaffected.",
   NOT_INCLUDED:
-    "Reports and verification packages are not issued for this evidence record under its current plan. The original evidence remains finalized and verifiable.",
+    "Reports and verification packages are not issued for this evidence record: they are not included in this workspace's current plan. The original evidence remains finalized and verifiable.",
   ENTITLEMENT_UNAVAILABLE:
     "We could not confirm your subscription right now, so nothing was requested. Please try again shortly; the record is unaffected.",
   RECOVERABLE_BLOCKED:

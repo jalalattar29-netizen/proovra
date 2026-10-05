@@ -43,6 +43,7 @@ import type {
   VerificationPackageResponse,
   WorkspaceCapabilitySnapshot,
 } from "./lib/evidence-library-types";
+import { storageProtectionClassOf } from "./lib/evidence-library-types";
 import {
   getCaseName,
 } from "./lib/evidence-library-helpers";
@@ -647,8 +648,10 @@ function EvidenceLibraryPageInner() {
         return false;
       }
 
-      if (filters.retention === "protected" && !item.storage?.verified) return false;
-      if (filters.retention === "unprotected" && item.storage?.verified) return false;
+      // The ONE classification — not `verified`, which is provenance only.
+      const storageProtected = storageProtectionClassOf(item.storage) === "PROTECTED";
+      if (filters.retention === "protected" && !storageProtected) return false;
+      if (filters.retention === "unprotected" && storageProtected) return false;
 
       return true;
     });
@@ -771,7 +774,9 @@ function EvidenceLibraryPageInner() {
     // Page-derived (safe fallbacks for non-package values).
     const pageReviewReadyCount = visibleItems.filter((item) => Boolean(item.reviewReadyAtUtc)).length;
     const pageMultipartCount = visibleItems.filter((item) => item.itemCount > 1).length;
-    const pageProtectedCount = visibleItems.filter((item) => item.storage?.verified).length;
+    const pageProtectedCount = visibleItems.filter(
+      (item) => storageProtectionClassOf(item.storage) === "PROTECTED",
+    ).length;
     const pageUnassignedCount = visibleItems.filter((item) => !item.caseId).length;
 
     // Card 1 — Total active records. Workspace total when available,

@@ -43,7 +43,10 @@ test("published verification url helper gates on PUBLISHED state", () => {
 
 test("public verification copy comes from canonical state mapping", () => {
   assert.match(SRC, /function describePublicVerificationState/);
-  assert.match(SRC, /Configured but not published/);
+  // Evidence-output incident (2026-10-05): "configured" came from the unrelated
+  // external-anchor provider; an unpublished record is labelled for what it is.
+  assert.match(SRC, /label: "Not published"/);
+  assert.doesNotMatch(SRC, /Configured but not published|label: "Not configured"/);
   assert.match(SRC, /Not included on plan/);
   assert.match(SRC, /Suspended/);
   assert.match(SRC, /Unpublished/);

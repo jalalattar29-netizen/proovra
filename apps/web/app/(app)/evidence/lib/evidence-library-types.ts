@@ -1,3 +1,4 @@
+import { classifyStorageProtection, type StorageProtectionClass } from "@proovra/shared";
 import type { EvidenceIntelligence } from "@proovra/shared";
 
 /**
@@ -56,8 +57,23 @@ export type StorageProtectionSummary = {
   retainUntil: string | null;
   legalHold: string | null;
   region: string | null;
+  /** Observed on the object just now — provenance, NOT protection. */
   verified: boolean;
+  source?: "RECORDED" | "OBSERVED";
+  /**
+   * The server's ONE classification (classifyStorageProtection). Optional
+   * because the web deploys before the API: read it through
+   * storageProtectionClassOf(), which classifies the raw fields when absent.
+   */
+  protection?: StorageProtectionClass;
+  readFailed?: boolean;
 } | null;
+
+/** "Is this record's stored object protected?" — never `verified`. */
+export function storageProtectionClassOf(storage: StorageProtectionSummary | undefined): StorageProtectionClass {
+  if (!storage) return "UNCONFIRMED";
+  return storage.protection ?? classifyStorageProtection(storage);
+}
 
 export type AnchorSummary = {
   mode: "off" | "ready" | "active";

@@ -92,6 +92,9 @@ import {
   OTS_FAILURE_CODE_LABELS,
   INTAKE_SUBMITTED_BY_LABEL,
   PACKAGE_FORMAT_VERSION_SEALED,
+  // Evidence-output incident (2026-10-05) — ONE storage-protection answer.
+  classifyStorageProtection,
+  type StorageProtectionClass,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -114,7 +117,7 @@ const GENERATION_OUTCOME_MESSAGE: Record<GenerationRequestOutcome, string> = {
   QUEUE_UNAVAILABLE:
     "We could not schedule generation right now. The request is saved and will be picked up automatically; the record is unaffected.",
   NOT_INCLUDED:
-    "Reports and verification packages are not issued for this evidence record under its current plan. The original evidence remains finalized and verifiable.",
+    "Reports and verification packages are not issued for this evidence record: they are not included in this workspace's current plan. The original evidence remains finalized and verifiable.",
   ENTITLEMENT_UNAVAILABLE:
     "We could not confirm the subscription right now, so nothing was requested. Please try again shortly; the record is unaffected.",
   RECOVERABLE_BLOCKED:
@@ -1167,6 +1170,14 @@ type StorageProtectionSummary = {
   source: "RECORDED" | "OBSERVED";
   /** The retain-until date has passed: the protection it described has ended. */
   expired: boolean;
+  /**
+   * THE answer to "is the stored object protected?" — classifyStorageProtection
+   * over the facts above. Every surface (review alert, Integrity tab, library
+   * filter) reads this, never `verified`, which is provenance only.
+   */
+  protection: StorageProtectionClass;
+  /** The live metadata read failed: protection is UNCONFIRMED, not absent. */
+  readFailed?: boolean;
 } | null;
 
 /** ET-PKG-06 — a lock protects only until its retain-until date. */
@@ -2009,22 +2020,22 @@ function mapIntegritySummaryText(params: {
 
 function mapStorageStatusLabel(storage: StorageProtectionSummary): string {
   if (!storage) return "Not reported";
-  if (
-    storage.immutable &&
-    String(storage.mode ?? "").toUpperCase() === "COMPLIANCE"
-  ) {
-    return "Immutable storage verified";
+  // The ONE classification decides; the label never treats provenance
+  // (`verified` = observed just now) as protection, in either direction.
+  switch (storage.protection) {
+    case "PROTECTED": {
+      const mode = String(storage.mode ?? "").toUpperCase();
+      if (mode === "COMPLIANCE") return "Immutable storage (COMPLIANCE retention)";
+      if (mode === "GOVERNANCE") return "Governance retention active";
+      return "Legal hold active";
+    }
+    case "RETENTION_EXPIRED":
+      return "Storage retention ended";
+    case "NOT_APPLIED":
+      return "Storage protection not applied";
+    case "UNCONFIRMED":
+      return "Storage protection not confirmed";
   }
-  if (
-    storage.verified &&
-    String(storage.mode ?? "").toUpperCase() === "GOVERNANCE"
-  ) {
-    return "Governance retention active";
-  }
-  if (storage.verified) {
-    return "Storage protection reported";
-  }
-  return "Storage protection unverified";
 }
 
 function mapTimestampStatusLabel(status: string | null | undefined): string {
@@ -2542,6 +2553,11 @@ async function getStorageProtectionSummary(
       region: snapshotRegion,
       verified: false,
       source: "RECORDED",
+      protection: classifyStorageProtection({
+        mode: snapshotMode,
+        retainUntil: snapshotRetainUntil,
+        legalHold: snapshotLegalHold,
+      }),
     };
   }
 
@@ -2565,6 +2581,7 @@ async function getStorageProtectionSummary(
       region: process.env.S3_REGION?.trim() || null,
       verified: Boolean(mode || retainUntil || legalHold),
       source: "OBSERVED",
+      protection: classifyStorageProtection({ mode, retainUntil, legalHold }),
     };
   } catch {
     return {
@@ -2576,6 +2593,10 @@ async function getStorageProtectionSummary(
       verified: false,
       source: "OBSERVED",
       expired: false,
+      // The read failed: nothing is known about the lock, which is not the
+      // same as knowing there is none.
+      readFailed: true,
+      protection: "UNCONFIRMED",
     };
   }
 }
@@ -2607,6 +2628,7 @@ function getStorageProtectionSummaryFromSnapshot(snapshot: {
     region,
     verified: false,
     source: "RECORDED",
+    protection: classifyStorageProtection({ mode, retainUntil, legalHold }),
   };
 }
 
@@ -4967,7 +4989,15 @@ function buildPublicVerificationSummaryBase(params: {
     };
   }
 
-  const configured = params.anchor.configured;
+  // Evidence-output incident (2026-10-05) — public verification is AVAILABLE
+  // here: the workspace includes it (the NOT_INCLUDED return above) and
+  // publishing or an opaque share link needs nothing else. This used to read
+  // `params.anchor.configured` — i.e. whether the unrelated external-anchor
+  // provider (ANCHOR_PROVIDER, not TSA, not OTS, not Public Verify) was set —
+  // so every unpublished record in a deployment without that provider was told
+  // its "public verification" was "not configured". The intelligence layer
+  // had already dropped that coupling; this projection still carried it.
+  const configured = true;
 
   switch (publicationState) {
     case "PUBLISHED":
@@ -5045,9 +5075,8 @@ function buildPublicVerificationSummaryBase(params: {
         verificationPackageDownloadCount:
           params.verificationPackageDownloadCount,
         analyticsAvailable: true,
-        disabledReason: configured
-          ? "Public verification is configured for this evidence record but has not been published."
-          : "Public verification is supported for this workspace, but no published verification record is configured for this evidence item.",
+        disabledReason:
+          "This record is private. Publish it, or create a share link, if someone outside the workspace needs to verify it.",
       };
     default:
       return {
@@ -5261,20 +5290,17 @@ function buildResolvedReviewerAlerts(params: {
           "Public verification is not included in the current workspace capability set.",
       });
       break;
+    // Evidence-output incident (2026-10-05): an unpublished record is PRIVATE —
+    // the default, not a fault — and nothing about it is "not configured".
+    // (NOT_CONFIGURED is no longer produced; a record from an older summary is
+    // worded the same truthful way.)
     case "NOT_CONFIGURED":
-      operationalAlerts.push({
-        severity: "warning" as const,
-        label: "Public verification not configured",
-        detail:
-          "Public verification is supported for this workspace, but this evidence record does not have a publishable verification surface configured.",
-      });
-      break;
     case "CONFIGURED_NOT_PUBLISHED":
       operationalAlerts.push({
-        severity: "warning" as const,
-        label: "Public verification not published",
+        severity: "info" as const,
+        label: "Not published for public verification",
         detail:
-          "Public verification is configured for this evidence record, but it has not been published yet.",
+          "This record is private. Publish it, or create a share link, if someone outside the workspace needs to verify it.",
       });
       break;
     case "SUSPENDED":
@@ -7262,18 +7288,41 @@ return {
           { verificationPackages: { none: {} } },
         ],
       };
+      // Evidence-output incident (2026-10-05) — "protected" is the ONE
+      // classification (classifyStorageProtection = PROTECTED): retention in
+      // force, or a legal hold that is ON. It used to be "any lock column is
+      // non-null", which counted expired retention and an OFF hold as
+      // protected while the record itself said "incomplete". Needs-review is
+      // its exact complement, written out NULL-safely (NOT over a nullable OR
+      // drops the NULL rows).
+      const storageNow = new Date();
       const STORAGE_PROTECTED_PREDICATE: Prisma.EvidenceWhereInput = {
         OR: [
-          { storageObjectLockMode: { not: null } },
-          { storageObjectLockRetainUntilUtc: { not: null } },
-          { storageObjectLockLegalHoldStatus: { not: null } },
+          {
+            AND: [
+              { storageObjectLockMode: { in: ["COMPLIANCE", "GOVERNANCE"] } },
+              { storageObjectLockRetainUntilUtc: { gt: storageNow } },
+            ],
+          },
+          { storageObjectLockLegalHoldStatus: "ON" },
         ],
       };
       const STORAGE_NEEDS_REVIEW_PREDICATE: Prisma.EvidenceWhereInput = {
         AND: [
-          { storageObjectLockMode: null },
-          { storageObjectLockRetainUntilUtc: null },
-          { storageObjectLockLegalHoldStatus: null },
+          {
+            OR: [
+              { storageObjectLockMode: null },
+              { storageObjectLockMode: { notIn: ["COMPLIANCE", "GOVERNANCE"] } },
+              { storageObjectLockRetainUntilUtc: null },
+              { storageObjectLockRetainUntilUtc: { lte: storageNow } },
+            ],
+          },
+          {
+            OR: [
+              { storageObjectLockLegalHoldStatus: null },
+              { storageObjectLockLegalHoldStatus: { not: "ON" } },
+            ],
+          },
         ],
       };
       const MULTIPART_PREDICATE: Prisma.EvidenceWhereInput = {

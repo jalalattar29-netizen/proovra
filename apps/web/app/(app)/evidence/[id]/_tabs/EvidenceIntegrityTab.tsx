@@ -49,7 +49,8 @@ import {
 } from "./_lib";
 import { EvidenceProvenanceChainSection } from "./EvidenceProvenanceChainSection";
 import { formatUserDateTime } from "../../../../../lib/date";
-import { storedBytesVerificationRow } from "@proovra/shared";
+import { describeStorageProtection, storedBytesVerificationRow } from "@proovra/shared";
+import { storageProtectionClassOf } from "../../lib/evidence-library-types";
 import {
   displayAcquisition,
   displaySourceType,
@@ -560,11 +561,20 @@ export function EvidenceIntegrityTab({ ctx }: { ctx: EvidenceDetailCtx }) {
               state: preservation.ots.lastUpdatedAtUtc ? "recorded" : "unavailable",
             },
             {
+              // Evidence-output incident (2026-10-05): the ONE classification.
+              // A lock recorded at sealing used to read "Not exposed in current
+              // API response" because `verified` (observed just now) was read
+              // as protection.
               label: "Storage protection",
-              value: preservation.storage?.verified
-                ? "Recorded"
-                : "Not exposed in current API response",
-              state: preservation.storage?.verified ? "recorded" : "unavailable",
+              value: describeStorageProtection(
+                preservation.storage,
+                storageProtectionClassOf(preservation.storage),
+                (iso) => formatValue(formatUserDateTime(iso)),
+              ),
+              state:
+                storageProtectionClassOf(preservation.storage) === "PROTECTED"
+                  ? "recorded"
+                  : "unavailable",
             },
             {
               label: "Report artifact",

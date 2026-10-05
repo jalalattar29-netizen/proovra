@@ -346,19 +346,16 @@ export function describePublicVerificationState(
           summary.disabledReason ||
           "Public verification is not included in the current workspace capability set.",
       };
+    // Evidence-output incident (2026-10-05): both mean "unpublished". The API
+    // derived NOT_CONFIGURED from the unrelated external-anchor provider, so
+    // the copy is written for what is true of the record either way, and the
+    // older API's disabledReason (which repeated the claim) is not echoed.
     case "NOT_CONFIGURED":
-      return {
-        label: "Not configured",
-        detail:
-          summary.disabledReason ||
-          "Public verification is supported for this workspace, but this evidence record does not have a publishable verification surface configured.",
-      };
     case "CONFIGURED_NOT_PUBLISHED":
       return {
-        label: "Configured but not published",
+        label: "Not published",
         detail:
-          summary.disabledReason ||
-          "Public verification is configured for this evidence record, but it has not been published yet.",
+          "This record is private. Publish it, or create a share link, if someone outside the workspace needs to verify it.",
       };
     case "PUBLISHED":
       return {
@@ -441,7 +438,7 @@ export const OUTPUT_STATE_COPY: Record<
   READY: { reason: () => "" },
   NOT_INCLUDED: {
     reason: (noun) =>
-      `No ${noun} has been issued for this record under its current plan. The original evidence is finalized and can be verified.`,
+      `No ${noun} has been issued for this record: reports are not included in this workspace's current plan. The original evidence is finalized and can be verified.`,
   },
   ENTITLEMENT_UNAVAILABLE: {
     reason: (noun) =>

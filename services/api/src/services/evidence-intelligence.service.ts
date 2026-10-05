@@ -9,6 +9,8 @@ import {
   OTS_ANCHOR_CLAIM_LABELS,
   resolveTsaProofStatus,
   resolveOtsAnchorClaim,
+  classifyStorageProtection,
+  storageProtectionAlert,
   type OtsAnchorClaim,
 } from "@proovra/shared";
 import type {
@@ -23,7 +25,11 @@ type EvidenceIntelligenceStorageSummary = {
   retainUntil: string | null;
   legalHold: string | null;
   region: string | null;
+  /** Observed on the object just now (provenance) — NOT "protected". */
   verified: boolean;
+  source?: "RECORDED" | "OBSERVED";
+  /** The live metadata read failed. */
+  readFailed?: boolean;
 } | null;
 
 type EvidenceIntelligenceAnchorInput = {
@@ -778,13 +784,12 @@ function buildReviewerAlerts(params: {
     });
   }
 
-  if (!params.storage?.verified) {
-    alerts.push({
-      severity: "warning",
-      label: "Storage protection incomplete",
-      detail: "Storage object lock or legal hold settings are not fully configured.",
-    });
-  }
+  // EVIDENCE-OUTPUT INCIDENT (2026-10-05) — the ONE storage-protection
+  // classification. `verified` says only that the lock was OBSERVED just now;
+  // a lock RECORDED at sealing and still in force is protection, and flagging
+  // it as "not fully configured" was the false alarm.
+  const storageAlert = storageProtectionAlert(classifyStorageProtection(params.storage));
+  if (storageAlert) alerts.push(storageAlert);
 
   if (alerts.length === 0) {
     alerts.push({

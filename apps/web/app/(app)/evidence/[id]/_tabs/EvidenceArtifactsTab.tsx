@@ -288,6 +288,27 @@ function ArtifactLifecyclePanel({
         </div>
       );
 
+    case "ENTITLEMENT_UNAVAILABLE":
+      // Evidence-output incident (2026-10-05): this state had no arm, so the
+      // panel rendered NOTHING while the header said "Checking subscription".
+      // It is neither a plan refusal nor a generation failure, and says so.
+      return (
+        <div
+          className="app-alert"
+          role="status"
+          aria-live="polite"
+          data-evidence-section="reports-entitlement-unavailable"
+          data-evidence-output-state={output.state}
+        >
+          <strong>Checking whether reports are included</strong>
+          <p>
+            The subscription could not be confirmed just now, so no report is
+            being issued yet. This is not a plan refusal and not a generation
+            failure; this page updates on its own.
+          </p>
+        </div>
+      );
+
     case "QUEUED":
       return (
         <div

@@ -494,7 +494,7 @@ export function outputStateReason(state: OutputState | null, noun: string): stri
     case "READY":
       return "";
     case "NOT_INCLUDED":
-      return `No ${noun} has been issued for this record under its current plan. The original evidence is finalized and can be verified.`;
+      return `No ${noun} has been issued for this record: reports are not included in this workspace's current plan. The original evidence is finalized and can be verified.`;
     case "ENTITLEMENT_UNAVAILABLE":
       return `We could not confirm the subscription just now, so no ${noun} is being issued. This updates automatically.`;
     case "NOT_APPLICABLE":
