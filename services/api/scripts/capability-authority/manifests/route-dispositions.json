@@ -1323,6 +1323,30 @@
       "reason": "UC-EXT-009 first-party extension sign-out — its product consumer is the PROOVRA browser extension (apps/extension), which the web+mobile consumer analyzer does not scan.",
       "evidence": "reg services/api/src/routes/extension-oauth.routes.ts:365 (POST /v1/oauth/extension/revoke), preHandler requireAuth; the handler refuses 403 not_an_extension_token unless req.user.tokenScope is the extension capture scope, and 400 no_session without a session id hash, then revokes THAT session only (revokeSession SINGLE_SESSION + authenticatedSession revokedReason EXTENSION_SIGN_OUT) for the authenticated user. Consumed by apps/extension/src/lib/api-client.ts:156 (revokeExtensionToken -> apiFetch(token, \"POST\", \"/v1/oauth/extension/revoke\", {})), called from apps/extension/src/background.ts:152 via signOut in apps/extension/src/lib/auth.ts. Exercised by services/api/test/uc1-extension-oauth-session.integration.test.ts (\"UC-EXT-009: sign-out revokes the token server-side; a copied token stops working\").",
       "reviewedAtUtc": "2026-10-01"
+    },
+    {
+      "routeId": "POST /v1/admin/billing/internal-plan-grants",
+      "disposition": "ADMIN_OPERATOR",
+      "reason": "platform-admin operator mutation (apply an internal TEAM grant); no product consumer",
+      "evidence": "reg services/api/src/routes/admin-billing.routes.ts (adminInternalPlanGrantRoutes; requirePlatformAdmin, and step-up CAPABILITY_GRANT on both mutations). INTERNAL PLAN GRANT operator surface over services/billing/internal-plan-grant.service.ts; the CLI ops:internal-plan-grant calls the same service. No apps/web|apps/mobile call site: there is deliberately no admin UI for it yet.",
+      "reviewedAtUtc": "2026-10-05",
+      "machineCallerEvidence": "reg services/api/src/routes/admin-billing.routes.ts (adminInternalPlanGrantRoutes; requirePlatformAdmin, and step-up CAPABILITY_GRANT on both mutations). INTERNAL PLAN GRANT operator surface over services/billing/internal-plan-grant.service.ts; the CLI ops:internal-plan-grant calls the same service. No apps/web|apps/mobile call site: there is deliberately no admin UI for it yet."
+    },
+    {
+      "routeId": "POST /v1/admin/billing/internal-plan-grants/revoke",
+      "disposition": "ADMIN_OPERATOR",
+      "reason": "platform-admin operator mutation (revoke an internal grant); no product consumer",
+      "evidence": "reg services/api/src/routes/admin-billing.routes.ts (adminInternalPlanGrantRoutes; requirePlatformAdmin, and step-up CAPABILITY_GRANT on both mutations). INTERNAL PLAN GRANT operator surface over services/billing/internal-plan-grant.service.ts; the CLI ops:internal-plan-grant calls the same service. No apps/web|apps/mobile call site: there is deliberately no admin UI for it yet.",
+      "reviewedAtUtc": "2026-10-05",
+      "machineCallerEvidence": "reg services/api/src/routes/admin-billing.routes.ts (adminInternalPlanGrantRoutes; requirePlatformAdmin, and step-up CAPABILITY_GRANT on both mutations). INTERNAL PLAN GRANT operator surface over services/billing/internal-plan-grant.service.ts; the CLI ops:internal-plan-grant calls the same service. No apps/web|apps/mobile call site: there is deliberately no admin UI for it yet."
+    },
+    {
+      "routeId": "GET /v1/admin/billing/internal-plan-grants",
+      "disposition": "ADMIN_OPERATOR",
+      "reason": "platform-admin operator read (an account's internal grants); no product consumer",
+      "evidence": "reg services/api/src/routes/admin-billing.routes.ts (adminInternalPlanGrantRoutes; requirePlatformAdmin, and step-up CAPABILITY_GRANT on both mutations). INTERNAL PLAN GRANT operator surface over services/billing/internal-plan-grant.service.ts; the CLI ops:internal-plan-grant calls the same service. No apps/web|apps/mobile call site: there is deliberately no admin UI for it yet.",
+      "reviewedAtUtc": "2026-10-05",
+      "machineCallerEvidence": "reg services/api/src/routes/admin-billing.routes.ts (adminInternalPlanGrantRoutes; requirePlatformAdmin, and step-up CAPABILITY_GRANT on both mutations). INTERNAL PLAN GRANT operator surface over services/billing/internal-plan-grant.service.ts; the CLI ops:internal-plan-grant calls the same service. No apps/web|apps/mobile call site: there is deliberately no admin UI for it yet."
     }
   ]
 }

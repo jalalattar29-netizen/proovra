@@ -37,8 +37,8 @@ tree nobody is still editing.
 
 ```
 ROUTES / TENANCY
-ProductionRegisteredRoutes                  1176
-RegisteredRoutes                            1177
+ProductionRegisteredRoutes                  1179
+RegisteredRoutes                            1180
 TenantBindingUnresolved                        0
 TenantUnboundInsertRoutes                      0
 OrganizationAuthorizationUnresolved            0
@@ -48,8 +48,8 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1322
-ROUTE_ATTRIBUTED_REACHABLE                  1182
+TerminalWriters                             1325
+ROUTE_ATTRIBUTED_REACHABLE                  1185
 JOB_ATTRIBUTED_REACHABLE                     127
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
@@ -75,7 +75,7 @@ MutationClosurePass                        true
 
 PRODUCT (route disposition, from the generated map)
 ProductConsumedRoutes                        975
-NonProductDispositionedRoutes                201
+NonProductDispositionedRoutes                204
 MissingProductUiReleaseRequired                0
 ConservationIdentityHolds                   true
 
@@ -763,3 +763,13 @@ node services/api/scripts/audit/index.mjs --closure-check
   test/retention-template-provenance.integration.test.ts, red on the previous code).
   ROUTE_ATTRIBUTED_REACHABLE 1183 -> 1182.
 - TerminalWriters 1324 -> 1322 (the two writers above).
+
+### 2026-10-05 — INTERNAL PLAN GRANT (routes 1177 -> 1180, writers 1322 -> 1325)
+
+- New routes `POST /v1/admin/billing/internal-plan-grants`, `POST /v1/admin/billing/internal-plan-grants/revoke`
+  and `GET /v1/admin/billing/internal-plan-grants` (admin-billing.routes.ts, requirePlatformAdmin +
+  step-up CAPABILITY_GRANT), each dispositioned ADMIN_OPERATOR: RegisteredRoutes 1177 -> 1180,
+  ProductionRegisteredRoutes 1176 -> 1179, NonProductDispositionedRoutes 201 -> 204, UndisposedRoutes 0.
+- Writers +3, all route-attributed (ROUTE_ATTRIBUTED_REACHABLE 1182 -> 1185): `planGrant.create`
+  (apply) and `planGrant.update` (revoke, and expiry closure) in internal-plan-grant.service.ts,
+  classified BILLING_SUBSCRIPTION_SEAT. The CLI (ops:internal-plan-grant) calls the same service.
