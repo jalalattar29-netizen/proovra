@@ -51,6 +51,12 @@ import { tmpdir } from "node:os";
 
 import { buildLocalFixtureEnv, describeLocalFixtureEnv } from "./local-fixture-env/index.mjs";
 import { E2E_EXTENSION_ID, E2E_OAUTH_REDIRECT } from "../apps/extension/scripts/manifest-plan.mjs";
+import {
+  classifyHarnessFailure,
+  prepareResultDirs,
+  recordBrowserRun,
+  writeResult,
+} from "../apps/extension/e2e/uc1-results.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /** Per-run directory holding each stack service log (outside the repository). */
@@ -542,7 +548,29 @@ function run(name, cmd, args, { cwd, env } = {}) {
 // ----------------------------------------------------------------------------
 // main
 // ----------------------------------------------------------------------------
+/** Browsers that already have a terminal result from THIS run. */
+const recordedBrowsers = new Set();
+
+/**
+ * The harness died before reaching some requested browsers: each of them still
+ * ends with a terminal FAILED result (phase "acceptance") carrying the bounded,
+ * sanitized cause — never a missing file that reads like a browser failure.
+ */
+function recordUnreachedBrowsers(message) {
+  for (const browser of config.browsers) {
+    if (recordedBrowsers.has(browser)) continue;
+    try {
+      writeResult(classifyHarnessFailure(browser, { exitCode: 1, error: message }));
+      recordedBrowsers.add(browser);
+    } catch {
+      /* a result that cannot be written is caught by the workflow's finalize */
+    }
+  }
+}
+
 async function main() {
+  // Stale results from an earlier run must never be read as this run's.
+  prepareResultDirs();
   assertLocalDisposable();
 
   // The worker renders the Report PDF with Puppeteer; without a browser the
@@ -697,7 +725,15 @@ async function main() {
         timeout: PROJECT_TIMEOUT_MS,
         killSignal: "SIGKILL",
       });
-      results[project] = r.status === 0 ? "PASS" : r.error ? `FAIL (${r.error.code ?? r.error.message})` : "FAIL";
+      // The terminal result is the verdict: a zero exit alone is not PASS — the
+      // project's report must also show executed > 0 and nothing unexpected.
+      const terminal = recordBrowserRun(project, {
+        exitCode: r.status,
+        error: r.error ? (r.error.code ?? r.error.message) : r.signal ? `killed by ${r.signal}` : null,
+      });
+      recordedBrowsers.add(project);
+      results[project] =
+        terminal.status === "PASSED" ? "PASS" : `FAIL (${terminal.failedPhase}: ${terminal.errorSummary ?? "no detail"})`;
     }
 
     // 6. Report.
@@ -791,6 +827,7 @@ if (invokedDirectly) {
   for (const sig of ["SIGINT", "SIGTERM", "SIGBREAK", "SIGHUP"]) {
     process.on(sig, () => {
       teardown();
+      recordUnreachedBrowsers(`interrupted by ${sig} before this browser finished`);
       process.exit(130);
     });
   }
@@ -803,6 +840,7 @@ if (invokedDirectly) {
     mainSettled = true;
     teardown();
     reportFatal("the event loop drained while the harness was still running (a pending step never settled) — refusing to report success.");
+    recordUnreachedBrowsers("the harness event loop drained before this browser ran");
     process.exit(1);
   });
 
@@ -814,7 +852,9 @@ if (invokedDirectly) {
     .catch((err) => {
       // main()'s `finally` already tore the stack down; teardown is idempotent.
       teardown();
-      reportFatal(err instanceof HarnessFatal ? err.message : err instanceof Error ? err.stack || err.message : String(err));
+      const message = err instanceof HarnessFatal ? err.message : err instanceof Error ? err.stack || err.message : String(err);
+      reportFatal(message);
+      recordUnreachedBrowsers(`harness fatal before this browser ran: ${message}`);
       process.exit(1);
     });
 }

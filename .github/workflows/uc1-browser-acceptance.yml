@@ -22,6 +22,15 @@ name: uc1-browser-acceptance
 # Each browser project must DISCOVER and RUN tests: the harness exits non-zero
 # unless every requested browser passed, and the job additionally refuses a
 # results file that reports zero executed tests.
+#
+# Every requested browser ends with ONE terminal result at the same
+# repository-root-relative path locally and here —
+# apps/extension/e2e/results/<browser>.json, owned by
+# apps/extension/e2e/uc1-results.mjs — whose status is PASSED, FAILED (with the
+# failed phase, exit code and a bounded, sanitized summary) or NOT_EXECUTED.
+# The gate runs LAST, after the results are uploaded, and fails closed on
+# anything but PASSED. `schedule` and `workflow_dispatch` take the identical
+# path: no job or step is conditioned on the triggering event.
 
 on:
   workflow_dispatch:
@@ -74,10 +83,17 @@ jobs:
         with:
           version: "10.28.2"
 
+      # The results directory exists, and is EMPTY, before anything can fail —
+      # the module has no dependencies, so this needs no install.
+      - name: Prepare UC-1 result directories
+        run: node apps/extension/e2e/uc1-results.mjs prepare
+
       - name: Install
+        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Browsers present (Chrome + Edge, recorded)
+        id: browsers
         shell: pwsh
         run: |
           $chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
@@ -93,13 +109,24 @@ jobs:
       - name: Infrastructure mode
         id: infra
         shell: pwsh
+        # A PROBE, so an unreachable Docker daemon is an answer ("native"), not a
+        # failure. The scheduled run of 2026-10-05 failed HERE in 3 seconds:
+        # `docker version` exited 1 (daemon not up on that runner), the
+        # try/catch caught nothing — a failing native command is not a
+        # PowerShell exception — and GitHub's pwsh wrapper ends every script
+        # with `exit $LASTEXITCODE`, so the step failed after writing
+        # mode=native and no browser ran. The exit code is recorded and the
+        # step exits 0 explicitly; writing the output itself can still fail it.
         run: |
           $os = ""
-          try { $os = (docker version --format '{{.Server.Os}}' 2>$null) } catch { $os = "" }
+          $probeExit = $null
+          try { $os = (docker version --format '{{.Server.Os}}' 2>$null); $probeExit = $LASTEXITCODE } catch { $os = "" }
           if ($os -eq "linux") { "mode=docker" >> $env:GITHUB_OUTPUT } else { "mode=native" >> $env:GITHUB_OUTPUT }
-          Write-Output "docker server os: '$os'"
+          Write-Output "docker server os: '$os' (docker version exit: $probeExit)"
+          exit 0
 
       - name: Native infrastructure (PostgreSQL + Redis-compatible + MinIO)
+        id: infra_native
         if: steps.infra.outputs.mode == 'native'
         shell: pwsh
         run: |
@@ -165,64 +192,88 @@ jobs:
           # started by the acceptance step itself. PostgreSQL and Memurai run
           # as Windows services and are unaffected.
 
-      - name: UC-1 acceptance — Chrome + Edge (docker infra)
-        if: steps.infra.outputs.mode == 'docker'
-        run: node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge
-
-      - name: UC-1 acceptance — Chrome + Edge (native infra)
-        if: steps.infra.outputs.mode == 'native'
-        # bash (Git Bash on the runner) so the harness's own output also lands
-        # in the JOB SUMMARY, which — unlike a step log — needs no sign-in.
+      - name: UC-1 acceptance — Chrome + Edge
+        id: acceptance
+        # ONE step for both infrastructure modes, in bash (Git Bash on the
+        # runner) so the harness's own output also lands in the JOB SUMMARY,
+        # which — unlike a step log — needs no sign-in. The harness exit code is
+        # a step output for the finalize step; the harness itself writes each
+        # browser's terminal result.
         shell: bash
+        env:
+          UC1_INFRA_MODE: ${{ steps.infra.outputs.mode }}
         run: |
           set -o pipefail
-          # The object store lives for exactly this step (see the infra step).
-          mkdir -p "$RUNNER_TEMP/minio-data"
-          MINIO_ROOT_USER=uc1miniolocal MINIO_ROOT_PASSWORD=uc1miniolocalsecret \
-            "$RUNNER_TEMP/minio.exe" server "$RUNNER_TEMP/minio-data" --address 127.0.0.1:56423 \
-            > "$RUNNER_TEMP/minio.log" 2>&1 &
-          ready=""
-          for i in $(seq 1 60); do
-            if curl -fsS --max-time 3 http://127.0.0.1:56423/minio/health/live >/dev/null 2>&1; then ready=1; echo "MinIO ready after ${i}s"; break; fi
-            sleep 1
-          done
-          [ -n "$ready" ] || { echo "::error::MinIO did not become ready: $(tail -c 800 "$RUNNER_TEMP/minio.log" | tr '\r\n' '  ')"; exit 1; }
-          # Same bucket bootstrap the harness uses for --start-infra.
-          S3_ENDPOINT=http://127.0.0.1:56423 S3_BUCKET=uc1-acceptance S3_REGION=us-east-1 \
-            S3_ACCESS_KEY=uc1miniolocal S3_SECRET_KEY=uc1miniolocalsecret \
-            pnpm --filter proovra-api exec node scripts/uc1-ensure-bucket.mjs
-          node scripts/uc1-acceptance-windows.mjs --browsers=chromium,edge \
-            --db-url=postgresql://proovra:uc1_disposable@127.0.0.1:5432/uc1_acceptance_test \
-            --redis-url=redis://127.0.0.1:6379/0 \
-            --s3-endpoint=http://127.0.0.1:56423 2>&1 | tee "$RUNNER_TEMP/uc1-harness.log"
-          rc=${PIPESTATUS[0]}
-          { echo "### UC-1 harness output (windows, tail)"; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 150; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          log="$RUNNER_TEMP/uc1-harness.log"
+          : > "$log"
+          rc=0
+          if [ "$UC1_INFRA_MODE" = "docker" ]; then
+            node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium,edge 2>&1 | tee -a "$log" || rc=$?
+          else
+            # The object store lives for exactly this step (see the infra step).
+            mkdir -p "$RUNNER_TEMP/minio-data"
+            MINIO_ROOT_USER=uc1miniolocal MINIO_ROOT_PASSWORD=uc1miniolocalsecret \
+              "$RUNNER_TEMP/minio.exe" server "$RUNNER_TEMP/minio-data" --address 127.0.0.1:56423 \
+              > "$RUNNER_TEMP/minio.log" 2>&1 &
+            ready=""
+            for i in $(seq 1 60); do
+              if curl -fsS --max-time 3 http://127.0.0.1:56423/minio/health/live >/dev/null 2>&1; then ready=1; echo "MinIO ready after ${i}s"; break; fi
+              sleep 1
+            done
+            if [ -z "$ready" ]; then
+              echo "::error::MinIO did not become ready: $(tail -c 800 "$RUNNER_TEMP/minio.log" | tr '\r\n' '  ')" | tee -a "$log"
+              rc=1
+            else
+              # Same bucket bootstrap the harness uses for --start-infra.
+              S3_ENDPOINT=http://127.0.0.1:56423 S3_BUCKET=uc1-acceptance S3_REGION=us-east-1 \
+                S3_ACCESS_KEY=uc1miniolocal S3_SECRET_KEY=uc1miniolocalsecret \
+                pnpm --filter proovra-api exec node scripts/uc1-ensure-bucket.mjs 2>&1 | tee -a "$log" || rc=$?
+              if [ "$rc" -eq 0 ]; then
+                node scripts/uc1-acceptance-windows.mjs --browsers=chromium,edge \
+                  --db-url=postgresql://proovra:uc1_disposable@127.0.0.1:5432/uc1_acceptance_test \
+                  --redis-url=redis://127.0.0.1:6379/0 \
+                  --s3-endpoint=http://127.0.0.1:56423 2>&1 | tee -a "$log" || rc=$?
+              fi
+            fi
+          fi
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          { echo "### UC-1 harness output (windows, tail)"; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' "$log" | tail -n 150; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           # Summaries and log artifacts need a signed-in viewer; annotations do
           # not. The tail travels as ONE annotation (%/CR/LF-escaped).
-          tailmsg=$(sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 60 | cut -c1-400)
+          tailmsg=$(sed -e 's/\x1b\[[0-9;]*m//g' "$log" | tail -n 60 | cut -c1-400)
           tailmsg=${tailmsg//'%'/'%25'}; tailmsg=${tailmsg//$'\r'/'%0D'}; tailmsg=${tailmsg//$'\n'/'%0A'}
           echo "::warning title=UC-1 harness output (windows, last 60 lines)::${tailmsg}"
           exit "$rc"
 
-      - name: Refuse an empty acceptance run
+      # EVERY requested browser ends with a terminal result, whatever failed:
+      # a phase that failed before the harness ran is FAILED with that phase
+      # named; a step that never ran is NOT_EXECUTED. Nothing here can write
+      # PASSED — only the harness can, from a report that executed tests.
+      - name: Finalize UC-1 browser results
         if: always()
-        shell: pwsh
-        # FAIL CLOSED, per browser. This used to look for a results.json the
-        # config never wrote, find none, warn and exit 0 — a gate that passed
-        # by construction. The config now writes results/<project>.json on
-        # GitHub Actions, and each requested browser must have one that
-        # executed at least one test.
+        shell: bash
         run: |
-          $failed = $false
-          foreach ($project in @("chromium", "edge")) {
-            $file = "apps/extension/e2e/results/$project.json"
-            if (-not (Test-Path $file)) { Write-Output "::error::no Playwright result for $project ($file)"; $failed = $true; continue }
-            $r = Get-Content $file -Raw | ConvertFrom-Json
-            $executed = $r.stats.expected + $r.stats.unexpected + $r.stats.flaky
-            Write-Output "$project playwright stats: $($r.stats | ConvertTo-Json -Compress)"
-            if ($executed -le 0) { Write-Output "::error::UC-1 acceptance executed ZERO tests on $project"; $failed = $true }
-          }
-          if ($failed) { exit 1 }
+          node apps/extension/e2e/uc1-results.mjs finalize --browsers=chromium,edge \
+            --phase=install=${{ steps.install.outcome }} \
+            --phase=browsers=${{ steps.browsers.outcome }} \
+            --phase=infra-probe=${{ steps.infra.outcome }} \
+            --phase=infra-native=${{ steps.infra_native.outcome }} \
+            --phase=acceptance=${{ steps.acceptance.outcome }} \
+            --harness-exit-code=${{ steps.acceptance.outputs.exit_code }} \
+            --harness-log="$RUNNER_TEMP/uc1-harness.log"
+
+      # The terminal results ONLY: sanitized and bounded, no raw Playwright
+      # report (that stays in .playwright-raw/, never uploaded).
+      - name: Upload UC-1 browser results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc1-results-windows-${{ github.run_id }}
+          path: |
+            apps/extension/e2e/results/chromium.json
+            apps/extension/e2e/results/edge.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload acceptance logs
         if: always()
@@ -232,11 +283,17 @@ jobs:
           path: |
             ${{ runner.temp }}/uc1-acceptance-*
             ${{ runner.temp }}/minio.log
-            apps/extension/e2e/results/
             apps/extension/test-results/
             apps/extension/playwright-report/
           if-no-files-found: warn
           retention-days: 14
+
+      # FAIL CLOSED, per browser, AFTER the results are persisted and uploaded:
+      # MISSING, FAILED and NOT_EXECUTED all fail, each named distinctly; PASSED
+      # needs executed > 0, zero unexpected and a Playwright exit of 0.
+      - name: UC-1 acceptance gate (Chrome + Edge)
+        if: always()
+        run: node apps/extension/e2e/uc1-results.mjs gate --browsers=chromium,edge
 
   linux-extension-e2e:
     runs-on: ubuntu-latest
@@ -255,22 +312,29 @@ jobs:
         with:
           version: "10.28.2"
 
+      - name: Prepare UC-1 result directories
+        run: node apps/extension/e2e/uc1-results.mjs prepare
+
       - name: Install
+        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium + xvfb
+        id: browsers
         run: |
           npx playwright install --with-deps chromium
           sudo apt-get install -y xvfb
 
       - name: UC-1 extension e2e — Chromium (headed under xvfb)
+        id: acceptance
         # The harness's own output also goes to the JOB SUMMARY (no sign-in
         # needed): this step once "passed" in 21 seconds — far too short to
         # have migrated, built and run a browser — and nothing readable said why.
         run: |
           set -o pipefail
-          xvfb-run -a node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium 2>&1 | tee "$RUNNER_TEMP/uc1-harness.log"
-          rc=${PIPESTATUS[0]}
+          rc=0
+          xvfb-run -a node scripts/uc1-acceptance-windows.mjs --start-infra --browsers=chromium 2>&1 | tee "$RUNNER_TEMP/uc1-harness.log" || rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           { echo "### UC-1 harness output (linux, tail)"; echo '```'; sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/uc1-harness.log" | tail -n 150; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           # Summaries and log artifacts need a signed-in viewer; annotations do
           # not. The tail travels as ONE annotation (%/CR/LF-escaped).
@@ -279,12 +343,24 @@ jobs:
           echo "::warning title=UC-1 harness output (linux, last 60 lines)::${tailmsg}"
           exit "$rc"
 
-      - name: Refuse an empty e2e run
+      - name: Finalize UC-1 browser results
         if: always()
         run: |
-          f=apps/extension/e2e/results/chromium.json
-          test -f "$f" || { echo "::error::no Playwright result for chromium ($f)"; exit 1; }
-          node -e 'const s=require(require("path").resolve(process.argv[1])).stats; console.log("chromium playwright stats:", JSON.stringify(s)); if (s.expected + s.unexpected + s.flaky <= 0) { console.log("::error::UC-1 e2e executed ZERO tests on chromium"); process.exit(1); }' "$f"
+          node apps/extension/e2e/uc1-results.mjs finalize --browsers=chromium \
+            --phase=install=${{ steps.install.outcome }} \
+            --phase=browsers=${{ steps.browsers.outcome }} \
+            --phase=acceptance=${{ steps.acceptance.outcome }} \
+            --harness-exit-code=${{ steps.acceptance.outputs.exit_code }} \
+            --harness-log="$RUNNER_TEMP/uc1-harness.log"
+
+      - name: Upload UC-1 browser results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uc1-results-linux-${{ github.run_id }}
+          path: apps/extension/e2e/results/chromium.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload e2e logs
         if: always()
@@ -293,8 +369,11 @@ jobs:
           name: uc1-extension-e2e-linux-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/uc1-acceptance-*
-            apps/extension/e2e/results/
             apps/extension/test-results/
             apps/extension/playwright-report/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: UC-1 e2e gate (Chromium)
+        if: always()
+        run: node apps/extension/e2e/uc1-results.mjs gate --browsers=chromium
