@@ -86,7 +86,7 @@
     }
   ],
   "counters": {
-    "AuditFilesInventoried": 420,
+    "AuditFilesInventoried": 421,
     "AuditFilesUnclassified": 0,
     "AuditArtifactProducersUnknown": 0,
     "AuditArtifactConsumersUnknown": 0,
@@ -160,7 +160,7 @@
   "byRole": {
     "PRODUCT_BEHAVIOR_TEST": 265,
     "CONTINUATION_CHECKPOINT": 1,
-    "DOMAIN_AUTHORITY": 73,
+    "DOMAIN_AUTHORITY": 74,
     "GENERATED_CURRENT_ARTIFACT": 3,
     "LEDGER_VALIDATOR_OR_GENERATOR": 1,
     "GENERATED_LEDGER_RENDERING": 2,
@@ -2991,6 +2991,21 @@
       "packageScripts": [
         "services/api/package.json:db:raw-schema-verify"
       ],
+      "ciConsumers": [],
+      "sourceOfTruthFor": [],
+      "disposition": "RETAINED"
+    },
+    {
+      "path": "services/api/scripts/runtime-schema-gate.mjs",
+      "role": "DOMAIN_AUTHORITY",
+      "reason": "Single-domain verifier or generator, orchestrated by the canonical command.",
+      "imports": [],
+      "importedBy": [],
+      "spawns": [],
+      "readsArtifacts": [],
+      "writesArtifacts": [],
+      "declaresArtifacts": [],
+      "packageScripts": [],
       "ciConsumers": [],
       "sourceOfTruthFor": [],
       "disposition": "RETAINED"
