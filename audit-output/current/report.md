@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | OPEN    | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -204,4 +204,4 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-- CHECKPOINT: 5 violation(s) — SCALAR_DISAGREES_WITH_FACTS: ProductionRegisteredRoutes: checkpoint says 1176, facts say 1179 | SCALAR_DISAGREES_WITH_FACTS: RegisteredRoutes: checkpoint says 1177, facts say 1180 | SCALAR_DISAGREES_WITH_FACTS: TerminalWriters: checkpoint says 1322, facts say 1325 | SCALAR_DISAGREES_WITH_FACTS: ROUTE_ATTRIBUTED_REACHABLE: checkpoint says 1182, facts say 1185 | SCALAR_DISAGREES_WITH_FACTS: NonProductDispositionedRoutes: checkpoint says 201, facts say 204
+_(none)_
