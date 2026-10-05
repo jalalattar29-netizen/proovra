@@ -714,7 +714,13 @@ test("FREE never reaches the paid plan-transition route", () => {
     projection,
     /const liveSubscription = subscriptionRowLive && entitledToPaidTier;/,
   );
-  assert.match(projection, /scope\.plan !== prismaPkg\.PlanType\.FREE/);
+  // INTERNAL PLAN GRANT: "is there a PAID tier" is a provider question, so it
+  // reads the provider plan (falling back to the scope plan) — a grant gives
+  // access and never manufactures a subscription to manage.
+  assert.match(
+    projection,
+    /\(scope\.providerPlan \?\? scope\.plan\) !== prismaPkg\.PlanType\.FREE/,
+  );
   // The offer verbs read the SAME fact the mode does, never a second copy.
   assert.match(projection, /hasLiveSubscription: liveSubscription/);
   // The disagreement is counted rather than silently repaired on a read path.
@@ -725,7 +731,7 @@ test("FREE never reaches the paid plan-transition route", () => {
   assert.match(transition, /resolveCommercialContext/);
   assert.match(
     transition,
-    /entitled\?\.scope\.plan === prismaPkg\.PlanType\.FREE/,
+    /\(entitled\?\.scope\.providerPlan \?\? entitled\?\.scope\.plan\) === prismaPkg\.PlanType\.FREE/,
   );
   assert.match(transition, /findLivePersonalBaseSubscription/);
   const baseResolver = readRaw(
