@@ -240,9 +240,19 @@ export async function validateTsaToken(input: {
  * the operations surface call this so a production deploy without an anchor or
  * a policy list is seen BEFORE every timestamp silently records FAILED.
  */
+/**
+ * THE one reading of TSA_ENABLED. The timestamp service and the readiness check
+ * used to read it differently ("true" only, untrimmed vs "true" or "1",
+ * trimmed), so `TSA_ENABLED=1` made /readyz report trust problems for a TSA
+ * that was not running, and ` true` did the opposite.
+ */
+export function isTsaEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = String(env.TSA_ENABLED ?? "").trim().toLowerCase();
+  return value === "true" || value === "1";
+}
+
 export async function tsaTrustConfigurationIssues(env: NodeJS.ProcessEnv = process.env): Promise<string[]> {
-  const enabled = String(env.TSA_ENABLED ?? "").trim().toLowerCase();
-  if (enabled !== "true" && enabled !== "1") return [];
+  if (!isTsaEnabled(env)) return [];
   const issues: string[] = [];
   const anchor = await resolveTrustAnchor(env);
   if (!anchor.ok) issues.push(anchor.code);

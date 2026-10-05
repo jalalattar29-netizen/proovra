@@ -90,6 +90,20 @@ services:
       AWS_SECRETS_REGION: ${AWS_SECRETS_REGION:-us-east-1}
       AWS_SECRETS_REFRESH_TTL_MS: ${AWS_SECRETS_REFRESH_TTL_MS:-3600000}
       AWS_REGION: ${AWS_REGION:-eu-north-1}
+      # RFC 3161 TRUST (evidence-output incident, 2026-10-05). The API — the
+      # only service that validates timestamp replies — had NO volume, so a
+      # TSA_TRUST_BUNDLE_PATH set in the env file named a file that could not
+      # exist in this container: every finalized record kept a granted reply
+      # it could not validate (tsa_trust_anchor_not_configured) and /readyz
+      # answered 503 tsa_trust_configuration_incomplete. ONE contract: the
+      # owner places the TSA authority's CA chain (PEM, certificates only — no
+      # key) at /opt/proovra/app/secrets/tsa/trust-bundle.pem on the host; it
+      # is mounted read-only here. The SHA-256 pin and accepted policy OIDs
+      # stay in the env file (TSA_TRUST_ANCHOR_SHA256, TSA_ACCEPTED_POLICY_OIDS).
+      TSA_TRUST_BUNDLE_PATH: /run/proovra/tsa/trust-bundle.pem
+
+    volumes:
+      - /opt/proovra/app/secrets/tsa:/run/proovra/tsa:ro
 
     ports:
       - "127.0.0.1:8080:8080"

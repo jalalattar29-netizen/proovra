@@ -198,6 +198,21 @@ export function buildTimestampCallout(
     canonicalMaterials.timestampState.tsaStatus
   );
 
+  // Evidence-output incident (2026-10-05): a FAILED status with a KEPT reply
+  // means the authority answered and PROOVRA could not validate the answer
+  // (Production: no trust anchor configured). "Could not be obtained" was
+  // false. Still a failure tone, and still never presented as a timestamp.
+  if (tone === "danger" && canonicalMaterials.timestampState.tokenPresent) {
+    const noAnchor = /trust anchor/i.test(String(failureReason ?? ""));
+    return {
+      title: "Trusted timestamp received but not validated",
+      body:
+        "A timestamp token was received from the timestamp authority, but it could not be validated, so this report does not rely on it as a trusted timestamp." +
+        (noAnchor ? " No timestamp trust anchor was configured to validate it." : ""),
+      tone,
+    };
+  }
+
   return {
     title:
       tone === "success"

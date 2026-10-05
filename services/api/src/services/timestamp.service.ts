@@ -17,6 +17,7 @@ import {
   type TsaReplyWarningCode,
 } from "./timestamp/parse-tsa-reply.js";
 import {
+  isTsaEnabled,
   validateTsaToken,
   writeCurlCredentialConfig,
   type TsaValidationFailureCode,
@@ -36,7 +37,7 @@ function optional(name: string): string | null {
 }
 
 function enabled(): boolean {
-  return (process.env.TSA_ENABLED ?? "false").toLowerCase() === "true";
+  return isTsaEnabled(process.env);
 }
 
 function timeoutMs(): number {

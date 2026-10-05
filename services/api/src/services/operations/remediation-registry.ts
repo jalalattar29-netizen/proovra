@@ -340,7 +340,13 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
       disposition: "NO_SAFE_REMEDIATION_AUTHORITY",
       unsafeReason: TSA_UNSAFE_REASON,
       guidance:
-        "This record's timestamp could not be obtained when it was finalized, and that cannot be corrected after the fact. The record remains valid evidence; its RFC3161 timestamp is simply absent. Contact support if you need the failure investigated.",
+        // Evidence-output incident (2026-10-05): the old copy said the timestamp
+        // "could not be obtained" and "cannot be corrected" for EVERY failure.
+        // When the authority answered and only validation failed (e.g. no trust
+        // anchor configured), the reply is kept and the operator CLI can validate
+        // that kept token once trust is configured — still never re-contacting
+        // the authority. Both cases are stated; neither is promised away.
+        "This record's RFC 3161 timestamp was not validated when it was finalized, so it is not presented as a trusted timestamp. The timestamp authority is never contacted again for a finalized record. If the authority's reply was kept and only its validation failed (for example, no trust anchor was configured), an operator can validate that kept reply once timestamp trust is configured. If no reply was received, a timestamp cannot be added after the fact. The record remains valid evidence either way.",
       deepLink: {
         href: "/evidence",
         label: "Open evidence record",

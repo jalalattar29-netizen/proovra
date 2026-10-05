@@ -280,7 +280,12 @@ describe("TSA safety — no provider re-contact exists", () => {
     );
     expect(projected.disposition).toBe("NO_SAFE_REMEDIATION_AUTHORITY");
     expect(projected.actions).toEqual([]);
-    expect(projected.guidance ?? "").toMatch(/cannot be corrected after the fact/i);
+    // Truthful for BOTH failure classes: never re-contacted; a kept reply can
+    // be validated once trust is configured; no reply cannot be replaced.
+    expect(projected.guidance ?? "").toMatch(/never contacted again/i);
+    expect(projected.guidance ?? "").toMatch(/validate that kept reply once timestamp trust is configured/i);
+    expect(projected.guidance ?? "").toMatch(/If no reply was received, a timestamp cannot be added after the fact/i);
+    expect(projected.guidance ?? "").not.toMatch(/could not be obtained/i);
     // The record is still reachable — the operator can see WHICH record.
     expect(projected.deepLink?.href).toBe("/evidence");
   });
