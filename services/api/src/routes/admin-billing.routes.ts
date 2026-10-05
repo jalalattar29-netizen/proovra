@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { createErrorResponse, ErrorCode } from "../errors.js";
@@ -12,6 +12,14 @@ import {
   grantEvidenceCreditsByPlatformAdmin,
   readEvidenceCreditWallet,
 } from "../services/billing/evidence-credits.service.js";
+import {
+  applyInternalPlanGrant,
+  InternalPlanGrantError,
+  listInternalPlanGrants,
+  resolveInternalGrantSubject,
+  revokeInternalPlanGrant,
+} from "../services/billing/internal-plan-grant.service.js";
+import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
 
 /**
  * Platform Control Center — Billing & Revenue (ADM-012, ADM-016, ADM-030, ADM-032).
@@ -217,6 +225,171 @@ export async function adminBillingRoutes(app: FastifyInstance) {
         balanceAfter: result.balanceAfter,
         grantRef,
       });
+    },
+  );
+}
+
+/**
+ * INTERNAL PLAN GRANT — the Platform Admin surface (apply / revoke / read).
+ *
+ *   POST /v1/admin/billing/internal-plan-grants          apply (TEAM, INTERNAL_TEST)
+ *   POST /v1/admin/billing/internal-plan-grants/revoke   revoke the active grant
+ *   GET  /v1/admin/billing/internal-plan-grants          an account's grants
+ *
+ * Both mutations require:
+ *   1. requirePlatformAdmin (preHandler) — live platform-admin state; and
+ *   2. requireStepUpForSensitiveAction, purpose CAPABILITY_GRANT — a fresh,
+ *      single-use approval in `x-proovra-step-up-challenge-id`, minted against
+ *      the workspace the operator names in `teamId` (step-up challenges are
+ *      team-bound, exactly as on /v1/admin/orgs/:id/plan).
+ *
+ * The routes carry no business logic: every decision (subject resolution,
+ * idempotency, one-active-grant, audit) is internal-plan-grant.service.ts,
+ * which the CLI (scripts/internal-plan-grant.ts) calls too.
+ *
+ * TENANT_SCOPE_EXCEPTION: platform_admin_global -- gated by
+ * requirePlatformAdmin, which IS the authorization boundary for this
+ * cross-tenant operation. The subject is a PERSONAL account, not a workspace;
+ * no workspace role carries this authority.
+ */
+
+/** Exactly one subject; the service refuses both/neither and ambiguity. */
+const Subject = {
+  userId: z.string().uuid().optional(),
+  email: z.string().trim().max(320).optional(),
+};
+
+const ApplyBody = z
+  .object({
+    teamId: z.string().uuid(),
+    ...Subject,
+    plan: z.literal("TEAM"),
+    reason: z.string().trim().min(1).max(500),
+    idempotencyKey: z.string().trim().min(8).max(120),
+    expiresAtUtc: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict();
+
+const RevokeBody = z
+  .object({
+    teamId: z.string().uuid(),
+    ...Subject,
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+const ListQuery = z.object(Subject).strict();
+
+function sendGrantError(reply: FastifyReply, err: unknown) {
+  if (err instanceof InternalPlanGrantError) {
+    return reply.code(err.statusCode).send({ error: { code: err.code, message: err.message } });
+  }
+  throw err;
+}
+
+export async function adminInternalPlanGrantRoutes(app: FastifyInstance) {
+  app.post(
+    "/v1/admin/billing/internal-plan-grants",
+    { preHandler: requirePlatformAdmin },
+    async (req, reply) => {
+      const parsed = ApplyBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: { code: "validation_error", detail: parsed.error.flatten() } });
+      }
+      const body = parsed.data;
+      const actorUserId = getAuthUserId(req);
+      // The approval is bound to the RESOLVED account, never to whatever
+      // identifier was typed: resolve (read-only, refusing ambiguity) first.
+      let subjectUserId: string;
+      try {
+        ({ userId: subjectUserId } = await resolveInternalGrantSubject({ userId: body.userId ?? null, email: body.email ?? null }));
+      } catch (err) {
+        return sendGrantError(reply, err);
+      }
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actorUserId,
+        purpose: "CAPABILITY_GRANT",
+        resourceKind: "internal_plan_grant",
+        resourceId: subjectUserId,
+      });
+      if (gate.sent) return;
+      try {
+        const result = await applyInternalPlanGrant({
+          userId: subjectUserId,
+          plan: body.plan,
+          reason: body.reason,
+          idempotencyKey: body.idempotencyKey,
+          expiresAtUtc: body.expiresAtUtc ?? null,
+          actorUserId,
+          correlationId: req.id,
+        });
+        return reply.code(result.created ? 201 : 200).send(result);
+      } catch (err) {
+        return sendGrantError(reply, err);
+      }
+    },
+  );
+
+  app.post(
+    "/v1/admin/billing/internal-plan-grants/revoke",
+    { preHandler: requirePlatformAdmin },
+    async (req, reply) => {
+      const parsed = RevokeBody.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: { code: "validation_error", detail: parsed.error.flatten() } });
+      }
+      const body = parsed.data;
+      const actorUserId = getAuthUserId(req);
+      // The approval is bound to the RESOLVED account, never to whatever
+      // identifier was typed: resolve (read-only, refusing ambiguity) first.
+      let subjectUserId: string;
+      try {
+        ({ userId: subjectUserId } = await resolveInternalGrantSubject({ userId: body.userId ?? null, email: body.email ?? null }));
+      } catch (err) {
+        return sendGrantError(reply, err);
+      }
+      const gate = await requireStepUpForSensitiveAction({
+        req,
+        reply,
+        teamId: body.teamId,
+        userId: actorUserId,
+        purpose: "CAPABILITY_GRANT",
+        resourceKind: "internal_plan_grant",
+        resourceId: subjectUserId,
+      });
+      if (gate.sent) return;
+      try {
+        const result = await revokeInternalPlanGrant({
+          userId: subjectUserId,
+          reason: body.reason,
+          actorUserId,
+          correlationId: req.id,
+        });
+        return reply.code(200).send(result);
+      } catch (err) {
+        return sendGrantError(reply, err);
+      }
+    },
+  );
+
+  app.get(
+    "/v1/admin/billing/internal-plan-grants",
+    { preHandler: requirePlatformAdmin },
+    async (req, reply) => {
+      const parsed = ListQuery.safeParse(req.query ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: { code: "validation_error", detail: parsed.error.flatten() } });
+      }
+      try {
+        return reply.code(200).send(
+          await listInternalPlanGrants({ userId: parsed.data.userId ?? null, email: parsed.data.email ?? null }),
+        );
+      } catch (err) {
+        return sendGrantError(reply, err);
+      }
     },
   );
 }

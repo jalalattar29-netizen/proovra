@@ -73,9 +73,15 @@ describe("Worker plan-resolver parity with API", () => {
     expect(WORKER_BILLING).not.toMatch(/prismaPkg\.PlanType\.PRO/);
     expect(API_BILLING).not.toMatch(/prismaPkg\.PlanType\.PRO/);
     // And both take the personal plan from the SAME place: the account's own
-    // entitlement row.
-    expect(WORKER_BILLING).toMatch(/personalPlan\s*=\s*entitlement\?\.plan\s*\?\?\s*prismaPkg\.PlanType\.FREE/);
-    expect(API_BILLING).toMatch(/personalPlan\s*=\s*entitlement\.plan/);
+    // entitlement row — combined, INTERNAL PLAN GRANT, with an active grant by
+    // the ONE shared policy and the ONE shared reader on both sides.
+    expect(WORKER_BILLING).toMatch(/providerPlan:\s*\(entitlement\?\.plan\s*\?\?\s*prismaPkg\.PlanType\.FREE\)/);
+    expect(API_BILLING).toMatch(/providerPlan:\s*entitlement\.plan/);
+    for (const src of [WORKER_BILLING, API_BILLING]) {
+      expect(src).toMatch(/resolvePersonalEffectivePlan\(\{/);
+      expect(src).toMatch(/readActiveInternalPlanGrant\(prisma,/);
+      expect(src).toMatch(/internalGrantPlan:/);
+    }
   });
 
   it("worker and API resolve the effective plan through ONE shared canonical policy (structural parity)", () => {

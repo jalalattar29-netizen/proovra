@@ -575,12 +575,18 @@ export async function buildPlatformContext(
     // which the UI billing badge falls back to when the personal-space
     // plan is null. Mismatch here causes the "FREE plan: 0 of 1 teams
     // used" badge for a user the backend correctly recognises as PRO.
-    const ent = await prisma.entitlement.findFirst({
-      where: { userId: userRow.id, active: true },
-      orderBy: { createdAt: "desc" },
-      select: { plan: true },
+    //
+    // INTERNAL PLAN GRANT — through the canonical resolver, not the raw
+    // Entitlement row: an account on an internal TEAM grant is TEAM here too,
+    // so the boot envelope (web + mobile) agrees with every gate.
+    const { resolveCommercialPlan } = await import(
+      "../billing/commercial-context.service.js"
+    );
+    const accountCommercial = await resolveCommercialPlan({
+      type: "PERSONAL_ACCOUNT",
+      userId: userRow.id,
     });
-    accountPlan = coercePlan(ent?.plan as unknown as string);
+    accountPlan = coercePlan(accountCommercial.plan as unknown as string);
   } catch {
     accountPlan = null;
   }

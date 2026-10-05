@@ -350,7 +350,7 @@ import { readBillingOverview } from "../services/billing-overview.service.js";
 // COMMERCIAL AUTHORITY (2026-09-03) — the canonical primitives, called
 // directly for the ONE subject each caller is about, instead of scanning an
 // account-wide rollup to find it.
-import { resolveCommercialContext } from "../services/billing/commercial-context.service.js";
+import { resolveCommercialContext, resolveCommercialPlan } from "../services/billing/commercial-context.service.js";
 // COMMERCIAL CLOSURE (2026-09-08) — the ONE record-aware output-eligibility
 // resolver (effective plan + this record's funding).
 import { resolveEvidenceOutputEligibility } from "../services/billing/evidence-output-eligibility.service.js";
@@ -1622,11 +1622,14 @@ function auditVerificationAction(
   }).catch(noteCustodyFailure);
 }
 
+/**
+ * The account's plan for its rate-limit tier — through the canonical resolver
+ * (INTERNAL PLAN GRANT: an internally granted TEAM gets TEAM's tier, like every
+ * other TEAM gate), never the raw Entitlement row.
+ */
 async function getUserPlan(userId: string) {
-  const entitlement = await prisma.entitlement.findFirst({
-    where: { userId, active: true },
-  });
-  return entitlement?.plan ?? PlanType.FREE;
+  const { plan } = await resolveCommercialPlan({ type: "PERSONAL_ACCOUNT", userId });
+  return (plan ?? PlanType.FREE) as typeof PlanType[keyof typeof PlanType];
 }
 
 function bigintToString(v: unknown): string | null {

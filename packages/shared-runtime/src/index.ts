@@ -58,6 +58,8 @@ export * from "./billing/export-package-meter.js";
 // EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — the ONE commercial lifecycle reader,
 // so the worker's issuance gates and the API's paid gates read the same state.
 export * from "./billing/commercial-lifecycle.js";
+// INTERNAL PLAN GRANT — the one reader of an account's active grant.
+export * from "./billing/internal-plan-grant.js";
 // PHASE 12 CORRECTIVE PASS §4 (SEC-004, 2026-08-06) — the ONE secrets
 // authority. It lived in services/api, so the Worker could not use it and the
 // two processes of one deployment could resolve secrets from different

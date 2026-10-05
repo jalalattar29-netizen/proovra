@@ -94,12 +94,12 @@
     "INDEX_NAME_CONVENTION": 271,
     "UNIQUE_DECLARATION": 5,
     "PARTIAL_INDEX_DECLARATION": 2,
-    "PARTIAL_UNIQUE_DECLARATION": 6,
+    "PARTIAL_UNIQUE_DECLARATION": 7,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 884,
+  "totalRegisteredObjects": 885,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -5555,6 +5555,21 @@
       "predicate": "active = true",
       "owningMigration": "services/api/prisma/migrations/20281001000300_entitlement_one_active/migration.sql",
       "reason": "UC-COM-004 — at most ONE active entitlement per user, enforced by the database: the backstop behind ensureEntitlement (create, then re-read the winner on a unique violation), so concurrent first requests cannot create two active wallets. PARTIAL so inactive history rows are untouched; Prisma cannot express a partial unique index."
+    },
+    {
+      "table": "plan_grants",
+      "sign": "-",
+      "object": "Removed unique index on columns (user_id, source)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "plan_grants_one_unrevoked_per_user_source",
+      "columns": [
+        "user_id",
+        "source"
+      ],
+      "unique": true,
+      "predicate": "revoked_at_utc IS NULL",
+      "owningMigration": "services/api/prisma/migrations/20281002000000_internal_plan_grants/migration.sql",
+      "reason": "INTERNAL PLAN GRANT — at most ONE unrevoked grant per account and source, enforced by the database: the backstop behind the authority's per-account advisory lock, so concurrent applies cannot leave two active grants. PARTIAL so revoked/expired history rows are untouched; Prisma cannot express a partial unique index."
     }
   ]
 }

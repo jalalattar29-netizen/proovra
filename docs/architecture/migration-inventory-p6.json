@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 314,
-    "classifiedMigrations": 314,
+    "filesystemMigrations": 315,
+    "classifiedMigrations": 315,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 314,
+    "productionSnapshotUnknown": 315,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 314,
-    "classifiedMigrations": 314,
+    "filesystemMigrations": 315,
+    "classifiedMigrations": 315,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 314,
+    "productionSnapshotUnknown": 315,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 88,
+      "EXPAND": 89,
       "BACKFILL": 25,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 101,
+      "SAFE_TO_APPLY_NOW": 102,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 314
+    "ProductionMigrationStateUnknown": 315
   },
   "gateFailures": [],
   "migrations": [
@@ -23904,8 +23904,79 @@
       "evidence": "LEGACY CAPTURE RETENTION BACKFILL (2026-10-01, UC-ARCH-002). Sets retention_until_utc = created_at + the workspace default_retention_days on non-deleted mobile / extension / Android / iOS capture records that were created with NULL because only the web route and intake applied the default. Never shortens or overrides an existing date. The retention sweeper only FLAGS expired rows for triage (never deletes; held records skipped), so a date already in the past surfaces the record to operators, which is the policy the workspace configured. WAIT_FOR_BACKFILL_READINESS (Release C): apply after a backup, once the owner accepts that previously unflagged capture records will appear as retention candidates. Idempotent (conditioned on NULL; proven by retention-backfill-direct-capture.integration.test.ts). ROLLBACK: reset to NULL for these channels where the value equals created_at + policy days. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281002000000_internal_plan_grants",
       "order": 313,
+      "sqlPresent": true,
+      "byteLength": 2949,
+      "checksumSha256": "9448d1c0662f1672a1202fcf3b68c5a995ca093e49f43652267346f00216abfa",
+      "checksumSha256Raw": "9448d1c0662f1672a1202fcf3b68c5a995ca093e49f43652267346f00216abfa",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": false,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "BACKFILL",
+      "sqlShapeEvidence": "mutates rows in pre-existing table(s): cascade",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [
+          "plan_grants"
+        ],
+        "droppedTables": [],
+        "alteredTables": [],
+        "addedColumns": [],
+        "droppedColumns": [],
+        "createdTypes": [
+          "plangrantsource"
+        ],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "plan_grants_idempotency_key_key",
+          "plan_grants_one_unrevoked_per_user_source",
+          "plan_grants_user_id_idx"
+        ],
+        "droppedIndexes": [],
+        "addedConstraints": [],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [
+        "cascade"
+      ],
+      "dataTablesMutatedPreexisting": [
+        "cascade"
+      ],
+      "dependencies": [
+        "20260204190000_add_auth_billing"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.tables WHERE table_name='plan_grants'\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "INTERNAL PLAN GRANT (2026-10-02). Adds enum PlanGrantSource and table plan_grants (TEAM-only CHECK, unique idempotency_key, partial unique index: one unrevoked grant per user/source). No existing row is read or written. WHY: provider-independent, reversible internal TEAM access resolved by the canonical effective-plan resolution (source INTERNAL_GRANT). EXPAND / SAFE_TO_APPLY_NOW; MUST be applied BEFORE the API and worker images that read plan_grants (every personal plan resolution reads it). Plain CREATE: fails loudly if the objects already exist. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 314,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

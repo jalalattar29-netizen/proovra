@@ -372,11 +372,14 @@ describe("Phase R9 — entitlement projection is user-level (PRO without org)", 
      * gated on org-tier billing columns — is unchanged and is asserted on the
      * read that survives, plus by the next test in this file.
      */
-    const matches = PLATFORM_CTX_SRC.match(
-      /entitlement\.findFirst\(\{\s*where:\s*\{\s*userId:\s*userRow\.id,\s*active:\s*true\s*\}/g,
+    //
+    // INTERNAL PLAN GRANT — the surviving ACCOUNT read is now the canonical
+    // PERSONAL_ACCOUNT resolution: still user-scoped (subject = userRow.id),
+    // with the active filter inside its loader, and no direct query left.
+    expect(PLATFORM_CTX_SRC).not.toMatch(/entitlement\.findFirst\(/);
+    expect(PLATFORM_CTX_SRC).toMatch(
+      /resolveCommercialPlan\(\{\s*type:\s*"PERSONAL_ACCOUNT",\s*userId:\s*userRow\.id,?\s*\}\)/,
     );
-    expect(matches).not.toBeNull();
-    expect(matches!.length).toBe(1);
     // The workspace plan is resolved by the canonical authority, not by a
     // second private read.
     expect(PLATFORM_CTX_SRC).toMatch(/resolveCommercialPlan\(/);
@@ -387,7 +390,10 @@ describe("Phase R9 — entitlement projection is user-level (PRO without org)", 
     // filter leaked into their where clauses.
     const re = /entitlement\.findFirst\(\{[\s\S]*?\}\)/g;
     const blocks = PLATFORM_CTX_SRC.match(re) ?? [];
-    expect(blocks.length).toBeGreaterThan(0);
+    // INTERNAL PLAN GRANT — no direct entitlement query remains in the envelope
+    // (the account plan resolves canonically); any that returns must still not
+    // filter on org-tier billing columns.
+    expect(blocks.length).toBe(0);
     for (const block of blocks) {
       expect(block).not.toMatch(/billingStatus/);
       expect(block).not.toMatch(/billingPlan/);

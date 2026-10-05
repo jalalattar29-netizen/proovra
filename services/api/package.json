@@ -62,6 +62,7 @@
     "ops:redact-leaked-intake-tokens": "tsx src/scripts/redact-leaked-intake-tokens.ts",
     "ops:twilio-message-recheck": "tsx src/scripts/twilio-message-recheck.ts",
     "ops:verify-historical-billing-attempts": "tsx src/scripts/verify-historical-billing-attempts.ts",
+    "ops:internal-plan-grant": "tsx src/scripts/internal-plan-grant.ts",
     "ops:output-reconciliation-dry-run": "tsx src/scripts/output-reconciliation-dry-run.ts",
     "ops:destruction-certificate-audit": "tsx src/scripts/destruction-certificate-audit.ts",
     "db:org-security-policy-readiness": "tsx prisma/scripts/org-security-policy-readiness.ts",

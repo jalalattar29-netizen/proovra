@@ -13,8 +13,11 @@ import {
   // PHASE 9 §9.4 — the canonical PURE commercial policy (the decisions
   // formerly made inline in this file now live in shared-billing).
   resolveWorkspaceEffectivePlan,
+  resolvePersonalEffectivePlan,
+  type EffectivePlanSource,
   type WorkspaceBillingStatus,
 } from "@proovra/shared-billing";
+import { readActiveInternalPlanGrant } from "@proovra/shared-runtime";
 import {
   NO_CONTRACT_LIMITS,
   resolveEnterpriseContractLimits,
@@ -51,6 +54,19 @@ export type WorkspaceScope = {
    */
   organizationId: string | null;
   plan: prismaPkg.PlanType;
+  /**
+   * INTERNAL PLAN GRANT — where `plan` came from (provider entitlement, an
+   * internal grant, a workspace subscription, an Enterprise contract…).
+   * Provenance for display and audit; enforcement reads `plan` only.
+   */
+  planSource?: EffectivePlanSource;
+  /**
+   * INTERNAL PLAN GRANT — the plan the PROVIDERS established, before any
+   * internal grant (equal to plan when no grant governs). Questions about the
+   * provider relationship itself — is there a paid subscription to change? —
+   * read this, never the granted plan.
+   */
+  providerPlan?: prismaPkg.PlanType;
   credits: number;
   teamSeats: number;
   storageBytesOverride: bigint | null;
@@ -193,9 +209,12 @@ export function commercialPrincipalOf(scope: {
 export async function getPersonalWorkspaceScope(
   userId: string
 ): Promise<WorkspaceScope> {
-  const [entitlement, activeStorageAddonBytes, personalTeam] =
+  const [entitlement, internalGrant, activeStorageAddonBytes, personalTeam] =
     await Promise.all([
       ensureEntitlement(userId),
+      // INTERNAL PLAN GRANT — read beside the provider entitlement, never
+      // written into it.
+      readActiveInternalPlanGrant(prisma, userId),
       getActiveWorkspaceStorageAddonBytes({
         ownerUserId: userId,
         teamId: null,
@@ -227,7 +246,14 @@ export async function getPersonalWorkspaceScope(
   // TEAM-workspace subject where that question is actually being asked. A
   // TEAM-plan account's personal space therefore resolves at TEAM — its real,
   // strictly more generous entitlement — and nothing is invented.
-  const personalPlan = entitlement.plan;
+  //
+  // INTERNAL PLAN GRANT — the personal subject's plan is the HIGHER of the
+  // provider-derived entitlement and an active internal grant (shared policy).
+  const personal = resolvePersonalEffectivePlan({
+    providerPlan: entitlement.plan as prismaPkg.PlanType,
+    internalGrantPlan: (internalGrant?.plan ?? null) as prismaPkg.PlanType | null,
+  });
+  const personalPlan = personal.plan as prismaPkg.PlanType;
 
   const scope: WorkspaceScope = {
     // ARCH-001 — a Personal Space is SINGLE_OCCUPANT by definition.
@@ -236,6 +262,8 @@ export async function getPersonalWorkspaceScope(
     teamId: null,
     organizationId: personalTeam?.organizationId ?? null,
     plan: personalPlan,
+    planSource: personal.source,
+    providerPlan: entitlement.plan as prismaPkg.PlanType,
     credits: entitlement.credits ?? 0,
     teamSeats: 0,
     storageBytesOverride: null,
@@ -295,7 +323,12 @@ export async function getTeamWorkspaceScope(
   // Personal plan (owner entitlement participates ONLY for the PERSONAL
   // workspace kind — the personal-space subject — and for the
   // legacyRecordCapOverride, which is a per-payer cap, not a plan).
-  const ownerEntitlement = await ensureEntitlement(team.ownerUserId);
+  const [ownerEntitlement, ownerInternalGrant] = await Promise.all([
+    ensureEntitlement(team.ownerUserId),
+    // INTERNAL PLAN GRANT — governs only when this Team row IS the owner's
+    // PERSONAL workspace (the policy ignores it for every other kind).
+    readActiveInternalPlanGrant(prisma, team.ownerUserId),
+  ]);
 
   const workspaceKind = resolveWorkspaceKind({
     workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
@@ -309,6 +342,7 @@ export async function getTeamWorkspaceScope(
     billingPlan: team.billingPlan as prismaPkg.PlanType,
     billingStatus: team.billingStatus as WorkspaceBillingStatus,
     ownerPlan: ownerEntitlement.plan as prismaPkg.PlanType,
+    internalGrantPlan: (ownerInternalGrant?.plan ?? null) as prismaPkg.PlanType | null,
   });
   const effectivePlan = effective.plan as prismaPkg.PlanType;
 
@@ -394,6 +428,11 @@ export async function getTeamWorkspaceScope(
     // an error rather than letting it propagate as a silent fallback.
     organizationId: team.organizationId,
     plan: effectivePlan,
+    planSource: effective.source,
+    providerPlan:
+      workspaceKind === "PERSONAL"
+        ? (ownerEntitlement.plan as prismaPkg.PlanType)
+        : effectivePlan,
     /*
      * THE WALLET FOLLOWS THE COMMERCIAL PRINCIPAL.
      *

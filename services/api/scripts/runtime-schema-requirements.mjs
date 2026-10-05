@@ -203,6 +203,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     suppliedBy: "20271227000000_billing_commercial_correctness",
   },
   {
+    id: "plan_grants.table",
+    kind: "table",
+    detail: 'table public."plan_grants" must exist',
+    requiredBy:
+      "INTERNAL PLAN GRANT — every Personal plan resolution (API workspace scopes, platform context, checkout guard, commercial lifecycle, worker scopes) reads the active internal grant from it. An image on a database without it fails those reads outright, so it must be migrated BEFORE the API and worker images that carry the reader",
+    suppliedBy: "20281002000000_internal_plan_grants",
+  },
+  {
     id: "evidence.acquisition_mode",
     kind: "column",
     detail: 'column public."evidence"."acquisition_mode" must exist',
@@ -352,6 +360,12 @@ const PROBES = Object.freeze({
        AND i.indisunique
        AND i.indnatts = 1
        AND a.attname = 'idempotency_key'
+     LIMIT 1`,
+  "plan_grants.table": `
+    SELECT 1
+      FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name = 'plan_grants'
      LIMIT 1`,
   "evidence_credit_ledger_entries.table": `
     SELECT 1

@@ -1048,6 +1048,8 @@ model User {
 
   caseAccess                        CaseAccess[]
   entitlements                      Entitlement[]
+  /// Internal (non-provider) plan grants this user holds. See PlanGrant.
+  planGrants                        PlanGrant[]
   evidenceCreditLedgerEntries       EvidenceCreditLedgerEntry[]
   // Phase 2.7X Stage 1 — User can have an OrganizationMembership in
   // any number of Organizations. Membership grants org-level
@@ -2351,6 +2353,48 @@ model Entitlement {
 
   @@index([userId])
   @@map("entitlements")
+}
+
+/// INTERNAL PLAN GRANT — provider-independent, reversible plan access for a
+/// user's Personal account (the subject of every self-service plan, TEAM
+/// included). Written ONLY by the internal-plan-grant authority
+/// (services/api/src/services/billing/internal-plan-grant.service.ts); read by
+/// the canonical effective-plan resolution, which takes the HIGHER of the
+/// provider-derived plan (Entitlement.plan) and an active, unexpired grant and
+/// reports which one governs. A grant never writes Entitlement, Subscription,
+/// credits, payments or billing attempts, and nothing provider-driven writes a
+/// grant. Revoking or expiring it returns the account to whatever the
+/// providers say — nothing is deleted.
+model PlanGrant {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  /// Only TEAM may be granted (CHECK constraint in the migration).
+  plan              PlanType
+  source            PlanGrantSource
+  reason            String          @db.VarChar(500)
+  grantedByUserId   String          @map("granted_by_user_id") @db.Uuid
+  grantedAtUtc      DateTime        @default(now()) @map("granted_at_utc") @db.Timestamptz(6)
+  /// NULL = until revoked. Past = no longer in force (the resolver ignores it).
+  expiresAtUtc      DateTime?       @map("expires_at_utc") @db.Timestamptz(6)
+  revokedAtUtc      DateTime?       @map("revoked_at_utc") @db.Timestamptz(6)
+  revokedByUserId   String?         @map("revoked_by_user_id") @db.Uuid
+  /// OPERATOR_REVOKED | EXPIRED
+  revocationReason  String?         @map("revocation_reason") @db.VarChar(64)
+  /// Caller-supplied; UNIQUE — a retried apply returns the same grant.
+  idempotencyKey    String          @unique @map("idempotency_key") @db.VarChar(120)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Plus a raw-schema partial unique index: at most ONE unrevoked grant per
+  /// (user_id, source) — see migration 20281002000000_internal_plan_grants.
+  @@index([userId])
+  @@map("plan_grants")
+}
+
+enum PlanGrantSource {
+  /// Internal testing access granted by a Platform Admin. Never commercial.
+  INTERNAL_TEST
 }
 
 /// BILLING COMMERCIAL CORRECTNESS (2026-08-27) — THE evidence-credit ledger.

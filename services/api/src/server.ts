@@ -99,7 +99,7 @@ import { workspaceOperationsRoutes } from "./routes/workspace-operations.routes.
 import { adminUsersRoutes } from "./routes/admin-users.routes.js";
 import { adminEvidenceOpsRoutes } from "./routes/admin-evidence-ops.routes.js";
 import { adminSecurityRoutes } from "./routes/admin-security.routes.js";
-import { adminBillingRoutes } from "./routes/admin-billing.routes.js";
+import { adminBillingRoutes, adminInternalPlanGrantRoutes } from "./routes/admin-billing.routes.js";
 // Phase 3 — Enterprise Identity: DNS-verified organization domain ownership.
 import { organizationDomainsRoutes } from "./routes/organization-domains.routes.js";
 // Phase A.1C — Account-level operational priorities (above-workspace surface).
@@ -1223,6 +1223,8 @@ allowedHeaders: [
   await app.register(adminEvidenceOpsRoutes);
   await app.register(adminSecurityRoutes);
   await app.register(adminBillingRoutes);
+  // INTERNAL PLAN GRANT — Platform Admin + step-up; apply / revoke / read.
+  await app.register(adminInternalPlanGrantRoutes);
   // Phase 3 — Enterprise Identity: organization domain verification write
   // surfaces (add / verify / list / remove). Enterprise-gated + step-up.
   await app.register(organizationDomainsRoutes);

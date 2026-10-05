@@ -86,6 +86,7 @@ import {
   findLivePersonalSubscription,
   resolvePersonalPlanTransition,
 } from "../services/billing/plan-transition.service.js";
+import { internalGrantCheckoutRefusal } from "../services/billing/internal-plan-grant.service.js";
 import {
   resolvePendingPayPalCheckout,
   withPendingStorageAddonCheckoutGate,
@@ -1628,6 +1629,11 @@ export async function billingRoutes(app: FastifyInstance) {
         plan: body.plan,
         teamId: body.teamId,
       });
+      // INTERNAL PLAN GRANT — buying what a grant already gives is refused
+      // before any provider object, attempt or payment row exists.
+      const grantRefusal = await internalGrantCheckoutRefusal(userId, body.plan);
+      if (grantRefusal) return reply.code(409).send(grantRefusal);
+
       // A checkout is for someone who has nothing live. Anyone who does has a
       // plan CHANGE, which goes to the provider's own subscription API.
       const duplicate = await duplicateSubscriptionRefusal(userId, body.plan);
@@ -2282,6 +2288,11 @@ export async function billingRoutes(app: FastifyInstance) {
         plan: body.plan,
         teamId: body.teamId,
       });
+      // INTERNAL PLAN GRANT — buying what a grant already gives is refused
+      // before any provider object, attempt or payment row exists.
+      const grantRefusal = await internalGrantCheckoutRefusal(userId, body.plan);
+      if (grantRefusal) return reply.code(409).send(grantRefusal);
+
       // A checkout is for someone who has nothing live. Anyone who does has a
       // plan CHANGE, which goes to the provider's own subscription API.
       const duplicate = await duplicateSubscriptionRefusal(userId, body.plan);

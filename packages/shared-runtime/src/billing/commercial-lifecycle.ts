@@ -27,6 +27,8 @@
  */
 import type { PrismaClient } from "@prisma/client";
 
+import { internalGrantCoversPlan, readActiveInternalPlanGrant } from "./internal-plan-grant.js";
+
 export const COMMERCIAL_GRACE_PERIOD_DAYS = 7;
 const GRACE_MS = COMMERCIAL_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
 
@@ -42,12 +44,35 @@ export type CommercialLifecycleReading = {
   providerStatus: "ACTIVE" | "TRIALING" | "PAST_DUE" | "CANCELED" | null;
 };
 
-type SubscriptionReader = Pick<PrismaClient, "subscription">;
+type SubscriptionReader = Pick<PrismaClient, "subscription"> & Partial<Pick<PrismaClient, "planGrant">>;
 
+/**
+ * INTERNAL PLAN GRANT — a PERSONAL subject whose plan an active internal grant
+ * covers is never LAPSED: the grant, not a payment, carries the access. The
+ * provider truth is kept (paidActive and providerStatus still describe the real
+ * subscription rows, so account closure and the admin views stay honest), but
+ * mutations are allowed. With no provider rows at all the reading is ACTIVE
+ * and NOT paid — nobody pays for a grant.
+ */
 export async function readCommercialLifecycle(
   client: SubscriptionReader,
   subject: CommercialLifecycleSubject,
   now: Date = new Date(),
+): Promise<CommercialLifecycleReading> {
+  const provider = await readProviderLifecycle(client, subject, now);
+  if (subject.kind !== "PERSONAL" || subject.plan === "FREE" || !client.planGrant) return provider;
+  const grant = await readActiveInternalPlanGrant(client as Pick<PrismaClient, "planGrant">, subject.ownerUserId, now);
+  if (!grant || !internalGrantCoversPlan(grant.plan, subject.plan)) return provider;
+  if (provider.providerStatus === null) {
+    return { state: "ACTIVE", paidActive: false, mutationsAllowed: true, graceEndsAtUtc: null, providerStatus: null };
+  }
+  return provider.mutationsAllowed ? provider : { ...provider, state: "ACTIVE", mutationsAllowed: true };
+}
+
+async function readProviderLifecycle(
+  client: SubscriptionReader,
+  subject: CommercialLifecycleSubject,
+  now: Date,
 ): Promise<CommercialLifecycleReading> {
   if (subject.plan === "FREE") {
     return {

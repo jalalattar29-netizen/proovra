@@ -233,8 +233,11 @@ describe("Phase 37.95 — billing & seats organization separation", () => {
     expect(SVC).toMatch(/organizations\.push/);
   });
 
-  it("account-tier plan is sourced from Entitlement (per-user), not Team.billingPlan", () => {
-    expect(SVC).toMatch(/prisma\.entitlement\.findFirst/);
+  it("account-tier plan is sourced from the PERSONAL_ACCOUNT subject (per-user), not Team.billingPlan", () => {
+    // INTERNAL PLAN GRANT — still per-user, now through the canonical
+    // resolution (Entitlement + an active internal grant) rather than a raw
+    // entitlement read, so the account tier matches every gate.
+    expect(SVC).toMatch(/resolveCommercialPlan\(\{[\s\S]{0,80}type:\s*"PERSONAL_ACCOUNT"/);
     expect(SVC).toMatch(/accountPlan/);
   });
 

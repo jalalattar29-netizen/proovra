@@ -98,6 +98,16 @@ vi.mock("../src/services/identity/identity-mode.service.js", async () => {
   };
 });
 
+// INTERNAL PLAN GRANT — these accounts hold no grant. The refusal itself
+// (before any provider object) is proven on PostgreSQL by
+// internal-plan-grant.integration.test.ts.
+vi.mock("../src/services/billing/internal-plan-grant.service.js", () => ({
+  internalGrantCheckoutRefusal: async () => {
+    H.calls.push("internalGrant");
+    return null;
+  },
+}));
+
 vi.mock("../src/services/billing/plan-transition.service.js", () => ({
   findLivePersonalSubscription: async () => {
     H.calls.push("findLive");

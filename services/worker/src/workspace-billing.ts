@@ -4,6 +4,7 @@ import {
   getPlanCapabilities,
   resolveEvidenceOutputEntitlements,
   resolveWorkspaceEffectivePlan,
+  resolvePersonalEffectivePlan,
   type EvidenceFundingSource,
   type WorkspaceBillingStatus,
 } from "@proovra/shared-billing";
@@ -13,6 +14,7 @@ import { normalizeWorkspaceKind } from "@proovra/shared";
 // shared with the API so their arithmetic cannot diverge.
 import {
   countActiveSeatOccupancy,
+  readActiveInternalPlanGrant,
   sumDerivedAssetStorageBytes,
 } from "@proovra/shared-runtime";
 
@@ -118,7 +120,14 @@ export async function getPersonalWorkspaceScope(
   // because they now read the same fact rather than reproduce the same
   // workaround. (TEAM includes reports, so the mismatch this guarded against
   // cannot reappear.)
-  const personalPlan = entitlement?.plan ?? prismaPkg.PlanType.FREE;
+  //
+  // INTERNAL PLAN GRANT — the same shared policy and the same reader as the
+  // API: the HIGHER of the provider-derived entitlement and an active grant.
+  const internalGrant = await readActiveInternalPlanGrant(prisma, ownerUserId);
+  const personalPlan = resolvePersonalEffectivePlan({
+    providerPlan: (entitlement?.plan ?? prismaPkg.PlanType.FREE) as prismaPkg.PlanType,
+    internalGrantPlan: (internalGrant?.plan ?? null) as prismaPkg.PlanType | null,
+  }).plan as prismaPkg.PlanType;
 
   return {
     billingShape: "SINGLE_OCCUPANT",
@@ -171,6 +180,8 @@ export async function getTeamWorkspaceScope(
     select: { plan: true },
   });
   const ownerPlan = ownerEntitlement?.plan ?? prismaPkg.PlanType.FREE;
+  // INTERNAL PLAN GRANT — governs only the owner's PERSONAL workspace kind.
+  const ownerInternalGrant = await readActiveInternalPlanGrant(prisma, team.ownerUserId);
   const workspaceKind = normalizeWorkspaceKind({
     workspaceKind: (team as { workspaceKind?: string | null }).workspaceKind ?? null,
     isPersonal: (team as { isPersonal?: boolean | null }).isPersonal ?? null,
@@ -182,6 +193,7 @@ export async function getTeamWorkspaceScope(
     billingPlan: team.billingPlan as prismaPkg.PlanType,
     billingStatus: team.billingStatus as WorkspaceBillingStatus,
     ownerPlan: ownerPlan as prismaPkg.PlanType,
+    internalGrantPlan: (ownerInternalGrant?.plan ?? null) as prismaPkg.PlanType | null,
   }).plan as prismaPkg.PlanType;
 
   /*

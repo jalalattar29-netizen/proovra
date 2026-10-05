@@ -130,8 +130,13 @@ describe("effective plan has one authority", () => {
      * that follows the user rather than any workspace. A second one would be
      * the workspace overlay coming back.
      */
+    //
+    // INTERNAL PLAN GRANT — and now ZERO: `accountPlan` resolves through the
+    // canonical PERSONAL_ACCOUNT subject too, so an internally granted plan
+    // reaches the boot envelope exactly as it reaches every gate.
     const entitlementReads = code.match(/prisma\.entitlement\.findFirst\(/g) ?? [];
-    expect(entitlementReads).toHaveLength(1);
+    expect(entitlementReads).toHaveLength(0);
+    expect(code).toMatch(/resolveCommercialPlan\(\{[\s\S]{0,80}type:\s*"PERSONAL_ACCOUNT"/);
   });
 
   it("the Personal Space plan does not depend on which workspace is selected", () => {

@@ -179,7 +179,9 @@ export async function resolvePersonalPlanTransition(input: {
    * route turns this into 409 CHECKOUT_REQUIRED naming the route that can do it.
    */
   if (subscription) {
-    if (entitled?.scope.plan === prismaPkg.PlanType.FREE) {
+    // INTERNAL PLAN GRANT — the PROVIDER-derived plan answers this. A granted
+    // TEAM is not a paid subscription, so it must not turn a stale row into one.
+    if ((entitled?.scope.providerPlan ?? entitled?.scope.plan) === prismaPkg.PlanType.FREE) {
       return input.targetPlan === prismaPkg.PlanType.FREE
         ? { kind: "NO_CHANGE", currentPlan: prismaPkg.PlanType.FREE }
         : { kind: "NEW_SUBSCRIPTION", targetPlan: input.targetPlan };
@@ -198,7 +200,7 @@ export async function resolvePersonalPlanTransition(input: {
   }
 
   const state = derivePersonalBaseSubscriptionState({
-    effectivePlan: entitled?.scope.plan ?? subscription.plan,
+    effectivePlan: entitled?.scope.providerPlan ?? entitled?.scope.plan ?? subscription.plan,
     subscription,
   });
 

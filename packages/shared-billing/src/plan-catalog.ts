@@ -558,6 +558,42 @@ export type NormalizedWorkspaceKind =
   | "ORGANIZATION"
   | "UNKNOWN";
 
+/** Where an effective plan came from — reported beside the plan, always. */
+export type EffectivePlanSource =
+  | "PERSONAL_ENTITLEMENT"
+  | "INTERNAL_GRANT"
+  | "WORKSPACE_SUBSCRIPTION"
+  | "ORGANIZATION_CONTRACT"
+  | "LEGACY_AMBIGUOUS_FAIL_CLOSED"
+  | "NONE";
+
+/** Commercial order of the plans: a higher rank never resolves below a lower one. */
+export const PLAN_RANK: Readonly<Record<PlanType, number>> = Object.freeze({
+  FREE: 0,
+  PAYG: 1,
+  PRO: 2,
+  TEAM: 3,
+  ENTERPRISE: 4,
+});
+
+/**
+ * INTERNAL PLAN GRANT — the PERSONAL subject's plan: the HIGHER of what the
+ * providers established (Entitlement.plan, written only by provider lifecycle)
+ * and an active, unexpired internal grant. A grant never lowers a provider
+ * plan, and on a tie the provider governs (the grant adds nothing), so the
+ * source says INTERNAL_GRANT only when the grant is what lifts the account.
+ */
+export function resolvePersonalEffectivePlan(input: {
+  providerPlan: PlanType;
+  internalGrantPlan: PlanType | null;
+}): { plan: PlanType; source: "PERSONAL_ENTITLEMENT" | "INTERNAL_GRANT" } {
+  const grant = input.internalGrantPlan;
+  if (grant !== null && PLAN_RANK[grant] > PLAN_RANK[input.providerPlan]) {
+    return { plan: grant, source: "INTERNAL_GRANT" };
+  }
+  return { plan: input.providerPlan, source: "PERSONAL_ENTITLEMENT" };
+}
+
 /**
  * THE one workspace effective-plan decision — SUBJECT-CORRECT (§9.4
  * corrected 2026-07-22; owner-coverage REMOVED).
@@ -585,21 +621,25 @@ export function resolveWorkspaceEffectivePlan(input: {
   billingStatus: WorkspaceBillingStatus;
   /** Used ONLY when workspaceKind === "PERSONAL" (personal-space subject). */
   ownerPlan: PlanType;
+  /**
+   * The owner's ACTIVE, UNEXPIRED internal plan grant (PlanGrant), or null.
+   * Like ownerPlan it governs ONLY the PERSONAL subject: a personal grant no
+   * more covers an Owned / Organization workspace than a personal plan does.
+   */
+  internalGrantPlan?: PlanType | null;
 }): {
   plan: PlanType;
-  source:
-    | "PERSONAL_ENTITLEMENT"
-    | "WORKSPACE_SUBSCRIPTION"
-    | "ORGANIZATION_CONTRACT"
-    | "LEGACY_AMBIGUOUS_FAIL_CLOSED"
-    | "NONE";
+  source: EffectivePlanSource;
 } {
   const live =
     input.billingStatus === "ACTIVE" || input.billingStatus === "PAST_DUE";
 
   switch (input.workspaceKind) {
     case "PERSONAL":
-      return { plan: input.ownerPlan, source: "PERSONAL_ENTITLEMENT" };
+      return resolvePersonalEffectivePlan({
+        providerPlan: input.ownerPlan,
+        internalGrantPlan: input.internalGrantPlan ?? null,
+      });
     case "OWNED": {
       if (live && input.billingPlan === "TEAM") {
         return { plan: "TEAM", source: "WORKSPACE_SUBSCRIPTION" };

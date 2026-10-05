@@ -73,6 +73,8 @@ function databaseWith(present: {
   reportGenerationRequestsIdempotencyUnique?: boolean;
   evidenceCreditLedgerTable?: boolean;
   evidenceCreditLedgerEvidenceIdUnique?: boolean;
+  // INTERNAL PLAN GRANT (20281002000000).
+  planGrantsTable?: boolean;
   // UC-0 — the acquisition/provenance foundation (20280601000000).
   uc0AcquisitionFoundation?: boolean;
 }) {
@@ -125,6 +127,9 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'report_generation_requests'")) {
       return present.reportGenerationRequestsTable === true;
     }
+    if (sql.includes("table_name = 'plan_grants'")) {
+      return present.planGrantsTable === true;
+    }
     if (sql.includes("table_name = 'evidence_credit_ledger_entries'")) {
       return present.evidenceCreditLedgerTable === true;
     }
@@ -156,6 +161,7 @@ const FULLY_MIGRATED = {
   reportGenerationRequestsTable: true,
   reportGenerationRequestsIdempotencyUnique: true,
   evidenceCreditLedgerTable: true,
+  planGrantsTable: true,
   evidenceCreditLedgerEvidenceIdUnique: true,
   uc0AcquisitionFoundation: true,
 };

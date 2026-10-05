@@ -1408,6 +1408,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281001000600_derived_asset_storage_version",
       // UC-ARCH-002 — legacy capture retention backfill (owner action after backup).
       "20281001000700_retention_backfill_direct_capture",
+      // INTERNAL PLAN GRANT (2026-10-02) — one new table + enum (plan_grants), EXPAND only.
+      "20281002000000_internal_plan_grants",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

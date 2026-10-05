@@ -257,10 +257,12 @@ describe("ENTERPRISE TENANT MODEL — platform-context service", () => {
     expect(SVC).toMatch(/displayName:\s*"Personal Space"/);
   });
 
-  it("emits Account section with userId + accountPlan derived from Entitlement", () => {
+  it("emits Account section with userId + accountPlan derived from the account's canonical plan", () => {
     expect(SVC).toMatch(/account:\s*PlatformContextAccount/);
     expect(SVC).toMatch(/accountPlan/);
-    expect(SVC).toMatch(/prisma\.entitlement\.findFirst/);
+    // INTERNAL PLAN GRANT — the PERSONAL_ACCOUNT resolution (Entitlement plus
+    // an active internal grant), not a raw entitlement read.
+    expect(SVC).toMatch(/resolveCommercialPlan\(\{[\s\S]{0,80}type:\s*"PERSONAL_ACCOUNT"/);
   });
 
   it("detects duplicate personal-like rows via bounded heuristic", () => {

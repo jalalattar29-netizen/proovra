@@ -263,6 +263,12 @@ export type PlanSummary = {
    * depends on a subscription row the browser cannot see.
    */
   accessKind: "SUBSCRIPTION" | "GRANTED" | "CONTRACT" | "CREDIT" | "FREE";
+  /**
+   * INTERNAL PLAN GRANT — present ONLY when an internal (non-provider) grant is
+   * what puts the account on this tier. accessKind is then GRANTED: nothing is
+   * billed, nothing renews, and any real subscription keeps its own section.
+   */
+  accessSource?: "INTERNAL_GRANT";
   lifecycle: PlanLifecycle;
   /** Present ONLY with BILLING_AMOUNT_VIEW. */
   priceCents?: number | null;
@@ -1196,7 +1202,11 @@ export async function buildBillingAccountProjection(input: {
    * grace window, so a lapsed payer still MANAGES their subscription rather
    * than being sent to buy a second one.
    */
-  const entitledToPaidTier = scope.plan !== prismaPkg.PlanType.FREE;
+  // INTERNAL PLAN GRANT — the PROVIDER-derived plan answers "is this row a real
+  // subscription?". A granted TEAM is not a payment, so it must not turn a
+  // stale row on a provider-FREE account into a live subscription.
+  const entitledToPaidTier =
+    (scope.providerPlan ?? scope.plan) !== prismaPkg.PlanType.FREE;
   const liveSubscription = subscriptionRowLive && entitledToPaidTier;
 
   if (subscriptionRowLive && !entitledToPaidTier) {
@@ -1216,8 +1226,10 @@ export async function buildBillingAccountProjection(input: {
    * so a manually assigned PRO was shown "Billed monthly · $19.00 per month"
    * and a renewal it would never have.
    */
-  const accessKind: PlanSummary["accessKind"] =
-    scope.plan === "ENTERPRISE"
+  const grantGoverns = scope.planSource === "INTERNAL_GRANT";
+  const accessKind: PlanSummary["accessKind"] = grantGoverns
+    ? "GRANTED"
+    : scope.plan === "ENTERPRISE"
       ? "CONTRACT"
       : liveSubscription
         ? "SUBSCRIPTION"
@@ -1242,6 +1254,7 @@ export async function buildBillingAccountProjection(input: {
   const plan: PlanSummary = {
     planKey: scope.plan,
     accessKind,
+    ...(grantGoverns ? { accessSource: "INTERNAL_GRANT" as const } : {}),
     displayName: caps.displayName,
     model,
     lifecycle: resolveLifecycle({
@@ -1801,7 +1814,10 @@ export async function buildBillingAccountProjection(input: {
     ...(Object.keys(collaboration).length > 0 ? { collaboration } : {}),
     ...(canManage
       ? {
-          planOffers: planOffersFor({
+          // INTERNAL PLAN GRANT — no self-service offer while a grant governs:
+          // checkout of any tier at or below it is refused (INTERNAL_GRANT_ACTIVE),
+          // and Enterprise is a contact flow, not an offer.
+          planOffers: scope.planSource === "INTERNAL_GRANT" ? [] : planOffersFor({
             // BILLING PERSONAL/ORGANIZATION MODEL (2026-08-28) — a
             // self-service account is always PERSONAL. The ternary that stood
             // here picked a WORKSPACE subject and, with it, a different plan

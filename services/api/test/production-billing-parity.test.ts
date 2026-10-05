@@ -75,19 +75,22 @@ describe("Production fix — entitlement plan resolution parity", () => {
      */
     expect(PLATFORM_CTX).toMatch(/resolveCommercialPlan\(\{[\s\S]{0,200}type:\s*"WORKSPACE"/);
     // And no second, private plan overlay came back.
+    // INTERNAL PLAN GRANT — none at all now: the account plan resolves
+    // canonically as well (below).
     const entitlementReads = PLATFORM_CTX.match(/entitlement\.findFirst\(/g) ?? [];
-    expect(entitlementReads).toHaveLength(1);
+    expect(entitlementReads).toHaveLength(0);
   });
 
-  it("platform-context.service.ts account-plan read uses active:true", () => {
+  it("platform-context.service.ts account-plan read goes through the canonical PERSONAL_ACCOUNT resolution", () => {
     // `envelope.account.accountPlan` is the UI's fallback when the
-    // personal-space plan is null. It must also use the active filter
-    // so the UI badge never lies about the plan tier.
+    // personal-space plan is null. It used to be a direct entitlement read
+    // pinned to active:true; it is now the canonical resolution, whose loader
+    // (ensureEntitlement) carries the active filter — and which also applies an
+    // internal plan grant, so the badge, the gates and mobile cannot disagree.
     const accountBranch = PLATFORM_CTX.match(
-      /accountPlan[\s\S]{0,400}?entitlement\.findFirst\([\s\S]{0,400}?\}\)/,
+      /accountPlan[\s\S]{0,1200}?resolveCommercialPlan\(\{[\s\S]{0,80}type:\s*"PERSONAL_ACCOUNT"/,
     );
     expect(accountBranch).toBeTruthy();
-    expect(accountBranch![0]).toMatch(/active:\s*true/);
   });
 
   it("platform-context.service.ts has NO entitlement query without an active filter", () => {
@@ -98,7 +101,9 @@ describe("Production fix — entitlement plan resolution parity", () => {
     const queries = PLATFORM_CTX.match(
       /entitlement\.findFirst\(\{[\s\S]{0,400}?\}\)/g,
     ) ?? [];
-    expect(queries.length).toBeGreaterThan(0);
+    // INTERNAL PLAN GRANT — every plan read in the envelope is canonical now,
+    // so no direct query is left; any that returns must still filter.
+    expect(queries.length).toBe(0);
     for (const q of queries) {
       expect(q, "every envelope entitlement read must filter active:true").toMatch(
         /active:\s*true/,
