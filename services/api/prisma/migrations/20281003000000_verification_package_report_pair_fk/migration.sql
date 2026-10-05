@@ -15,14 +15,22 @@
 --   MATCH SIMPLE (the default) does not enforce a row whose referencing columns
 --   include a NULL, so those historical rows are preserved untouched.
 --
--- ON DELETE CASCADE / ON UPDATE RESTRICT:
+-- ON DELETE RESTRICT / ON UPDATE RESTRICT (forensic fail-closed):
 --   A report version is immutable, so ON UPDATE RESTRICT can never fire in normal
---   operation and refuses a stray version renumber. ON DELETE CASCADE is the
---   forensically correct and operationally safe policy: a package cannot outlive
---   the report it certifies, and cascade removes any ordering hazard with the
---   destruction executor (which already deletes packages before reports) and with
---   evidence-level cascade deletes. It NEVER rewrites report or package BYTES —
---   it only removes a package row when its exact report version is removed.
+--   operation and refuses a stray version renumber. ON DELETE RESTRICT is the
+--   forensically correct policy for an evidence platform: an ordinary, accidental
+--   or unauthorized deletion of a report row while its verification package still
+--   exists is REFUSED, so a package can never be silently vacuumed by removing the
+--   report it certifies. This is safe against every real deletion path:
+--     * lawful destruction (packages/shared-runtime evidence-destruction/executor)
+--       deletes verification_packages BEFORE reports in one governed transaction,
+--       so the package reference is already gone when the report row is deleted;
+--     * the evidence row is TOMBSTONED (lifecycle_state=DESTROYED), never
+--       hard-deleted, and reports->evidence carries NO ON DELETE CASCADE, so an
+--       evidence delete never cascade-deletes a report out from under a package;
+--     * the executor is the ONLY path that deletes a report row (verified by repo
+--       grep: no other report.delete/deleteMany exists).
+--   The constraint rewrites no report or package BYTES.
 
 -- 1. PREFLIGHT — FAIL CLOSED. Refuse to apply if any package already references a
 --    report version that does not exist for its evidence. No destructive
@@ -59,6 +67,6 @@ BEGIN
       ADD CONSTRAINT "verification_packages_report_pair_fkey"
       FOREIGN KEY ("evidence_id", "report_version")
       REFERENCES "reports" ("evidence_id", "version")
-      ON UPDATE RESTRICT ON DELETE CASCADE;
+      ON UPDATE RESTRICT ON DELETE RESTRICT;
   END IF;
 END $$;

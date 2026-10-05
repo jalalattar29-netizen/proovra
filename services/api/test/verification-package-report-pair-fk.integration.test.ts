@@ -111,12 +111,28 @@ describe("verification package <-> report pairing FK (RGA-05, live PostgreSQL 16
     expect(legacy.reportVersion).toBeNull();
   });
 
-  it("cascades: deleting a report removes its paired package (no delete deadlock)", async () => {
+  it("REFUSES an ordinary report deletion while its package exists (forensic fail-closed)", async () => {
     const ev = await seedEvidenceWithReport(1);
     await pkg(ev, 1, 1);
-    await prisma.report.deleteMany({ where: { evidenceId: ev, version: 1 } });
-    const remaining = await prisma.verificationPackage.count({ where: { evidenceId: ev } });
-    expect(remaining).toBe(0);
+    // An accidental / unauthorized report delete must NOT silently vacuum the
+    // package that certifies it. ON DELETE RESTRICT refuses it.
+    await expect(
+      prisma.report.deleteMany({ where: { evidenceId: ev, version: 1 } }),
+    ).rejects.toMatchObject({ code: "P2003" });
+    // Both rows are intact — no history was destroyed.
+    expect(await prisma.report.count({ where: { evidenceId: ev } })).toBe(1);
+    expect(await prisma.verificationPackage.count({ where: { evidenceId: ev } })).toBe(1);
+  });
+
+  it("REFUSES a package that points at a report version belonging to a DIFFERENT evidence", async () => {
+    const evA = await seedEvidenceWithReport(1); // evA has report v1
+    const evB = await seedEvidenceWithReport(1); // evB has report v1 (same number, different evidence)
+    // evB has no report v2; a package on evB certifying v2 must be refused even
+    // though (someEvidence, v2) might exist elsewhere — the pair is per-evidence.
+    await expect(pkg(evB, 1, 2)).rejects.toMatchObject({ code: "P2003" });
+    // And a package on evA for v1 is fine (control).
+    const ok = await pkg(evA, 1, 1);
+    expect(ok.reportVersion).toBe(1);
   });
 
   it("destruction order (packages before reports) is unaffected by the FK", async () => {
