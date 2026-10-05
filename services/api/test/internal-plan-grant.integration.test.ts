@@ -315,6 +315,20 @@ describe("INTERNAL PLAN GRANT (live PostgreSQL 16)", () => {
     const other = await seedPersonalTenant(deps, "FREE");
     await expect(applyViaService(other, { idempotencyKey: k })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_CONFLICT" });
     expect(await prisma.planGrant.count({ where: { userId: other.owner.userId } })).toBe(0);
+
+    // The owner-runbook key shape names the account it is for, '@' included:
+    // accepted, replayed without a second grant or event; whitespace refused.
+    const ownerKey = `owner-test:${other.owner.userId.slice(0, 8)}@example.test:team:2026-10`;
+    const named = await applyViaService(other, { idempotencyKey: ownerKey });
+    const replay = await applyViaService(other, { idempotencyKey: ownerKey });
+    expect(named.created).toBe(true);
+    expect(replay.created).toBe(false);
+    expect(replay.grant.id).toBe(named.grant.id);
+    expect(named.grant.idempotencyKey).toBe(ownerKey);
+    expect(await auditCount("billing.internal_grant.applied", named.grant.id)).toBe(1);
+    await expect(applyViaService(other, { idempotencyKey: "owner test: spaced key" })).rejects.toMatchObject({
+      code: "INVALID_REQUEST",
+    });
   });
 
   it("concurrent applies cannot create two active grants", async () => {

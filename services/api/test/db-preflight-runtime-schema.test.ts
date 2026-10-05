@@ -77,6 +77,9 @@ function databaseWith(present: {
   planGrantsTable?: boolean;
   // UC-0 — the acquisition/provenance foundation (20280601000000).
   uc0AcquisitionFoundation?: boolean;
+  // UC capture closure (20281001000000 / 000400 / 000600) — columns the
+  // Evidence and derived-asset models declare.
+  ucCaptureClosureColumns?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -127,6 +130,13 @@ function databaseWith(present: {
     if (sql.includes("table_name = 'report_generation_requests'")) {
       return present.reportGenerationRequestsTable === true;
     }
+    if (
+      sql.includes("column_name = 'signing_key_sha256'") ||
+      sql.includes("column_name = 'generation_parameters'") ||
+      (sql.includes("table_name = 'evidence_part_derived_assets'") && sql.includes("column_name = 'storage_version_id'"))
+    ) {
+      return present.ucCaptureClosureColumns === true;
+    }
     if (sql.includes("table_name = 'plan_grants'")) {
       return present.planGrantsTable === true;
     }
@@ -164,6 +174,7 @@ const FULLY_MIGRATED = {
   planGrantsTable: true,
   evidenceCreditLedgerEvidenceIdUnique: true,
   uc0AcquisitionFoundation: true,
+  ucCaptureClosureColumns: true,
 };
 
 describe("runtime schema requirements", () => {

@@ -119,3 +119,6 @@ audit-output/phase0-recovery/
 # signing key would make a fixture signature indistinguishable from a real one;
 # services/api/src/signing/signer.ts refuses one, and this keeps it moot.
 .local-fixture-keys/
+
+# scripts/deploy-prod-pull.sh — the server-side rollback point and deploy history.
+.deploy-state/

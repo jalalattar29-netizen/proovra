@@ -124,8 +124,8 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9432,
-      "UNRESOLVED_IDENTIFIER": 1275
+      "METHOD_ON_VALUE": 9491,
+      "UNRESOLVED_IDENTIFIER": 1284
     },
     "MutationFixpointRounds": 9,
     "MutationClosurePass": true,
@@ -33199,8 +33199,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.create@340",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:340",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.create@348",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:348",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "run",
       "kind": "DATABASE",
@@ -33232,8 +33232,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@238",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:238",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@246",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:246",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "closeExpiredInTx",
       "kind": "DATABASE",
@@ -33266,8 +33266,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@417",
-      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:417",
+      "writerId": "services/api/src/services/billing/internal-plan-grant.service.ts#planGrant.update@425",
+      "terminalLocation": "services/api/src/services/billing/internal-plan-grant.service.ts:425",
       "file": "services/api/src/services/billing/internal-plan-grant.service.ts",
       "enclosingDeclaration": "revokeInternalPlanGrant",
       "kind": "DATABASE",

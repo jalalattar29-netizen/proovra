@@ -115,6 +115,9 @@ const ENTRYPOINTS = Object.freeze({
     // INTERNAL PLAN GRANT — operator CLI over the same service as the admin route
     // (pnpm --filter proovra-api ops:internal-plan-grant).
     "services/api/src/scripts/internal-plan-grant.ts",
+    // …and its READ-ONLY Production rollout checks: readiness, schema
+    // verification, subject snapshots (pnpm --filter proovra-api ops:internal-grant-rollout).
+    "services/api/src/scripts/internal-grant-rollout.ts",
     "services/api/src/seed-signing-key.ts",
     "services/api/prisma/scripts/org-security-policy-readiness.ts",
     "services/worker/src/scripts/diagnose-ots-evidence.ts",

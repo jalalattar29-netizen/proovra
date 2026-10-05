@@ -211,6 +211,30 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     suppliedBy: "20281002000000_internal_plan_grants",
   },
   {
+    id: "evidence.signing_key_sha256",
+    kind: "column",
+    detail: 'column public."evidence"."signing_key_sha256" must exist',
+    requiredBy:
+      "UC-TRUST-003 — the Evidence model declares it, so EVERY unnarrowed evidence read (library, detail, verify, report, package) names it; on a database without it those reads fail with P2022 — the over-declared-model outage class. Migrate BEFORE the API and worker images",
+    suppliedBy: "20281001000400_signing_key_identity_immutable",
+  },
+  {
+    id: "evidence_part_derived_assets.generation_parameters",
+    kind: "column",
+    detail: 'column public."evidence_part_derived_assets"."generation_parameters" must exist',
+    requiredBy:
+      "UC-DER-005/006 — the derived-asset model declares it; every unnarrowed derived-asset read and the worker's producers name it, so a database without it fails them with P2022",
+    suppliedBy: "20281001000000_derived_asset_generations",
+  },
+  {
+    id: "evidence_part_derived_assets.storage_version_id",
+    kind: "column",
+    detail: 'column public."evidence_part_derived_assets"."storage_version_id" must exist',
+    requiredBy:
+      "UC-DER-006 — the derived-asset model declares it and the worker writes the S3 VersionId into it; a database without it fails those reads and writes with P2022",
+    suppliedBy: "20281001000600_derived_asset_storage_version",
+  },
+  {
     id: "evidence.acquisition_mode",
     kind: "column",
     detail: 'column public."evidence"."acquisition_mode" must exist',
@@ -367,6 +391,27 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'plan_grants'
      LIMIT 1`,
+  "evidence.signing_key_sha256": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence'
+       AND column_name = 'signing_key_sha256'
+     LIMIT 1`,
+  "evidence_part_derived_assets.generation_parameters": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence_part_derived_assets'
+       AND column_name = 'generation_parameters'
+     LIMIT 1`,
+  "evidence_part_derived_assets.storage_version_id": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'evidence_part_derived_assets'
+       AND column_name = 'storage_version_id'
+     LIMIT 1`,
   "evidence_credit_ledger_entries.table": `
     SELECT 1
       FROM information_schema.tables
@@ -506,9 +551,19 @@ export function describeRuntimeSchemaFailure(result) {
         `${result.indeterminate.join(", ")} — treated as absent`,
     );
   }
+  // The 20271222 → 20271223 order is a real constraint (an enum value must be
+  // committed before it is used), so it is stated when either is missing —
+  // and ONLY then: naming it for, say, a missing UC column sends an operator
+  // to two unrelated migrations.
+  const operationsPair = [...result.missing.map((r) => r.suppliedBy), ...result.indeterminate].some((s) =>
+    /^2027122[23]0000/.test(String(s)),
+  );
   lines.push(
-    "apply the migrations in order (20271222000000, commit, then 20271223000000) " +
-      "before deploying API and Worker; deploy Web afterward.",
+    operationsPair
+      ? "apply the migrations in order (20271222000000, commit, then 20271223000000) " +
+          "before deploying API and Worker; deploy Web afterward."
+      : "apply the migrations named under 'supplied by', in timestamp order, " +
+          "before deploying API and Worker; deploy Web afterward.",
   );
   return lines.join("\n");
 }

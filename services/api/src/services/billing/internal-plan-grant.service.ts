@@ -98,7 +98,15 @@ type Db = PrismaClient;
 type Tx = prismaPkg.Prisma.TransactionClient;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const IDEMPOTENCY_RE = /^[A-Za-z0-9._:-]{8,120}$/;
+// '@' and '+' are allowed so an operator key can name the account it is for
+// (e.g. owner-test:someone@example.com:team:2026-10); whitespace, quotes,
+// slashes and control characters are not.
+const IDEMPOTENCY_RE = /^[A-Za-z0-9._:@+-]{8,120}$/;
+
+/** The ONE shape an internal-grant idempotency key may take. */
+export function isValidGrantIdempotencyKey(key: string): boolean {
+  return IDEMPOTENCY_RE.test(key);
+}
 
 /** Lower-cased, trimmed. The only normalisation applied to an email. */
 export function normalizeGrantEmail(raw: string): string {
@@ -284,10 +292,10 @@ export async function applyInternalPlanGrant(
     throw new InternalPlanGrantError("INVALID_REQUEST", "A reason (1–500 characters) is required.");
   }
   const idempotencyKey = (input.idempotencyKey ?? "").trim();
-  if (!IDEMPOTENCY_RE.test(idempotencyKey)) {
+  if (!isValidGrantIdempotencyKey(idempotencyKey)) {
     throw new InternalPlanGrantError(
       "INVALID_REQUEST",
-      "The idempotency key must be 8–120 characters of letters, digits, '.', '_', ':' or '-'.",
+      "The idempotency key must be 8–120 characters of letters, digits, '.', '_', ':', '@', '+' or '-'.",
     );
   }
   if (!UUID_RE.test(input.actorUserId ?? "")) {
