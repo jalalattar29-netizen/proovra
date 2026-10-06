@@ -542,18 +542,16 @@ try {
   if (only === "all" || only === "B") scenarioB();
   if (only === "all" || only === "B-REFUSE") scenarioBRefuse();
 } finally {
-  // PHASE 13: this used to write into `audit-output/phase12-independent-source-audit/`,
-  // the prefix that was retired into `audit-output/history/` — so running the
-  // rehearsal RECREATED the retired directory, which the governance check
-  // classifies as historical, and dropped a fresh file into it. A rehearsal
-  // record is a DIAGNOSTIC, not an authority: nothing derives a release scalar
-  // from it, so it belongs in the diagnostics prefix rather than beside the
-  // canonical current artifacts.
-  const outDir = path.resolve(API_ROOT, "../../audit-output/diagnostics");
+  // A rehearsal record describes one local run, not the release: nothing derives
+  // a release scalar from it. It is written OUTSIDE the repository so a run can
+  // never drop a raw proof capture into the tracked tree (the audit engine
+  // refuses any non-generated file under `audit-output/`).
+  const outDir = path.join(tmpdir(), "proovra-migration-rehearsal");
   mkdirSync(outDir, { recursive: true });
   const failures = results.filter((r) => !r.ok);
+  const outFile = path.join(outDir, "migration-rehearsal.json");
   writeFileSync(
-    path.join(outDir, "migration-rehearsal.json"),
+    outFile,
     `${JSON.stringify(
       {
         generatedBy: "services/api/scripts/migration-rehearsal.mjs",
@@ -568,7 +566,7 @@ try {
     "utf8",
   );
   process.stdout.write(
-    `\n${results.length - failures.length}/${results.length} checks passed\n`,
+    `\n${results.length - failures.length}/${results.length} checks passed (record: ${outFile})\n`,
   );
   if (failures.length > 0) process.exitCode = 1;
 }

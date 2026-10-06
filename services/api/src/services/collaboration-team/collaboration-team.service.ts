@@ -21,10 +21,6 @@
  *   - Token raw values NEVER reach the database; only sha256 hashes.
  *   - Plan limits are enforced before every mutation that grows
  *     team/member/invite counts.
- *
- * Constitutional reference:
- *   docs/architecture/phase-5-team-platform-readiness.md
- *   docs/architecture/phase-5-team-platform-final.md
  */
 
 import { createHash, randomBytes } from "node:crypto";

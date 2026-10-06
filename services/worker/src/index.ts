@@ -2130,8 +2130,7 @@ function safeRegisterWorker(
 // Phase O1.3 — wrap the two highest-value job handlers in the
 // bounded OTEL context extractor + child-span helper. This makes the
 // API enqueue → worker handler chain visible as ONE distributed
-// trace in Grafana Tempo. Other queues are wired in follow-up phases;
-// see `docs/operations/phase-o1-3-otel-final-closure.md` §5.
+// trace in Grafana Tempo. Other queues are wired in follow-up phases.
 const reportWorker = safeRegisterWorker("report", () =>
   new Worker(
     reportQueueName,

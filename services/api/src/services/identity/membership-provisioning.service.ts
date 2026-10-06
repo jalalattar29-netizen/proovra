@@ -223,9 +223,8 @@ export async function recordMembershipGrant(
 // first time it runs it will run in an incident, against rows whose provenance
 // backfill state nobody has re-checked since it was written.
 //
-// The multi-source grant model it implements is written down in
-// `docs/architecture/program-ledger.md`, and the source-scoped revocation leg is
-// recorded there as backlog with the contract it must satisfy. `recordMembership-
+// It implements the multi-source grant model; the source-scoped revocation leg
+// is unbuilt backlog. `recordMembership-
 // Grant` (the producer) stays: grant provenance IS written today and IS read by
 // the members projection.
 // ---------------------------------------------------------------------------

@@ -32,8 +32,7 @@
  * Their enqueue helpers had zero callers in every commit since they were
  * introduced, so none of them ever received a job: five idle workers, five idle
  * Redis connections, and five rows telling an operator that work was flowing
- * through chains nothing fed. The proof is
- * `docs/evidence/audits/definitive-evidence-lifecycle-remediation/evidence/ET-Q-07-no-producer-proof.txt`.
+ * through chains nothing fed.
  *
  * The header above had also drifted on its own: it said 18 sweeps while
  * SWEEP_NAMES held 19. It is recounted here from the constants below.

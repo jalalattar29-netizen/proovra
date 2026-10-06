@@ -617,7 +617,7 @@ export async function verifyAdminAuditChain(options?: {
 // where the chain stops. Rewriting audit rows to make a verifier pass is not a
 // capability this system should keep loaded; if a chain-version relabel is ever
 // needed again it belongs in a migration written against the version in force at
-// that time, and that contract is recorded in `docs/architecture/program-ledger.md`.
+// that time.
 // ---------------------------------------------------------------------------
 
 export async function listAdminAuditLogs(params: {

@@ -24,9 +24,6 @@
  *     persistence.
  *   - Guest access is time-bounded by `expiresAtUtc` — the service
  *     rejects accept calls past expiry.
- *
- * Constitutional reference:
- *   docs/architecture/phase-7-collaboration-completion-final.md
  */
 
 import type { Prisma, PrismaClient } from "@prisma/client";

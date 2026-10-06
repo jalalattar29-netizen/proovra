@@ -19,7 +19,7 @@
  * analyzer excludes tests from the consumer walk on purpose, and the reason is
  * written in its own header: a proof suite calling a route is exactly what
  * makes an orphan look connected. Counting test callers as consumers would let
- * a dead surface pass as wired — which is the defect FINAL-001 exists for.
+ * a dead surface pass as wired.
  *
  * So the fields come back as a DIAGNOSTIC:
  *   - it is bound to the source revision, the analyzer hash, the generation

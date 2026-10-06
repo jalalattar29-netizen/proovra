@@ -333,9 +333,7 @@ export const PROOVRA_SPAN_NAMES = {
   //
   // Pre-O1.4 names that were enum-only (historical drift from O1.1 / O1.2 /
   // O1.3) were REMOVED in O1.4 — they will be re-added one at a time
-  // alongside their `withProovraSpan(…)` emission site. See
-  // `docs/operations/phase-o1-4-business-flow-instrumentation.md` §6
-  // for the deferred-runtime-emission list.
+  // alongside their `withProovraSpan(…)` emission site.
   QUEUE_JOB_REPLAY: "proovra.queue.job.replay",
   QUEUE_JOB_RETRY: "proovra.queue.job.retry",
   RECOVERY_BACKUP_VALIDATE: "proovra.recovery.backup.validate",

@@ -41,7 +41,7 @@
  * OFFERS something it will then refuse — a different defect, which wastes a
  * person's time and misrepresents what their role is.
  */
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 const MOBILE = resolve(import.meta.dirname, "..");
 const REPO = resolve(MOBILE, "..", "..");
@@ -405,11 +405,6 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename
     console.log(`  RESERVED_LINK ${f.file}:${f.line} -> ${f.literal} [${f.classification}]`);
   }
 
-  if (process.argv.includes("--json")) {
-    const out = join(MOBILE, "docs", "native-action-inventory.json");
-    writeFileSync(out, `${JSON.stringify({ counts, byKind, navigation: nav, rows }, null, 2)}\n`);
-    console.log(`wrote ${out}`);
-  }
   // Both are failures: an Enterprise action offered natively, and a web owner
   // this tool could not classify — an unclassified row is not a pass.
   const bad =

@@ -16,8 +16,7 @@
  * is rendering, not product change: the request body, the validation, the
  * two-call create-then-process sequence and the statuses are identical.
  *
- * Cancel is offered exactly where it acts. See `canCancelBatch` and
- * `docs/backend-debt.md` BD-1.
+ * Cancel is offered exactly where it acts. See `canCancelBatch`.
  *
  * Self-service and out of every nav surface, exactly as the web keeps it.
  */
@@ -192,9 +191,9 @@ function JobRow({
           />
         ) : null}
         {/*
-          Only a PROCESSING job. The service acts on nothing else while still
-          answering success, so offering it elsewhere would report a
-          cancellation that did not happen — docs/backend-debt.md BD-1.
+          Cancel is offered on PENDING and PROCESSING, the states the service
+          acts on; offering it elsewhere would report a cancellation that did
+          not happen.
         */}
         {canCancelBatch(job) ? (
           <ProovraButton

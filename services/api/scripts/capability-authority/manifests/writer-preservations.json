@@ -91,7 +91,7 @@
       "evidence": "Its docblock described 'a recipient hits the verify endpoint with a signed token'. There is no verify endpoint. The exchange lifecycle stops at DOWNLOADED — the routes are record-delivery, download, revoke, accept-transfer and complete-transfer — and the token verifier such an endpoint would need, verifySignedManifestToken in the same module, has no caller either. The v1 entry cited two tests as asserting on it; both are vi.mock stubs that return {ok:true} so an unrelated module mock is shape-complete.",
       "removedFrom": "services/api/src/services/exchange/signed-delivery.service.ts",
       "alsoFixed": "The VERIFIED rung was removed from the delivery state ladder in listDeliveryActivity. It was derived from verifiedAtUtc, which this was the only writer of, so the operator console carried a lifecycle state no delivery could reach. PHASE_4B_PRODUCT_PACKAGING_AND_LIFECYCLE_FINAL_REPORT.md claimed 'every transition is mirrored ... via emitTransferVerificationEvent'; the transitions it names call emitTransferCustodyEvents, and that sentence has been corrected in place rather than left to be read as a description of behaviour.",
-      "backlogRecordedIn": "docs/architecture/program-ledger.md",
+      "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
       "reviewedAtUtc": "2026-08-17"
     },
     {
@@ -158,7 +158,7 @@
       "classification": "GENUINE_FUTURE_FEATURE",
       "evidence": "The v1 entry said no dispatcher reports delivery outcomes back to the engine. It understates it: there is no dispatcher at all. Nothing selects due reminders, nothing sends one, nothing consumes communicationMessageId, and listReminders has no route. The engine schedules — sweepDueSoonReminders and sweepInactivityReminders create rows with status SCHEDULED through scheduleReminder, genuinely driven by the cron-secret reconcile route — and the row is never touched again. DELIVERED, FAILED and SUPPRESSED are all unreachable in production. Keeping executable outcome writers made the engine look like it delivers reminders.",
       "removedFrom": "services/api/src/services/reviewer-ops/reminder-engine.service.ts",
-      "backlogRecordedIn": "docs/architecture/program-ledger.md",
+      "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
       "alsoFixed": "The module docblock promised 'Notification dispatch is best-effort; failure marks the row FAILED but does NOT throw', describing a delivery path that was never built. Corrected in place.",
       "reviewedAtUtc": "2026-08-17"
     },
@@ -169,7 +169,7 @@
       "classification": "GENUINE_FUTURE_FEATURE",
       "evidence": "The delivery twin of the entry above and removed with it, for the same reason: a failure outcome for a send that no code performs. Note that the metric reviewer_reminder_failed_total SURVIVES and is not residue — it counts a failed scheduling insert in the scheduleReminder catch arm, which is a thing that really happens. It never counted a failed delivery.",
       "removedFrom": "services/api/src/services/reviewer-ops/reminder-engine.service.ts",
-      "backlogRecordedIn": "docs/architecture/program-ledger.md",
+      "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
       "reviewedAtUtc": "2026-08-17"
     },
     {
@@ -224,7 +224,7 @@
       "classification": "GENUINE_FUTURE_FEATURE",
       "evidence": "Source-aware revocation is a real governance idea and is not a current product behaviour. No route touches membershipGrant rows at all; SCIM deprovisioning and administrative revocation both run through massRevokeWorkspaceMemberships / revokeAllMembershipGrants, which close every source at once; membership removal is deliberately all-or-nothing everywhere it is exposed. What stood here was a complete revocation path, including a legacy-provenance policy branch, that no caller had ever exercised against real data — and a revocation primitive is the worst thing to keep dormant, because the first time it runs will be during an incident, against rows whose provenance-backfill state nobody has re-checked since it was written. recordMembershipGrant, the producer, stays: grant provenance IS written today and IS read by the members projection.",
       "removedFrom": "services/api/src/services/identity/membership-provisioning.service.ts",
-      "backlogRecordedIn": "docs/architecture/program-ledger.md",
+      "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
       "reviewedAtUtc": "2026-08-17"
     },
     {
@@ -271,7 +271,7 @@
       "evidence": "It repaired a LABEL, not a chain. For each row it recomputed the expected hash under chain version 1 and version 2 and, when one matched the stored hash, corrected the row's chainVersion column to say so; a row whose prevHash did not follow, or whose hash matched neither — an actual break — made it return early with brokenAt, repairing nothing. It was the v1-to-v2 migration's one-time backfill of chain_version. The chain is now on version 3: computeExpectedHashForRow has taken a version-3 branch since v3 shipped and verifyOrderedRows verifies against it, but this tried only 1 and 2, so run against any current database it would meet the first v3 row, match neither recomputation, and report a healthy chain as broken — an incident tool whose failure mode is to manufacture an incident.",
       "removedFrom": "services/api/src/services/platform-audit-log.service.ts",
       "retainedAuthority": "services/api/src/services/platform-audit-log.service.ts#verifyAdminAuditChain",
-      "backlogRecordedIn": "docs/architecture/program-ledger.md",
+      "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
       "reviewedAtUtc": "2026-08-17"
     },
     {
@@ -326,7 +326,7 @@
       "evidence": "Its one production caller was the AI-operation quota in media-intelligence.service.ts, and QUOTA_AI_OPERATIONS_PER_MONTH was retired on 2026-09-07 as a duplicate commercial authority (the canonical monthly AI allowance is PlanCapabilities.aiAdvisoryMonthlyOperations, counted on ai_advisory_operations by recordWorkspaceAiOperation). That left the writer with zero entrypoints. The three QUOTA gates that survive in the engine never called it: two of them (INTEGRATION_WEBHOOK_ENDPOINTS_MAX, LEGAL_HOLD_MAX_ACTIVE) compare against a live row count rather than a meter, and the third (QUOTA_EXPORT_PACKAGES_PER_MONTH) is a monthly meter that has never had a writer at all — a pre-existing gap this removal makes visible rather than causes.",
       "removedFrom": "services/api/src/services/packaging/entitlement.service.ts",
       "retainedAuthority": "services/api/src/services/billing-enforcement.service.ts#recordWorkspaceAiOperation",
-      "backlogRecordedIn": "docs/architecture/program-ledger.md",
+      "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
       "reviewedAtUtc": "2026-09-07"
     }
   ]

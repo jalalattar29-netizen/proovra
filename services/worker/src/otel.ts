@@ -275,10 +275,8 @@ export const PROOVRA_SPAN_NAMES = {
   // registration. The contract test
   // `services/worker/test/phase-o1-4-span-emission.test.ts` asserts
   // every entry has a real call site. Per the O1.4 hard rule, no
-  // enum-only entries are permitted. See
-  // `docs/operations/phase-o1-4-business-flow-instrumentation.md` §6
-  // for the list of pre-O1.4 entries that were REMOVED because they
-  // were enum-only (historical drift from O1.1 / O1.2 / O1.3).
+  // enum-only entries are permitted; pre-O1.4 enum-only entries were
+  // REMOVED (historical drift from O1.1 / O1.2 / O1.3).
   QUEUE_JOB_REPLAY: "proovra.queue.job.replay",
   QUEUE_JOB_RETRY: "proovra.queue.job.retry",
   RECOVERY_BACKUP_VALIDATE: "proovra.recovery.backup.validate",

@@ -69,7 +69,6 @@ export type TeamWorkspaceGateState =
  *   retained because ~44 call sites still consume it for genuinely
  *   team-only surfaces (Reviewer Ops, Governance actions, MFA
  *   Recovery) where personal users SHOULD see a structured panel.
- *   See docs/architecture/phase-3-runtime-refactor-readiness.md.
  */
 export function useTeamId(): string | null {
   const state = useTeamWorkspaceGate();
@@ -116,8 +115,7 @@ export function useWorkspaceId(): string | null {
  * three hooks in this file (`useTeamId`, `useWorkspaceId`,
  * and the `useActiveSpaceId` in `useTenantModel.ts`) are deprecated
  * aliases retained for backward compatibility with existing call
- * sites. See `docs/architecture/architecture-invariants.md` (INV-3)
- * and `docs/architecture/phase-3-runtime-refactor-readiness.md`.
+ * sites. See `docs/architecture/architecture-invariants.md` (INV-3).
  *
  * Resolution order:
  *   1. `envelope.workspace.id` when `workspace.status === "active"`

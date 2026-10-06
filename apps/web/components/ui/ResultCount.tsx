@@ -172,9 +172,8 @@ export function ResultCount({
          assert that a table states its count, and §14's "every list states
          how many" could only be checked by reading. The attribute is what
          makes the claim measurable. */
-      /* Present only when a count is actually STATED. `scripts/admin-ledger/
-         visual/controls.mjs` counts these nodes to assert "every list says how
-         many", and a row rendering only a continuation control states nothing
+      /* Present only when a count is actually STATED. Tests count these
+         nodes to assert "every list says how many", and a row rendering only a continuation control states nothing
          — an attribute on it would satisfy the measurement while answering
          none of the question. */
       data-result-count={sentence ? "" : undefined}

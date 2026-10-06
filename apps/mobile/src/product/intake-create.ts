@@ -14,7 +14,6 @@
  * This is the web wizard (`intake-links/_components/wizard/*`, `_lib/wizardState.ts`)
  * as pure data and functions: catalog, vocabulary, validation, the request
  * body, the response parse and every string, verbatim with its web source.
- * Spec: `docs/audit/pwa-native-2026-09-24-v2/T-16-INTAKE-CREATE-SPEC.md`.
  *
  * Reused from `@proovra/shared` exactly where the web uses it: the custom
  * sender-name validator and the location-policy options — one rule, not two.
@@ -344,7 +343,7 @@ export function buildCreateBody(
     senderDisplayMode: s.senderMode,
     senderDisplayName: s.senderMode === "CUSTOM" ? s.senderName.trim() : null,
     // The server default is NONE while the UI default is OPTIONAL, so the
-    // choice is always sent (spec §B.4).
+    // choice is always sent.
     locationPolicy: s.locationPolicy,
   };
 }

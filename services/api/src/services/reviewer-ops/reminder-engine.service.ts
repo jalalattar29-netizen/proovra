@@ -220,8 +220,7 @@ export async function scheduleReminder(
 // So these were not two functions one call away from being live; they were the
 // outcome half of a delivery mechanism that does not exist. Keeping executable
 // writers warm for it makes the reminder engine look like it delivers reminders.
-// The capability is recorded as a backlog item in
-// `docs/architecture/program-ledger.md` — a due-reminder selector, a
+// The capability is unbuilt backlog — a due-reminder selector, a
 // notification send, and an outcome callback are one unit of work, and when it
 // is built these two transitions are the smallest part of it.
 // -----------------------------------------------------------------------------

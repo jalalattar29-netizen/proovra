@@ -39,8 +39,7 @@ import { prisma as defaultPrisma } from "../../db.js";
 // the webhook platform" is corrected with it: this file signs and verifies
 // manifests and projects deliveries. It emits nothing.
 //
-// If recipient-side verification is built (BACKLOG-13-3 in
-// docs/architecture/program-ledger.md), the emitter comes back WITH the route
+// If recipient-side verification is built, the emitter comes back WITH the route
 // that needs it, in one piece, rather than waiting here for a caller.
 // ---------------------------------------------------------------------------
 
@@ -301,11 +300,8 @@ export async function listDeliveryActivity(
 // gap in one function but an entire unbuilt half of the module, of which this
 // was the writer.
 //
-// The claim in PHASE_4B_PRODUCT_PACKAGING_AND_LIFECYCLE_FINAL_REPORT.md that
-// "every transition is mirrored ... via emitTransferVerificationEvent" was false
-// twice over: the transitions it names call `emitTransferCustodyEvents`, a
-// different helper, and this one was called by nothing. That line has been
-// corrected rather than left to be read as a description of behaviour.
+// The transitions call `emitTransferCustodyEvents`, a different helper; this
+// one was called by nothing.
 //
 // The `verifiedAtUtc` COLUMN stays — dropping it needs a migration for storage
 // nothing is spending — but nothing now derives a customer-visible "VERIFIED"

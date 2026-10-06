@@ -26,9 +26,7 @@
  * transport, so nothing here can teach a page to render a state the real
  * backend could not produce.
  *
- * The captures land in artifacts/admin-visual-review/states/ and the tracked
- * manifest (docs/admin/evidence/screenshot-manifest.json) records their
- * hashes, so "the evidence exists" is checkable without the binaries.
+ * The captures land in artifacts/admin-visual-review/states/ (gitignored).
  *
  * Prerequisites: the seeded fixture stack (API :8191, web :3311).
  *

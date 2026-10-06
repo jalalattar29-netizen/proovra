@@ -18,8 +18,7 @@
  *      destruction gates already enforce this operationally; the
  *      engine is the shared vocabulary they converge on.)
  *
- * Adoption ledger (docs/architecture/program-ledger.md, Phase 6): the
- * §9.4 scout catalogued 5+ ad-hoc `resolveEffective*` resolvers, each
+ * Adoption: a scout catalogued 5+ ad-hoc `resolveEffective*` resolvers, each
  * with a private scope vocabulary. They migrate onto this engine
  * incrementally; `retention-inheritance.service.ts` is the first
  * adopter (org immutable template = mandatory floor — previously

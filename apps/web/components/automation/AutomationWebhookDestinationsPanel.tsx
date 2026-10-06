@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * BATCH J — automation webhook DESTINATIONS (docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md §9).
+ * BATCH J — automation webhook DESTINATIONS.
  *
  * A rule's "internal webhook delivery" action targets an already-registered
  * destination, and before this panel nothing in the product could register,

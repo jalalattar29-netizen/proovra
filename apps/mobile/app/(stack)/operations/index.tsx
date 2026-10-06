@@ -270,7 +270,7 @@ export default function OperationsScreen() {
         setGroupsFailed(false);
       })
       .catch(() => {
-        // Spec §8: the web swallows this and renders "no match" over real
+        // The web swallows this and renders "no match" over real
         // conditions. Native says the grouped read failed.
         if (!live) return;
         setGroups([]);
@@ -357,7 +357,7 @@ export default function OperationsScreen() {
       }
     } catch (err) {
       // The web shows generic copy for a 503 schema_mismatch; the body says
-      // exactly why, so native reads it (spec §4).
+      // exactly why, so native reads it.
       const body = (err as { body?: { refusedReason?: string } })?.body;
       setNotice(
         body?.refusedReason === "schema_mismatch"
@@ -1180,7 +1180,7 @@ function IncidentInspector({
       setReasonText("");
       setRemOutcome(remediationMessage(res) ?? STATE_COPY.remediationQueued);
     } catch (err) {
-      // Spec §9: a refused remediation carries the server's own explanation.
+      // A refused remediation carries the server's own explanation.
       setRemOutcome(remediationMessage(err) ?? toSafeUserError(err, { message: STATE_COPY.remediationFailed }).message);
     } finally {
       setRemBusy(null);

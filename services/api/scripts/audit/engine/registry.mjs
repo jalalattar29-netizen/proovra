@@ -21,6 +21,15 @@
  * It holds no counts. Every number in the audit system is derived by an
  * analyzer at run time; this file only says which analyzer is allowed to
  * derive it.
+ *
+ * FUTURE-AUDIT RULE (also in the root package.json `_audit_notes`): a finding
+ * may only be reported as current if proven from source/tests/runtime/browser
+ * evidence at the pinned audit SHA; prior reports are leads for revalidation
+ * only, never evidence, and never copied into a new findings register;
+ * generated audit evidence must not be imported into runtime or product
+ * architecture. Historical audits live in git history only — the engine
+ * refuses any tracked file under `audit-output/` that it did not generate
+ * (see AUDIT_OUTPUT_PREFIX below).
  */
 
 import path from "node:path";
@@ -91,20 +100,6 @@ export const CANONICAL = Object.freeze({
     producer: "services/api/scripts/audit/engine/governance.mjs",
     sourceOfTruthFor: "AUDIT_SYSTEM_INVENTORY",
   },
-  findingsLedger: {
-    // THE one ledger source. Everything else in that directory has a different
-    // role: `generate-ledger.mjs` is the validator/generator, `ledger.json` and
-    // `ledger.md` are renderings of these rows. Naming all four
-    // "CANONICAL_FINDINGS_LEDGER" made it look like four ledgers, which is the
-    // ambiguity this field removes.
-    rows: "audit-output/current/ledger/rows.json",
-    producer: "audit-output/current/ledger/generate-ledger.mjs",
-    derived: Object.freeze([
-      "audit-output/current/ledger/ledger.json",
-      "audit-output/current/ledger/ledger.md",
-    ]),
-    sourceOfTruthFor: "FINDINGS",
-  },
   currentReport: {
     path: "audit-output/current/report.md",
     producer: "services/api/scripts/audit/index.mjs",
@@ -152,10 +147,10 @@ export const DIAGNOSTICS = Object.freeze([
  * Excluding exactly these paths from the change-set derivation makes it a pure
  * function of the SOURCE tree: identical before the run, mid-run and after it.
  *
- * SCOPE IS DELIBERATELY NARROW. This is not the `audit-output/` prefix. The
- * findings ledger rows under that prefix are a hand-maintained governance
- * SOURCE, and drift in them must still be detected — so they are absent here,
- * as is every production, test, config, migration and docs path. `governance.mjs`
+ * SCOPE IS DELIBERATELY NARROW. This is not the `audit-output/` prefix: any
+ * other file under that prefix is refused outright (AUDIT_OUTPUT_PREFIX), and
+ * a change to one must still be measured — so it is absent here, as is every
+ * production, test, config, migration and docs path. `governance.mjs`
  * proves at run time that what it actually excluded equals this list, so the
  * exclusion cannot quietly widen to cover an inconvenient dirty file.
  */
@@ -181,34 +176,21 @@ export const FORBIDDEN_IN_REPO_RECOVERY_PREFIX = "audit-output/phase0-recovery/"
 // ===========================================================================
 // REPORT ROLES — disjoint, and made to CONSERVE.
 //
-// The previous pass reported "of the 14" and then listed fifteen records. The
-// arithmetic was wrong in a specific and instructive way: the fourteen were the
-// paths that had carried the retired CURRENT_REPORT_TEMPLATE role, and the
-// fifteenth — the generated current report — had not existed when that list was
-// taken. Two populations were added together as if they were one.
-//
-// The fix is not a corrected sentence. It is that the populations are now
-// named, disjoint, and required to sum, so a miscount fails the engine check
-// instead of reaching a report.
+// The populations are named, disjoint, and required to sum, so a miscount
+// fails the engine check instead of reaching a report.
 //
 //   ReportRelatedEntries
-//     = ReportDocuments + HistoryTreeMarkers + NonAuditProductReportTemplates
+//     = ReportDocuments + NonAuditProductReportTemplates
 //
 //   ReportDocuments
-//     = CurrentGeneratedReports + HistoricalReports
-//     + DomainReportTemplates + MisclassifiedReportDocuments
-//
-// A HISTORY_TREE_MARKER is deliberately NOT a report document: it is a
-// governance marker that says what a directory is. Counting it as a report was
-// how the fifteenth record appeared.
+//     = CurrentGeneratedReports + DomainReportTemplates
+//     + MisclassifiedReportDocuments
 // ===========================================================================
 
 export const REPORT_ROLES = Object.freeze({
   CURRENT_GENERATED_REPORT: "REPORT_DOCUMENT",
-  HISTORICAL_REPORT: "REPORT_DOCUMENT",
   DOMAIN_REPORT_TEMPLATE: "REPORT_DOCUMENT",
   MISCLASSIFIED_REPORT_DOCUMENT: "REPORT_DOCUMENT",
-  HISTORY_TREE_MARKER: "GOVERNANCE_MARKER",
   NON_AUDIT_PRODUCT_REPORT_TEMPLATE: "PRODUCT_ARTEFACT",
 });
 
@@ -398,89 +380,26 @@ export const RETIRED = Object.freeze([
 ]);
 
 // ===========================================================================
-// HISTORICAL — records of what a past pass concluded. Never a current input.
+// THE AUDIT-OUTPUT TREE HOLDS ONLY WHAT THIS ENGINE GENERATES.
 //
-// The status is carried by the PATH rather than by a header inside each of
-// thirty-odd files, so a reader and a program reach the same conclusion, and a
-// file cannot drift back into being read as current by being edited.
+// Historical audit reports, findings registers, resume checkpoints and raw
+// proof captures live in git history only. Any tracked file under this prefix
+// that is not in ENGINE_GENERATED_PATHS is refused by the engine check, and so
+// is any audit tool that reads, imports or spawns such a path — so a past
+// pass's conclusions cannot drift back in and be read as current.
 // ===========================================================================
 
-export const HISTORICAL_PREFIXES = Object.freeze([
-  "audit-output/history/",
-]);
+export const AUDIT_OUTPUT_PREFIX = "audit-output/";
+
+/** True when `rel` sits under audit-output/ but is not engine output. */
+export const isUndeclaredAuditOutput = (rel) =>
+  rel.startsWith(AUDIT_OUTPUT_PREFIX) && !ENGINE_GENERATED_PATHS.includes(rel);
 
 /**
- * PHASE 0 CORRECTIVE §7 — finished audit narratives that live in `docs/`.
- *
- * These are the same kind of document as everything under `audit-output/
- * history/`: a pass that ended, written up on the day it ended. They were
- * classified `CURRENT_REPORT_TEMPLATE`, which says the opposite of what they
- * are — a reader looking for the current answer had thirteen files that
- * announced themselves as current reports and one that actually was.
- *
- * They are NOT moved. They are cross-linked from runbooks, plans and commit
- * manifests, and rewriting those links is churn that buys nothing: the status
- * is what needed fixing, not the location. Declaring them here gives the engine
- * the same refusal it has for the history tree — a current tool that READS one
- * fails the engine check — without touching a single link.
- *
- * Membership is a judgement, so each carries the reason it is finished.
+ * Hand-maintained how-to documents that sit beside audit tooling. They are not
+ * audit authorities; nothing may reconcile against them.
  */
-export const HISTORICAL_DOCUMENTS = Object.freeze({
-  "docs/architecture/investigation-suite-audit.md": "Point-in-time audit of the investigation suite; superseded by the capability map's per-route measurement.",
-  "docs/architecture/phase-7-closure-audit.md": "Closure write-up for a phase that ended.",
-  "docs/architecture/phase-8-organization-governance-final.md": "Final report for a phase that ended.",
-  "docs/architecture/phase-9-team-platform-audit-final.md": "Final report for a phase that ended.",
-  "docs/architecture/point7-corrective-closure-2026-08-05.md": "Dated corrective-pass narrative. The Point-7 CURRENT fact is the executed-proof artifact, not this.",
-  "docs/architecture/point7-determinism-closure-2026-08-05.md": "Dated corrective-pass narrative.",
-  "docs/architecture/point7-external-destination-closure-2026-08-05.md": "Dated corrective-pass narrative.",
-  "docs/architecture/point7-production-build-closure-2026-08-05.md": "Dated corrective-pass narrative.",
-  "docs/architecture/point8-external-staging-gates-2026-08-05.md": "Dated narrative of a staging-gate pass. External closure is NOT RUN; this file must never be read as evidence that it was.",
-  "docs/architecture/route-classification/CAPABILITY-AUDIT-RESOLUTION.md": "Resolution narrative for the capability-preservation audit; the resolution itself lives in the manifests and the map.",
-  "docs/architecture/search-reality-audit.md": "Point-in-time audit of the search surface.",
-  "docs/architecture/workspace-surface-audit.md": "Point-in-time audit of the workspace surface.",
-  "docs/architecture/backlog-capability-manifest-line-pinning.md":
-    "Backlog note recording an observed instrument limitation (manifest sites pinned to line numbers move under unrelated edits). It asserts no count and holds no authority — the manifests and the analyzer remain the authorities; the note only says the work is unscheduled.",
-});
-
-/**
- * The tree's own status marker. It lives inside the history tree because that
- * is where a reader arrives, but it is not itself a historical record — it is
- * the sign on the door, and the Phase-0 gate READS it to prove the sign is
- * still up. Without this exception that gate reports itself as a current tool
- * reading a historical record, which is true of the path and false of the fact.
- */
-export const HISTORICAL_MARKER = "audit-output/history/README.md";
-
-/**
- * The ONE resume note for work in progress.
- *
- * Deliberately singular and deliberately current: a second one would be two
- * accounts of where execution stopped, which is the same failure as two route
- * inventories one level down. It states no count of its own — every number in
- * it is copied from the generated facts and is re-derivable by running the
- * engine — so it is neither an authority nor a report, and nothing may
- * reconcile against it.
- */
-export const CONTINUATION_CHECKPOINT = "audit-output/current/CONTINUATION-CHECKPOINT.md";
-
-/**
- * Hand-maintained programme narratives that are still being written, and are
- * therefore not historical — but are not audit authorities either. They carry
- * counts; nothing may reconcile against them.
- */
-export const DOMAIN_REPORT_TEMPLATES = Object.freeze({
-  "scripts/admin-ledger/visual/README.md":
-    "How to run the five Phase-7 visual instruments that live beside it: the containers, the fixture launchers, the commands and what each sweep answers. It is candidate only because its directory is named admin-ledger, which the name signals match; it states no audit count, produces no artifact, and nothing reconciles against it. The numbers it mentions are cited from the Phase-7 report, which cites the sweeps' own output.",
-  "docs/architecture/program-ledger.md":
-    "The unified programme's own implementation narrative, still being appended to. It records what each phase did; it does not measure the tree. One suite reads it, and only to assert that its NON-AUTHORITATIVE disclaimer for the old 19,360 figure is still present — a disclaimer check, not a count read.",
-});
-
-/** True when `rel` (a repo-relative POSIX path) is a historical record. */
-export const isHistorical = (rel) =>
-  rel !== HISTORICAL_MARKER &&
-  (HISTORICAL_PREFIXES.some((p) => rel.startsWith(p)) ||
-    Object.hasOwn(HISTORICAL_DOCUMENTS, rel));
+export const DOMAIN_REPORT_TEMPLATES = Object.freeze({});
 
 // ===========================================================================
 // The trees the audit system is allowed to READ as production source.

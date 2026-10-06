@@ -430,7 +430,7 @@ const symbolBase: CSSProperties = {
 /**
  * THE ONLY AA FAILURE LEFT ON ANY OF THE 47 ROUTES, AND IT WAS THIS EYEBROW.
  *
- * Measured by `scripts/admin-ledger/visual/contrast.mjs` on
+ * Measured on
  * `/admin/platform/runbooks/:slug`, the console's not-found state: "Error ·
  * 404" at 12px, rgb(100,116,139) on rgb(243,244,241) — 4.31:1, against the
  * 4.5:1 WCAG AA needs for small text.

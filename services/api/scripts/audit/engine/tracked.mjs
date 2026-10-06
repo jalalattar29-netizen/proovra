@@ -17,6 +17,8 @@
  *      outright. Those directories hold the facts other gates trust; a file
  *      there that git does not know about is either a forgotten `git add` or
  *      a stray, and in both cases the right answer is to stop, not to guess.
+ *      The whole `audit-output/` tree is covered: it holds only engine output,
+ *      so a locally recreated history or proof dump is refused here too.
  */
 
 import { execFileSync } from "node:child_process";
@@ -27,7 +29,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..", "..", "..");
 
 /** Directories whose contents other gates treat as authoritative facts. */
-export const AUTHORITATIVE_DIRS = ["audit-output/current", "docs/architecture"];
+export const AUTHORITATIVE_DIRS = ["audit-output", "docs/architecture"];
 
 function git(args) {
   return execFileSync("git", args, { cwd: REPO, encoding: "utf8", maxBuffer: 1 << 28 });

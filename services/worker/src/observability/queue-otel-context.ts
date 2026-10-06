@@ -25,9 +25,7 @@
  *     carriers — it simply runs without a parent context. NEVER
  *     throws.
  *
- * Not yet propagated queues — see
- * `docs/operations/phase-o1-3-otel-final-closure.md` §5 for the
- * deferred list and rationale.
+ * Not every queue propagates a context yet; only the wired handlers do.
  */
 
 import {

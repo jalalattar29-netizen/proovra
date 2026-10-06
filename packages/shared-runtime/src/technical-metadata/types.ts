@@ -1,8 +1,7 @@
 /**
  * Enterprise Technical Metadata layer — shared types.
  *
- * Three DISTINCT concepts, never to be conflated (see audit doc
- * docs/operations/media-intelligence-exif-capture-environment-enterprise-audit.md):
+ * Three DISTINCT concepts, never to be conflated:
  *
  *   1. TechnicalMetadata   — deterministic Layer-1 facts about the
  *                            FILE itself (MIME, dimensions, codec,

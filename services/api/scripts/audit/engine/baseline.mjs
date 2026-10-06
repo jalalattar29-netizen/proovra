@@ -153,9 +153,6 @@ export function buildBaseline() {
     status: statusEntries,
     canonicalArtifacts: {
       capabilityMap: artifactHash(CANONICAL.capabilityMap.path),
-      ledgerRows: artifactHash(CANONICAL.findingsLedger.rows),
-      ledgerJson: artifactHash(CANONICAL.findingsLedger.derived[0]),
-      ledgerMd: artifactHash(CANONICAL.findingsLedger.derived[1]),
       architectureFacts: artifactHash(CANONICAL.currentFacts.path),
       governanceInventory: artifactHash(CANONICAL.governanceInventory.path),
       currentReport: artifactHash(CANONICAL.currentReport.path),

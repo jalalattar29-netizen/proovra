@@ -855,7 +855,7 @@ export const ROUTE_REGISTRY: ReadonlyArray<RouteDefinition> = [
     requiredCapabilities: ["RUNBOOKS_VIEW"],
     // PHASE 4 — Operations is a platform-admin area, not a workspace.
     // Non-platform-admins MUST not see this surface anywhere
-    // (constitutional rule 9; see docs/architecture/phase-4-route-persona-matrix.md §3.8).
+    // (constitutional rule 9).
     requiredActiveSpace: "PLATFORM_ADMIN",
     fallbackBehavior: "HIDDEN_IF_NO_CAPABILITY",
 

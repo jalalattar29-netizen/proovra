@@ -105,9 +105,7 @@ async function resolveWorkspaceJob(
 // Unlike the OCR/transcript pair these had REAL bodies. What they did not have
 // was a producer: every one of their enqueue helpers had zero callers in every
 // commit, so a correct processor sat behind a queue nothing wrote to while the
-// registry called the chain CURRENT_RUNTIME. The proof is recorded in
-// `docs/evidence/audits/definitive-evidence-lifecycle-remediation/evidence/
-// ET-Q-07-no-producer-proof.txt`.
+// registry called the chain CURRENT_RUNTIME.
 //
 // What they wrapped is still reachable where it is actually used:
 //   * search reindex        -> `search-indexing` (`RebuildSearchDocument`);

@@ -187,9 +187,8 @@ if (!decision.allow) {
         `  If you didn't intend to touch ${host}, set DATABASE_URL to your\n` +
         `  local Postgres in services/api/.env and re-run.\n` +
         `\n` +
-        `  Phase 2.5B incident: this guard exists because a prisma migrate\n` +
-        `  command fired against a Neon production-like DB on Phase 2.5B —\n` +
-        `  see docs/product/PHASE_2_5B_LIFECYCLE_AND_BULK.md section 1.5.\n\n`,
+        `  This guard exists because a prisma migrate command once fired\n` +
+        `  against a Neon production-like DB.\n\n`,
     );
     process.exit(3);
 }

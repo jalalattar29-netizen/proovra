@@ -15,17 +15,16 @@
  * arithmetic, and every string the page shows, verbatim with its web source.
  * The screen is `app/(stack)/operations/index.tsx`. (Named ops-console, not
  * operations: `src/product/operations.ts` holds the quotas + batch-analysis
- * projections, which share the URL prefix but not the console.) Spec with line references:
- * `docs/audit/pwa-native-2026-09-24-v2/T-11-OPERATIONS-SPEC.md`.
+ * projections, which share the URL prefix but not the console.)
  *
  * WHERE NATIVE DELIBERATELY DIFFERS FROM THE WEB (web defects found while porting)
  *   - Bulk success is `COMPLETED` (the server's value); the web counts
  *     `SUCCEEDED`, which the server never sends, so every web sweep reports
- *     0 updated. Spec §1.
+ *     0 updated.
  *   - A failed grouped read is SHOWN as a failure; the web renders it as an
- *     empty list over real conditions. Spec §8.
+ *     empty list over real conditions.
  *   - A refused remediation shows the server's own `remediation.message`; the
- *     web replaces it with generic copy. Spec §9.
+ *     web replaces it with generic copy.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
 
@@ -861,7 +860,7 @@ export function parseOpsSavedViews(v: unknown, viewer: string | null): SavedView
 }
 
 /**
- * Saved-view filter body. Unlike the web (spec §6) the SLA axis is persisted:
+ * Saved-view filter body. Unlike the web the SLA axis is persisted:
  * the server schema accepts it, and a view that silently drops a filter
  * reopens showing a different queue than the one that was saved.
  */
@@ -972,7 +971,7 @@ export function refusalCode(err: unknown): string | null {
   return code && REFUSAL_NOTICE[code] ? code : null;
 }
 
-/** A remediation outcome from a success OR a refused (403/409/503) body — spec §9. */
+/** A remediation outcome from a success OR a refused (403/409/503) body. */
 export function remediationMessage(bodyOrErr: unknown): string | null {
   const direct = obj(obj(bodyOrErr)["remediation"]);
   const viaErr = obj(obj(obj(bodyOrErr)["body"])["remediation"]);

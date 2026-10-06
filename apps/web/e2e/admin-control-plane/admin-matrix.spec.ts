@@ -11,8 +11,7 @@
  * <h1>, or a control smaller than a thumb.
  *
  * This drives every route across every viewport and every role, and writes a
- * machine-readable result per (route, viewport, role, direction) so the
- * completion ledger can cite an artefact instead of an adjective.
+ * machine-readable result per (route, viewport, role, direction).
  *
  * =============================================================================
  * WHY IT IS ONE DATA-DRIVEN SPEC AND NOT 47 FILES

@@ -209,7 +209,7 @@ async function engineCheck() {
 
   // The generated artifacts must already be on disk and must match what was
   // just recomputed. An artifact that disagrees with the engine is a
-  // hand-edited artifact, which is the exact defect FINAL-001 was.
+  // hand-edited artifact.
   for (const [rel, value] of [
     [CANONICAL.governanceInventory.path, persistableGovernance(governance)],
     [CANONICAL.currentFacts.path, facts],
@@ -249,6 +249,10 @@ async function engineCheck() {
  * `ExternalClosure` is never asserted from source analysis at all — no amount of
  * static measurement proves a real environment, so it is always NOT RUN here.
  *
+ * Every dimension is derived from CURRENT measured facts only (the capability
+ * engine, mutation analysis, the executed browser proof). There is no
+ * hand-maintained findings register to consult.
+ *
  * The exit code follows RELEASE BLOCKING only. Making a permanently non-zero
  * backlog fail the release gate is how a gate stops being read.
  */
@@ -261,9 +265,7 @@ async function closureCheck() {
     ReleaseBlockingClosure: releaseBlocking.length === 0 ? "PASS" : "FAIL",
     ArchitectureBacklog: backlog.length === 0 ? "EMPTY" : "NON_BLOCKING_VISIBLE",
     ExternalClosure: "NOT RUN",
-    openFindings: facts.findingsLedgerRef.openIds ?? [],
     undisposedRoutes: facts.facts.capabilities.undisposed,
-    trackedInventory: facts.findingsLedgerRef.trackedInventory ?? null,
   });
 
   for (const p of backlog) console.log(`  ${p}`);

@@ -6,12 +6,10 @@
  * Every count this programme has had to withdraw was withdrawn from a report.
  * Reports are where a number stops being a measurement and becomes a sentence:
  * somebody runs a tool, types the answer into prose, the tool's answer moves,
- * and the prose does not. `audit-output/history/` holds ten documents that were
- * each honest on the day they were written and are each wrong now, and the only
- * reason anyone can tell is that a later pass happened to re-run something.
+ * and the prose does not.
  *
  * So this renderer has no place to type a number. It takes the facts artifact
- * and the ledger's derived totals and formats them. If a scalar is not in those
+ * and formats it. If a scalar is not in those
  * inputs it does not appear, and if an input changes the report changes with it
  * on the next `pnpm audit:architecture`.
  *
@@ -54,7 +52,6 @@ const counterTable = (obj) =>
  */
 export function renderReport(facts, engineProblems, closureProblems) {
   const f = facts.facts;
-  const ledger = facts.findingsLedgerRef;
   const engineOk = engineProblems.length === 0;
   const closureOk = closureProblems.length === 0;
 
@@ -90,7 +87,7 @@ export function renderReport(facts, engineProblems, closureProblems) {
         [
           "ProductClosure",
           closureOk ? "CLOSED" : "OPEN",
-          "undisposed routes + locally actionable open findings",
+          "release-blocking measured facts + undisposed routes",
         ],
         [
           "ExternalClosure",
@@ -162,10 +159,8 @@ export function renderReport(facts, engineProblems, closureProblems) {
 
   // --- report roles, stated as an EQUATION -----------------------------------
   //
-  // Printed as identities rather than as a list, because the mistake this
-  // replaces was arithmetic: a previous write-up said "of the 14" and then
-  // enumerated fifteen records, having added the generated current report to a
-  // population it was never part of. An equation cannot be miscounted silently.
+  // Printed as identities rather than as a list: an equation cannot be
+  // miscounted silently.
   const g = f.auditGovernance;
   if (g.ReportRelatedEntries !== undefined) {
     w("### Report roles");
@@ -173,21 +168,14 @@ export function renderReport(facts, engineProblems, closureProblems) {
     w("```");
     w(
       `ReportRelatedEntries ${g.ReportRelatedEntries} = ReportDocuments ${g.ReportDocuments}` +
-        ` + HistoryTreeMarkers ${g.HistoryTreeMarkers}` +
         ` + NonAuditProductReportTemplates ${g.NonAuditProductReportTemplates}`,
     );
     w(
       `ReportDocuments ${g.ReportDocuments} = CurrentGeneratedReports ${g.CurrentGeneratedReports}` +
-        ` + HistoricalReports ${g.HistoricalReports}` +
         ` + DomainReportTemplates ${g.DomainReportTemplates}` +
         ` + MisclassifiedReportDocuments ${g.MisclassifiedReportDocuments}`,
     );
     w("```");
-    w();
-    w(
-      "A HISTORY_TREE_MARKER is a governance marker, not a report document: it says what a " +
-        "directory IS. Counting it as a report is what produced the earlier miscount.",
-    );
     w();
   }
 
@@ -223,47 +211,6 @@ export function renderReport(facts, engineProblems, closureProblems) {
     );
     w();
   }
-
-  // --- findings ------------------------------------------------------------
-  w("## Findings ledger");
-  w();
-  if (!ledger.valid) {
-    w("**THE LEDGER WAS REFUSED BY ITS OWN VALIDATOR.**");
-    w();
-    for (const p of ledger.problems ?? []) w(`- ${p}`);
-  } else {
-    w(
-      counterTable({
-        rows: ledger.rowCount,
-        actionableTotal: ledger.actionable.total,
-        actionableClosed: ledger.actionable.closed,
-        actionableOpen: ledger.actionable.open,
-        verifiedClosures: ledger.verifiedClosures.total,
-        unknownBlocked: ledger.unknownBlocked.total,
-      }),
-    );
-    w();
-    w(`Conservation: ${ledger.conservationEquation}`);
-    w();
-    w("### Open");
-    w();
-    w(
-      table(
-        ["id"],
-        (ledger.openIds ?? []).map((id) => [id]),
-      ),
-    );
-    w();
-    w("### Blocked on the owner");
-    w();
-    w(
-      table(
-        ["id"],
-        (ledger.unknownBlocked.ids ?? []).map((id) => [id]),
-      ),
-    );
-  }
-  w();
 
   // --- domain proofs -------------------------------------------------------
   w("## Domain authorities");

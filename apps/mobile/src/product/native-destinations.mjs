@@ -570,7 +570,7 @@ export const NATIVE_DESTINATIONS = {
     gaps: [
       "T-11 / RC-12: this CORE surface had NO native screen. It was out of scope only because tools/derive-product-manifest.mjs inferred 'enterprise' from the registry domain (OPS) while lib/surface/tiers.ts — the web's stated single source of truth — rules /operations CORE/allow. The classifier now defers to tiers.ts (T-21 / RC-22).",
       "ported: queue summary cards as filter toggles, grouped + flat views, every filter axis, saved views (apply/save/share/rename/delete), incident inspector (what happened, remediation, how much, when, ownership, history, technical references), acknowledge/resolve/stop-notifying with the three server refusal notices, assignment + Take it, bulk acknowledge/stop-notifying/assign through the challenge step-up the endpoint requires, reconciliation notices + Check again with the web's poll schedule",
-      "DELIBERATE divergence from web defects (docs/audit/pwa-native-2026-09-24-v2/T-11-OPERATIONS-SPEC.md): bulk success is COMPLETED (the web counts SUCCEEDED, which the server never sends); a failed grouped read is shown, not rendered as 'no match'; a refused remediation shows the server's message; saved views keep the SLA filter",
+      "DELIBERATE divergence from web defects (stated in src/product/ops-console.ts): bulk success is COMPLETED (the web counts SUCCEEDED, which the server never sends); a failed grouped read is shown, not rendered as 'no match'; a refused remediation shows the server's message; saved views keep the SLA filter",
       "REMAINING GAP: the web offers a Copy button per technical reference; native renders the identifiers but has no clipboard module (expo-clipboard is not a dependency; adding it is a native-module change that needs a new build)",
     ],
   },
@@ -593,7 +593,7 @@ export const NATIVE_DESTINATIONS = {
     gaps: [
       "Q3 RESOLVED from the registry itself: dashboard.batch_analysis states \"Gate stays PERSONAL_WORKSPACE - self-service view\". It shares the /operations URL prefix with the OPS console (a Phase R7.5 move from /dashboard) but its domain is PERSONAL_WORKSPACE, so the derivation is right and there is no registry omission to correct.",
       "the whole lifecycle is ported: create (picker over GET /v1/evidence rather than a textarea of ids - the same intent rendered for a phone), the chained /process start, progress, the aggregate from /results, the text/csv /export through the share sheet, and cancel",
-      "BD-1 (docs/backend-debt.md): cancelJob acts only on PROCESSING and answers success for a pending job it did not touch. Native offers Cancel exactly where it acts; the web offers it on pending too and then reports a cancellation that did not happen. Not worked around client-side.",
+      "cancel is offered on PENDING and PROCESSING, the two states cancelJob acts on (a finished job answers 409), the same condition the web uses",
       "UPSTREAM DEFECT, not ported over: BatchAnalysisService keeps jobs in a process-local object (private jobs = {}), so the list is neither durable nor shared across API instances. Native matches the web exactly rather than diverging, but the console can legitimately show nothing after a restart.",
       "the endpoint computes progress as (processed + failed) / totalItems with no zero guard; the native projection clamps it and reports null for a job with no items",
     ],

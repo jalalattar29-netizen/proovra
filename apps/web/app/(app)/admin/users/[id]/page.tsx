@@ -496,7 +496,7 @@ export default function AdminPersonDetailPage() {
                      colour differed from the live one by 4.95:1 of contrast.
                      This one arrived with the evidence-credit section from
                      main and is the last, caught by
-                     scripts/admin-ledger/deletion-proof.mjs on the rebase. */
+                     apps/web/__tests__/admin-deletion-proof.test.mjs. */
                   borderTop: "1px solid var(--border-default)",
                 }}
               >

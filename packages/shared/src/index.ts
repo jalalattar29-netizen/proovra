@@ -114,8 +114,6 @@ export type {
 } from "./architecture/canonical-persona.js";
 
 // PROOVRA Phase 5 — Collaboration Team canonical vocabulary.
-// See docs/architecture/phase-5-team-platform-readiness.md and
-// docs/architecture/phase-5-team-platform-final.md.
 export {
   COLLABORATION_TEAM_ROLES,
   COLLABORATION_TEAM_MANAGE_ROLES,

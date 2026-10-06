@@ -1400,9 +1400,8 @@ body.is-admin-console {
      a re-declaration of a custom property nothing reads, in a comment
      asserting a `:root` declaration that no longer exists.
 
-     Found by `scripts/admin-ledger/deletion-proof.mjs`, which re-proves every
-     §21 deletion against the current tree instead of trusting the commit
-     message that claimed this one. */
+     `apps/web/__tests__/admin-deletion-proof.test.mjs` re-proves every
+     deletion against the current tree. */
 
   /* ------------------------------------------------------------------
    * THE RADIUS AND SHADOW SCALE IS NO LONGER DECLARED HERE.

@@ -5,7 +5,7 @@
  * Two reads, polled every 30 s: `GET /v1/teams/{id}/operations/health` and
  * `…/operations/alerts`. PURE: paths, parsers, vocabulary, copy.
  *
- * DIFFERENCES FROM THE WEB, BOTH DELIBERATE (T-11 spec §10):
+ * DIFFERENCES FROM THE WEB, BOTH DELIBERATE:
  *   - The API orders alerts `severity: "asc"` over the enum
  *     INFO < WARNING < HIGH < CRITICAL, so the web table lists the LEAST severe
  *     first. Native sorts most severe first — the order the page is read in.
@@ -51,7 +51,7 @@ export const STATE_TONE: Readonly<Record<HealthState, ProovraStatusTone>> = {
   STALE: "pending",
   UNKNOWN: "neutral",
 };
-/** Health's own severity tones (WARNING amber here, not Operations' purple — spec §11). */
+/** Health's own severity tones (WARNING amber here, not Operations' purple). */
 export function healthSeverityTone(s: Severity): ProovraStatusTone {
   return s === "CRITICAL" ? "risk" : s === "HIGH" || s === "WARNING" ? "pending" : "neutral";
 }

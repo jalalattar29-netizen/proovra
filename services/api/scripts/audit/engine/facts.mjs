@@ -12,7 +12,6 @@
  *
  *   capability engine (AST)      -> routes, authorization, consumers, dispositions
  *   reachability verifier        -> module reachability
- *   ledger validator             -> findings, derived from rows
  *   governance inventory         -> the audit system's own shape
  *   domain proofs                -> REFERENCED by path/hash/binding, never transcribed
  *
@@ -37,7 +36,6 @@ import {
   ENGINE_VERSION,
   FACTS_SCHEMA_VERSION,
   FRESHNESS_INPUT_ROOTS,
-  CONTINUATION_CHECKPOINT,
 } from "./registry.mjs";
 import { evaluateGovernance } from "./governance.mjs";
 import { readDomainProofs, staleDomainProofs } from "./domain-proofs.mjs";
@@ -168,35 +166,6 @@ export function point7Facts() {
      * the browser family the same way NEW-027/028/029 are.
      */
     new058Runtime: familyVerdict("p7.new058."),
-  };
-}
-
-/**
- * The continuation checkpoint, evaluated against the facts this run produced.
- *
- * Uses the SAME evaluator the adversarial gate drives — see
- * `checkpoint-truth.mjs` for why there is exactly one of it.
- */
-async function checkpointFacts(factsDoc) {
-  const abs = path.join(REPO, CONTINUATION_CHECKPOINT);
-  if (!existsSync(abs)) {
-    return { present: false, contradictions: 0, staleNextCommands: 0, duplicateActiveStateSections: 0, violations: ["CHECKPOINT MISSING"] };
-  }
-  const { evaluateCheckpoint } = await import(
-    pathToFileURL(path.join(REPO, "services/api/scripts/audit/engine/checkpoint-truth.mjs")).href
-  );
-  const result = evaluateCheckpoint({
-    markdown: readFileSync(abs, "utf8"),
-    facts: factsDoc,
-    commandTargetExists: (p) => existsSync(path.join(REPO, p)),
-  });
-  return {
-    present: true,
-    contradictions: result.checkpointContradictions,
-    staleNextCommands: result.staleNextCommands,
-    duplicateActiveStateSections: result.duplicateActiveStateSections,
-    scalarsChecked: result.scalarsChecked,
-    violations: result.violations.map((v) => `${v.kind}: ${v.detail}`),
   };
 }
 
@@ -363,80 +332,6 @@ async function reachabilityFacts() {
   };
 }
 
-/**
- * What a refused ledger reports in place of every countable scalar.
- *
- * A string, so no arithmetic and no `=== 0` comparison anywhere downstream can
- * quietly treat "unreadable" as "zero".
- */
-export const LEDGER_REFUSED = "REFUSED";
-
-async function ledgerFacts() {
-  const rowsPath = CANONICAL.findingsLedger.rows;
-  const mod = await importRel(CANONICAL.findingsLedger.producer);
-  const rowsRaw = readRel(rowsPath);
-  const result = mod.evaluateRows(JSON.parse(rowsRaw));
-  if (!result.ok) {
-    /**
-     * A REFUSED ledger is a controlled finding, not a missing field.
-     *
-     * This branch used to return four keys. Every downstream consumer —
-     * `derivedScalars` reading `.actionable.open`, the report's counter table,
-     * the checkpoint comparison — then read `.actionable` off an object that
-     * did not have one and threw a TypeError. So the audit's response to
-     * "the findings ledger disagrees with the Point-7 proof" was a stack trace
-     * from a completely different module, which says nothing about the
-     * refusal and hides it behind an engine crash.
-     *
-     * The shape is therefore COMPLETE and deliberately UNUSABLE. Every field a
-     * consumer reads exists, so nothing throws; every field that could be
-     * mistaken for progress carries {@link LEDGER_REFUSED} rather than a
-     * number, so nothing can be credited. `open === 0` — the one comparison
-     * that decides `ReleaseBlockingClosure` — is false against a string, which
-     * means a refused ledger reports OPEN by construction and cannot report
-     * PASS by accident.
-     */
-    return {
-      path: rowsPath,
-      producer: CANONICAL.findingsLedger.producer,
-      rowsHash: sha256(rowsRaw),
-      valid: false,
-      problems: result.problems,
-      rowCount: LEDGER_REFUSED,
-      actionable: {
-        total: LEDGER_REFUSED,
-        closed: LEDGER_REFUSED,
-        open: LEDGER_REFUSED,
-      },
-      verifiedClosures: { total: LEDGER_REFUSED, ids: [] },
-      unknownBlocked: { total: LEDGER_REFUSED, ids: [] },
-      trackedInventory: { total: 0, ids: [], releaseBlocking: false },
-      // NOT an empty list. "No open findings" and "the ledger could not be
-      // read" must never render the same, and `releaseBlockingProblems` reads
-      // this to decide whether a release is blocked.
-      openIds: ["LEDGER_REFUSED"],
-      conservationEquation: `${LEDGER_REFUSED} — the ledger did not validate`,
-    };
-  }
-  const l = result.ledger;
-  return {
-    path: rowsPath,
-    producer: CANONICAL.findingsLedger.producer,
-    rowsHash: sha256(rowsRaw),
-    valid: true,
-    rowCount: l.rowCount,
-    actionable: l.actionable,
-    verifiedClosures: l.verifiedClosures,
-    unknownBlocked: l.unknownBlocked,
-    // Carried so closure can report it WITHOUT crediting it. Inventory is
-    // release-blocking for nothing and earns no fixed, security or completeness
-    // credit; it is here to stay visible, not to be counted as progress.
-    trackedInventory: l.trackedInventory ?? { total: 0, ids: [], releaseBlocking: false },
-    openIds: l.remainingIds,
-    conservationEquation: l.conservationEquation,
-  };
-}
-
 // ===========================================================================
 // ASSEMBLY
 // ===========================================================================
@@ -446,7 +341,6 @@ export async function buildFacts() {
   const domainProofs = readDomainProofs();
   const cap = await capabilityFacts();
   const reachability = await reachabilityFacts();
-  const ledger = await ledgerFacts();
 
   const stale = staleDomainProofs(domainProofs);
 
@@ -481,20 +375,6 @@ export async function buildFacts() {
     classificationCountsSumToRoutes:
       Object.values(facts.capabilities.classificationCounts).reduce((a, b) => a + b, 0) ===
       facts.capabilities.totalRoutes,
-    // PHASE 1 §3 — five buckets, not four. `trackedInventory` was added when
-    // FINAL-001's governance DEFECT was separated from the route INVENTORY it
-    // had been carrying in the same row. Leaving this identity at four buckets
-    // would have made the separation itself look like a conservation failure.
-    ledgerRowsConserve: ledger.valid
-      ? ledger.actionable.total +
-          ledger.verifiedClosures.total +
-          ledger.unknownBlocked.total +
-          (ledger.trackedInventory?.total ?? 0) ===
-        ledger.rowCount
-      : false,
-    ledgerActionableConserves: ledger.valid
-      ? ledger.actionable.closed + ledger.actionable.open === ledger.actionable.total
-      : false,
   };
 
   const document = {
@@ -549,20 +429,12 @@ export async function buildFacts() {
     },
     domainProofs,
     conservation,
-    findingsLedgerRef: ledger,
     auditGovernanceRef: {
       path: CANONICAL.governanceInventory.path,
       problems: governance.problems,
     },
   };
 
-  /**
-   * The checkpoint is evaluated LAST, against the document that was just
-   * built, because the whole question it answers is whether the prose agrees
-   * with THESE numbers. It is attached rather than merged into `facts` so the
-   * evaluator's own input stays exactly the shape it validates.
-   */
-  document.checkpoint = await checkpointFacts(document);
   return document;
 }
 
@@ -582,8 +454,6 @@ export function engineProblems(f, governance) {
   for (const [k, holds] of Object.entries(f.conservation)) {
     if (!holds) problems.push(`CONSERVATION VIOLATED: ${k}`);
   }
-  if (!f.findingsLedgerRef.valid)
-    problems.push(`LEDGER REFUSED: ${(f.findingsLedgerRef.problems ?? []).join(" | ")}`);
   if (f.facts.proofFreshness.stale !== 0)
     problems.push(`STALE DOMAIN PROOF CREDITED: ${f.facts.proofFreshness.staleDomains.join(", ")}`);
   if (!f.facts.reachability.ok)
@@ -623,8 +493,6 @@ export function closureProblems(f) {
  */
 export function releaseBlockingProblems(f) {
   const problems = [];
-  const open = f.findingsLedgerRef.openIds ?? [];
-  if (open.length > 0) problems.push(`OPEN LOCAL FINDINGS: ${open.join(", ")}`);
   for (const [k, v] of Object.entries(f.facts.instrumentIntegrity)) {
     if (v !== 0) problems.push(`INSTRUMENT: ${k} = ${v}`);
   }
@@ -730,20 +598,6 @@ export function releaseBlockingProblems(f) {
     }
   }
 
-  // PHASE 13 §1 — A CHECKPOINT THAT CONTRADICTS THE MEASUREMENT BLOCKS TOO.
-  //
-  // It is the document the next pass reads first. A stale scalar in it is
-  // acted on, and acting on a stale scalar is how a closed counter gets
-  // reopened by hand.
-  const cp = f.checkpoint;
-  if (cp) {
-    if (!cp.present) problems.push("CHECKPOINT: the continuation checkpoint is missing");
-    else if (cp.violations.length > 0) {
-      problems.push(
-        `CHECKPOINT: ${cp.violations.length} violation(s) — ${cp.violations.slice(0, 5).join(" | ")}`,
-      );
-    }
-  }
   return problems;
 }
 
@@ -758,12 +612,12 @@ export function architectureBacklogProblems(f) {
   const c = f.facts.capabilities;
   if (c.undisposed !== 0) {
     problems.push(
-      `ArchitectureBacklog: UndisposedRoutes = ${c.undisposed} — registered routes with no reviewed product disposition (ARCH-BACKLOG-001, NON-BLOCKING, no security or completeness credit)`,
+      `ArchitectureBacklog: UndisposedRoutes = ${c.undisposed} — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)`,
     );
   }
   if (c.deadRemovePending) {
     problems.push(
-      `ArchitectureBacklog: DeadRemovePending = ${c.deadRemovePending} — routes dispositioned DEAD_REMOVE whose removal has not been executed (ARCH-BACKLOG-003)`,
+      `ArchitectureBacklog: DeadRemovePending = ${c.deadRemovePending} — routes dispositioned DEAD_REMOVE whose removal has not been executed`,
     );
   }
   if (c.mandateConservationHolds === false) {
