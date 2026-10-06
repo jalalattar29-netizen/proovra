@@ -31,6 +31,7 @@ const code = (text: string) =>
   text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/[^\n]*$/gm, "");
 
 const INDEX = read("apps/web/components/reports-experience/ReportsIndex.tsx");
+const SHARED_DOWNLOAD_FAILURE = read("packages/shared/src/download-failure.ts");
 const TYPES = read("apps/web/components/reports-experience/types.ts");
 const CSS = read("apps/web/components/reports-experience/reports.css");
 const AGGREGATOR = read(
@@ -277,8 +278,12 @@ test("stored rows with missing objects return an explicit unavailable-artifact c
       EVIDENCE_ROUTE,
       new RegExp(`reply\\.code\\(410\\)\\.send\\(\\{[\\s\\S]{0,120}code: "${codeValue}"`),
     );
-    assert.match(INDEX, new RegExp(codeValue));
+    // RGA-04 — the Reports index reads these through the ONE shared
+    // download-failure authority instead of a private switch.
+    assert.match(SHARED_DOWNLOAD_FAILURE, new RegExp(codeValue));
   }
+  assert.ok(INDEX.includes('describeArtifactDownloadFailure("report", err)'));
+  assert.ok(INDEX.includes('describeArtifactDownloadFailure("verificationPackage", err)'));
 });
 
 test("a historical package is disclosed without making the latest report package-ready", () => {

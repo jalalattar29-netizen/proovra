@@ -1,3 +1,7 @@
+import type {
+  ArtifactOutputsExtras,
+  MatchedHistory,
+} from "../../../../components/evidence-outputs/artifact-status-types";
 import type { StoredBytesIntegrity } from "@proovra/shared";
 import type {
   EvidenceIntelligence,
@@ -477,7 +481,9 @@ export type ReviewWorkspaceResponse = {
       newVersion: EvidenceNewVersionProjection;
       /** Poll `/artifacts/status` at this interval while work is live; null = stop. */
       pollIntervalMs: number | null;
-    };
+    } & Omit<ArtifactOutputsExtras, "newVersion" | "pollIntervalMs">;
+    /** Immutable report/package pairs (absent from an older API). */
+    versions?: MatchedHistory;
     report:
       | {
           available: true;
@@ -535,7 +541,6 @@ export type ReviewWorkspaceResponse = {
         id: string;
         version: number;
         generatedAtUtc: string;
-        storageKey: string | null;
         sizeBytes: string | null;
         immutableRecorded: boolean;
         latest: boolean;
@@ -545,7 +550,6 @@ export type ReviewWorkspaceResponse = {
         version: number;
         generatedAtUtc: string;
         packageType: string | null;
-        storageKey: string | null;
         sizeBytes: string | null;
         immutableRecorded: boolean;
         latest: boolean;

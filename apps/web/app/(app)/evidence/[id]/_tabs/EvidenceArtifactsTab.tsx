@@ -29,6 +29,7 @@
 
 "use client";
 
+import { useState } from "react";
 import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
 import {
   NEW_VERSION_ACTION,
@@ -38,8 +39,12 @@ import {
 } from "@proovra/shared";
 import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
 import type { EvidenceOutputProjection } from "../review-workspace-types";
-import { NewVersionMenu, type NewVersionOffer } from "../../../../../components/evidence-outputs/NewVersionMenu";
 import { apiFetch } from "../../../../../lib/api";
+import { ArtifactTruthHeader } from "../../../../../components/evidence-outputs/ArtifactTruthHeader";
+import { MatchedVersionHistory } from "../../../../../components/evidence-outputs/MatchedVersionHistory";
+import { OutputProgressCard } from "../../../../../components/evidence-outputs/OutputProgressCard";
+import { UpdatedReportDialog } from "../../../../../components/evidence-outputs/UpdatedReportDialog";
+import type { ArtifactOutputsExtras } from "../../../../../components/evidence-outputs/artifact-status-types";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { RuntimeStatusBanner } from "../../../../../components/operational";
@@ -171,9 +176,15 @@ export function reportPanelStatesGenerationIncident(
 function ArtifactLifecyclePanel({
   ctx,
   output,
+  progressShown,
+  onOpenUpdatedReport,
 }: {
   ctx: EvidenceDetailCtx;
   output: EvidenceOutputProjection;
+  /** The durable progress card is showing the live request; do not repeat it. */
+  progressShown: boolean;
+  /** Opens the updated-report dialog (rendered here only on an older API). */
+  onOpenUpdatedReport: (() => void) | null;
 }) {
   const reasonCopy = outputNoteCopy(output);
   const action = (
@@ -191,6 +202,10 @@ function ArtifactLifecyclePanel({
   const newVersion = workspace.artifactStatus.outputs.newVersion;
   const newVersionInFlight =
     output.state === "READY" && newVersion?.reason === "IN_PROGRESS";
+  // With the truth header present, the updated-report action lives THERE; the
+  // READY arm keeps only the per-output action and its note.
+  const showNewVersionHere =
+    onOpenUpdatedReport != null && newVersion?.action === NEW_VERSION_ACTION;
 
   switch (output.state) {
     case "NOT_APPLICABLE":
@@ -311,6 +326,7 @@ function ArtifactLifecyclePanel({
       );
 
     case "QUEUED":
+      if (progressShown) return null;
       return (
         <div
           className="app-alert"
@@ -331,6 +347,7 @@ function ArtifactLifecyclePanel({
       );
 
     case "GENERATING":
+      if (progressShown) return null;
       return (
         <div
           className="app-alert"
@@ -424,7 +441,7 @@ function ArtifactLifecyclePanel({
        * nothing here and only the downloads remain. None of it is decided
        * locally.
        */
-      if (newVersionInFlight) {
+      if (newVersionInFlight && !progressShown) {
         return (
           <div
             className="app-alert"
@@ -445,9 +462,8 @@ function ArtifactLifecyclePanel({
           </div>
         );
       }
-      return output.action === "NONE" &&
-        reasonCopy === null &&
-        newVersion?.action !== NEW_VERSION_ACTION ? null : (
+      if (newVersionInFlight) return null;
+      return output.action === "NONE" && reasonCopy === null && !showNewVersionHere ? null : (
         <div
           className="evidence-detail-artifact-actions"
           data-evidence-section="reports-ready-actions"
@@ -458,26 +474,18 @@ function ArtifactLifecyclePanel({
           {output.action === "NONE" && newVersion?.action === NEW_VERSION_ACTION ? (
             <RuntimeStatusBanner requires={["artifactGeneration"]} />
           ) : null}
-          <NewVersionMenu
-            offer={newVersion}
-            busy={ctx.generateOutputsBusy}
-            request={ctx.createNewVersion}
-            // RGA-02 — revalidate the canonical offer immediately before Confirm
-            // (parity with native). The server offer can change while the modal
-            // is open (TSA/OTS advanced, latest version moved, a request started,
-            // permission removed, eligibility changed). NewVersionMenu refuses a
-            // withdrawn offer and refreshes a changed one; the server remains the
-            // authority at submit regardless.
-            loadOffer={async () => {
-              const r = (await apiFetch(
-                `/v1/evidence/${ctx.evidenceId}/artifacts/status`,
-              )) as { outputs?: { newVersion?: NewVersionOffer | null } };
-              return r.outputs?.newVersion ?? null;
-            }}
-            menuLabel="More actions for this record's report"
-            dataPrefix="evidence-output"
-            testId="evidence-new-version"
-          />
+          {showNewVersionHere ? (
+            <button
+              type="button"
+              className="app-secondary-action"
+              data-testid="evidence-new-version"
+              data-evidence-action="generate-updated-report"
+              onClick={onOpenUpdatedReport ?? undefined}
+              disabled={ctx.generateOutputsBusy}
+            >
+              Generate updated report
+            </button>
+          ) : null}
         </div>
       );
   }
@@ -495,10 +503,12 @@ function PackageRecoveryPanel({
   ctx,
   report,
   pkg,
+  progressShown,
 }: {
   ctx: EvidenceDetailCtx;
   report: EvidenceOutputProjection;
   pkg: EvidenceOutputProjection;
+  progressShown: boolean;
 }) {
   if (report.state !== "READY") return null;
   const { workspace } = ctx;
@@ -519,6 +529,7 @@ function PackageRecoveryPanel({
     ) : null;
 
   if (inFlight) {
+    if (progressShown) return null;
     return (
       <div
         className="app-alert"
@@ -629,6 +640,76 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const counter = (value: number): string =>
     summary.analyticsAvailable ? String(value) : "Not available";
 
+  /*
+   * ARTIFACTS & VERSIONS (2026-10-06) — the truth header, the durable progress
+   * card, the matched pairs and the updated-report dialog. Each reads fields an
+   * older API does not send, and each degrades to the previous surface when
+   * they are absent (the web deploys before the API).
+   */
+  const outputs = workspace.artifactStatus.outputs;
+  const matched = workspace.artifactStatus.versions ?? null;
+  const latestPair = matched?.versions.find((v) => v.latest) ?? null;
+  const active = outputs.activeRequest ?? null;
+  const progressShown = Boolean(active && active.recent);
+  const newVersionOffered = outputs.newVersion?.action === NEW_VERSION_ACTION;
+  const [updatedReportOpen, setUpdatedReportOpen] = useState(false);
+  const openUpdatedReport = () => setUpdatedReportOpen(true);
+  const loadStatus = async () =>
+    (await apiFetch(`/v1/evidence/${evidenceId}/artifacts/status`)) as {
+      outputs?: ArtifactOutputsExtras | null;
+    };
+
+  // The one control the SERVER offers for the record now, beside a failure.
+  const recoveryAction =
+    reportOutput.action !== "NONE" && reportOutput.action !== "REGENERATE" ? (
+      <OutputActionButton ctx={ctx} kind="report" output={reportOutput} />
+    ) : packageOutput.action !== "NONE" && packageOutput.action !== "REGENERATE" ? (
+      <OutputActionButton ctx={ctx} kind="verificationPackage" output={packageOutput} />
+    ) : newVersionOffered ? (
+      <button type="button" className="app-secondary-action" onClick={openUpdatedReport}>
+        Try the updated report again
+      </button>
+    ) : null;
+
+  const headerActions = (
+    <>
+      {newVersionOffered ? (
+        <button
+          type="button"
+          // Primary only when newer verification facts exist; an optional
+          // re-issue of a current report is a secondary action.
+          className={outputs.freshness?.hasNewerFacts ? "app-primary-action" : "app-secondary-action"}
+          onClick={openUpdatedReport}
+          disabled={ctx.generateOutputsBusy}
+          data-testid="evidence-new-version"
+          data-evidence-action="generate-updated-report"
+        >
+          Generate updated report
+        </button>
+      ) : null}
+      {latestPair ? (
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={() => void ctx.downloadReportVersion(latestPair.reportVersion)}
+          data-testid="truth-download-report"
+        >
+          Download Report PDF v{latestPair.reportVersion}
+        </button>
+      ) : null}
+      {latestPair?.package ? (
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={() => void ctx.downloadVerificationPackageVersion(latestPair.package!.version)}
+          data-testid="truth-download-package"
+        >
+          Download Verification Package ZIP v{latestPair.package.version}
+        </button>
+      ) : null}
+    </>
+  );
+
   return (
     <>
       {stalePending ? (
@@ -678,8 +759,32 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
 
           It is a switch over `EvidenceOutputState` now, so a new state is a
           compile error rather than a silent empty panel. */}
-      <ArtifactLifecyclePanel ctx={ctx} output={reportOutput} />
-      <PackageRecoveryPanel ctx={ctx} report={reportOutput} pkg={packageOutput} />
+      {matched ? (
+        <ArtifactTruthHeader
+          latest={latestPair}
+          trust={outputs.trust ?? null}
+          freshness={outputs.freshness ?? null}
+          activeRequest={active}
+          formatDateTime={formatUserDateTime}
+          formatBytes={formatBytes}
+          actions={headerActions}
+        />
+      ) : null}
+      {active && progressShown ? (
+        <OutputProgressCard request={active} recoveryAction={recoveryAction} />
+      ) : null}
+      <ArtifactLifecyclePanel
+        ctx={ctx}
+        output={reportOutput}
+        progressShown={progressShown}
+        onOpenUpdatedReport={matched ? null : openUpdatedReport}
+      />
+      <PackageRecoveryPanel
+        ctx={ctx}
+        report={reportOutput}
+        pkg={packageOutput}
+        progressShown={progressShown}
+      />
 
       {/* Latest verification link. `shareUrl` is derived from the SAME
           publicVerificationSummary the rail reads, so the tab and the rail can
@@ -738,23 +843,38 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
       {reportDownloadable || packageDownloadable ? (
         <RuntimeStatusBanner requires={["downloads"]} />
       ) : null}
-      <ArtifactHistorySection
-        history={workspace.artifactVersions.history}
-        onDownloadReport={() => void downloadReport()}
-        onDownloadVerificationPackage={() => void downloadVerificationPackage()}
-        onDownloadReportVersion={(v) => void ctx.downloadReportVersion(v)}
-        onDownloadVerificationPackageVersion={(v) =>
-          void ctx.downloadVerificationPackageVersion(v)
-        }
-        formatDateTime={formatUserDateTime}
-        formatBytes={formatBytes}
-        evidenceId={evidenceId}
-        teamId={workspace.evidence.teamId}
-        reportDownloadable={reportDownloadable}
-        reportDisabledReason={reportDisabledReason}
-        packageDownloadable={packageDownloadable}
-        packageDisabledReason={packageDisabledReason}
-      />
+      {matched ? (
+        <MatchedVersionHistory
+          history={matched}
+          formatDateTime={formatUserDateTime}
+          formatBytes={formatBytes}
+          onDownloadReportVersion={(v) => void ctx.downloadReportVersion(v)}
+          onDownloadPackageVersion={(v) => void ctx.downloadVerificationPackageVersion(v)}
+          latestPackageAction={
+            packageOutput.action !== "NONE" && packageOutput.action !== "REGENERATE" ? (
+              <OutputActionButton ctx={ctx} kind="verificationPackage" output={packageOutput} />
+            ) : null
+          }
+        />
+      ) : (
+        <ArtifactHistorySection
+          history={workspace.artifactVersions.history}
+          onDownloadReport={() => void downloadReport()}
+          onDownloadVerificationPackage={() => void downloadVerificationPackage()}
+          onDownloadReportVersion={(v) => void ctx.downloadReportVersion(v)}
+          onDownloadVerificationPackageVersion={(v) =>
+            void ctx.downloadVerificationPackageVersion(v)
+          }
+          formatDateTime={formatUserDateTime}
+          formatBytes={formatBytes}
+          evidenceId={evidenceId}
+          teamId={workspace.evidence.teamId}
+          reportDownloadable={reportDownloadable}
+          reportDisabledReason={reportDisabledReason}
+          packageDownloadable={packageDownloadable}
+          packageDisabledReason={packageDisabledReason}
+        />
+      )}
 
       <section
         className="evidence-detail-sharing"
@@ -817,6 +937,23 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           ))}
         </div>
       </section>
+
+      <UpdatedReportDialog
+        open={updatedReportOpen}
+        onClose={() => setUpdatedReportOpen(false)}
+        initial={{
+          newVersion: outputs.newVersion ?? null,
+          offer: outputs.offer ?? null,
+          freshness: outputs.freshness ?? null,
+        }}
+        loadStatus={loadStatus}
+        submit={ctx.createNewVersion}
+        // ACCEPTED, NOT COMPLETE: the durable progress card (re-read here)
+        // carries the request from "Request accepted" to its terminal state.
+        onAccepted={() => {
+          void loadWorkspace();
+        }}
+      />
     </>
   );
 }

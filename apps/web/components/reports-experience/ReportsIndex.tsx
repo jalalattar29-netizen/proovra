@@ -1209,10 +1209,14 @@ function ArtifactRowActions({
       )) as { url?: string; code?: string; message?: string };
       if (resp.url) {
         window.open(resp.url, "_blank", "noopener,noreferrer");
-      } else if (resp.code === "verification_package_pending") {
-        setError("Package is still generating.");
       } else {
-        setError("Package URL is unavailable.");
+        // RGA-04 — a 2xx with no URL carries a bounded code (e.g. pending).
+        setError(
+          describeArtifactDownloadFailure("verificationPackage", {
+            code: resp.code,
+            statusCode: resp.code ? 202 : 503,
+          }).message,
+        );
       }
     } catch (err) {
       // RGA-04 — one shared vocabulary for package download failures.

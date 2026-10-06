@@ -24,8 +24,9 @@ export function describeReportDownloadFailure(error: unknown): {
 export function describeArtifactDownloadFailure(
   kind: ArtifactKind,
   error: unknown,
+  context?: { version?: number | null },
 ): { message: string; tone: "info" | "error"; report: boolean } {
-  const resolved = resolveArtifactDownloadFailure(kind, error);
+  const resolved = resolveArtifactDownloadFailure(kind, error, context);
   if (resolved) {
     return {
       message: resolved.message,
@@ -36,8 +37,9 @@ export function describeArtifactDownloadFailure(
     };
   }
   const noun = kind === "report" ? "report" : "verification package";
+  const which = context?.version != null ? `${noun} v${context.version}` : `the ${noun}`;
   return {
-    message: toSafeUserError(error, { message: `Could not download the ${noun}.` }).message,
+    message: toSafeUserError(error, { message: `Could not download ${which}.` }).message,
     tone: "error",
     report: true,
   };

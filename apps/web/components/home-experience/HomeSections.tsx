@@ -12,12 +12,12 @@
 
 "use client";
 
-import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { apiFetch } from "../../lib/api";
 import { formatUserDate } from "../../lib/date";
+import { describeArtifactDownloadFailure } from "../../lib/evidence/report-download-feedback";
 
 import type {
   ActiveMatterRow,
@@ -837,24 +837,18 @@ function ReportRowActions({ row }: { row: import("./home-view-model").RecentRepo
         | null;
       if (resp?.url) {
         window.open(resp.url, "_blank", "noopener,noreferrer");
-      } else if (resp?.code === "verification_package_pending") {
-        setError("Package is still generating.");
       } else {
-        setError(kind === "pdf" ? "Report URL is unavailable." : "Package URL is unavailable.");
+        // RGA-04 — a 2xx with no URL carries a bounded code (e.g. pending).
+        setError(
+          describeArtifactDownloadFailure(kind === "pdf" ? "report" : "verificationPackage", {
+            code: resp?.code,
+            statusCode: resp?.code ? 202 : 503,
+          }).message,
+        );
       }
     } catch (e) {
-      const err = e as { statusCode?: number; message?: string };
-      if (err.statusCode === 202) {
-        setError(kind === "pdf" ? "Report is still generating." : "Package is still generating.");
-      } else if (err.statusCode === 403) {
-        setError("You don't have permission to download this.");
-      } else if (err.statusCode === 409) {
-        setError(toSafeUserError(err, { message: "Download blocked by workspace policy." }).message);
-      } else if (err.statusCode === 404) {
-        setError("File not found.");
-      } else {
-        setError(toSafeUserError(err, { message: "Could not start download." }).message);
-      }
+      // RGA-04 — the ONE shared download-failure vocabulary.
+      setError(describeArtifactDownloadFailure(kind === "pdf" ? "report" : "verificationPackage", e).message);
     } finally {
       setBusy(null);
     }

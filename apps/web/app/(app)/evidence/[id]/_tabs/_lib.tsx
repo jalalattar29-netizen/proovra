@@ -15,6 +15,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { NewVersionSubmitResult } from "../../../../../components/evidence-outputs/artifact-status-types";
 import {
   Archive,
   CircleCheck,
@@ -137,10 +138,14 @@ export type EvidenceDetailCtx = {
     output?: "report" | "verificationPackage",
   ) => Promise<void> | void;
   /**
-   * The separate, confirmed "create a new version". "unanswered" means the
-   * request may have landed, so the caller retries with the SAME key.
+   * The separate, confirmed updated report (RGA-02): submitted WITH the signed
+   * offer revision the dialog showed; answered accepted / stale / typed error.
    */
-  createNewVersion: (clientRequestKey: string, reason: string) => Promise<"answered" | "unanswered">;
+  createNewVersion: (input: {
+    clientRequestKey: string;
+    reason: string;
+    offerRevision: string | null;
+  }) => Promise<NewVersionSubmitResult>;
   generateOutputsBusy: boolean;
   runRecordAction: (path: string, successMessage: string) => Promise<void> | void;
   restoreTrash: () => Promise<void> | void;

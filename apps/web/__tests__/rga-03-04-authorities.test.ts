@@ -80,16 +80,25 @@ test("RGA-04: report and package names appear in the right messages", () => {
   assert.ok(/verification package/i.test(p!.message));
 });
 
-test("RGA-04: a missing object offers RECOVER, is not retryable, is not reported", () => {
+test("RGA-04: a missing stored object of an issued (immutable) version is a support matter, never a regeneration", () => {
   const r = resolveArtifactDownloadFailure("report", { statusCode: 410, code: "report_artifact_missing" });
-  assert.equal(r!.action, "RECOVER");
+  assert.equal(r!.action, "NONE");
   assert.equal(r!.retryable, false);
   assert.equal(r!.report, false);
+  assert.match(r!.message, /Contact support; nothing has been changed./);
   const p = resolveArtifactDownloadFailure("verificationPackage", {
     statusCode: 410,
     code: "verification_package_artifact_missing",
   });
-  assert.equal(p!.action, "RECOVER");
+  assert.equal(p!.action, "NONE");
+});
+
+test("RGA-04: the package endpoint's own codes and a missing VERSION resolve through the one authority", () => {
+  assert.equal(resolveArtifactDownloadFailure("verificationPackage", { code: "verification_package_pending", statusCode: 202 })!.action, "REFRESH");
+  assert.equal(resolveArtifactDownloadFailure("verificationPackage", { code: "verification_package_generation_failed", statusCode: 409 })!.action, "RECOVER");
+  assert.match(resolveArtifactDownloadFailure("verificationPackage", { code: "verification_package_not_included", statusCode: 409 })!.message, /not included/);
+  const v = resolveArtifactDownloadFailure("report", { statusCode: 404 }, { version: 3 });
+  assert.equal(v!.message, "Report v3 is not available for this record.");
 });
 
 test("RGA-04: governance/503 is retryable with RETRY; access/hold is NONE", () => {

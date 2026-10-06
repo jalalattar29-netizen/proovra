@@ -93,28 +93,6 @@ export interface ConfirmActionOptions {
    * confirmed. Callers in this mode should ignore the result.
    */
   noticeOnly?: boolean;
-  /**
-   * RGA-03 — an inline, validated reason field. When set, the modal renders a
-   * managed <textarea> with a live character counter, an accessible inline error
-   * (wired via aria-describedby and aria-invalid), and keeps the confirm button
-   * DISABLED until the reason is valid. Validation uses the caller's `validate`
-   * (the shared reason authority), so the client enforces exactly the server's
-   * bounds and normalization. The normalized value is handed to `onConfirmed`
-   * the instant the user confirms. Additive: callers that omit it are unchanged.
-   */
-  reasonField?: {
-    label: string;
-    placeholder?: string;
-    max: number;
-    /** Validate RAW input → normalized value + ok + a message when invalid. */
-    validate: (raw: string) => { ok: boolean; value: string; message?: string };
-    /** Current normalized length for the counter (defaults to the valid value's). */
-    countOf?: (raw: string) => number;
-    /** Receives the normalized value when the user confirms. */
-    onConfirmed?: (value: string) => void;
-    /** Initial raw text (preserved across an offer refresh). */
-    initialValue?: string;
-  };
 }
 
 interface ConfirmActionRequest extends ConfirmActionOptions {
@@ -213,29 +191,19 @@ function ConfirmActionModal({
     requireConfirmText,
     testId,
     noticeOnly = false,
-    reasonField,
   } = request;
 
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
-  const reasonErrorId = useId();
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
-  const [reasonRaw, setReasonRaw] = useState(reasonField?.initialValue ?? "");
-  const [reasonTouched, setReasonTouched] = useState(false);
 
   const accent = toneAccent(tone);
   const dataTestId = testId ?? "confirm-action-modal";
   const confirmGated = Boolean(requireConfirmText) && typed !== requireConfirmText;
-  // RGA-03 — the reason gate. Confirm stays disabled until the reason is valid.
-  const reasonCheck = reasonField ? reasonField.validate(reasonRaw) : null;
-  const reasonInvalid = Boolean(reasonField) && !(reasonCheck?.ok ?? false);
-  const reasonCount = reasonField
-    ? (reasonField.countOf ? reasonField.countOf(reasonRaw) : (reasonCheck?.value.length ?? 0))
-    : 0;
-  const confirmDisabled = busy || confirmGated || reasonInvalid;
+  const confirmDisabled = busy || confirmGated;
 
   const close = useCallback(
     (result: boolean) => {
@@ -247,10 +215,9 @@ function ConfirmActionModal({
 
   const handleConfirm = useCallback(async () => {
     if (confirmDisabled) return;
-    if (reasonField && reasonCheck?.ok) reasonField.onConfirmed?.(reasonCheck.value);
     setBusy(true);
     onClose(true);
-  }, [confirmDisabled, onClose, reasonField, reasonCheck]);
+  }, [confirmDisabled, onClose]);
 
   // Focus trap, scroll lock, escape, restore focus.
   useEffect(() => {
@@ -525,62 +492,6 @@ function ConfirmActionModal({
                   fontSize: 13,
                 }}
               />
-            </label>
-          ) : null}
-
-          {reasonField ? (
-            <label
-              data-confirm-action-reason-label
-              style={{ display: "block", marginTop: 14, fontSize: 13, color: "#172033" }}
-            >
-              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                {reasonField.label}
-              </span>
-              <textarea
-                data-new-version-reason
-                data-confirm-action-reason-input
-                rows={2}
-                value={reasonRaw}
-                maxLength={reasonField.max * 2}
-                placeholder={reasonField.placeholder}
-                aria-invalid={reasonTouched && reasonInvalid ? true : undefined}
-                aria-describedby={reasonErrorId}
-                onChange={(e) => {
-                  setReasonRaw(e.target.value);
-                  if (!reasonTouched) setReasonTouched(true);
-                }}
-                disabled={busy}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: `1px solid ${reasonTouched && reasonInvalid ? "#C9363E" : "rgba(15,23,42,0.14)"}`,
-                  background: "rgba(255,255,255,0.95)",
-                  color: "#172033",
-                  fontSize: 13,
-                }}
-              />
-              <span
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginTop: 4,
-                  fontSize: 12,
-                }}
-              >
-                <span
-                  id={reasonErrorId}
-                  data-confirm-action-reason-error
-                  role={reasonTouched && reasonInvalid ? "alert" : undefined}
-                  style={{ color: reasonTouched && reasonInvalid ? "#C9363E" : "transparent" }}
-                >
-                  {reasonTouched && reasonInvalid ? reasonCheck?.message ?? "Enter a valid reason." : " "}
-                </span>
-                <span data-confirm-action-reason-count style={{ color: "#5F6B7D" }}>
-                  {reasonCount}/{reasonField.max}
-                </span>
-              </span>
             </label>
           ) : null}
         </div>

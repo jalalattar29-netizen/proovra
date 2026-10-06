@@ -629,6 +629,8 @@ function EvidenceDetailPageInner() {
     evidenceId: evidenceId ?? null,
     addToast,
     reloadWorkspace: loadWorkspace,
+    // RGA-02 — every output request carries the signed offer it was shown.
+    getOfferRevision: () => workspace?.artifactStatus?.outputs?.offer?.revision ?? null,
   });
 
 

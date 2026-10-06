@@ -51,6 +51,7 @@ import { EmptyState } from "../../../../components/ui/EmptyState";
 import { severityTone, statusTone } from "../../../../components/ui/StatusBadge";
 import { identifierLabel } from "@proovra/shared";
 import { escalationReasonLabel } from "../../../../lib/labels/governanceReviewLabels";
+import { describeArtifactDownloadFailure } from "../../../../lib/evidence/report-download-feedback";
 
 type LifecycleState =
   | "DRAFT"
@@ -880,32 +881,20 @@ function ReviewerCrossSurfaceLinks({ evidenceId }: { evidenceId: string }) {
       };
       if (resp.url) {
         window.open(resp.url, "_blank", "noopener,noreferrer");
-      } else if (resp.code === "verification_package_pending") {
-        setError("Package is still generating.");
       } else {
+        // RGA-04 — a 2xx with no URL carries a bounded code (e.g. pending).
         setError(
-          kind === "report"
-            ? "Report URL unavailable."
-            : "Package URL unavailable.",
+          describeArtifactDownloadFailure(
+            kind === "report" ? "report" : "verificationPackage",
+            { code: resp.code, statusCode: resp.code ? 202 : 503 },
+          ).message,
         );
       }
     } catch (err) {
-      const e = err as { statusCode?: number; message?: string };
-      if (e.statusCode === 202) {
-        setError(
-          kind === "report"
-            ? "Report is still generating. Refresh shortly."
-            : "Package is still generating. Refresh shortly.",
-        );
-      } else if (e.statusCode === 403) {
-        setError("Permission required to download this artifact.");
-      } else if (e.statusCode === 404) {
-        setError("Artifact not found for this evidence.");
-      } else if (e.statusCode === 409) {
-        setError(toSafeUserError(e, { message: "Download blocked by workspace policy." }).message);
-      } else {
-        setError(toSafeUserError(e, { message: "Could not start download." }).message);
-      }
+      // RGA-04 — the ONE shared download-failure vocabulary.
+      setError(
+        describeArtifactDownloadFailure(kind === "report" ? "report" : "verificationPackage", err).message,
+      );
     } finally {
       setBusy(null);
     }

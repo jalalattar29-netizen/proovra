@@ -43,7 +43,14 @@ type ArtifactStatusResponse = {
     verificationPackage?: OutputSnapshot;
     newVersion?: { action?: string };
     pollIntervalMs?: number | null;
+    /** The durable request a surface follows (absent from an older API). */
+    activeRequest?: {
+      requestId?: string;
+      state?: string;
+      progress?: { currentStep?: string };
+    } | null;
   };
+  versions?: { versions?: Array<{ reportVersion?: number; package?: { version?: number } | null }> };
 };
 
 /** How long fast polling may run before the page says it is taking long. */
@@ -56,7 +63,15 @@ const DEFAULT_INTERVAL_MS = 3000;
 function signatureOf(r: ArtifactStatusResponse | null | undefined): string {
   const o = r?.outputs;
   const one = (x?: OutputSnapshot) => `${x?.state}|${x?.generation}|${x?.version ?? ""}|${x?.action}`;
-  return `${one(o?.report)}#${one(o?.verificationPackage)}#${o?.newVersion?.action ?? ""}`;
+  // DURABLE PROGRESS is part of what changes on screen: a step advancing
+  // (rendering → verifying → building the package) must re-render the card,
+  // and it also proves the work is moving, so it restarts the stale stopwatch.
+  const a = o?.activeRequest;
+  const progress = a ? `${a.requestId}|${a.state}|${a.progress?.currentStep ?? ""}` : "";
+  const pairs = (r?.versions?.versions ?? [])
+    .map((v) => `${v.reportVersion}:${v.package?.version ?? "-"}`)
+    .join(",");
+  return `${one(o?.report)}#${one(o?.verificationPackage)}#${o?.newVersion?.action ?? ""}#${progress}#${pairs}`;
 }
 
 /**
@@ -95,6 +110,30 @@ export function useArtifactReadinessPoll(input: {
   workspaceRef.current = workspace;
   const pollStartedAtRef = useRef(pollStartedAt);
   pollStartedAtRef.current = pollStartedAt;
+
+  /*
+   * RECONNECT AND RETURN — re-read the record, polling or not.
+   *
+   * A PWA that was offline, or a tab that sat hidden while a colleague issued
+   * v2, must not keep showing what it last saw (v1 as Latest, no progress). The
+   * browser's `online` event and the tab becoming visible again trigger one
+   * reload of the canonical state; the poll below then resumes from it.
+   */
+  useEffect(() => {
+    if (!evidenceId || typeof window === "undefined") return;
+    const reread = () => {
+      void Promise.resolve(reloadWorkspace()).catch(() => undefined);
+    };
+    const onVisible = () => {
+      if (!document.hidden) reread();
+    };
+    window.addEventListener("online", reread);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", reread);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [evidenceId, reloadWorkspace]);
 
   useEffect(() => {
     if (!evidenceId) return;

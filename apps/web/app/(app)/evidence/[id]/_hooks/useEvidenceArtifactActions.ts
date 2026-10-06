@@ -48,9 +48,13 @@
 import { useState } from "react";
 
 import { apiFetch } from "../../../../../lib/api";
+import { outputOperationError, resolveOutputOperationError } from "@proovra/shared";
+import type { NewVersionSubmitResult } from "../../../../../components/evidence-outputs/artifact-status-types";
 import { captureException } from "../../../../../lib/sentry";
-import { toSafeUserError } from "../../../../../lib/feedback/toSafeUserError";
-import { describeReportDownloadFailure } from "../../../../../lib/evidence/report-download-feedback";
+import {
+  describeArtifactDownloadFailure,
+  describeReportDownloadFailure,
+} from "../../../../../lib/evidence/report-download-feedback";
 import { tryDownloadFile } from "../_tabs/_lib";
 // RELIABILITY CLOSURE (2026-09-09) — the ONE reader of the typed generation
 // outcome, shared with the Reports page and the AI Copilot.
@@ -74,8 +78,16 @@ export type EvidenceArtifactActions = {
     intent?: OutputRequestIntent,
     output?: "report" | "verificationPackage",
   ) => Promise<void>;
-  /** "answered": the server decided (keep no key); "unanswered": reuse the key on retry. */
-  createNewVersion: (clientRequestKey: string, reason: string) => Promise<"answered" | "unanswered">;
+  /**
+   * RGA-02 — submit an updated-report confirmation WITH the signed offer
+   * revision it showed. The answer is typed: accepted (with the durable request
+   * id), stale (what changed), or a typed error.
+   */
+  createNewVersion: (input: {
+    clientRequestKey: string;
+    reason: string;
+    offerRevision: string | null;
+  }) => Promise<NewVersionSubmitResult>;
   generateOutputsBusy: boolean;
 };
 
@@ -91,8 +103,15 @@ export function useEvidenceArtifactActions(input: {
   evidenceId: string | null;
   addToast: Toast;
   reloadWorkspace: () => Promise<void> | void;
+  /**
+   * RGA-02 — the signed offer revision the page is showing. Every per-output
+   * request carries it, so a click on a control the record no longer offers
+   * (another member already recovered it, a request started) is refused by the
+   * server instead of doing something nobody saw described.
+   */
+  getOfferRevision?: () => string | null;
 }): EvidenceArtifactActions {
-  const { evidenceId, addToast, reloadWorkspace } = input;
+  const { evidenceId, addToast, reloadWorkspace, getOfferRevision } = input;
 
 /**
  * COMMERCIAL CLOSURE (2026-09-08) — DOWNLOADING AN ARTIFACT THAT EXISTS IS
@@ -161,128 +180,20 @@ const downloadVerificationPackage = async () => {
       if (!ok) window.open(data.url, "_blank", "noopener,noreferrer");
       return;
     }
-    if (data && data.code === "verification_package_pending") {
-      addToast(
-        "Verification package is still being generated. Retry shortly.",
-        "info",
-      );
-      return;
-    }
-    addToast("Verification package is temporarily unavailable.", "info");
+    // A 2xx answer with no URL carries a bounded code (e.g. still pending).
+    const answered = describeArtifactDownloadFailure("verificationPackage", {
+      code: data?.code ?? undefined,
+      // No code and no URL: say it is temporarily unavailable, never "pending".
+      statusCode: data?.code ? 202 : 503,
+    });
+    addToast(answered.message, answered.tone);
   } catch (downloadError) {
-    const e = downloadError as {
-      statusCode?: number;
-      code?: string;
-      requestId?: string;
-      message?: string;
-    };
-    let userMessage = "Unable to download verification package.";
-    let tone: "info" | "error" = "error";
-    switch (e?.code) {
-      case "verification_package_pending":
-        userMessage = "Verification package is still being generated. Retry shortly.";
-        tone = "info";
-        break;
-      case "verification_package_blocked":
-      case "PACKAGE_BLOCKED_BY_POLICY":
-        userMessage = "Verification package is blocked by governance policy.";
-        tone = "info";
-        break;
-      case "verification_package_unavailable":
-        userMessage =
-          "Verification package is unavailable for this workspace context.";
-        tone = "info";
-        break;
-      // COMMERCIAL CLOSURE (2026-09-08) — the honest commercial answer,
-      // replacing the 202 "being generated" this endpoint used to return for
-      // a package that would never be built.
-      case "verification_package_not_included":
-        userMessage =
-          "Verification packages are not included for this evidence record.";
-        tone = "info";
-        break;
-      case "verification_package_not_found":
-        userMessage = "Verification package was not found.";
-        tone = "info";
-        break;
-      /*
-       * RELIABILITY CLOSURE (2026-09-09) — the endpoint stopped deriving
-       * "pending" from an absence, so these three states can now reach a
-       * client. A generation that FAILED used to be reported here as being
-       * generated.
-       */
-      case "verification_package_not_generated":
-        userMessage =
-          "No verification package has been generated for this record yet.";
-        tone = "info";
-        break;
-      case "verification_package_generation_failed":
-        userMessage =
-          "The last attempt to build the verification package failed. The evidence record and its integrity state are unaffected.";
-        tone = "info";
-        break;
-      case "verification_package_generation_stopped":
-        userMessage =
-          "The verification package could not be produced for this record and generation has stopped.";
-        tone = "info";
-        break;
-      case "GOVERNANCE_CHECK_FAILED":
-      case "governance_schema_unavailable":
-        userMessage = "Governance check is temporarily unavailable. Retry shortly.";
-        tone = "info";
-        break;
-      default:
-        switch (e?.statusCode) {
-          case 401:
-            userMessage = "Sign-in required to download this package.";
-            tone = "info";
-            break;
-          case 403:
-            userMessage = "Verification package is blocked by governance policy.";
-            tone = "info";
-            break;
-          case 404:
-            userMessage = "Verification package was not found.";
-            tone = "info";
-            break;
-          case 409:
-            userMessage = "Verification package is blocked by governance policy.";
-            tone = "info";
-            break;
-          case 410:
-            userMessage =
-              "Verification package is unavailable for this workspace context.";
-            tone = "info";
-            break;
-          case 503:
-            userMessage =
-              "Verification package is temporarily unavailable. Retry shortly.";
-            tone = "info";
-            break;
-          default:
-            userMessage = "Unable to download verification package.";
-            tone = "error";
-        }
-    }
-    addToast(userMessage, tone);
-    const isExpectedBoundedSignal =
-      e?.code === "verification_package_pending" ||
-      e?.code === "verification_package_blocked" ||
-      e?.code === "verification_package_unavailable" ||
-      e?.code === "verification_package_not_included" ||
-      e?.code === "verification_package_not_found" ||
-      e?.code === "verification_package_not_generated" ||
-      e?.code === "verification_package_generation_failed" ||
-      e?.code === "verification_package_generation_stopped" ||
-      e?.code === "PACKAGE_BLOCKED_BY_POLICY" ||
-      e?.code === "GOVERNANCE_CHECK_FAILED" ||
-      e?.code === "governance_schema_unavailable" ||
-      e?.statusCode === 401 ||
-      e?.statusCode === 403 ||
-      e?.statusCode === 404 ||
-      e?.statusCode === 409 ||
-      e?.statusCode === 410;
-    if (!isExpectedBoundedSignal) {
+    // RGA-04 — the ONE shared download-failure authority (same vocabulary as
+    // the report, the Reports page, version history and native). Bounded
+    // refusals are outcomes, not faults; only an unrecognised failure is filed.
+    const feedback = describeArtifactDownloadFailure("verificationPackage", downloadError);
+    addToast(feedback.message, feedback.tone);
+    if (feedback.report) {
       captureException(downloadError, {
         feature: "web_evidence_download_verification_package",
         evidenceId,
@@ -346,18 +257,25 @@ const generateOutputs = async (
         method: "POST",
         // The output whose control was used travels too, so a Retry on the
         // package retries the package (2026-09-29).
-        body: JSON.stringify(intent ? { intent, ...(output ? { output } : {}) } : {}),
+        body: JSON.stringify({
+          ...(intent ? { intent } : {}),
+          ...(output ? { output } : {}),
+          ...(getOfferRevision?.() ? { offerRevision: getOfferRevision() } : {}),
+        }),
       })) as GenerationResponse,
     );
     addToast(read.message, read.tone);
     await reloadWorkspace();
   } catch (err) {
-    addToast(
-      toSafeUserError(err, {
-        message: "Could not request generation.",
-      }).message,
-      "error",
-    );
+    // RGA-01 — the ONE typed operation-error authority.
+    const e = err as { statusCode?: number; code?: string; details?: { reason?: string } };
+    const typed = resolveOutputOperationError({
+      status: e?.statusCode ?? null,
+      code: e?.code ?? null,
+      reason: e?.details?.reason ?? null,
+      network: e?.statusCode === 0,
+    });
+    addToast(`${typed.title}. ${typed.description}`, typed.severity === "error" ? "error" : "info");
     // A declined request means the page's action was stale; show the current one.
     await refreshQuietly();
   } finally {
@@ -372,41 +290,61 @@ const generateOutputs = async (
  * the same confirmation, so a request whose response was lost is answered
  * with the first request (REPLAYED) and never creates a second version.
  */
-const createNewVersion = async (
-  clientRequestKey: string,
-  reason: string,
-): Promise<"answered" | "unanswered"> => {
-  if (!evidenceId || generateOutputsBusy) return "unanswered";
+const createNewVersion = async (submission: {
+  clientRequestKey: string;
+  reason: string;
+  offerRevision: string | null;
+}): Promise<NewVersionSubmitResult> => {
+  if (!evidenceId) {
+    const u = outputOperationError("UNKNOWN");
+    return { kind: "error", key: u.key, title: u.title, description: u.description, answered: true };
+  }
   setGenerateOutputsBusy(true);
   try {
-    const read = readGenerationOutcome(
-      (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
-        method: "POST",
-        body: JSON.stringify({ intent: "NEW_VERSION", clientRequestKey, reason }),
-      })) as GenerationResponse,
-    );
-    addToast(read.message, read.tone);
-    await reloadWorkspace();
-    return "answered";
+    const raw = (await apiFetch(`/v1/evidence/${evidenceId}/reports/regenerate`, {
+      method: "POST",
+      body: JSON.stringify({
+        intent: "NEW_VERSION",
+        clientRequestKey: submission.clientRequestKey,
+        reason: submission.reason,
+        ...(submission.offerRevision ? { offerRevision: submission.offerRevision } : {}),
+      }),
+    })) as GenerationResponse & { requestId?: string | null };
+    const read = readGenerationOutcome(raw);
+    if (read.tone === "error") {
+      const typed = resolveOutputOperationError({ status: 200, code: null, reason: (raw as { reason?: string }).reason ?? null });
+      return { kind: "error", key: typed.key, title: typed.title, description: read.message, answered: true };
+    }
+    // ACCEPTED, NOT COMPLETE: the durable request now carries the progress.
+    return { kind: "accepted", requestId: raw.requestId ?? null, message: read.message };
   } catch (err) {
-    addToast(
-      toSafeUserError(err, {
-        message: "Could not request a new version.",
-      }).message,
-      "error",
-    );
-    await refreshQuietly();
+    const e = err as {
+      statusCode?: number;
+      code?: string;
+      details?: { changeMessages?: unknown; reason?: string };
+    };
+    if (e?.code === "OUTPUT_OFFER_STALE" || e?.code === "OUTPUT_OFFER_REQUIRED") {
+      const msgs = Array.isArray(e.details?.changeMessages)
+        ? (e.details!.changeMessages as unknown[]).filter((m): m is string => typeof m === "string")
+        : [];
+      return { kind: "stale", changeMessages: msgs };
+    }
+    const typed = resolveOutputOperationError({
+      status: e?.statusCode ?? null,
+      code: e?.code ?? null,
+      reason: e?.details?.reason ?? null,
+      network: e?.statusCode === 0 || e?.statusCode == null,
+    });
     // No answer (network) or a server fault: the request may have landed, so
-    // the caller keeps the key and a retry is answered with the first request.
-    const status = (err as { statusCode?: unknown })?.statusCode;
-    return typeof status === "number" && status >= 400 && status < 500
-      ? "answered"
-      : "unanswered";
+    // the dialog keeps the key and a retry is answered with the first request.
+    const status = e?.statusCode;
+    const answered = typeof status === "number" && status >= 400 && status < 500;
+    return { kind: "error", key: typed.key, title: typed.title, description: typed.description, answered };
   } finally {
     setGenerateOutputsBusy(false);
+    await refreshQuietly();
   }
 };
-
 
 /**
  * DOWNLOAD ONE HISTORICAL VERSION.
@@ -435,12 +373,11 @@ const downloadReportVersion = async (version: number) => {
     }
     window.open(data.url, "_blank", "noopener,noreferrer");
   } catch (downloadError) {
-    addToast(
-      toSafeUserError(downloadError, {
-        message: `Could not download report v${version}.`,
-      }).message,
-      "error",
-    );
+    const feedback = describeArtifactDownloadFailure("report", downloadError, { version });
+    addToast(feedback.message, feedback.tone);
+    if (feedback.report) {
+      captureException(downloadError, { feature: "web_evidence_download_report_version", evidenceId });
+    }
   }
 };
 
@@ -461,12 +398,11 @@ const downloadVerificationPackageVersion = async (version: number) => {
     const ok = await tryDownloadFile(packageUrl, packageFileName);
     if (!ok) window.open(packageUrl, "_blank", "noopener,noreferrer");
   } catch (downloadError) {
-    addToast(
-      toSafeUserError(downloadError, {
-        message: `Could not download verification package v${version}.`,
-      }).message,
-      "error",
-    );
+    const feedback = describeArtifactDownloadFailure("verificationPackage", downloadError, { version });
+    addToast(feedback.message, feedback.tone);
+    if (feedback.report) {
+      captureException(downloadError, { feature: "web_evidence_download_package_version", evidenceId });
+    }
   }
 };
 

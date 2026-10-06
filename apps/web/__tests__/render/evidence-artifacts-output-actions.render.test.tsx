@@ -5,8 +5,8 @@
  *   * A report whose verification package is missing shows a package panel
  *     that says what recovery does (the stored report, no new version) and
  *     offers "Recover verification package", which posts intent RECOVER.
- *   * A complete record offers no generation verb; "Create new version" is in
- *     the overflow menu, confirmed with versions, retention and the estimate.
+ *   * A complete record offers no generation verb; "Generate updated report" is
+ *     a direct action, confirmed in a dialog bound to the server's signed offer.
  *   * A new version in flight says so while the current one stays available.
  *   * Escalated work says why nothing is offered.
  *   * Nothing here is decided locally: every case is a different projection.
@@ -131,9 +131,9 @@ function mount(ws: ReturnType<typeof workspace>) {
       calls.push({ kind: "generate", arg: intent });
     },
     generateOutputsBusy: false,
-    createNewVersion: async (key: string) => {
-      calls.push({ kind: "newVersion", arg: key });
-      return "answered" as const;
+    createNewVersion: async (submission: unknown) => {
+      calls.push({ kind: "newVersion", arg: submission });
+      return { kind: "accepted" as const, requestId: "req-1", message: "Accepted." };
     },
   } as unknown as EvidenceDetailCtx;
   const view = render(
@@ -282,7 +282,7 @@ describe("Evidence Artifacts — per-output actions", () => {
     expect(panel?.textContent).not.toMatch(/Support can investigate/);
   });
 
-  it("a complete record offers 'Generate updated report' as a DIRECT action (no overflow menu); it needs a valid reason and revalidates the offer at Confirm", async () => {
+  it("a complete record offers 'Generate updated report' as a DIRECT action; the dialog needs a valid reason and submits the SIGNED offer it showed", async () => {
     const offer = {
       action: "CREATE_NEW_VERSION",
       reason: null,
@@ -295,40 +295,53 @@ describe("Evidence Artifacts — per-output actions", () => {
         storageBytesLimit: null,
       },
     };
-    // RGA-02 — the Confirm-time revalidation reads the current offer and must see
-    // no change for the submit to proceed.
-    api.impl = async () => ({ outputs: { newVersion: offer } });
+    const signed = {
+      revision: "ofr1.shown.sig",
+      createdAtUtc: "2026-10-06T10:00:00.000Z",
+      expiresAtUtc: "2026-10-06T10:15:00.000Z",
+      operation: "NEW_VERSION",
+      targetVersion: 4,
+      reasonRequired: true,
+      creditEffect: { kind: "NONE" },
+      storageEffect: { estimatedBytes: String(12 * 1024 * 1024), fitsStorage: true, storageBytesUsed: null, storageBytesLimit: null },
+    };
+    // The dialog re-reads the authoritative offer when it opens.
+    api.impl = async () => ({ outputs: { newVersion: offer, offer: signed, freshness: null } });
     const { container, calls } = mount(
       workspace({ report: NOT_REQUIRED, pkg: NOT_REQUIRED, newVersion: offer }),
     );
     expect(container.querySelector("[data-evidence-action='generate-outputs']")).toBeNull();
-    // Phase 5.2 — a DIRECT button, not a one-item overflow menu.
     const action = container.querySelector("[data-testid='evidence-new-version']") as HTMLButtonElement;
     expect(action.tagName).toBe("BUTTON");
     expect(action.textContent).toMatch(/generate updated report/i);
     fireEvent.click(action);
-    const modal = await waitFor(() => {
-      const el = document.querySelector("[data-confirm-action-modal]");
+    const dialog = await waitFor(() => {
+      const el = document.querySelector("[data-testid='updated-report-dialog']");
       expect(el).toBeTruthy();
       return el as HTMLElement;
     });
-    const text = modal.textContent ?? "";
-    expect(text).toContain("Generate report v4");
-    expect(text).toContain("Issues report version 4, dated today, and its verification package, alongside version 3.");
-    expect(text).toContain("Earlier versions are kept unchanged, keep their own dates and stay downloadable.");
-    expect(text).toContain("Estimated additional storage: about 12 MB (based on the original evidence");
-    expect(calls).toEqual([]);
-    // RGA-03 — Confirm is disabled until the reason is valid.
-    const submit = modal.querySelector("[data-confirm-action-submit='true']") as HTMLButtonElement;
+    await waitFor(() => expect(dialog.getAttribute("aria-busy")).toBeNull());
+    expect(dialog.getAttribute("role")).toBe("dialog");
+    expect(dialog.textContent).toContain("Generate report v4");
+    expect(dialog.querySelector("[data-testid='updated-report-current']")?.textContent).toBe("v3");
+    expect(dialog.querySelector("[data-testid='updated-report-credit']")?.textContent).toBe("No evidence credit is used.");
+    expect(dialog.querySelector("[data-testid='updated-report-storage']")?.textContent).toContain("about 12 MB");
+    expect(dialog.textContent).toContain("Report v3 and its verification package stay exactly as they are");
+    expect(dialog.textContent).toContain("A matching verification package v4 will certify report v4.");
+    expect(dialog.textContent).toContain("The original evidence and its recorded timestamps are not modified.");
+    const submit = dialog.querySelector("[data-testid='updated-report-confirm']") as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
-    fireEvent.change(modal.querySelector("[data-new-version-reason]")!, {
+    fireEvent.change(dialog.querySelector("[data-testid='updated-report-reason']")!, {
       target: { value: "Document the later anchor" },
     });
     expect(submit.disabled).toBe(false);
     fireEvent.click(submit);
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]!.kind).toBe("newVersion");
-    expect(String(calls[0]!.arg)).toMatch(/^nv-/);
+    const arg = calls[0]!.arg as { clientRequestKey: string; reason: string; offerRevision: string };
+    expect(arg.clientRequestKey).toMatch(/^nv-/);
+    expect(arg.reason).toBe("Document the later anchor");
+    expect(arg.offerRevision).toBe("ofr1.shown.sig");
   });
 
   it("a new version in flight says so; the current version stays and no action is offered", () => {
