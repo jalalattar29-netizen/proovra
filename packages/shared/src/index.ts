@@ -340,7 +340,24 @@ export {
   formatEstimatedBytes,
   makeClientRequestKey,
   NEW_VERSION_LABEL,
+  // RGA-03 — the one reason authority (bounds + normalizer + validator + copy),
+  // shared by the API route, the web modal and native.
+  NEW_VERSION_REASON_MIN,
+  NEW_VERSION_REASON_MAX,
+  normalizeNewVersionReason,
+  validateNewVersionReason,
+  newVersionReasonError,
 } from "./output-action-copy.js";
+export type { NewVersionReasonValidation } from "./output-action-copy.js";
+
+// RGA-04 — the ONE typed download-failure authority for report + package.
+export { resolveArtifactDownloadFailure } from "./download-failure.js";
+export type {
+  ArtifactKind,
+  ArtifactDownloadFailure,
+  DownloadFailureSeverity,
+  DownloadFailureAction,
+} from "./download-failure.js";
 export type { OutputKind } from "./output-action-copy.js";
 export type {
   OutputCommercialEligibility,

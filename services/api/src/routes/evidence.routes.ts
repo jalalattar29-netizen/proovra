@@ -95,6 +95,10 @@ import {
   // Evidence-output incident (2026-10-05) — ONE storage-protection answer.
   classifyStorageProtection,
   type StorageProtectionClass,
+  // RGA-03 — the shared reason authority (same bounds + normalization as clients).
+  normalizeNewVersionReason,
+  validateNewVersionReason,
+  newVersionReasonError,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -374,7 +378,6 @@ import {
   isOperatorCapabilityGap,
 } from "../services/ai/workspace-ai-policy.service.js";
 import { sanitizeUntrustedField } from "../services/ai/prompt-context-sanitizer.service.js";
-import { collapseControlCharacters, stripControlAndInvisible } from "../lib/text-sanitize.js";
 import { enforceAiEndpointGuard } from "../services/ai/ai-rate-limit.service.js";
 import {
   appendReviewerAuditEvent,
@@ -11123,20 +11126,17 @@ if (
        * the request, on the new report row (issue_reason) and in its
        * REPORT_GENERATED custody event. Bounded, single-line, no markup.
        */
-      const updatedReportReason =
-        typeof body.reason === "string"
-          ? collapseControlCharacters(stripControlAndInvisible(body.reason), { c1: true })
-              .replace(/[<>]/g, " ")
-              .replace(/\s+/g, " ")
-              .trim()
-              .slice(0, 120)
-          : "";
-      if (intent === "NEW_VERSION" && updatedReportReason.length < 3) {
-        return reply.code(400).send({
-          code: "UPDATED_REPORT_REASON_REQUIRED",
-          message:
-            "Say why an updated report is being issued (for example, which later facts it should document).",
-        });
+      // RGA-03 — normalize + validate through the ONE shared authority, so the
+      // server enforces exactly the bounds and normalization the clients apply.
+      const updatedReportReason = normalizeNewVersionReason(body.reason);
+      if (intent === "NEW_VERSION") {
+        const reasonCheck = validateNewVersionReason(body.reason);
+        if (!reasonCheck.ok) {
+          return reply.code(400).send({
+            code: "UPDATED_REPORT_REASON_REQUIRED",
+            message: newVersionReasonError(reasonCheck.reason),
+          });
+        }
       }
       const headerKey = req.headers["idempotency-key"];
       const rawKey =

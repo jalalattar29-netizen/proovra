@@ -1,54 +1,44 @@
+import { resolveArtifactDownloadFailure, type ArtifactKind } from "@proovra/shared";
+
 import { toSafeUserError } from "../feedback/toSafeUserError";
 
 /**
- * UC-OUT-004 — the report-download refusal vocabulary. The server's download
- * gate (`assertArtifactDownloadAllowed`) answers with a bounded set of
- * statuses/codes; each gets a user-safe sentence. Anything it cannot explain
- * goes through `toSafeUserError` (never raw text) and IS reported.
+ * UC-OUT-004 / RGA-04 — the report/package download refusal vocabulary.
+ *
+ * The bounded outcomes now live in ONE shared authority
+ * (`resolveArtifactDownloadFailure`) used by every surface (Evidence Detail,
+ * Reports index, version history, web/PWA and native). This thin web wrapper
+ * keeps the existing call shape and adds the web-only safe-error reporting for a
+ * failure the shared authority does not recognise (so an unexpected failure is
+ * still filed, never shown as raw text).
  */
 export function describeReportDownloadFailure(error: unknown): {
   message: string;
   tone: "info" | "error";
   report: boolean;
 } {
-  const e = (error ?? {}) as { statusCode?: unknown; code?: unknown };
-  const status = typeof e.statusCode === "number" ? e.statusCode : undefined;
-  const code = typeof e.code === "string" ? e.code : undefined;
-  if (code === "report_artifact_missing") {
+  return describeArtifactDownloadFailure("report", error);
+}
+
+/** The same resolver for either artifact kind; RGA-04 consumers should use this. */
+export function describeArtifactDownloadFailure(
+  kind: ArtifactKind,
+  error: unknown,
+): { message: string; tone: "info" | "error"; report: boolean } {
+  const resolved = resolveArtifactDownloadFailure(kind, error);
+  if (resolved) {
     return {
-      message:
-        "The report record exists, but its file is unavailable. Request a new version to regenerate it.",
-      tone: "info",
-      report: false,
+      message: resolved.message,
+      // The existing web contract is a two-tone (info|error) badge; map the
+      // shared severity onto it (warning renders as info on this surface).
+      tone: resolved.severity === "error" ? "error" : "info",
+      report: resolved.report,
     };
   }
-  if (code === "GOVERNANCE_CHECK_FAILED" || code === "governance_schema_unavailable") {
-    return { message: "Governance check is temporarily unavailable. Retry shortly.", tone: "info", report: false };
-  }
-  switch (status) {
-    case 401:
-      return { message: "Sign-in required to download this report.", tone: "info", report: false };
-    case 403:
-      if (code === "ACCESS_DENIED" || code === "PERSONAL_OWNER_REQUIRED") {
-        return { message: "This report is not available to you in this workspace.", tone: "info", report: false };
-      }
-      return {
-        message: "Report download is blocked by workspace governance, a hold, or export eligibility.",
-        tone: "info",
-        report: false,
-      };
-    case 404:
-      return { message: "No report has been generated for this record yet.", tone: "info", report: false };
-    case 409:
-    case 410:
-      return { message: "This report is not available for download right now.", tone: "info", report: false };
-    case 503:
-      return { message: "Report download is temporarily unavailable. Retry shortly.", tone: "info", report: false };
-    default:
-      return {
-        message: toSafeUserError(error, { message: "Could not download the report." }).message,
-        tone: "error",
-        report: true,
-      };
-  }
+  const noun = kind === "report" ? "report" : "verification package";
+  return {
+    message: toSafeUserError(error, { message: `Could not download the ${noun}.` }).message,
+    tone: "error",
+    report: true,
+  };
 }

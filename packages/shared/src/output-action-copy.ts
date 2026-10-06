@@ -284,3 +284,72 @@ export function makeClientRequestKey(): string {
   const rnd = () => Math.random().toString(36).slice(2, 10);
   return `nv-${Date.now().toString(36)}-${rnd()}${rnd()}`;
 }
+
+// ===========================================================================
+// RGA-03 — THE ONE reason authority for an updated report (NEW_VERSION).
+// ===========================================================================
+//
+// The minimum and maximum live here so the API route (server authority), the web
+// modal, and native all enforce the SAME bounds and the SAME normalization. A
+// reason is single-line, free of control/invisible characters and angle brackets,
+// whitespace-collapsed, trimmed, and length-bounded. It is NEVER the idempotency
+// identity (that is the client request key), so two different reasons do not
+// create two versions and the same reason does not collapse two legitimate ones.
+
+export const NEW_VERSION_REASON_MIN = 3;
+export const NEW_VERSION_REASON_MAX = 120;
+
+/**
+ * Canonical normalization for an updated-report reason. Pure and dependency-free
+ * (safe in the API, the browser and native). Strips C0/C1 control characters and
+ * Unicode invisibles, removes angle brackets, collapses whitespace, trims, and
+ * bounds to NEW_VERSION_REASON_MAX.
+ */
+export function normalizeNewVersionReason(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    // Stripping control characters is the point of this normalizer.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ")
+    .replace(/[\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060\uFEFF]/g, "")
+    .replace(/[<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, NEW_VERSION_REASON_MAX);
+}
+
+export type NewVersionReasonValidation =
+  | { ok: true; value: string }
+  | { ok: false; value: string; reason: "EMPTY" | "TOO_SHORT" | "TOO_LONG" };
+
+/**
+ * Validate an updated-report reason against the canonical bounds, returning the
+ * normalized value and a typed failure. The server rejects on `ok: false`; a
+ * client disables Confirm on it and shows the matching inline message.
+ * `TOO_LONG` can only arise from the raw length before truncation, so clients can
+ * warn before the value is silently clipped.
+ */
+export function validateNewVersionReason(raw: unknown): NewVersionReasonValidation {
+  const value = normalizeNewVersionReason(raw);
+  const rawTrimmedLength = typeof raw === "string" ? raw.trim().length : 0;
+  if (value.length === 0) return { ok: false, value, reason: "EMPTY" };
+  if (value.length < NEW_VERSION_REASON_MIN) return { ok: false, value, reason: "TOO_SHORT" };
+  if (rawTrimmedLength > NEW_VERSION_REASON_MAX) return { ok: false, value, reason: "TOO_LONG" };
+  return { ok: true, value };
+}
+
+/** The inline message for each typed reason-validation failure (one copy). */
+export function newVersionReasonError(
+  reason: "EMPTY" | "TOO_SHORT" | "TOO_LONG",
+): string {
+  switch (reason) {
+    case "EMPTY":
+      return "Say why an updated report is being issued.";
+    case "TOO_SHORT":
+      return `Give at least ${NEW_VERSION_REASON_MIN} characters.`;
+    case "TOO_LONG":
+      return `Keep the reason to ${NEW_VERSION_REASON_MAX} characters or fewer.`;
+    default:
+      return "Enter a valid reason.";
+  }
+}
