@@ -24,7 +24,10 @@ export function UpdatedReportDialogHost({
   open: boolean;
   onClose: () => void;
 }) {
-  const outputs = ctx.workspace.artifactStatus.outputs;
+  // `workspace` is the review-workspace record, read destructured like every
+  // tab (the platform tenancy envelope is a different object).
+  const { workspace } = ctx;
+  const outputs = workspace.artifactStatus.outputs;
   return (
     <UpdatedReportDialog
       open={open}

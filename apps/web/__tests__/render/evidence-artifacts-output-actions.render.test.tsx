@@ -156,11 +156,12 @@ function mount(ws: ReturnType<typeof workspace>) {
  */
 function PageHarness({ ctx }: { ctx: EvidenceDetailCtx }) {
   const [open, setOpen] = React.useState(false);
+  const { workspace, evidenceId } = ctx;
   const full = {
     ...ctx,
     outputAttention: deriveEvidenceOutputAttention({
-      evidenceId: ctx.evidenceId,
-      status: ctx.workspace.artifactStatus as unknown as OutputAttentionStatus,
+      evidenceId,
+      status: workspace.artifactStatus as unknown as OutputAttentionStatus,
     }),
     openArtifacts: () => {},
     openUpdatedReport: () => setOpen(true),
