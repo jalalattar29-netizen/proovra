@@ -29,6 +29,19 @@ Feature CI (Linux runner, run 37404887956, job 112080131137, SHA
 valid; 43 entries; request `efb3ffb6-1152-492c-9077-3355736bf7cf`, job
 `report-efb3ffb6-1152-492c-9077-3355736bf7cf`.
 
+Feature CI (run 37410509036, job 112097652698, SHA `206681d59`): **25/25
+passed**; v1 report `e7b4aaa8…0157`, v1 package `1ef92db5…dce2`; v2 report
+`030acfc9…d00c`, v2 package `2de7fec4…244b`; seal valid; 43 entries; request
+`6a011cc0-5fe1-4e7f-b257-3862f8a738e3`, job
+`report-6a011cc0-5fe1-4e7f-b257-3862f8a738e3`. Every run mints fresh evidence
+and keys, so the digests differ run to run; what each run proves is the
+relation between them (v2 package seal ↔ v2 report digest, v1 bytes unchanged).
+
+Disclosed: on `206681d59` build-test failed once in
+`webhook-destinations.render.test.tsx` (automation webhooks, untouched here);
+the identical tree re-ran green, and the test passes locally alone and under
+three parallel full render suites. It is tracked separately, not masked.
+
 ## Failure, recovery and concurrency matrix
 
 | Case | Result |

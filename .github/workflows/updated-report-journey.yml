@@ -28,6 +28,9 @@ on:
       - "packages/**"
       - "playwright.config.ts"
       - ".github/workflows/updated-report-journey.yml"
+      # The recorded proof is re-proven whenever it is edited, so the record
+      # and a passing journey always share a SHA.
+      - "docs/audits/updated-report-closure/**"
   pull_request:
   workflow_dispatch:
 
