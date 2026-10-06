@@ -121,8 +121,8 @@ describe("Phase 12 — executable route registry (direction 2)", () => {
    *
    * It is NOT re-asserted as 158, because a second ratchet over the same
    * subject is what this phase is removing. The canonical authority already
-   * ratchets it (`UndisposedRoutes`, phase-12-route-consumer-authority) and
-   * carries it as FINAL-001 in the ledger. What is asserted here is the
+   * ratchets it (`UndisposedRoutes`, phase-12-route-consumer-authority).
+   * What is asserted here is the
    * CONSERVATION that makes the two views one view: every registered route is
    * accounted for by the canonical authority, so nothing can fall between the
    * slice registry and the analyzer and be counted by neither.

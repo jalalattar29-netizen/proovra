@@ -89,7 +89,7 @@ jobs:
       #
       # It is deliberately NOT `--closure-check`. That gate asks whether
       # the PRODUCT is finished, and it correctly exits non-zero while
-      # FINAL-001 is open, so putting it in ordinary CI would make every
+      # product work is open, so putting it in ordinary CI would make every
       # build red for a reason no PR can fix — which is how a red build
       # stops being read, taking this check down with it. Closure belongs
       # to release certification.
