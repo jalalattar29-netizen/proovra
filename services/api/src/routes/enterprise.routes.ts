@@ -340,9 +340,8 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   const LEGACY_RETIRED_BODY = {
     code: "API_KEYS_LEGACY_RETIRED" as const,
     detail:
-      "The legacy /v1/api-keys surface (in-memory, user-scoped) has been retired. " +
-      "Use /v1/integrations/api-keys (team-scoped, durable, audit-backed). " +
-      "See docs/recovery/audit-closure-ledger.md → A-3.",
+      "This API key endpoint has been retired. " +
+      "Manage API keys at /v1/integrations/api-keys instead.",
     canonicalSurface: "/v1/integrations/api-keys",
   };
 
@@ -371,7 +370,6 @@ export async function enterpriseRoutes(app: FastifyInstance) {
   // Phase Final-A3-PT2 — collapse the 5 explicit 410 handlers
   // (POST/GET on `/v1/api-keys`, DELETE/POST/PATCH on `/v1/api-keys/:id*`)
   // into two wildcard registrations covering every method + sub-path.
-  // The closure audit ledger row for A-3 references this collapse.
   app.all("/v1/api-keys", { preHandler: [requireAuthAndLegal] }, async (req, reply) =>
     emitLegacyEndpointAuditAndRespond(req, reply, "api_keys_root"),
   );

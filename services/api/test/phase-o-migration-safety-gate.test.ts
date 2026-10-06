@@ -350,8 +350,7 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // layer. The two dropped columns (`receipt_id`, `public_url`) are
     // confirmed-unused after the product-wide cleanup (zero code / schema /
     // report / package references). The migration uses `DROP COLUMN IF
-    // EXISTS` (idempotent + safe on partial state) and is documented in
-    // `docs/operations/audit-closure-ledger.md`.
+    // EXISTS` (idempotent + safe on partial state).
     "20270908000000_drop_evidence_anchor_publication_columns": new Set([
       "ALTER_TABLE_DROP_COLUMN",
     ]),
@@ -360,8 +359,7 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // `org_health_projections` read model but was never wired into
     // any service, worker, route, or read path — it has zero
     // dependents. The migration uses `DROP TABLE IF EXISTS … CASCADE`
-    // (idempotent + safe on partial state) and is documented in
-    // `docs/operations/audit-closure-ledger.md`.
+    // (idempotent + safe on partial state).
     "20261009000000_drop_reviewer_queue_projection": new Set(["DROP_TABLE"]),
     // PHASE 12 POINT 4 — schema-authority convergence. Two destructive kinds,
     // both explicitly approved because they REPAIR a broken production write
@@ -615,7 +613,6 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // deletion. Uses `DROP TABLE IF EXISTS … CASCADE` (idempotent + safe
     // on partial state), mirroring the approved
     // `20261009000000_drop_reviewer_queue_projection` precedent.
-    // Documented in `docs/operations/audit-closure-ledger.md`.
     "20270924000000_drop_workspace_persona_profiles": new Set(["DROP_TABLE"]),
     // ---- PHASE 12B convergence migrations (authored, UNAPPLIED) ------------
     // Every entry below is registered with the SPECIFIC finding kinds it

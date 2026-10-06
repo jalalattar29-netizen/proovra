@@ -347,9 +347,8 @@ export async function usersRoutes(app: FastifyInstance) {
   const LEGACY_RETIRED_BODY = {
     code: "PERSONAL_SECURITY_LEGACY_RETIRED" as const,
     detail:
-      "The legacy /v1/users/me personal-security surface has been retired. " +
-      "Use /v1/identity-security/* (canonical Security Center surface). " +
-      "See docs/operations/audit-closure-ledger.md → D-5 / Final-D5-PT2.",
+      "This account security endpoint has been retired. " +
+      "Use the Security Center endpoints under /v1/identity-security/ instead.",
     canonicalPassword: "/v1/identity-security/password",
     canonicalSessionsList: "/v1/identity-security/my-sessions",
     canonicalSessionsRevokeOthers:
