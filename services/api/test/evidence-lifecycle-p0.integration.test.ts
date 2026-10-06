@@ -172,6 +172,26 @@ describe("evidence lifecycle P0 invariants (live PostgreSQL 16)", () => {
     });
   });
 
+  describe("Verify states — a failed timestamp and a pending anchor are never presented as proven", () => {
+    it("TSA FAILED reads failed and OTS PENDING reads pending on the anonymous answer", async () => {
+      const A = h.fixtures.teamA;
+      const ev = await signedTeamRecord(A.ownerUserId, {
+        tsaStatus: "FAILED",
+        tsaFailureReason: "provider unavailable",
+        otsStatus: "PENDING",
+      });
+      const res = await h.app.inject({ method: "GET", url: `/public/verify/${await shareLinkFor(prisma, ev.id)}` });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { basicVerification?: { timestamp?: { state?: string }; anchoring?: { state?: string } } };
+      expect(body.basicVerification?.timestamp?.state).toBe("failed");
+      expect(body.basicVerification?.anchoring?.state).toBe("pending");
+      expect(res.body).not.toContain('"tsaStatus":"STAMPED"');
+      expect(res.body).not.toContain('"otsStatus":"ANCHORED"');
+      expect(res.body).not.toMatch(/fully anchored/i);
+      expect(res.body).not.toMatch(/"Core Integrity Verified"/);
+    });
+  });
+
   describe("ET-SEC-10 — the Verify headline never claims verified when a live check fails", () => {
     it("a stored 'passed' snapshot does not override a failing live signature check", async () => {
       const A = h.fixtures.teamA;

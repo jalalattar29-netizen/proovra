@@ -293,6 +293,34 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     expect(await requestCount(id), "no second request identity").toBe(1);
   });
 
+  it("E — a concurrent double-click on the package RETRY re-runs the one request and mints nothing", async () => {
+    for (const sameKey of [false, true]) {
+      const id = await evidence();
+      await report(id, 1);
+      const failed = await request(id, "FAILED_RETRYABLE", {
+        artifactType: "VERIFICATION_PACKAGE",
+        terminalReasonCode: "VERIFICATION_PACKAGE_INCOMPLETE_STORE",
+      });
+      // A package request always names the report version it packages.
+      await prisma.reportGenerationRequest.update({ where: { id: failed.id }, data: { reportVersion: 1 } });
+      const key = `rk-${randomUUID()}`;
+      const headers = sameKey ? { "idempotency-key": key } : {};
+      const answers = await Promise.all([
+        post(A().ownerToken, id, { intent: "RETRY" }, headers),
+        post(A().adminToken, id, { intent: "RETRY" }, headers),
+      ]);
+      for (const res of answers) {
+        expect(res.statusCode, res.body).toBeLessThan(500);
+        if (res.statusCode === 202) expect(res.json()).toMatchObject({ requestId: failed.id });
+        else expect([409, 429], res.body).toContain(res.statusCode);
+      }
+      expect(answers.some((r) => r.statusCode === 202), "one click is accepted").toBe(true);
+      expect(await requestCount(id), "no second request identity").toBe(1);
+      expect(await prisma.report.count({ where: { evidenceId: id } }), "no new report version").toBe(1);
+      expect(await prisma.evidenceCreditLedgerEntry.count({ where: { evidenceId: id } }), "no credit spent").toBe(0);
+    }
+  });
+
   it("F — no report: retryable failure offers RETRY; an exhausted technical failure escalates with no button", async () => {
     const id = await evidence({ status: "SIGNED" });
     await request(id, "FAILED_RETRYABLE", { terminalReasonCode: "RENDER_TIMEOUT" });

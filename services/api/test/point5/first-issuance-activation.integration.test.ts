@@ -179,4 +179,82 @@ describe("paid activation → first issuance (live PostgreSQL 16)", () => {
     expect(await requestsFor([rec])).toEqual([]);
     await clearSubscriptions();
   });
+
+  it("a real FREE→PRO upgrade moves old records from 'not included' to 'owed' in Reports, issues nothing itself, and the worker issues only the recent one", async () => {
+    await clearSubscriptions();
+    await setPlan("FREE");
+    const recent = await oldFreeRecord(1);
+    const older = await oldFreeRecord(10);
+    const ids = [recent, older];
+    const fingerprints = await prisma.evidence.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, fingerprintHash: true, signedAtUtc: true, createdAt: true },
+      orderBy: { id: "asc" },
+    });
+    const { listWorkspaceArtifacts } = await import("../../src/services/reports/reports-aggregator.service.js");
+    const view = async () => {
+      const env = (await listWorkspaceArtifacts({
+        teamId: P().teamId,
+        role: "OWNER",
+        callerUserId: P().userId,
+        includeSummary: true,
+        limit: 200,
+      })) as unknown as {
+        sections: {
+          summary: { data: Record<string, number> };
+          artifacts: { items: Array<{ evidenceId?: string; id?: string; outputs?: { report?: { state?: string; action?: string } } }> };
+        };
+      };
+      const pick = (id: string) => env.sections.artifacts.items.find((i) => (i.evidenceId ?? i.id) === id)?.outputs?.report;
+      return { summary: env.sections.summary.data, recent: pick(recent), older: pick(older) };
+    };
+
+    const before = await view();
+    expect(before.recent?.state).toBe("NOT_INCLUDED");
+    expect(before.older?.state).toBe("NOT_INCLUDED");
+
+    // The production plan authority, with the provider canceller injected so
+    // nothing is contacted.
+    const { syncPlanForSubscription } = await import("../../src/services/billing/subscription-lifecycle.handlers.js");
+    const sync = await syncPlanForSubscription({
+      userId: P().userId,
+      plan: "PRO" as never,
+      provider: "STRIPE" as never,
+      providerSubId: `sub_${randomUUID()}`,
+      status: "ACTIVE" as never,
+      currentPeriodEnd: new Date(Date.now() + 30 * DAY),
+      observedAtUtc: new Date(),
+      cancelSupersededAtProvider: async () => ({ canceled: false, observedAtUtc: null }) as never,
+    });
+    expect(sync).toMatchObject({ outcome: "APPLIED" });
+
+    // The upgrade itself issues nothing.
+    expect(await prisma.report.count({ where: { evidenceId: { in: ids } } })).toBe(0);
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: { in: ids } } })).toBe(0);
+
+    // Both records are now owed a first report that the owner can generate.
+    // The summary is workspace-wide: every record that was "not included"
+    // under FREE is now owed, and nothing is left "not issued".
+    const after = await view();
+    for (const row of [after.recent, after.older]) {
+      expect(row).toMatchObject({ state: "ELIGIBLE_NOT_GENERATED", action: "GENERATE" });
+    }
+    expect(before.summary.reportsNotIssued).toBeGreaterThanOrEqual(2);
+    expect(after.summary.reportsNotIssued).toBe(0);
+    expect(after.summary.reportsAwaitingFirstIssuance).toBe(
+      before.summary.reportsAwaitingFirstIssuance + before.summary.reportsNotIssued,
+    );
+
+    // The worker issues only the recent record while the historical flag is off.
+    await reconcile.runFirstIssuanceReconciliation({ trigger: "test" });
+    expect((await requestsFor(ids)).map((r) => r.evidenceId)).toEqual([recent]);
+
+    const unchanged = await prisma.evidence.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, fingerprintHash: true, signedAtUtc: true, createdAt: true },
+      orderBy: { id: "asc" },
+    });
+    expect(unchanged).toEqual(fingerprints);
+    await clearSubscriptions();
+  });
 });
