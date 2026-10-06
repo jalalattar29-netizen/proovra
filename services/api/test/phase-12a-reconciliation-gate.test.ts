@@ -54,6 +54,9 @@ describe("Phase 12A — system-truth reconciliation gate", () => {
   });
 
   it("capability map == registered routes (no phantom, no missing) — the map is honest", () => {
+    // Non-vacuity: two empty sets are trivially equal.
+    expect(registered.size).toBeGreaterThan(100);
+    expect(map.capabilities.length).toBeGreaterThan(100);
     const mapKeys = new Set(map.capabilities.map((c) => `${c.method} ${c.route}`));
     const phantom = [...mapKeys].filter((k) => !registered.has(k));
     const missing = [...registered].filter((k) => !mapKeys.has(k));

@@ -95,3 +95,68 @@ test("every complete-list declaration names an endpoint and a reason", () => {
     );
   }
 });
+
+/**
+ * A count may never quietly get LESS honest. The sites below each state an
+ * exact total, a declared complete list, or an open-ended "the server has
+ * more" — the reviewed minimum an operator is told. Falling to a disclosed
+ * cap (or worse) still exits 0 from the audit, so it is pinned here as a
+ * product contract. Raising a site is free; lowering one, or removing a site,
+ * means editing this table on purpose.
+ */
+const TRUTH_RANK = { LOADED_ONLY: 0, CAP_DISCLOSED: 1, SERVER_HAS_MORE: 2, EXACT_TOTAL: 3, COMPLETE_LIST: 3 };
+const REVIEWED_MINIMUM = {
+  "/admin/adoption | ResultCount | capability": "COMPLETE_LIST",
+  "/admin/alerts | ResultCount | alert": "SERVER_HAS_MORE",
+  "/admin/audit | ResultCount | audit entry": "SERVER_HAS_MORE",
+  "/admin/audit | inline | row(s) loaded in this vi": "SERVER_HAS_MORE",
+  "/admin/contact-sales | ResultCount | inquiry": "EXACT_TOTAL",
+  "/admin/operations | ResultCount | security event": "SERVER_HAS_MORE",
+  "/admin/platform/media-graph | ResultCount | run": "SERVER_HAS_MORE",
+  "/admin/platform/observability | ResultCount | non-zero signal": "EXACT_TOTAL",
+  "/admin/platform/queues | ResultCount | failed job": "EXACT_TOTAL",
+  "/admin/platform/runbooks | inline | runbook": "EXACT_TOTAL",
+  "/admin/platform/signers | ResultCount | attestation": "EXACT_TOTAL",
+  "/admin/provisioning | ResultCount | pending invitation": "EXACT_TOTAL",
+  "/admin/support-access | ResultCount | support grant": "EXACT_TOTAL",
+  "/operations/automation | ResultCount | rule": "COMPLETE_LIST",
+  "/operations/automation | ResultCount | run": "EXACT_TOTAL",
+  "/security-center/identity | ResultCount | member": "COMPLETE_LIST",
+  "/security-center/identity/permission-matrix | ResultCount | role": "COMPLETE_LIST",
+  "/security-center/identity/runtime | ResultCount | quarantined session": "SERVER_HAS_MORE",
+  "/security-center/identity/runtime | ResultCount | session": "SERVER_HAS_MORE",
+  "/security-center/identity/scim | ResultCount | sync failure": "EXACT_TOTAL",
+  "/security-center/identity/sessions | ResultCount | held session": "SERVER_HAS_MORE",
+  "/security-center/identity/sessions | ResultCount | session": "SERVER_HAS_MORE",
+  "/security-center/identity/timeline | ResultCount | event": "SERVER_HAS_MORE",
+  "/security-center/posture | ResultCount | MFA event": "SERVER_HAS_MORE",
+  "/security-center/posture | ResultCount | recovery event": "SERVER_HAS_MORE",
+  "/security-center/posture | ResultCount | security event": "SERVER_HAS_MORE",
+};
+
+test("no reviewed count site is downgraded below what it tells the operator", () => {
+  const live = liveClassification();
+  const best = new Map();
+  for (const s of live.sites) {
+    const key = `${s.route} | ${s.kind} | ${s.noun}`;
+    assert.ok(s.truth in TRUTH_RANK, `${key}: unknown truth class ${s.truth}`);
+    best.set(key, Math.max(best.get(key) ?? -1, TRUTH_RANK[s.truth]));
+  }
+  for (const [key, minimum] of Object.entries(REVIEWED_MINIMUM)) {
+    assert.ok(best.has(key), `${key}: the reviewed count site is no longer found by the audit`);
+    assert.ok(
+      best.get(key) >= TRUTH_RANK[minimum],
+      `${key}: now states less than ${minimum}`,
+    );
+  }
+});
+
+test("every COMPLETE_LIST count is backed by a declaration", () => {
+  const live = liveClassification();
+  const declared = new Set((live.completeListDeclarations ?? []).map((d) => d.route));
+  const complete = live.sites.filter((s) => s.truth === "COMPLETE_LIST");
+  assert.ok(complete.length > 0, "the audit credited no COMPLETE_LIST site");
+  for (const s of complete) {
+    assert.ok(declared.has(s.route), `${s.route} claims a complete list with no declaration`);
+  }
+});
