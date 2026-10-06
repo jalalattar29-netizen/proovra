@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OperationalTimeline } from "../../../src/ui/operational-timeline";
 import { ArtifactHistoryPanel } from "../../../src/ui/artifact-history";
+import { OutputProgressCard } from "../../../src/ui/output-progress";
 import {
   buildPackageDownloadPath,
   packageDownloadMessage,
   projectArtifactHistory,
+  projectMatchedHistory,
+  type MatchedPairView,
   type ArtifactHistory,
 } from "../../../src/product/artifact-history";
 import { TrustDecisionCard } from "../../../src/ui/trust-decision";
@@ -14,7 +17,7 @@ import { CopyButton, copyToClipboard } from "../../../src/ui/copy-button";
 import { projectTrustDecision, type TrustDecision } from "../../../src/product/trust-decision";
 import { Alert, Linking, Pressable, Share, View, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { NEW_VERSION_ACTION, TRASH_KEEPS_PLAN_CAPACITY_COPY, type EvidenceOutputState } from "@proovra/shared";
+import { NEW_VERSION_ACTION, TRASH_KEEPS_PLAN_CAPACITY_COPY, reportFreshnessChangeCopy, type EvidenceOutputState } from "@proovra/shared";
 import { apiFetch } from "../../../src/api";
 import { EvidenceInternalMaterials } from "../../../src/ui/evidence-internal-materials";
 import { toSafeUserError, type SafeError } from "../../../src/errors/safe-error";
@@ -314,6 +317,8 @@ export default function EvidenceDetailScreen() {
   const [trustDecision, setTrustDecision] = useState<TrustDecision | null>(null);
   const [sourceBoundary, setSourceBoundary] = useState<string | null>(null);
   const [artifactHistory, setArtifactHistory] = useState<ArtifactHistory>({ reports: [], packages: [] });
+  // Matched immutable pairs from /artifacts/status (null on an older API).
+  const [matchedPairs, setMatchedPairs] = useState<MatchedPairView[] | null>(null);
   // T-14 — workspace review actions (review-workspace reviewerAudit[]; web ReviewerAuditTrailSection).
   const [reviewerAudit, setReviewerAudit] = useState<ReviewerAuditItem[]>([]);
   // T-15 — the governed-export preflight (GovernedExportAction), read when the
@@ -449,6 +454,7 @@ export default function EvidenceDetailScreen() {
       setReportState((st?.outputs?.report?.state ?? null) as EvidenceOutputState | null);
       setPackageState(typeof st?.outputs?.verificationPackage?.state === "string" ? st.outputs.verificationPackage.state : null);
       setOutputs(projectArtifactOutputs(st));
+      setMatchedPairs(projectMatchedHistory(st));
     } catch {
       setReportState(null);
       setPackageState(null);
@@ -564,7 +570,9 @@ export default function EvidenceDetailScreen() {
     const t = setTimeout(() => {
       void (async () => {
         try {
-          setOutputs(projectArtifactOutputs(await apiFetch(`/v1/evidence/${id}/artifacts/status`)));
+          const st = await apiFetch(`/v1/evidence/${id}/artifacts/status`);
+          setOutputs(projectArtifactOutputs(st));
+          setMatchedPairs(projectMatchedHistory(st));
         } catch {
           /* a failed status read never invents a state; the next tick retries */
           setOutputs((prev) => ({ ...prev }));
@@ -944,7 +952,9 @@ export default function EvidenceDetailScreen() {
     );
   };
   const newVersionInFlight = outputs.report.state === "READY" && outputs.newVersion?.reason === "IN_PROGRESS";
-  const reportReadyExtra = newVersionInFlight ? (
+  // DURABLE PROGRESS — when the server names the request, its card speaks for it.
+  const progressShown = Boolean(outputs.activeRequest?.recent);
+  const reportReadyExtra = newVersionInFlight && !progressShown ? (
     <ProovraCard testID="new-version-in-flight">
       <ProovraText variant="bodySm" weight="semibold">
         {outputs.newVersion?.nextVersion != null ? `Creating version ${outputs.newVersion.nextVersion}…` : "Creating a new version…"}
@@ -960,6 +970,7 @@ export default function EvidenceDetailScreen() {
         evidenceId={String(id)}
         displayTitle={c.displayTitle ?? "this record"}
         offer={outputs.newVersion}
+        emphasize={outputs.freshness?.hasNewerFacts === true}
         onRequested={() => void load()}
       />
     </View>
@@ -1693,6 +1704,19 @@ export default function EvidenceDetailScreen() {
       {tab === "artifacts" ? (
         <>
           {/* THE OUTPUT LIFECYCLE PANEL — total over the canonical state (EvidenceArtifactsTab.tsx:555). */}
+          {outputs.freshness?.hasNewerFacts ? (
+            <ProovraCard testID="artifact-freshness">
+              <ProovraText variant="bodySm" weight="semibold">New verification facts are available</ProovraText>
+              {outputs.freshness.changes.map((c) => (
+                <ProovraText key={c.code} variant="label" color={theme.color.ink.secondary}>
+                  {`• ${reportFreshnessChangeCopy(c, outputs.freshness!.reportVersion)}`}
+                </ProovraText>
+              ))}
+            </ProovraCard>
+          ) : null}
+          {outputs.activeRequest && progressShown ? (
+            <OutputProgressCard request={outputs.activeRequest} action={outputButton("report") ?? outputButton("verificationPackage")} />
+          ) : null}
           {outputs.report.state !== null ? (
             <>
               <ArtifactLifecyclePanel output={outputs.report} actionNode={outputButton("report")} readyExtra={reportReadyExtra} />
@@ -1715,7 +1739,7 @@ export default function EvidenceDetailScreen() {
           ) : null}
           <LatestVerificationLinkCard shareUrl={shareUrl} publicVerification={publicVerification} />
           {/* T-14 — package download and every retained version (web ArtifactHistorySection). */}
-          <ArtifactHistoryPanel evidenceId={String(id)} history={artifactHistory} />
+          <ArtifactHistoryPanel evidenceId={String(id)} history={artifactHistory} pairs={matchedPairs} />
           {publicVerification ? <PublicVerificationSharing publicVerification={publicVerification} shareUrl={shareUrl} /> : null}
         </>
       ) : null}

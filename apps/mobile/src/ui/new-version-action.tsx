@@ -1,23 +1,39 @@
 /**
- * CREATE A NEW VERSION (native) — the one flow for every surface that offers
- * it, the same as the web's NewVersionMenu.
+ * GENERATE AN UPDATED REPORT (native) — the same contract as the web dialog.
  *
- * Optional and secondary (D2): behind a "⋯" sheet, shown only when the
- * server's `outputs.newVersion.action` is CREATE_NEW_VERSION. The confirmation
- * states the current and next version, what is rebuilt, that older versions
- * are kept, the server's storage ESTIMATE with the workspace allowance, and
- * that no evidence credit is charged (D6).
+ * A DIRECT action (no overflow sheet), shown only when the server's
+ * `outputs.newVersion.action` is CREATE_NEW_VERSION. Opening it re-reads
+ * `/artifacts/status` and holds the SIGNED offer revision; Confirm sends that
+ * revision, and the server re-derives every bound fact (versions, TSA, OTS, the
+ * decisions, the active request, permission, eligibility, credit and storage)
+ * before it creates anything. A stale confirmation is answered in place: the
+ * sheet says what changed, keeps the reason, re-reads the offer and asks for a
+ * NEW confirmation. Nothing about staleness is decided on the device.
  *
- * IDEMPOTENCY. A key is minted per confirmation and kept only while that
- * request is unanswered (no response, or a server fault), so confirming again
- * is answered with the first request (REPLAYED) instead of a second version.
+ * REASON (RGA-03): the shared validator — the same bounds and normalization the
+ * API enforces — with a live counter and an inline, announced error; Confirm is
+ * disabled until it is valid.
+ *
+ * IDEMPOTENCY: a key per confirmation, reused only while unanswered (lost
+ * response → REPLAYED), replaced after a stale refusal (a new confirmation).
  */
 import React, { useRef, useState } from "react";
 import { View } from "react-native";
 
+import {
+  NEW_VERSION_ACTION,
+  NEW_VERSION_REASON_MAX,
+  newVersionReasonError,
+  normalizeNewVersionReason,
+  outputOperationError,
+  outputOperationErrorForReason,
+  reportFreshnessChangeCopy,
+  resolveOutputOperationError,
+  validateNewVersionReason,
+  type ReportFreshness,
+} from "@proovra/shared";
+
 import { apiFetch } from "../api";
-import { toSafeUserError } from "../errors/safe-error";
-import { NEW_VERSION_ACTION } from "@proovra/shared";
 import {
   NEW_VERSION_LABEL,
   buildNewVersionBody,
@@ -25,154 +41,238 @@ import {
   formatEstimatedBytes,
   makeClientRequestKey,
   newVersionConsequence,
-  outputUnavailableReasonCopy,
   readGenerationOutcome,
   requestWasAnswered,
 } from "../product/evidence-detail";
 import { projectNewVersionOffer, type NewVersionOfferView } from "../product/evidence-record";
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraInput, ProovraText } from "./index";
-import { ProovraConfirmSheet, ProovraSheet } from "./patterns";
+import { ProovraConfirmSheet } from "./patterns";
+
+type Current = { offer: NewVersionOfferView; revision: string | null; freshness: ReportFreshness | null };
 
 /** The confirmation's body, one sentence per line. */
-export function newVersionConfirmText(offer: NewVersionOfferView): string {
+export function newVersionConfirmText(offer: NewVersionOfferView, freshness?: ReportFreshness | null): string {
   const lines = [
-    "Nothing needs recovering: this record's report and verification package are complete. An updated report is optional and documents later facts; it does not replace the earlier report.",
+    "An updated report documents this record's current verification facts as a new, separate version. It does not replace or alter any earlier version.",
+  ];
+  if (freshness?.hasNewerFacts) {
+    for (const c of freshness.changes) lines.push(reportFreshnessChangeCopy(c, freshness.reportVersion));
+  }
+  lines.push(
     ...newVersionConsequence({
       currentVersion: offer.currentVersion,
       nextVersion: offer.nextVersion,
       estimate: offer.estimate,
     }),
-  ];
+  );
   const used = formatEstimatedBytes(offer.estimate?.storageBytesUsed ?? null);
   const limit = formatEstimatedBytes(offer.estimate?.storageBytesLimit ?? null);
   if (used && limit) lines.push(`Workspace storage now: ${used} used of ${limit}.`);
-  lines.push("New versions are limited per record and per person each hour.");
+  if (offer.nextVersion != null) {
+    lines.push(`A matching verification package v${offer.nextVersion} will certify report v${offer.nextVersion}.`);
+  }
+  lines.push("No evidence credit is used. The original evidence and its recorded timestamps are not modified.");
   return lines.join("\n");
+}
+
+/** A stale-offer refusal's change sentences, from the error body. */
+function staleChanges(err: unknown): string[] | null {
+  const e = err as { code?: unknown; body?: { changeMessages?: unknown } } | null;
+  if (e?.code !== "OUTPUT_OFFER_STALE" && e?.code !== "OUTPUT_OFFER_REQUIRED") return null;
+  const raw = e.body?.changeMessages;
+  return Array.isArray(raw) ? raw.filter((m): m is string => typeof m === "string") : [];
 }
 
 export function NewVersionAction({
   evidenceId,
   displayTitle,
   offer,
-  readCurrentOffer = false,
+  emphasize = false,
   onRequested,
 }: {
   evidenceId: string;
   displayTitle: string;
   offer: NewVersionOfferView | null;
-  /** Dense rows carry the decision only; read versions and estimate on open. */
-  readCurrentOffer?: boolean;
+  /** Primary only when newer verification facts exist. */
+  emphasize?: boolean;
   onRequested?: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [confirming, setConfirming] = useState<NewVersionOfferView | null>(null);
-  const [withdrawn, setWithdrawn] = useState<string | null>(null);
+  const [current, setCurrent] = useState<Current | null>(null);
+  const [withdrawn, setWithdrawn] = useState<{ title: string; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
-  const pendingKey = useRef<string | null>(null);
+  const [changes, setChanges] = useState<string[] | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [touched, setTouched] = useState(false);
+  const pendingKey = useRef<string | null>(null);
 
   if (!offer || offer.action !== NEW_VERSION_ACTION) return null;
 
-  const openConfirm = async () => {
-    setMenuOpen(false);
-    let current: NewVersionOfferView | null = offer;
-    if (readCurrentOffer) {
-      try {
-        const st = (await apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/artifacts/status`)) as {
-          outputs?: { newVersion?: unknown };
-        } | null;
-        current = projectNewVersionOffer(st?.outputs?.newVersion);
-      } catch {
-        current = null;
-      }
+  /** Re-read the authoritative offer. */
+  const readCurrent = async (): Promise<Current | null> => {
+    try {
+      const st = (await apiFetch(`/v1/evidence/${encodeURIComponent(evidenceId)}/artifacts/status`)) as {
+        outputs?: { newVersion?: unknown; offer?: { revision?: unknown }; freshness?: unknown };
+      } | null;
+      const nv = projectNewVersionOffer(st?.outputs?.newVersion);
+      if (!nv) return null;
+      const f = st?.outputs?.freshness as ReportFreshness | undefined;
+      return {
+        offer: nv,
+        revision: typeof st?.outputs?.offer?.revision === "string" ? st.outputs.offer.revision : null,
+        freshness: f && typeof f.hasNewerFacts === "boolean" ? f : null,
+      };
+    } catch {
+      return null;
     }
-    if (!current || current.action !== NEW_VERSION_ACTION) {
-      setWithdrawn(
-        outputUnavailableReasonCopy(current?.reason as never) ??
-          "This record's state changed. Open the record to see what it offers now.",
-      );
-      return;
-    }
-    setConfirming(current);
   };
 
-  const submit = async () => {
-    if (busy) return;
-    setBusy(true);
+  const showWithdrawnOrConfirm = (next: Current | null) => {
+    if (!next) {
+      const e = outputOperationError("OFFER_LOAD_FAILED");
+      setCurrent(null);
+      setWithdrawn({ title: e.title, text: e.description });
+      return;
+    }
+    if (next.offer.action !== NEW_VERSION_ACTION) {
+      const e = outputOperationErrorForReason(next.offer.reason) ?? outputOperationError("OFFER_STALE");
+      setCurrent(null);
+      setWithdrawn({ title: e.title, text: e.description });
+      return;
+    }
+    setCurrent(next);
+  };
+
+  const openConfirm = async () => {
     setNotice(null);
+    setChanges(null);
+    setInlineError(null);
+    showWithdrawnOrConfirm(await readCurrent());
+  };
+
+  const check = validateNewVersionReason(reason);
+  const count = normalizeNewVersionReason(reason).length;
+
+  const submit = async () => {
+    setTouched(true);
+    if (busy || !current || !check.ok) return;
+    setBusy(true);
+    setInlineError(null);
     pendingKey.current ??= makeClientRequestKey();
     try {
       const read = readGenerationOutcome(
         await apiFetch(buildRegeneratePath(evidenceId), {
           method: "POST",
-          body: buildNewVersionBody(pendingKey.current, reason.trim()),
+          body: buildNewVersionBody(pendingKey.current, check.value, current.revision),
         }),
       );
       pendingKey.current = null;
+      setCurrent(null);
+      setReason("");
+      setTouched(false);
       setNotice({ text: read.message, error: read.tone === "error" });
+      onRequested?.();
     } catch (err) {
+      const stale = staleChanges(err);
+      if (stale) {
+        // A NEW confirmation follows: new key, re-read offer, reason kept.
+        pendingKey.current = null;
+        setChanges(stale.length ? stale : [outputOperationError("OFFER_STALE").description]);
+        showWithdrawnOrConfirm(await readCurrent());
+        return;
+      }
       if (requestWasAnswered(err)) pendingKey.current = null;
-      setNotice({ text: toSafeUserError(err, { message: "Could not request a new version." }).message, error: true });
+      const e = err as { statusCode?: number; code?: string; body?: { reason?: unknown } } | null;
+      const typed = resolveOutputOperationError({
+        status: e?.statusCode ?? null,
+        code: e?.code ?? null,
+        reason: typeof e?.body?.reason === "string" ? e.body.reason : null,
+        network: e?.statusCode == null || e?.statusCode === 0,
+      });
+      setInlineError(`${typed.title}. ${typed.description}`);
     } finally {
       setBusy(false);
-      setConfirming(null);
-      onRequested?.();
     }
   };
 
+  const target = current?.offer.nextVersion ?? null;
   return (
     <View style={{ gap: 4 }} testID={`new-version-action-${evidenceId}`}>
       <ProovraButton
-        label="⋯"
-        accessibilityLabel={`More actions: ${displayTitle}`}
-        variant="secondary"
+        label="Generate updated report"
+        accessibilityLabel={`Generate updated report: ${displayTitle}`}
+        variant={emphasize ? "primary" : "secondary"}
         fullWidth={false}
         disabled={busy}
-        onPress={() => setMenuOpen(true)}
+        onPress={() => void openConfirm()}
+        testID="new-version-open"
       />
       {notice ? (
-        <ProovraText variant="label" color={notice.error ? theme.color.status.risk.fg : theme.color.ink.secondary}>
-          {notice.text}
-        </ProovraText>
+        <View accessibilityLiveRegion="polite">
+          <ProovraText variant="label" color={notice.error ? theme.color.status.risk.fg : theme.color.ink.secondary}>
+            {notice.text}
+          </ProovraText>
+        </View>
       ) : null}
-      <ProovraSheet visible={menuOpen} title="More actions" onClose={() => setMenuOpen(false)}>
-        <ProovraButton
-          label={`${NEW_VERSION_LABEL}…`}
-          accessibilityLabel={`${NEW_VERSION_LABEL}: ${displayTitle}`}
-          variant="secondary"
-          onPress={() => void openConfirm()}
-        />
-      </ProovraSheet>
       <ProovraConfirmSheet
-        visible={confirming !== null}
-        title={
-          confirming?.nextVersion != null
-            ? `Issue updated report (version ${confirming.nextVersion})?`
-            : "Issue an updated report?"
-        }
-        consequence={confirming ? newVersionConfirmText(confirming) : undefined}
-        confirmLabel={NEW_VERSION_LABEL}
+        visible={current !== null}
+        title={target != null ? `Generate report v${target}` : "Generate an updated report"}
+        consequence={current ? newVersionConfirmText(current.offer, current.freshness) : undefined}
+        confirmLabel={busy ? "Submitting…" : changes ? (target != null ? `Confirm report v${target}` : "Confirm again") : target != null ? `Generate report v${target}` : NEW_VERSION_LABEL}
         busy={busy}
-        confirmDisabled={reason.trim().length < 3}
+        confirmDisabled={busy || !check.ok}
         onConfirm={() => void submit()}
-        onCancel={() => setConfirming(null)}
+        onCancel={() => {
+          if (!busy) setCurrent(null);
+        }}
       >
+        {changes ? (
+          <View testID="new-version-stale" accessibilityLiveRegion="assertive" style={{ gap: 2 }}>
+            <ProovraText variant="label" weight="semibold">This record changed while this was open</ProovraText>
+            {changes.map((c) => (
+              <ProovraText key={c} variant="label">{`• ${c}`}</ProovraText>
+            ))}
+            <ProovraText variant="label" color={theme.color.ink.secondary}>
+              Review the current details and confirm again. Your reason has been kept.
+            </ProovraText>
+          </View>
+        ) : null}
         <ProovraText variant="label" weight="semibold">Reason for the updated report (required)</ProovraText>
         <ProovraInput
           value={reason}
-          onChangeText={setReason}
+          onChangeText={(t) => {
+            setReason(t);
+            if (t.length > 0) setTouched(true);
+          }}
           placeholder="Which later facts should it document?"
           multiline
-          accessibilityLabel="Reason for the updated report"
+          accessibilityLabel="Reason for the updated report, required"
           testID="new-version-reason"
         />
+        <ProovraText variant="label" color={theme.color.ink.secondary} testID="new-version-count">
+          {`${count}/${NEW_VERSION_REASON_MAX}`}
+        </ProovraText>
+        {touched && !check.ok ? (
+          <View accessibilityLiveRegion="polite">
+            <ProovraText variant="label" color={theme.color.status.risk.fg} testID="new-version-reason-error">
+              {newVersionReasonError(check.reason)}
+            </ProovraText>
+          </View>
+        ) : null}
+        {inlineError ? (
+          <View accessibilityLiveRegion="assertive">
+            <ProovraText variant="label" color={theme.color.status.risk.fg} testID="new-version-error">
+              {inlineError}
+            </ProovraText>
+          </View>
+        ) : null}
       </ProovraConfirmSheet>
       <ProovraConfirmSheet
         visible={withdrawn !== null}
-        title="A new version can't be created right now"
-        consequence={withdrawn ?? undefined}
+        title={withdrawn?.title ?? "An updated report can't be created right now"}
+        consequence={withdrawn?.text}
         confirmLabel="OK"
         onConfirm={() => setWithdrawn(null)}
         onCancel={() => setWithdrawn(null)}

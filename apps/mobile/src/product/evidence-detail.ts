@@ -920,9 +920,20 @@ export function buildOutputRequestBody(
  * confirmation and reused only while that request is unanswered, so a request
  * that landed is answered with the first one (REPLAYED), never a second version.
  */
-export function buildNewVersionBody(clientRequestKey: string, reason: string): string {
-  // An updated report records WHY it was issued (2026-09-29; web parity).
-  return JSON.stringify({ intent: "NEW_VERSION", clientRequestKey, reason });
+export function buildNewVersionBody(
+  clientRequestKey: string,
+  reason: string,
+  offerRevision?: string | null,
+): string {
+  // An updated report records WHY it was issued (2026-09-29; web parity), and
+  // carries the SIGNED offer the confirmation showed (RGA-02): the server
+  // re-derives every bound fact before it creates anything.
+  return JSON.stringify({
+    intent: "NEW_VERSION",
+    clientRequestKey,
+    reason,
+    ...(offerRevision ? { offerRevision } : {}),
+  });
 }
 
 /** A failed request the server did not answer may have landed: keep the key. */

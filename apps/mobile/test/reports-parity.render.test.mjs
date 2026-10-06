@@ -168,7 +168,8 @@ test("a refused download is said in the web's words", async () => {
   const r = await render();
   await r.press("Download Verification Package ZIP: Roof photo");
   await settle();
-  assert.ok(r.hasText("You don't have permission to download this package."));
+  // RGA-04 — the ONE shared download-failure authority, the same words the web shows.
+  assert.ok(r.hasText("Downloading this verification package is blocked by workspace governance, a hold, or export eligibility."));
   r.unmount();
 });
 

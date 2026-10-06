@@ -12,10 +12,12 @@ import {
   buildPackageDownloadPath,
   buildPackageVersionPath,
   buildReportVersionPath,
+  artifactDownloadMessage,
   formatArtifactSize,
   packageDownloadMessage,
   type ArtifactHistory,
   type ArtifactVersion,
+  type MatchedPairView,
 } from "../product/artifact-history";
 import { theme } from "../theme/theme";
 import { ProovraButton, ProovraCard, ProovraText } from "./index";
@@ -39,7 +41,16 @@ function versionMeta(v: ArtifactVersion): string {
     .join(" · ");
 }
 
-export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: string; history: ArtifactHistory }) {
+export function ArtifactHistoryPanel({
+  evidenceId,
+  history,
+  pairs = null,
+}: {
+  evidenceId: string;
+  history: ArtifactHistory;
+  /** Matched immutable pairs from /artifacts/status; null on an older API. */
+  pairs?: MatchedPairView[] | null;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -89,13 +100,13 @@ export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: stri
                       buildReportVersionPath(evidenceId, v.version),
                       `${kind}-${v.version}`,
                       `Report v${v.version} is not available.`,
-                      () => `Could not download report v${v.version}.`,
+                      (err) => artifactDownloadMessage("report", { code: errCode(err).code, statusCode: errCode(err).status }, v.version),
                     )
                   : open(
                       buildPackageVersionPath(evidenceId, v.version),
                       `${kind}-${v.version}`,
                       `Verification package v${v.version} is not available.`,
-                      () => `Could not download verification package v${v.version}.`,
+                      (err) => artifactDownloadMessage("verificationPackage", { code: errCode(err).code, statusCode: errCode(err).status }, v.version),
                     ))
               }
             />
@@ -130,8 +141,79 @@ export function ArtifactHistoryPanel({ evidenceId, history }: { evidenceId: stri
           }
         />
         ) : null}
-        {family("PDF reports", history.reports, "report")}
-        {family("Verification Packages", history.packages, "package")}
+        {pairs ? (
+          pairs.length === 0 ? (
+            <ProovraText variant="label" color={theme.color.ink.muted}>No report versions yet.</ProovraText>
+          ) : (
+            pairs.map((pair) => (
+              <View
+                key={pair.reportVersion}
+                testID={`artifact-pair-${pair.reportVersion}`}
+                style={{
+                  gap: theme.space.s1,
+                  padding: theme.space.s2,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: pair.latest ? theme.color.accent.a500 : theme.color.border.default,
+                }}
+              >
+                <ProovraText variant="bodySm" weight="semibold">
+                  {`Version ${pair.reportVersion} · ${pair.latest ? "Latest" : "Previous"} · Immutable`}
+                </ProovraText>
+                <ProovraText variant="label" color={theme.color.ink.muted}>
+                  {[`Report v${pair.reportVersion}`, pair.generatedAtIso ? formatUserDateTime(pair.generatedAtIso) : null, formatArtifactSize(pair.sizeBytes)].filter(Boolean).join(" · ")}
+                </ProovraText>
+                <ProovraButton
+                  label={`Download report v${pair.reportVersion}`}
+                  variant="ghost"
+                  fullWidth={false}
+                  loading={busy === `report-${pair.reportVersion}`}
+                  onPress={() =>
+                    void open(
+                      buildReportVersionPath(evidenceId, pair.reportVersion),
+                      `report-${pair.reportVersion}`,
+                      `Report v${pair.reportVersion} is not available.`,
+                      (err) => artifactDownloadMessage("report", { code: errCode(err).code, statusCode: errCode(err).status }, pair.reportVersion),
+                    )
+                  }
+                />
+                {pair.package ? (
+                  <>
+                    <ProovraText variant="label" color={theme.color.ink.muted}>
+                      {[`Verification package v${pair.package.version} · certifies report v${pair.reportVersion}`, pair.package.sealed ? "Sealed" : "Older format", formatArtifactSize(pair.package.sizeBytes)].filter(Boolean).join(" · ")}
+                    </ProovraText>
+                    <ProovraButton
+                      label={`Download verification package v${pair.package.version}`}
+                      variant="ghost"
+                      fullWidth={false}
+                      loading={busy === `package-${pair.package.version}`}
+                      onPress={() =>
+                        void open(
+                          buildPackageVersionPath(evidenceId, pair.package!.version),
+                          `package-${pair.package!.version}`,
+                          `Verification package v${pair.package!.version} is not available.`,
+                          (err) => artifactDownloadMessage("verificationPackage", { code: errCode(err).code, statusCode: errCode(err).status }, pair.package!.version),
+                        )
+                      }
+                    />
+                  </>
+                ) : (
+                  <ProovraText variant="label" color={theme.color.ink.secondary}>
+                    {`No verification package certifies report v${pair.reportVersion}.`}
+                  </ProovraText>
+                )}
+                {pair.issueReason ? (
+                  <ProovraText variant="label" color={theme.color.ink.secondary}>{`Reason recorded: ${pair.issueReason}`}</ProovraText>
+                ) : null}
+              </View>
+            ))
+          )
+        ) : (
+          <>
+            {family("PDF reports", history.reports, "report")}
+            {family("Verification Packages", history.packages, "package")}
+          </>
+        )}
         {message ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{message}</ProovraText> : null}
       </View>
     </ProovraCard>

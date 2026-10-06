@@ -9,7 +9,12 @@
  */
 
 
-import { outputNoteCopy } from "@proovra/shared";
+import {
+  outputNoteCopy,
+  projectOutputProgress,
+  type OutputProgressView,
+  type ReportFreshness,
+} from "@proovra/shared";
 type Obj = Record<string, unknown>;
 const o = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -418,6 +423,54 @@ export interface ArtifactOutputs {
   newVersion: NewVersionOfferView | null;
   /** Poll the status at this interval while work is live; null = stop. */
   pollIntervalMs: number | null;
+  /** RGA-02 — the signed offer revision a confirmation must carry (null on an older API). */
+  offerRevision: string | null;
+  /** Server-derived newer facts than the latest report (null on an older API). */
+  freshness: ReportFreshness | null;
+  /** The durable request the screen follows, from persisted columns only. */
+  activeRequest: NativeActiveRequest | null;
+}
+
+export interface NativeActiveRequest {
+  requestId: string;
+  intent: string | null;
+  artifactType: string;
+  state: string;
+  targetVersion: number | null;
+  terminalReasonCode: string | null;
+  recent: boolean;
+  progress: OutputProgressView;
+}
+
+function activeRequestView(raw: unknown): NativeActiveRequest | null {
+  const x = o(raw);
+  const requestId = s(x["requestId"]);
+  const state = s(x["state"]);
+  if (!requestId || !state) return null;
+  const artifactType = s(x["artifactType"]) ?? "REPORT";
+  return {
+    requestId,
+    intent: s(x["intent"]),
+    artifactType,
+    state,
+    targetVersion: n(x["targetVersion"]),
+    terminalReasonCode: s(x["terminalReasonCode"]),
+    recent: x["recent"] === true,
+    // Re-derived with the SHARED projection from the persisted columns, so
+    // native and web cannot draw different steps for one request.
+    progress: projectOutputProgress({
+      state,
+      stage: s(x["stage"]),
+      progressStage: s(x["progressStage"]),
+      artifactType,
+    }),
+  };
+}
+
+function freshnessView(raw: unknown): ReportFreshness | null {
+  const x = o(raw);
+  if (typeof x["hasNewerFacts"] !== "boolean" || !Array.isArray(x["changes"])) return null;
+  return raw as ReportFreshness;
 }
 
 function outputView(raw: unknown): OutputView {
@@ -485,6 +538,9 @@ export function projectArtifactOutputs(payload: unknown): ArtifactOutputs {
     packageBlockedReason: s(legacyPkg["blockedReason"]),
     newVersion: projectNewVersionOffer(outputs["newVersion"]),
     pollIntervalMs: n(outputs["pollIntervalMs"]),
+    offerRevision: s(o(outputs["offer"])["revision"]),
+    freshness: freshnessView(outputs["freshness"]),
+    activeRequest: activeRequestView(outputs["activeRequest"]),
   };
 }
 

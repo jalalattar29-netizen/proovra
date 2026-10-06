@@ -13,9 +13,19 @@ const HERE = dirname(fileURLToPath(import.meta.url));
  * The shared verb table, inlined — a data URL cannot resolve "@proovra/shared".
  * The REAL built module, so the words asserted are the ones the product ships.
  */
+const builtModuleUrl = (file) =>
+  "data:text/javascript," +
+  encodeURIComponent(readFileSync(resolve(HERE, `../../../packages/shared/dist/${file}`), "utf8"));
+// Both REAL built modules the projection imports: the verb table and (RGA-04)
+// the shared download-failure authority. Neither imports anything else.
 const SHARED_COPY_URL =
   "data:text/javascript," +
-  encodeURIComponent(readFileSync(resolve(HERE, "../../../packages/shared/dist/output-action-copy.js"), "utf8"));
+  encodeURIComponent(
+    `export * from ${JSON.stringify(builtModuleUrl("output-action-copy.js"))};
+` +
+      `export * from ${JSON.stringify(builtModuleUrl("download-failure.js"))};
+`,
+  );
 const src = readFileSync(resolve(HERE, "../src/product/reports.ts"), "utf8")
   .replace(/^import type .*$/m, "")
   .replace('"@proovra/shared"', JSON.stringify(SHARED_COPY_URL));
