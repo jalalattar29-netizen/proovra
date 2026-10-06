@@ -61,4 +61,3 @@ Engineering leadership owns the SLO targets. Changes to the targets require:
 - `observability.md` — full observability catalog.
 - `observability-runbooks.md` — alert response runbooks.
 - `otel-runtime-wiring.md` — engineering OTEL setup.
-- `phase-o1-2-observability-coverage-closure.md` — closure report.

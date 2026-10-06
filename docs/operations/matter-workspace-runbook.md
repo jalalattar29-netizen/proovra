@@ -168,7 +168,7 @@ C1 is complete when:
 
 ## 10. Deferred follow-ups
 
-Recorded in `docs/architecture/deferred-followups.md` as **C1.1–C1.5**:
+Deferred as **C1.1–C1.5**:
 
 - **C1.1** — Interactive relationship graph visualisation (the Graph tab today renders summary tiles only).
 - **C1.2** — Inline row actions on tabs (assign / escalate / place-hold from the Matter Workspace without leaving the surface).

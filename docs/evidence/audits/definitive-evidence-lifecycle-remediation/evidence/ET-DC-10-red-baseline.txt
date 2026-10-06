@@ -1,8 +1,0 @@
-ET-DC-10 red baseline — services/api/test/capture-trust-chain-concurrency.integration.test.ts
-Run against HEAD f616c41e's trust-event.service.ts (unlocked read-then-insert), live PostgreSQL 16 WITH the new partial unique indexes applied, 2026-09-30T03:35Z.
-6 of 8 concurrent appends read the same chain head and collided on the sequence (the index refused the forks; without it they were written as duplicate sequences).
-
-   × capture trust-event chain under concurrency (live PostgreSQL 16) > eight concurrent events get distinct, consecutive sequences, each linked to the one before 104ms
-     → expected [ …(6) ] to deeply equal []
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed (1)

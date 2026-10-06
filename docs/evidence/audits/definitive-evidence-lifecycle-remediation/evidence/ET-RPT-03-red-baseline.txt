@@ -1,9 +1,0 @@
-ET-RPT-03 red baseline — services/worker/test/report-legal-hold-truth.test.ts against HEAD build-view-model.ts / processor.ts / types.ts
-   × report legal hold states the canonical record hold (ET-RPT-03) > an ACTIVE evidence hold is stated, whatever the storage header says 21ms
-     → expected undefined to be 'Active (held through this record)' // Object.is equality
-   × report legal hold states the canonical record hold (ET-RPT-03) > case and workspace scopes, none, and an unreadable store each say what is true 0ms
-     → (0 , reportLegalHoldLabel) is not a function
-   × report legal hold states the canonical record hold (ET-RPT-03) > the finalized report path evaluates the canonical hold and passes it to the builder 2ms
-     → expected -1 to be greater than 0
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  3 failed (3)

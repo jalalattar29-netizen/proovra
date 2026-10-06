@@ -1,8 +1,0 @@
-ET-SEC-26 red baseline — services/api/test/redaction-derivative-byte-release.integration.test.ts
-Run against HEAD b8541bf0's redaction.routes.ts and artifact-download-gate.service.ts, live PostgreSQL 16, 2026-09-30T04:43Z. A derivative of a record under an ACTIVE legal hold got a presigned URL. (Response truncated: it carries a local-MinIO presigned URL.)
-
-   × redacted derivative download goes through the byte-release gate (live PostgreSQL 16) > a derivative of a record under an active legal hold is refused, rel
-     → {"downloadUrl":"http://127.0.0.1:59000/redaction-test/redaction/11fa0672-10b9-4e81-95d4-dee8b144087c/e186c982-ef5d-4d99-bf10-792c92e3b082.png?X-Amz-Alg
-   ✓ redacted derivative download goes through the byte-release gate (live PostgreSQL 16) > a derivative of an unheld record is released (control) 41ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 1 passed (2)

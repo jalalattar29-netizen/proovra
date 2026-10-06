@@ -312,5 +312,3 @@ need to restore from backup AND resolve the migration.
 - `services/api/prisma.config.ts` — env loader.
 - `services/api/src/runtime/schema-validation.ts` — runtime
   validator catalog.
-- `docs/product/PHASE_2_5B_LIFECYCLE_AND_BULK.md` — the Phase
-  2.5B incident this discipline was built in response to.

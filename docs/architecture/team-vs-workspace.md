@@ -149,13 +149,6 @@ are the only legacy-route redirects permitted under the Phase 9
 
 * Phase 4 navigation/persona readiness:
   `docs/architecture/phase-4-navigation-persona-readiness.md`.
-* Phase 5/6 collaboration-team contracts:
-  `docs/architecture/phase-5-team-platform-final.md`,
-  `docs/architecture/phase-6-team-frontend-final.md`.
-* Phase 7 closure audit (constitutional rules):
-  `docs/architecture/phase-7-closure-audit.md`.
-* Phase 8 organization-admin consolidation:
-  `docs/architecture/phase-8-org-admin-consolidation.md`.
 * Canonical domain model:
   `docs/architecture/proovra-domain-model.md`.
 * Architecture invariants (Team vs Workspace invariants are

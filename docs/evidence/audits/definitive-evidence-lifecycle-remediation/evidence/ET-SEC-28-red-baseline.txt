@@ -1,5 +1,0 @@
-ET-SEC-28 red — services/api/test/storage-capacity-concurrent-finalize.integration.test.ts against HEAD (8b8bef5d) evidence-complete.service.ts + billing-enforcement.service.ts (live PG16):
-   × storage capacity under concurrent finalize (live PostgreSQL 16) > of two finalizes that each fit alone but not together, exactly one is refused STORAGE_LIMIT_REACHED 675ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed (1)
-  expected status codes [200, 409], received [200, 200]: both concurrent finalizes passed the storage check and the workspace ended over its limit.

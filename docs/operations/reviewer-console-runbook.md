@@ -103,7 +103,7 @@ This pattern means a single Prisma timeout doesn't blank-screen the reviewer. Th
 
 ## 7. What's NOT in C0
 
-Recorded as deferred follow-ups in `docs/architecture/deferred-followups.md` (C0.1–C0.5):
+Deferred follow-ups (C0.1–C0.5):
 
 - Inline reviewer actions (`a` to assign, `e` to escalate) directly on row.
 - Saved-view CRUD from inside the console.

@@ -1,9 +1,0 @@
-ET-DC-11 red baseline — services/api/test/capture-scope-and-draft-authority.integration.test.ts
-Run against HEAD 4362781c's evidence.routes.ts, capture.routes.ts, middleware/auth.ts, extension-scope.ts, fastify.d.ts, live PostgreSQL 16, 2026-09-30T03:54Z. The control (the extension's own capture) passes on both.
-The manifest-relabel ordering and the dead lookup are held by source pins (continuous-capture.service order; phase-1b device identity).
-
-   × capture scope and draft authority (live PostgreSQL 16, real HTTP) > an extension token cannot presign parts on a record its own capture did not reserve 236ms
-   ✓ capture scope and draft authority (live PostgreSQL 16, real HTTP) > an extension token presigns parts for the record its own capture session reserved (control) 125ms
-   × capture scope and draft authority (live PostgreSQL 16, real HTTP) > a capture draft in a workspace takes the canonical evidence.create decision (VIEWER and expired member refused) 16ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed | 1 passed (3)

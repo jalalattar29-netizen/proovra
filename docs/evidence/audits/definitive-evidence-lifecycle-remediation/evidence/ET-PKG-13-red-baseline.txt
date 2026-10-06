@@ -1,8 +1,0 @@
-ET-PKG-13 red — apps/web/__tests__/verify-capability-noindex.test.ts against HEAD (f462ebee) middleware.ts (+ only the pure path predicate appended so the module loads) and verify/[token]/page.tsx, with no verify/[token]/layout.tsx:
-✔ ET-PKG-13: /verify/<token> paths are capability paths; the landing page and others are not
-✖ ET-PKG-13: every response the middleware secures carries X-Robots-Tag on a capability path
-✖ ET-PKG-13: the token layout declares noindex/nofollow for every environment
-✖ ET-PKG-13: the Verify page never hands the token to Sentry
-ℹ pass 1
-ℹ fail 3
-Not observed in a browser: the local web config can reach the Production API for /verify/<token>, so no dev server was started.

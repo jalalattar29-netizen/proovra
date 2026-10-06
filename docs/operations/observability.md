@@ -399,7 +399,7 @@ Phase O1.1 hardened the OTEL bootstrap and added the runtime-visible state:
 - Bounded `withProovraSpan(name, attrs, fn)` helper wires the critical entry points (SIU preflight + generate, signer health, recovery backup + restore validate).
 - New endpoint `GET /v1/runtime/otel-health` returns the bounded `getOtelStatus()` snapshot — `started` / `degraded` / `lastBootstrapAtUtc` / `lastBootstrapOutcome` / `lastBootstrapFailureCode` / `lastExportErrorCode` / `spansCreatedCount` / `resourceAttributes`. Never returns the OTLP endpoint URL, headers, or Grafana token.
 
-Full runbook: `docs/operations/otel-runtime-wiring.md`. Closure report: `docs/operations/phase-o1-1-otel-runtime-closure.md`.
+Full runbook: `docs/operations/otel-runtime-wiring.md`.
 
 ---
 
@@ -415,4 +415,3 @@ Phase O1.2 added:
 - **Bounded Sentry tag set** (`service` / `operation` / `queueName` / `jobType` / `errorCode` / `environment`). Bounded copy in §B.6.
 - **OTEL health extensions**: `lastSpanName` + `lastSpanAtUtc` returned by `/v1/runtime/otel-health`.
 
-Full closure: `phase-o1-2-observability-coverage-closure.md`.

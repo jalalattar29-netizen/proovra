@@ -1,4 +1,0 @@
-[31m   [31m×[31m legal hold coverage on the custody chain (live PostgreSQL 16)[2m > [22mWORKSPACE scope: every record of the workspace, including one created afterwards[39m[32m 22[2mms[22m[39m
-[31m     → expected [] to deeply equal [ 'LEGAL_HOLD_PLACED' ][39m
-[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
-[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m

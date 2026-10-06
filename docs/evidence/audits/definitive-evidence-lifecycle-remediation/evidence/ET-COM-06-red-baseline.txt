@@ -1,8 +1,0 @@
-ET-COM-06 red baseline — services/api/test/first-issuance-manual-rule.integration.test.ts
-Run against HEAD 1a5f26f3's report-generation-authority.service.ts, live PostgreSQL 16, 2026-09-30T05:20Z. In a payment GRACE a click on a record's first report was ENQUEUED (the automatic path withholds it). Response truncated.
-
-   × first issuance: the manual path follows the historical rule (live PostgreSQL 16) > in a payment GRACE, a click on a record's first report creates nothing 177ms
-     → {"evidenceId":"93cf8dc2-59c5-4c6e-bac2-eb118176d47d","enqueued":true,"outcome":"ENQUEUED","operation":"FULL_GENERATION","requestId":"3feaecc1-cfa9-4292-93c5-37b94267b6e0","reason":null,"messa
-   ✓ first issuance: the manual path follows the historical rule (live PostgreSQL 16) > with a confirmed paid subscription, the same click is accepted (control) 81ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 1 passed (2)

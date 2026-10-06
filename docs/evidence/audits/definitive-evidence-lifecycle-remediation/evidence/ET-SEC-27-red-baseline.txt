@@ -1,6 +1,0 @@
-ET-SEC-27 red — services/api/test/point5/family-exchange-package.integration.test.ts -t ET-SEC-27 against HEAD (d5dacdf2) exchange-package-builder.ts (live PG16):
-   × POINT 5 FAMILY — exchange package builder (live PostgreSQL 16) > ET-SEC-27: a builder whose lease is re-claimed mid-build commits nothing, fails nothing and removes its own object 68ms
-     → expected 'UPLOADED' to be 'BUILDING' // Object.is equality
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 11 skipped (12)
-(The late builder, whose lease had been re-claimed mid-build, committed its own UPLOADED/READY over the live claim.)

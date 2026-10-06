@@ -1,8 +1,0 @@
-ET-SEC-24 red baseline — services/api/test/capture-draft-expiry-sweeper.test.ts
-Run with HEAD 5621aeb4's server.ts, jobs/capture-draft-expiry.job.ts and scripts/sweep-capture-drafts.ts restored, 2026-09-30T04:34Z. The second reaper exists; the canonical reaper's contracts already hold.
-
-   × capture drafts have one reaper (ET-SEC-24) > the in-process API sweep and its CLI are gone 5ms
-   ✓ capture drafts have one reaper (ET-SEC-24) > the worker reaper expires DRAFT rows past their expiry only 2ms
-   ✓ capture drafts have one reaper (ET-SEC-24) > each row is claimed conditionally and gets its EXPIRED event only when this run transitioned it 1ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 2 passed (3)

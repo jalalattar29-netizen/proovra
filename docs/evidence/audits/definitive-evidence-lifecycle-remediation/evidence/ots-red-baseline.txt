@@ -1,9 +1,0 @@
-   × OTS upgrade ladder on real BullMQ (loopback Redis) > ET-OTS-02: a self-rescheduling ladder runs every hop; no enqueue is silently dropped 10903ms
-     → expected 3 to be 8 // Object.is equality
-   ✓ OTS upgrade ladder on real BullMQ (loopback Redis) > ET-OTS-01 contract: inside the running job, omitting selfJobId collapses and schedules nothing  10904ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 1 passed (2)
-   × ET-OTS-01 — OTS follow-ups never collapse onto the running job > every enqueueOtsUpgradeJob call in the processor passes selfJobId 3ms
-     → expected ' traceId: requestId ' to match /selfJobId:\s*job\.id/
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed (1)

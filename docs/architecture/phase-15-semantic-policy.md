@@ -3,11 +3,6 @@
 Status: Binding governance artifact for Phase 15 (Privacy-Safe Semantic Search + Hybrid Ranker) AND Phase 16 (Semantic Search Activation — real OpenAI provider, bounded backfill, cost gates).
 Scope: Extends the existing Global Intelligence Search (Phase 14) and `/v1/search` API. Does NOT introduce a new search page, a new route file, a new indexer, a new service surface, or a `/v1/semantic-search` endpoint.
 
-Cross-references (read before changing this doc):
-- `docs/architecture/search-reality-audit.md`
-- `docs/architecture/phase-14-global-intelligence-search-completion.md`
-- `docs/architecture/phase-13-intelligence-chain.md`
-
 ---
 
 ## 0. Phase 16 Activation — what changed

@@ -4,7 +4,6 @@
 - `architecture-invariants.md` — hard rules enforced by tests
 - `current-to-target-domain-map.md` — current state vs target state
 - `domain-debt-register.md` — known legacy debt
-- `phase-3-runtime-refactor-readiness.md` — what Phase 3 may safely change
 
 ---
 
@@ -307,7 +306,7 @@ The following invariants are constitutional. They are enforced by source-contrac
 ## 7. What is NOT in this document
 
 This document is the constitutional reference. It does NOT specify:
-- Implementation order (see `phase-3-runtime-refactor-readiness.md`)
+- Implementation order
 - Current state contradictions (see `current-to-target-domain-map.md` and `domain-debt-register.md`)
 - Phase-specific work scope (each phase has its own plan)
 - API contracts or schema (those are derived from this document)

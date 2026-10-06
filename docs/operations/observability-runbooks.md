@@ -174,7 +174,7 @@ real noise floor.** No threshold here is fabricated to look precise.
 
 1. Open `PROOVRA — Queue Operations` dashboard and identify the queue producing stalls.
 2. Check the worker container's recent OTEL spans for `proovra.queue.job.*` errors.
-3. If a single queue is stalling, consider increasing worker concurrency or partitioning — see `docs/operations/phase-o2-scale-readiness.md` (when O2.2 closes).
+3. If a single queue is stalling, consider increasing worker concurrency or partitioning.
 
 ## queue-retry-failure-spike
 

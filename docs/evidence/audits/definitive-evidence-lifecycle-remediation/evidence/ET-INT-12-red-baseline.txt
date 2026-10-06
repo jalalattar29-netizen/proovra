@@ -1,7 +1,0 @@
-ET-INT-12 red — services/api/test/intake-verify-attribution.integration.test.ts against HEAD (d4b17bb7) evidence.routes.ts (live PG16, RICH tier):
-   × ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16) > an intake record shows the contributor role, not the creator's provider or identity level 174ms
-     → expected 'Identity snapshot recorded • Identity…' to be 'Identity snapshot recorded • Submitte…' // Object.is equality
-   ✓ ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16) > an ordinary upload keeps its account attribution 65ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 1 passed (2)
-(HEAD's custody timeline showed 'Identity snapshot recorded • Identity: … • Email: … • Provider: …' — the link creator's — on an intake record.)

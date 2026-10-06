@@ -325,10 +325,8 @@ docker exec docker-proovra-api-1 sh -lc '
   "
 '
 
-# 2. Address the root cause in the migration SQL (see Phase 2.7Z
-#    FK-type-mismatch patch in
-#    docs/product/PHASE_2_7Z_FK_TYPE_NORMALIZATION.md for the
-#    canonical recovery pattern for `incompatible types`).
+# 2. Address the root cause in the migration SQL (for `incompatible
+#    types`, normalise the FK column type to match its target).
 
 # 3. After the migration SQL is patched on disk, rebuild the image
 #    and redeploy. THEN mark the failed attempt rolled-back:

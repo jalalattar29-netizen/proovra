@@ -1,8 +1,0 @@
-[31m   [31m×[31m original byte release is on the custody chain (live PostgreSQL 16)[2m > [22mthe parts listing that hands out part URLs records EVIDENCE_DOWNLOADED with the count[39m[32m 120[2mms[22m[39m
-[31m     → expected [] to deeply equal [ ObjectContaining{…} ][39m
-[31m   [31m×[31m original byte release is on the custody chain (live PostgreSQL 16)[2m > [22m/original records EVIDENCE_DOWNLOADED, not EVIDENCE_VIEWED[39m[32m 63[2mms[22m[39m
-[31m     → expected [ { type: 'EVIDENCE_VIEWED', …(4) } ] to deeply equal [ ObjectContaining{…} ][39m
-[31m   [31m×[31m original byte release is on the custody chain (live PostgreSQL 16)[2m > [22ma record view records exactly the original URLs it included[39m[32m 90[2mms[22m[39m
-[31m     → expected [] to deeply equal [ ObjectContaining{…} ][39m
-[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
-[2m      Tests [22m [1m[31m3 failed[39m[22m[90m (3)[39m

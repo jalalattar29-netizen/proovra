@@ -1,6 +1,0 @@
-ET-INT-15 red — services/api/test/intake-link-restrictions.integration.test.ts -t ET-INT-15 against HEAD (fc931d47) external-intake.routes.ts + evidence.service.ts (live PG16):
-   × ET-INT-06 — intake link restrictions (live PostgreSQL 16) > ET-INT-15: the first part records the capture environment, and the intake record's UPLOAD_AUTHORIZED claims no URL it never issued 2
-     → expected null not to be null
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 3 skipped (4)
-(HEAD: the intake record had no capture environment after its first part — the write keyed on the pre-part session snapshot's null evidenceId.)

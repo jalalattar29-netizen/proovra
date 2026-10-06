@@ -1,6 +1,0 @@
-ET-SEC-23 red — apps/web/__tests__/pricing-storage-addons-truth.test.ts against HEAD (cc302610) apps/web/app/pricing/page.tsx:
-✔ ET-SEC-23: the policy lets FREE, PRO and TEAM buy storage and not ENTERPRISE
-✖ ET-SEC-23: every self-service cell of the row is derived from that policy
-ℹ pass 1
-ℹ fail 1
-(HEAD's FREE cell was a hard-coded "Not available" while the policy — first test, passing on both trees — allows FREE storage add-ons.)

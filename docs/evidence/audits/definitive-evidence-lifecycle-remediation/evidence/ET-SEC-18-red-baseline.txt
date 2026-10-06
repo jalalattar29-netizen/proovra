@@ -1,6 +1,0 @@
-ET-SEC-18 red baseline — test/reports-list-authorization.integration.test.ts against HEAD (9d7aa0ed) reports.routes.ts + case-workspace.routes.ts (live PG16, disposable)
-   × reports lists honour the authorization decision (live PostgreSQL 16) > an EXPIRED member lists nothing from the workspace — scoped (404), unscoped (absent) and the aggregator (404) — even for records they own 178ms
-     → <200 envelope LISTING the expired member's record>: expected 200 to be 404 // Object.is equality
-   ✓ reports lists honour the authorization decision (live PostgreSQL 16) > a trashed record is never listed 49ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 1 passed (2)

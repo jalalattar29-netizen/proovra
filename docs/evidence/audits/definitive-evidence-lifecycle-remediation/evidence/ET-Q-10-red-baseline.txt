@@ -1,7 +1,0 @@
-ET-Q-10 red baseline — embed-owed-predicate.integration.test.ts against HEAD intelligence-run-reconciler.ts
-   × embed-owed predicate (live PostgreSQL 16) > owed = no embedding_vector, inside the window, in a workspace that allows embeddings 104ms
-     → selectChunksOwingEmbedding is not a function
-   × embed-owed predicate (live PostgreSQL 16) > the reconciler reads the predicate, not the legacy column 8ms
-     → expected '/**\n * PHASE 12 — POINT 5: stranded …' to contain 'const owed = await selectChunksOwingE…'
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed (2)

@@ -1,6 +1,0 @@
-{
-  "probe": "RT-VERIFY/ENUM",
-  "unknown": 404,
-  "malformed": 404,
-  "cacheControlUnknown": "no-store"
-}

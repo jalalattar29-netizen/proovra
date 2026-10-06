@@ -1,2 +1,0 @@
- [32m✓[39m test/package-custody-recompute.test.ts[2m > [22mverification package custody.json (ET-PKG-01)[2m > [22mcontrast: substituting the presentation copy for the payload (the prior export) does not recompute[32m 2[2mms[22m[39m
-The contrast case applies the prior export (presentation copy substituted for payload, processor.ts:4435 on a40ca76f) and asserts the README formula does NOT recompute eventHash for an event carrying captureMethodSnapshot - the defect ET-PKG-01 describes.

@@ -1,6 +1,0 @@
-[31m   [31m×[31m direct-capture session expiry slides on activity (live PostgreSQL 16)[2m > [22meach declaration moves the expiry; a segment 70 minutes in is still accepted[39m[32m 182[2mms[22m[39m
-[31m     → promise rejected "Error: SESSION_EXPIRED { …(2) }" instead of resolving[39m
-[31m   [31m×[31m direct-capture session expiry slides on activity (live PostgreSQL 16)[2m > [22mthe expiry never passes the absolute session lifetime, and a silent session still expires[39m[32m 63[2mms[22m[39m
-[31m     → expected 1790787721742 to be 1790788321742 // Object.is equality[39m
-[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
-[2m      Tests [22m [1m[31m2 failed[39m[22m[90m (2)[39m

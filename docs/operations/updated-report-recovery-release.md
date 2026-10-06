@@ -102,4 +102,5 @@ No new secret is required; no existing variable changes meaning.
   runner.
 * `services/api/test/output-offer-confirm-revalidation.integration.test.ts` —
   RGA-02 through the real route on live PostgreSQL + Redis.
-* `docs/audits/updated-report-closure/` — the recorded proof of the final run.
+* The `rga-proof` CI artifact of `updated-report-journey.yml` — the recorded
+  proof of each run.

@@ -81,9 +81,8 @@ production credentials and booting it locally would reach production.
 6. `Redis unavailable` then repeated at roughly five-minute intervals, which
    is `repeat_interval` doing its job rather than a duplicate-delivery bug.
 
-The ten deliveries are recorded verbatim in
-`docs/operations/monitoring-exercise-2026-09-24.jsonl` — the receiver's own
-log, not a transcription.
+The ten deliveries were taken from the receiver's own log, not a
+transcription.
 
 ### The cold-start measurement
 

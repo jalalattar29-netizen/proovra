@@ -93,4 +93,3 @@ All routes require active team membership.
 - `insurance-siu-persistence.md` — durable model overview.
 - `insurance-siu-pii.md` — bounded PII contract.
 - `insurance-siu-export-format.md` — bundle ZIP layout.
-- `phase-m3-2-siu-governance-export-closure.md` — closure report.

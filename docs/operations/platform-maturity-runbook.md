@@ -206,5 +206,3 @@ For a serious enterprise prospect demo:
 - Observability: [observability.md](./observability.md)
 - Test strategy: [test-strategy.md](./test-strategy.md)
 - Shared presence plan: [shared-presence-deployment.md](./shared-presence-deployment.md)
-- Phase G4 deep cleanup: [phase-g4-deep-cleanup-runbook.md](./phase-g4-deep-cleanup-runbook.md)
-- Phase G3.2 closure: [phase-g3-2-final-closure-runbook.md](./phase-g3-2-final-closure-runbook.md)

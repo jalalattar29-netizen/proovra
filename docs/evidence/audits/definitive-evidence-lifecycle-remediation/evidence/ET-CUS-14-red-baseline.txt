@@ -1,7 +1,0 @@
-ET-CUS-14 red baseline — audit-request-context-columns.integration.test.ts against HEAD platform-audit-log.service.ts
-   × audit request context goes to masked columns (live PostgreSQL 16) > a route-driven tenant audit row: no raw address/UA in metadata, masked columns, requestId filled 206ms
-     → expected '{"jobId":null,"policyId":null,"severi…' not to contain '203.0.113.77'
-   × audit request context goes to masked columns (live PostgreSQL 16) > the facade: metadata address/UA keys are lifted, correlationId fills requestId, the chain still verifies 11ms
-     → expected '198.51.100.9' to be undefined
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed (2)

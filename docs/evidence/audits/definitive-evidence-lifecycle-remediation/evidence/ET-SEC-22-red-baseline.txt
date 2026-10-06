@@ -1,6 +1,0 @@
-ET-SEC-22 red — services/api/test/workspace-usage-population.integration.test.ts against HEAD (1f331bcf) workspace-usage.service.ts (live PG16):
-   × workspace usage population (live PostgreSQL 16) > creation-shaped and completion-shaped scopes measure the same bytes, legacy rows included 92ms
-     → expected 500n to be 1500n // Object.is equality
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed (1)
-(HEAD: the completion-shaped scope measured 500 bytes, the creation-shaped scope 1,500 — every legacy NULL-team byte was invisible at completion.)

@@ -1,7 +1,0 @@
-ET-REC-05 red baseline — against HEAD ops.routes.ts + operations/page.tsx
-   × OTS remediation truth (live PostgreSQL 16) > ET-REC-06: a permanently invalid proof offers no Resume, and a Resume POST is NOT_ELIGIBLE with no queued event 77ms
-     → expected undefined to match object { …(2) }
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 3 passed (4)
-✖ the page shows the lifted outcome instead of the generic failure (1.6863ms)
-ℹ fail 1

@@ -1,9 +1,0 @@
-ET-ACQ-06 red baseline — services/api/test/evidence-cap-admission-serialized.integration.test.ts
-Run against HEAD ef6abab1's services/api/src/services/evidence.service.ts (unlocked cap count), live PostgreSQL 16, 2026-09-30T03:22Z.
-
-   × record-cap admission is serialized (live PostgreSQL 16, real HTTP) > a SHARED TEAM workspace one record below its rolling allowance admits exactly one of five concurrent creates 417ms
-     → expected [ 201, 201, 201, 201, 201 ] to have a length of 1 but got 5
-   × record-cap admission is serialized (live PostgreSQL 16, real HTTP) > a FREE Personal Space one record below its lifetime cap admits exactly one of five concurrent creates 175ms
-     → expected [ 201, 201, 201, 201, 201 ] to have a length of 1 but got 5
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed (2)

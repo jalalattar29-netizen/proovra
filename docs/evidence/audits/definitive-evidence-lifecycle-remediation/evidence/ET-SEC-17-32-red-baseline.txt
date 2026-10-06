@@ -1,7 +1,0 @@
-ET-SEC-17 / ET-SEC-32 red baseline — test/case-delete-hold-and-annotation-part.integration.test.ts against HEAD (c8a3e505) cases.routes.ts, evidence.routes.ts, legal-hold.service.ts (live PG16, disposable)
-   × case delete fails closed; annotation edits keep part ownership (live PostgreSQL 16) > ET-SEC-17: an unreadable hold state answers 503 and the case and its links stay 77ms
-     → expected 204 to be 503 // Object.is equality
-   × case delete fails closed; annotation edits keep part ownership (live PostgreSQL 16) > ET-SEC-32: PATCH cannot point an annotation at another record's part; its own part is accepted 96ms
-     → <annotation body with the FOREIGN evidencePartId>: expected 200 to be 400 // Object.is equality
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed (2)

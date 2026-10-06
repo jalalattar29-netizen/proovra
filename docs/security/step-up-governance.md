@@ -66,4 +66,3 @@ Audit events:
 - Middleware: `services/api/src/middleware/require-step-up.ts` (or equivalent)
 - Service: `services/api/src/services/identity-security/step-up.service.ts`
 - Frontend hook + modal: [apps/web/components/identity-security/StepUpModal.tsx](../../apps/web/components/identity-security/StepUpModal.tsx)
-- G3 step-up runbook: [stepup-presence-realtime-runbook.md](../operations/stepup-presence-realtime-runbook.md)

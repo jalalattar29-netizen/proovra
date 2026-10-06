@@ -1,8 +1,0 @@
-[31m   [31m×[31m governance mutations are atomic with their custody (live PostgreSQL 16)[2m > [22ma suspension whose custody event cannot be written does not suspend[39m[32m 48[2mms[22m[39m
-[31m     → promise resolved "{ departmentId: null, …(119) }" instead of rejecting[39m
-[31m   [31m×[31m governance mutations are atomic with their custody (live PostgreSQL 16)[2m > [22mtwo racing unpublishes make one transition and record exactly one event[39m[32m 40[2mms[22m[39m
-[31m     → expected 2 to be 1 // Object.is equality[39m
-[31m   [31m×[31m governance mutations are atomic with their custody (live PostgreSQL 16)[2m > [22ma certification request whose custody event cannot be written creates no certification[39m[32m 20[2mms[22m[39m
-[31m     → promise resolved "{ …(22) }" instead of rejecting[39m
-[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
-[2m      Tests [22m [1m[31m3 failed[39m[22m[90m (3)[39m

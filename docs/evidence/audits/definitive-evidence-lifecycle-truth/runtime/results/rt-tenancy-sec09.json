@@ -1,8 +1,0 @@
-{
-  "probe": "RT-TENANCY/SEC-09",
-  "readBeforeLink": 404,
-  "linkStatus": 200,
-  "linkRowCreated": true,
-  "readAfterLink": 200,
-  "victimTitleVisibleToAttacker": true
-}

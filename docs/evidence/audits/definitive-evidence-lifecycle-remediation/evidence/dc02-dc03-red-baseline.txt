@@ -1,4 +1,0 @@
-DIRECT_WEB_CAPTURE_EXTENSION: provenanceTier=undefined | claims-order=true | statement="PROOVRA captured this web page directly through its browser extension, in a server-issued capture session star..."
-DIRECT_SCREEN_CAPTURE_ANDROID: provenanceTier=undefined | claims-order=true | statement="PROOVRA captured this Android device screen directly through its app, using Android's screen-capture consent, ..."
-DIRECT_SCREEN_CAPTURE_ANDROID_CONTINUOUS: provenanceTier=undefined | claims-order=false | statement="PROOVRA recorded this Android device screen continuously through its app, using Android's screen-capture conse..."
-DIRECT_SCREEN_CAPTURE_IOS: provenanceTier=undefined | claims-order=true | statement="PROOVRA recorded this iOS device screen through Apple's user-authorised system screen broadcast, in a server-i..."

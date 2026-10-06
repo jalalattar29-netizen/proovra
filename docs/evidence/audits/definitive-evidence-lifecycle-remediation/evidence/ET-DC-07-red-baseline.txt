@@ -1,7 +1,0 @@
-ET-DC-07 red baseline — services/api/test/direct-capture-reserve-atomic.integration.test.ts
-Run against HEAD ac74edf0's evidence.service.ts and direct-capture-ingest.service.ts (createEvidence on the global client inside the reserve transaction), live PostgreSQL 16, 2026-09-30T03:29Z. A binding failure injected after createEvidence left 1 committed, unbound record.
-
-   × direct-capture reserve is atomic (live PostgreSQL 16) > a reserve that fails at the binding leaves no record, and the retry creates exactly one 188ms
-     → expected 1 to be +0 // Object.is equality
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed (1)

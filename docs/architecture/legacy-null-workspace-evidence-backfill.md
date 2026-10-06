@@ -1,7 +1,6 @@
 # Legacy `evidence.team_id IS NULL` — population, and the operator-gated backfill design
 
 **Status:** DESIGN ONLY. No migration authored, nothing applied, no Production mutation.
-**Raised by:** P2-1, `docs/admin/audits/FINAL_COMMERCIAL_OUTPUT_VERIFY_EXPERIENCE_AUDIT.md`
 **Closed in code by:** the `WORKSPACE_UNRESOLVED` outcome + action withdrawal (2026-09-10). The
 product no longer offers an action it cannot honour. This document covers the *remaining* work,
 which is data repair and is deliberately not part of that change.

@@ -1,6 +1,0 @@
-ET-INT-08 red — services/api/test/intake-link-mint-gate.integration.test.ts -t ET-INT-08 against HEAD (352bc995) evidence-request.service.ts (live PG16):
-   × intake-link mint gate on the evidence-request flows (live PostgreSQL 16) > ET-INT-08: cancelling a request revokes its link AND its request-more follow-up; the public token is refused 188ms
-     → expected { …(4) } to match object { status: 'REVOKED', …(2) }
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 5 skipped (6)
-(The cancelled request's links stayed ACTIVE on HEAD.)

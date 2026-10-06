@@ -1,8 +1,0 @@
-ET-ACQ-05 red baseline — services/api/test/checklist-plan-server-authority.integration.test.ts
-Run against HEAD 1a68465b's evidence-complete.service.ts (gate read the client's intakePlanJson only), live PostgreSQL 16, 2026-09-30T04:51Z. A CHECKLIST_REQUIRED session's record with the plan omitted and the required step unmapped was SIGNED. The FLEXIBLE control completes on both.
-
-   × checklist plan server authority (live PostgreSQL 16) > a CHECKLIST_REQUIRED session refuses completion when the template's required steps are unmapped, plan omitted or not 203ms
-     → promise resolved "{ …(7) }" instead of rejecting
-   ✓ checklist plan server authority (live PostgreSQL 16) > a FLEXIBLE session completes (control) 98ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 1 passed (2)

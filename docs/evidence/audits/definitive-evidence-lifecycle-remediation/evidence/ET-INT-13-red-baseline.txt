@@ -1,8 +1,0 @@
-ET-INT-13 red — services/api/test/intake-finalization-governance.integration.test.ts against HEAD (2f696fea) external-intake-orchestration.service.ts + finalization-governance.service.ts (live PG16):
-   × external intake — finalization governance (live PostgreSQL 16) > a workspace whose policy forbids public Verify refuses the submission: nothing signed, published or served 216ms
-     → expected 4 to be 1 // Object.is equality
-   × external intake — finalization governance (live PostgreSQL 16) > a workspace requiring publication approval finalizes the submission SIGNED but NOT_PUBLISHED; public Verify does not serve it 197ms
-     → promise rejected "WorkflowIntakeSessionError: session_not_f… { code: '…' }" instead of resolving
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed (2)
-(HEAD: four refused attempts appended four EXPORT_BLOCKED_BY_POLICY events; a submission that had already signed its record rejected with session_not_found.)

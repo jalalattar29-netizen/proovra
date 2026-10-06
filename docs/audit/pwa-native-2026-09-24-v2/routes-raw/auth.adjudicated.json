@@ -1,5 +1,0 @@
-{
- "route": "/auth",
- "disposition": "ALIAS_REDIRECT",
- "items": []
-}

@@ -1,7 +1,0 @@
-ET-Q-05 red baseline — point5/family-trash-grace.integration.test.ts (ET-Q-05 cases) against HEAD trash-grace-reconciler.ts / queue.ts / processor.ts
-   × POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16) > ET-Q-05: blocked rows at the head of the queue do not starve an eligible record behind them 54ms
-     → the next tick continues past the blocked rows: expected [ …(3) ] to include 'bba2e82c-6fb3-446b-9701-4931fc06942b'
-   × POINT 5 FAMILY — trash-grace reconciliation (live PostgreSQL 16) > ET-Q-05: the purge job's BLOCKED reschedule schedules a real follow-up, not a collapse onto itself 3ms
-     → expected 'import type { Job } from "bullmq";\ni…' to match /enqueueEvidencePurgeJob\(evidence\.id…/
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed | 8 passed (10)

@@ -63,4 +63,3 @@ The column lives next to the data so future policy changes can be applied row-by
 - `insurance-siu.md` — domain model overview.
 - `insurance-siu-persistence.md` — durable storage model.
 - `insurance-siu-export-format.md` — bundle ZIP layout.
-- `phase-m3-1-siu-durability-closure.md` — closure report.

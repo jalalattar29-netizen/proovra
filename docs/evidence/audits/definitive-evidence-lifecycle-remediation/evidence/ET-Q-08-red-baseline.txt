@@ -1,5 +1,0 @@
-ET-Q-08 red baseline — services/worker/test/job-event-context.test.ts (ET-Q-08 cases) against HEAD processor.ts + index.ts
-   × dead-letter records (ET-Q-08) > the report DLQ holds terminal failures only and no raw stack; the MI DLQ is written 4ms
-     → only the non-retriable (terminal) branch writes the report DLQ: expected 2 to be 1 // Object.is equality
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 5 passed (6)

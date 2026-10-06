@@ -1,8 +1,0 @@
-ET-INT-10 / ET-SEC-25 red baseline — test/integrations-api-actor-and-lifecycle.integration.test.ts against HEAD (8d781d80) integrations-api.routes.ts, integrations-auth.ts, access-policy.service.ts (live PG16, disposable)
-   × integrations API actor, plan gate and organization lifecycle (live PostgreSQL 16) > ET-INT-10: an API-created evidence request is attributed to the credential's creator, not the credential id 49ms
-   × integrations API actor, plan gate and organization lifecycle (live PostgreSQL 16) > ET-INT-10: the secure-intake plan gate applies to the API path (FREE, no credits → 409 INTAKE_NOT_INCLUDED, nothing written) 21ms
-   × integrations API actor, plan gate and organization lifecycle (live PostgreSQL 16) > ET-SEC-25: a SUSPENDED organization cannot act through its API key (403), and nothing is written 18ms
-   × integrations API actor, plan gate and organization lifecycle (live PostgreSQL 16) > ET-INT-10: neither integration route passes the credential id as a user 1ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  4 failed (4)
-Every API-path create answered 400 {"error":{"code":"P2003","message":"<raw Prisma 'Foreign key constraint' text with the server source path>"}} — the credential id failed the User FK; the plan gate and the organization-lifecycle check were never reached.

@@ -106,4 +106,3 @@ NEVER returns: endpoint URL, headers, Grafana token, raw env, or any token-beari
 
 - `observability.md` — operator runbook for the observability stack.
 - `deployment-hardening.md` — production deployment + token rotation.
-- `phase-o1-1-otel-runtime-closure.md` — closure report.

@@ -1,5 +1,0 @@
-ET-SM-08 red baseline — services/api/test/evidence-record-status-coverage.test.ts against HEAD web evidence-library-status.ts + mobile evidence-library.ts (HEAD labels FAILED_HASH_MISMATCH 'Status not recorded')
-   × evidence record status presentation (ET-SM-08) > the web and mobile library labels delegate to it 8ms
-     → expected 'import { getReviewerEvidenceTypeLabel…' to contain 'return evidenceRecordStatusLabel(stat…'
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  1 failed | 2 passed (3)

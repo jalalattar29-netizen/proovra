@@ -178,6 +178,5 @@ After rollback, repeat §4 against the rolled-back tag — the OTEL health endpo
 
 ## 7. Related docs
 
-- `docs/operations/phase-o1-3-otel-final-closure.md` — phase closure report (root cause + version strategy).
 - `docs/operations/observability-runbooks.md` — per-alert runbooks (`api-down`, `worker-degraded`, …).
 - `docs/operations/MIGRATION_DISCIPLINE.md` — DB-side discipline (separate from OTEL but same low-RAM constraints apply for `prisma migrate deploy`).

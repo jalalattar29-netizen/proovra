@@ -4,7 +4,7 @@
 
 **Canonical path:** `/settings/security/saml` (redirects to the implementation surface at `/security-center/sso`).
 
-**Companion docs:** R8.2.0 / R8.2.1 / R8.2.2 in `docs/security/R8_2_*` provide the technical SAML hardening history. This guide is the operator-facing how-to.
+**Companion docs:** [R8_2_1_SAML_IDP_COMPATIBILITY.md](./R8_2_1_SAML_IDP_COMPATIBILITY.md) (per-IdP configuration) and [R8_2_2_SAML_REAL_IDP_PILOT_CHECKLIST.md](./R8_2_2_SAML_REAL_IDP_PILOT_CHECKLIST.md) (live-IdP validation). This guide is the operator-facing how-to.
 
 ---
 
@@ -139,5 +139,5 @@ Per the P1.0 honest-scope disclosure:
 - Surface: [apps/web/app/(app)/security-center/sso/page.tsx](../../apps/web/app/%28app%29/security-center/sso/page.tsx)
 - Canonical redirect: [apps/web/app/(app)/settings/security/saml/page.tsx](../../apps/web/app/%28app%29/settings/security/saml/page.tsx)
 - Backend routes: [services/api/src/routes/saml-auth.routes.ts](../../services/api/src/routes/saml-auth.routes.ts)
-- R8.2 history: [R8_2_REAL_SAML_SP.md](./R8_2_REAL_SAML_SP.md), [R8_2_1_SAML_HARDENING.md](./R8_2_1_SAML_HARDENING.md), [R8_2_2_SAML_COMPLIANCE_CLOSURE.md](./R8_2_2_SAML_COMPLIANCE_CLOSURE.md)
+- IdP configuration: [R8_2_1_SAML_IDP_COMPATIBILITY.md](./R8_2_1_SAML_IDP_COMPATIBILITY.md), [R8_2_2_SAML_REAL_IDP_PILOT_CHECKLIST.md](./R8_2_2_SAML_REAL_IDP_PILOT_CHECKLIST.md)
 - Audit center: [identity-audit-center.md](./identity-audit-center.md)

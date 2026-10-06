@@ -18,7 +18,7 @@ Source-of-truth:
 | **Gap** | What is missing or wrong |
 | **Migration phase** | Which future phase is expected to close the gap |
 
-This document is **descriptive, not prescriptive**. The migration order is owned by `phase-3-runtime-refactor-readiness.md`.
+This document is **descriptive, not prescriptive**.
 
 ---
 

@@ -108,4 +108,3 @@ The Phase M3 SIU profile is held in an in-process registry keyed by case id. Pro
 - `insurance-siu-workflows.md` — adjuster / SIU reviewer workflow.
 - `insurance-siu-export-format.md` — bundle ZIP layout.
 - `insurance-evidence-guide.md` — claimant-facing guide.
-- `phase-m3-insurance-siu-closure.md` — closure report.

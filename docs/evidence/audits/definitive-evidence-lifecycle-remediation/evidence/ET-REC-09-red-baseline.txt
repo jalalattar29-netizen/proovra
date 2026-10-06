@@ -1,7 +1,0 @@
-ET-REC-09 red baseline — communications-retry-audit.integration.test.ts against HEAD communications.routes.ts
-   × communications retry: audited and conditional (live PostgreSQL 16) > a manual re-send is audited with the transition 58ms
-     → expected [] to deeply equal [ { outcome: 'success', …(3) } ]
-   × communications retry: audited and conditional (live PostgreSQL 16) > two concurrent cancels: exactly one applies and exactly one is audited 26ms
-     → expected [] to have a length of 1 but got +0
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  2 failed (2)

@@ -71,4 +71,3 @@ The export endpoint is gated under the bounded step-up purpose `SIU_EXPORT_GENER
 - `insurance-siu.md` — domain model overview.
 - `insurance-siu-export-format.md` — ZIP layout.
 - `insurance-evidence-guide.md` — claimant-facing guide.
-- `phase-m3-insurance-siu-closure.md` — closure report.

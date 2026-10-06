@@ -1,7 +1,0 @@
-ET-INT-06 red — services/api/test/intake-link-restrictions.integration.test.ts against HEAD (a6bab469) routes + intake services (live PG16):
-   × ET-INT-06 — intake link restrictions (live PostgreSQL 16) > an allowlisted link answers a client outside it with 403 and one inside it normally 145ms
-   × ET-INT-06 — intake link restrictions (live PostgreSQL 16) > an allowlist entry the matcher cannot use is refused at creation 37ms
-   × ET-INT-06 — intake link restrictions (live PostgreSQL 16) > a submission over maxBytesPerSession is refused 413 before finalizing, and the link use is not consumed 399ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  3 failed (3)
-(HEAD: the outside client got 200; the junk allowlist entry was stored (201); a 64-byte submission under a 10-byte cap was SUBMITTED.)

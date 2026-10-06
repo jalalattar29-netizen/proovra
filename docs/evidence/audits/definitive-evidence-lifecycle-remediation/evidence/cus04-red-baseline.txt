@@ -1,9 +1,0 @@
-ET-CUS-04 red baseline — custody-append-only.integration.test.ts with custody-chain.ts from 27fca6ef^ and the two append-only triggers dropped (the pre-migration database), reproduced 2026-09-29
-   × custody is append-only (live PostgreSQL 16) > UPDATE and DELETE of a custody event are refused by the database 31ms
-     → promise resolved "{ …(11) }" instead of rejecting
-   × custody is append-only (live PostgreSQL 16) > UPDATE and DELETE of a platform audit row are refused by the database 7ms
-     → promise resolved "{ …(30) }" instead of rejecting
-   × custody is append-only (live PostgreSQL 16) > a fully hash-stripped chain of modern events is invalid, not 'legacy' 24ms
-     → expected { valid: true, mode: 'legacy', …(1) } to match object { Object (valid, reason) }
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
-      Tests  3 failed (3)
