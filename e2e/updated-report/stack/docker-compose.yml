@@ -1,0 +1,221 @@
+# THE UPDATED-REPORT JOURNEY STACK — disposable, Linux, loopback-only.
+#
+# The report renderer is the production worker image (Alpine + Chromium at
+# /usr/bin/chromium), built from services/worker/Dockerfile exactly as it ships;
+# the API is the production API image. Nothing here reads a developer .env, holds
+# a real credential, or can reach Production: storage is a local MinIO, the time
+# stamp authority is a local openssl TSA (tsa-server.mjs), and every published
+# port binds 127.0.0.1.
+#
+#   docker compose -p pv-rga -f e2e/updated-report/stack/docker-compose.yml up -d --build
+#
+# The browser half (production `next build` + `next start`) and Playwright run
+# on the host against http://127.0.0.1:${RGA_API_PORT:-58081}.
+name: pv-rga
+
+x-common-env: &common-env
+  DATABASE_URL: postgresql://proovra:proovra_password@postgres:5432/proovra_rga
+  REDIS_URL: redis://redis:6379
+  # ONE storage hostname for containers, the host and the browser: presigned
+  # URLs are signed for this host, so it cannot be rewritten afterwards. Docker
+  # DNS resolves the alias inside the network; Chromium resolves *.localhost to
+  # loopback, where the same port is published 1:1.
+  S3_ENDPOINT: http://minio.localhost:57900
+  S3_REGION: us-east-1
+  S3_ACCESS_KEY: rgaminio
+  S3_SECRET_KEY: rgaminio_password
+  S3_BUCKET: proovra-rga
+  S3_ALLOW_INSECURE: "true"
+  S3_FORCE_PATH_STYLE: "true"
+  S3_OBJECT_LOCK_ENABLED: "false"
+  OBJECT_LOCK_VERIFICATION_BYPASS: "true"
+  SIGNER_PROVIDER: local-pem
+  SIGNING_KEY_ID: rga_ed25519
+  SIGNING_KEY_VERSION: "1"
+  SIGNING_PRIVATE_KEY_PATH: /run/signing/signer-private.pem
+  SIGNING_PUBLIC_KEY_PATH: /run/signing/signer-public.pem
+  PACKAGE_SIGNING_KEY_ID: rga_package_ed25519
+  PACKAGE_SIGNING_KEY_VERSION: "1"
+  PACKAGE_SIGNING_PRIVATE_KEY_PATH: /run/signing/signer-private.pem
+  PACKAGE_SIGNING_PUBLIC_KEY_PATH: /run/signing/signer-public.pem
+  PDF_SIGNING_ENABLED: "true"
+  PDF_SIGNING_P12_PATH: /run/signing/pdf-signing.p12
+  PDF_SIGNING_P12_PASSWORD: rga-local-only-ephemeral
+  AUTH_JWT_SECRET: rga_e2e_jwt_secret_min_32_chars_long_for_validator_0001
+  IDENTITY_SECURITY_HASH_SECRET: rga_e2e_identity_hash_secret_min_32_chars_0001
+  LOG_LEVEL: info
+  SENTRY_DSN: ""
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: proovra
+      POSTGRES_PASSWORD: proovra_password
+      POSTGRES_DB: proovra_rga
+    ports: ["127.0.0.1:${RGA_PG_PORT:-57432}:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proovra -d proovra_rga"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:${RGA_REDIS_PORT:-57379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: server /data --address :57900
+    environment:
+      MINIO_ROOT_USER: rgaminio
+      MINIO_ROOT_PASSWORD: rgaminio_password
+    ports: ["127.0.0.1:57900:57900"]
+    networks:
+      default:
+        aliases: [minio.localhost]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:57900/minio/health/live"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        mc alias set local http://minio:57900 rgaminio rgaminio_password &&
+        mc mb --ignore-existing local/proovra-rga &&
+        mc version enable local/proovra-rga &&
+        mc version info local/proovra-rga
+
+  # Ephemeral signing material, minted INSIDE Linux so the non-root `app` user
+  # of both images can read it (a Windows bind mount carries no POSIX modes).
+  keys:
+    image: node:20-alpine3.23
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        set -e; apk add --no-cache openssl >/dev/null;
+        if [ ! -f /run/signing/signer-private.pem ]; then
+        openssl genpkey -algorithm ed25519 -out /run/signing/signer-private.pem;
+        openssl pkey -in /run/signing/signer-private.pem -pubout -out /run/signing/signer-public.pem;
+        openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=PROOVRA RGA journey" -keyout /run/signing/pdf-key.pem -out /run/signing/pdf-cert.pem;
+        openssl pkcs12 -export -out /run/signing/pdf-signing.p12 -inkey /run/signing/pdf-key.pem -in /run/signing/pdf-cert.pem -passout pass:rga-local-only-ephemeral;
+        fi; chmod 0755 /run/signing; chmod 0644 /run/signing/*
+    volumes: ["signing:/run/signing"]
+
+  tsa:
+    image: node:20-alpine3.23
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache openssl >/dev/null && node /srv/tsa-server.mjs"]
+    volumes:
+      - ./tsa-server.mjs:/srv/tsa-server.mjs:ro
+      - tsa:/tsa
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8318/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  migrate:
+    build: &api-build
+      context: ../../..
+      dockerfile: services/api/Dockerfile
+      args:
+        DATABASE_URL: postgresql://build:build@localhost:5432/build
+        APP_RELEASE_SHA: ${RGA_RELEASE_SHA:-local}
+    image: pv-rga-api:local
+    depends_on:
+      postgres: { condition: service_healthy }
+      keys: { condition: service_completed_successfully }
+    environment:
+      <<: *common-env
+      NODE_ENV: development
+    volumes:
+      - signing:/run/signing:ro
+    entrypoint: ["/bin/sh", "-c", "npx prisma migrate deploy && npx tsx src/seed-signing-key.ts"]
+
+  api:
+    image: pv-rga-api:local
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      keys: { condition: service_completed_successfully }
+      tsa: { condition: service_healthy }
+    environment:
+      <<: *common-env
+      # Development mode for the test-only auth/rate-limit reset, as the e2e
+      # job runs it; the API refuses that surface in production.
+      NODE_ENV: development
+      PORT: "8080"
+      CORS_ORIGINS: http://127.0.0.1:${RGA_WEB_PORT:-53000},http://localhost:${RGA_WEB_PORT:-53000}
+      APP_URL: http://127.0.0.1:${RGA_WEB_PORT:-53000}
+      APP_BASE_URL: http://127.0.0.1:${RGA_WEB_PORT:-53000}
+      WEB_BASE_URL: http://127.0.0.1:${RGA_WEB_PORT:-53000}
+      E2E_AUTH_BYPASS_SECRET: e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819
+      SCHEMA_VALIDATION_FAIL_FAST: "true"
+      # The timestamp authority is ON, and its trust anchor is deliberately NOT
+      # configured: the token is kept and recorded FAILED (not validated) — the
+      # state report v1 is issued in.
+      TSA_ENABLED: "true"
+      TSA_URL: http://tsa:8318/
+      TSA_PROVIDER: RGA_LOCAL_TEST_TSA
+      OUTPUT_OFFER_SECRET: rga_e2e_offer_secret_min_32_chars_long_0001
+    volumes:
+      - signing:/run/signing:ro
+      - tsa:/tsa:ro
+    ports: ["127.0.0.1:${RGA_API_PORT:-58081}:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+
+  worker:
+    build:
+      context: ../../..
+      dockerfile: services/worker/Dockerfile
+      args:
+        DATABASE_URL: postgresql://build:build@localhost:5432/build
+        APP_RELEASE_SHA: ${RGA_RELEASE_SHA:-local}
+    image: pv-rga-worker:local
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      <<: *common-env
+      NODE_ENV: production
+      INTERNAL_API_BASE_URL: http://api:8080
+      WORKER_PORT: "8090"
+      # OpenTimestamps ON (the upgrade processor and `ots info` refuse to run
+      # otherwise), with the ONLY calendar a closed local port: a completion
+      # stamp fails fast and nothing ever leaves the stack. The anchor proof is
+      # supplied by the journey (see _stack.ts) and anchored by the real
+      # upgrade processor.
+      OTS_ENABLED: "true"
+      OTS_CALENDAR_URL: http://127.0.0.1:9
+      OTS_TIMEOUT_MS: "5000"
+    volumes:
+      - signing:/run/signing:ro
+      # Journey tooling only: builds the offline anchor proof (see the file).
+      - ./ots-proof.py:/srv/ots-proof.py:ro
+    ports: ["127.0.0.1:${RGA_WORKER_PORT:-58090}:8090"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8090/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+
+volumes:
+  signing: {}
+  tsa: {}

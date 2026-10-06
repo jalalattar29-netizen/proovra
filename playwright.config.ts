@@ -216,6 +216,30 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     /**
+     * THE UPDATED-REPORT JOURNEY — browser → API → queue → production worker
+     * (Linux Chromium PDF renderer) → MinIO → back to the browser. Its own
+     * project because it needs its own stack: `e2e/updated-report/stack`
+     * (docker compose, production API/worker images, a local RFC 3161 TSA) and
+     * a PRODUCTION `next start` at WEB_BASE. Run by
+     * `.github/workflows/updated-report-journey.yml` and locally with
+     * `node e2e/updated-report/run-journey.mjs`. Never part of `chromium`.
+     */
+    {
+      name: "updated-report",
+      testDir: "./e2e/updated-report",
+      timeout: 900_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: {
+          cookies: [{ ...LAYOUT_STORAGE_STATE.cookies[0]!, domain: "127.0.0.1" }],
+          origins: [],
+        },
+        trace: "on",
+        screenshot: "on",
+        video: "retain-on-failure",
+      },
+    },
+    /**
      * PHASE 12 — POINT 7: the product-behaviour browser matrix.
      *
      * Its own project because it needs its own stack (a disposable

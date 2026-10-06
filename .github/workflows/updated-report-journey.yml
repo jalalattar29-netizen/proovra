@@ -1,0 +1,152 @@
+name: updated-report-journey
+
+# THE UPDATED-REPORT AND RECOVERY JOURNEY — real browser → API → queue →
+# PRODUCTION worker image (Linux Chromium PDF renderer) → MinIO → browser.
+#
+# One environment definition for local proof and CI: the disposable compose
+# stack in e2e/updated-report/stack (production API and worker Dockerfiles,
+# pgvector PostgreSQL, Redis, versioned MinIO, a local openssl RFC 3161 TSA).
+# The web is a PRODUCTION `next build` + `next start` on the runner, pinned to
+# the stack's loopback API. Nothing contacts Production, and no secret is used:
+# every key is minted inside the stack for the length of the job.
+#
+# Both Playwright specs run: the incident-shaped journey (v1 issued with an
+# unvalidated timestamp → trust advances → browser issues v2 → real PDF/ZIP,
+# extracted-package verification, v1 bytes unchanged) and the failure,
+# recovery and concurrency matrix.
+#
+# Anonymous viewers of this repository can read ANNOTATIONS but not logs or
+# artifacts, so every failure path annotates its cause.
+
+on:
+  push:
+    paths:
+      - "e2e/updated-report/**"
+      - "apps/web/**"
+      - "services/api/**"
+      - "services/worker/**"
+      - "packages/**"
+      - "playwright.config.ts"
+      - ".github/workflows/updated-report-journey.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      WEB_BASE: http://127.0.0.1:53000
+      API_BASE: http://127.0.0.1:58081
+      DATABASE_URL: postgresql://proovra:proovra_password@127.0.0.1:57432/proovra_rga
+      E2E_AUTH_BYPASS_SECRET: e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819
+      RGA_PROOF_DIR: ${{ github.workspace }}/rga-proof
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.28.2"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        env:
+          DATABASE_URL: postgresql://build:build@localhost:5432/build
+        run: pnpm run build:shared
+
+      - name: Build the stack images (production API + worker Dockerfiles)
+        run: |
+          set -o pipefail
+          RGA_RELEASE_SHA="${GITHUB_SHA}" docker compose -f e2e/updated-report/stack/docker-compose.yml build 2>&1 | tee /tmp/stack-build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            tail -n 40 /tmp/stack-build.log | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' | xargs -0 -I{} echo "::error title=stack image build failed::{}"
+            exit "$status"
+          fi
+
+      - name: Start the stack
+        run: |
+          docker compose -f e2e/updated-report/stack/docker-compose.yml up -d
+          ok=""
+          for _ in $(seq 1 120); do
+            api=$(docker inspect -f '{{.State.Health.Status}}' pv-rga-api-1 2>/dev/null || true)
+            worker=$(docker inspect -f '{{.State.Health.Status}}' pv-rga-worker-1 2>/dev/null || true)
+            if [ "$api" = "healthy" ] && [ "$worker" = "healthy" ]; then ok=1; break; fi
+            sleep 5
+          done
+          if [ -z "$ok" ]; then
+            docker compose -f e2e/updated-report/stack/docker-compose.yml ps
+            docker compose -f e2e/updated-report/stack/docker-compose.yml logs --tail 60 migrate api worker tsa 2>&1 \
+              | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' | xargs -0 -I{} echo "::error title=stack failed to start::{}"
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:58081/health
+
+      - name: Build the web (production, pinned to the stack API)
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_API_BASE: http://127.0.0.1:58081
+          NEXT_PUBLIC_WEB_BASE: http://127.0.0.1:53000
+          NEXT_PUBLIC_APP_BASE: http://127.0.0.1:53000
+        run: |
+          pnpm exec next build
+          # The bundle must point at the stack, never at Production.
+          grep -rq "127.0.0.1:58081" .next/static || { echo "::error::web bundle is not pinned to the stack API"; exit 1; }
+
+      - name: Start the web (next start)
+        working-directory: apps/web
+        run: |
+          nohup pnpm exec next start -p 53000 -H 127.0.0.1 > /tmp/web.log 2>&1 &
+          for _ in $(seq 1 60); do curl -fsS -o /dev/null http://127.0.0.1:53000/login && break; sleep 2; done
+          curl -fsS -o /dev/null http://127.0.0.1:53000/login
+
+      - name: Install Playwright Chromium
+        run: pnpm test:e2e:playwright:install
+
+      - name: Run the journey and the failure matrix
+        run: |
+          set +e
+          pnpm exec playwright test --project=updated-report --reporter=line,json 2>&1 | tee /tmp/journey.log
+          status=${PIPESTATUS[0]}
+          # A long harness that "passes" without running is not a pass: count.
+          passed=$(grep -Eo '[0-9]+ passed' /tmp/journey.log | tail -1 | grep -Eo '[0-9]+')
+          echo "passed=${passed:-0}"
+          if [ "$status" -ne 0 ] || [ "${passed:-0}" -lt 16 ]; then
+            grep -E "✘|Error:|Expected|Received|  [0-9]+\) " /tmp/journey.log | head -60 \
+              | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' | xargs -0 -I{} echo "::error title=updated-report journey failed (passed=${passed:-0})::{}"
+            exit 1
+          fi
+          echo "::notice title=updated-report journey::${passed} tests passed"
+          node -e 'const p=require(process.env.RGA_PROOF_DIR+"/journey-proof.json");console.log("::notice title=journey proof::"+JSON.stringify({v1:p.v1&&{r:p.v1.reportSha256,p:p.v1.packageSha256},v2:p.v2&&{r:p.v2.reportSha256,p:p.v2.packageSha256,seal:p.v2.sealSignatureEd25519Valid,entries:p.v2.checksumEntriesVerified},request:p.durableRequest&&p.durableRequest.requestId,job:p.durableRequest&&p.durableRequest.jobId}))'
+
+      - name: Stack logs on failure
+        if: failure()
+        run: |
+          docker compose -f e2e/updated-report/stack/docker-compose.yml logs --tail 200 api worker > /tmp/stack.log 2>&1 || true
+          grep -iE "error|fatal|refus" /tmp/stack.log | tail -40 \
+            | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' | xargs -0 -I{} echo "::warning title=stack log tail::{}"
+          tail -n 40 /tmp/web.log | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' | xargs -0 -I{} echo "::warning title=web log tail::{}"
+
+      - name: Upload proof, traces and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-report-journey
+          path: |
+            rga-proof/
+            test-results/
+            /tmp/journey.log
+            /tmp/stack.log
+            /tmp/web.log
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f e2e/updated-report/stack/docker-compose.yml down -v || true
