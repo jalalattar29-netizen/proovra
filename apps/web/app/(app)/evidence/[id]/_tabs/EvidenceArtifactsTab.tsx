@@ -38,7 +38,8 @@ import {
 } from "@proovra/shared";
 import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
 import type { EvidenceOutputProjection } from "../review-workspace-types";
-import { NewVersionMenu } from "../../../../../components/evidence-outputs/NewVersionMenu";
+import { NewVersionMenu, type NewVersionOffer } from "../../../../../components/evidence-outputs/NewVersionMenu";
+import { apiFetch } from "../../../../../lib/api";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { RuntimeStatusBanner } from "../../../../../components/operational";
@@ -461,6 +462,18 @@ function ArtifactLifecyclePanel({
             offer={newVersion}
             busy={ctx.generateOutputsBusy}
             request={ctx.createNewVersion}
+            // RGA-02 — revalidate the canonical offer immediately before Confirm
+            // (parity with native). The server offer can change while the modal
+            // is open (TSA/OTS advanced, latest version moved, a request started,
+            // permission removed, eligibility changed). NewVersionMenu refuses a
+            // withdrawn offer and refreshes a changed one; the server remains the
+            // authority at submit regardless.
+            loadOffer={async () => {
+              const r = (await apiFetch(
+                `/v1/evidence/${ctx.evidenceId}/artifacts/status`,
+              )) as { outputs?: { newVersion?: NewVersionOffer | null } };
+              return r.outputs?.newVersion ?? null;
+            }}
             menuLabel="More actions for this record's report"
             dataPrefix="evidence-output"
             testId="evidence-new-version"

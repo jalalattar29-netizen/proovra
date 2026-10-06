@@ -38,11 +38,12 @@ test("RGA-03: normalize strips control/invisible/angle chars, collapses whitespa
 
 test("RGA-03: validate rejects empty, whitespace-only, too-short; accepts valid", () => {
   assert.deepEqual(validateNewVersionReason("   "), { ok: false, value: "", reason: "EMPTY" });
-  assert.equal(validateNewVersionReason("ab").ok, false);
-  assert.equal(validateNewVersionReason("ab").ok === false && validateNewVersionReason("ab").reason, "TOO_SHORT");
+  const short = validateNewVersionReason("ab");
+  assert.equal(short.ok, false);
+  assert.equal(short.ok === false ? short.reason : null, "TOO_SHORT");
   const ok = validateNewVersionReason("TSA validated after v1");
   assert.equal(ok.ok, true);
-  assert.equal(ok.ok && ok.value, "TSA validated after v1");
+  assert.equal(ok.ok ? ok.value : null, "TSA validated after v1");
 });
 
 test("RGA-03: validate flags TOO_LONG before silent truncation", () => {
