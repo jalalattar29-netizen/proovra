@@ -27,14 +27,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -349,23 +343,6 @@ describe("R2 Part 10 — invariant pins", () => {
     expect(cfg).toMatch(/\/operations/);
     expect(cfg).toMatch(/\/security/);
     expect(cfg).toMatch(/\/reviewer-ops\/policy/);
-  });
-});
-
-// =============================================================================
-// PART 11 — Documentation present + substantial
-// =============================================================================
-
-describe("R2 Part 11 — R2 documentation present", () => {
-  const doc = readRepo("docs/recovery/R2_NAVIGATION_IA_RECOVERY.md");
-
-  it("R2 doc exists and covers the required sections", () => {
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R2/);
-    expect(doc).toMatch(/canonical root navigation/i);
-    expect(doc).toMatch(/operational groups/i);
-    expect(doc).toMatch(/disclosure/i);
-    expect(doc).toMatch(/Remaining risks/);
   });
 });
 

@@ -214,8 +214,7 @@ describe("Phase 3 — provisioning + provenance", () => {
 //
 // They drove `revokeWorkspaceMembershipSource` and `reactivateWorkspaceMembership`
 // against an in-memory fake tx. Both functions are gone: source-scoped
-// revocation is a backlog contract with no product surface (recorded in
-// docs/architecture/program-ledger.md), and per-member reactivation is
+// revocation is a backlog contract with no product surface, and per-member reactivation is
 // `restoreMember` on `POST /v1/identity/members/:id/restore`, which is covered by
 // the rbac suites. A test that exercises a function no caller reaches proves the
 // function runs, not that the system does — and it was the only thing keeping

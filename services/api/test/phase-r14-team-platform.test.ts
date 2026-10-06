@@ -1,8 +1,7 @@
 /**
  * Phase R14 — Team Collaboration Platform source-contract test.
  *
- * Pins the Phase 5 deliverables produced under
- * docs/architecture/phase-5-team-platform-final.md. Like R11/R12/R13,
+ * Pins the Phase 5 deliverables. Like R11/R12/R13,
  * this is a source-contract test: it greps the codebase + asserts
  * shared-package surface area without booting the database.
  *
@@ -21,9 +20,8 @@
  *     can create teams without an organization.
  *
  * Adding/changing any contract requires:
- *   1. Editing docs/architecture/phase-5-team-platform-final.md
- *   2. Editing this test
- *   3. Architecture board approval.
+ *   1. Editing this test
+ *   2. Architecture board approval.
  */
 
 import { existsSync, readFileSync } from "node:fs";

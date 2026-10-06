@@ -27,17 +27,11 @@ import { AUTOMATION_TRIGGER_TYPES } from "../src/services/automation/automation.
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -580,43 +574,5 @@ describe("E3.1 Test 7 — IA + state contract pins still hold", () => {
     ]) {
       expect(deps[forbidden]).toBeUndefined();
     }
-  });
-});
-
-// ===========================================================================
-// PART 8 — Documentation + registry updated, DEF-021 closed
-// ===========================================================================
-
-describe("E3.1 Test 8 — documentation + registry updated; DEF-021 resolved", () => {
-  it("docs/product/PHASE_E3_1_AUTOMATION_EXECUTION.md exists + substantial", () => {
-    const doc = readRepo(
-      "docs/product/PHASE_E3_1_AUTOMATION_EXECUTION.md",
-    );
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE E3\.1/);
-  });
-
-  it("registry registers Phase E3.1 with explicit status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E3\.1\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry marks DEF-021 as RESOLVED with Phase E3.1 reference", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    // The DEF-021 row should now have RESOLVED status + reference E3.1.
-    const def021Row = registry.match(/\|\s*DEF-021\s*\|[^\n]*/);
-    expect(def021Row, "DEF-021 row missing from registry").toBeTruthy();
-    expect(def021Row![0]).toMatch(/RESOLVED/);
-    expect(def021Row![0]).toMatch(/E3\.1/);
-  });
-
-  it("DEF-022 (webhook) is RESOLVED by Phase E3.2 (replaces the original E3.1 inverse pin)", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    const def022Row = registry.match(/\|\s*DEF-022\s*\|[^\n]*/);
-    expect(def022Row, "DEF-022 row missing from registry").toBeTruthy();
-    expect(def022Row![0]).toMatch(/RESOLVED/);
-    expect(def022Row![0]).toMatch(/E3\.2/);
   });
 });

@@ -2,8 +2,7 @@
  * Phase 12 — Investigation Productization source-contract test.
  *
  * Phase 12 was a "make existing intelligence systems USER-FACING and
- * CONNECTED" pass (see
- * `docs/architecture/phase-12-productization-final.md`).  It deliberately
+ * CONNECTED" pass.  It deliberately
  * did NOT introduce v2 layers for OCR, transcript, entity extraction,
  * graph, timeline, search, or similarity.  It ONLY:
  *

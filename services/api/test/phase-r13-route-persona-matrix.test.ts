@@ -1,8 +1,7 @@
 /**
  * Phase R13 — Route × Persona Matrix source-contract test.
  *
- * Pins the canonical persona-visibility contract defined in
- * `docs/architecture/phase-4-route-persona-matrix.md` against the
+ * Pins the canonical persona-visibility contract against the
  * live route registry + sidebar + page-existence on disk.
  *
  * If a route metadata change drifts from the matrix, this test
@@ -41,9 +40,8 @@
  *      `denialReasonHeadline` helper (no local `switch` on accessState).
  *
  * Adding/changing any contract requires:
- *   1. Editing docs/architecture/phase-4-route-persona-matrix.md
- *   2. Editing this test
- *   3. Architecture board approval.
+ *   1. Editing this test
+ *   2. Architecture board approval.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";

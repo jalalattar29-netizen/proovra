@@ -1,8 +1,7 @@
 /**
  * Phase R16 — Collaboration Completion source-contract test.
  *
- * Pins the Phase 7 deliverables documented in
- * `docs/architecture/phase-7-collaboration-completion-final.md`.
+ * Pins the Phase 7 deliverables.
  *
  * Stages covered:
  *   - Stage 2 — User directory enrichment vocabulary + helper

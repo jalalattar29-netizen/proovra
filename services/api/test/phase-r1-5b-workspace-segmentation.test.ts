@@ -27,14 +27,8 @@ import { describe, expect, it } from "vitest";
 
 import { listAllFiles, listAllTsxFiles } from "./_helpers/file-walker";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -363,23 +357,6 @@ describe("R1.5B Part 10 — useTeamId callsite count is bounded (audit pin)", ()
       callsites,
       "useTeamId callsites should not grow unboundedly during R1.5B",
     ).toBeLessThanOrEqual(60);
-  });
-});
-
-// =============================================================================
-// PART 11 — R1.5B documentation exists and is substantial
-// =============================================================================
-
-describe("R1.5B Part 11 — documentation present + substantial", () => {
-  const doc = readRepo("docs/recovery/R1_5B_WORKSPACE_SEGMENTATION.md");
-
-  it("R1.5B doc exists and contains the canonical sections", () => {
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R1\.5B/);
-    expect(doc).toMatch(/Experience modes/);
-    expect(doc).toMatch(/Canonical segmentation resolver/);
-    expect(doc).toMatch(/Personal Space/);
-    expect(doc).toMatch(/Remaining risks/);
   });
 });
 

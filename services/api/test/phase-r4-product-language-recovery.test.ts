@@ -27,14 +27,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -342,23 +336,6 @@ describe("R4 Part 10 — admin dashboard surfaces operational fallbacks", () => 
 
   it("country fallback is 'Region unavailable' (was 'Unknown')", () => {
     expect(ADMIN_DASHBOARD).toMatch(/\?\?\s*"Region unavailable"/);
-  });
-});
-
-// =============================================================================
-// PART 11 — Documentation present + substantial
-// =============================================================================
-
-describe("R4 Part 11 — R4 documentation present", () => {
-  const doc = readRepo("docs/recovery/R4_PRODUCT_LANGUAGE_RECOVERY.md");
-
-  it("R4 doc exists and covers the required sections", () => {
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R4/);
-    expect(doc).toMatch(/canonical vocabulary/i);
-    expect(doc).toMatch(/tone system/i);
-    expect(doc).toMatch(/forbidden wording/i);
-    expect(doc).toMatch(/Remaining risks/);
   });
 });
 

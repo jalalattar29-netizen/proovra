@@ -56,9 +56,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -70,9 +67,6 @@ function packagesPath(rel: string): string {
 }
 function workerPath(rel: string): string {
   return fileURLToPath(new URL(`../../../services/worker/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -495,22 +489,3 @@ describe("E5 Test 8 — content aligns with the existing claims-matrix guard", (
 // ===========================================================================
 // PART 9 — File-size pins on the protected core files
 // ===========================================================================
-
-// ===========================================================================
-// PART 10 — Documentation + registry
-// ===========================================================================
-
-describe("E5 Test 10 — documentation + registry", () => {
-  it("docs/product/PHASE_E5_TRUST_CENTER.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_E5_TRUST_CENTER.md");
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE E5/);
-  });
-
-  it("registry registers Phase E5 with explicit closure status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E5\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-});

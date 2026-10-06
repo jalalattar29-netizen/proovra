@@ -44,9 +44,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -55,9 +52,6 @@ function apiPath(rel: string): string {
 }
 function packagesPath(rel: string): string {
   return fileURLToPath(new URL(`../../../packages/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -594,29 +588,3 @@ describe("E3 Test 13 — no new client-state / realtime library introduced", () 
 // ===========================================================================
 // PART 14 — Capture / custody / report / package files untouched
 // ===========================================================================
-
-// ===========================================================================
-// PART 15 — Documentation + registry updated
-// ===========================================================================
-
-describe("E3 Test 15 — documentation + registry updated", () => {
-  it("docs/product/PHASE_E3_OPERATIONAL_AUTOMATION.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_E3_OPERATIONAL_AUTOMATION.md");
-    expect(doc.length).toBeGreaterThan(8000);
-    expect(doc).toMatch(/PHASE E3/);
-    expect(doc).toMatch(/Operational Automation/i);
-  });
-
-  it("registry registers Phase E3 with explicit status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E3\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry records 2 new DEF items: DEF-021 (dispatcher) + DEF-022 (webhook)", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toContain("DEF-021");
-    expect(registry).toContain("DEF-022");
-  });
-});

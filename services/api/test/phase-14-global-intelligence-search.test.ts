@@ -7,10 +7,6 @@
  * keyword-search re-index wiring, the intelligence/search alias
  * consolidation, and the frontend deep-link affordances.
  *
- * Cross-reference:
- *   - docs/architecture/search-reality-audit.md
- *   - docs/architecture/phase-13-intelligence-chain.md
- *
  * Test style: vitest source-contract (fs.readFileSync). No DB I/O.
  */
 

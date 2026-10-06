@@ -333,9 +333,6 @@ describe("O-Final — closure documentation", () => {
   const REQUIRED_DOCS = [
     "docs/operations/production-schema-repair.md",
     "docs/operations/low-ram-deploy-runbook.md",
-    "docs/operations/phase-o1-6-final-dashboards-alerts.md",
-    "docs/operations/phase-o2-scale-readiness.md",
-    "docs/operations/final-infrastructure-closure.md",
   ];
 
   for (const path of REQUIRED_DOCS) {
@@ -344,15 +341,6 @@ describe("O-Final — closure documentation", () => {
       expect(statSync(REPO_ROOT + path).size).toBeGreaterThan(200);
     });
   }
-
-  it("final-infrastructure-closure.md uses the honest CLOSED / READY_FOR_INFRA / BLOCKED taxonomy", () => {
-    const src = read("docs/operations/final-infrastructure-closure.md");
-    expect(src).toMatch(/\bCLOSED\b/);
-    expect(src).toMatch(/READY[ _]FOR[ _]INFRA/);
-    // We require the taxonomy to be self-explanatory: the doc must
-    // *define* the three terms somewhere, not just mention them.
-    expect(src).toMatch(/READY[ _]FOR[ _]INFRA[\s\S]*?(operator|cloud|provided)/i);
-  });
 
   it("low-ram-deploy-runbook.md documents per-service builds + image-pull alternative", () => {
     const src = read("docs/operations/low-ram-deploy-runbook.md");

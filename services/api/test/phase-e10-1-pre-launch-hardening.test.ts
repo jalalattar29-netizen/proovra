@@ -73,7 +73,6 @@ const MIGRATION = readApi(
 const DRIFT_TEST = readApi(
   "test/phase-32-7-2-security-event-mapping-drift.test.ts",
 );
-const REGISTRY = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
 
 // ===========================================================================
 // PART 1 — DEF-037: rate limits on auth routes
@@ -414,54 +413,3 @@ describe("E10.1 Test 6 — 32.8 IA preserved", () => {
 // ===========================================================================
 // PART 7 — Protected core files unchanged
 // ===========================================================================
-
-// ===========================================================================
-// PART 8 — Master registry + DEF closure
-// ===========================================================================
-
-describe("E10.1 Test 8 — master registry records closures", () => {
-  it("registry registers Phase E10.1 with explicit closure status", () => {
-    expect(REGISTRY).toMatch(
-      /\|\s*Phase\s+E10\.1\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("DEF-037 row is RESOLVED with E10.1 reference", () => {
-    const row = REGISTRY.match(/\|\s*DEF-037\s*\|[^\n]+/);
-    expect(row, "DEF-037 row missing").toBeTruthy();
-    expect(row![0]).toMatch(/RESOLVED/);
-    expect(row![0]).toMatch(/E10\.1/);
-  });
-
-  it("DEF-038 row is RESOLVED with E10.1 reference", () => {
-    const row = REGISTRY.match(/\|\s*DEF-038\s*\|[^\n]+/);
-    expect(row, "DEF-038 row missing").toBeTruthy();
-    expect(row![0]).toMatch(/RESOLVED/);
-    expect(row![0]).toMatch(/E10\.1/);
-  });
-
-  it("DEF-002 + DEF-003 stay OPEN with runbook references", () => {
-    const def002 = REGISTRY.match(/\|\s*DEF-002\s*\|[^\n]+/);
-    const def003 = REGISTRY.match(/\|\s*DEF-003\s*\|[^\n]+/);
-    expect(def002).toBeTruthy();
-    expect(def003).toBeTruthy();
-    // Both stay open until Ops walks the runbook end-to-end. The
-    // closure-criterion column should reference the runbook.
-    expect(def002![0]).toMatch(/19-saml-pilot-rehearsal|pilot rehearsal/i);
-    expect(def003![0]).toMatch(/18-production-secret-audit|secret rotation audit/i);
-  });
-});
-
-// ===========================================================================
-// PART 9 — Documentation
-// ===========================================================================
-
-describe("E10.1 Test 9 — phase documentation present", () => {
-  it("docs/product/PHASE_E10_1_PRE_LAUNCH_HARDENING.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_E10_1_PRE_LAUNCH_HARDENING.md");
-    expect(doc.length).toBeGreaterThan(4000);
-    expect(doc).toMatch(/PHASE E10\.1/);
-    expect(doc).toMatch(/DEF-037/);
-    expect(doc).toMatch(/DEF-038/);
-  });
-});

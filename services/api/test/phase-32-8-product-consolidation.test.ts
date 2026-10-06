@@ -22,7 +22,6 @@
  *     CapabilityDegradedPanel, OperationalEmptyState,
  *     HubQuickActionsBar) remain exported.
  *   - No new state-library / route-explosion regressions.
- *   - Documentation + registry updated.
  *
  * Hard rules preserved (CR1.7 §12 + 32.8 absolute rules):
  *   - No new backend features. No new routes. No redesign.
@@ -40,14 +39,8 @@ import { describe, expect, it } from "vitest";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -485,55 +478,3 @@ describe("32.8 Test 9 — PlatformContextEnvelope canonical wiring intact", () =
 // ===========================================================================
 // PART 10 — Capture / custody / report / package files untouched
 // ===========================================================================
-
-// ===========================================================================
-// PART 11 — Documentation + registry updated
-// ===========================================================================
-
-describe("32.8 Test 11 — documentation + registry updated", () => {
-  it("docs/product/PHASE_32_8_PRODUCT_CONSOLIDATION.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_32_8_PRODUCT_CONSOLIDATION.md");
-    expect(doc.length).toBeGreaterThan(8000);
-    expect(doc).toMatch(/PHASE 32\.8/);
-    expect(doc).toMatch(/Product Consolidation/i);
-  });
-
-  it("doc contains the canonical IA decision (6 primaries + 4 hubs)", () => {
-    const doc = readRepo("docs/product/PHASE_32_8_PRODUCT_CONSOLIDATION.md");
-    // Primaries
-    for (const id of [
-      "workspace.home",
-      "workspace.capture",
-      "workspace.evidence",
-      "workspace.cases",
-      "workspace.reports",
-      "workspace.search",
-    ]) {
-      expect(doc).toContain(id);
-    }
-    // Hubs
-    for (const landing of [
-      "investigation.hub",
-      "governance.hub",
-      "review.queue",
-      // HISTORICAL ID, deliberately. This assertion reads the Phase-32.8
-      // decision RECORD, which is closed and dated 2026-05-25; the id it
-      // names is the id that existed when the decision was taken. Attention
-      // Architecture Phase 4B renamed the live route to `workspace.operations`
-      // when it stopped being a platform console, and rewriting a closed
-      // record to match today's identifier would be falsifying the history
-      // this file exists to preserve. The LIVE id is asserted against the
-      // LIVE registry in `attention-arch-phase4b-workspace-operations.test.ts`.
-      "platform.ops_center",
-    ]) {
-      expect(doc).toContain(landing);
-    }
-  });
-
-  it("MASTER_PHASE_REGISTRY.md registers Phase 32.8 with explicit status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?32\.8\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-});

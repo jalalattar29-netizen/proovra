@@ -26,14 +26,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -374,25 +368,6 @@ describe("R5 Part 10 — no raw architecture chips returned in primary UX", () =
     expect(MODEL).not.toMatch(/"Access"\s*[,;)]/);
     expect(HELP).not.toMatch(/"Org"\s*[,;)]/);
     expect(HELP).not.toMatch(/"Access"\s*[,;)]/);
-  });
-});
-
-// =============================================================================
-// PART 11 — Documentation present + substantial
-// =============================================================================
-
-describe("R5 Part 11 — R5 documentation present", () => {
-  const doc = readRepo("docs/recovery/R5_PROGRESSIVE_DISCLOSURE.md");
-
-  it("R5 doc exists and covers the required sections", () => {
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R5/);
-    expect(doc).toMatch(/beginner layer/i);
-    expect(doc).toMatch(/advanced layer/i);
-    expect(doc).toMatch(/contextual disclosure/i);
-    expect(doc).toMatch(/All Tools/);
-    expect(doc).toMatch(/Command Palette/);
-    expect(doc).toMatch(/Remaining risks/);
   });
 });
 

@@ -25,14 +25,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -393,24 +387,6 @@ describe("R6 Part 8 — hub copy uses R4 canonical vocabulary", () => {
     for (const p of FORBIDDEN) {
       expect(DEFS, `hub definitions contain forbidden ${p}`).not.toMatch(p);
     }
-  });
-});
-
-// =============================================================================
-// PART 9 — Documentation present + substantial
-// =============================================================================
-
-describe("R6 Part 9 — R6 documentation present", () => {
-  const doc = readRepo("docs/recovery/R6_OPERATIONAL_HUBS.md");
-
-  it("R6 doc exists and covers the required sections", () => {
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R6/);
-    expect(doc).toMatch(/Investigation Center/);
-    expect(doc).toMatch(/Governance Center/);
-    expect(doc).toMatch(/Reviewer Center/);
-    expect(doc).toMatch(/Operations Center/);
-    expect(doc).toMatch(/Remaining risks/);
   });
 });
 

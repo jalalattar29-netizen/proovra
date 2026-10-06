@@ -9,11 +9,11 @@
  *   1. schema + freshness — the generated current artifacts exist, declare
  *      their schema, and match what the engine recomputes right now
  *   2. conservation — every scalar partitions the records it summarises
- *   3. single authority — one route, consumer, capability and findings
- *      authority; no artifact with two producers; no generator reading its
- *      own output as a fact
- *   4. historical inputs are refused — nothing under audit-output/history/ is
- *      readable by a current tool
+ *   3. single authority — one route, consumer and capability authority; no
+ *      artifact with two producers; no generator reading its own output as a
+ *      fact
+ *   4. audit-output/ holds only engine output — no historical report, findings
+ *      register or proof capture is tracked there or read by a current tool
  *   5. exit-code semantics — engine integrity and product closure are
  *      separate, and the second may be red while the first is green
  *
@@ -51,8 +51,9 @@ const { evaluateGovernance } = require("../scripts/audit/engine/governance.mjs")
   };
 };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { freshnessHash } = require("../scripts/audit/engine/facts.mjs") as {
+const { freshnessHash, releaseBlockingProblems } = require("../scripts/audit/engine/facts.mjs") as {
   freshnessHash: () => string;
+  releaseBlockingProblems: (facts: unknown) => string[];
 };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const registry = require("../scripts/audit/engine/registry.mjs") as {
@@ -62,9 +63,9 @@ const registry = require("../scripts/audit/engine/registry.mjs") as {
   CANONICAL: Record<string, Record<string, string>>;
   DOMAIN_AUTHORITIES: ReadonlyArray<{ domain: string; artifact: string; producer: string }>;
   DIAGNOSTICS: ReadonlyArray<{ path: string }>;
-  HISTORICAL_PREFIXES: ReadonlyArray<string>;
+  AUDIT_OUTPUT_PREFIX: string;
   ENGINE_GENERATED_PATHS: ReadonlyArray<string>;
-  isHistorical: (rel: string) => boolean;
+  isUndeclaredAuditOutput: (rel: string) => boolean;
   FACTS_SCHEMA_VERSION: string;
   INVENTORY_SCHEMA_VERSION: string;
 };
@@ -81,7 +82,6 @@ describe("Phase 0 §1 — the current artifacts exist, declare a schema, and are
       registry.CANONICAL.currentFacts.path,
       registry.CANONICAL.governanceInventory.path,
       registry.CANONICAL.capabilityMap.path,
-      registry.CANONICAL.findingsLedger.rows,
       registry.CANONICAL.currentReport.path,
       ...registry.DIAGNOSTICS.map((d) => d.path),
     ];
@@ -197,44 +197,21 @@ describe("Phase 0 §2 — conservation", () => {
       .map(([k]) => k);
     expect(violated, `conservation violated:\n${violated.join("\n")}`).toEqual([]);
   });
-
-  it("the ledger's derived totals partition its rows", () => {
-    const l = readJson(registry.CANONICAL.currentFacts.path).findingsLedgerRef;
-    expect(l.valid).toBe(true);
-    expect(l.actionable.closed + l.actionable.open).toBe(l.actionable.total);
-    // PHASE 1 §3 — FIVE buckets. `trackedInventory` appeared when FINAL-001's
-    // governance DEFECT was separated from the route INVENTORY it had been
-    // carrying in the same row, so a four-bucket identity now under-counts by
-    // exactly the inventory and reads as a conservation failure.
-    expect(
-      l.actionable.total +
-        l.verifiedClosures.total +
-        l.unknownBlocked.total +
-        (l.trackedInventory?.total ?? 0),
-    ).toBe(l.rowCount);
-    // Inventory is counted, and counted as NOTHING: not closed, not open.
-    expect(l.trackedInventory?.releaseBlocking ?? false).toBe(false);
-  });
 });
 
 describe("Phase 0 §3 — one authority per subject", () => {
-  it("exactly one route, consumer, capability and findings authority", () => {
+  it("exactly one route, consumer and capability authority", () => {
     const c = governance().counters;
     expect({
       CanonicalAuditEntryPoints: c.CanonicalAuditEntryPoints,
       CanonicalRouteAuthorities: c.CanonicalRouteAuthorities,
       CanonicalConsumerAuthorities: c.CanonicalConsumerAuthorities,
       CanonicalCapabilityMaps: c.CanonicalCapabilityMaps,
-      // Renamed from `CanonicalFindingsLedgers` in the corrective pass: the
-      // four files in the ledger directory have four roles, and counting them
-      // as "ledgers" was the ambiguity. This counts SOURCES.
-      CanonicalLedgerSources: c.CanonicalLedgerSources,
     }).toEqual({
       CanonicalAuditEntryPoints: 1,
       CanonicalRouteAuthorities: 1,
       CanonicalConsumerAuthorities: 1,
       CanonicalCapabilityMaps: 1,
-      CanonicalLedgerSources: 1,
     });
   });
 
@@ -249,22 +226,8 @@ describe("Phase 0 §3 — one authority per subject", () => {
     }).toEqual({ IndependentRouteInventories: 0, IndependentConsumerInventories: 0 });
   });
 
-  it("exactly one CURRENT REPORT, one LEDGER SOURCE, and the renderings are not ledgers", () => {
-    const c = governance().counters;
-    // The four files in the ledger directory were all called
-    // CANONICAL_FINDINGS_LEDGER, which reads as four ledgers. One is the
-    // source; one validates it; two are renderings of it.
-    expect({
-      CanonicalCurrentReports: c.CanonicalCurrentReports,
-      CanonicalLedgerSources: c.CanonicalLedgerSources,
-      LedgerGenerators: c.LedgerGenerators,
-      GeneratedLedgerRenderings: c.GeneratedLedgerRenderings,
-    }).toEqual({
-      CanonicalCurrentReports: 1,
-      CanonicalLedgerSources: 1,
-      LedgerGenerators: 1,
-      GeneratedLedgerRenderings: 2,
-    });
+  it("exactly one CURRENT REPORT", () => {
+    expect(governance().counters.CanonicalCurrentReports).toBe(1);
   });
 
   it("no file is left in the old CURRENT_REPORT_TEMPLATE catch-all", () => {
@@ -318,63 +281,48 @@ describe("Phase 0 §3 — one authority per subject", () => {
   });
 });
 
-describe("Phase 0 §4 — historical records are not current inputs", () => {
-  it("no current tool reads anything under the history tree", () => {
+describe("Phase 0 §4 — audit-output/ holds only engine output", () => {
+  it("no tracked file under audit-output/ is anything but engine output", () => {
+    const c = governance().counters;
+    // Historical audit reports, findings registers, resume checkpoints and
+    // raw proof captures live in git history only.
+    expect(c.UndeclaredAuditOutputFiles).toBe(0);
+    expect(registry.isUndeclaredAuditOutput(`${registry.AUDIT_OUTPUT_PREFIX}history/README.md`)).toBe(true);
+    for (const p of registry.ENGINE_GENERATED_PATHS.filter((x) => x.startsWith(registry.AUDIT_OUTPUT_PREFIX)))
+      expect(registry.isUndeclaredAuditOutput(p)).toBe(false);
+  });
+
+  it("no current tool reads non-generated audit output", () => {
     const offenders = governance()
-      .records.filter((r) => !registry.isHistorical(r.path))
-      .flatMap((r) =>
+      .records.flatMap((r) =>
         [...r.readsArtifacts, ...r.imports]
-          .filter((p) => registry.isHistorical(String(p)))
+          .filter((p) => registry.isUndeclaredAuditOutput(String(p)))
           .map((p) => `${r.path} -> ${p}`),
       );
-    expect(offenders, `current tools reading historical records:\n${offenders.join("\n")}`).toEqual(
+    expect(offenders, `current tools reading non-generated audit output:\n${offenders.join("\n")}`).toEqual(
       [],
     );
+    expect(governance().counters.HistoricalReportsUsedAsAuthority).toBe(0);
   });
 
-  it("no completed-pass report is sitting outside the history tree", () => {
-    const c = governance().counters;
-    expect(c.HistoricalReportsAmbiguousStatus).toBe(0);
-    expect(c.HistoricalReportsUsedAsAuthority).toBe(0);
-  });
-
-  it("the history tree says so in a file a human reads first", () => {
-    const readme = path.join(REPO, "audit-output/history/README.md");
-    expect(existsSync(readme)).toBe(true);
-    const text = readFileSync(readme, "utf8");
-    expect(text).toMatch(/STATUS:\s*HISTORICAL/);
-    expect(text).toMatch(/NOT A CURRENT AUTHORITY/);
+  it("no completed-pass report is sitting among the audit files", () => {
+    expect(governance().counters.HistoricalReportsAmbiguousStatus).toBe(0);
   });
 });
 
 describe("Phase 0 §7 — report roles are disjoint and CONSERVE", () => {
-  /**
-   * The arithmetic that failed.
-   *
-   * The previous pass wrote "of the 14" and then listed fifteen records. The
-   * fourteen were the paths that had carried the retired
-   * CURRENT_REPORT_TEMPLATE role; the fifteenth was the generated current
-   * report, which did not exist when those fourteen were enumerated. Two
-   * populations were summed as though they were one.
-   *
-   * The populations are now required to sum, so the same slip fails here.
-   */
+  /** The report populations are required to sum, so a miscount fails here. */
   const counts = () => governance().counters;
 
-  it("ReportRelatedEntries = ReportDocuments + HistoryTreeMarkers + NonAuditProductReportTemplates", () => {
+  it("ReportRelatedEntries = ReportDocuments + NonAuditProductReportTemplates", () => {
     const c = counts();
-    expect(c.ReportRelatedEntries).toBe(
-      c.ReportDocuments + c.HistoryTreeMarkers + c.NonAuditProductReportTemplates,
-    );
+    expect(c.ReportRelatedEntries).toBe(c.ReportDocuments + c.NonAuditProductReportTemplates);
   });
 
-  it("ReportDocuments = Current + Historical + DomainTemplates + Misclassified", () => {
+  it("ReportDocuments = Current + DomainTemplates + Misclassified", () => {
     const c = counts();
     expect(c.ReportDocuments).toBe(
-      c.CurrentGeneratedReports +
-        c.HistoricalReports +
-        c.DomainReportTemplates +
-        c.MisclassifiedReportDocuments,
+      c.CurrentGeneratedReports + c.DomainReportTemplates + c.MisclassifiedReportDocuments,
     );
   });
 
@@ -397,21 +345,11 @@ describe("Phase 0 §7 — report roles are disjoint and CONSERVE", () => {
     });
   });
 
-  it("a HISTORY_TREE_MARKER is NOT counted as a report document", () => {
-    const c = counts();
-    // The specific mistake, pinned. The marker says what a directory IS; it is
-    // not a report, and counting it as one is how the fifteenth record appeared.
-    expect(c.HistoryTreeMarkers).toBeGreaterThan(0);
-    expect(c.ReportDocuments).toBe(c.ReportRelatedEntries - c.HistoryTreeMarkers - c.NonAuditProductReportTemplates);
-  });
-
   // ── adversarial: the identities must actually refuse ─────────────────────
   const REPORT_KIND: Record<string, string> = {
     CURRENT_GENERATED_REPORT: "REPORT_DOCUMENT",
-    HISTORICAL_REPORT: "REPORT_DOCUMENT",
     DOMAIN_REPORT_TEMPLATE: "REPORT_DOCUMENT",
     MISCLASSIFIED_REPORT_DOCUMENT: "REPORT_DOCUMENT",
-    HISTORY_TREE_MARKER: "GOVERNANCE_MARKER",
     NON_AUDIT_PRODUCT_REPORT_TEMPLATE: "PRODUCT_ARTEFACT",
   };
   type Rec = { path: string; role: string };
@@ -422,11 +360,9 @@ describe("Phase 0 §7 — report roles are disjoint and CONSERVE", () => {
     return {
       related: rel.length,
       documents: kind("REPORT_DOCUMENT"),
-      markers: kind("GOVERNANCE_MARKER"),
       product: kind("PRODUCT_ARTEFACT"),
       byRole: {
         current: role("CURRENT_GENERATED_REPORT"),
-        historical: role("HISTORICAL_REPORT"),
         domain: role("DOMAIN_REPORT_TEMPLATE"),
         misclassified: role("MISCLASSIFIED_REPORT_DOCUMENT"),
       },
@@ -434,9 +370,8 @@ describe("Phase 0 §7 — report roles are disjoint and CONSERVE", () => {
     };
   };
   const conserves = (t: ReturnType<typeof tally>) =>
-    t.related === t.documents + t.markers + t.product &&
-    t.documents ===
-      t.byRole.current + t.byRole.historical + t.byRole.domain + t.byRole.misclassified &&
+    t.related === t.documents + t.product &&
+    t.documents === t.byRole.current + t.byRole.domain + t.byRole.misclassified &&
     t.duplicates === 0;
 
   const realRows = (): Rec[] =>
@@ -456,26 +391,12 @@ describe("Phase 0 §7 — report roles are disjoint and CONSERVE", () => {
 
   it("adversarial — one path carrying TWO report roles breaks conservation", () => {
     const rows = realRows();
-    const dup = rows.find((r) => r.role === "HISTORICAL_REPORT")!;
+    const dup = rows.find((r) => r.role === "CURRENT_GENERATED_REPORT")!;
     const t = tally([...rows, { path: dup.path, role: "DOMAIN_REPORT_TEMPLATE" }]);
     expect(t.duplicates).toBeGreaterThan(0);
     expect(conserves(t), "a path with two report roles was accepted").toBe(false);
   });
 
-  it("adversarial — counting a HISTORY_TREE_MARKER as a report document breaks conservation", () => {
-    const rows = realRows().map((r) =>
-      r.role === "HISTORY_TREE_MARKER" ? { ...r, role: "CURRENT_GENERATED_REPORT" } : r,
-    );
-    const t = tally(rows);
-    // It still sums — but it now claims TWO current generated reports, which
-    // the single-authority counter refuses.
-    expect(t.byRole.current).toBe(2);
-    expect(t.markers).toBe(0);
-    expect(
-      t.byRole.current,
-      "promoting the marker to a report must not be able to pass as one canonical report",
-    ).not.toBe(1);
-  });
 });
 
 describe("Phase 0 §8 — the Phase-0 change set is derived from a baseline, not a list", () => {
@@ -636,7 +557,6 @@ describe("Phase 0 §6 — the one current report is generated, not written", () 
     // number the report exists to eliminate.
     expect(text).toContain(String(f.facts.routes.registered));
     expect(text).toContain(String(f.facts.capabilities.undisposed));
-    expect(text).toContain(String(f.findingsLedgerRef.rowCount));
     expect(text).toContain(f.engineHash);
   });
 });
@@ -730,40 +650,31 @@ describe("Phase 0 §5 — engine integrity and product closure are separate exit
     expect(out).toContain("ExternalClosure = NOT RUN");
   }, 600_000);
 
-  it("--closure-check exit code follows RELEASE-BLOCKING findings, not the backlog", async () => {
+  it("--closure-check exit code follows RELEASE-BLOCKING facts, not the backlog", async () => {
     const r = await run("--closure-check");
     expect(r.error, `orchestrator did not run: ${r.error?.message}`).toBeUndefined();
     const facts = readJson(registry.CANONICAL.currentFacts.path);
-    const open = facts.findingsLedgerRef.openIds as string[];
+    const blocking = releaseBlockingProblems(facts);
     const undisposed = facts.facts.capabilities.undisposed as number;
 
-    if (open.length > 0) {
+    if (blocking.length > 0) {
       expect(
         r.status,
-        `--closure-check must FAIL while ${open.join(", ")} is open.\n${r.stdout}\n${r.stderr}`,
+        `--closure-check must FAIL while release-blocking facts remain:\n${blocking.join("\n")}\n${r.stdout}\n${r.stderr}`,
       ).not.toBe(0);
       return;
     }
 
-    // No open defect. The gate must be GREEN even with a non-empty backlog —
-    // and if the backlog is non-empty it must still be visible in the output,
-    // because "not blocking" must never quietly become "not mentioned".
+    // Nothing release-blocking. The gate must be GREEN even with a non-empty
+    // backlog — and if the backlog is non-empty it must still be visible in the
+    // output, because "not blocking" must never quietly become "not mentioned".
     expect(
       r.status,
-      `no open findings remain, so the release gate must be green.\n${r.stdout}\n${r.stderr}`,
+      `no release-blocking fact remains, so the release gate must be green.\n${r.stdout}\n${r.stderr}`,
     ).toBe(0);
     if (undisposed > 0) {
       expect(`${r.stdout}${r.stderr}`).toContain("NON_BLOCKING_VISIBLE");
       expect(`${r.stdout}${r.stderr}`).toContain(String(undisposed));
     }
   }, 600_000);
-
-  it("the backlog earns no credit of any kind", () => {
-    const l = readJson(registry.CANONICAL.currentFacts.path).findingsLedgerRef;
-    const inv = l.trackedInventory ?? { total: 0, releaseBlocking: false };
-    expect(inv.releaseBlocking).toBe(false);
-    // Inventory rows are counted in their own bucket — never as closed defects.
-    expect(l.actionable.closed + l.actionable.open).toBe(l.actionable.total);
-    expect(l.fixedIds ?? []).not.toContain("ARCH-BACKLOG-001");
-  });
 });

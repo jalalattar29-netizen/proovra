@@ -45,8 +45,6 @@
  *   S4.13 UI_SURFACE_SEARCH          — /search renders a bounded
  *                                       "semantic search not available"
  *                                       pill (Phase 14 deferred).
- *   S4.14 DOC_EXISTS                 — Phase 13 architecture doc lives
- *                                       under docs/architecture.
  *
  * Bounded GUARDs (Phase 13 ground rules):
  *
@@ -85,7 +83,6 @@ const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const WEB_ROOT = resolve(REPO_ROOT, "apps/web");
 const WORKER_ROOT = resolve(REPO_ROOT, "services/worker");
 const SHARED_RUNTIME_ROOT = resolve(REPO_ROOT, "packages/shared-runtime");
-const DOCS_ROOT = resolve(REPO_ROOT, "docs");
 
 const GRAPH_BUILDER = resolve(
   SHARED_RUNTIME_ROOT,
@@ -130,10 +127,6 @@ const PHASE_13_MIGRATION_SQL = resolve(
 );
 const WORKER_SRC_DIR = resolve(WORKER_ROOT, "src");
 const ROUTE_REGISTRY = resolve(WEB_ROOT, "lib/navigation/routeRegistry.ts");
-const PHASE_13_DOC = resolve(
-  DOCS_ROOT,
-  "architecture/phase-13-intelligence-chain.md",
-);
 
 function readSrc(path: string): string {
   return readFileSync(path, "utf8");
@@ -500,22 +493,6 @@ describe("Phase 13 S4.13 — /search renders bounded semantic-search disabled pi
     expect(chipText).not.toMatch(
       /SEMANTIC_SEARCH_ENABLED|OPENAI_EMBEDDING_MODEL|pgvector|qdrant|weaviate/i,
     );
-  });
-});
-
-// ===========================================================================
-// S4.14 — DOC_EXISTS
-// ===========================================================================
-
-describe("Phase 13 S4.14 — Phase 13 architecture doc exists", () => {
-  it("docs/architecture/phase-13-intelligence-chain.md exists", () => {
-    expect(existsSync(PHASE_13_DOC)).toBe(true);
-  });
-
-  it("the doc mentions the deferred Phase 14 semantic-search scope", () => {
-    const body = readSrc(PHASE_13_DOC);
-    expect(body.length).toBeGreaterThan(0);
-    expect(body).toMatch(/Phase\s*14/i);
   });
 });
 

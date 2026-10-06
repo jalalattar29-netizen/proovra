@@ -29,8 +29,6 @@
  *   6. Capability registry has zero external-participant input
  *      (mirrors E7 Test 3 invariant for persona, applied to
  *      external participants).
- *   7. The four new DEFs opened by E8 are registered in the master
- *      registry.
  *   8. 32.8 canonical primaries still exactly 6.
  *   9. Protected core files unchanged.
  */
@@ -55,9 +53,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -66,9 +61,6 @@ function apiPath(rel: string): string {
 }
 function packagesPath(rel: string): string {
   return fileURLToPath(new URL(`../../../packages/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -428,31 +420,3 @@ describe("E8 Test 7 — 32.8 IA preserved", () => {
 // ===========================================================================
 // PART 8 — Protected core files unchanged
 // ===========================================================================
-
-// ===========================================================================
-// PART 9 — Documentation + registry
-// ===========================================================================
-
-describe("E8 Test 9 — documentation + registry", () => {
-  it("docs/product/PHASE_E8_ENTERPRISE_DISTRIBUTION.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_E8_ENTERPRISE_DISTRIBUTION.md");
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE E8/);
-  });
-
-  it("registry registers Phase E8 with explicit closure status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E8\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry records the 5 new DEFs opened by E8", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    for (const def of ["DEF-028", "DEF-029", "DEF-030", "DEF-031", "DEF-032"]) {
-      expect(registry, `${def} missing from registry`).toMatch(
-        new RegExp(`\\|\\s*${def}\\s*\\|`),
-      );
-    }
-  });
-});

@@ -2,8 +2,7 @@
  * Phase R12 — Runtime Model Alignment & Access Consolidation
  * source-contract test.
  *
- * Pins the Phase 3 deliverables produced under
- * docs/architecture/phase-3-runtime-refactor-readiness.md:
+ * Pins the Phase 3 deliverables:
  *
  *   Stage 2 — Canonical workspace ID hook (`useActiveWorkspaceId`)
  *             promoted; the other three hooks carry @deprecated.
@@ -26,9 +25,8 @@
  * Phase 3 drift LOUD at CI time.
  *
  * Adding, changing, or relaxing any Phase 3 contract requires:
- *   1. Editing docs/architecture/phase-3-runtime-refactor-readiness.md
- *   2. Editing this test
- *   3. Architecture board approval.
+ *   1. Editing this test
+ *   2. Architecture board approval.
  */
 
 import { existsSync, readFileSync } from "node:fs";

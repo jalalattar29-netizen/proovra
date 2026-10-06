@@ -7,7 +7,6 @@
  *
  * Non-vacuous: each surface asserts SET EQUALITY against the known writer set
  * (a removed/renamed writer also fails, catching drift in both directions).
- * Evidence rows are recorded in program-ledger.md (STEP 1 authority matrix).
  */
 
 import { describe, it, expect } from "vitest";

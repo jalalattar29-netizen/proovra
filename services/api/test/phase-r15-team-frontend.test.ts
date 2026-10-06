@@ -1,8 +1,7 @@
 /**
  * Phase R15 — Team Collaboration frontend source-contract test.
  *
- * Pins the Phase 6 frontend deliverables documented in
- * `docs/architecture/phase-6-team-frontend-final.md`. Like R11-R14
+ * Pins the Phase 6 frontend deliverables. Like R11-R14
  * this is a source-contract test — it greps the source tree and
  * asserts shape, not runtime behaviour.
  *

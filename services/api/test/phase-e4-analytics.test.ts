@@ -40,17 +40,11 @@ import { resolveCapabilities } from "../src/services/platform-context/capability
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
@@ -504,26 +498,5 @@ describe("E4 Test 8 — no new state / queue libraries", () => {
     ]) {
       expect(deps[forbidden], `forbidden api dep ${forbidden}`).toBeUndefined();
     }
-  });
-});
-
-// ===========================================================================
-// PART 9 — Documentation + registry
-// ===========================================================================
-
-describe("E4 Test 9 — documentation + registry", () => {
-  it("docs/product/PHASE_E4_ANALYTICS_OPERATIONAL_INTELLIGENCE.md exists + substantial", () => {
-    const doc = readRepo(
-      "docs/product/PHASE_E4_ANALYTICS_OPERATIONAL_INTELLIGENCE.md",
-    );
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE E4/);
-  });
-
-  it("registry registers Phase E4 with explicit closure status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E4\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
   });
 });

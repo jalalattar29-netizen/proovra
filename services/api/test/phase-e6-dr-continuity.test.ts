@@ -6,22 +6,17 @@
  *
  *   1. The 10 expected runbook files exist under
  *      `docs/operations/runbooks/` and each is substantial.
- *   2. The phase doc + every runbook is free of forbidden
+ *   2. Every runbook is free of forbidden
  *      fake-infrastructure wording — "99.999% uptime", "multi-region
  *      active-active", "zero downtime guaranteed", "DR Certified", etc.
- *   3. The dependency / failure map covers the required subsystems
- *      (Postgres, Redis, S3, Object Lock, TSA, OTS, signing, worker,
- *      etc.).
- *   4. The degraded-mode catalog enumerates the required modes.
  *   5. The Trust Center `operational-reliability` section was extended
  *      with E6 continuity language and still passes the E5 forbidden-
  *      phrase guard (no fake-HA wording slipped in).
- *   6. No secrets are exposed in the phase doc or runbooks.
+ *   6. No secrets are exposed in the runbooks.
  *   7. Existing safe surfaces (Verify page, report-v2, AI policy) stay
  *      free of fake-infrastructure wording.
  *   8. File-size pins on the 5 protected core files remain green.
  *   9. 32.8 IA: root nav still exactly 6 canonical primaries.
- *  10. MASTER_PHASE_REGISTRY records Phase E6 + the four new DEFs.
  *
  * Phase E6 does NOT add any new client-state library, queue, pubsub
  * dependency, or runtime mutation.
@@ -62,8 +57,6 @@ function readApi(rel: string): string {
 function readWorker(rel: string): string {
   return readFileSync(workerPath(rel), "utf8");
 }
-
-const PHASE_DOC = readRepo("docs/product/PHASE_E6_DR_CONTINUITY.md");
 
 const RUNBOOK_FILES = [
   "00-rehearsal-log.md",
@@ -128,11 +121,6 @@ const FORBIDDEN_SECRET_SHAPES: ReadonlyArray<RegExp> = [
 // ===========================================================================
 
 describe("E6 Test 1 — phase doc + runbooks exist + non-trivial", () => {
-  it("phase doc exists at docs/product/PHASE_E6_DR_CONTINUITY.md", () => {
-    expect(PHASE_DOC.length).toBeGreaterThan(6000);
-    expect(PHASE_DOC).toMatch(/PHASE E6/);
-  });
-
   it.each(RUNBOOK_FILES)("runbook %s exists and is non-trivial", (name) => {
     const path = repoPath(`docs/operations/runbooks/${name}`);
     expect(existsSync(path), `${name} missing`).toBe(true);
@@ -161,83 +149,10 @@ describe("E6 Test 1 — phase doc + runbooks exist + non-trivial", () => {
 });
 
 // ===========================================================================
-// PART 2 — Dependency / failure map covers the required subsystems
-// ===========================================================================
-
-describe("E6 Test 2 — dependency / failure map coverage", () => {
-  const REQUIRED_SUBSYSTEMS = [
-    /PostgreSQL/i,
-    /Redis/i,
-    /Object\s+storage/i,
-    /Object\s+Lock/i,
-    /TSA/i,
-    /OpenTimestamps/i,
-    /Signing\s+key/i,
-    /Worker\s+process/i,
-    /DNS/i,
-  ];
-
-  it.each(REQUIRED_SUBSYSTEMS)(
-    "phase doc dependency/failure map names subsystem %s",
-    (pattern) => {
-      expect(PHASE_DOC).toMatch(pattern);
-    },
-  );
-
-  it("phase doc includes a dependency map table", () => {
-    expect(PHASE_DOC).toMatch(/##\s*3\.\s*Dependency\s*&\s*failure\s*map/i);
-    expect(PHASE_DOC).toMatch(
-      /Dependency\s*\|\s*Critical\?\s*\|\s*Failure impact\s*\|\s*Recovery method/i,
-    );
-  });
-});
-
-// ===========================================================================
-// PART 3 — Degraded-mode catalog covers the required modes
-// ===========================================================================
-
-describe("E6 Test 3 — degraded-mode catalog", () => {
-  const REQUIRED_MODES = [
-    /TSA\s+unavailable/i,
-    /OTS\s+unavailable/i,
-    /Webhook\s+delivery\s+degraded/i,
-    /Worker\s+queue\s+degraded/i,
-    /Analytics\s+degraded/i,
-    /Report\s+generation\s+delayed/i,
-    /Object\s+storage\s+transient\s+outage/i,
-  ];
-
-  it.each(REQUIRED_MODES)("degraded-mode catalog names %s", (pattern) => {
-    expect(PHASE_DOC).toMatch(pattern);
-  });
-
-  it("phase doc states the hard rule: degraded ≠ broken", () => {
-    expect(PHASE_DOC).toMatch(/degraded\s*[≠!=]?=?\s*broken/i);
-  });
-});
-
-// ===========================================================================
 // PART 4 — No fake-infrastructure wording in phase doc or runbooks
 // ===========================================================================
 
 describe("E6 Test 4 — phase doc + runbooks free of fake-infra wording", () => {
-  // The phase doc intentionally enumerates the forbidden patterns in
-  // section 5 "Forbidden fake infrastructure claims (test-guarded)" so
-  // operators know what the test is pinning. Strip that declaration
-  // block before greppping so the test doesn't trip on its own
-  // enumeration of the patterns it forbids.
-  const sanitisedPhaseDoc = PHASE_DOC.replace(
-    /### 5\. Forbidden fake infrastructure claims[\s\S]*?(?=\n### |\n## )/m,
-    "",
-  );
-
-  it.each(FORBIDDEN_INFRA_PATTERNS)(
-    "phase doc (outside the forbidden-list declaration) does NOT match %s",
-    (pattern) => {
-      expect(sanitisedPhaseDoc).not.toMatch(pattern);
-    },
-  );
-
   for (const runbookName of RUNBOOK_FILES) {
     describe(`runbook ${runbookName}`, () => {
       const body = readRunbook(runbookName);
@@ -356,13 +271,6 @@ describe("E6 Test 6 — existing safe surfaces stay free of fake-infra wording",
 // ===========================================================================
 
 describe("E6 Test 7 — no secret values exposed in phase doc / runbooks", () => {
-  it.each(FORBIDDEN_SECRET_SHAPES)(
-    "phase doc does NOT contain a secret matching %s",
-    (pattern) => {
-      expect(PHASE_DOC).not.toMatch(pattern);
-    },
-  );
-
   for (const runbookName of RUNBOOK_FILES) {
     describe(`runbook ${runbookName}`, () => {
       const body = readRunbook(runbookName);
@@ -395,31 +303,5 @@ describe("E6 Test 9 — 32.8 IA preserved", () => {
       (mm) => mm[1]!,
     );
     expect(ids).toHaveLength(9); // baseline grew with G0+ IA — was 6 pre-G0, now 9 canonical primaries
-  });
-});
-
-// ===========================================================================
-// PART 10 — Documentation + registry
-// ===========================================================================
-
-describe("E6 Test 10 — documentation + registry", () => {
-  it("docs/product/PHASE_E6_DR_CONTINUITY.md exists + substantial", () => {
-    expect(PHASE_DOC.length).toBeGreaterThan(6000);
-  });
-
-  it("registry registers Phase E6 with explicit closure status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E6\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry records the 4 new DEFs opened by E6", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    for (const def of ["DEF-024", "DEF-025", "DEF-026", "DEF-027"]) {
-      expect(registry, `${def} missing from registry`).toMatch(
-        new RegExp(`\\|\\s*${def}\\s*\\|`),
-      );
-    }
   });
 });

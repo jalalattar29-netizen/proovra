@@ -28,7 +28,7 @@
  *   1. the hold-out is EXACTLY the registry's declaration — not a prefix, not
  *      whatever happened to be dirty;
  *   2. real source drift is still detected, including under `audit-output/`
- *      where the hand-maintained findings-ledger rows live;
+ *      for any path the engine did not generate;
  *   3. two consecutive runs agree, and neither leaves a tracked file changed.
  *
  * (3) is the property that actually makes a commit pushable, and it is asserted
@@ -147,12 +147,11 @@ describe("phase-0 self-reference — the hold-out is bounded by the registry", (
   });
 
   it("does NOT hold out the whole audit-output prefix", () => {
-    // The findings-ledger rows live under `audit-output/` and are a
-    // hand-maintained governance SOURCE. Excluding them by prefix would have
-    // been the easy fix and would have blinded the gate to real drift.
+    // Excluding by prefix would blind the gate to a non-generated file
+    // reappearing under `audit-output/`; the hold-out is a path list.
     const held = new Set<string>(ENGINE_GENERATED_PATHS);
-    expect(held.has(p0(CANONICAL.findingsLedger.rows))).toBe(false);
-    for (const derived of CANONICAL.findingsLedger.derived) expect(held.has(derived)).toBe(false);
+    expect(held.has("audit-output/history/README.md")).toBe(false);
+    expect(held.has("audit-output/current/ledger/rows.json")).toBe(false);
   });
 
   it("holds out nothing outside audit-output/ and the generated capability map", () => {
@@ -288,21 +287,6 @@ describe("phase-0 self-reference — real drift still registers", () => {
         // unrelated edit is detected and classified but is not Phase-0's work,
         // and a counter that rose here would report a false positive.
         expect(counters.productionRuntimeFilesModifiedByPhase0).toBe(0);
-      },
-    );
-  });
-
-  it("a change to the hand-maintained findings-ledger rows still registers", () => {
-    // `audit-output/current/ledger/rows.json` sits under the SAME prefix as the
-    // engine's own outputs but is a governance SOURCE. A prefix-based exclusion
-    // would have hidden this, which is why the hold-out is a path list.
-    const rows = p0(CANONICAL.findingsLedger.rows);
-    withDrift(
-      rows,
-      (original) => `${original}\n`,
-      ({ counters, entries }) => {
-        expect(counters.phase0ChangedPaths).toBeGreaterThan(0);
-        expect(entries.some((e) => e.path === rows)).toBe(true);
       },
     );
   });

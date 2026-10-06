@@ -325,7 +325,6 @@ describe("M3.1 — docs vocabulary", () => {
   for (const doc of [
     "docs/verticals/insurance-siu-persistence.md",
     "docs/verticals/insurance-siu-pii.md",
-    "docs/verticals/phase-m3-1-siu-durability-closure.md",
   ]) {
     it(`${doc} never uses forbidden vocabulary`, () => {
       assertNoForbiddenPhrases(read(doc), doc);

@@ -8,8 +8,7 @@
  *
  * R8 does NOT pretend to ship full TOTP / SAML SP / SCIM group sync
  * in this phase. Those are honestly deferred to dedicated sub-phases
- * (R8.1 / R8.2 / R8.3). See the audit doc + final report for the
- * scoping decision.
+ * (R8.1 / R8.2 / R8.3).
  *
  * Hard contract pinned here:
  *
@@ -31,14 +30,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
@@ -50,41 +43,6 @@ const SHARED_SECURITY = readFileSync(
   ),
   "utf8",
 );
-
-// =============================================================================
-// PART 1 — R8 audit + final docs exist
-// =============================================================================
-
-describe("R8 Part 1 — audit + final report docs exist", () => {
-  it("audit doc exists and is substantial", () => {
-    const audit = readRepo("docs/security/R8_IDENTITY_ARCHITECTURE_AUDIT.md");
-    expect(audit.length).toBeGreaterThan(5000);
-    expect(audit).toMatch(/R8 — Identity Architecture Audit/);
-    expect(audit).toMatch(/MFA/);
-    expect(audit).toMatch(/SAML/);
-    expect(audit).toMatch(/SCIM/);
-    expect(audit).toMatch(/Security event/i);
-    expect(audit).toMatch(/Tenant isolation/i);
-  });
-
-  it("final report doc exists and is substantial", () => {
-    const doc = readRepo("docs/security/R8_ENTERPRISE_IDENTITY_SECURITY.md");
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R8/);
-    expect(doc).toMatch(/MFA model/);
-    expect(doc).toMatch(/SSO \/ SAML/);
-    expect(doc).toMatch(/SCIM architecture/);
-    expect(doc).toMatch(/Security-event architecture/);
-    expect(doc).toMatch(/Remaining risks/);
-  });
-
-  it("final report honestly names deferral phases (R8.1 / R8.2 / R8.3)", () => {
-    const doc = readRepo("docs/security/R8_ENTERPRISE_IDENTITY_SECURITY.md");
-    expect(doc).toMatch(/R8\.1/);
-    expect(doc).toMatch(/R8\.2/);
-    expect(doc).toMatch(/R8\.3/);
-  });
-});
 
 // =============================================================================
 // PART 2 — R8 event vocabulary present + bounded

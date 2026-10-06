@@ -269,7 +269,6 @@ describe("M3.2 — frontend panel", () => {
 describe("M3.2 — docs vocabulary", () => {
   for (const doc of [
     "docs/verticals/insurance-siu-saved-views.md",
-    "docs/verticals/phase-m3-2-siu-governance-export-closure.md",
   ]) {
     it(`${doc} never uses forbidden vocabulary`, () => {
       assertNoForbiddenPhrases(read(doc), doc);

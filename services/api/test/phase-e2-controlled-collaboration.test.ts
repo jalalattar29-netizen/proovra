@@ -56,9 +56,6 @@ function apiPath(rel: string): string {
 function packagesPath(rel: string): string {
   return fileURLToPath(new URL(`../../../packages/${rel}`, import.meta.url));
 }
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
-}
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
 }
@@ -407,62 +404,6 @@ describe("E2 Test 10 — no new client-state library introduced", () => {
         deps[forbidden],
         `Forbidden library added in E2: ${forbidden} (no realtime/social/state-lib expansion)`,
       ).toBeUndefined();
-    }
-  });
-});
-
-// ===========================================================================
-// PART 11 — Documentation + registry updated
-// ===========================================================================
-
-describe("E2 Test 11 — documentation + registry updated", () => {
-  it("docs/product/PHASE_E2_CONTROLLED_COLLABORATION.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_E2_CONTROLLED_COLLABORATION.md");
-    expect(doc.length).toBeGreaterThan(8000);
-    expect(doc).toMatch(/PHASE E2/);
-    expect(doc).toMatch(/Controlled Collaboration/i);
-  });
-
-  it("doc enumerates the 8 collaboration entities", () => {
-    const doc = readRepo("docs/product/PHASE_E2_CONTROLLED_COLLABORATION.md");
-    for (const entity of [
-      "Case assignment",
-      "Evidence assignment",
-      "Reviewer assignment",
-      "Operational comment",
-      "Reviewer handoff",
-      "Escalation owner",
-      "External reviewer grant",
-      "Activity event",
-    ]) {
-      expect(
-        doc,
-        `Collaboration model entity missing from doc: ${entity}`,
-      ).toContain(entity);
-    }
-  });
-
-  it("doc records the 5 new audit-gap DEF items (DEF-016 → DEF-020)", () => {
-    const doc = readRepo("docs/product/PHASE_E2_CONTROLLED_COLLABORATION.md");
-    for (const def of ["DEF-016", "DEF-017", "DEF-018", "DEF-019", "DEF-020"]) {
-      expect(doc).toContain(def);
-    }
-  });
-
-  it("MASTER_PHASE_REGISTRY.md registers Phase E2 with explicit status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E2\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry contains the 5 new DEF items (DEF-016 → DEF-020) per CR1.7 silent-debt rule", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    for (const def of ["DEF-016", "DEF-017", "DEF-018", "DEF-019", "DEF-020"]) {
-      expect(
-        registry,
-        `New DEF item ${def} missing from registry §6 (CR1.7 silent-debt rule violation).`,
-      ).toContain(def);
     }
   });
 });

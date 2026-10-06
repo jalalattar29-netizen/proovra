@@ -15,9 +15,6 @@
  *   4. Production `server.ts` cannot mount additional `*-seed*` /
  *      `webhook.routes` (the orphan) registrations beyond the
  *      currently-acknowledged debt (which CR1 will purge).
- *
- * The recovery roadmap document is in
- * `docs/recovery/CR0_SYSTEM_FREEZE_BASELINE.md`.
  */
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -396,18 +393,6 @@ describe("Phase CR0 — server.ts route registration inventory is frozen (CR1 wi
         `New seed/debug route registration matching ${pattern} is forbidden under CR0. Use a guarded test endpoint instead, or wait for CR1.`,
       ).not.toMatch(pattern);
     }
-  });
-
-  it("the recovery baseline document exists", () => {
-    // Test that docs/recovery/CR0_SYSTEM_FREEZE_BASELINE.md exists so
-    // future contributors can find the canonical inventory.
-    const docPath = fileURLToPath(
-      new URL("../../../docs/recovery/CR0_SYSTEM_FREEZE_BASELINE.md", import.meta.url),
-    );
-    expect(
-      readFileSync(docPath, "utf8").length,
-      `${docPath} must exist and be non-empty.`,
-    ).toBeGreaterThan(500);
   });
 });
 

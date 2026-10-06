@@ -6,7 +6,6 @@
  * and runs pure-function unit tests against the pure SAML services.
  *
  * Groups:
- *   1. Documentation (2 tests)          — audit doc + architecture doc exist
  *   2. Security event vocabulary (6)    — 6 SAML events in packages/shared
  *   3. Source files / hard rules (5)    — route file, assertion, user-mapping
  *   4. saml-metadata.service unit (3)   — DTD guard, entityId extract, binding pref
@@ -63,28 +62,6 @@ import {
   validateSamlResponse,
   SamlAssertionError,
 } from "../src/services/security/saml-assertion.service.js";
-
-// =============================================================================
-// Group 1 — Documentation
-// =============================================================================
-
-describe("R8.2 Group 1 — Documentation", () => {
-  it("R8_2_SAML_ARCHITECTURE_AUDIT.md exists and contains SAML structural keywords", () => {
-    const content = readRepo("docs/security/R8_2_SAML_ARCHITECTURE_AUDIT.md");
-    expect(content.length).toBeGreaterThan(4000);
-    expect(content).toMatch(/SAML/);
-    expect(content).toMatch(/AuthnRequest/);
-    expect(content).toMatch(/ACS/);
-  });
-
-  it("R8_2_REAL_SAML_SP.md exists and contains R8.2 phase markers + crypto references", () => {
-    const content = readRepo("docs/security/R8_2_REAL_SAML_SP.md");
-    expect(content.length).toBeGreaterThan(5000);
-    expect(content).toMatch(/PHASE R8\.2/);
-    expect(content).toMatch(/InResponseTo/);
-    expect(content).toMatch(/xml-crypto/);
-  });
-});
 
 // =============================================================================
 // Group 2 — Security event vocabulary

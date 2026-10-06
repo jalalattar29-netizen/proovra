@@ -94,8 +94,6 @@ declare module "*/audit/engine/facts.mjs" {
   export function closureProblems(facts: unknown): string[];
   export function releaseBlockingProblems(facts: unknown): string[];
   export function architectureBacklogProblems(facts: unknown): string[];
-  /** What a refused findings ledger reports in place of every countable scalar. */
-  export const LEDGER_REFUSED: string;
 }
 
 declare module "*/audit/engine/report.mjs" {
@@ -126,27 +124,11 @@ declare module "*/audit/engine/registry.mjs" {
   export const CANONICAL: Record<string, Record<string, string | string[]>>;
   export const DOMAIN_AUTHORITIES: ReadonlyArray<Record<string, string>>;
   export const DELEGATES: ReadonlyArray<Record<string, string>>;
-  export const HISTORICAL_PREFIXES: ReadonlyArray<string>;
+  export const AUDIT_OUTPUT_PREFIX: string;
   export const DIAGNOSTICS: ReadonlyArray<{ path: string; producer: string; why: string }>;
   /** Paths the audit engine writes on every run — held out of its own change set. */
   export const ENGINE_GENERATED_PATHS: ReadonlyArray<string>;
-  export function isHistorical(rel: string): boolean;
-}
-
-declare module "*/audit/engine/checkpoint-truth.mjs" {
-  export function derivedScalars(facts: unknown): Record<string, number | boolean | string>;
-  export function evaluateCheckpoint(input: {
-    markdown: string;
-    facts: unknown;
-    commandTargetExists: (relPath: string) => boolean;
-  }): {
-    pass: boolean;
-    duplicateActiveStateSections: number;
-    checkpointContradictions: number;
-    staleNextCommands: number;
-    scalarsChecked: number;
-    violations: Array<{ kind: string; detail: string }>;
-  };
+  export function isUndeclaredAuditOutput(rel: string): boolean;
 }
 
 declare module "*/audit/engine/domain-proofs.mjs" {

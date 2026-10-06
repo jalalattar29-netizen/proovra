@@ -34,8 +34,6 @@
  *
  * If a regression PR re-introduces any deleted surface, the matching
  * pin below FAILS — that's the forcing function.
- *
- * Full CR1 report: docs/recovery/CR1_LEGACY_PURGE.md
  */
 
 import { existsSync, readFileSync } from "node:fs";

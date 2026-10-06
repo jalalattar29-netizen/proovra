@@ -12,9 +12,7 @@
  * reproduces it, so the fix cannot be undone by a later edit that looks
  * harmless.
  *
- * The live sweep is `scripts/admin-ledger/visual/runbooks.mjs`, which walks
- * all 33 runbooks in the browser in both text directions. This file is the
- * unit-level floor under it.
+ * This file is the unit-level floor for runbook rendering.
  */
 
 import { describe, expect, it } from "vitest";

@@ -14,7 +14,7 @@
  *   1. The access gate equals the web's — by EXECUTING the web's
  *      `resolveRuntimeReadAccess` + the page's own reason mapping.
  *   2. The bulk arithmetic counts the server's success value (`COMPLETED`);
- *      the web's `SUCCEEDED` never arrives (spec §1).
+ *      the web's `SUCCEEDED` never arrives.
  *   3. The rendered journeys: restricted state, queue + filters, inspector,
  *      acknowledge, server refusal notice, and a bulk action that passes
  *      through the challenge step-up and retries WITH the challenge header.

@@ -108,8 +108,6 @@ function stripCommentsAndStringLiterals(src: string): string {
 const ALLOWLISTED_PATHS_FOR_FORBIDDEN_TOKENS: ReadonlyArray<string> = [
   "docs/architecture/",
   "docs/operations/",
-  "docs/product/",
-  "docs/recovery/",
   "services/api/test/phase-r11-domain-stabilization.test.ts",
   "packages/shared/src/architecture/workspace-kinds.ts",
 ];
@@ -434,16 +432,6 @@ describe("Phase 2 — architecture documentation is present", () => {
 
   it("docs/architecture/domain-debt-register.md exists", () => {
     const path = join(docsArchitectureDir, "domain-debt-register.md");
-    expect(existsSync(path)).toBe(true);
-    const src = readFileSync(path, "utf8");
-    expect(src.length).toBeGreaterThan(1500);
-  });
-
-  it("docs/architecture/phase-3-runtime-refactor-readiness.md exists", () => {
-    const path = join(
-      docsArchitectureDir,
-      "phase-3-runtime-refactor-readiness.md",
-    );
     expect(existsSync(path)).toBe(true);
     const src = readFileSync(path, "utf8");
     expect(src.length).toBeGreaterThan(1500);

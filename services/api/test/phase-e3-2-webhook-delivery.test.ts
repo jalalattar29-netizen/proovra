@@ -40,9 +40,6 @@ import { AUTOMATION_ACTION_TYPES } from "../src/services/automation/automation.s
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -51,9 +48,6 @@ function apiPath(rel: string): string {
 }
 function packagesPath(rel: string): string {
   return fileURLToPath(new URL(`../../../packages/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
@@ -680,43 +674,10 @@ describe("E3.2 Test 12 — IA + state-lib contracts preserved", () => {
 });
 
 // ===========================================================================
-// PART 13 — Documentation + registry updated; DEF-022 RESOLVED; DEF-023 OPEN
+// PART 13 — Migration drift allow-list
 // ===========================================================================
 
-describe("E3.2 Test 13 — documentation + registry", () => {
-  it("docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_E3_2_WEBHOOK_DELIVERY.md");
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE E3\.2/);
-  });
-
-  it("registry registers Phase E3.2 with explicit status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E3\.2\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry marks DEF-022 RESOLVED with Phase E3.2 reference", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    const def022Row = registry.match(/\|\s*DEF-022\s*\|[^\n]*/);
-    expect(def022Row, "DEF-022 row missing").toBeTruthy();
-    expect(def022Row![0]).toMatch(/RESOLVED/);
-    expect(def022Row![0]).toMatch(/E3\.2/);
-  });
-
-  it("registry contains DEF-023 (RESOLVED by Phase E3.3 — flipped from E3.2 inverse pin)", () => {
-    // E3.2 originally registered DEF-023 as OPEN. E3.3 closed it
-    // and per CR1.7 §10.1 the inverse pin must be flipped in the
-    // resolving phase. This test now asserts the resolved state.
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toContain("DEF-023");
-    const def023Row = registry.match(/\|\s*DEF-023\s*\|[^\n]*/);
-    expect(def023Row).toBeTruthy();
-    expect(def023Row![0]).toMatch(/RESOLVED/);
-    expect(def023Row![0]).toMatch(/E3\.3/);
-  });
-
+describe("E3.2 Test 13 — migration drift allow-list", () => {
   it("32.7-2 migration drift allow-list includes the E3.2 migration", () => {
     const drift = readApi("test/phase-32-7-2-security-event-mapping-drift.test.ts");
     expect(drift).toContain("20260802000000_phase_e3_2_webhook_delivery");

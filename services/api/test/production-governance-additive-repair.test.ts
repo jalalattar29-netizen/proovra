@@ -134,8 +134,7 @@ interface SchemaPin {
 const SCHEMA_PINS: ReadonlyArray<SchemaPin> = [
   // Phase 2C-B intentionally tightened these verified Category A LOW drift
   // fields from optional to required in Prisma; DB is already NOT NULL and
-  // runtime safety was verified in
-  // docs/operations/phase-2c-a-runtime-safety-audit.md.
+  // runtime safety was verified.
   // CrossOrgReviewGrant
   {
     model: "CrossOrgReviewGrant",

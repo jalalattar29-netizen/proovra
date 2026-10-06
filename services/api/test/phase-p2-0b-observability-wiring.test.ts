@@ -163,7 +163,6 @@ describe("Phase P2.0B — OTEL bootstrap", () => {
     //   - proovra.export.reproducibility.verify
     //   - proovra.tsa.timestamp
     //   - proovra.ots.anchor
-    // (See `docs/operations/phase-o1-4-business-flow-instrumentation.md` §6.)
     //
     // The bounded floor below is the subset that survived the
     // O1.4 audit. The enum still satisfies the original P2.0B intent

@@ -29,14 +29,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
@@ -333,12 +327,6 @@ describe("R8.1.2 Part 7 — login flow integration LIVE (was deferred in R8.1.1)
     expect(AUTH_SRC).toMatch(/\bconsumeRecoveryCode\b/);
     expect(AUTH_SRC).toMatch(/\breadMfaStatus\b/);
   });
-
-  it("R8.1.1 doc still references the R8.1.2 plan for traceability", () => {
-    const doc = readRepo("docs/security/R8_1_1_MFA_ORCHESTRATOR.md");
-    expect(doc).toMatch(/R8\.1\.2/);
-    expect(doc).toMatch(/login flow/i);
-  });
 });
 
 // =============================================================================
@@ -447,37 +435,6 @@ describe("R8.1.1 Part 8 — step-up uses the same factor model", () => {
     const high = Math.ceil(expected * 1.05);
     expect(st.size).toBeGreaterThanOrEqual(low);
     expect(st.size).toBeLessThanOrEqual(high);
-  });
-});
-
-// =============================================================================
-// PART 9 — R8.1.1 documentation
-// =============================================================================
-
-describe("R8.1.1 Part 9 — documentation present", () => {
-  const doc = readRepo("docs/security/R8_1_1_MFA_ORCHESTRATOR.md");
-
-  it("R8.1.1 doc covers the required sections", () => {
-    expect(doc.length).toBeGreaterThan(5000);
-    expect(doc).toMatch(/PHASE R8\.1\.1/);
-    expect(doc).toMatch(/Prisma generate/i);
-    expect(doc).toMatch(/orchestrator/i);
-    expect(doc).toMatch(/endpoint/i);
-    expect(doc).toMatch(/rate limit/i);
-    expect(doc).toMatch(/Remaining risks/i);
-  });
-
-  it("doc surfaces the bounded R8 event vocabulary table", () => {
-    for (const event of [
-      "mfa_enrollment_started",
-      "mfa_enrollment_completed",
-      "mfa_factor_added",
-      "mfa_factor_removed",
-      "mfa_verification_succeeded",
-      "mfa_verification_failed",
-    ]) {
-      expect(doc).toMatch(new RegExp(event));
-    }
   });
 });
 

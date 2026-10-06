@@ -37,7 +37,6 @@
  *      persona + external-participant invariants).
  *  14. 32.8 canonical primaries still exactly 6.
  *  15. Protected core files unchanged.
- *  16. MASTER_PHASE_REGISTRY records Phase E9 + the four new DEFs.
  *
  * Phase E9 ships no schema change, no new capability, no new route, no
  * new root navigation.
@@ -67,9 +66,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -78,9 +74,6 @@ function apiPath(rel: string): string {
 }
 function packagesPath(rel: string): string {
   return fileURLToPath(new URL(`../../../packages/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -544,33 +537,3 @@ describe("E9 Test 13 — 32.8 IA preserved", () => {
 // ===========================================================================
 // PART 14 — Protected core files unchanged
 // ===========================================================================
-
-// ===========================================================================
-// PART 15 — Documentation + registry
-// ===========================================================================
-
-describe("E9 Test 15 — documentation + registry", () => {
-  it("docs/product/PHASE_E9_AI_OPERATIONAL_INTELLIGENCE.md exists + substantial", () => {
-    const doc = readRepo(
-      "docs/product/PHASE_E9_AI_OPERATIONAL_INTELLIGENCE.md",
-    );
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE E9/);
-  });
-
-  it("registry registers Phase E9 with explicit closure status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E9\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry records the 4 new DEFs opened by E9", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    for (const def of ["DEF-033", "DEF-034", "DEF-035", "DEF-036"]) {
-      expect(registry, `${def} missing from registry`).toMatch(
-        new RegExp(`\\|\\s*${def}\\s*\\|`),
-      );
-    }
-  });
-});

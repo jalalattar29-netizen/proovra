@@ -1,7 +1,7 @@
 /**
  * PHASE 32.7 — Final Production Stabilization contract tests.
  *
- * After investigation (see docs/recovery/PHASE_32_7_FINAL_PRODUCTION_STABILIZATION.md),
+ * After investigation,
  * the platform had NO actual production correctness bugs in the areas
  * the phase prompt enumerated:
  *
@@ -40,17 +40,11 @@ import { syntheticStripeLiveSecret, syntheticStripeTestSecret } from "./point8/s
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -419,46 +413,6 @@ describe("32.7 Test 8 — stabilization contract: no new state library / nav sur
 // ===========================================================================
 // PART 9 — Capture / custody / report / package files untouched
 // ===========================================================================
-
-// ===========================================================================
-// PART 10 — Phase 32.7 doc + master registry both updated
-// ===========================================================================
-
-describe("32.7 Test 10 — documentation + registry updated", () => {
-  it("docs/recovery/PHASE_32_7_FINAL_PRODUCTION_STABILIZATION.md exists + substantial", () => {
-    const doc = readRepo(
-      "docs/recovery/PHASE_32_7_FINAL_PRODUCTION_STABILIZATION.md",
-    );
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE 32\.7/);
-    expect(doc).toMatch(/Final Production Stabilization/i);
-  });
-
-  it("MASTER_PHASE_REGISTRY.md registers Phase 32.7 with explicit status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?32\.7\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry records DEF item outcomes for items reviewed by 32.7", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    // Each touched DEF id must remain searchable in the registry —
-    // either still in §6 (carried) or in the 32.7 phase row (resolved).
-    for (const def of [
-      "DEF-003",
-      "DEF-005",
-      "DEF-006",
-      "DEF-011",
-      "DEF-012",
-    ]) {
-      expect(
-        registry,
-        `Registry no longer references ${def}; CR1.7 silent-debt rule violated.`,
-      ).toContain(def);
-    }
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Cleanup hook — defensive in case any test mutates env without restoring.

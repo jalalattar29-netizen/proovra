@@ -7,9 +7,6 @@
  * (and therefore must be fixed in R1). When R1 fixes them, the test
  * must be updated as part of R1's deliverable — that's the forcing
  * function.
- *
- * The recovery baseline is at:
- *   docs/recovery/CR0_5_RECOVERY_READINESS.md
  */
 
 import { readFileSync } from "node:fs";
@@ -31,49 +28,6 @@ function readApi(rel: string): string {
     "utf8",
   );
 }
-function readRepo(rel: string): string {
-  return readFileSync(
-    fileURLToPath(new URL(`../../../${rel}`, import.meta.url)),
-    "utf8",
-  );
-}
-
-// =============================================================================
-// PART 1 — CR0.5 readiness document exists + recovery roadmap locked
-// =============================================================================
-
-describe("Phase CR0.5 — readiness document + roadmap lock", () => {
-  it("CR0.5 readiness document exists at the canonical path", () => {
-    const path = fileURLToPath(
-      new URL("../../../docs/recovery/CR0_5_RECOVERY_READINESS.md", import.meta.url),
-    );
-    const src = readFileSync(path, "utf8");
-    expect(src.length).toBeGreaterThan(2000);
-  });
-
-  it("recovery roadmap order is locked in the doc — 23 phases CR0 → CR8", () => {
-    const doc = readRepo("docs/recovery/CR0_5_RECOVERY_READINESS.md");
-    const REQUIRED_PHASES = [
-      "CR0", "CR0.5", "CR1", "CR1.5", "R1", "R1.5B", "R4",
-      "CR6", "R2", "R5", "R6", "R3", "CR2", "CR5", "CR3",
-      "CR4", "R7", "R8", "R9", "R9.5", "R10", "R11", "CR8",
-    ];
-    for (const phase of REQUIRED_PHASES) {
-      expect(
-        doc,
-        `recovery roadmap missing phase "${phase}"`,
-      ).toMatch(new RegExp(`\\*\\*${phase.replace(/\./g, "\\.")}\\*\\*`));
-    }
-  });
-
-  it("CR0 baseline document still exists (CR0.5 extends, does not replace)", () => {
-    const path = fileURLToPath(
-      new URL("../../../docs/recovery/CR0_SYSTEM_FREEZE_BASELINE.md", import.meta.url),
-    );
-    const src = readFileSync(path, "utf8");
-    expect(src.length).toBeGreaterThan(500);
-  });
-});
 
 // =============================================================================
 // PART 2 — useTeamWorkspaceGate live consumer pin

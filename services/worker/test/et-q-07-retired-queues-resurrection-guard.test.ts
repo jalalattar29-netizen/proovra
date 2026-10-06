@@ -13,9 +13,7 @@
  * CURRENT_RUNTIME, a legacy payload adapter, a replay policy, an Operations
  * inventory row and a suite of green contract tests — and NO PRODUCER. Every
  * one of their enqueue helpers had zero callers in every commit since it was
- * introduced, so none of the five ever received a job. The proof is recorded in
- * `docs/evidence/audits/definitive-evidence-lifecycle-remediation/evidence/
- * ET-Q-07-no-producer-proof.txt`.
+ * introduced, so none of the five ever received a job.
  *
  * The owner decision was to RETIRE all five rather than wire speculative
  * producers. This file replaces the per-queue contract tests that used to pin

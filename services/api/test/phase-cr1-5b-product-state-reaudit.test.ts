@@ -2,15 +2,12 @@
  * PHASE CR1.5 (re-audit) — Product-state observability extension.
  *
  * Companion to `phase-cr1-5-state-observability.test.ts`. The original
- * suite pins the canonical observability utility + the documentation +
- * the R1 inverse-pin flips. This suite pins additional contract
- * assertions surfaced by the re-audit in:
+ * suite pins the canonical observability utility + the R1 inverse-pin
+ * flips. This suite pins additional contract assertions surfaced by the
+ * CR1.5 re-audit.
  *
- *   `docs/product/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md`
+ * What this file adds (source-contract tests):
  *
- * What this file adds (12 source-contract tests):
- *
- *   1.  The re-audit doc exists at `docs/product/...` and is substantial.
  *   2.  Three dead `ShellNoWorkspace()` functions remain present but
  *       UNREACHABLE. Pinning their location and the fact that
  *       `setState({ status: "no_workspace" })` is never called lets
@@ -54,17 +51,11 @@ import { listAllTsxFiles } from "./_helpers/file-walker";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -72,42 +63,6 @@ function readWeb(rel: string): string {
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
 }
-const REAUDIT_DOC = readRepo(
-  "docs/product/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md",
-);
-
-// ===========================================================================
-// 1. Re-audit doc exists + substantial
-// ===========================================================================
-
-describe("CR1.5B Test 1 — re-audit documentation exists + substantial", () => {
-  it("docs/product/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md is present and >= 10KB", () => {
-    expect(REAUDIT_DOC.length).toBeGreaterThan(10000);
-    expect(REAUDIT_DOC).toMatch(/PHASE CR1\.5/);
-    expect(REAUDIT_DOC).toMatch(/State & Orchestration Observability/);
-    // Must reference the original CR1.5 doc location.
-    expect(REAUDIT_DOC).toMatch(
-      /docs\/recovery\/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY\.md/,
-    );
-  });
-
-  it("re-audit doc enumerates the 9 required sections", () => {
-    const REQUIRED_SECTIONS = [
-      "## 1. Executive summary",
-      "## 2. Current state model",
-      "## 3. Active workspace lifecycle",
-      "## 4. Persona / workflow lifecycle",
-      "## 5. Navigation lifecycle",
-      "## 6. Dashboard lifecycle",
-      "## 7. Cache / invalidation map",
-      "## 8. Impossible states discovered",
-      "## 9. Canonical source-of-truth recommendations",
-    ];
-    for (const s of REQUIRED_SECTIONS) {
-      expect(REAUDIT_DOC, `Missing section header: ${s}`).toContain(s);
-    }
-  });
-});
 
 // ===========================================================================
 // 2. Three dead `ShellNoWorkspace()` functions are REMOVED (CR1.6 cleanup)

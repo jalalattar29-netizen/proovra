@@ -15,7 +15,6 @@
  *   - Runtime source-level safety (no eval, no fetch outside the
  *     bounded helper, no custody mutation, no evidence content).
  *   - Action handler enqueues instead of synchronous delivery.
- *   - DEF-023 RESOLVED in registry.
  */
 
 import { readFileSync } from "node:fs";
@@ -37,9 +36,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
@@ -48,9 +44,6 @@ function apiPath(rel: string): string {
 }
 function packagesPath(rel: string): string {
   return fileURLToPath(new URL(`../../../packages/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
@@ -516,31 +509,10 @@ describe("E3.3 Test 9 — IA + state lib contracts preserved", () => {
 });
 
 // ===========================================================================
-// PART 10 — Documentation + registry updated; DEF-023 RESOLVED
+// PART 10 — Migration drift allow-list
 // ===========================================================================
 
-describe("E3.3 Test 10 — documentation + registry", () => {
-  it("docs/product/PHASE_E3_3_ASYNC_DELIVERY_RUNTIME.md exists + substantial", () => {
-    const doc = readRepo("docs/product/PHASE_E3_3_ASYNC_DELIVERY_RUNTIME.md");
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE E3\.3/);
-  });
-
-  it("registry registers Phase E3.3 with explicit status", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    expect(registry).toMatch(
-      /\|\s*(Phase )?E3\.3\s*\|[\s\S]*?(CLOSED|CLOSED_WITH_DEFERRED_ITEMS)/,
-    );
-  });
-
-  it("registry marks DEF-023 RESOLVED with Phase E3.3 reference", () => {
-    const registry = readRepo("docs/recovery/MASTER_PHASE_REGISTRY.md");
-    const row = registry.match(/\|\s*DEF-023\s*\|[^\n]*/);
-    expect(row, "DEF-023 row missing").toBeTruthy();
-    expect(row![0]).toMatch(/RESOLVED/);
-    expect(row![0]).toMatch(/E3\.3/);
-  });
-
+describe("E3.3 Test 10 — migration drift allow-list", () => {
   it("32.7-2 migration drift allow-list includes the E3.3 migration", () => {
     const drift = readApi(
       "test/phase-32-7-2-security-event-mapping-drift.test.ts",

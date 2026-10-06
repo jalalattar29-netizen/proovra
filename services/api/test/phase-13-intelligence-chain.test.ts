@@ -2,8 +2,7 @@
  * Phase 13 — Intelligence chain source-contract + GUARD test.
  *
  * Phase 13 is a "connect + extend" pass over the already-shipped
- * intelligence plumbing (see
- * `docs/architecture/phase-13-intelligence-chain.md`).  It wires:
+ * intelligence plumbing.  It wires:
  *
  *   1. ENTITY_GRAPH_EDGE_WIRE — `reconcileTeamGraph` upserts ENTITY
  *      nodes + EXTRACTED_FROM edges from `evidence_entities`.

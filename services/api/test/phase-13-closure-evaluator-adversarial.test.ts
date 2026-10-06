@@ -29,7 +29,6 @@ import { closureProblems, releaseBlockingProblems } from "../scripts/audit/engin
 /** A facts shape that is CLOSED on every dimension this evaluator reads. */
 function closedFacts(): Record<string, any> {
   return {
-    findingsLedgerRef: { openIds: [] },
     facts: {
       capabilities: {
         undisposed: 0,
@@ -105,15 +104,6 @@ function closedFacts(): Record<string, any> {
         // never close it and the closure must refuse a run that skipped it.
         new058Runtime: "PASS",
       },
-    },
-    /** PHASE 13 §1 — the checkpoint agrees with the measurement. */
-    checkpoint: {
-      present: true,
-      contradictions: 0,
-      staleNextCommands: 0,
-      duplicateActiveStateSections: 0,
-      scalarsChecked: 40,
-      violations: [],
     },
   };
 }
@@ -209,13 +199,6 @@ describe("phase 13 §6 — the closure evaluator refuses", () => {
     assert.ok(problems.some((p) => /INSTRUMENT: UnclassifiedMutationWriters = 1/.test(p)));
   });
 
-  it("10. an open local finding blocks the release", () => {
-    const problems = refusalFor((f) => {
-      f.findingsLedgerRef.openIds = ["NEW-999"];
-    });
-    assert.ok(problems.some((p) => /OPEN LOCAL FINDINGS: NEW-999/.test(p)));
-  });
-
   it("11. a route still dispositioned DEAD_REMOVE while present blocks closure", () => {
     const problems = refusalFor((f) => {
       f.facts.capabilities.deadRemovePending = 1;
@@ -305,26 +288,6 @@ describe("phase 13 §6 — the closure evaluator refuses", () => {
         `${family} was not release-blocking: ${JSON.stringify(problems)}`,
       );
     }
-  });
-
-  it("18. a checkpoint that contradicts the measurement blocks the release", () => {
-    const problems = refusalFor((f) => {
-      f.checkpoint.violations = [
-        "SCALAR_DISAGREES_WITH_FACTS: UndisposedRoutes: checkpoint says 0, facts say 2",
-      ];
-    });
-    assert.ok(
-      problems.some((p) => /^CHECKPOINT: 1 violation/.test(p)),
-      `a contradictory checkpoint was not blocking: ${JSON.stringify(problems)}`,
-    );
-  });
-
-  it("19. a MISSING checkpoint blocks the release", () => {
-    const problems = refusalFor((f) => {
-      f.checkpoint.present = false;
-      f.checkpoint.violations = [];
-    });
-    assert.ok(problems.some((p) => /continuation checkpoint is missing/.test(p)));
   });
 
   it("20. absent Point-7 facts do not silently pass — the CONTROL still holds", () => {

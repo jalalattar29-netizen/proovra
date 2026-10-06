@@ -75,6 +75,6 @@ test("the committed matrix is the one this audit produces", () => {
   assert.equal(
     committed,
     regenerated,
-    "docs/contract-coverage.md is stale — run `node tools/contract-audit.mjs --json`",
+    "docs/contract-coverage.md is stale — run `node tools/contract-audit.mjs --write`",
   );
 });

@@ -1,14 +1,10 @@
 /**
  * PHASE CR1.5 — State & Orchestration Observability guardrails.
  *
- * CR1.5 produces three deliverables:
- *   1. `docs/recovery/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md` —
- *      the canonical state contract + active-workspace trace +
- *      persona save-refresh trace + sidebar trace + dashboard trace +
- *      self-fetch cleanup plan + R1 execution brief.
- *   2. `apps/web/lib/platform-context/state-observability.ts` —
+ * CR1.5 deliverables pinned here:
+ *   1. `apps/web/lib/platform-context/state-observability.ts` —
  *      dev/test-only state tracing utility, no-op in production.
- *   3. This test file — 15 source-contract assertions that pin the
+ *   2. This test file — source-contract assertions that pin the
  *      current truth-mapping and the known bugs.
  *
  * Tests #9, #10, #11 are INTENTIONAL INVERSE PINS — they assert that
@@ -26,14 +22,8 @@ import { describe, expect, it } from "vitest";
 // Helpers
 // =============================================================================
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -84,116 +74,7 @@ function listAllTsxFiles(dirAbs: string): string[] {
   return out;
 }
 
-const DOC = readRepo("docs/recovery/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md");
 const OBS = readWeb("lib/platform-context/state-observability.ts");
-
-// =============================================================================
-// PART 1 — Documentation exists and is non-trivial
-// =============================================================================
-
-describe("CR1.5 Test 1 — documentation exists + non-trivial", () => {
-  it("docs/recovery/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md is present and substantial", () => {
-    expect(DOC.length).toBeGreaterThan(8000);
-    expect(DOC).toMatch(/PHASE CR1\.5/);
-    expect(DOC).toMatch(/State & Orchestration Observability/);
-  });
-});
-
-// =============================================================================
-// PART 2 — Canonical state contract present with required state domains
-// =============================================================================
-
-describe("CR1.5 Test 2 — canonical state contract documented", () => {
-  it("Section 1 has the canonical state contract table with required domains", () => {
-    expect(DOC).toMatch(/## 1\. Canonical state contract/);
-    const REQUIRED_DOMAINS = [
-      "Authenticated user",
-      "activeSpace",
-      "Personal Space",
-      "Team / Organization workspace",
-      "Workspace profile",
-      "Persona / workflow profile",
-      "Onboarding completion",
-      "Density preference",
-      "Route access",
-      "Workflow exposure",
-      "Sidebar visibility",
-      "Dashboard mode",
-      "Capability / permission state",
-      "Billing / plan gate state",
-      "Governance availability",
-      "Reviewer/ops availability",
-    ];
-    for (const d of REQUIRED_DOMAINS) {
-      expect(DOC, `state-contract row missing: ${d}`).toContain(d);
-    }
-  });
-
-  it("canonical-state contract names the platform envelope as the frontend source", () => {
-    expect(DOC).toMatch(/PlatformContextEnvelope/);
-    expect(DOC).toMatch(/GET \/v1\/platform\/context/);
-    expect(DOC).toMatch(/PlatformContextProvider/);
-  });
-});
-
-// =============================================================================
-// PART 3 — Active-workspace readers/writers documented
-// =============================================================================
-
-describe("CR1.5 Test 3 — active-workspace trace documented", () => {
-  it("Section 3 documents the canonical reader hooks + bug touchpoints", () => {
-    expect(DOC).toMatch(/## 3\. Active workspace runtime trace/);
-    expect(DOC).toMatch(/useActiveSpace/);
-    expect(DOC).toMatch(/useActiveSpaceId/);
-    expect(DOC).toMatch(/useTeamWorkspaceGate/);
-    // Product-reset: AppTopbarV2 (dead duplicate topbar) deleted; contract
-    // retargeted to the live AppAccountToolbar.
-    expect(DOC).toMatch(/AppAccountToolbar\.tsx:91/);
-    expect(DOC).toMatch(/CommandCenter\.tsx:70/);
-  });
-});
-
-// =============================================================================
-// PART 4 — Persona / workflow save-refresh chain documented
-// =============================================================================
-
-describe("CR1.5 Test 4 — persona save-refresh trace documented", () => {
-  it("Section 4 documents the persona PATCH + refresh-missing chain", () => {
-    expect(DOC).toMatch(/## 4\. Persona \/ workflow save-refresh trace/);
-    expect(DOC).toMatch(/settings\/persona\/page\.tsx/);
-    expect(DOC).toMatch(/PATCH \/v1\/workspaces/);
-    expect(DOC).toMatch(/refresh\(\)/);
-    expect(DOC).toMatch(/Reload to see/);
-  });
-});
-
-// =============================================================================
-// PART 5 — Sidebar dependency chain documented
-// =============================================================================
-
-describe("CR1.5 Test 5 — sidebar dependency chain documented", () => {
-  it("Section 5 documents ROUTE_REGISTRY → resolveRouteAccess → resolveWorkflowExposure → AppSidebarV2", () => {
-    expect(DOC).toMatch(/## 5\. Sidebar \/ route-exposure trace/);
-    expect(DOC).toMatch(/ROUTE_REGISTRY/);
-    expect(DOC).toMatch(/resolveRouteAccess/);
-    expect(DOC).toMatch(/resolveWorkflowExposure/);
-    expect(DOC).toMatch(/AppSidebarV2/);
-  });
-});
-
-// =============================================================================
-// PART 6 — Dashboard / CommandCenter dependency chain documented
-// =============================================================================
-
-describe("CR1.5 Test 6 — dashboard/CommandCenter chain documented", () => {
-  it("Section 6 documents the frontend gate + backend service contract", () => {
-    expect(DOC).toMatch(/## 6\. Dashboard \/ CommandCenter trace/);
-    expect(DOC).toMatch(/CommandCenter\.tsx/);
-    expect(DOC).toMatch(/command-center\.service\.ts/);
-    expect(DOC).toMatch(/not_applicable/);
-    expect(DOC).toMatch(/\/v1\/dashboard\/command-center/);
-  });
-});
 
 // =============================================================================
 // PART 7 — No new /v1/users/me self-fetcher without exemption

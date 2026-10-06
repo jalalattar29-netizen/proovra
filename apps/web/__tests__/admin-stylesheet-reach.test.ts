@@ -17,13 +17,12 @@
  * OTHER page. It is visible here in milliseconds.
  *
  * ===========================================================================
- * WHY A SOURCE TEST AND NOT ONLY THE BROWSER PROBE
+ * WHY A SOURCE TEST
  * ===========================================================================
- * `scripts/admin-ledger/visual/composition.mjs` does catch a missing
- * stylesheet — it appends a probe element and reads its computed border — but
- * it needs a running fixture, and it probes ONE family per route. This asks
- * the cheaper and broader question of every administrative page at once, with
- * no server, and it is the check that fails in CI.
+ * A browser probe can catch a missing stylesheet too, but it needs a running
+ * fixture and probes one family per route. This asks the cheaper and broader
+ * question of every administrative page at once, with no server, and it is
+ * the check that fails in CI.
  *
  * ===========================================================================
  * PV-PLACE-001 — THE ADMINISTRATIVE PAGES THAT LEFT /admin

@@ -28,13 +28,7 @@
  *
  * Honest scoping caveats:
  *
- *   1. GROUP A.1 pins the Phase 2 master-drift-inventory doc at
- *      `docs/operations/phase2-full-prisma-drift-remediation.md`. The doc
- *      is authored in the *next* phase of the remediation workflow; the
- *      assertion is relax-to-reality and asserts presence-or-known-missing.
- *      It will hard-pin once the doc lands.
- *
- *   2. GROUP D destructive-SQL guards run against the DDL body of every
+ *   1. GROUP D destructive-SQL guards run against the DDL body of every
  *      Phase 2 migration (header `--` comments stripped) so explanatory
  *      text mentioning forbidden verbs (e.g. "No DROP / RENAME / DELETE
  *      / TRUNCATE / UPDATE on existing rows") does not trip the guards.
@@ -64,14 +58,6 @@ function readRepo(rel: string): string {
     fileURLToPath(new URL(`../../../${rel}`, import.meta.url)),
     "utf8",
   );
-}
-
-function tryReadRepo(rel: string): string | null {
-  try {
-    return readRepo(rel);
-  } catch {
-    return null;
-  }
 }
 
 // =============================================================================
@@ -109,12 +95,6 @@ const ALLOWLIST_GUARD = readRepo(
   "services/api/test/phase-32-7-2-security-event-mapping-drift.test.ts",
 );
 const SCHEMA_PRISMA = readRepo("services/api/prisma/schema.prisma");
-
-// Optional artifact — written in a later workflow stage. GROUP A.1 is
-// relax-to-reality if absent.
-const PHASE2_DOC = tryReadRepo(
-  "docs/operations/phase2-full-prisma-drift-remediation.md",
-);
 
 // =============================================================================
 // DDL-body helpers — strip `--` line comments so destructive-SQL guards run
@@ -464,8 +444,7 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
   // -------------------------------------------------------------------------
   // Phase 2C-B intentionally tightened these verified Category A LOW drift
   // fields from optional to required in Prisma; DB is already NOT NULL and
-  // runtime safety was verified in
-  // docs/operations/phase-2c-a-runtime-safety-audit.md.
+  // runtime safety was verified.
   {
     migrationId: "20270807000000_phase2_drift_repair_redaction",
     table: "redaction_versions",
@@ -667,25 +646,11 @@ const PHASE2_COLUMNS: ReadonlyArray<Phase2ColumnPin> = [
 // =============================================================================
 // GROUP A — Inventory + decision artifact pins
 // =============================================================================
-// A.1 — Phase 2 master-drift-inventory doc (relax-to-reality until authored)
 // A.2 — Manual decision evidence non-empty (RedactionPolicyAudit deferral)
 // A.3 — Allowlist allows all 4 Phase 2 migrations
 // =============================================================================
 
 describe("Phase 2 Drift Remediation — inventory + decision artifacts (GROUP A)", () => {
-  it("A.1 — Phase 2 master-drift-inventory doc present (RELAX-TO-REALITY: doc authored in later workflow stage)", () => {
-    if (PHASE2_DOC == null) {
-      // RELAX-TO-REALITY: the inventory doc is written by a follow-up
-      // workflow stage. We only assert ABSENCE-IS-KNOWN here — when the
-      // doc lands, swap this branch out for the hard-pin in the else.
-      expect(PHASE2_DOC).toBeNull();
-      return;
-    }
-    expect(PHASE2_DOC.length).toBeGreaterThan(500);
-    expect(PHASE2_DOC).toMatch(/Master\s+Drift\s+Matrix/i);
-    expect(PHASE2_DOC).toMatch(/ADDITIVE_SAFE/);
-    expect(PHASE2_DOC).toMatch(/REQUIRES_MANUAL_DECISION/);
-  });
 
   it("A.2 — Manual decision table is non-empty (RedactionPolicyAudit table-name drift evidence intact)", () => {
     // The synthesis lists exactly ONE REQUIRES_MANUAL_DECISION item:

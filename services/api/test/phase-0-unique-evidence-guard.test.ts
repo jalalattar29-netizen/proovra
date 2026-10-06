@@ -275,8 +275,8 @@ describe("Phase 0 §3 — the guard separates AUTHORITATIVE loss from housekeepi
     expect(c.HistoricalDiagnosticCreditedAsAuthority).toBe(0);
     expect(c.DiagnosticsReadAsAuthority).toBe(0);
     // And it must not be counted toward product closure: closure reads the
-    // facts artifact's undisposed count and the ledger's open ids, neither of
-    // which the diagnostic contributes to.
+    // facts artifact's measured release-blocking facts, none of which the
+    // diagnostic contributes to.
     const facts = JSON.parse(
       readFileSync(path.join(REPO, "audit-output/current/architecture-facts.json"), "utf8"),
     ) as { facts: Record<string, unknown> };

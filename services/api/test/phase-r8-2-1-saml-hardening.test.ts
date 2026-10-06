@@ -31,7 +31,6 @@ const ASSERTION_SVC = resolve(ROOT, "services/api/src/services/security/saml-ass
 const MAPPING_SVC = resolve(ROOT, "services/api/src/services/security/saml-user-mapping.service.ts");
 const ROUTES = resolve(ROOT, "services/api/src/routes/saml-auth.routes.ts");
 const IDP_COMPAT_DOC = resolve(ROOT, "docs/security/R8_2_1_SAML_IDP_COMPATIBILITY.md");
-const HARDENING_DOC = resolve(ROOT, "docs/security/R8_2_1_SAML_HARDENING.md");
 
 function readSrc(path: string): string {
   return readFileSync(path, "utf-8");
@@ -280,16 +279,6 @@ describe("R8.2.1 — documentation", () => {
     expect(content).toContain("Okta");
     expect(content).toContain("Entra");
     expect(content).toContain("Google Workspace");
-    expect(content.length).toBeGreaterThan(3000);
-  });
-
-  it("19l. Hardening doc exists and covers all R8.2.1 deliverables", () => {
-    expect(existsSync(HARDENING_DOC)).toBe(true);
-    const content = readFileSync(HARDENING_DOC, "utf-8");
-    expect(content).toContain("R8.2.1");
-    expect(content).toContain("certificate rotation");
-    expect(content).toContain("test-connection");
-    expect(content).toContain("scimManaged");
     expect(content.length).toBeGreaterThan(3000);
   });
 });

@@ -34,14 +34,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function apiPath(rel: string): string {
   return fileURLToPath(new URL(`../${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readApi(rel: string): string {
   return readFileSync(apiPath(rel), "utf8");
@@ -242,29 +236,6 @@ describe("R8.1 Part 8 — no raw secret/OTP logging in primitives", () => {
     expect(SECRET_SRC).not.toMatch(/console\.log\(/);
     expect(SECRET_SRC).not.toMatch(/console\.info\(/);
     expect(SECRET_SRC).not.toMatch(/console\.warn\(/);
-  });
-});
-
-// =============================================================================
-// PART 9 — Documentation present + substantial
-// =============================================================================
-
-describe("R8.1 Part 9 — R8.1 documentation present", () => {
-  const doc = readRepo("docs/security/R8_1_REAL_MFA.md");
-
-  it("R8.1 doc exists and covers the required sections", () => {
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R8\.1/);
-    expect(doc).toMatch(/factor model/i);
-    expect(doc).toMatch(/TOTP/i);
-    expect(doc).toMatch(/recovery/i);
-    expect(doc).toMatch(/trusted[-\s]device/i);
-    expect(doc).toMatch(/migration/i);
-    expect(doc).toMatch(/Remaining risks/i);
-  });
-
-  it("R8.1 doc honestly names the R8.1.1 deferral", () => {
-    expect(doc).toMatch(/R8\.1\.1/);
   });
 });
 

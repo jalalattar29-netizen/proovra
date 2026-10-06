@@ -34,14 +34,8 @@ import { describe, expect, it } from "vitest";
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
 }
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 
 const PROVIDER = readWeb("lib/platform-context/PlatformContextProvider.tsx");
@@ -63,29 +57,6 @@ const REVIEWER_CC = readWeb(
 const GOV_CP = readWeb(
   "components/governance-experience/GovernanceControlPlane.tsx",
 );
-
-// =============================================================================
-// PART 1 — CR1.6 documentation exists + substantial
-// =============================================================================
-
-describe("CR1.6 Test 1 — documentation exists and is non-trivial", () => {
-  it("docs/product/CR1_6_SURGICAL_STATE_CLEANUP.md is present and substantial", () => {
-    const doc = readRepo("docs/product/CR1_6_SURGICAL_STATE_CLEANUP.md");
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE CR1\.6/);
-    expect(doc).toMatch(/Surgical State Cleanup/i);
-    // Must cross-reference CR1.5 follow-up sections.
-    expect(doc).toMatch(/CR1\.5/);
-  });
-
-  it("docs/product/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md carries a CR1.6 follow-up section", () => {
-    const doc = readRepo(
-      "docs/product/CR1_5_STATE_ORCHESTRATION_OBSERVABILITY.md",
-    );
-    expect(doc).toMatch(/CR1\.6/);
-    expect(doc).toMatch(/follow-up/i);
-  });
-});
 
 // =============================================================================
 // PART 2 — Dead `no_workspace` branches verified removed

@@ -30,14 +30,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-function repoPath(rel: string): string {
-  return fileURLToPath(new URL(`../../../${rel}`, import.meta.url));
-}
 function webPath(rel: string): string {
   return fileURLToPath(new URL(`../../../apps/web/${rel}`, import.meta.url));
-}
-function readRepo(rel: string): string {
-  return readFileSync(repoPath(rel), "utf8");
 }
 function readWeb(rel: string): string {
   return readFileSync(webPath(rel), "utf8");
@@ -368,22 +362,6 @@ describe("R3 Part 10 — single canonical dashboard system", () => {
 
   it("CommandCenter still consumes the backend envelope (no API fork)", () => {
     expect(CC).toMatch(/\/v1\/dashboard\/command-center/);
-  });
-});
-
-// =============================================================================
-// PART 11 — Documentation present
-// =============================================================================
-
-describe("R3 Part 11 — documentation present + substantial", () => {
-  const doc = readRepo("docs/recovery/R3_DASHBOARD_ORCHESTRATION.md");
-
-  it("R3 doc exists and covers the required sections", () => {
-    expect(doc.length).toBeGreaterThan(6000);
-    expect(doc).toMatch(/PHASE R3/);
-    expect(doc).toMatch(/orchestration philosophy/i);
-    expect(doc).toMatch(/Quick action/i);
-    expect(doc).toMatch(/Remaining risks/);
   });
 });
 

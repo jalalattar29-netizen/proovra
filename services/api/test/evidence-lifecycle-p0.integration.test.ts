@@ -1,10 +1,7 @@
 /**
- * EVIDENCE-LIFECYCLE REMEDIATION — the six P0 findings of the definitive
- * audit (docs/evidence/audits/definitive-evidence-lifecycle-truth.json),
- * asserted as the CORRECT behaviour. Each case failed against the audited
- * baseline a40ca76f (recorded in the remediation ledger) and must pass after
- * the fix. Live PostgreSQL 16, real HTTP through the product harness; no
- * object store is needed (the byte paths under test are decided in the DB).
+ * EVIDENCE-LIFECYCLE REMEDIATION — six P0 evidence-lifecycle defects,
+ * asserted as the CORRECT behaviour. Live PostgreSQL 16, real HTTP through
+ * the product harness; no object store is needed (the byte paths under test are decided in the DB).
  */
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 

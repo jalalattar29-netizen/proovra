@@ -354,7 +354,6 @@ describe("M3 — docs vocabulary", () => {
     "docs/verticals/insurance-siu-export-format.md",
     "docs/verticals/insurance-siu-workflows.md",
     "docs/public/insurance-evidence-guide.md",
-    "docs/verticals/phase-m3-insurance-siu-closure.md",
   ]) {
     it(`${doc} never uses forbidden vocabulary`, () => {
       const content = read(doc);

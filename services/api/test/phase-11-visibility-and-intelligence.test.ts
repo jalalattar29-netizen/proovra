@@ -1,8 +1,7 @@
 /**
  * Phase 11 — Visibility & Intelligence source-contract test.
  *
- * Phase 11 was a connect-only pass (see
- * `docs/architecture/phase-11-decisions.md`). It deliberately did NOT
+ * Phase 11 was a connect-only pass. It deliberately did NOT
  * build any v2 intelligence layer; it ONLY:
  *
  *   1. Added EVENT_WIRE fan-outs from `evidence-complete.service.ts`
@@ -64,10 +63,6 @@ const ROUTE_REGISTRY_SRC = resolve(
 const DUPLICATES_PAGE_SRC = resolve(
   WEB_ROOT,
   "app/(app)/investigation/duplicates/page.tsx",
-);
-const DECISIONS_DOC = resolve(
-  REPO_ROOT,
-  "docs/architecture/phase-11-decisions.md",
 );
 const MIGRATIONS_DIR = resolve(API_ROOT, "prisma/migrations");
 
@@ -348,38 +343,5 @@ describe("Phase 11 schema discipline — no new Prisma migrations added", () => 
     }
     expect(offenders, `unexpected Phase 11 migrations: ${offenders.join(", ")}`)
       .toEqual([]);
-  });
-});
-
-// ===========================================================================
-// DOC — Phase 11 decisions doc exists and lists the deferred flips
-// ===========================================================================
-
-describe("Phase 11 documentation — decisions doc pins the deferred work", () => {
-  it("phase-11-decisions.md exists at the architecture path", () => {
-    expect(existsSync(DECISIONS_DOC)).toBe(true);
-  });
-
-  it("documents the three EVENT_WIRE fan-outs in the connect-only verdict", () => {
-    const doc = readSrc(DECISIONS_DOC);
-    expect(doc).toMatch(/enqueueSearchIndexingJob/);
-    expect(doc).toMatch(/reconcileTeamGraph/);
-    expect(doc).toMatch(/extractAndPersistEntities/);
-  });
-
-  it("documents the deferred NAV_VISIBILITY flips so a future phase can revisit", () => {
-    const doc = readSrc(DECISIONS_DOC);
-    expect(doc).toMatch(/workspace\.evidence_requests/);
-    expect(doc).toMatch(/investigation\.reviewers/);
-    // Either the hide-until-seeded primitive or the four route ids it
-    // would have touched must be named in the deferred section.
-    expect(doc).toMatch(/sidebarHideUntilSeeded|hub.*graph.*duplicates.*timeline/s);
-  });
-
-  it("pins the hard-no list (no v2 layers, no schema, no producer-mode flips)", () => {
-    const doc = readSrc(DECISIONS_DOC);
-    expect(doc).toMatch(/No OCR v2/i);
-    expect(doc).toMatch(/No new Prisma models/i);
-    expect(doc).toMatch(/OCR_PRODUCER_MODE|TRANSCRIPT_PRODUCER_MODE/);
   });
 });
