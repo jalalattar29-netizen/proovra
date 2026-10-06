@@ -29,6 +29,7 @@ import {
   type GenerationIntent,
   type GenerationRequestOutcome,
   type OutputActionUnavailableReason,
+  type OutputOfferChangeCode,
   type OutputOperation,
   type OutputRecordApplicability,
   type OutputRequestFact,
@@ -46,6 +47,11 @@ import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.
 import { isEvidenceUnderAnyLegalHold } from "../governance/legal-hold.service.js";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
+import {
+  buildOutputOfferBinding,
+  checkOutputOffer,
+  loadReportableFacts,
+} from "./output-offer.service.js";
 import {
   reenqueueReportGenerationRequest,
   requestReportGeneration,
@@ -89,6 +95,11 @@ type RequestRow = {
   reportVersion: number | null;
   /** A forced request mints a new report version (NEW_VERSION). */
   forceRegenerate: boolean;
+  /** Durable display progress (see migration 20281004000000). */
+  stage: string | null;
+  progressStage: string | null;
+  intent: string | null;
+  updatedAtUtc: Date;
 };
 
 type ArtifactRow = {
@@ -120,6 +131,8 @@ export type NewVersionStorageEstimate = {
 export type LoadedOutputFacts = {
   evidenceId: string;
   teamId: string | null;
+  /** The record's workspace by THE writer's rule (team, or the owner's personal workspace). */
+  workspaceId: string | null;
   ownerUserId: string | null;
   facts: EvidenceOutputFacts;
   actions: EvidenceOutputActions;
@@ -145,6 +158,10 @@ const REQUEST_SELECT = {
   completedAtUtc: true,
   reportVersion: true,
   forceRegenerate: true,
+  stage: true,
+  progressStage: true,
+  intent: true,
+  updatedAtUtc: true,
 } as const;
 
 function toRequestFact(
@@ -341,6 +358,7 @@ export async function loadEvidenceOutputFacts(input: {
       out.set(ev.id, {
         evidenceId: ev.id,
         teamId: ev.teamId ?? null,
+        workspaceId,
         ownerUserId: ev.ownerUserId ?? null,
         facts,
         actions: resolveEvidenceOutputActions(facts),
@@ -430,6 +448,12 @@ export type OutputRecoveryResult =
       requiresExplicitNewVersion?: boolean;
     }
   | { kind: "idempotency_key_required" }
+  /**
+   * RGA-02 — the confirmation the caller saw no longer describes the record.
+   * Nothing was created. `changes` says what moved; the caller re-reads the
+   * offer and asks the person to confirm again.
+   */
+  | { kind: "stale_offer"; changes: OutputOfferChangeCode[]; required?: boolean }
   | { kind: "not_found" };
 
 /** Normalise a client's verb. `REGENERATE` is the legacy spelling of NEW_VERSION. */
@@ -482,16 +506,41 @@ export async function requestOutputRecovery(input: {
    * keep the previous choice.
    */
   targetOutput?: "report" | "verificationPackage" | null;
+  /**
+   * RGA-02 — the signed offer revision the confirmation was shown. When given
+   * (or required) it is checked against facts re-derived HERE, immediately
+   * before the durable request is created; any difference refuses the request.
+   */
+  offerRevision?: string | null;
+  /** A customer NEW_VERSION confirmation must carry a revision. */
+  requireOffer?: boolean;
 }): Promise<OutputRecoveryResult & { loaded?: LoadedOutputFacts }> {
+  const checksOffer = input.offerRevision != null || input.requireOffer === true;
   const loaded = (
     await loadEvidenceOutputFacts({
       evidenceIds: [input.evidenceId],
       callerUserId: input.actorUserId,
       callerIsPlatformOperator: input.platformOperator === true,
-      includeNewVersionEstimate: input.intent === "NEW_VERSION",
+      // The binding includes the storage effect, so a checked confirmation
+      // derives it exactly as the status projection did.
+      includeNewVersionEstimate: input.intent === "NEW_VERSION" || checksOffer,
     })
   ).get(input.evidenceId);
   if (!loaded) return { kind: "not_found" };
+
+  /** RGA-02 — THE confirm-time check. `null` = the confirmation is current. */
+  const offerGate = async (): Promise<(OutputRecoveryResult & { loaded: LoadedOutputFacts }) | null> => {
+    if (!checksOffer) return null;
+    if (input.offerRevision == null) {
+      return { kind: "stale_offer", changes: ["OFFER_INVALID"], required: true, loaded };
+    }
+    const reportable = await loadReportableFacts(input.evidenceId);
+    const check = checkOutputOffer(
+      input.offerRevision,
+      buildOutputOfferBinding(loaded, reportable, input.actorUserId),
+    );
+    return check.ok ? null : { kind: "stale_offer", changes: check.changes, loaded };
+  };
   const { actions } = loaded;
   const latestVersion = loaded.facts.latestReportVersion;
   const base = {
@@ -581,6 +630,12 @@ export async function requestOutputRecovery(input: {
       where: { evidenceId: input.evidenceId, clientRequestKey: key },
       select: { id: true },
     });
+    // A lost-response retry with the SAME key is answered from the first
+    // request; only a NEW confirmation is checked against the live offer.
+    if (!prior) {
+      const stale = await offerGate();
+      if (stale) return stale;
+    }
     if (!prior && actions.newVersion.action !== NEW_VERSION_ACTION) {
       return { kind: "declined", outcome: "NOT_RECOVERABLE", reason: actions.newVersion.reason, loaded };
     }
@@ -675,6 +730,10 @@ export async function requestOutputRecovery(input: {
   }
 
   // ---- Recovery of what is missing or failed -----------------------------
+  {
+    const stale = await offerGate();
+    if (stale) return stale;
+  }
   const pkg = actions.verificationPackage;
   const rep = actions.report;
   const chosen =

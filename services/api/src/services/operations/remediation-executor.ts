@@ -304,6 +304,9 @@ async function recoverArtifacts(
 
   if (result.kind === "not_found") return outcome("NOT_ELIGIBLE");
   if (result.kind === "idempotency_key_required") return outcome("REFUSED");
+  // The operator path carries no customer offer revision, so this is unreachable
+  // here; refused rather than guessed if it ever is.
+  if (result.kind === "stale_offer") return outcome("REFUSED");
   if (result.kind === "declined") {
     if (result.outcome === "NOTHING_TO_RECOVER") return outcome("ALREADY_SATISFIED");
     if (result.requiresExplicitNewVersion) {

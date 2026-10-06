@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 /**
  * Phase 32.6.4 — Frontend runtime/governance/workspace UX hotfix
  * regression guards (source-contract).
@@ -192,46 +193,49 @@ describe("Phase 32.6.4 — Verification-package status-code handling", () => {
     "app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
   );
 
+  /*
+   * RGA-04 (2026-10-06) — the bounded codes and statuses moved from a private
+   * switch in this handler into the ONE shared download-failure authority
+   * (packages/shared/src/download-failure.ts), which every surface (Evidence
+   * Detail, Reports, version history, Home, reviewer-ops, native) reads. The
+   * guarantees below are unchanged; they are asserted where they now live.
+   */
+  const shared = readFileSync(
+    resolve(__dirname, "../../../packages/shared/src/download-failure.ts"),
+    "utf8",
+  );
+
   it("downloadVerificationPackage inspects bounded error codes", () => {
-    // The handler must distinguish at least these bounded backend
-    // signals.
-    expect(src).toContain("verification_package_pending");
-    // COMMERCIAL CLOSURE — the honest commercial answer, which replaced the
-    // 202 "being generated" this endpoint used to return for a package that
-    // would never be built.
-    expect(src).toContain("verification_package_not_included");
-    expect(src).toContain("verification_package_blocked");
-    expect(src).toContain("verification_package_unavailable");
-    expect(src).toContain("verification_package_not_found");
-    expect(src).toContain("PACKAGE_BLOCKED_BY_POLICY");
-    expect(src).toContain("GOVERNANCE_CHECK_FAILED");
-  });
-
-  it("downloadVerificationPackage inspects HTTP status codes for fallback", () => {
-    // Locate the verification-package handler region (between its
-    // declaration and the next sibling helper) to ensure these
-    // checks live inside the handler, not somewhere else in the
-    // file.
     const handlerStart = src.indexOf("const downloadVerificationPackage");
-    expect(handlerStart).toBeGreaterThan(-1);
-    const handlerEnd = src.indexOf("\n  };", handlerStart);
-    expect(handlerEnd).toBeGreaterThan(handlerStart);
-    const handler = src.slice(handlerStart, handlerEnd);
-    expect(handler).toMatch(/statusCode/);
-    expect(handler).toMatch(/case 202|case 409|case 410|case 503/);
+    const handler = src.slice(handlerStart, src.indexOf("\n};", handlerStart));
+    expect(handler).toContain('describeArtifactDownloadFailure("verificationPackage", downloadError)');
+    for (const code of [
+      "verification_package_pending",
+      "verification_package_not_included",
+      "verification_package_blocked",
+      "verification_package_unavailable",
+      "verification_package_not_found",
+      "PACKAGE_BLOCKED_BY_POLICY",
+      "GOVERNANCE_CHECK_FAILED",
+    ]) {
+      expect(shared, code).toContain(code);
+    }
   });
-
+  it("downloadVerificationPackage inspects HTTP status codes for fallback", () => {
+    // The status fallback is the shared authority's, per artifact kind.
+    expect(shared).toMatch(/statusCode/);
+    for (const c of ["case 202", "case 409", "case 410", "case 503"]) expect(shared, c).toContain(c);
+  });
   it("downloadVerificationPackage does NOT silently swallow non-url 2xx", () => {
-    // The previous defect: `if (!data.url) addToast("not available")`
-    // — collapsing 202 pending and 410 unavailable into the same
-    // generic message. The new code must distinguish at least the
-    // pending case before any catch-all message.
-    const idx = src.indexOf("verification_package_pending");
-    const fallback = src.indexOf(
-      "Verification package is temporarily unavailable",
-    );
-    expect(idx).toBeGreaterThan(-1);
-    expect(fallback).toBeGreaterThan(idx);
+    // A 2xx with no URL is resolved by its bounded code (pending reads 202 →
+    // "still being generated"), and only a 2xx with NO code falls back to
+    // "temporarily unavailable" (503) — the two are never collapsed.
+    const handlerStart = src.indexOf("const downloadVerificationPackage");
+    const handler = src.slice(handlerStart, src.indexOf("\n};", handlerStart));
+    expect(handler).toContain("code: data?.code ?? undefined");
+    expect(handler).toContain("statusCode: data?.code ? 202 : 503");
+    expect(shared).toContain("is still being generated");
+    expect(shared).toContain("temporarily unavailable");
   });
 
   it("does not surface raw storage internals (signed URL / bucket / key) in toast", () => {

@@ -159,13 +159,36 @@ export async function enqueueCanonicalWork(
     };
   }
 
-  const outcome = await enqueueCanonicalJob({
-    queue: queue as unknown as QueueHandleLike,
-    entry,
-    commandId: input.commandId,
-    traceId: input.traceId ?? "",
-    delayMs: input.delayMs,
-    traceparent: currentTraceparent(),
+  /*
+   * A BOUNDED ENQUEUE (2026-10-06). The connection queues commands while Redis
+   * is unreachable, so `queue.add` does not fail during an outage — it never
+   * settles, and the HTTP request that asked for the work hangs with it (proven
+   * on the updated-report journey stack: Confirm received no answer for 120 s
+   * with Redis stopped). The outcome is decided within ENQUEUE_TIMEOUT_MS
+   * instead. Nothing is lost by it: every caller has already persisted its
+   * durable authority row, the job id is derived from that row (a late add, or
+   * the reconciler's re-enqueue, collapses onto the same job), and the caller
+   * reports QUEUE_UNAVAILABLE — "saved, will be picked up" — which is the truth.
+   */
+  const timeoutMs = Math.max(500, Number(process.env.ENQUEUE_TIMEOUT_MS) || 5000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    enqueueCanonicalJob({
+      queue: queue as unknown as QueueHandleLike,
+      entry,
+      commandId: input.commandId,
+      traceId: input.traceId ?? "",
+      delayMs: input.delayMs,
+      traceparent: currentTraceparent(),
+    }),
+    new Promise<EnqueueOutcome>((resolve) => {
+      timer = setTimeout(
+        () => resolve({ enqueued: false, reason: "queue_unavailable:timeout" } as EnqueueOutcome),
+        timeoutMs,
+      );
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
   });
 
   bump(

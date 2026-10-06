@@ -59,12 +59,26 @@ import {
   type ReportPdfSignatureProjection,
   type VerificationPackageSignatureProjection,
   type VerificationPackageSignatureStatus,
+  type OutputActiveRequestView,
+  type OutputOfferEnvelope,
+  type OutputProgressView,
+  type ReportFreshness,
+  projectOutputProgress,
 } from "@proovra/shared";
 import { prisma } from "../db.js";
 import {
   loadEvidenceOutputFacts,
   type NewVersionStorageEstimate,
 } from "./reports/output-recovery.service.js";
+import {
+  buildOutputOfferEnvelope,
+  loadReportableFacts,
+  type ReportableFacts,
+} from "./reports/output-offer.service.js";
+import {
+  listMatchedArtifactVersions,
+  type MatchedArtifactHistory,
+} from "./evidence-review/artifact-history.service.js";
 
 /**
  * Phase A2 — Bounded set of artifact signature status strings the
@@ -212,7 +226,25 @@ export interface EvidenceArtifactStatus {
     };
     /** Poll `/artifacts/status` at this interval while work is live; null = stop. */
     pollIntervalMs: number | null;
+    /**
+     * RGA-02 — the signed offer the caller confirms against. Null when there is
+     * no caller (nothing can be confirmed) or the offer key is unavailable.
+     */
+    offer: OutputOfferEnvelope | null;
+    /** The trust facts the latest report states and their current values (null = not readable now). */
+    trust: Pick<ReportableFacts, "tsa" | "ots"> | null;
+    /** Which recorded facts are newer than the latest report (null = not readable now). */
+    freshness: ReportFreshness | null;
+    /**
+     * The newest durable request and its progress, from persisted columns only.
+     * `recent` is true while it is live or finished in the last 3 minutes.
+     */
+    activeRequest:
+      | (OutputActiveRequestView & { progress: OutputProgressView; recent: boolean })
+      | null;
   };
+  /** Immutable report/package pairs, newest first (null = not readable now). */
+  versions: MatchedArtifactHistory | null;
   report:
     | {
         available: true;
@@ -312,7 +344,7 @@ export async function buildEvidenceArtifactStatus(params: {
   evidenceVerificationPackageMetadata?: prismaPkg.Prisma.JsonValue | null;
 }): Promise<EvidenceArtifactStatus> {
   const { evidenceId } = params;
-  const [latestReport, loadedMap] = await Promise.all([
+  const [latestReport, loadedMap, reportable, versions] = await Promise.all([
     prisma.report.findFirst({
       where: { evidenceId },
       orderBy: { version: "desc" },
@@ -339,6 +371,10 @@ export async function buildEvidenceArtifactStatus(params: {
       callerUserId: params.callerUserId ?? null,
       includeNewVersionEstimate: true,
     }),
+    // Additive projections: a failure to read them degrades to "not known"
+    // (null), never to a failed status read for the outputs above.
+    loadReportableFacts(evidenceId).catch(() => null),
+    listMatchedArtifactVersions(evidenceId).catch(() => null),
   ]);
   const loaded = loadedMap.get(evidenceId);
   if (!loaded) {
@@ -569,6 +605,46 @@ export async function buildEvidenceArtifactStatus(params: {
         }
       : null;
 
+  // RGA-02 — the signed offer. A missing offer key degrades to "no offer"
+  // (every confirmation is then refused by the endpoint), never to a crash.
+  let offer: OutputOfferEnvelope | null = null;
+  if (params.callerUserId && reportable) {
+    try {
+      offer = buildOutputOfferEnvelope(loaded, reportable, params.callerUserId);
+    } catch {
+      offer = null;
+    }
+  }
+
+  // THE DURABLE REQUEST a surface follows: the newest request of any kind.
+  const newest = loaded.packageRequest;
+  const activeRequest = newest
+    ? {
+        requestId: newest.id,
+        intent: newest.intent ?? null,
+        artifactType: newest.artifactType,
+        state: newest.state,
+        stage: newest.stage ?? null,
+        progressStage: newest.progressStage ?? null,
+        targetVersion: newest.reportVersion ?? null,
+        terminalReasonCode: newest.terminalReasonCode ?? null,
+        attemptCount: newest.attemptCount,
+        createdAtUtc: newest.createdAtUtc.toISOString(),
+        updatedAtUtc: newest.updatedAtUtc.toISOString(),
+        completedAtUtc: newest.completedAtUtc?.toISOString() ?? null,
+        progress: projectOutputProgress({
+          state: newest.state,
+          stage: newest.stage ?? null,
+          progressStage: newest.progressStage ?? null,
+          artifactType: newest.artifactType,
+        }),
+        recent:
+          newest.state !== "SUCCEEDED" ||
+          (newest.completedAtUtc != null &&
+            Date.now() - newest.completedAtUtc.getTime() < 3 * 60 * 1000),
+      }
+    : null;
+
   return {
     evidenceId,
     status: params.evidenceStatus,
@@ -581,7 +657,12 @@ export async function buildEvidenceArtifactStatus(params: {
         estimate: loaded.newVersionEstimate,
       },
       pollIntervalMs,
+      offer,
+      trust: reportable ? { tsa: reportable.tsa, ots: reportable.ots } : null,
+      freshness: reportable?.freshness ?? null,
+      activeRequest,
     },
+    versions,
     report: latestReport
       ? {
           available: true,

@@ -99,6 +99,9 @@ import {
   normalizeNewVersionReason,
   validateNewVersionReason,
   newVersionReasonError,
+  // RGA-02 — the change vocabulary of a stale confirmation.
+  outputOfferChangeCopy,
+  type OutputOfferChangeCode,
 } from "@proovra/shared";
 /**
  * THE SAFE SENTENCE FOR EACH GENERATION OUTCOME.
@@ -256,9 +259,35 @@ import { enforceDistinctClientLimit, enforceRateLimit } from "../services/rate-l
 // The same enqueue function the evidence-complete service already uses
 // on first finalize, surfaced as an audited owner-only mutation.
 import {
+  loadEvidenceOutputFacts,
   normalizeGenerationIntent,
   requestOutputRecovery,
 } from "../services/reports/output-recovery.service.js";
+import {
+  buildOutputOfferBinding,
+  checkOutputOffer,
+  loadReportableFacts,
+} from "../services/reports/output-offer.service.js";
+
+/**
+ * RGA-02 — the body of a refused confirmation. `changes` is the bounded
+ * vocabulary; `changeMessages` its sentences. Never a raw server message.
+ */
+function staleOfferBody(refusal: { required: boolean; changes: OutputOfferChangeCode[] }) {
+  return {
+    code: refusal.required ? "OUTPUT_OFFER_REQUIRED" : "OUTPUT_OFFER_STALE",
+    changes: refusal.changes,
+    changeMessages: refusal.changes.map((c) => outputOfferChangeCopy(c)),
+    // Clients read structured error fields from `details` (web apiFetch).
+    details: {
+      changes: refusal.changes,
+      changeMessages: refusal.changes.map((c) => outputOfferChangeCopy(c)),
+    },
+    message: refusal.required
+      ? "Review the current details of this record and confirm again."
+      : "This record changed while the confirmation was open. Review the current details and confirm again.",
+  };
+}
 import {
   appendCustodyEvent,
   evaluateCustodyChain,
@@ -11112,8 +11141,14 @@ if (
         clientRequestKey?: unknown;
         reason?: unknown;
         output?: unknown;
+        offerRevision?: unknown;
       };
       const intent = normalizeGenerationIntent(body.intent);
+      // RGA-02 — the signed offer revision the confirmation was shown (opaque).
+      const offerRevision =
+        typeof body.offerRevision === "string" && body.offerRevision.trim()
+          ? body.offerRevision.trim()
+          : null;
       // The output whose control was used; anything else is ignored.
       const targetOutput =
         body.output === "report" || body.output === "verificationPackage" ? body.output : null;
@@ -11255,6 +11290,53 @@ if (
               select: { id: true },
             })) !== null
           : false;
+      /*
+       * RGA-02 — A STALE CONFIRMATION IS REFUSED BEFORE IT SPENDS ANYTHING.
+       *
+       * An updated report must carry the offer revision its confirmation showed;
+       * any confirmation that carries one is checked. Checked here, before the
+       * rate and concurrency budgets, so a person whose dialog went stale is not
+       * charged an attempt for it — and checked AGAIN inside
+       * requestOutputRecovery, immediately before the durable request is
+       * created, so nothing that moves in between can slip through.
+       */
+      if (!isReplay && (isNewVersion || offerRevision)) {
+        const preLoaded = (
+          await loadEvidenceOutputFacts({
+            evidenceIds: [id],
+            callerUserId: userId,
+            includeNewVersionEstimate: true,
+          })
+        ).get(id);
+        if (preLoaded) {
+          let refusal: { required: boolean; changes: OutputOfferChangeCode[] } | null = null;
+          if (!offerRevision) {
+            refusal = { required: true, changes: ["OFFER_INVALID"] };
+          } else {
+            const reportable = await loadReportableFacts(id);
+            const check = checkOutputOffer(
+              offerRevision,
+              buildOutputOfferBinding(preLoaded, reportable, userId),
+            );
+            if (!check.ok) refusal = { required: false, changes: check.changes };
+          }
+          if (refusal) {
+            auditEvidenceAction(req, {
+              userId,
+              action: "evidence.report.regenerate_requested",
+              outcome: "blocked",
+              resourceId: id,
+              teamId: evidenceRecord.teamId ?? null,
+              metadata: {
+                reason: refusal.required ? "offer_required" : "offer_stale",
+                offerChanges: refusal.changes,
+                requestedIntent: intent ?? null,
+              },
+            });
+            return reply.code(409).send(staleOfferBody(refusal));
+          }
+        }
+      }
       if (!isReplay) {
         const window = readPositiveIntEnv("ARTIFACT_GENERATION_RATE_WINDOW_SEC", 3600);
         const [perUser, perRecord] = await Promise.all([
@@ -11336,6 +11418,8 @@ if (
           purpose: isNewVersion ? "updated_report" : "operator_regenerate",
           targetOutput,
           regenerateReason: isNewVersion ? updatedReportReason : "recovery_requested",
+          offerRevision,
+          requireOffer: isNewVersion,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to request generation.";
@@ -11353,6 +11437,24 @@ if (
 
       if (result.kind === "not_found") {
         return reply.code(404).send({ message: "Evidence not found" });
+      }
+      if (result.kind === "stale_offer") {
+        auditEvidenceAction(req, {
+          userId,
+          action: "evidence.report.regenerate_requested",
+          outcome: "blocked",
+          resourceId: id,
+          teamId: evidenceRecord.teamId ?? null,
+          metadata: {
+            reason: result.required ? "offer_required" : "offer_stale",
+            offerChanges: result.changes,
+            requestedIntent: intent ?? null,
+            stage: "pre_create",
+          },
+        });
+        return reply
+          .code(409)
+          .send(staleOfferBody({ required: result.required === true, changes: result.changes }));
       }
       if (result.kind === "idempotency_key_required") {
         return reply.code(400).send({
@@ -11390,6 +11492,8 @@ if (
           ...(status === 409 ? { code: "OUTPUT_ACTION_UNAVAILABLE" } : {}),
           outcome: result.outcome,
           reason: result.reason,
+          // The bounded reason, where a client reads structured fields (RGA-01).
+          details: { reason: result.reason, outcome: result.outcome },
           message:
             (result.reason && OUTPUT_REASON_MESSAGE[result.reason]) ||
             GENERATION_OUTCOME_MESSAGE[result.outcome],
