@@ -33,8 +33,9 @@
  */
 
 import React from "react";
+import { projectOutputProgress } from "@proovra/shared";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor, act } from "@testing-library/react";
+import { render, waitFor, act, fireEvent } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // Seams
@@ -53,10 +54,28 @@ let reportActionOverride: string | null = null;
 let newVersionActionOverride: string | null = null;
 /** Overrides the report's canonical state (the fixture's own is READY). */
 let reportStateOverride: string | null = null;
+/** The artifact status as a test edits it: the known blocks, plus any field. */
+type StatusDoc = {
+  outputs: { report: Record<string, unknown>; verificationPackage: Record<string, unknown>; [k: string]: unknown };
+  report: Record<string, unknown>;
+  verificationPackage: Record<string, unknown>;
+  [k: string]: unknown;
+};
+/** Rewrites the whole artifact status (review workspace AND /artifacts/status alike). */
+let statusPatch: ((status: StatusDoc) => void) | null = null;
+/** Runs when the updated report is confirmed (the server's state change). */
+let onNewVersionPost: (() => void) | null = null;
+/** The id in the route (the record on screen). */
+let routeEvidenceId = EVIDENCE_ID;
 
 vi.mock("../../lib/api", () => ({
-  apiFetch: async (path: string) => {
-    requestLog.push(path);
+  apiFetch: async (path: string, init?: { method?: string; body?: string }) => {
+    requestLog.push(init?.method === "POST" ? `POST ${path}` : path);
+    if (init?.method === "POST" && path.endsWith("/reports/regenerate")) {
+      const body = JSON.parse(init.body ?? "{}") as { intent?: string };
+      if (body.intent === "NEW_VERSION") onNewVersionPost?.();
+      return { outcome: "ENQUEUED", enqueued: true, requestId: "req-attn-1" };
+    }
     return respond(path);
   },
   readApiToken: () => null,
@@ -77,7 +96,7 @@ vi.mock("../../lib/api/intelligence", async (importOriginal) => ({
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ id: EVIDENCE_ID }),
+  useParams: () => ({ id: routeEvidenceId }),
   useRouter: () => ({ push: () => {}, replace: () => {}, back: () => {} }),
   useSearchParams: () => new URLSearchParams(""),
   usePathname: () => `/evidence/${EVIDENCE_ID}`,
@@ -624,7 +643,13 @@ function respond(path: string): unknown {
     if (reportStateOverride) {
       (w.artifactStatus.outputs.report as unknown as { state: string }).state = reportStateOverride;
     }
+    statusPatch?.(w.artifactStatus as unknown as StatusDoc);
     return w;
+  }
+  if (path.endsWith("/artifacts/status")) {
+    const status = (makeWorkspace() as { artifactStatus: StatusDoc }).artifactStatus;
+    statusPatch?.(status);
+    return status;
   }
   if (path.startsWith("/v1/cases?")) return { items: [] };
   if (path.includes("/reviewer-workflow/events")) return { items: [] };
@@ -1206,6 +1231,9 @@ beforeEach(() => {
   reportActionOverride = null;
   newVersionActionOverride = null;
   reportStateOverride = null;
+  statusPatch = null;
+  onNewVersionPost = null;
+  routeEvidenceId = EVIDENCE_ID;
   resetServiceStatusForTests();
 });
 
@@ -1573,5 +1601,290 @@ describe("service status — Evidence never renders the platform diagnostic pane
     const notice = document.querySelector("[data-service-notice='downloads']");
     expect(notice?.textContent).toMatch(/Downloads are temporarily unavailable/);
     expect(document.querySelector(".evidence-detail-hero [data-service-notice]")).toBeNull();
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// Evidence output attention — ONE value across Overview, the tab, the banner
+// and Artifacts (2026-10-06)
+// ---------------------------------------------------------------------------
+
+describe("evidence output attention — one canonical value across the page", () => {
+  const OFFER = {
+    revision: "ofr1.test.sig",
+    createdAtUtc: "2026-10-06T10:00:00Z",
+    expiresAtUtc: "2099-01-01T00:00:00Z",
+    operation: "NEW_VERSION",
+    targetVersion: 3,
+    reasonRequired: true,
+    creditEffect: { kind: "NONE" },
+    storageEffect: { estimatedBytes: "1000", fitsStorage: true, storageBytesUsed: null, storageBytesLimit: null },
+  };
+  const TRUST = {
+    tsa: { status: "STAMPED", validated: true, validatedAtUtc: "2026-10-06T10:00:00Z", failureCode: null, genTimeUtc: null },
+    ots: { status: "ANCHORED", anchorCheck: "PROOF_STRUCTURE", anchoredAtUtc: "2026-10-06T10:05:00Z" },
+  };
+  const pairOf = (v: number, withPackage = true) => ({
+    reportVersion: v,
+    generatedAtUtc: "2026-07-04T05:23:22Z",
+    sizeBytes: "1000",
+    sha256: "c".repeat(64),
+    immutableRecorded: true,
+    issueKind: v > 1 ? "UPDATED" : null,
+    issueReason: null,
+    latest: true,
+    digestMismatch: false,
+    package: withPackage
+      ? {
+          version: v,
+          generatedAtUtc: "2026-07-04T05:23:22Z",
+          sizeBytes: "2000",
+          sha256: "d".repeat(64),
+          embeddedReportSha256: "c".repeat(64),
+          sealed: true,
+          immutableRecorded: true,
+          pairing: "REPORT_VERSION",
+        }
+      : null,
+  });
+  const fresh = (newer: boolean) => ({
+    reportVersion: 2,
+    reportGeneratedAtUtc: "2026-07-04T05:23:22Z",
+    hasNewerFacts: newer,
+    changes: newer
+      ? [
+          { code: "TSA_VALIDATED_AFTER_REPORT", atUtc: "2026-10-06T10:00:00Z" },
+          { code: "OTS_ANCHORED_AFTER_REPORT", atUtc: "2026-10-06T10:05:00Z" },
+        ]
+      : [],
+  });
+  const activeReq = (state: string, progressStage: string | null) => ({
+    requestId: "req-attn-1",
+    intent: "NEW_VERSION",
+    artifactType: "REPORT",
+    state,
+    stage: null,
+    progressStage,
+    targetVersion: 3,
+    terminalReasonCode: null,
+    attemptCount: 1,
+    createdAtUtc: "2026-10-06T10:10:00Z",
+    updatedAtUtc: "2026-10-06T10:10:05Z",
+    completedAtUtc: state === "SUCCEEDED" ? "2026-10-06T10:11:00Z" : null,
+    recent: true,
+    progress: projectOutputProgress({ state, stage: null, progressStage, artifactType: "REPORT" }),
+  });
+
+  const UPDATE_AVAILABLE = (st: StatusDoc) => {
+    st.outputs.trust = TRUST;
+    st.outputs.freshness = fresh(true);
+    st.outputs.offer = OFFER;
+    st.outputs.newVersion = { action: "CREATE_NEW_VERSION", reason: null, currentVersion: 2, nextVersion: 3, estimate: null };
+    st.outputs.activeRequest = null;
+    st.versions = { versions: [pairOf(2)], unpairedPackages: [] };
+  };
+  const IN_PROGRESS = (st: StatusDoc) => {
+    UPDATE_AVAILABLE(st);
+    st.outputs.offer = null;
+    st.outputs.newVersion = { action: "NONE", reason: "IN_PROGRESS", currentVersion: 2, nextVersion: 3, estimate: null };
+    st.outputs.activeRequest = activeReq("PROCESSING", "RENDERING_REPORT");
+    st.outputs.pollIntervalMs = 40;
+  };
+  const CURRENT_V3 = (st: StatusDoc) => {
+    st.outputs.trust = TRUST;
+    st.outputs.freshness = { ...fresh(false), reportVersion: 3 };
+    st.outputs.offer = null;
+    st.outputs.newVersion = { action: "NONE", reason: "NOT_REQUIRED", currentVersion: 3, nextVersion: 4, estimate: null };
+    st.outputs.report.version = 3;
+    st.outputs.report.latestAvailableVersion = 3;
+    st.outputs.verificationPackage.version = 3;
+    st.outputs.verificationPackage.latestAvailableVersion = 3;
+    st.outputs.activeRequest = activeReq("SUCCEEDED", "VERIFYING_PACKAGE");
+    st.outputs.pollIntervalMs = null;
+    st.report.version = 3;
+    st.verificationPackage.version = 3;
+    st.versions = { versions: [{ ...pairOf(2), latest: false }, pairOf(3)], unpairedPackages: [] };
+  };
+  const PACKAGE_MISSING = (st: StatusDoc) => {
+    st.outputs.trust = TRUST;
+    st.outputs.freshness = fresh(false);
+    st.outputs.verificationPackage = {
+      ...st.outputs.verificationPackage,
+      state: "ELIGIBLE_NOT_GENERATED",
+      action: "RECOVER",
+      actionUnavailableReason: null,
+      operation: "PACKAGE_RECOVERY",
+      availability: "NO_ARTIFACT",
+      version: null,
+      latestAvailableVersion: 1,
+    };
+    st.verificationPackage = { ...st.verificationPackage, available: false, version: null, generatedAtUtc: null };
+    st.versions = { versions: [pairOf(2, false)], unpairedPackages: [] };
+  };
+
+  const card = () => document.querySelector("[data-testid='evidence-outputs-card']") as HTMLElement | null;
+  const artifactsTab = () => document.querySelector("[data-evidence-tab='artifacts']") as HTMLButtonElement;
+  const indicator = () => document.querySelector("[data-testid='artifacts-tab-indicator']");
+  const banner = () => document.querySelector("[data-testid='output-attention-banner']");
+
+  /** Overview card, tab name, tab indicator and banner — read from ONE render. */
+  function surfaces() {
+    return {
+      card: card()?.getAttribute("data-output-attention") ?? null,
+      tabName: artifactsTab().getAttribute("aria-label"),
+      indicator: indicator()?.getAttribute("data-output-attention") ?? null,
+      banner: banner()?.getAttribute("data-output-attention") ?? null,
+    };
+  }
+
+  it("CURRENT: a calm card, no tab indicator, no banner", async () => {
+    statusPatch = (st) => {
+      st.outputs.trust = TRUST;
+      st.outputs.freshness = fresh(false);
+      st.versions = { versions: [pairOf(2)], unpairedPackages: [] };
+    };
+    await mountLoaded("personal");
+    expect(surfaces()).toEqual({ card: "CURRENT", tabName: null, indicator: null, banner: null });
+    expect(card()!.textContent).toMatch(/All generated outputs reflect the latest verified facts./);
+    expect(artifactsTab().textContent?.trim()).toBe("Artifacts");
+  }, 15_000);
+
+  it("UPDATE_AVAILABLE: card + tab agree, no banner, and the Artifacts primary action is the same decision", async () => {
+    statusPatch = UPDATE_AVAILABLE;
+    await mountLoaded("personal");
+    expect(surfaces()).toEqual({
+      card: "UPDATE_AVAILABLE",
+      tabName: "Artifacts — update available",
+      indicator: "UPDATE_AVAILABLE",
+      banner: null,
+    });
+    await act(async () => {
+      artifactsTab().click();
+    });
+    const generate = document.querySelector("[data-testid='evidence-new-version']") as HTMLButtonElement;
+    expect(generate.getAttribute("data-output-attention")).toBe("UPDATE_AVAILABLE");
+    expect(generate.className).toContain("app-primary-action");
+    expect(document.querySelector("[data-testid='truth-freshness']")).not.toBeNull();
+    // Still the same answer on the tab while Artifacts is open.
+    expect(artifactsTab().getAttribute("aria-label")).toBe("Artifacts — update available");
+  }, 15_000);
+
+  it("Generate updated report on Overview opens THE dialog; closing returns focus to the card button", async () => {
+    statusPatch = UPDATE_AVAILABLE;
+    await mountLoaded("personal");
+    const trigger = document.querySelector("[data-testid='evidence-outputs-generate']") as HTMLButtonElement;
+    await act(async () => {
+      trigger.focus();
+      trigger.click();
+    });
+    const dialog = await waitFor(() => {
+      const d = document.querySelector("[data-testid='updated-report-dialog']");
+      expect(d).not.toBeNull();
+      return d as HTMLElement;
+    });
+    expect(dialog.textContent).toMatch(/Generate report v3/);
+    // Only one dialog exists on the page.
+    expect(document.querySelectorAll("[data-testid='updated-report-dialog']")).toHaveLength(1);
+    await act(async () => {
+      fireEvent.keyDown(dialog, { key: "Escape" });
+    });
+    await waitFor(() => expect(document.querySelector("[data-testid='updated-report-dialog']")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  }, 15_000);
+
+  it("UPDATE_AVAILABLE → IN_PROGRESS → CURRENT, every surface following the durable state", async () => {
+    statusPatch = UPDATE_AVAILABLE;
+    // The server's state change on Confirm: the durable request now exists.
+    onNewVersionPost = () => {
+      statusPatch = IN_PROGRESS;
+    };
+    await mountLoaded("personal");
+    await act(async () => {
+      (document.querySelector("[data-testid='evidence-outputs-generate']") as HTMLButtonElement).click();
+    });
+    const reason = await waitFor(() => {
+      const r = document.querySelector("[data-testid='updated-report-reason']") as HTMLTextAreaElement | null;
+      expect(r).not.toBeNull();
+      return r!;
+    });
+    await act(async () => {
+      fireEvent.change(reason, { target: { value: "TSA validated and OTS anchored after v2" } });
+    });
+    const confirm = document.querySelector("[data-testid='updated-report-confirm']") as HTMLButtonElement;
+    await waitFor(() => expect(confirm.disabled).toBe(false));
+    await act(async () => {
+      confirm.click();
+    });
+    // The signed revision travelled with the confirmation.
+    await waitFor(() => expect(requestLog).toContain(`POST /v1/evidence/${EVIDENCE_ID}/reports/regenerate`));
+    await waitFor(() => expect(surfaces().card).toBe("IN_PROGRESS"));
+    expect(surfaces()).toEqual({
+      card: "IN_PROGRESS",
+      tabName: "Artifacts — generation in progress",
+      indicator: "IN_PROGRESS",
+      banner: null,
+    });
+    expect(card()!.textContent).toMatch(/Generating report v3/);
+    // The worker finishes: the page's own poll carries every surface to CURRENT.
+    statusPatch = CURRENT_V3;
+    await waitFor(() => expect(surfaces().card).toBe("CURRENT"), { timeout: 5000 });
+    expect(surfaces()).toEqual({ card: "CURRENT", tabName: null, indicator: null, banner: null });
+    expect(document.querySelector("[data-testid='evidence-outputs-report']")?.textContent).toBe("v3");
+  }, 20_000);
+
+  it("View progress opens Artifacts and focuses the durable progress card", async () => {
+    statusPatch = IN_PROGRESS;
+    await mountLoaded("personal");
+    await act(async () => {
+      (document.querySelector("[data-testid='evidence-outputs-view-progress']") as HTMLButtonElement).click();
+    });
+    expect(artifactsTab().getAttribute("aria-selected")).toBe("true");
+    const progress = document.querySelector("[data-testid='output-progress']");
+    expect(progress).not.toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(progress));
+    // The Overview did not render a second progress implementation.
+    expect(document.querySelectorAll("[data-testid='output-progress']")).toHaveLength(1);
+  }, 15_000);
+
+  it("RECOVERY: card, tab, banner and the Artifacts panel all name the same package recovery; Review lands on it", async () => {
+    statusPatch = PACKAGE_MISSING;
+    await mountLoaded("personal");
+    expect(surfaces()).toEqual({
+      card: "RECOVERY_AVAILABLE",
+      tabName: "Artifacts — action required",
+      indicator: "RECOVERY_AVAILABLE",
+      banner: "RECOVERY_AVAILABLE",
+    });
+    expect(banner()!.textContent).toMatch(/Verification package v2 could not be completed./);
+    expect(document.querySelector("[data-testid='evidence-outputs-recover']")?.textContent).toBe("Recover verification package");
+    await act(async () => {
+      (document.querySelector("[data-testid='output-attention-banner-review']") as HTMLButtonElement).click();
+    });
+    expect(artifactsTab().getAttribute("aria-selected")).toBe("true");
+    const panel = document.querySelector("[data-evidence-section='package-recovery']");
+    expect(panel).not.toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(panel));
+    // The Artifacts panel offers the very verb the card offered.
+    expect(panel!.querySelector("[data-evidence-generate-verb='RECOVER']")?.textContent).toBe("Recover verification package");
+    // The banner stays across tabs while the state holds.
+    expect(banner()).not.toBeNull();
+  }, 15_000);
+
+  it("Recover on the card posts the server's verb through the existing recovery path", async () => {
+    statusPatch = PACKAGE_MISSING;
+    await mountLoaded("personal");
+    await act(async () => {
+      (document.querySelector("[data-testid='evidence-outputs-recover']") as HTMLButtonElement).click();
+    });
+    await waitFor(() => expect(requestLog).toContain(`POST /v1/evidence/${EVIDENCE_ID}/reports/regenerate`));
+  }, 15_000);
+
+  it("a status for another record is never painted on this one", async () => {
+    // The route shows a different record than the one the responses describe
+    // (a late answer for the previous evidence).
+    routeEvidenceId = "ev-convergence-OTHER";
+    statusPatch = PACKAGE_MISSING;
+    await mountLoaded("personal");
+    expect(surfaces()).toEqual({ card: null, tabName: null, indicator: null, banner: null });
   }, 15_000);
 });

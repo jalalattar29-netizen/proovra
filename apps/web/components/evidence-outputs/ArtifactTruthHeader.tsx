@@ -23,7 +23,7 @@ import {
 
 import type { ArtifactActiveRequest, ArtifactTrust, MatchedVersion } from "./artifact-status-types";
 
-function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; tone: "ok" | "warn" | "neutral" } {
+export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; tone: "ok" | "warn" | "neutral" } {
   if (!t) return { label: "Not available", tone: "neutral" };
   const presented = presentedTsaStatus({ tsaStatus: t.status, tsaValidatedAtUtc: t.validatedAtUtc });
   switch ((presented ?? "").toUpperCase()) {
@@ -44,7 +44,7 @@ function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; 
   }
 }
 
-function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: string; tone: "ok" | "warn" | "neutral" } {
+export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: string; tone: "ok" | "warn" | "neutral" } {
   if (!o) return { label: "Not available", tone: "neutral" };
   const claim = resolveOtsAnchorClaim({ status: o.status, anchoredAtUtc: o.anchoredAtUtc, anchorCheck: o.anchorCheck });
   switch (claim) {

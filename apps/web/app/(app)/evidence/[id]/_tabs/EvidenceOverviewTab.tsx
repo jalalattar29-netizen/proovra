@@ -21,6 +21,13 @@
  * for verification posture). Public verification + report/package
  * status remain on the hero (top) + Artifacts tab; no longer
  * re-rendered as Overview tiles.
+ *
+ * Evidence output attention (2026-10-06) — the ONE exception, and it is not a
+ * tile: a compact "Evidence outputs" card renders the page's single
+ * attention value (current / update available / in progress / recovery /
+ * blocked) so a person who never opens Artifacts still learns that newer
+ * verification facts exist or that an output needs action. It carries no
+ * second classifier, progress view or dialog; it links into Artifacts.
  */
 
 "use client";
@@ -38,6 +45,8 @@ import { GovernanceSnapshotPanel } from "../../../../../components/operational";
 import GovernanceIndicators from "../components/GovernanceIndicators";
 import PublicVerifyPublicationPanel from "../components/PublicVerifyPublicationPanel";
 import { EntityChipGroup } from "../../../../../components/intelligence/EntityChipGroup";
+import { EvidenceOutputsCard } from "../../../../../components/evidence-outputs/EvidenceOutputAttention";
+import { formatUserDateTime } from "../../../../../lib/date";
 
 export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const {
@@ -54,10 +63,24 @@ export function EvidenceOverviewTab({ ctx }: { ctx: EvidenceDetailCtx }) {
     overviewMetadataItems,
     openOriginal,
     downloadOriginal,
+    outputAttention,
   } = ctx;
 
   return (
     <>
+      {/* Evidence outputs — a compact summary of the SAME attention value the
+          Artifacts tab indicator and the banner render. The full experience
+          stays on Artifacts; every action here is the canonical one. */}
+      {outputAttention ? (
+        <EvidenceOutputsCard
+          attention={outputAttention}
+          onOpenArtifacts={ctx.openArtifacts}
+          onGenerateUpdatedReport={ctx.openUpdatedReport}
+          onRecover={(action, output) => void ctx.generateOutputs(action, output)}
+          busy={ctx.generateOutputsBusy}
+          formatDateTime={formatUserDateTime}
+        />
+      ) : null}
       {canSeeGovernance ? (
         <>
           <GovernanceSummary variant="evidence" />

@@ -26,7 +26,7 @@ import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
  * (Phase 3) so users see problems BEFORE any tab body renders.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -96,6 +96,11 @@ import { EvidenceTrashConsequence } from "./_tabs/EvidenceTrashConsequence";
 import { EvidenceDiscussionTab } from "./_tabs/EvidenceDiscussionTab";
 import { EvidenceDerivedReviewTab } from "./_tabs/EvidenceDerivedReviewTab";
 import { EvidenceTechnicalAppendixTab } from "./_tabs/EvidenceTechnicalAppendixTab";
+import { WhatNeedsAttentionStrip } from "./_tabs/WhatNeedsAttentionStrip";
+import { UpdatedReportDialogHost } from "./_tabs/UpdatedReportDialogHost";
+import { useArtifactsNavigation } from "./_hooks/useArtifactsNavigation";
+import { deriveEvidenceOutputAttention } from "../../../../components/evidence-outputs/output-attention";
+import { EvidenceOutputAttentionBanner, OutputAttentionTabIndicator, outputAttentionTabName } from "../../../../components/evidence-outputs/EvidenceOutputAttention";
 
 const DETAIL_TABS: Array<{ id: EvidenceDetailTab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
@@ -265,6 +270,8 @@ function EvidenceDetailPageInner() {
    * the client-side baseline so the warning surface stops shouting
    * at users about their own writes.
    */
+  const liveEvidenceId = useRef(evidenceId);
+  liveEvidenceId.current = evidenceId;
   const loadWorkspace = useCallback(async (opts?: { bumpBaseline?: boolean }) => {
     if (!evidenceId) return;
     setLoading(true);
@@ -283,6 +290,7 @@ function EvidenceDetailPageInner() {
           `/v1/cases?eligibleForEvidenceId=${encodeURIComponent(evidenceId)}`,
         ),
       ]);
+      if (liveEvidenceId.current !== evidenceId) return;
       if (workspaceResult.status !== "fulfilled") throw workspaceResult.reason;
       const workspaceData = workspaceResult.value as ReviewWorkspaceResponse;
       setWorkspace(workspaceData);
@@ -359,6 +367,25 @@ function EvidenceDetailPageInner() {
     reloadWorkspace: loadWorkspace,
   });
 
+  // Evidence output attention: ONE value per render, read by the Overview card,
+  // the Artifacts tab indicator, the banner and the Artifacts tab alike.
+  const outputAttention = useMemo(
+    () =>
+      deriveEvidenceOutputAttention({
+        evidenceId,
+        statusEvidenceId: workspace?.evidence.id,
+        status: workspace?.artifactStatus,
+        stalled: stalePending,
+      }),
+    [evidenceId, workspace, stalePending],
+  );
+  const openArtifacts = useArtifactsNavigation({
+    activeTab,
+    setActiveTab,
+    ready: Boolean(workspace),
+    initialFocus: searchParams?.get("focus"),
+  });
+  const [updatedReportOpen, setUpdatedReportOpen] = useState(false);
   const evidence = workspace?.evidence ?? null;
   const workspaceCaps = workspace?.workspaceCapabilitySnapshot ?? null;
 
@@ -1004,6 +1031,9 @@ function EvidenceDetailPageInner() {
     setWorkflowOpen,
     setRelationshipOpen,
     routerPush: (href: string) => router.push(href),
+    outputAttention,
+    openArtifacts,
+    openUpdatedReport: () => setUpdatedReportOpen(true),
   };
 
   return (
@@ -1302,6 +1332,8 @@ function EvidenceDetailPageInner() {
 
         {/* "Is there a problem?" answered above any tab body. Top risk
             signals; hidden when there is nothing to act on. */}
+        <EvidenceOutputAttentionBanner attention={outputAttention} onReview={openArtifacts} />
+
         <WhatNeedsAttentionStrip
           ctx={ctx}
           onAssignCase={() => {
@@ -1309,7 +1341,7 @@ function EvidenceDetailPageInner() {
             setAssignCaseOpen(true);
           }}
           onAssignReviewer={() => setWorkflowOpen(true)}
-          onGoToArtifacts={() => setActiveTab("artifacts")}
+          onGoToArtifacts={() => openArtifacts("recovery")}
           onGoToReview={() => setActiveTab("review")}
         />
 
@@ -1330,6 +1362,7 @@ function EvidenceDetailPageInner() {
               role="tab"
               id={`evidence-tab-${tab.id}`}
               aria-selected={activeTab === tab.id}
+              aria-label={tab.id === "artifacts" ? outputAttentionTabName(tab.label, outputAttention) : undefined}
               aria-controls={`evidence-tabpanel-${tab.id}`}
               tabIndex={activeTab === tab.id ? 0 : -1}
               className={`app-tab ${activeTab === tab.id ? "is-active" : ""}`}
@@ -1361,6 +1394,7 @@ function EvidenceDetailPageInner() {
             >
               <tab.icon size={15} strokeWidth={2.1} aria-hidden="true" />
               {tab.label}
+              {tab.id === "artifacts" ? <OutputAttentionTabIndicator attention={outputAttention} /> : null}
             </button>
           ))}
         </nav>
@@ -1887,153 +1921,7 @@ function EvidenceDetailPageInner() {
       >
         <EvidenceTrashConsequence />
       </PortalModal>
+      <UpdatedReportDialogHost ctx={ctx} open={updatedReportOpen} onClose={() => setUpdatedReportOpen(false)} />
     </div>
-  );
-}
-
-/**
- * Phase 3 — "What needs attention" strip.
- *
- * Compact, action-oriented summary directly below the hero. Surfaces:
- *   - top 3 risk signals (read from the existing buildRiskSignals);
- *   - missing case assignment;
- *   - missing reviewer (workflow status NOT_STARTED or absent);
- *   - missing report (REPORTED status but artifact not available);
- *   - missing verification package (same gate).
- *
- * Renders nothing when there is nothing to act on — avoids visual
- * noise on clean records. Existing buttons / tabs are reachable
- * elsewhere; this strip is the high-altitude "have I done X yet?"
- * surface that users requested.
- */
-function WhatNeedsAttentionStrip({
-  ctx,
-  onAssignCase,
-  onAssignReviewer,
-  onGoToArtifacts,
-  onGoToReview,
-}: {
-  ctx: EvidenceDetailCtx;
-  onAssignCase: () => void;
-  onAssignReviewer: () => void;
-  onGoToArtifacts: () => void;
-  onGoToReview: () => void;
-}) {
-  const { workspace, reviewSignals, canSeeReviewerOps } = ctx;
-
-  const needsCase = !workspace.relationships.caseId && !workspace.relationships.caseName;
-  // Phase EVIDENCE-REVIEW-VISIBILITY — only surface the
-  // "Assign reviewer" prompt when the workspace exposes the
-  // reviewer-ops surface. On a Personal Space / self-serve
-  // context the user IS the reviewer; pestering them to
-  // assign one is misleading.
-  const needsReviewer =
-    canSeeReviewerOps &&
-    (!workspace.reviewWorkflow?.status ||
-      workspace.reviewWorkflow.status === "NOT_STARTED");
-  /*
-   * COMMERCIAL + OUTPUT LIFECYCLE CLOSURE (2026-09-08) — "missing" is a
-   * canonical STATE, not a plan flag beside an absence.
-   *
-   * This combined `reportsIncluded !== false` with `!available`, which said
-   * "the plan allows it and there is no row" — so a Free record was excluded
-   * only because the plan flag caught it, and every OTHER absence, including
-   * one that is queued right now or one that terminally failed, read the same.
-   * A reviewer summary is exactly where those must differ.
-   */
-  const missingReport =
-    workspace.artifactStatus.outputs.report.state === "ELIGIBLE_NOT_GENERATED";
-  const missingPackage =
-    workspace.artifactStatus.outputs.verificationPackage.state ===
-    "ELIGIBLE_NOT_GENERATED";
-
-  const topRisks = reviewSignals.slice(0, 3);
-
-  const hasAnything =
-    needsCase ||
-    needsReviewer ||
-    missingReport ||
-    missingPackage ||
-    topRisks.length > 0;
-  if (!hasAnything) return null;
-
-  return (
-    <section className="evidence-detail-attention" data-evidence-attention-strip>
-      <strong className="evidence-detail-attention__title">
-        What needs attention
-      </strong>
-      <div className="evidence-detail-attention__items">
-        {topRisks.map((s) => (
-          <span
-            key={`${s.title}-${s.detail}`}
-            className={`evidence-detail-pill ${
-              s.severity === "danger"
-                ? "danger"
-                : s.severity === "warning"
-                  ? "warning"
-                  : // Phase EVIDENCE-RISK-TONE — "info" and "neutral"
-                    // both render with the muted pill class so advisory
-                    // notes don't shout from the attention strip.
-                    "neutral"
-            }`}
-            data-evidence-attention-risk
-            data-evidence-attention-risk-severity={s.severity}
-            title={s.detail}
-          >
-            {s.title}
-          </span>
-        ))}
-        {needsCase ? (
-          <button
-            type="button"
-            data-evidence-attention-action="assign-case"
-            onClick={onAssignCase}
-            className="evidence-detail-attention__action"
-          >
-            No case assigned · Assign
-          </button>
-        ) : null}
-        {needsReviewer ? (
-          <button
-            type="button"
-            data-evidence-attention-action="assign-reviewer"
-            onClick={onAssignReviewer}
-            className="evidence-detail-attention__action"
-          >
-            Review not started · Start
-          </button>
-        ) : null}
-        {missingReport ? (
-          <button
-            type="button"
-            data-evidence-attention-action="missing-report"
-            onClick={onGoToArtifacts}
-            className="evidence-detail-attention__action"
-          >
-            Report not available · Artifacts
-          </button>
-        ) : null}
-        {missingPackage ? (
-          <button
-            type="button"
-            data-evidence-attention-action="missing-package"
-            onClick={onGoToArtifacts}
-            className="evidence-detail-attention__action"
-          >
-            Verification package not available · Artifacts
-          </button>
-        ) : null}
-      </div>
-      {topRisks.length === 0 && !needsCase && !needsReviewer ? (
-        <button
-          type="button"
-          className="evidence-detail-attention__action"
-          data-evidence-attention-action="open-review"
-          onClick={onGoToReview}
-        >
-          Open review workspace
-        </button>
-      ) : null}
-    </section>
   );
 }

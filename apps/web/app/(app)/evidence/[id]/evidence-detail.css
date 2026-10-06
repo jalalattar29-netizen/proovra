@@ -5532,7 +5532,9 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .rga-dialog-overlay,
 .rga-truth,
 .rga-progress,
-.rga-history {
+.rga-history,
+.rga-attention,
+.rga-tab-indicator {
   --rga-ink: var(--app-ink-heading, #172033);
   --rga-ink-2: var(--app-ink-secondary, #667085);
   --rga-label: var(--app-ink-label, #344054);
@@ -5551,7 +5553,8 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 [data-theme="dark"] .rga-dialog-overlay,
 [data-theme="dark"] .rga-truth,
 [data-theme="dark"] .rga-progress,
-[data-theme="dark"] .rga-history {
+[data-theme="dark"] .rga-history,
+[data-theme="dark"] .rga-attention {
   --rga-ink: #e6eaf2;
   --rga-ink-2: #a9b2c3;
   --rga-label: #cfd6e3;
@@ -5566,6 +5569,15 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   --rga-warn-soft: rgba(182, 95, 24, 0.18);
   --rga-bad: #ff9b8f;
   --rga-bad-soft: rgba(180, 35, 24, 0.2);
+}
+/* Under the dark hook the section surface is the scoped token. The global
+   translucent surface these sections otherwise read is light-only, so light
+   ink sat on a near-white card (measured illegible, 2026-10-06). */
+[data-theme="dark"] .rga-truth,
+[data-theme="dark"] .rga-progress,
+[data-theme="dark"] .rga-history,
+[data-theme="dark"] .rga-attention {
+  background: var(--rga-surface);
 }
 
 
@@ -5886,4 +5898,103 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   .rga-progress *,
   .rga-history *,
   .rga-dialog * { transition: none !important; animation: none !important; }
+}
+
+/* ==========================================================================
+   EVIDENCE OUTPUT ATTENTION (2026-10-06) — the Overview "Evidence outputs"
+   card and the Artifacts tab indicator. Both render the page's single
+   attention value; the page-level banner reuses .evidence-detail-record-banner.
+   Same scoped tokens as the Artifacts & Versions surfaces, logical properties
+   (RTL mirrors), status never by colour alone (badge text / icon shape), and
+   nothing animates.
+   ========================================================================== */
+.rga-attention {
+  display: grid;
+  gap: 12px;
+  min-inline-size: 0;
+  margin-block-end: 16px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-translucent-border-strong, var(--rga-line));
+  border-inline-start-width: 4px;
+  background: var(--surface-translucent-outer, var(--rga-surface));
+  color: var(--rga-ink);
+}
+.rga-attention[data-tone="ok"] { border-inline-start-color: var(--rga-ok); }
+.rga-attention[data-tone="info"],
+.rga-attention[data-tone="progress"] { border-inline-start-color: var(--rga-accent); }
+.rga-attention[data-tone="warn"] { border-inline-start-color: var(--rga-warn); }
+.rga-attention[data-tone="bad"] { border-inline-start-color: var(--rga-bad); }
+.rga-attention__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  min-inline-size: 0;
+}
+.rga-attention__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 650;
+  color: var(--rga-ink);
+}
+.rga-attention__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+.rga-attention__badge[data-tone="ok"] { border-color: var(--rga-ok); color: var(--rga-ok); background: var(--rga-ok-soft); }
+.rga-attention__badge[data-tone="info"],
+.rga-attention__badge[data-tone="progress"] { border-color: var(--rga-accent); color: var(--rga-accent); background: var(--rga-accent-soft); }
+.rga-attention__badge[data-tone="warn"] { border-color: var(--rga-warn); color: var(--rga-warn); background: var(--rga-warn-soft); }
+.rga-attention__badge[data-tone="bad"] { border-color: var(--rga-bad); color: var(--rga-bad); background: var(--rga-bad-soft); }
+.rga-attention__body { display: grid; gap: 6px; min-inline-size: 0; }
+.rga-attention__lead { margin: 0; font-size: 14.5px; line-height: 22px; font-weight: 650; color: var(--rga-ink); overflow-wrap: anywhere; }
+.rga-attention__text { margin: 0; font-size: 14px; line-height: 21px; color: var(--rga-ink-2); overflow-wrap: anywhere; }
+.rga-attention__list {
+  margin: 0;
+  padding-inline-start: 18px;
+  list-style: disc;
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--rga-ink);
+}
+.rga-attention__list li { overflow-wrap: anywhere; }
+.rga-attention__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+.rga-attention__fact { min-inline-size: 0; }
+.rga-attention__fact dt { font-size: 12px; line-height: 18px; color: var(--rga-ink-2); }
+.rga-attention__fact dd { margin: 0; font-size: 14px; line-height: 21px; font-weight: 600; color: var(--rga-ink); overflow-wrap: anywhere; }
+.rga-attention__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.rga-attention__actions > * { max-inline-size: 100%; }
+@media (max-width: 480px) {
+  .rga-attention { padding: 16px; }
+  .rga-attention__actions > button { flex: 1 1 100%; }
+}
+
+.rga-tab-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+  margin-inline-start: 2px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.rga-tab-indicator[data-tone="info"],
+.rga-tab-indicator[data-tone="progress"] { color: var(--rga-accent); background: var(--rga-accent-soft); }
+.rga-tab-indicator[data-tone="warn"] { color: var(--rga-warn); background: var(--rga-warn-soft); }
+.rga-tab-indicator[data-tone="bad"] { color: var(--rga-bad); background: var(--rga-bad-soft); }
+@media (forced-colors: active) {
+  .rga-tab-indicator { forced-color-adjust: auto; border-color: CanvasText; }
 }

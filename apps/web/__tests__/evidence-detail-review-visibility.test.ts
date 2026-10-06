@@ -36,6 +36,8 @@ function src(rel: string): string {
 }
 
 const PAGE = src("page.tsx");
+// The attention strip lives in its own file; the page renders it.
+const STRIP = src("_tabs/WhatNeedsAttentionStrip.tsx");
 const LIB = src("_tabs/_lib.tsx");
 const REVIEW = src("_tabs/EvidenceReviewTab.tsx");
 const CSS = src("evidence-detail.css");
@@ -156,7 +158,7 @@ test("Fix 2 — WhatNeedsAttentionStrip only flags needsReviewer when canSeeRevi
   // Start" chip that opens an enterprise modal the user cannot
   // meaningfully use.
   assert.match(
-    PAGE,
+    STRIP,
     /const needsReviewer\s*=\s*\n?\s*canSeeReviewerOps\s*&&\s*\n?\s*\(!workspace\.reviewWorkflow\?\.status/,
   );
 });
@@ -230,12 +232,12 @@ test("Fix 3 — WhatNeedsAttentionStrip pills route neutral + info to the muted 
   // AND info go to the muted pill explicitly, and an unknown
   // severity does not default to the red "danger" pill.
   assert.match(
-    PAGE,
+    STRIP,
     /s\.severity === "danger"[\s\S]{0,80}"danger"[\s\S]{0,200}s\.severity === "warning"[\s\S]{0,80}"warning"[\s\S]{0,200}"neutral"/,
   );
   // Severity is also surfaced via data-attribute for tests +
   // analytics.
-  assert.match(PAGE, /data-evidence-attention-risk-severity=\{s\.severity\}/);
+  assert.match(STRIP, /data-evidence-attention-risk-severity=\{s\.severity\}/);
 });
 
 test("Fix 3 — backend reviewerAlerts severity is normalized through buildRiskSignals", () => {

@@ -29,7 +29,6 @@
 
 "use client";
 
-import { useState } from "react";
 import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
 import {
   NEW_VERSION_ACTION,
@@ -39,12 +38,9 @@ import {
 } from "@proovra/shared";
 import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
 import type { EvidenceOutputProjection } from "../review-workspace-types";
-import { apiFetch } from "../../../../../lib/api";
 import { ArtifactTruthHeader } from "../../../../../components/evidence-outputs/ArtifactTruthHeader";
 import { MatchedVersionHistory } from "../../../../../components/evidence-outputs/MatchedVersionHistory";
 import { OutputProgressCard } from "../../../../../components/evidence-outputs/OutputProgressCard";
-import { UpdatedReportDialog } from "../../../../../components/evidence-outputs/UpdatedReportDialog";
-import type { ArtifactOutputsExtras } from "../../../../../components/evidence-outputs/artifact-status-types";
 import { formatUserDateTime } from "../../../../../lib/date";
 import { ArtifactHistorySection } from "../components/ArtifactHistorySection";
 import { RuntimeStatusBanner } from "../../../../../components/operational";
@@ -652,12 +648,11 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
   const active = outputs.activeRequest ?? null;
   const progressShown = Boolean(active && active.recent);
   const newVersionOffered = outputs.newVersion?.action === NEW_VERSION_ACTION;
-  const [updatedReportOpen, setUpdatedReportOpen] = useState(false);
-  const openUpdatedReport = () => setUpdatedReportOpen(true);
-  const loadStatus = async () =>
-    (await apiFetch(`/v1/evidence/${evidenceId}/artifacts/status`)) as {
-      outputs?: ArtifactOutputsExtras | null;
-    };
+  // The ONE dialog, mounted by the page and shared with the Overview card.
+  const openUpdatedReport = ctx.openUpdatedReport;
+  // The SAME attention value the Overview card, the tab indicator and the
+  // banner render — this tab does not classify freshness on its own.
+  const attention = ctx.outputAttention;
 
   // The one control the SERVER offers for the record now, beside a failure.
   const recoveryAction =
@@ -676,13 +671,15 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
       {newVersionOffered ? (
         <button
           type="button"
-          // Primary only when newer verification facts exist; an optional
-          // re-issue of a current report is a secondary action.
-          className={outputs.freshness?.hasNewerFacts ? "app-primary-action" : "app-secondary-action"}
+          // Primary only when the attention is UPDATE_AVAILABLE (newer
+          // verification facts); an optional re-issue of a current report is a
+          // secondary action.
+          className={attention?.state === "UPDATE_AVAILABLE" ? "app-primary-action" : "app-secondary-action"}
           onClick={openUpdatedReport}
           disabled={ctx.generateOutputsBusy}
           data-testid="evidence-new-version"
           data-evidence-action="generate-updated-report"
+          data-output-attention={attention?.state ?? ""}
         >
           Generate updated report
         </button>
@@ -944,22 +941,6 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         </div>
       </section>
 
-      <UpdatedReportDialog
-        open={updatedReportOpen}
-        onClose={() => setUpdatedReportOpen(false)}
-        initial={{
-          newVersion: outputs.newVersion ?? null,
-          offer: outputs.offer ?? null,
-          freshness: outputs.freshness ?? null,
-        }}
-        loadStatus={loadStatus}
-        submit={ctx.createNewVersion}
-        // ACCEPTED, NOT COMPLETE: the durable progress card (re-read here)
-        // carries the request from "Request accepted" to its terminal state.
-        onAccepted={() => {
-          void loadWorkspace();
-        }}
-      />
     </>
   );
 }

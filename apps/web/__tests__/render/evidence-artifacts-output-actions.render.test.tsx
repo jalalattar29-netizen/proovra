@@ -43,6 +43,8 @@ vi.mock("../../components/governance/GovernedExportAction", () => ({
 }));
 
 import { EvidenceArtifactsTab } from "../../app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab";
+import { UpdatedReportDialogHost } from "../../app/(app)/evidence/[id]/_tabs/UpdatedReportDialogHost";
+import { deriveEvidenceOutputAttention, type OutputAttentionStatus } from "../../components/evidence-outputs/output-attention";
 import type { EvidenceDetailCtx } from "../../app/(app)/evidence/[id]/_tabs/_lib";
 import { ConfirmActionProvider } from "../../components/ui/ConfirmActionModal";
 import { ToastProvider } from "../../components/ui";
@@ -141,11 +143,34 @@ function mount(ws: ReturnType<typeof workspace>) {
     // its own outcomes through the app toast — present on every real page.
     <ToastProvider>
       <ConfirmActionProvider>
-        <EvidenceArtifactsTab ctx={ctx} />
+        <PageHarness ctx={ctx} />
       </ConfirmActionProvider>
     </ToastProvider>,
   );
   return { ...view, calls };
+}
+
+/**
+ * What the page provides around the tab: the ONE updated-report dialog mount
+ * (opened through ctx.openUpdatedReport) and the attention value it derives.
+ */
+function PageHarness({ ctx }: { ctx: EvidenceDetailCtx }) {
+  const [open, setOpen] = React.useState(false);
+  const full = {
+    ...ctx,
+    outputAttention: deriveEvidenceOutputAttention({
+      evidenceId: ctx.evidenceId,
+      status: ctx.workspace.artifactStatus as unknown as OutputAttentionStatus,
+    }),
+    openArtifacts: () => {},
+    openUpdatedReport: () => setOpen(true),
+  } as EvidenceDetailCtx;
+  return (
+    <>
+      <EvidenceArtifactsTab ctx={full} />
+      <UpdatedReportDialogHost ctx={full} open={open} onClose={() => setOpen(false)} />
+    </>
+  );
 }
 
 const NOT_REQUIRED: Out = { state: "READY", action: "NONE", actionUnavailableReason: "NOT_REQUIRED", version: 3, latestAvailableVersion: 3 };

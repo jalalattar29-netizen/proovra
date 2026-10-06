@@ -71,3 +71,21 @@ no clipped action at 320 px, tablet, desktop and the 125 % / 200 % zoom-equivale
 widths, pseudo-localised long strings in RTL (logical layout mirrors), legible
 under a dark OS preference and under the surface's dark token hook (a 1.4:1
 dialog title found and fixed), no backdrop motion under reduced motion.
+
+## Evidence output attention (Overview, tab, banner, Artifacts)
+
+One value — `deriveEvidenceOutputAttention` in
+`apps/web/components/evidence-outputs/output-attention.ts` — derived once per
+render from the artifact status the page already holds. The Overview
+"Evidence outputs" card, the Artifacts tab's accessible name and indicator,
+the page-level banner and the Artifacts tab's primary action all read it.
+Precedence: BLOCKED > RECOVERY_AVAILABLE > IN_PROGRESS > UPDATE_AVAILABLE >
+CURRENT (NOT_AVAILABLE when no output is owed). The banner is raised only for
+action-required / critical states, never for an optional updated report.
+
+`attention/`: the real components server-rendered for every state from the
+real derivation, styled by the production build's CSS, captured headless —
+desktop, 320 px (no horizontal overflow, no clipped control), RTL with
+pseudo-localised long strings, and the dark token hook (card text 8.3:1 and
+above; the section surface now flips with the hook — it previously stayed
+light under light ink).

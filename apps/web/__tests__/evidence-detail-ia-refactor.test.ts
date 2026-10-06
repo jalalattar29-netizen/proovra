@@ -47,6 +47,8 @@ function readFile(rel: string): string {
 }
 
 const PAGE = readFile("page.tsx");
+// The attention strip lives in its own file; the page renders it.
+const STRIP = readFile("_tabs/WhatNeedsAttentionStrip.tsx");
 const LIB = readFile("_tabs/_lib.tsx");
 const OVERVIEW = readFile("_tabs/EvidenceOverviewTab.tsx");
 const INTEGRITY = readFile("_tabs/EvidenceIntegrityTab.tsx");
@@ -233,18 +235,18 @@ test("Phase 2 — Custody renders the grouped-by-day default with raw expander",
 
 test("Phase 3 — orchestrator renders WhatNeedsAttentionStrip directly below the hero", () => {
   assert.match(PAGE, /<WhatNeedsAttentionStrip/);
-  assert.match(PAGE, /data-evidence-attention-strip/);
+  assert.match(STRIP, /data-evidence-attention-strip/);
   // Strip surfaces concrete actions
-  assert.match(PAGE, /data-evidence-attention-action="assign-case"/);
-  assert.match(PAGE, /data-evidence-attention-action="assign-reviewer"/);
-  assert.match(PAGE, /data-evidence-attention-action="missing-report"/);
-  assert.match(PAGE, /data-evidence-attention-action="missing-package"/);
+  assert.match(STRIP, /data-evidence-attention-action="assign-case"/);
+  assert.match(STRIP, /data-evidence-attention-action="assign-reviewer"/);
+  assert.match(STRIP, /data-evidence-attention-action="missing-report"/);
+  assert.match(STRIP, /data-evidence-attention-action="missing-package"/);
 });
 
 test("Phase 3 — risk signals from buildRiskSignals feed the attention strip", () => {
   // The strip slices the same array the sidebar renders, so any
   // existing alert source is honored.
-  assert.match(PAGE, /reviewSignals\.slice\(0, ?3\)/);
+  assert.match(STRIP, /reviewSignals\.slice\(0, ?3\)/);
 });
 
 // ---------------------------------------------------------------------------

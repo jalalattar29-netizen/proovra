@@ -16,6 +16,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { NewVersionSubmitResult } from "../../../../../components/evidence-outputs/artifact-status-types";
+import type {
+  ArtifactsFocusTarget,
+  EvidenceOutputAttention,
+} from "../../../../../components/evidence-outputs/output-attention";
 import {
   Archive,
   CircleCheck,
@@ -162,6 +166,14 @@ export type EvidenceDetailCtx = {
 
   // Router
   routerPush: (href: string) => void;
+
+  // Evidence output attention — ONE value per render (null while the status
+  // is unknown or belongs to another record), read by every output surface.
+  outputAttention: EvidenceOutputAttention | null;
+  /** Open Artifacts and focus the named section (the one navigation helper). */
+  openArtifacts: (focus?: ArtifactsFocusTarget) => void;
+  /** Open the ONE canonical updated-report dialog (mounted by the page). */
+  openUpdatedReport: () => void;
 };
 
 // ---------------------------------------------------------------------------
