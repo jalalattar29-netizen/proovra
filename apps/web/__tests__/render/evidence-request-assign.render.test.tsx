@@ -15,7 +15,10 @@ vi.mock("../../components/navigation/OperationalBreadcrumb", () => ({ Operationa
 vi.mock("../../components/notifications/ContextualDeliveryStatus", () => ({ ContextualDeliveryStatus: () => null }));
 vi.mock("../../components/hidden-feature-panels/HiddenFeaturePanels", () => ({
   EvidenceRequestEventsTab: () => {
-    React.useEffect(() => { mocks.eventsMounts += 1; }, []);
+    // Counted in the COMMIT (layout effect), not a passive effect: the remount
+    // commits together with the announcement text, and a passive effect may
+    // flush after `findByText` has already resolved under load.
+    React.useLayoutEffect(() => { mocks.eventsMounts += 1; }, []);
     return null;
   },
 }));
