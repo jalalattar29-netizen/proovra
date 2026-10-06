@@ -3,10 +3,10 @@
 /**
  * CREATE A NEW VERSION — the one web workflow, for every surface that offers it.
  *
- * Optional and secondary (D2): it lives behind an overflow menu, because a
- * record whose report and verification package are complete needs nothing,
- * and a new version is never the default next step. It is shown only when the
- * server's `outputs.newVersion.action` is CREATE_NEW_VERSION.
+ * It is a DIRECT, visible action (Phase 5.2) — not hidden in a one-item overflow
+ * menu — because the updated report is the only lifecycle step a complete record
+ * can still take. It is shown only when the server's `outputs.newVersion.action`
+ * is CREATE_NEW_VERSION, so it never appears on a record that needs nothing.
  *
  * The confirmation states, before anything happens (D6): the current and next
  * version, what is rebuilt, that older versions are kept, the server's storage
@@ -20,7 +20,6 @@
  */
 
 import { useRef } from "react";
-import { MoreHorizontal } from "lucide-react";
 import {
   formatEstimatedBytes,
   makeClientRequestKey,
@@ -35,7 +34,6 @@ import {
   type NewVersionAction,
   type OutputActionUnavailableReason,
 } from "@proovra/shared";
-import { AppRowMenu } from "../app-primitives/AppRowMenu";
 import { useConfirmAction } from "../ui/ConfirmActionModal";
 
 export type NewVersionOffer = {
@@ -213,22 +211,23 @@ export function NewVersionMenu({
     if (result === "answered") pendingKey.current = null;
   };
 
+  // RGA / Phase 5.2 — a DIRECT, visible lifecycle action. The updated report is
+  // the only thing a complete record can still do, so it must not hide inside a
+  // one-item overflow menu. `menuLabel`/`dataPrefix` are retained on the props for
+  // backward compatibility; the control is now a labelled button.
+  void menuLabel;
+  void dataPrefix;
   return (
-    <AppRowMenu
-      actions={[
-        {
-          key: "create-new-version",
-          label: `${NEW_VERSION_LABEL}…`,
-          onSelect: () => void open(),
-          disabled: busy,
-          pending: busy,
-        },
-      ]}
-      label={menuLabel}
-      dataPrefix={dataPrefix}
-      testId={testId}
-      triggerLabel="More"
-      icon={<MoreHorizontal size={16} strokeWidth={2} aria-hidden="true" />}
-    />
+    <button
+      type="button"
+      className="app-secondary-action"
+      data-testid={testId}
+      data-evidence-action="generate-updated-report"
+      onClick={() => void open()}
+      disabled={busy}
+      aria-busy={busy || undefined}
+    >
+      {busy ? "Working…" : "Generate updated report"}
+    </button>
   );
 }

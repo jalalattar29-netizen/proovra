@@ -118,10 +118,11 @@ const OFFER = {
 } as const;
 
 async function openModal() {
-  await act(async () => fireEvent.click(screen.getByTestId("evidence-new-version")));
-  // Click the single "Issue updated report…" menu item.
-  const item = await screen.findByText(/issue updated report/i);
-  await act(async () => fireEvent.click(item));
+  // RGA / Phase 5.2 — the action is now a direct, visible button (no overflow menu).
+  const btn = screen.getByTestId("evidence-new-version");
+  expect(btn.tagName).toBe("BUTTON");
+  expect(btn.textContent).toMatch(/generate updated report/i);
+  await act(async () => fireEvent.click(btn));
 }
 
 async function enterReasonAndConfirm() {
