@@ -13,9 +13,10 @@
  *   3. clicking it builds ONLY the package: the report stays version 1, the
  *      recovered ZIP embeds the stored report BYTE FOR BYTE, and the record's
  *      timestamp token is untouched;
- *   4. with the pair complete, recovery disappears and "Create new version"
- *      appears behind the overflow menu, confirmed with versions and an
- *      estimate; confirming produces version 2 while version 1 stays;
+ *   4. with the pair complete, recovery disappears and "Generate updated
+ *      report" opens a dialog bound to the server's signed offer, with the
+ *      versions, effects and a required reason; confirming produces version 2
+ *      while version 1 stays;
  *   5. another workspace learns nothing (404 on read and on the action).
  */
 
@@ -182,15 +183,16 @@ test.describe("artifact recovery — the real stack", () => {
     await expect(page.getByText(/Regenerate/)).toHaveCount(0);
 
     await recover.click();
-    // The click turns the panel into progress: it says the report is not
-    // changed while the package is rebuilt ...
-    const inFlight = page.locator('[data-evidence-section="package-recovery-in-flight"]');
-    await expect(inFlight.or(page.locator('[data-evidence-section="package-recovery"]'))).toBeVisible();
+    // The click turns the panel into the DURABLE progress card for the package
+    // recovery (report steps are not needed) ...
+    const progress = page.getByTestId("output-progress");
+    await expect(progress).toBeVisible({ timeout: 30_000 });
     await expect(panel).toHaveCount(0, { timeout: 30_000 });
-    // ... and the page's own polling (no reload) clears BOTH once the worker
-    // has published the package. The missing panel alone would be satisfied
-    // by the in-flight state, which is not completion.
-    await expect(inFlight).toHaveCount(0, { timeout: 240_000 });
+    // ... and the page's own polling (no reload) carries it to completion once
+    // the worker has published the package. "Accepted" is not completion: only
+    // the persisted SUCCEEDED state is.
+    await expect(progress).toHaveAttribute("data-output-progress-outcome", "SUCCEEDED", { timeout: 240_000 });
+    await expect(progress.locator('[data-step="GENERATING_REPORT"]')).toHaveAttribute("data-step-status", "skipped");
     await expect(panel).toHaveCount(0);
 
     const s = await status(A, evidenceId);
@@ -215,36 +217,41 @@ test.describe("artifact recovery — the real stack", () => {
     expect(req).toMatchObject({ artifact_type: "VERIFICATION_PACKAGE", report_version: 1, intent: "RECOVER", state: "SUCCEEDED" });
   });
 
-  test("with the pair complete, Create new version is behind the overflow, confirmed, and keeps version 1", async ({ page }) => {
+  test("with the pair complete, Generate updated report confirms against the signed offer and keeps version 1", async ({ page }) => {
     test.setTimeout(300_000);
     await signIn(page, A.email);
     await openArtifacts(page, evidenceId);
     await expect(page.locator('[data-evidence-action="generate-outputs"]')).toHaveCount(0);
 
     await page.getByTestId("evidence-new-version").click();
-    await page.locator('[data-evidence-output-row-action="create-new-version"]').click();
-    // An updated report is an explicit, reasoned issuance (2026-09-29): the
-    // confirmation says nothing needs recovering, names the version it
-    // issues alongside version 1, and requires a reason that the issued
-    // report records.
-    const dialog = page.locator("[data-confirm-action-modal]");
-    await expect(dialog).toContainText("Issue updated report (version 2)?");
-    await expect(dialog).toContainText("Nothing needs recovering");
-    await expect(dialog).toContainText("Issues report version 2, dated today, and its verification package, alongside version 1.");
-    await expect(dialog).toContainText("Earlier versions are kept unchanged");
-    await expect(dialog).toContainText("Estimated additional storage");
+    // An updated report is an explicit, reasoned issuance: the dialog names the
+    // version it issues beside version 1, states the effects from the server's
+    // offer, and requires a reason that the issued report records.
+    const dialog = page.getByTestId("updated-report-dialog");
+    await expect(dialog).toContainText("Generate report v2");
+    await expect(dialog.getByTestId("updated-report-current")).toHaveText("v1");
+    await expect(dialog).toContainText("Report v1 and its verification package stay exactly as they are and remain downloadable.");
+    await expect(dialog).toContainText("A matching verification package v2 will certify report v2.");
+    await expect(dialog.getByTestId("updated-report-credit")).toHaveText("No evidence credit is used.");
     const reason = "document the anchor confirmed after the first report";
-    await dialog.locator("[data-new-version-reason]").fill(reason);
-    await dialog.locator('[data-confirm-action-submit="true"]').click();
+    await dialog.getByTestId("updated-report-reason").fill(reason);
+    const [sent] = await Promise.all([
+      page.waitForRequest((r) => r.url().includes("/reports/regenerate") && r.method() === "POST"),
+      dialog.getByTestId("updated-report-confirm").click(),
+    ]);
+    expect(JSON.parse(sent.postData() ?? "{}").offerRevision).toMatch(/^ofr1\./);
 
-    await expect(page.locator('[data-evidence-section="reports-new-version-in-flight"]')).toContainText("Creating version 2", { timeout: 30_000 });
+    const progress = page.getByTestId("output-progress");
+    await expect(progress).toBeVisible({ timeout: 30_000 });
     await expect
       .poll(async () => {
         const s = await status(A, evidenceId);
         return `${s.outputs.report.version}/${s.outputs.verificationPackage.version}/${s.outputs.pollIntervalMs}`;
       }, { timeout: 240_000, intervals: [2000] })
       .toBe("2/2/null");
-    await expect(page.locator('[data-evidence-section="reports-new-version-in-flight"]')).toHaveCount(0, { timeout: 30_000 });
+    await expect(progress).toHaveAttribute("data-output-progress-outcome", "SUCCEEDED", { timeout: 30_000 });
+    await expect(page.getByTestId("pair-2")).toHaveAttribute("data-pair-latest", "true", { timeout: 30_000 });
+    await expect(page.getByTestId("pair-1")).toHaveAttribute("data-pair-package-version", "1");
 
     // Version 1 is kept and still downloadable.
     const v1 = await download(A.token, `/v1/evidence/${evidenceId}/reports/1`);

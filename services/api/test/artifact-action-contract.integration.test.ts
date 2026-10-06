@@ -135,7 +135,7 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
       },
     });
   }
-  async function pkg(evidenceId: string, version: number) {
+  async function pkg(evidenceId: string, version: number, opts: { legacyUnpaired?: boolean } = {}) {
     await prisma.verificationPackage.create({
       data: {
         evidenceId,
@@ -144,7 +144,11 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
         storageKey: `verification/${evidenceId}/v${version}.zip`,
         generatedAtUtc: new Date(),
         sizeBytes: 9_000n,
-        reportVersion: version,
+        // RGA-05: a package naming a report version must have that report row
+        // (FK, RESTRICT). A legacy row written before report_version existed
+        // carries NULL and is the only shape a "package with no report" can
+        // still take.
+        reportVersion: opts.legacyUnpaired ? null : version,
       },
     });
   }
@@ -173,13 +177,31 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
 
   const get = (token: string, url: string) =>
     harness.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
-  const post = (token: string, id: string, body: Record<string, unknown> = {}, headers: Record<string, string> = {}) =>
-    harness.app.inject({
+  /*
+   * RGA-02 — an updated report confirms against the SIGNED offer the caller is
+   * shown. This helper reads it with the same token immediately before the post
+   * (what a client dialog does), so every case below keeps asserting what it
+   * always asserted; the offer contract itself is proven in
+   * output-offer-confirm-revalidation.integration.test.ts.
+   */
+  const post = async (token: string, id: string, body: Record<string, unknown> = {}, headers: Record<string, string> = {}) => {
+    let payload = body;
+    if (body.intent === "NEW_VERSION" && !("offerRevision" in body)) {
+      const st = await harness.app.inject({
+        method: "GET",
+        url: `/v1/evidence/${id}/artifacts/status`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const revision = st.statusCode === 200 ? (st.json() as { outputs?: { offer?: { revision?: string } | null } }).outputs?.offer?.revision : undefined;
+      if (revision) payload = { ...body, offerRevision: revision };
+    }
+    return harness.app.inject({
       method: "POST",
       url: `/v1/evidence/${id}/reports/regenerate`,
       headers: { authorization: `Bearer ${token}`, ...headers },
-      payload: body,
+      payload,
     });
+  };
   async function status(id: string, token = A().ownerToken): Promise<Status> {
     const res = await get(token, `/v1/evidence/${id}/artifacts/status`);
     expect(res.statusCode, res.body).toBe(200);
@@ -309,23 +331,28 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     expect(s.verificationPackage).toMatchObject({ available: true, version: 1 });
   });
 
-  it("K — a newer attempt exhausted beside a READY report: disclosed, escalated, no dead button, no new version", async () => {
+  it("K — a newer attempt exhausted beside a READY report: disclosed beside the report, and (RGA-07) the updated report is NOT locked out", async () => {
     const id = await evidence();
     await report(id, 1, new Date(Date.now() - 60_000));
     await pkg(id, 1);
     await request(id, "FAILED_TERMINAL", { forceRegenerate: true, terminalReasonCode: "retry_budget_exhausted" });
     const s = await status(id);
+    // The dead attempt is still disclosed on the report — no dead Retry button.
     expect(s.outputs.report).toMatchObject({ state: "READY", action: "NONE", actionUnavailableReason: "ESCALATED_TO_OPERATOR" });
-    expect(s.outputs.newVersion).toMatchObject({ action: "NONE", reason: "ESCALATED_TO_OPERATOR" });
+    // TERMINAL-LOCKOUT CLOSURE (RGA-07): a SETTLED TECHNICAL terminal no longer
+    // withholds the updated report; confirming starts a fresh request identity
+    // beside the dead row (bounded by MAX_TERMINAL_SUPERSESSIONS).
+    expect(s.outputs.newVersion).toMatchObject({ action: "CREATE_NEW_VERSION", nextVersion: 2 });
     expect(s.report.available).toBe(true);
     const res = await post(A().ownerToken, id, { intent: "NEW_VERSION", reason: REASON }, { "idempotency-key": `k-${randomUUID()}` });
-    expect(res.statusCode).toBe(409);
-    expect(res.json()).toMatchObject({ reason: "ESCALATED_TO_OPERATOR" });
+    expect(res.statusCode, res.body).toBe(202);
+    expect(res.json()).toMatchObject({ operation: "NEW_VERSION" });
+    expect(await requestCount(id)).toBe(2);
   });
 
   it("B — a package with no report is a consistency case for review, not a regeneration", async () => {
     const id = await evidence();
-    await pkg(id, 1);
+    await pkg(id, 1, { legacyUnpaired: true });
     const s = await status(id);
     expect(s.outputs.report).toMatchObject({ action: "NONE", actionUnavailableReason: "CONSISTENCY_REVIEW_REQUIRED" });
     expect(s.outputs.verificationPackage.action).toBe("NONE");

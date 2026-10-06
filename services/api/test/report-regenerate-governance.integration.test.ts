@@ -92,13 +92,25 @@ describe("report regeneration governance (live PostgreSQL 16, real HTTP)", () =>
     return id;
   }
 
-  const newVersion = (id: string) =>
-    h.app.inject({
+  // RGA-02 — an updated report confirms against the signed offer the caller is
+  // shown; read it first, exactly as a client dialog does.
+  const newVersion = async (id: string) => {
+    const st = await h.app.inject({
+      method: "GET",
+      url: `/v1/evidence/${id}/artifacts/status`,
+      headers: { authorization: `Bearer ${A().ownerToken}` },
+    });
+    const revision =
+      st.statusCode === 200
+        ? (st.json() as { outputs?: { offer?: { revision?: string } | null } }).outputs?.offer?.revision
+        : undefined;
+    return h.app.inject({
       method: "POST",
       url: `/v1/evidence/${id}/reports/regenerate`,
       headers: { authorization: `Bearer ${A().ownerToken}`, "idempotency-key": `gov-${randomUUID()}` },
-      payload: { intent: "NEW_VERSION", reason: "Document the later anchor" },
+      payload: { intent: "NEW_VERSION", reason: "Document the later anchor", ...(revision ? { offerRevision: revision } : {}) },
     });
+  };
   const requests = (id: string) => prisma.reportGenerationRequest.count({ where: { evidenceId: id } });
 
   it("review required before a report: an updated version is refused 403 with the policy reason and creates nothing", async () => {
