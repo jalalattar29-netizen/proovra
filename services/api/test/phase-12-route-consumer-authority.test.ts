@@ -20,12 +20,12 @@
  *                        the gate that stays green while the work is finished.
  *
  *   ClassificationClosure — zero undisposed routes. This is NOT asserted green
- *                        here, because it is not green: 225 routes with no
- *                        product consumer still carry no reviewed disposition.
- *                        It is carried as an OPEN row in the canonical ledger
- *                        (FINAL-001) and by the generator's own exit code, so
- *                        the open work is visible in exactly one place instead
- *                        of being quietly absorbed into a passing suite.
+ *                        here. Routes with no product consumer and no reviewed
+ *                        disposition are measured live (`UndisposedRoutes`, the
+ *                        audit engine's ArchitectureBacklog) and by the
+ *                        generator's own exit code, so the open work is visible
+ *                        in exactly one place instead of being quietly absorbed
+ *                        into a passing suite.
  *
  * Conflating those three is how a ratchet with an unresolved baseline comes to
  * look like a closed classification.

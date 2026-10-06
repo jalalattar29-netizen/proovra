@@ -13834,8 +13834,7 @@ model CollaborationTeamActivity {
 // All 7 tables added in Phase 7 are STRICTLY ADDITIVE alongside the
 // Phase 5 collaboration_team* tables. They never alter an existing
 // column, never replace the existing `Team` or `User` tables, and
-// never require a data migration on existing rows. See
-// docs/architecture/phase-7-collaboration-completion-final.md.
+// never require a data migration on existing rows.
 // =============================================================================
 
 model CollaborationTeamComment {

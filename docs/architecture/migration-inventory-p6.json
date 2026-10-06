@@ -15931,7 +15931,7 @@
       "rollbackDisposition": "ROLL_FORWARD ONLY — a table drop is not reversible. Take a backup first.",
       "releaseWave": "CONTRACT_DROP_LATER",
       "ownerAction": "Apply in Release D only, after the observation window.",
-      "removalCondition": "Zero runtime readers of workspace_persona_profiles (proven by the static resurrection guard) AND zero dependent foreign keys / views (proven at apply time by 20270923500000). Product-approved physical deletion, docs/operations/audit-closure-ledger.md.",
+      "removalCondition": "Zero runtime readers of workspace_persona_profiles (proven by the static resurrection guard) AND zero dependent foreign keys / views (proven at apply time by 20270923500000). Product-approved physical deletion.",
       "evidence": "Drops workspace_persona_profiles. The persona / workflow-personalization / operational-density family is a UX-only feature (it never granted a capability) that was physically deleted repo-wide on 2026-07-20; zero runtime readers remain, proven by the resurrection guard in services/api/test. The file itself is unguarded and tracked in git, so its bytes are frozen; the executable guard lives in 20270923500000_persona_profiles_removal_precondition, which sorts immediately before it and aborts the deployment before the DROP is reached."
     },
     {
@@ -21711,7 +21711,7 @@
       "releaseWave": "SAFE_TO_APPLY_NOW",
       "ownerAction": null,
       "removalCondition": null,
-      "evidence": "BILLING STORAGE ATTEMPTS (2026-09-27, curated 2026-09-28). Adds the enum value ABANDONED to WorkspaceStorageAddonStatus with ALTER TYPE ... ADD VALUE IF NOT EXISTS; no row is rewritten. EXPAND / SAFE_TO_APPLY_NOW for the schema itself. Rolling-deploy caveat recorded in docs/audits/proovra-billing-incident-audit-2026-09-28.md: once any row holds ABANDONED, an API instance built from a Prisma client older than this migration cannot deserialize that row, so old instances must be drained before the abandon action is exposed. It shipped in e9efd55 without an inventory record, which is why the Point 6 / DB-010 / Point 8 gates were red at that commit."
+      "evidence": "BILLING STORAGE ATTEMPTS (2026-09-27, curated 2026-09-28). Adds the enum value ABANDONED to WorkspaceStorageAddonStatus with ALTER TYPE ... ADD VALUE IF NOT EXISTS; no row is rewritten. EXPAND / SAFE_TO_APPLY_NOW for the schema itself. Rolling-deploy caveat: once any row holds ABANDONED, an API instance built from a Prisma client older than this migration cannot deserialize that row, so old instances must be drained before the abandon action is exposed. It shipped in e9efd55 without an inventory record, which is why the Point 6 / DB-010 / Point 8 gates were red at that commit."
     },
     {
       "name": "20280700000000_billing_checkout_attempts",

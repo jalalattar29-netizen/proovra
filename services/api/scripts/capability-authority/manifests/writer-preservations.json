@@ -90,7 +90,7 @@
       "classification": "FALSE_DOCBLOCK_OR_STALE_PROMISE",
       "evidence": "Its docblock described 'a recipient hits the verify endpoint with a signed token'. There is no verify endpoint. The exchange lifecycle stops at DOWNLOADED — the routes are record-delivery, download, revoke, accept-transfer and complete-transfer — and the token verifier such an endpoint would need, verifySignedManifestToken in the same module, has no caller either. The v1 entry cited two tests as asserting on it; both are vi.mock stubs that return {ok:true} so an unrelated module mock is shape-complete.",
       "removedFrom": "services/api/src/services/exchange/signed-delivery.service.ts",
-      "alsoFixed": "The VERIFIED rung was removed from the delivery state ladder in listDeliveryActivity. It was derived from verifiedAtUtc, which this was the only writer of, so the operator console carried a lifecycle state no delivery could reach. PHASE_4B_PRODUCT_PACKAGING_AND_LIFECYCLE_FINAL_REPORT.md claimed 'every transition is mirrored ... via emitTransferVerificationEvent'; the transitions it names call emitTransferCustodyEvents, and that sentence has been corrected in place rather than left to be read as a description of behaviour.",
+      "alsoFixed": "The VERIFIED rung was removed from the delivery state ladder in listDeliveryActivity. It was derived from verifiedAtUtc, which this was the only writer of, so the operator console carried a lifecycle state no delivery could reach. The delivery transitions call emitTransferCustodyEvents, not this helper.",
       "backlogRecordedIn": "services/api/scripts/capability-authority/manifests/writer-preservations.json",
       "reviewedAtUtc": "2026-08-17"
     },
@@ -114,7 +114,7 @@
       "wiredAt": "services/api/src/services/intelligence/extraction.service.ts",
       "wiredSymbol": "indexEvidenceText",
       "integration": "runExtractionInline, on the COMPLETED EvidenceExtractedText write — the moment derived OCR/transcript text first exists, alongside the two consumers already triggered there (keyword re-index, entity extraction). Gated on teamId, on SEMANTIC_SEARCH_ENABLED (chunk text is a second copy of derived content and a deployment with semantic search off should not be storing one), and inside indexEvidenceText on the workspace AI policy before anything is sent to a provider.",
-      "alsoFixed": "docs/architecture/phase-16-semantic-search-activation-final.md claimed the media-intelligence processor 'inherits the new behaviour automatically because it calls indexEvidenceText'. It did not call it. That row now names the real hook.",
+      "alsoFixed": "The media-intelligence processor does not call indexEvidenceText; its real indexing hook is the one named here.",
       "reviewedAtUtc": "2026-08-17"
     },
     {

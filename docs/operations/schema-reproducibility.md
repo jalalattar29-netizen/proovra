@@ -108,8 +108,7 @@ several later migrations cover the contents of the 3 files in
 These files are kept on disk **as historical artifacts only**. Do
 not apply them by hand on a new environment. Do not modify them.
 
-They will be moved to `docs/recovery/archive/drift-patches/` in a
-future tidy-up commit (Phase 0+).
+They may be deleted in a future tidy-up commit; git history keeps them.
 
 ---
 
@@ -274,10 +273,9 @@ remain on the roadmap. They do not affect clean-DB reproducibility:
   These are accessed via `$queryRaw` in the application; they are
   created by migrations and validated at startup. Adding Prisma
   models for them would give the application typed access.
-* **Move historical drift-patches** from
-  `services/api/sql/drift-patches/` and `services/api/prisma/sql/`
-  to `docs/recovery/archive/drift-patches/`. Their contents are now
-  in migrations; the files are kept only for historical audit.
+* **Remove historical drift-patches** from
+  `services/api/sql/drift-patches/` and `services/api/prisma/sql/`.
+  Their contents are now in migrations; git history keeps them.
 * **Phase 1 — Forensic trust closure** (sign custody events, verify
   evidence signatures at read time, demote SIGNED evidence on TSA
   failure). Tracked in the runtime audit report.

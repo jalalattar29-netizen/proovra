@@ -36,9 +36,10 @@
  * matter are the ones a person can actually provoke, and the report ranks by
  * that rather than by count.
  *
- * Usage:  node tools/error-surface-inventory.mjs [--json] [--check]
+ * Usage:  node tools/error-surface-inventory.mjs [--json]
+ *   --json prints the full measurement to stdout; nothing is written to the tree.
  */
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -311,8 +312,6 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   );
 
   if (process.argv.includes("--json")) {
-    const out = join(REPO, "docs/architecture/error-surface-inventory.json");
-    writeFileSync(out, `${JSON.stringify({ counts, rows }, null, 2)}\n`);
-    console.log(`wrote ${rel(out)}`);
+    process.stdout.write(`${JSON.stringify({ counts, rows }, null, 2)}\n`);
   }
 }

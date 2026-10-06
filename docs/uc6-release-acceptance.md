@@ -265,8 +265,7 @@ opt-in behind `OPERATIONS_LAYOUT=1`), and it had been failing since
 ## D. ERROR AND REJECTION UX — WHAT WAS MEASURED
 
 `tools/error-surface-inventory.mjs` reads three inventories out of the tree
-and writes `docs/architecture/error-surface-inventory.json`. Nothing in it is
-hand-maintained.
+(`--json` prints the full measurement). Nothing in it is hand-maintained.
 
 ### Reachability — the denominator a coverage claim may honestly use
 

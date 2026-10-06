@@ -6,7 +6,7 @@
     ],
     "registeringFile": "services/api/src/routes/runtime-readiness.routes.ts:212",
     "class": "INTENTIONALLY_API_ONLY",
-    "consumer": "SRE curl probes (docs/phase-28f-runtime-readiness.md:173)",
+    "consumer": "SRE curl probes",
     "authMode": "requireAuth + requirePlatformAdmin",
     "evidence": "documented SRE operator probe (runbooks); no apps/web or apps/mobile call site",
     "proofSuite": "services/api/test/production-phase-o-stream-c-route-fixes.test.ts",

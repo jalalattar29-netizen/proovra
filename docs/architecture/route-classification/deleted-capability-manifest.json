@@ -1172,7 +1172,7 @@
       "DEAD_LEGACY_ROUTE": 0,
       "MISSING_PRODUCT_CONSUMER_backlog": 131
     },
-    "note": "No deletion met SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY at the required bar (full server-behavior parity unproven even for web-consumed twins); a coding agent may not self-authorize APPROVED_PRODUCT_SCOPE_REMOVAL. Every route+service restored from HEAD. Preserved-but-unwired capabilities tracked as MISSING_PRODUCT_CONSUMER (slice-e.json). Route count may decrease again ONLY when preservation is proven. See CAPABILITY-AUDIT-RESOLUTION.md.",
+    "note": "No deletion met SUPERSEDED_WITH_FULL_BEHAVIORAL_PARITY at the required bar (full server-behavior parity unproven even for web-consumed twins); a coding agent may not self-authorize APPROVED_PRODUCT_SCOPE_REMOVAL. Every route+service restored from HEAD. Preserved-but-unwired capabilities tracked as MISSING_PRODUCT_CONSUMER (slice-e.json). Route count may decrease again ONLY when preservation is proven.",
     "tscErrors": 0,
     "apiSuite": {
       "passed": 18238,
