@@ -157,11 +157,11 @@ const REQUEST_SELECT = {
   createdAtUtc: true,
   completedAtUtc: true,
   reportVersion: true,
-  forceRegenerate: true,
   stage: true,
   progressStage: true,
   intent: true,
   updatedAtUtc: true,
+  forceRegenerate: true,
 } as const;
 
 function toRequestFact(

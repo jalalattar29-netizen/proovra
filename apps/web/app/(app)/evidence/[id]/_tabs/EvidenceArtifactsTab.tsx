@@ -693,6 +693,10 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           className="app-secondary-action"
           onClick={() => void ctx.downloadReportVersion(latestPair.reportVersion)}
           data-testid="truth-download-report"
+          // The stable download hook the full-stack specs read (it lived on the
+          // retired per-family card's "Download latest" button).
+          data-evidence-artifact-download="report"
+          data-evidence-artifact-downloadable="true"
         >
           Download Report PDF v{latestPair.reportVersion}
         </button>
@@ -703,6 +707,8 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           className="app-secondary-action"
           onClick={() => void ctx.downloadVerificationPackageVersion(latestPair.package!.version)}
           data-testid="truth-download-package"
+          data-evidence-artifact-download="package"
+          data-evidence-artifact-downloadable="true"
         >
           Download Verification Package ZIP v{latestPair.package.version}
         </button>
