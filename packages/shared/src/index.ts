@@ -358,6 +358,52 @@ export type {
   DownloadFailureSeverity,
   DownloadFailureAction,
 } from "./download-failure.js";
+
+// RGA-01/02 + Artifacts & Versions — the offer revision, reportable-fact
+// freshness, durable progress and the ONE typed operation-error authority.
+export {
+  OUTPUT_OFFER_TTL_MS,
+  OUTPUT_OFFER_OPERATIONS,
+  OUTPUT_OFFER_BINDING_FIELDS,
+  OUTPUT_OFFER_CHANGE_CODES,
+  canonicalizeOutputOfferBinding,
+  diffOutputOfferBindings,
+  outputOfferChangeCopy,
+  REPORTABLE_CUSTODY_EVENT_TYPES,
+  REPORT_FRESHNESS_CHANGE_CODES,
+  deriveReportFreshness,
+  reportFreshnessChangeCopy,
+  OUTPUT_PROGRESS_STAGES,
+  OUTPUT_PROGRESS_STEPS,
+  OUTPUT_PROGRESS_STEP_LABEL,
+  projectOutputProgress,
+  OUTPUT_OPERATION_ERROR_KEYS,
+  OUTPUT_OPERATION_ERRORS,
+  outputOperationError,
+  outputOperationErrorForReason,
+  outputOperationErrorForTerminal,
+  resolveOutputOperationError,
+} from "./output-offer.js";
+export type {
+  OutputOfferOperation,
+  OutputOfferBinding,
+  OutputOfferChangeCode,
+  OutputOfferEnvelope,
+  ReportFreshnessChangeCode,
+  ReportFreshnessChange,
+  ReportFreshness,
+  ReportFreshnessInput,
+  OutputProgressStage,
+  OutputProgressStep,
+  OutputProgressStepStatus,
+  OutputProgressOutcome,
+  OutputProgressView,
+  OutputProgressInput,
+  OutputActiveRequestView,
+  OutputOperationErrorKey,
+  OutputOperationErrorAction,
+  OutputOperationError,
+} from "./output-offer.js";
 export type { OutputKind } from "./output-action-copy.js";
 export type {
   OutputCommercialEligibility,

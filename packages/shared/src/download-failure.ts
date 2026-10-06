@@ -49,6 +49,8 @@ function noun(kind: ArtifactKind): string {
 export function resolveArtifactDownloadFailure(
   kind: ArtifactKind,
   error: unknown,
+  /** The specific version requested (history downloads), when one was. */
+  context?: { version?: number | null },
 ): ArtifactDownloadFailure | null {
   const e = (error ?? {}) as ErrorShape;
   const status = typeof e.statusCode === "number" ? e.statusCode : undefined;
@@ -58,13 +60,48 @@ export function resolveArtifactDownloadFailure(
 
   // ---- Bounded codes (precedence over status) -----------------------------
   if (code === "report_artifact_missing" || code === "verification_package_artifact_missing") {
+    // An issued version is immutable: its missing file is never re-generated
+    // in place. It is an integrity matter for support, not a recovery verb.
     return {
-      message: `The ${n} record exists, but its stored file is unavailable. Recover it to restore the file.`,
+      message: `The ${n} record exists, but its stored file is unavailable. Contact support; nothing has been changed.`,
       severity: "warning",
       retryable: false,
-      action: "RECOVER",
+      action: "NONE",
       report: false,
     };
+  }
+  /*
+   * THE PACKAGE ENDPOINT'S OWN BOUNDED CODES (RGA-04 completion). Evidence
+   * Detail carried a private switch over these; every surface reads them here.
+   * Some arrive on a 2xx body (`{ code }` with no URL), some on an error.
+   */
+  switch (code) {
+    case "verification_package_pending":
+      return { message: "The verification package is still being generated. It will be available shortly.", severity: "info", retryable: true, action: "REFRESH", report: false };
+    case "verification_package_blocked":
+    case "PACKAGE_BLOCKED_BY_POLICY":
+      return { message: "Downloading this verification package is blocked by workspace policy.", severity: "info", retryable: false, action: "NONE", report: false };
+    case "verification_package_unavailable":
+      return { message: "This verification package is unavailable in this workspace context.", severity: "info", retryable: false, action: "NONE", report: false };
+    case "verification_package_not_included":
+      return { message: "Verification packages are not included for this evidence record.", severity: "info", retryable: false, action: "NONE", report: false };
+    case "verification_package_not_found":
+    case "verification_package_not_generated":
+      return { message: "No verification package has been generated for this record yet.", severity: "info", retryable: false, action: "NONE", report: false };
+    case "verification_package_generation_failed":
+      return { message: "The last attempt to build the verification package failed. The evidence record and its integrity state are unaffected.", severity: "warning", retryable: false, action: "RECOVER", report: false };
+    case "verification_package_generation_stopped":
+      return { message: "The verification package could not be produced for this record and generation has stopped.", severity: "warning", retryable: false, action: "NONE", report: false };
+    case "REPORT_VERSION_NOT_FOUND":
+    case "report_version_not_found":
+    case "VERIFICATION_PACKAGE_VERSION_NOT_FOUND":
+    case "verification_package_version_not_found":
+      return { message: `The requested ${n} version does not exist for this record.`, severity: "info", retryable: false, action: "REFRESH", report: false };
+    case "STORAGE_UNAVAILABLE":
+    case "storage_unavailable":
+      return { message: `The ${n} storage is temporarily unavailable. Retry shortly.`, severity: "info", retryable: true, action: "RETRY", report: false };
+    default:
+      break;
   }
   if (code === "GOVERNANCE_CHECK_FAILED" || code === "governance_schema_unavailable") {
     return {
@@ -113,6 +150,15 @@ export function resolveArtifactDownloadFailure(
         report: false,
       };
     case 404:
+      if (context?.version != null) {
+        return {
+          message: `${Noun} v${context.version} is not available for this record.`,
+          severity: "info",
+          retryable: false,
+          action: "REFRESH",
+          report: false,
+        };
+      }
       return {
         message:
           kind === "report"
