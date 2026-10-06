@@ -22,6 +22,8 @@
  */
 
 import { toSafeUserError } from "../../lib/feedback/toSafeUserError";
+// RGA-04 — the ONE shared download-failure authority (same vocabulary as Evidence Detail).
+import { describeArtifactDownloadFailure } from "../../lib/evidence/report-download-feedback";
 // RELIABILITY CLOSURE (2026-09-09) — the canonical action label and the one
 // reader of the typed generation outcome, shared with Evidence Detail.
 import {
@@ -1187,24 +1189,8 @@ function ArtifactRowActions({
         setError("Report URL is unavailable.");
       }
     } catch (err) {
-      const e = err as { statusCode?: number; code?: string; message?: string };
-      if (e.statusCode === 202) {
-        setError("Report is still generating. Try again in a moment.");
-      } else if (e.code === "report_artifact_missing" || e.statusCode === 410) {
-        setError(
-          "The report record exists, but the stored PDF is missing. Use recovery or contact an operator.",
-        );
-      } else if (e.statusCode === 403) {
-        setError(
-          e.message || "This report download is blocked by workspace policy.",
-        );
-      } else if (e.statusCode === 409) {
-        setError(
-          toSafeUserError(e, { message: "Report download blocked by workspace policy." }).message,
-        );
-      } else {
-        setError(toSafeUserError(e, { message: "Could not start download." }).message);
-      }
+      // RGA-04 — one shared vocabulary for report download failures.
+      setError(describeArtifactDownloadFailure("report", err).message);
     } finally {
       setBusy(null);
     }
@@ -1229,25 +1215,8 @@ function ArtifactRowActions({
         setError("Package URL is unavailable.");
       }
     } catch (err) {
-      const e = err as { statusCode?: number; code?: string; message?: string };
-      if (e.statusCode === 202) {
-        setError("Package is still generating. Try again in a moment.");
-      } else if (
-        e.code === "verification_package_artifact_missing" ||
-        e.statusCode === 410
-      ) {
-        setError(
-          "The package record exists, but the stored ZIP is missing. Use recovery or contact an operator.",
-        );
-      } else if (e.statusCode === 403) {
-        setError(
-          e.message || "This package download is blocked by workspace policy.",
-        );
-      } else if (e.statusCode === 409) {
-        setError(toSafeUserError(e, { message: "Package blocked by workspace policy." }).message);
-      } else {
-        setError(toSafeUserError(e, { message: "Could not start download." }).message);
-      }
+      // RGA-04 — one shared vocabulary for package download failures.
+      setError(describeArtifactDownloadFailure("verificationPackage", err).message);
     } finally {
       setBusy(null);
     }

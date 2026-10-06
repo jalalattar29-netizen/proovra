@@ -22,7 +22,12 @@
  * Pure: no React, no react-native, no fetch.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
-import { outputNoteShort, outputTerminalReasonCopy } from "@proovra/shared";
+import {
+  outputNoteShort,
+  outputTerminalReasonCopy,
+  // RGA-04 — native consumes the SAME shared download-failure authority as web.
+  resolveArtifactDownloadFailure,
+} from "@proovra/shared";
 import type { NewVersionOfferView } from "./evidence-record";
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -494,19 +499,13 @@ export function isPackageRetrievable(row: ArtifactRow): boolean {
 
 /** The web's per-row download failures, by status (ReportsIndex.tsx:950-1010). */
 export function reportDownloadError(status: number | null, safeMessage: string | null): string {
-  if (status === 202) return "Report is still generating. Try again in a moment.";
-  if (status === 410) return "The report record exists, but the stored PDF is missing. Use recovery or contact an operator.";
-  if (status === 403) return "You don't have permission to download this report.";
-  if (status === 409) return safeMessage ?? "Report download blocked by workspace policy.";
-  return safeMessage ?? "Could not start download.";
+  const r = resolveArtifactDownloadFailure("report", { statusCode: status ?? undefined });
+  return r ? r.message : safeMessage ?? "Could not start download.";
 }
 
 export function packageDownloadError(status: number | null, safeMessage: string | null): string {
-  if (status === 202) return "Package is still generating. Try again in a moment.";
-  if (status === 410) return "The package record exists, but the stored ZIP is missing. Use recovery or contact an operator.";
-  if (status === 403) return "You don't have permission to download this package.";
-  if (status === 409) return safeMessage ?? "Package blocked by workspace policy.";
-  return safeMessage ?? "Could not start download.";
+  const r = resolveArtifactDownloadFailure("verificationPackage", { statusCode: status ?? undefined });
+  return r ? r.message : safeMessage ?? "Could not start download.";
 }
 
 /** The package endpoint's 200 answer without a URL (ReportsIndex.tsx:990-996). */
