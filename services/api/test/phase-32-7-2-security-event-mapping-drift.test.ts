@@ -1410,6 +1410,10 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       "20281001000700_retention_backfill_direct_capture",
       // INTERNAL PLAN GRANT (2026-10-02) — one new table + enum (plan_grants), EXPAND only.
       "20281002000000_internal_plan_grants",
+      // UPDATED-REPORT CLOSURE (2026-10-06) — RGA-05 package->report pairing FK
+      // (fail-closed preflight) and two nullable progress columns. EXPAND only.
+      "20281003000000_verification_package_report_pair_fk",
+      "20281004000000_report_request_progress_stage",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

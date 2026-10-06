@@ -65,12 +65,22 @@ describe("internal-grant rollout — read-only by construction", () => {
 });
 
 describe("internal-grant rollout — migration state", () => {
-  it("the release is the newest nine TIMESTAMPED migrations on disk, in order", () => {
+  it("the release is nine CONSECUTIVE timestamped migrations, and every later one belongs to a NAMED later release", () => {
     // `email_password_auth` is a historical, un-timestamped directory that
     // sorts last by name; it is not part of this release (readiness treats it
     // as unrelated-pending if a database has never applied it).
     const timestamped = onDisk.filter((m) => /^\d{14}_/.test(m));
-    expect(timestamped.slice(-ROLLOUT_MIGRATIONS.length)).toEqual([...ROLLOUT_MIGRATIONS]);
+    const end = timestamped.indexOf(ROLLOUT_MIGRATIONS[ROLLOUT_MIGRATIONS.length - 1]!);
+    expect(end).toBeGreaterThan(0);
+    expect(timestamped.slice(end - ROLLOUT_MIGRATIONS.length + 1, end + 1)).toEqual([...ROLLOUT_MIGRATIONS]);
+    // A migration added after this release must be named here by its release,
+    // so nothing can slip in between unclassified.
+    const LATER_RELEASES = [
+      // Updated-report / recovery closure (RGA-05 pairing FK, durable progress).
+      "20281003000000_verification_package_report_pair_fk",
+      "20281004000000_report_request_progress_stage",
+    ];
+    expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });
 
   it("pre: READY when exactly this release is pending", () => {

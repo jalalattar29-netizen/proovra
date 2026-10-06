@@ -14731,6 +14731,12 @@ model ReportGenerationRequest {
   reportVersion    Int?    @map("report_version")
   /// Last durable boundary reached: REPORT_COMMITTED, PACKAGE_PUBLISHED.
   stage            String? @db.VarChar(32)
+  /// Durable DISPLAY step a running request reached (RENDERING_REPORT,
+  /// VERIFYING_REPORT, BUILDING_PACKAGE, VERIFYING_PACKAGE). Separate from
+  /// `stage`, which fences version reservation. A failed request keeps the step
+  /// it failed at. Written under the claim fence; never read for decisions.
+  progressStage    String?   @map("progress_stage") @db.VarChar(32)
+  progressAtUtc    DateTime? @map("progress_at_utc") @db.Timestamptz(6)
   /// What was asked for: GENERATE, RECOVER, RETRY, NEW_VERSION, OPERATOR_SUPERSEDE.
   intent           String? @db.VarChar(24)
   /// Caller idempotency key for an explicit new version (lost-response replay).

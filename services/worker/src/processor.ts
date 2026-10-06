@@ -154,6 +154,7 @@ import {
   markRequestRetryable,
   markRequestTerminal,
   claimFenceWhere,
+  recordRequestProgress,
   ReportClaimLost,
   mintRequestForLegacyJob,
   resolveAndClaimReportRequest,
@@ -3900,6 +3901,8 @@ async function runReportGeneration(
          * captured from the provisional number at prep time.
          */
         prepared.identitySnapshot.reviewerSummaryVersion = reservedVersion;
+        // DURABLE PROGRESS — the version is reserved; rendering begins.
+        await recordRequestProgress(command, "RENDERING_REPORT");
 
         // ---- B. RENDER + PUBLISH (no transaction) --------------------------
         const lockedEvidence = await prisma.evidence.findFirst({
@@ -4119,6 +4122,8 @@ async function runReportGeneration(
         const finalizedReportDigest = createHash("sha256").update(finalizedReportPdf).digest();
         const finalizedReportSha256 = finalizedReportDigest.toString("hex");
 
+        // DURABLE PROGRESS — rendered; publishing + reading back the stored PDF.
+        await recordRequestProgress(command, "VERIFYING_REPORT");
         const publishedReport = await publishImmutableArtifact({
           bucket: env.S3_BUCKET,
           key: buildPublicationKey({
@@ -4529,6 +4534,9 @@ async function runReportGeneration(
         );
       })();
 
+    // DURABLE PROGRESS — the report is committed (or already existed, for a
+    // package-only run); the verification package is built next.
+    if (!finalized.skipped) await recordRequestProgress(command, "BUILDING_PACKAGE");
     let finalizedVerificationStaged: StagedPackage | null = null;
     let finalizedVerificationSeal: PackageSealResult | null = null;
     let finalizedVerificationArtifactPresence: VerificationPackageArtifactPresence | null = null;
@@ -5050,6 +5058,8 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           throw new PackageAlreadyCommittedError(prepared.version);
         }
 
+        // DURABLE PROGRESS — built; publishing + reading back the stored ZIP.
+        await recordRequestProgress(command, "VERIFYING_PACKAGE");
         publishedPackage = await publishImmutableArtifact({
           bucket: env.S3_BUCKET,
           key: buildPublicationKey({

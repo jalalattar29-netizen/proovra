@@ -43,6 +43,7 @@ import {
   JOB_NAMES,
   isTerminalJobExecutionState,
   getWorkEntryOrThrow,
+  type OutputProgressStage,
 } from "@proovra/shared";
 
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
@@ -414,6 +415,34 @@ export class ReportClaimLost extends Error {
 /** The WHERE of every write made by a claimed run. */
 export function claimFenceWhere(command: Pick<ResolvedReportCommand, "requestId" | "claimedAtUtc">) {
   return { id: command.requestId, state: "PROCESSING" as const, claimedAtUtc: command.claimedAtUtc };
+}
+
+/**
+ * DURABLE PROGRESS — record the display step a claimed run has reached
+ * (`progress_stage`, see migration 20281004000000). Fenced by the claim, so a
+ * run that lost its lease cannot move a request another worker now owns.
+ *
+ * Display-only and best-effort: the step is what the Artifacts & Versions tab
+ * shows after a reload, never an input to any decision, so a failed write is
+ * logged and the artifact work continues. It is written BEFORE the work of the
+ * step begins, so a failure is reported against the step it happened in.
+ */
+export async function recordRequestProgress(
+  command: Pick<ResolvedReportCommand, "requestId" | "claimedAtUtc">,
+  progressStage: OutputProgressStage,
+): Promise<void> {
+  if (!command.requestId) return;
+  try {
+    await prisma.reportGenerationRequest.updateMany({
+      where: claimFenceWhere(command),
+      data: { progressStage, progressAtUtc: new Date() },
+    });
+  } catch (err) {
+    logger.warn(
+      { requestId: command.requestId, progressStage, err: err instanceof Error ? err.message : String(err) },
+      "report_request.progress_write_failed",
+    );
+  }
 }
 
 // ===========================================================================

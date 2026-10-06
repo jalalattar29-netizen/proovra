@@ -90,7 +90,7 @@
     "COLUMN_DEFAULT_DECLARATION": 101,
     "COLUMN_TYPE_DECLARATION": 110,
     "INDEX_DECLARATION": 203,
-    "FOREIGN_KEY_DECLARATION": 181,
+    "FOREIGN_KEY_DECLARATION": 182,
     "INDEX_NAME_CONVENTION": 271,
     "UNIQUE_DECLARATION": 5,
     "PARTIAL_INDEX_DECLARATION": 2,
@@ -99,7 +99,7 @@
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 885,
+  "totalRegisteredObjects": 886,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -5570,6 +5570,13 @@
       "predicate": "revoked_at_utc IS NULL",
       "owningMigration": "services/api/prisma/migrations/20281002000000_internal_plan_grants/migration.sql",
       "reason": "INTERNAL PLAN GRANT — at most ONE unrevoked grant per account and source, enforced by the database: the backstop behind the authority's per-account advisory lock, so concurrent applies cannot leave two active grants. PARTIAL so revoked/expired history rows are untouched; Prisma cannot express a partial unique index."
+    },
+    {
+      "table": "verification_packages",
+      "sign": "-",
+      "object": "Removed foreign key on columns (evidence_id, report_version)",
+      "category": "FOREIGN_KEY_DECLARATION",
+      "$note": "RGA-05 (20281003000000_verification_package_report_pair_fk): composite FK verification_packages(evidence_id, report_version) -> reports(evidence_id, version), ON DELETE RESTRICT / ON UPDATE RESTRICT. Not declared as a Prisma relation because report_version is nullable while evidence_id is required (Prisma requires a required relation for that shape); the database is the authority for the pairing."
     }
   ]
 }

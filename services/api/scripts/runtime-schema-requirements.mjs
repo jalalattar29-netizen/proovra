@@ -291,6 +291,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "the derivative writer upserts ON CONFLICT (team_id, evidence_part_id, asset_kind, variant_key); without the index every derived-asset write fails",
     suppliedBy: "20280601000000_uc0_acquisition_provenance_foundation",
   },
+  {
+    id: "report_generation_requests.progress_stage",
+    kind: "column",
+    detail: 'column public."report_generation_requests"."progress_stage" must exist',
+    requiredBy:
+      "the worker records the durable display step of every report/package run (recordRequestProgress) and /artifacts/status projects it; without the column every progress write fails and the Artifacts & Versions progress card cannot follow a request",
+    suppliedBy: "20281004000000_report_request_progress_stage",
+  },
 ]);
 
 /**
@@ -384,6 +392,13 @@ const PROBES = Object.freeze({
        AND i.indisunique
        AND i.indnatts = 1
        AND a.attname = 'idempotency_key'
+     LIMIT 1`,
+  "report_generation_requests.progress_stage": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'report_generation_requests'
+       AND column_name = 'progress_stage'
      LIMIT 1`,
   "plan_grants.table": `
     SELECT 1
