@@ -5,7 +5,7 @@
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
   "routeInventoryHash": "6913cadb4ce6adcbd39fedf3cf40d6d31b0595c1b84e71b2a3b38108a4fe49e6",
-  "consumerInventoryHash": "f81bdab266a0752c0505a3bac03c5a747f43ae78af8a23d7d50d218f20dd204f",
+  "consumerInventoryHash": "2068f7a6dcd591a09dc0b5f1b13e9015770ae4e3c66d45225cf2ec67d391da93",
   "dispositionsHash": "77b5683dae38fd7cd07fc9e42ecf2dc94cf1ec56ff41b0265f0680647337b01f",
   "totals": {
     "RegisteredRoutes": 1180,
@@ -1719,7 +1719,7 @@
       "method": "GET",
       "route": "/v1/batch-analysis",
       "registeringFile": "services/api/src/routes/enterprise.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:254",
+      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:253",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -1743,7 +1743,7 @@
       "method": "GET",
       "route": "/v1/batch-analysis/:id/export",
       "registeringFile": "services/api/src/routes/enterprise.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:383",
+      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:382",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8187,7 +8187,7 @@
       "method": "POST",
       "route": "/v1/batch-analysis",
       "registeringFile": "services/api/src/routes/enterprise.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:331",
+      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:330",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8199,7 +8199,7 @@
       "method": "POST",
       "route": "/v1/batch-analysis/:id/cancel",
       "registeringFile": "services/api/src/routes/enterprise.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:366",
+      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:365",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -8211,7 +8211,7 @@
       "method": "POST",
       "route": "/v1/batch-analysis/:id/process",
       "registeringFile": "services/api/src/routes/enterprise.routes.ts",
-      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:344",
+      "productConsumer": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:343",
       "machineConsumer": null,
       "authorization": "AUTHENTICATED",
       "classification": "TARGET_COMPLETE",
@@ -14463,34 +14463,34 @@
     },
     "registeredQueues": {
       "reportQueueName": [
-        "services/worker/src/index.ts:2136"
+        "services/worker/src/index.ts:2135"
       ],
       "otsUpgradeQueueName": [
-        "services/worker/src/index.ts:2154"
+        "services/worker/src/index.ts:2153"
       ],
       "evidencePurgeQueueName": [
-        "services/worker/src/index.ts:2171"
+        "services/worker/src/index.ts:2170"
       ],
       "searchIndexingQueueName": [
-        "services/worker/src/index.ts:2189"
+        "services/worker/src/index.ts:2188"
       ],
       "mediaIntelligenceQueueName": [
-        "services/worker/src/index.ts:2211"
+        "services/worker/src/index.ts:2210"
       ],
       "derivedAssetsQueueName": [
-        "services/worker/src/index.ts:2233"
+        "services/worker/src/index.ts:2232"
       ],
       "redactionDerivativeQueueName": [
-        "services/worker/src/index.ts:2255"
+        "services/worker/src/index.ts:2254"
       ],
       "graphReconcileQueueName": [
-        "services/worker/src/index.ts:2293"
+        "services/worker/src/index.ts:2292"
       ],
       "miEmbedQueueName": [
-        "services/worker/src/index.ts:2314"
+        "services/worker/src/index.ts:2313"
       ],
       "graphSearchProjectionQueueName": [
-        "services/worker/src/index.ts:2336"
+        "services/worker/src/index.ts:2335"
       ]
     },
     "registryEntries": 30,
@@ -35631,8 +35631,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamActivity.create@111",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:111",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamActivity.create@108",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:108",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -35666,8 +35666,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.create@333",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:333",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.create@330",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:330",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -35699,8 +35699,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@564",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:564",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@561",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:561",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "editComment",
       "kind": "DATABASE",
@@ -35732,8 +35732,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@604",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:604",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamComment.update@601",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:601",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "deleteComment",
       "kind": "DATABASE",
@@ -35765,8 +35765,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamCommentMention.createMany@358",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:358",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamCommentMention.createMany@355",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:355",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -35798,8 +35798,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@401",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:401",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-completion.service.ts#collaborationTeamNotification.createMany@398",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-completion.service.ts:398",
       "file": "services/api/src/services/collaboration-team/collaboration-completion.service.ts",
       "enclosingDeclaration": "createComment",
       "kind": "DATABASE",
@@ -35831,8 +35831,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@479",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:479",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.create@475",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:475",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -35864,8 +35864,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.delete@1338",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1338",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.delete@1334",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1334",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "deleteCollaborationTeam",
       "kind": "DATABASE",
@@ -35897,8 +35897,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1152",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1152",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1148",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1148",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateCollaborationTeam",
       "kind": "DATABASE",
@@ -35930,8 +35930,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1366",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1366",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1362",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1362",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "archiveCollaborationTeam",
       "kind": "DATABASE",
@@ -35963,8 +35963,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1427",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1427",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeam.update@1423",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1423",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "unarchiveCollaborationTeam",
       "kind": "DATABASE",
@@ -35996,8 +35996,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@341",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:341",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamActivity.create@337",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:337",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "recordActivity",
       "kind": "DATABASE",
@@ -36041,8 +36041,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2722",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2722",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.create@2718",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2718",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createAssignment",
       "kind": "DATABASE",
@@ -36074,8 +36074,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2893",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2893",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamAssignment.update@2889",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2889",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "updateAssignment",
       "kind": "DATABASE",
@@ -36107,8 +36107,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1862",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1862",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1858",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1858",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "revokeInvite",
       "kind": "DATABASE",
@@ -36140,8 +36140,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1972",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1972",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.update@1968",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1968",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -36174,8 +36174,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2071",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2071",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamInvite.updateMany@2067",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2067",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -36208,8 +36208,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1525",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1525",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@1521",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1521",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -36242,8 +36242,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2114",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2114",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@2110",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2110",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -36276,8 +36276,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@491",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:491",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.create@487",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:487",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "createCollaborationTeam",
       "kind": "DATABASE",
@@ -36309,8 +36309,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1502",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1502",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1498",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1498",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "addExistingMember",
       "kind": "DATABASE",
@@ -36343,8 +36343,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1606",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1606",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1602",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1602",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "changeMemberRole",
       "kind": "DATABASE",
@@ -36376,8 +36376,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1673",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1673",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1669",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1669",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "suspendMember",
       "kind": "DATABASE",
@@ -36409,8 +36409,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1748",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1748",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1744",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1744",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "reinstateMember",
       "kind": "DATABASE",
@@ -36442,8 +36442,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1794",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1794",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@1790",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:1790",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "removeMember",
       "kind": "DATABASE",
@@ -36476,8 +36476,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2098",
-      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2098",
+      "writerId": "services/api/src/services/collaboration-team/collaboration-team.service.ts#collaborationTeamMember.update@2094",
+      "terminalLocation": "services/api/src/services/collaboration-team/collaboration-team.service.ts:2094",
       "file": "services/api/src/services/collaboration-team/collaboration-team.service.ts",
       "enclosingDeclaration": "acceptInvite",
       "kind": "DATABASE",
@@ -46076,8 +46076,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@485",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:485",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@484",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:484",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "revokeAllMembershipGrants",
       "kind": "DATABASE",
@@ -46110,8 +46110,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@763",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:763",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@762",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:762",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "closeGrantsForTeamMembers",
       "kind": "DATABASE",
@@ -46149,8 +46149,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@783",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:783",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#membershipGrant.updateMany@782",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:782",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "closeGrantsForOrgMemberships",
       "kind": "DATABASE",
@@ -46185,8 +46185,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@314",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:314",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@313",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:313",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "grantOrganizationMembership",
       "kind": "DATABASE",
@@ -46236,8 +46236,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@642",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:642",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.create@641",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:641",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -46294,8 +46294,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1054",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1054",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.deleteMany@1053",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1053",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "removeAllOrganizationMembershipsForUser",
       "kind": "DATABASE",
@@ -46327,8 +46327,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@636",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:636",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@635",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:635",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -46385,8 +46385,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@894",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:894",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#organizationMembership.update@893",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:893",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "updateOrganizationMembershipRole",
       "kind": "DATABASE",
@@ -46419,8 +46419,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1164",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1164",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.create@1163",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1163",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -46452,8 +46452,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.delete@977",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:977",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.delete@976",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:976",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "removeWorkspaceMembershipPhysical",
       "kind": "DATABASE",
@@ -46485,8 +46485,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.deleteMany@1285",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1285",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.deleteMany@1284",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1284",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "purgeWorkspaceMembershipsForTeamDeletion",
       "kind": "DATABASE",
@@ -46518,8 +46518,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1091",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1091",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1090",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1090",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -46551,8 +46551,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1109",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1109",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1108",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1108",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "transferWorkspaceOwnerRoles",
       "kind": "DATABASE",
@@ -46584,8 +46584,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1142",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1142",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@1141",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1141",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "reopenWorkspaceOwnerMembership",
       "kind": "DATABASE",
@@ -46617,8 +46617,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@507",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:507",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@506",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:506",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "suspendWorkspaceMembership",
       "kind": "DATABASE",
@@ -46651,8 +46651,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@822",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:822",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.update@821",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:821",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "applyDirectoryRoleChange",
       "kind": "DATABASE",
@@ -46688,8 +46688,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1008",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1008",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1007",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1007",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massRevokeWorkspaceMemberships",
       "kind": "DATABASE",
@@ -46724,8 +46724,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1199",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1199",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1198",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1198",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massSuspendWorkspaceMemberships",
       "kind": "DATABASE",
@@ -46758,8 +46758,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1248",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1248",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@1247",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:1247",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "massReactivateSuspendedWorkspaceMemberships",
       "kind": "DATABASE",
@@ -46792,8 +46792,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@855",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:855",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.updateMany@854",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:854",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "demoteGroupMappedRoleOnArchive",
       "kind": "DATABASE",
@@ -46825,8 +46825,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@430",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:430",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@429",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:429",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "grantWorkspaceMembership",
       "kind": "DATABASE",
@@ -46885,8 +46885,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@707",
-      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:707",
+      "writerId": "services/api/src/services/identity/membership-provisioning.service.ts#teamMember.upsert@706",
+      "terminalLocation": "services/api/src/services/identity/membership-provisioning.service.ts:706",
       "file": "services/api/src/services/identity/membership-provisioning.service.ts",
       "enclosingDeclaration": "provisionMembership",
       "kind": "DATABASE",
@@ -89325,7 +89325,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2726#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -89356,7 +89356,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2726#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -89455,7 +89455,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2726#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -89486,7 +89486,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2726#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -89517,7 +89517,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2726#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -89548,7 +89548,7 @@
       "entryJobs": [],
       "entryModules": [],
       "entrySchedules": [
-        "BOOT services/worker/src/index.ts:2726#startTelemetrySampler"
+        "BOOT services/worker/src/index.ts:2725#startTelemetrySampler"
       ],
       "invariants": {
         "authorizationAuthority": "NON_REQUEST",
@@ -97579,7 +97579,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
-          "line": 254,
+          "line": 253,
           "caller": "BatchAnalysisScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -97597,7 +97597,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:254 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:68 (loadJobs, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:253 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:68 (loadJobs, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -97686,7 +97686,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
-          "line": 383,
+          "line": 382,
           "caller": "BatchAnalysisScreen",
           "class": "MOBILE",
           "primitive": "apiFetchText",
@@ -97704,7 +97704,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:383 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:167 (handleExportResults, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:382 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:167 (handleExportResults, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -102154,7 +102154,7 @@
         },
         {
           "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
-          "line": 308,
+          "line": 307,
           "caller": "BatchAnalysisScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -102220,7 +102220,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:725 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/operations/batch-analysis.tsx:308 (BatchAnalysisScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:237 (EvidenceLibraryScreen, MOBILE)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:725 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/operations/batch-analysis.tsx:307 (BatchAnalysisScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:237 (EvidenceLibraryScreen, MOBILE)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135043,7 +135043,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
-          "line": 331,
+          "line": 330,
           "caller": "BatchAnalysisScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -135061,7 +135061,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:331 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:96 (handleCreateJob, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:330 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:96 (handleCreateJob, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135109,7 +135109,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
-          "line": 366,
+          "line": 365,
           "caller": "BatchAnalysisScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -135127,7 +135127,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:366 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:138 (handleCancelJob, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:365 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:138 (handleCancelJob, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -135174,7 +135174,7 @@
       "productConsumers": [
         {
           "file": "apps/mobile/app/(stack)/operations/batch-analysis.tsx",
-          "line": 344,
+          "line": 343,
           "caller": "BatchAnalysisScreen",
           "class": "MOBILE",
           "primitive": "apiFetch",
@@ -135192,7 +135192,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:344 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:106 (handleCreateJob, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/operations/batch-analysis.tsx:343 (BatchAnalysisScreen, MOBILE); apps/web/app/(app)/operations/batch-analysis/page.tsx:106 (handleCreateJob, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",

@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | undisposed routes + locally actionable open findings                  |
+| ProductClosure       | CLOSED  | release-blocking measured facts + undisposed routes                   |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,7 +21,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 379e988f3611ac562ab994caf6dada4a48dda3a08a8670564a8ec9f9e0998054 |
+| engineHash    | a972416e9c81acb5abd33328babe17a8170ddaa0593460dbe2679ac862181e35 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
@@ -68,20 +68,19 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | consumerBucketsPartitionRoutes        | true  |
 | capabilityProjectionMatchesRouteCount | true  |
 | classificationCountsSumToRoutes       | true  |
-| ledgerRowsConserve                    | true  |
-| ledgerActionableConserves             | true  |
 
 ### Audit-system governance
 
 | counter                                    | value |
 | ------------------------------------------ | ----- |
-| AuditFilesInventoried                      | 421   |
+| AuditFilesInventoried                      | 344   |
 | AuditFilesUnclassified                     | 0     |
 | AuditArtifactProducersUnknown              | 0     |
 | AuditArtifactConsumersUnknown              | 0     |
 | AuditDependencyCycles                      | 0     |
 | ArtifactsWithMultipleProducers             | 0     |
 | GeneratorsReadingOwnOutputsAsFacts         | 0     |
+| UndeclaredAuditOutputFiles                 | 0     |
 | GatesReadingHistoricalReports              | 0     |
 | HistoricalReportsUsedAsAuthority           | 0     |
 | HistoricalReportsAmbiguousStatus           | 0     |
@@ -92,10 +91,7 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | CanonicalRouteAuthorities                  | 1     |
 | CanonicalConsumerAuthorities               | 1     |
 | CanonicalCapabilityMaps                    | 1     |
-| CanonicalLedgerSources                     | 1     |
 | CanonicalCurrentReports                    | 1     |
-| LedgerGenerators                           | 1     |
-| GeneratedLedgerRenderings                  | 2     |
 | ObsoleteAuditScripts                       | 0     |
 | RetiredPathsResurrected                    | 0     |
 | DiagnosticsReadAsAuthority                 | 0     |
@@ -109,13 +105,11 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | DeletedDiagnosticCurrentConsumers          | 0     |
 | DeletedDiagnosticDecisionConsumers         | 0     |
 | DeletedArtifactConsumersUnresolved         | 0     |
-| ReportRelatedEntries                       | 27    |
-| ReportDocuments                            | 26    |
-| HistoryTreeMarkers                         | 1     |
+| ReportRelatedEntries                       | 1     |
+| ReportDocuments                            | 1     |
 | NonAuditProductReportTemplates             | 0     |
 | CurrentGeneratedReports                    | 1     |
-| HistoricalReports                          | 23    |
-| DomainReportTemplates                      | 2     |
+| DomainReportTemplates                      | 0     |
 | MisclassifiedReportDocuments               | 0     |
 | ReportRoleOverlap                          | 0     |
 | ReportRoleMissing                          | 0     |
@@ -128,16 +122,14 @@ Each of these is a hole in the MEASURING DEVICE, not in the product. A non-zero 
 | ProductionRuntimeFilesModifiedByPhase0     | 0     |
 | ProductBehaviorTestsRemoved                | 0     |
 | HistoricalMigrationsModifiedByPhase0       | 0     |
-| ProductBehaviorTestsInventoried            | 265   |
+| ProductBehaviorTestsInventoried            | 263   |
 
 ### Report roles
 
 ```
-ReportRelatedEntries 27 = ReportDocuments 26 + HistoryTreeMarkers 1 + NonAuditProductReportTemplates 0
-ReportDocuments 26 = CurrentGeneratedReports 1 + HistoricalReports 23 + DomainReportTemplates 2 + MisclassifiedReportDocuments 0
+ReportRelatedEntries 1 = ReportDocuments 1 + NonAuditProductReportTemplates 0
+ReportDocuments 1 = CurrentGeneratedReports 1 + DomainReportTemplates 0 + MisclassifiedReportDocuments 0
 ```
-
-A HISTORY_TREE_MARKER is a governance marker, not a report document: it says what a directory IS. Counting it as a report is what produced the earlier miscount.
 
 ### Phase-0 change set
 
@@ -151,33 +143,6 @@ A HISTORY_TREE_MARKER is a governance marker, not a report document: it says wha
 The COUNTS are not recorded in the artifact. They describe the working tree the run happened to execute against, so a document holding them could never agree with the next run once the change was committed. The run prints them, and every Phase-0 assertion is raised from the live evaluation rather than from this document.
 
 Derived by diffing the working tree against the HEAD commit, so the set is complete — a path cannot be omitted the way it could from the hand-maintained prefix list this replaced. Attribution within the set is content-derived; no artifact records the tree at the instant Phase 0 began, so a change cannot be differentially attributed to Phase 0 versus pre-existing work. The three safety counters do not rely on that: they hold because no runtime file carries a Phase-0 signal, no test was deleted anywhere, and no migration changed at all.
-
-## Findings ledger
-
-| counter          | value |
-| ---------------- | ----- |
-| rows             | 105   |
-| actionableTotal  | 98    |
-| actionableClosed | 98    |
-| actionableOpen   | 0     |
-| verifiedClosures | 2     |
-| unknownBlocked   | 4     |
-
-Conservation: 98 fixed + 0 remaining = 98 actionable; + 2 closures + 4 unknown + 1 tracked-inventory = 105 rows
-
-### Open
-
-_(none)_
-
-
-### Blocked on the owner
-
-| id      |
-| ------- |
-| UNK-001 |
-| UNK-002 |
-| UNK-003 |
-| UNK-004 |
 
 ## Domain authorities
 
