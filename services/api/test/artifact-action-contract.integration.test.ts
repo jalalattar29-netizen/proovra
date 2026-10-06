@@ -304,7 +304,7 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
       // A package request always names the report version it packages.
       await prisma.reportGenerationRequest.update({ where: { id: failed.id }, data: { reportVersion: 1 } });
       const key = `rk-${randomUUID()}`;
-      const headers = sameKey ? { "idempotency-key": key } : {};
+      const headers: Record<string, string> = sameKey ? { "idempotency-key": key } : {};
       const answers = await Promise.all([
         post(A().ownerToken, id, { intent: "RETRY" }, headers),
         post(A().adminToken, id, { intent: "RETRY" }, headers),
