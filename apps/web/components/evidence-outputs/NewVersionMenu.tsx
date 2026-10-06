@@ -26,7 +26,11 @@ import {
   makeClientRequestKey,
   NEW_VERSION_ACTION,
   NEW_VERSION_LABEL,
+  NEW_VERSION_REASON_MAX,
   newVersionConsequence,
+  normalizeNewVersionReason,
+  validateNewVersionReason,
+  newVersionReasonError,
   outputUnavailableReasonCopy,
   type NewVersionAction,
   type OutputActionUnavailableReason,
@@ -109,8 +113,8 @@ export function NewVersionMenu({
     const ok = await confirm({
       title:
         offer.nextVersion != null
-          ? `Issue updated report (version ${offer.nextVersion})?`
-          : "Issue an updated report?",
+          ? `Generate report v${offer.nextVersion}`
+          : "Generate an updated report",
       description: (
         <div data-new-version-consequence>
           <p style={{ marginBlockStart: 0 }}>
@@ -118,22 +122,6 @@ export function NewVersionMenu({
             package are complete. An updated report is optional and documents
             later facts; it does not replace the earlier report.
           </p>
-          <label style={{ display: "block", marginBlock: "8px 12px" }}>
-            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-              Reason for the updated report (required)
-            </span>
-            <textarea
-              data-new-version-reason
-              required
-              maxLength={120}
-              rows={2}
-              style={{ width: "100%", boxSizing: "border-box" }}
-              placeholder="For example: document the Bitcoin anchor confirmed after the first report"
-              onChange={(e) => {
-                reasonRef.current = e.target.value;
-              }}
-            />
-          </label>
           <ul>
             {newVersionConsequence({
               currentVersion: offer.currentVersion ?? null,
@@ -153,21 +141,73 @@ export function NewVersionMenu({
           </ul>
         </div>
       ),
+      // RGA-03 — the validated reason field. Live validation, counter, accessible
+      // inline error, Confirm disabled until valid, using the SHARED authority so
+      // the client enforces exactly the server's bounds + normalization. The valid
+      // text is preserved across a confirm-time offer refresh (RGA-02).
+      reasonField: {
+        label: "Reason for the updated report (required)",
+        placeholder:
+          "For example: document the Bitcoin anchor confirmed after the first report",
+        max: NEW_VERSION_REASON_MAX,
+        initialValue: reasonRef.current,
+        countOf: (raw) => normalizeNewVersionReason(raw).length,
+        validate: (raw) => {
+          const v = validateNewVersionReason(raw);
+          return v.ok
+            ? { ok: true, value: v.value }
+            : { ok: false, value: v.value, message: newVersionReasonError(v.reason) };
+        },
+        onConfirmed: (value) => {
+          reasonRef.current = value;
+        },
+      },
       confirmLabel: NEW_VERSION_LABEL,
       testId: testId ? `${testId}-confirm` : "new-version-confirm",
     });
     if (!ok) return;
+    // The modal's reason field is valid (it gates Confirm); its normalized value
+    // was written to reasonRef by onConfirmed.
     const reason = reasonRef.current.trim();
-    if (reason.length < 3) {
-      await confirm({
-        title: "A reason is required",
-        description:
-          "An updated report records why it was issued. Open the action again and describe the later facts it should document.",
-        noticeOnly: true,
-        testId: testId ? `${testId}-reason-required` : "new-version-reason-required",
-      });
-      return;
+
+    // RGA-02 — REVALIDATE INSIDE THE CONFIRM PATH, not only at open(). State can
+    // change while the modal is open (TSA/OTS advanced, latest version moved,
+    // another user issued a version, permission/eligibility changed, a request
+    // started). Re-read the canonical offer immediately before submitting and
+    // compare the operation and the intended next version.
+    if (loadOffer) {
+      let fresh: NewVersionOffer | null = null;
+      try {
+        fresh = await loadOffer();
+      } catch {
+        fresh = null;
+      }
+      const stale =
+        !fresh ||
+        fresh.action !== NEW_VERSION_ACTION ||
+        fresh.nextVersion !== offer.nextVersion;
+      if (stale) {
+        const canStillIssue = Boolean(fresh && fresh.action === NEW_VERSION_ACTION);
+        await confirm({
+          title: canStillIssue
+            ? "This record changed — confirm the updated truth"
+            : "A new version can't be created right now",
+          description: canStillIssue
+            ? `The latest report is now v${(fresh!.currentVersion ?? "?")}, so this would create v${(fresh!.nextVersion ?? "?")}. Your reason is kept; confirm again to issue it against the current state.`
+            : outputUnavailableReasonCopy(fresh?.reason) ??
+              "This record's state changed. Open the record to see what it offers now.",
+          noticeOnly: true,
+          testId: testId ? `${testId}-revalidate` : "new-version-revalidate",
+        });
+        // The reason stays in reasonRef. Re-offer against the fresh state if it
+        // still allows an updated report; otherwise stop (nothing is submitted).
+        if (canStillIssue) {
+          await confirmAndRequest(fresh!);
+        }
+        return;
+      }
     }
+
     pendingKey.current ??= makeClientRequestKey();
     const result = await request(pendingKey.current, reason);
     if (result === "answered") pendingKey.current = null;
