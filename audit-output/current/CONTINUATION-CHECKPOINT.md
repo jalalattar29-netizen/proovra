@@ -48,9 +48,9 @@ ClassificationConflicts                        0
 AuthorizationUnresolved                        0
 
 MUTATION CLOSURE (eleven disjoint buckets, identity asserted)
-TerminalWriters                             1325
+TerminalWriters                             1326
 ROUTE_ATTRIBUTED_REACHABLE                  1185
-JOB_ATTRIBUTED_REACHABLE                     127
+JOB_ATTRIBUTED_REACHABLE                     128
 MODULE_SCOPED_REACHABLE                        0
 REGISTERED_CLI                                 3
 STARTUP_OR_SCHEDULED                          10
@@ -773,3 +773,12 @@ node services/api/scripts/audit/index.mjs --closure-check
 - Writers +3, all route-attributed (ROUTE_ATTRIBUTED_REACHABLE 1182 -> 1185): `planGrant.create`
   (apply) and `planGrant.update` (revoke, and expiry closure) in internal-plan-grant.service.ts,
   classified BILLING_SUBSCRIPTION_SEAT. The CLI (ops:internal-plan-grant) calls the same service.
+
+### 2026-10-06 — UPDATED-REPORT & RECOVERY CLOSURE (writers 1325 -> 1326)
+
+- One new writer, job-attributed (JOB_ATTRIBUTED_REACHABLE 127 -> 128): `reportGenerationRequest.updateMany`
+  in `recordRequestProgress` (services/worker/src/report-generation-authority.ts), called by the
+  GenerateReportJob processor at four boundaries. It writes ONLY the display columns
+  `progress_stage` / `progress_at_utc` (migration 20281004000000) under the claim fence; it never
+  changes state, stage or versions.
+- TerminalWriters 1325 -> 1326. No route, writer or disposition was removed.
