@@ -16,8 +16,14 @@ import React from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
+// RGA-02 — the new-version action revalidates the offer at Confirm via
+// apiFetch('/artifacts/status'). A controllable impl lets a case return the
+// current (or an advanced) offer.
+const api = vi.hoisted(() => ({
+  impl: async (_path: string): Promise<unknown> => ({}),
+}));
 vi.mock("../../lib/api", () => ({
-  apiFetch: async () => ({}),
+  apiFetch: (path: string) => api.impl(path),
   readApiToken: () => null,
   apiBaseUrl: () => "https://api.test.invalid",
   ApiError: class ApiError extends Error {},
@@ -147,6 +153,7 @@ const NOT_REQUIRED: Out = { state: "READY", action: "NONE", actionUnavailableRea
 afterEach(() => {
   cleanup();
   serviceStatus = null;
+  api.impl = async () => ({});
 });
 
 describe("Evidence Artifacts — per-output actions", () => {
@@ -275,49 +282,50 @@ describe("Evidence Artifacts — per-output actions", () => {
     expect(panel?.textContent).not.toMatch(/Support can investigate/);
   });
 
-  it("a complete record offers no verb; Issue updated report is in the overflow, needs a reason, and is confirmed with versions and the estimate", async () => {
+  it("a complete record offers 'Generate updated report' as a DIRECT action (no overflow menu); it needs a valid reason and revalidates the offer at Confirm", async () => {
+    const offer = {
+      action: "CREATE_NEW_VERSION",
+      reason: null,
+      currentVersion: 3,
+      nextVersion: 4,
+      estimate: {
+        estimatedBytes: String(12 * 1024 * 1024),
+        basis: "ORIGINAL_EVIDENCE",
+        storageBytesUsed: null,
+        storageBytesLimit: null,
+      },
+    };
+    // RGA-02 — the Confirm-time revalidation reads the current offer and must see
+    // no change for the submit to proceed.
+    api.impl = async () => ({ outputs: { newVersion: offer } });
     const { container, calls } = mount(
-      workspace({
-        report: NOT_REQUIRED,
-        pkg: NOT_REQUIRED,
-        newVersion: {
-          action: "CREATE_NEW_VERSION",
-          reason: null,
-          currentVersion: 3,
-          nextVersion: 4,
-          estimate: {
-            estimatedBytes: String(12 * 1024 * 1024),
-            basis: "ORIGINAL_EVIDENCE",
-            storageBytesUsed: null,
-            storageBytesLimit: null,
-          },
-        },
-      }),
+      workspace({ report: NOT_REQUIRED, pkg: NOT_REQUIRED, newVersion: offer }),
     );
     expect(container.querySelector("[data-evidence-action='generate-outputs']")).toBeNull();
-    fireEvent.click(container.querySelector("[data-testid='evidence-new-version']")!);
-    const item = await waitFor(() => {
-      const el = document.querySelector("[data-evidence-output-row-action='create-new-version']");
-      expect(el).toBeTruthy();
-      return el as HTMLButtonElement;
-    });
-    fireEvent.click(item);
+    // Phase 5.2 — a DIRECT button, not a one-item overflow menu.
+    const action = container.querySelector("[data-testid='evidence-new-version']") as HTMLButtonElement;
+    expect(action.tagName).toBe("BUTTON");
+    expect(action.textContent).toMatch(/generate updated report/i);
+    fireEvent.click(action);
     const modal = await waitFor(() => {
       const el = document.querySelector("[data-confirm-action-modal]");
       expect(el).toBeTruthy();
       return el as HTMLElement;
     });
     const text = modal.textContent ?? "";
-    expect(text).toContain("Issue updated report (version 4)?");
+    expect(text).toContain("Generate report v4");
     expect(text).toContain("Issues report version 4, dated today, and its verification package, alongside version 3.");
     expect(text).toContain("Earlier versions are kept unchanged, keep their own dates and stay downloadable.");
     expect(text).toContain("Estimated additional storage: about 12 MB (based on the original evidence");
     expect(calls).toEqual([]);
-    // An updated report records why it was issued.
+    // RGA-03 — Confirm is disabled until the reason is valid.
+    const submit = modal.querySelector("[data-confirm-action-submit='true']") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
     fireEvent.change(modal.querySelector("[data-new-version-reason]")!, {
       target: { value: "Document the later anchor" },
     });
-    fireEvent.click(modal.querySelector("[data-confirm-action-submit='true']")!);
+    expect(submit.disabled).toBe(false);
+    fireEvent.click(submit);
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]!.kind).toBe("newVersion");
     expect(String(calls[0]!.arg)).toMatch(/^nv-/);
