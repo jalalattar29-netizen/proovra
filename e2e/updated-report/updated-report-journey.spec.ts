@@ -88,8 +88,12 @@ function trustStatements(text: string) {
   return {
     tsaHeadline: grab(/TRUSTED TIMESTAMP\s+[A-Za-z ,]{3,40}?(?=\s+[!✓i]\s|\s+BITCOIN)/),
     tsaDetail: grab(/Trusted timestamp\s+\S+\s+[^.]{0,220}\./),
-    tsaNotValidatedSentence: /could not be validated/i.test(text),
-    otsHeadline: grab(/BITCOIN ANCHORING\s+[A-Za-z ,]{3,40}?(?=\s+[!✓i]\s|\s+IMMUTABLE)/),
+    // The CURRENT timestamp signal's own sentence (trust-decision detail). The
+    // custody history keeps its historical "received; not validated" event in
+    // every later version, so that wording cannot say what is true now.
+    tsaNotValidatedSentence: /token was obtained and kept, but it has not\s+been\s+validated/i.test(text),
+    // Canonical state labels may hyphenate ("Proof present, not chain-verified").
+    otsHeadline: grab(/BITCOIN ANCHORING\s+[A-Za-z ,-]{3,48}?(?=\s+[!✓i]\s|\s+IMMUTABLE)/),
     otsDetail: grab(/Bitcoin anchoring\s+\S+\s+[^.]{0,220}\./),
   };
 }
