@@ -91,10 +91,10 @@ top level of it.
 | OK | `parseLegalNotes` | `GET /v1/evidence/:id/legal-notes` | items | items |
 | OK | `parseOperationalTimeline` | `GET /v1/evidence/:id/operational-timeline` | entries, evidenceId, generatedAtUtc, teamId | entries |
 | OK | `parseOriginalLink` | `GET /v1/evidence/:id/original` | bucket, displayName, displaySizeLabel, evidenceId, key, kind, lastAccessedAtUtc, lastAcc… | publicUrl, url |
-| OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | bucket, evidenceId, generatedAtUtc, key, reviewerSnapshot, snapshots, storage, url, vers… | url |
+| OK | `parseReportUrl` | `GET /v1/evidence/:id/report/latest` | evidenceId, generatedAtUtc, reviewerSnapshot, snapshots, storage, url, version | url |
 | OK | `parseReviewerWorkflow` | `GET /v1/evidence/:id/reviewer-workflow` | available, workflow | available, workflow |
 | OK | `parseReviewerWorkflowEvents` | `GET /v1/evidence/:id/reviewer-workflow/events` | items | items |
-| OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, evidenceId, generatedAtUtc, key, latestAvailablePackageVersion, latestRepo… | url |
+| OK | `parseReportUrl` | `GET /v1/evidence/:id/verification-package` | action, code, disclosureProfile, evidenceId, generatedAtUtc, latestAvailablePackageVersi… | url |
 | OK | `parseValidatedIntake` | `GET /v1/external-intake/:token` | link, parts, request, resumed, session | link, request, session |
 | OK | `parseExportEligibility` | `GET /v1/governance/export-eligibility` | lifecycleState, outcome, reason | lifecycleState, outcome, reason |
 | OK | `parseContactFactors` | `GET /v1/identity-security/contact-factors` | factors | factors |

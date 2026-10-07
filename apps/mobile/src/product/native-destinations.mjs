@@ -645,6 +645,16 @@ export const NATIVE_DESTINATIONS = {
       "public verification of a record by its token, over the same public endpoint",
     ],
   },
+  "/verify/package/[packageId]": {
+    routeFile: "verify.tsx",
+    status: "PARTIAL",
+    physicallyAccepted: false,
+    webSources: ["apps/web/app/verify/package/[packageId]/page.tsx"],
+    gaps: [
+      "2026-10-07: PROOVRA's public package record (package id, digests, seal-key status and validity, supersession) is a WEB page named in every verification package README; it is read by a recipient holding a ZIP, usually on a desktop.",
+      "REMAINING GAP: there is no native screen for it. The native Verify screen verifies a record by token; it does not open a package record. A native port would read the same unauthenticated GET /public/verification-packages/:packageId and needs a file picker + SHA-256 for the local ZIP check.",
+    ],
+  },
   "/share/[id]": {
     routeFile: "(stack)/evidence/[id].tsx",
     status: "CODE_PARITY",

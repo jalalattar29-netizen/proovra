@@ -59,10 +59,17 @@ export function stackExec(service: string, args: string[], env: Record<string, s
   return run.stdout;
 }
 
-/** docker compose stop/start/pause for failure drills. */
+/**
+ * stop/start/pause for failure drills — on the container itself, with a bound.
+ * `docker compose start` was observed to hang indefinitely (Docker Desktop)
+ * after the container had already been killed; a synchronous spawn blocks the
+ * test worker, so the test timeout could never fire. The plain container verb
+ * has no dependency resolution to wait on, and the timeout makes a hang a
+ * failure instead of a stalled run.
+ */
 export function stackCtl(verb: "stop" | "start" | "pause" | "unpause" | "restart" | "kill", service: string): void {
-  const run = spawnSync("docker", [...COMPOSE, verb, service], { encoding: "utf8" });
-  if (run.status !== 0) throw new Error(`docker compose ${verb} ${service}: ${run.stderr}`);
+  const run = spawnSync("docker", [verb, `pv-rga-${service}-1`], { encoding: "utf8", timeout: 120_000 });
+  if (run.status !== 0) throw new Error(`docker ${verb} ${service}: ${run.error?.message ?? run.stderr}`);
 }
 
 export async function personalTeamId(api: APIRequestContext): Promise<string> {

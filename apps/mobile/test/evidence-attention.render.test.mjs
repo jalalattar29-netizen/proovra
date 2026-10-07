@@ -122,7 +122,7 @@ test("the Technical tab shows the trust decision with each signal's weighted poi
   assert.ok(r.hasText("Technically consistent") && r.hasText("Moderate"));
   assert.ok(r.hasText("Weighting: 50 points"));
   assert.ok(r.hasText("30 / 30") && r.hasText("10 / 20"));
-  assert.ok(r.byLabel("Degraded").length >= 1);
+  assert.ok(r.byLabel("Present, not independently verified").length >= 1);
   assert.ok(r.hasText("No further detail was recorded for this signal."));
 });
 
