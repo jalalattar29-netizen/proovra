@@ -110,8 +110,22 @@ jobs:
           for _ in $(seq 1 60); do curl -fsS -o /dev/null http://127.0.0.1:53000/login && break; sleep 2; done
           curl -fsS -o /dev/null http://127.0.0.1:53000/login
 
+      # Bounded and retried. `--with-deps` runs apt-get and downloads the
+      # browser; on 2026-10-07 one attempt hung for over an hour with no output
+      # until the 120-minute job timeout, so a transient mirror stall failed the
+      # whole journey without running a test. Each attempt now has 5 minutes.
       - name: Install Playwright Chromium
-        run: pnpm test:e2e:playwright:install
+        timeout-minutes: 20
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 pnpm test:e2e:playwright:install; then
+              exit 0
+            fi
+            echo "::warning::Playwright Chromium install attempt ${attempt} failed or exceeded 5 minutes; retrying"
+            sleep 15
+          done
+          echo "::error::Playwright Chromium install failed on 3 bounded attempts"
+          exit 1
 
       - name: Run the journey and the failure matrix
         run: |
