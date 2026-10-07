@@ -53,7 +53,8 @@ const FLAG_ENTRY: Record<string, string | null> = {
 
 function appendedTargets(): Set<string> {
   const out = new Set<string>();
-  for (const m of SRC.matchAll(/appendPackageEntry\(\s*archive,\s*packageEntries,\s*([^,]+),/g)) out.add(m[1]!.trim());
+  // Entries are appended through the disclosure wrapper (appendEntry) or directly.
+  for (const m of SRC.matchAll(/(?:appendPackageEntry\(\s*archive,\s*packageEntries,|appendEntry\()\s*([^,]+),/g)) out.add(m[1]!.trim());
   if (/await appendEvidencePart\(archive, packageEntries,/.test(SRC)) out.add("__EVIDENCE_PARTS__");
   return out;
 }

@@ -523,8 +523,11 @@ async function buildSignerSnapshotJson(input: {
               ? "disabled"
               : "local_pem";
 
-        const kmsArn =
-          provider === "aws_kms" ? envValue("KMS_KEY_ID") : null;
+        // A package never carries a KMS key ARN (account id, region) or a
+        // server file path: the key is identified by id, version and the
+        // public-key fingerprint PROOVRA publishes (as in
+        // historical-verification-material.json, ET-PKG-11).
+        const kmsArn: string | null = null;
         const evidKeyId = envValue("SIGNING_KEY_ID");
         const evidKeyVersion = envValue("SIGNING_KEY_VERSION");
         const pkgKeyId = envValue("PACKAGE_SIGNING_KEY_ID") ?? evidKeyId;
@@ -537,11 +540,7 @@ async function buildSignerSnapshotJson(input: {
               ? "ED25519"
               : null;
         const verificationMaterialRef =
-          provider === "aws_kms"
-            ? "kms://GetPublicKey"
-            : provider === "local_pem"
-              ? envValue("SIGNING_PUBLIC_KEY_PATH") ?? "local-pem"
-              : null;
+          provider === "disabled" ? null : "package-manifest-public-key.pem";
 
         const status: SignerSnapshotEntry["status"] =
           provider === "disabled" ? "degraded" : "active";

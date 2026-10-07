@@ -50,7 +50,11 @@ describe("package root entry names (ET-PKG-14)", () => {
   });
 
   it("the reserved set covers every root entry the generator appends (exhaustive)", () => {
-    const rootLiterals = [...SRC.matchAll(/appendPackageEntry\(\s*archive,\s*packageEntries,\s*"([^"/]+)",/g)].map((m) => m[1]!);
+    // Entries are appended through the disclosure wrapper (appendEntry) or
+    // directly (appendPackageEntry); both forms count.
+    const rootLiterals = [
+      ...SRC.matchAll(/(?:appendPackageEntry\(\s*archive,\s*packageEntries,|appendEntry\()\s*"([^"/]+)",/g),
+    ].map((m) => m[1]!);
     expect(rootLiterals.length).toBeGreaterThan(20);
     for (const n of rootLiterals) expect(RESERVED_ROOT_ENTRY_NAMES.has(n), n).toBe(true);
   });

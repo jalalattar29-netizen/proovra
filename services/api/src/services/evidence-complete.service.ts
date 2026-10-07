@@ -1402,6 +1402,10 @@ const captureMethod =
             // ET-TSA-01/06: the validation fact and the bounded failure code.
             tsaFailureCode: tsaResult.failureCode,
             tsaValidatedAtUtc: tsaResult.validatedAtUtc?.toISOString() ?? null,
+            // What the validation established (trust anchor, token
+            // certificates, nonce, policy) — read by the package's
+            // timestamp-validation.json; null when not validated.
+            tsaValidation: tsaResult.validationEvidence ?? null,
             // Phase IA-digest-policy-hard-invariant — surface soft
             // parser issues for STAMPED rows so operators can see "the
             // timestamp landed but our parser missed the serial" without

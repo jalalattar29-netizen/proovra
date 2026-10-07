@@ -258,7 +258,7 @@ describe("Phase P3.1.1 — Honest scope + no overclaim", () => {
 
   it("signer snapshot never includes raw KMS credentials", () => {
     const src = readSource("../src/verification-package-attestations.ts");
-    // KMS_KEY_ID env IS referenced (to derive the kmsKeyArn field);
+    // KMS_KEY_ID env IS referenced (health only; the ARN is never emitted);
     // raw credentials must not be.
     expect(src).not.toMatch(/AWS_ACCESS_KEY_ID/);
     expect(src).not.toMatch(/AWS_SECRET_ACCESS_KEY/);

@@ -2592,3 +2592,9 @@ export * from "./storage-protection.js";
 
 // THE acquisition identity snapshot (capture-time, from custody) and its labels.
 export * from "./acquisition-identity.js";
+
+// THE verification-package disclosure profiles and their field policy.
+export * from "./disclosure-profile.js";
+
+// THE RFC 3161 validation record (timestamp-validation.json).
+export * from "./tsa-validation-record.js";

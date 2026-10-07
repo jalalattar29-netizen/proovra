@@ -25,6 +25,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import type { TsaValidationEvidence } from "@proovra/shared";
+
 import { parseTsaReply } from "./parse-tsa-reply.js";
 import { validateTsaToken } from "./validate-tsa-token.js";
 
@@ -39,6 +41,7 @@ export type KeptTokenDecision =
       policyOid: string | null;
       validatedAtUtc: Date;
       signerCertSha256: string | null;
+      validationEvidence: TsaValidationEvidence;
     }
   | { ok: false; code: string; reason: string };
 
@@ -90,6 +93,7 @@ export async function evaluateKeptTsaToken(row: {
       policyOid: validation.policyOid,
       validatedAtUtc: validation.validatedAtUtc,
       signerCertSha256: validation.signerCertSha256,
+      validationEvidence: validation.evidence,
     };
   } finally {
     await fs.rm(workDir, { recursive: true, force: true }).catch(() => undefined);

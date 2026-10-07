@@ -80,6 +80,8 @@ import {
   compareTimestampDigest,
   isCompleteOtsAnchor,
   presentedTsaStatus,
+  buildTimestampValidationRecord,
+  parseTsaValidationEvidence,
   acquisitionIdentitySummary,
   resolveAcquisitionIdentitySnapshot,
   resolveOtsCustodyFacts,
@@ -527,6 +529,18 @@ function buildPublicUrl(key: string): string | null {
 // capability. It now takes the share token minted for this report version
 // (see `reportShareToken` in prepareReportArtifacts): revocable and rotatable
 // on its own, and inert until the owner publishes the record.
+/**
+ * PROOVRA's public package record (Public Verify), where a recipient
+ * confirms a package's identity, digest and seal key from outside it.
+ */
+function buildPackageVerificationUrl(packageId: string): string {
+  const base = envValue(
+    "REPORT_VERIFY_BASE_URL",
+    "https://app.proovra.com/verify"
+  ).replace(/\/+$/, "");
+  return absoluteInternalUrl(base, `/package/${encodeURIComponent(packageId)}`);
+}
+
 function buildVerifyUrl(shareToken: string): string {
   const base = envValue(
     "REPORT_VERIFY_BASE_URL",
@@ -2052,6 +2066,8 @@ async function prepareReportArtifacts(
       tsaFailureReason: true,
       tsaValidatedAtUtc: true,
       tsaFailureCode: true,
+      tsaSignerCertSha256: true,
+      tsaPolicyOid: true,
       otsProofBase64: true,
       otsHash: true,
       otsStatus: true,
@@ -4594,6 +4610,12 @@ async function runReportGeneration(
     if (!finalized.skipped) await recordRequestProgress(command, "BUILDING_PACKAGE");
     let finalizedVerificationStaged: StagedPackage | null = null;
     let finalizedVerificationSeal: PackageSealResult | null = null;
+    // THE package identities (2026-10-07): minted BEFORE any child document,
+    // so every document in each package and the package row carry the same id.
+    const fullPackageId = randomUUID();
+    const externalPackageId = randomUUID();
+    let externalDisclosureStaged: StagedPackage | null = null;
+    let externalDisclosureSeal: PackageSealResult | null = null;
     let finalizedVerificationArtifactPresence: VerificationPackageArtifactPresence | null = null;
 
     // Phase 32.6.6 — personal BASIC + team GOVERNED modes (was: skip
@@ -4721,7 +4743,52 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         const verificationPackageProvenanceChain =
           await loadProvenanceChainForPackage(prepared.evidenceId);
 
-        const finalizedVerificationPackage = await createVerificationPackage({
+        // The package this one supersedes: the previous report version's.
+        const previousPackage = await prisma.verificationPackage.findFirst({
+          where: { evidenceId: prepared.evidenceId, version: { lt: prepared.version } },
+          orderBy: { version: "desc" },
+          select: { id: true, version: true },
+        });
+        // timestamp-validation.json — from the record's TSA facts and the
+        // validation evidence recorded with the validation (custody).
+        const tsaValidationEvent = evidence.tsaValidatedAtUtc
+          ? await prisma.custodyEvent.findFirst({
+              where: {
+                evidenceId: prepared.evidenceId,
+                eventType: prismaPkg.CustodyEventType.TIMESTAMP_APPLIED,
+              },
+              orderBy: { sequence: "desc" },
+              select: { payload: true },
+            })
+          : null;
+        const includedTimestampToken =
+          presentedTsaStatus(evidence) === "STAMPED" ? evidence.tsaTokenBase64 ?? null : null;
+        const timestampValidation = buildTimestampValidationRecord({
+          tsaStatus: evidence.tsaStatus,
+          tsaValidatedAtUtc: evidence.tsaValidatedAtUtc,
+          tsaFailureCode: evidence.tsaFailureCode,
+          tokenIncluded: Boolean(includedTimestampToken),
+          tokenSha256: includedTimestampToken
+            ? createHash("sha256").update(Buffer.from(includedTimestampToken, "base64")).digest("hex")
+            : null,
+          tsaHashAlgorithm: evidence.tsaHashAlgorithm,
+          tsaMessageImprint: evidence.tsaMessageImprint,
+          tsaInputDigestHex: evidence.tsaInputDigestHex,
+          evidenceDigestHex: evidence.fileSha256,
+          tsaSerialNumber: evidence.tsaSerialNumber,
+          tsaGenTimeUtc: evidence.tsaGenTimeUtc,
+          tsaPolicyOid: evidence.tsaPolicyOid,
+          tsaSignerCertSha256: evidence.tsaSignerCertSha256,
+          tokenPresent: Boolean(evidence.tsaTokenBase64),
+          evidence: parseTsaValidationEvidence(
+            (tsaValidationEvent?.payload as { tsaValidation?: unknown } | null)?.tsaValidation ?? null,
+          ),
+        });
+        const packageBuildInput: Parameters<typeof createVerificationPackage>[0] = {
+          supersedesPackage: previousPackage
+            ? { packageId: previousPackage.id, reportVersion: previousPackage.version }
+            : null,
+          timestampValidation,
           teamId: evidence.teamId ?? undefined,
           // Phase 2 canonical workspace scope inputs. `isPersonalTeam`
           // is the only correct way to distinguish personal vs team
@@ -4959,7 +5026,25 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
               finalized.finalizedReportEvidencePayload
                 .recordedIntegrityVerifiedAtUtc ?? null,
           },
+        };
+        // ONE generator, two projections of the same facts, sealed by the same
+        // signer: the complete forensic package, and the external disclosure
+        // package that withholds originals, the report and identifiers.
+        const finalizedVerificationPackage = await createVerificationPackage({
+          ...packageBuildInput,
+          packageId: fullPackageId,
+          disclosureProfile: "FULL_FORENSIC",
+          packageVerificationUrl: buildPackageVerificationUrl(fullPackageId),
         });
+        const externalDisclosurePackage = await createVerificationPackage({
+          ...packageBuildInput,
+          packageId: externalPackageId,
+          disclosureProfile: "EXTERNAL_DISCLOSURE",
+          sourceFullPackageId: fullPackageId,
+          packageVerificationUrl: buildPackageVerificationUrl(externalPackageId),
+        });
+        externalDisclosureStaged = externalDisclosurePackage.staged;
+        externalDisclosureSeal = externalDisclosurePackage.seal;
         finalizedVerificationStaged = finalizedVerificationPackage.staged;
         finalizedVerificationSeal = finalizedVerificationPackage.seal;
         finalizedVerificationArtifactPresence =
@@ -5094,7 +5179,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           await assertWorkspaceAllowsVerificationPackageArtifact({
             ownerUserId: evidence.ownerUserId,
             teamId: evidence.teamId ?? null,
-            incomingBytes: BigInt(staged.sizeBytes),
+            incomingBytes: BigInt(staged.sizeBytes) + BigInt(externalDisclosureStaged?.sizeBytes ?? 0),
             // Credit-funded records earn their package on a FREE account.
             evidenceId: evidence.id,
           });
@@ -5145,6 +5230,40 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         await cleanupStagedTemp(staged);
         const verificationHead = publishedPackage;
 
+        // The external disclosure package: the same publication contract
+        // (checksum + Object Lock in one write, read back by VersionId).
+        let externalHead: PublishedArtifact | null = null;
+        if (externalDisclosureStaged) {
+          externalHead = await publishImmutableArtifact({
+            bucket: env.S3_BUCKET,
+            key: buildPublicationKey({
+              family: "verification",
+              evidenceId: prepared.evidenceId,
+              version: prepared.version,
+              requestId: command.requestId,
+              extension: "zip",
+              nonce: `external-${externalPackageId}`,
+            }),
+            body: { kind: "file", filePath: externalDisclosureStaged.tempPath, sizeBytes: externalDisclosureStaged.sizeBytes },
+            sha256Base64: externalDisclosureStaged.sha256Base64,
+            contentType: "application/zip",
+            metadata: {
+              evidence_id: prepared.evidenceId,
+              report_version: String(prepared.version),
+              artifact_type: "verification_package_external_disclosure",
+              package_format_version: externalDisclosureSeal
+                ? String(externalDisclosureSeal.packageFormatVersion)
+                : "4",
+            },
+            tags: {
+              artifact: "verification-package",
+              evidenceId: prepared.evidenceId,
+              immutable: "true",
+            },
+          });
+          await cleanupStagedTemp(externalDisclosureStaged);
+        }
+
         await prisma.$transaction(async (tx) => {
           /*
            * THE BASELINE, RE-CHECKED WHERE IT IS COMMITTED (2026-09-29).
@@ -5185,6 +5304,27 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
 
           await tx.verificationPackage.create({
             data: {
+              // THE package identity every document inside it carries.
+              id: fullPackageId,
+              disclosureProfile: "FULL_FORENSIC",
+              externalDisclosureArtifact:
+                externalHead && externalDisclosureStaged
+                  ? ({
+                      packageId: externalPackageId,
+                      disclosureProfile: "EXTERNAL_DISCLOSURE",
+                      storageKey: externalHead.key,
+                      s3VersionId: externalHead.versionId,
+                      sizeBytes: String(externalDisclosureStaged.sizeBytes),
+                      packageSha256: externalDisclosureStaged.sha256Hex,
+                      packageFormatVersion: externalDisclosureSeal?.packageFormatVersion ?? null,
+                      sealSha256: externalDisclosureSeal?.sealSha256 ?? null,
+                      sealSigningKeySha256: externalDisclosureSeal?.signingKeyFingerprint ?? null,
+                      storageObjectLockMode: externalHead.objectLockMode,
+                      storageObjectLockRetainUntilUtc: externalHead.objectLockRetainUntilUtc
+                        ? new Date(externalHead.objectLockRetainUntilUtc).toISOString()
+                        : null,
+                    } as Prisma.InputJsonValue)
+                  : undefined,
               evidenceId: prepared.evidenceId,
               version: prepared.version,
               storageBucket: env.S3_BUCKET,

@@ -23,7 +23,12 @@ describe("verification package README (ET-PKG-02/03)", () => {
     expect(readme).toContain("${params.chronology ? `2) Verify the seal (this package is sealed, format 5):");
     expect(readme).toContain("the seal key fingerprint\n      PROOVRA shows for this package on the record's Public Verify page");
     expect(readme).toContain("package-manifest.sig covers package-manifest.json only; it does not cover\n   the report or the checksum index.");
-    expect(readme).toContain("e. The report named by reportFile must hash to reportSha256.");
+    expect(readme).toContain("The report named by reportFile must hash to reportSha256.");
+    // An external-disclosure package names the withheld report's commitment instead.
+    expect(readme).toContain("The report is withheld in this profile; reportSha256 in package-seal.json commits to it.");
+    // And the package is bound to PROOVRA from outside it, or says it cannot be.
+    expect(readme).toContain("f. Confirm the package with PROOVRA: open");
+    expect(readme).toContain("external key\n      binding is unavailable");
   });
 
   it("an unsealed package says what its manifest signature cannot show", () => {

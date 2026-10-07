@@ -1,4 +1,15 @@
 import archiver from "archiver";
+import {
+  DISCLOSURE_MANIFEST_FILE,
+  DISCLOSURE_PROFILE_DESCRIPTIONS,
+  DISCLOSURE_PROFILE_LABELS,
+  buildDisclosureManifest,
+  projectJsonForDisclosure,
+  type DisclosureProfile,
+  type DisclosureReason,
+  type DisclosureRecord,
+  type TimestampValidationRecord,
+} from "@proovra/shared";
 import path from "node:path";
 // Phase 4B — lifecycle + exchange manifests integration.
 import { buildLifecycleAndExchangeManifests } from "./verification-package-lifecycle.js";
@@ -153,6 +164,23 @@ type AnchorPayload = {
 type PackageManifest = {
   packageType: "PROOVRA_VERIFICATION_PACKAGE";
   version: number;
+  /** THE package identity, minted before any child document (2026-10-07). */
+  packageId: string | null;
+  /** FULL_FORENSIC | EXTERNAL_DISCLOSURE (see disclosure-manifest.json). */
+  disclosureProfile: DisclosureProfile;
+  /** The previous report version's package this one supersedes, if any. */
+  supersedesPackage: { packageId: string; reportVersion: number } | null;
+  /** EXTERNAL_DISCLOSURE: the FULL_FORENSIC package of the same version. */
+  sourceFullPackageId: string | null;
+  /**
+   * THE digest the evidence signature and the RFC 3161 token certify
+   * (README "timestamp.tsr" and step 4 reference this exact field).
+   * Single file: SHA-256 of the file. Multipart: see evidenceFileSha256Semantics.
+   */
+  evidenceFileSha256: string | null;
+  evidenceFileSha256Semantics: string | null;
+  /** Where PROOVRA publishes this package's identity and seal key. */
+  packageVerificationUrl: string | null;
   evidenceId: string | null;
   reportVersion: number | null;
   signingKeyId: string | null;
@@ -515,6 +543,8 @@ function normalizeFileNameSegments(parts: Array<string | null | undefined>): str
  */
 export const RESERVED_ROOT_ENTRY_NAMES: ReadonlySet<string> = new Set([
   "README.txt",
+  "disclosure-manifest.json",
+  "timestamp-validation.json",
   "access-activity.json",
   "acquisition.json",
   "anchor.json",
@@ -1874,6 +1904,12 @@ export function buildOriginalLinkage(
 }
 
 function buildPackageManifest(params: {
+  packageId: string | null;
+  disclosureProfile: DisclosureProfile;
+  supersedesPackage: { packageId: string; reportVersion: number } | null;
+  sourceFullPackageId: string | null;
+  evidenceFileSha256: string | null;
+  packageVerificationUrl: string | null;
   evidenceId?: string;
   reportVersion?: number;
   signingKeyId?: string;
@@ -1917,9 +1953,24 @@ function buildPackageManifest(params: {
           .digest("hex")
       : null;
 
+  const evidenceFileSha256 =
+    params.evidenceFileSha256 && /^[a-f0-9]{64}$/i.test(params.evidenceFileSha256)
+      ? params.evidenceFileSha256.toLowerCase()
+      : null;
   return {
     packageType: "PROOVRA_VERIFICATION_PACKAGE",
     version: 4,
+    packageId: params.packageId,
+    disclosureProfile: params.disclosureProfile,
+    supersedesPackage: params.supersedesPackage,
+    sourceFullPackageId: params.sourceFullPackageId,
+    evidenceFileSha256,
+    evidenceFileSha256Semantics: evidenceFileSha256
+      ? isMultipartPackage
+        ? "SHA-256 of the per-part lowercase hex SHA-256 digests in partIndex order joined with a single '|' character. It is not multipartManifestSha256."
+        : "SHA-256 of the original evidence file."
+      : null,
+    packageVerificationUrl: params.packageVerificationUrl,
     evidenceId: params.evidenceId ?? null,
     reportVersion: params.reportVersion ?? null,
     signingKeyId: params.signingKeyId ?? null,
@@ -1966,7 +2017,8 @@ function buildPackageManifest(params: {
     transactionId: params.anchor?.transactionId ?? null,
     verificationProfile: "FORENSIC_INTEGRITY",
     contents: {
-      evidenceFiles: true,
+      // EXTERNAL_DISCLOSURE withholds the original files (their digests stay).
+      evidenceFiles: params.disclosureProfile === "FULL_FORENSIC",
       fingerprint: true,
       signature: true,
       publicKey: true,
@@ -2047,7 +2099,22 @@ function buildReadme(params: {
   } | null;
   /** UC-OUT-001 — the record's publication state when the package was assembled. */
   publicVerificationPublished?: boolean | null;
+  packageId?: string | null;
+  disclosureProfile?: DisclosureProfile;
+  supersedesPackage?: { packageId: string; reportVersion: number } | null;
+  sourceFullPackageId?: string | null;
+  packageVerificationUrl?: string | null;
+  /** package-manifest.json → evidenceFileSha256 (the certified digest). */
+  evidenceFileSha256?: string | null;
+  /** The record's timestamp trust state label (resolveTsaTrustState). */
+  timestampStateLabel?: string | null;
+  hasTimestampValidationRecord?: boolean;
+  /** The in-package name of the single original file (FULL profile). */
+  singleEvidenceEntryName?: string | null;
 }): string {
+  const profile: DisclosureProfile = params.disclosureProfile ?? "FULL_FORENSIC";
+  const external = profile === "EXTERNAL_DISCLOSURE";
+  const digest = params.evidenceFileSha256 ?? null;
   // UC-OUT-001 — Public Verify answers only for a PUBLISHED record. The steps
   // that compare with it say so, and what to do when it is private.
   const publicVerifyNote =
@@ -2088,15 +2155,117 @@ The OpenTimestamps and RFC 3161 materials in this package (anchor.json, opentime
 
   const timestampReadmeLine = params.hasTimestampToken
     ? `timestamp.tsr
-Included in this package as RFC 3161 DER-encoded timestamp data. PROOVRA validated this token when it was issued: its signature, its signer's certificate chain to the trust anchor configured for the issuing timestamp authority, the signer's validity at the stamped time, and that it certifies the digest PROOVRA sent. Validate it yourself with: openssl ts -verify -in timestamp.tsr -digest <fileSha256 from package-manifest.json> -CAfile <the issuing authority's root certificate>. The certified digest is fileSha256. For a single file that is the SHA-256 of the file. For a multipart record it is the SHA-256 of the per-part lowercase hex SHA-256 digests in partIndex order joined with a single '|' character — which is NOT multipartManifestSha256 (those digests joined with LF).`
+Included in this package: the RFC 3161 reply (DER) PROOVRA validated. timestamp-validation.json records what that validation established — signature, certificate chain to PROOVRA's configured trust anchor, signer validity at the stamped time, message imprint, nonce and policy — and what it did not (qualified status was not evaluated). The certified digest is evidenceFileSha256 in package-manifest.json${digest ? ` (${digest})` : ""}. See "TIMESTAMP VERIFICATION LEVELS" and "COMMANDS" below.`
     : `timestamp.tsr
-Not included in this package. RFC3161 timestamp status: ${
-        timestampStatus || "NOT_RECORDED"
-      }.${
+Not included in this package. Trusted timestamp: ${params.timestampStateLabel ?? "Not recorded"}.${
         timestampStatus === "FAILED" || timestampStatus === "RECORDED_NOT_VALIDATED"
           ? " A reply was received from the timestamp authority but PROOVRA did not validate it, so it is not presented as a trusted timestamp and is not included."
           : ""
-      } Integrity verification still relies on hashes, digital signature, preserved originals, custody continuity, and any available anchoring material.`;
+      }${params.hasTimestampValidationRecord ? " timestamp-validation.json records the bounded validation state." : ""} Integrity verification still relies on hashes, digital signature, preserved originals, custody continuity, and any available anchoring material.`;
+
+  const verifyUrl = params.packageVerificationUrl ?? null;
+  const identitySection = `Package ID: ${safeText(params.packageId, "Not recorded (issued before package identities)")}
+Disclosure Profile: ${DISCLOSURE_PROFILE_LABELS[profile]}
+${DISCLOSURE_PROFILE_DESCRIPTIONS[profile]}
+${
+  external
+    ? `THIS IS NOT THE COMPLETE FORENSIC PACKAGE. disclosure-manifest.json lists every withheld or coarsened field and file and why.${params.sourceFullPackageId ? ` The complete package for this report version is package ${params.sourceFullPackageId}.` : ""}`
+    : "This is the complete forensic package for the report version it certifies. disclosure-manifest.json states that nothing was withheld."
+}
+${
+  params.supersedesPackage
+    ? `Supersedes: package ${params.supersedesPackage.packageId} (report version ${params.supersedesPackage.reportVersion}). That earlier package is unchanged and remains valid for what it stated when it was issued.`
+    : "Supersedes: no earlier package (this is the first package for this record)."
+}
+`;
+
+  const keyBindingStep = verifyUrl
+    ? `   f. Confirm the package with PROOVRA: open ${verifyUrl}
+      PROOVRA's public package record must show this Package ID, the SHA-256 of
+      the exact ZIP you hold, the seal digest (sealSha256 in package-seal.sig)
+      and the seal key fingerprint (signingKeyFingerprint in package-seal.sig),
+      with that key's status (active, superseded or revoked) and validity. If
+      the page is unreachable or does not list this package, external key
+      binding is unavailable: the seal proves the package is internally
+      consistent, but its attribution to PROOVRA cannot be confirmed from
+      outside the package.`
+    : `   f. External key binding is unavailable for this package (no PROOVRA
+      package record was named when it was issued). The seal proves internal
+      consistency only; attribution to PROOVRA cannot be confirmed from outside
+      the package.`;
+
+  const commandsSection = `COMMANDS (copy and paste; run in the extracted package folder)
+
+Linux and macOS (bash), Windows (Git Bash or WSL; OpenSSL 3 is required):
+
+  # SHA-256 of a file  (macOS: shasum -a 256 FILE; Windows PowerShell:
+  #                     Get-FileHash -Algorithm SHA256 FILE)
+  sha256sum package-seal.json
+
+  # Seal signature: Ed25519 over the 32 raw bytes of SHA-256(package-seal.json)
+  grep -o '"signatureBase64": *"[^"]*"' package-seal.sig | cut -d'"' -f4 | openssl base64 -d -A > seal-signature.bin
+  openssl dgst -sha256 -binary package-seal.json > seal-digest.bin
+  openssl pkeyutl -verify -pubin -inkey package-manifest-public-key.pem -rawin -in seal-digest.bin -sigfile seal-signature.bin
+
+  # Seal key fingerprint (compare with signingKeyFingerprint and with PROOVRA)
+  openssl pkey -pubin -in package-manifest-public-key.pem -outform DER | openssl dgst -sha256
+
+  # Evidence signature: Ed25519 over the 32 raw bytes of fingerprintHash
+  sha256sum fingerprint.json
+  openssl base64 -d -A -in signature.txt > evidence-signature.bin
+  openssl dgst -sha256 -binary fingerprint.json > fingerprint-digest.bin
+  openssl pkeyutl -verify -pubin -inkey public-key.pem -rawin -in fingerprint-digest.bin -sigfile evidence-signature.bin
+${
+  params.hasTimestampToken && digest
+    ? `
+  # RFC 3161 token (TSA-ROOT.pem: the authority's root from a trust store
+  # YOU select; add -untrusted INTERMEDIATES.pem if the authority uses them)
+  openssl ts -verify -in timestamp.tsr -digest ${digest} -CAfile TSA-ROOT.pem
+`
+    : ""
+}${
+  !external && digest && params.singleEvidenceEntryName
+    ? `
+  # The original file must hash to evidenceFileSha256 (${digest})
+  sha256sum "${params.singleEvidenceEntryName}"
+`
+    : ""
+}
+Every file listed in package-checksums.json must match its sha256 with the same
+command; no other file may be present except package-checksums.json,
+package-seal.json and package-seal.sig.
+`;
+
+  const tsaLevelsSection = `TIMESTAMP VERIFICATION LEVELS
+
+These are four separate questions. A "yes" to one is not a "yes" to the next.
+1) Token structure and message imprint: the token is a well-formed RFC 3161
+   token whose message imprint equals evidenceFileSha256. (openssl ts -verify
+   checks this together with level 2.)
+2) Certificate chain: the token's signer certificate chains to a trust anchor
+   YOU select, and was valid at the stamped time. PROOVRA validated against the
+   anchor configured for its environment (timestamp-validation.json →
+   trustAnchor); a root is not trustworthy merely because a package names it.
+3) Service status: whether the timestamp authority's service was qualified (for
+   example on an EU Trusted List) at the stamped time. PROOVRA did not evaluate
+   this and claims no qualified status.
+4) Legal effect: depends on the jurisdiction and the context in which the
+   timestamp is presented. This package does not state it.
+`;
+
+  const disclosureSection = external
+    ? `DISCLOSURE
+
+This EXTERNAL DISCLOSURE package withholds the original files and the issued
+report (their SHA-256 commitments are in disclosure-manifest.json and
+package-seal.json → reportSha256) and removes personal identifiers and internal
+infrastructure from the JSON files (each field is listed in
+disclosure-manifest.json). Redacted custody payloads cannot be re-hashed to
+their eventHash; the chain links (each prevEventHash equals the previous
+eventHash) remain checkable. A file received separately through an authorized
+channel can be checked against its digest here.
+`
+    : "";
 
   const anchorReadmeLine = params.anchorIncluded
     ? `anchor.json
@@ -2110,7 +2279,7 @@ PACKAGE OVERVIEW
 
 This package allows independent verification of the recorded digital evidence state.
 
-${chronologySection}
+${chronologySection}${identitySection}
 Evidence ID: ${safeText(params.evidenceId, "Not included")}
 Report Version: ${
     typeof params.reportVersion === "number"
@@ -2240,7 +2409,8 @@ ${params.chronology ? `2) Verify the seal (this package is sealed, format 5):
       package-seal.json; every file must match its line in
       package-checksums.json, and no file may exist outside it other than
       package-checksums.json, package-seal.json and package-seal.sig.
-   e. The report named by reportFile must hash to reportSha256.
+   e. ${external ? "The report is withheld in this profile; reportSha256 in package-seal.json commits to it." : "The report named by reportFile must hash to reportSha256."}
+${keyBindingStep}
    package-manifest.sig covers package-manifest.json only; it does not cover
    the report or the checksum index.` : `2) Verify the packaged files against package-checksums.json (SHA-256) and
    validate package-manifest.sig over package-manifest.json with standard
@@ -2249,13 +2419,13 @@ ${params.chronology ? `2) Verify the seal (this package is sealed, format 5):
    For live integrity and current-trust status, open the PROOVRA Public Verify
    page referenced in the report.
 3) Review fingerprint.json.
-4) Calculate SHA-256 hash of the included evidence file(s).
+4) ${external ? "The original files are withheld in this profile; their SHA-256 digests are in disclosure-manifest.json and evidence-manifest.json (multipart). A file received separately must hash to its digest; for a single file that is evidenceFileSha256 in package-manifest.json." : "Calculate the SHA-256 of the included evidence file(s); a single file must equal evidenceFileSha256 in package-manifest.json."}
 5) Compare computed hashes against original-linkage.json, fingerprint.json, and package-checksums.json.
 ${params.evidenceFiles.length > 1 ? `   ${PROOVRA_MULTIPART_REVIEWER_EXPLANATION}
    ${PROOVRA_MULTIPART_RECOMPUTATION_NOTE}
    ${PROOVRA_MULTIPART_LEGAL_BOUNDARY_NOTE}` : ""}
 6) Verify signature.txt as an Ed25519 signature over the 32 raw bytes of fingerprintHash (hex-decoded) with public-key.pem, and check that public-key.pem is the evidence signing key PROOVRA publishes for this record on Public Verify (a key found only inside the package vouches for nothing by itself).
-7) Verify the RFC3161 timestamp token using timestamp verification tools, if included.
+7) Verify the RFC 3161 token, if included, with the command under COMMANDS, against a trust store you select (see TIMESTAMP VERIFICATION LEVELS).
 8) Review custody.json and, where present, anchor.json.
 9) Review capture-context.json and map-preview.png, if present, as contextual device/browser-reported metadata only.
 10) Use original-linkage.json to tie every included file and the bundled report back to the preserved record.
@@ -2270,6 +2440,9 @@ ${buildAnchorReadmeSection({
   anchoringClaim: params.anchoringClaim,
 })}
 
+${commandsSection}
+${tsaLevelsSection}
+${disclosureSection}
 EVIDENCE CONTAINER BOUNDARY
 
 This package verifies the exported evidence container.
@@ -2701,6 +2874,22 @@ export async function createVerificationPackage(data: {
    * publication.
    */
   publicVerification?: { publishedAtIssuance: boolean } | null;
+  /**
+   * THE package identity (2026-10-07), minted by the caller BEFORE this
+   * function builds any child document; it becomes the package row's id.
+   * Required for every sealed package.
+   */
+  packageId?: string | null;
+  /** One generator, two projections (@proovra/shared disclosure-profile). */
+  disclosureProfile?: DisclosureProfile;
+  /** The previous report version's package, which this one supersedes. */
+  supersedesPackage?: { packageId: string; reportVersion: number } | null;
+  /** EXTERNAL_DISCLOSURE: the FULL_FORENSIC package built in the same run. */
+  sourceFullPackageId?: string | null;
+  /** The Public Verify page that publishes this package's identity and seal key. */
+  packageVerificationUrl?: string | null;
+  /** timestamp-validation.json (@proovra/shared buildTimestampValidationRecord). */
+  timestampValidation?: TimestampValidationRecord | null;
 }): Promise<{
   staged: StagedPackage;
   artifactPresence: VerificationPackageArtifactPresence;
@@ -2875,6 +3064,44 @@ export async function createVerificationPackage(data: {
     archive.pipe(meter).pipe(out);
     void (async () => {
   try {
+    // THE DISCLOSURE PROJECTION (2026-10-07). Every entry passes through
+    // appendEntry: FULL_FORENSIC appends it unchanged; EXTERNAL_DISCLOSURE
+    // withholds what the profile withholds (recording its digest) and
+    // projects JSON through the shared field policy, recording each action
+    // for disclosure-manifest.json. Signed and commitment-bearing documents
+    // are never projected.
+    const profile: DisclosureProfile = data.disclosureProfile ?? "FULL_FORENSIC";
+    const packageId = data.packageId ?? null;
+    if (data.seal && !packageId) throw new Error("PACKAGE_ID_REQUIRED");
+    const disclosureRecords: DisclosureRecord[] = [];
+    const withheldFiles: Array<{ file: string; sha256: string | null; reason: DisclosureReason }> = [];
+    const NEVER_PROJECTED = new Set([
+      "fingerprint.json",
+      "package-manifest.json",
+      "package-manifest.sig",
+      "trust-decision.json",
+      "opentimestamps.json",
+      "anchor.json",
+      "timestamp-validation.json",
+      "evidence-manifest.json",
+      "signers/signer-registry-snapshot.json",
+      "signers/historical-verification-material.json",
+    ]);
+    const appendEntry = (name: string, buffer: Buffer, contentType?: string) => {
+      if (profile === "EXTERNAL_DISCLOSURE") {
+        if (name === "map-preview.png") {
+          withheldFiles.push({ file: name, sha256: sha256Hex(buffer), reason: "PRECISE_LOCATION" });
+          return;
+        }
+        if (contentType === "application/json" && !NEVER_PROJECTED.has(name)) {
+          const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString("utf8")));
+          disclosureRecords.push(...projected.records);
+          appendPackageEntry(archive, packageEntries, name, jsonBuffer(projected.value), contentType);
+          return;
+        }
+      }
+      appendPackageEntry(archive, packageEntries, name, buffer, contentType);
+    };
 
     const evidenceFiles = selectPackageEvidenceFiles(data);
 
@@ -2950,7 +3177,24 @@ export async function createVerificationPackage(data: {
       ? (data.custody as CustodyEventRecord[])
       : [];
 
-    if (evidenceFilesWithFinalName.length === 1) {
+    if (profile === "EXTERNAL_DISCLOSURE") {
+      // The original content is withheld; each file's digest is the
+      // commitment a recipient checks a separately received file against.
+      for (const file of evidenceFilesWithFinalName) {
+        withheldFiles.push({
+          file: evidenceFilesWithFinalName.length === 1 ? file.finalName : `evidence-parts/${file.finalName}`,
+          sha256: file.sha256 ?? null,
+          reason: "ORIGINAL_CONTENT",
+        });
+      }
+      if (evidenceFilesWithFinalName.length > 1) {
+        appendEntry(
+          "evidence-manifest.json",
+          jsonBuffer(buildEvidenceManifest(evidenceFilesWithFinalName)),
+          "application/json"
+        );
+      }
+    } else if (evidenceFilesWithFinalName.length === 1) {
       const file = evidenceFilesWithFinalName[0];
       await appendEvidencePart(archive, packageEntries, file.finalName, file);
     } else {
@@ -2958,35 +3202,27 @@ export async function createVerificationPackage(data: {
         await appendEvidencePart(archive, packageEntries, `evidence-parts/${file.finalName}`, file);
       }
 
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "evidence-manifest.json",
         jsonBuffer(buildEvidenceManifest(evidenceFilesWithFinalName)),
         "application/json"
       );
     }
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "fingerprint.json",
+    appendEntry(
+        "fingerprint.json",
       textBuffer(data.fingerprint),
       "application/json"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "signature.txt",
+    appendEntry(
+        "signature.txt",
       textBuffer(data.signature),
       "text/plain"
     );
 
     if (data.timestampToken) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "timestamp.tsr",
         Buffer.from(data.timestampToken, "base64"),
         "application/octet-stream"
@@ -3005,63 +3241,49 @@ export async function createVerificationPackage(data: {
     if (data.ots) {
       const decision = decideOtsPackageArtifact(data.ots);
       if (decision.proofBytes) {
-        appendPackageEntry(
-          archive,
-          packageEntries,
-          "opentimestamps-proof.ots",
+        appendEntry(
+        "opentimestamps-proof.ots",
           decision.proofBytes,
           "application/octet-stream"
         );
       }
       if (decision.companion) {
-        appendPackageEntry(
-          archive,
-          packageEntries,
-          "opentimestamps.json",
+        appendEntry(
+        "opentimestamps.json",
           jsonBuffer(decision.companion),
           "application/json"
         );
       }
     }
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "public-key.pem",
+    appendEntry(
+        "public-key.pem",
       textBuffer(data.publicKey),
       "application/x-pem-file"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "custody.json",
+    appendEntry(
+        "custody.json",
       jsonBuffer(data.custody),
       "application/json"
     );
     artifactPresence.custodyExportIncluded = true;
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "forensic-custody.json",
+    appendEntry(
+        "forensic-custody.json",
       jsonBuffer(custodySplit.forensic),
       "application/json"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "access-activity.json",
+    appendEntry(
+        "access-activity.json",
       jsonBuffer(custodySplit.access),
       "application/json"
     );
     artifactPresence.accessExportIncluded = true;
 
     if (data.anchor) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "anchor.json",
         jsonBuffer({
           ...data.anchor,
@@ -3078,6 +3300,12 @@ export async function createVerificationPackage(data: {
     }
 
     const packageManifest = buildPackageManifest({
+      packageId,
+      disclosureProfile: profile,
+      supersedesPackage: data.supersedesPackage ?? null,
+      sourceFullPackageId: data.sourceFullPackageId ?? null,
+      evidenceFileSha256: data.seal?.fileSha256 ?? null,
+      packageVerificationUrl: data.packageVerificationUrl ?? null,
       evidenceId: data.evidenceId,
       reportVersion: data.reportVersion,
       signingKeyId: data.signingKeyId,
@@ -3092,7 +3320,7 @@ export async function createVerificationPackage(data: {
       anchoringClaim: anchorSemantics?.anchoringStatus ?? "not_included",
       hasTimestampToken,
       hasActualCertifications: certificationSummary.hasActualCertifications,
-      hasReportArtifact: Boolean(data.reportPdf),
+      hasReportArtifact: Boolean(data.reportPdf) && profile === "FULL_FORENSIC",
       hasCaptureContext: Boolean(captureContextData),
       hasCaptureContextMapPreview: Boolean(captureContextMapPreview),
       metadata,
@@ -3100,10 +3328,8 @@ export async function createVerificationPackage(data: {
 
     const packageManifestBuffer = jsonBuffer(packageManifest);
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "package-manifest.json",
+    appendEntry(
+        "package-manifest.json",
       packageManifestBuffer,
       "application/json"
     );
@@ -3145,12 +3371,12 @@ export async function createVerificationPackage(data: {
     const isPersonalWorkspaceAtPackageTime =
       workspaceScope === "PERSONAL_ACCOUNT_WORKSPACE";
     const governanceMeaning = describeCanonicalWorkspaceScope(workspaceScope);
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "package-mode.json",
+    appendEntry(
+        "package-mode.json",
       jsonBuffer({
         mode: packageMode,
+        packageId,
+        disclosureProfile: profile,
         notice:
           packageMode === "personal_basic"
             ? "No team governance context; personal package"
@@ -3176,27 +3402,21 @@ export async function createVerificationPackage(data: {
       signingKeyVersion: data.signingKeyVersion ?? null,
     });
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "package-manifest-public-key.pem",
+    appendEntry(
+        "package-manifest-public-key.pem",
       textBuffer(signed.publicKeyPem),
       "application/x-pem-file"
     );
 
-appendPackageEntry(
-  archive,
-  packageEntries,
-  "package-manifest.sig",
+appendEntry(
+        "package-manifest.sig",
   jsonBuffer(signed.manifest),
   "application/json"
 );
     artifactPresence.signedManifestPresent = true;
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "package-manifest.verify.txt",
+    appendEntry(
+        "package-manifest.verify.txt",
       textBuffer(
         `PROOVRA package manifest verification
 
@@ -3215,10 +3435,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "text/plain"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "integrity-summary.json",
+    appendEntry(
+        "integrity-summary.json",
       jsonBuffer(
         buildIntegritySummary({
           evidenceFiles: evidenceFilesWithFinalName,
@@ -3231,10 +3449,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "application/json"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "trust-decision.json",
+    appendEntry(
+        "trust-decision.json",
       jsonBuffer(
         serializeTrustDecisionForReviewerPackage(data.trustDecision, {
           includeInternalDebug:
@@ -3262,9 +3478,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     // built before this version simply omit it; downstream tooling
     // continues to read every other artefact as before.
     if (data.canonicalMaterials) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "canonical-record.json",
         jsonBuffer({
           schema: "proovra.canonical-record/v1",
@@ -3282,26 +3496,20 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       );
     }
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "original-linkage.json",
+    appendEntry(
+        "original-linkage.json",
       jsonBuffer(buildOriginalLinkage(evidenceFilesWithFinalName, metadata)),
       "application/json"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "case-metadata.json",
+    appendEntry(
+        "case-metadata.json",
       jsonBuffer(buildCaseMetadata(metadata, data.evidenceId ?? null)),
       "application/json"
     );
 
     if (captureContextData) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "capture-context.json",
         jsonBuffer(captureContextData),
         "application/json"
@@ -3309,19 +3517,15 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     }
 
     if (captureContextMapPreview) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "map-preview.png",
         captureContextMapPreview,
         "image/png"
       );
     }
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "audit-access-report.json",
+    appendEntry(
+        "audit-access-report.json",
       jsonBuffer(
         buildAuditAccessReport({
           custody: custodyArray,
@@ -3338,18 +3542,14 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     // online via Public Verify, or independently with standard tooling against
     // the checksum + signed-manifest files.
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "duplicate-digests.json",
+    appendEntry(
+        "duplicate-digests.json",
       jsonBuffer(buildDuplicateDigests(evidenceFilesWithFinalName)),
       "application/json"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "review-artifact-boundaries.json",
+    appendEntry(
+        "review-artifact-boundaries.json",
       jsonBuffer(
         buildArtifactBoundaries({
           evidenceFiles: evidenceFilesWithFinalName,
@@ -3365,10 +3565,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "application/json"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "reviewer-readiness-checklist.json",
+    appendEntry(
+        "reviewer-readiness-checklist.json",
       jsonBuffer(
         buildCourtReadinessChecklist({
           evidenceFiles: evidenceFilesWithFinalName,
@@ -3403,10 +3601,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "application/json"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "README.txt",
+    appendEntry(
+        "README.txt",
       textBuffer(
         buildReadme({
           evidenceFiles,
@@ -3434,15 +3630,23 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
               }
             : null,
           publicVerificationPublished: data.publicVerification?.publishedAtIssuance ?? null,
+          packageId,
+          disclosureProfile: profile,
+          supersedesPackage: data.supersedesPackage ?? null,
+          sourceFullPackageId: data.sourceFullPackageId ?? null,
+          packageVerificationUrl: data.packageVerificationUrl ?? null,
+          evidenceFileSha256: data.seal?.fileSha256 ?? null,
+          timestampStateLabel: data.timestampValidation?.statusLabel ?? null,
+          hasTimestampValidationRecord: Boolean(data.timestampValidation),
+          singleEvidenceEntryName:
+            evidenceFilesWithFinalName.length === 1 ? evidenceFilesWithFinalName[0]!.finalName : null,
         })
       ),
       "text/plain"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "certifications/custodian-declaration-template.md",
+    appendEntry(
+        "certifications/custodian-declaration-template.md",
       textBuffer(
         buildCustodianDeclarationTemplate({
           evidenceId: data.evidenceId,
@@ -3453,10 +3657,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "text/markdown"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "certifications/qualified-person-certification-template.md",
+    appendEntry(
+        "certifications/qualified-person-certification-template.md",
       textBuffer(
         buildQualifiedPersonTemplate({
           evidenceId: data.evidenceId,
@@ -3466,10 +3668,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "text/markdown"
     );
 
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "certifications/system-process-declaration.md",
+    appendEntry(
+        "certifications/system-process-declaration.md",
       textBuffer(
         buildSystemProcessDeclaration({
           evidenceFiles,
@@ -3480,9 +3680,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     );
 
     if (data.certifications?.custodian) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "certifications/custodian-record.json",
         jsonBuffer(data.certifications.custodian),
         "application/json"
@@ -3490,9 +3688,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     }
 
     if (data.certifications?.qualifiedPerson) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "certifications/qualified-person-record.json",
         jsonBuffer(data.certifications.qualifiedPerson),
         "application/json"
@@ -3500,24 +3696,22 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     }
 
     if (certificationSummary.hasActualCertifications) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "certifications/certification-summary.json",
         jsonBuffer(certificationSummary),
         "application/json"
       );
     }
 
-    if (data.reportPdf) {
+    if (data.reportPdf && profile === "EXTERNAL_DISCLOSURE") {
+      withheldFiles.push({ file: "reports/", sha256: sha256Hex(data.reportPdf), reason: "CONTAINS_DIRECT_IDENTIFIERS" });
+    } else if (data.reportPdf) {
       reportEntryPath = `reports/${normalizeFileName(
         data.reportFileName ??
           `proovra-report-v${data.reportVersion ?? "latest"}.pdf`,
         "proovra-report.pdf"
       )}`;
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         reportEntryPath,
         data.reportPdf,
         "application/pdf"
@@ -3537,10 +3731,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         data.intelligence ?? null,
       );
       for (const entry of manifestEntries) {
-        appendPackageEntry(
-          archive,
-          packageEntries,
-          entry.path,
+        appendEntry(
+        entry.path,
           jsonBuffer(entry.json),
           "application/json"
         );
@@ -3567,10 +3759,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           evidenceId: data.evidenceId as string,
         });
         for (const entry of tmEntries) {
-          appendPackageEntry(
-            archive,
-            packageEntries,
-            entry.path,
+          appendEntry(
+        entry.path,
             jsonBuffer(entry.json),
             "application/json"
           );
@@ -3588,9 +3778,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     // sub-chain, but its absence does NOT break verification of the
     // primary fingerprint signature.
     if (data.provenanceChain) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "provenance/chain.json",
         jsonBuffer(data.provenanceChain),
         "application/json",
@@ -3600,10 +3788,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     // UC-0 — the acquisition record (always) and the derivative lineage
     // manifest (when derivatives exist). Emitted before the checksums index so
     // both are covered by package-checksums.json and the signed manifest.
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "acquisition.json",
+    appendEntry(
+        "acquisition.json",
       jsonBuffer(
         buildPackageAcquisitionRecord({
           evidenceId: data.evidenceId ?? null,
@@ -3616,9 +3802,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       "application/json",
     );
     if ((data.provenanceChain?.derivedArtifacts ?? []).length > 0) {
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "derived/derived-manifest.json",
         jsonBuffer(
           buildDerivedManifest({
@@ -3656,10 +3840,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           teamId: data.teamId as string,
         });
         for (const entry of tgEntries) {
-          appendPackageEntry(
-            archive,
-            packageEntries,
-            entry.path,
+          appendEntry(
+        entry.path,
             jsonBuffer(entry.json),
             "application/json"
           );
@@ -3692,29 +3874,23 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       const attestationFiles = await collectVerificationPackageAttestations({
         teamId: data.teamId ?? null,
         evidenceId: data.evidenceId as string,
-        packageId: null,
+        packageId,
         // Report-time forensic snapshot count (the exact number the PDF Chain
         // of Custody + custody.json show), so attestations.json reconciles its
         // live count against the snapshot instead of silently disagreeing.
         reportSnapshotForensicCount: custodySplit.forensic.length,
       });
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "custody/attestations.json",
         jsonBuffer(attestationFiles.attestationsJson),
         "application/json"
       );
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "custody/attestation-verification.md",
         Buffer.from(attestationFiles.verificationReadme, "utf8"),
         "text/markdown"
       );
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "signers/signer-registry-snapshot.json",
         jsonBuffer(attestationFiles.signerSnapshotJson),
         "application/json"
@@ -3733,24 +3909,44 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       );
       const historicalFile = await buildHistoricalVerificationMaterial({
         evidenceId: data.evidenceId as string,
-        packageId: null,
+        packageId,
       });
-      appendPackageEntry(
-        archive,
-        packageEntries,
+      appendEntry(
         "signers/historical-verification-material.json",
         jsonBuffer(historicalFile),
         "application/json"
       );
     }
 
+    if (data.timestampValidation) {
+      appendEntry("timestamp-validation.json", jsonBuffer(data.timestampValidation), "application/json");
+    }
+
+    // What this profile withheld or coarsened, and why — in every package
+    // issued with a profile, so a FULL package states that it is complete.
+    if (packageId) {
+      appendPackageEntry(
+        archive,
+        packageEntries,
+        DISCLOSURE_MANIFEST_FILE,
+        jsonBuffer(
+          buildDisclosureManifest({
+            packageId,
+            profile,
+            sourceFullPackageId: data.sourceFullPackageId ?? null,
+            records: disclosureRecords,
+            withheldFiles,
+          }),
+        ),
+        "application/json",
+      );
+    }
+
     // Compute the package checksum index over all packaged entries.
     const checksumsBuffer = jsonBuffer(buildPackageChecksums(packageEntries));
     const checksummedFileCount = packageEntries.length;
-    appendPackageEntry(
-      archive,
-      packageEntries,
-      "package-checksums.json",
+    appendEntry(
+        "package-checksums.json",
       checksumsBuffer,
       "application/json"
     );
@@ -3758,7 +3954,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
 
     // FORMAT 5 — seal the index, and through it every entry above.
     if (data.seal) {
-      if (!data.reportPdf || !reportEntryPath) {
+      if (!data.reportPdf || (!reportEntryPath && profile === "FULL_FORENSIC")) {
         throw new Error("PACKAGE_SEAL_REQUIRES_REPORT");
       }
       const reportSha = sha256Hex(data.reportPdf);
@@ -3767,9 +3963,13 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         throw new Error("PACKAGE_SEAL_REPORT_DIGEST_MISMATCH");
       }
       const seal = buildPackageSeal({
+        packageId: packageId as string,
+        disclosureProfile: profile,
+        supersedesPackageId: data.supersedesPackage?.packageId ?? null,
+        ...(profile === "EXTERNAL_DISCLOSURE" ? { sourceFullPackageId: data.sourceFullPackageId ?? null } : {}),
         evidenceId: data.evidenceId as string,
         reportVersion: Number(data.reportVersion),
-        reportFile: reportEntryPath,
+        reportFile: profile === "EXTERNAL_DISCLOSURE" ? null : reportEntryPath,
         reportSha256: reportSha,
         reportIssuedAtUtc: data.seal.reportIssuedAtUtc,
         packageAssembledAtUtc: data.seal.packageAssembledAtUtc,
@@ -3818,6 +4018,26 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         signatureBase64: signature.signatureBase64,
         publicKeyPem: signature.publicKeyPem,
       });
+      // THE key registry (signing_keys, insert-only) records the seal key, so
+      // PROOVRA's public package record can state its identity, status and
+      // validity. A naming conflict or an unreachable registry never blocks
+      // the package: the public record then says the key is not published.
+      const sealKeyVersion = Number(signature.signingKeyVersion);
+      if (signature.signingKeyId && Number.isInteger(sealKeyVersion)) {
+        try {
+          const [{ prisma }, { registerSigningKey }] = await Promise.all([
+            import("./db.js"),
+            import("@proovra/shared-runtime"),
+          ]);
+          await registerSigningKey(prisma, {
+            keyId: signature.signingKeyId,
+            version: sealKeyVersion,
+            publicKeyPem: signature.publicKeyPem,
+          });
+        } catch (err) {
+          console.warn("[package] seal key registration skipped:", err instanceof Error ? err.message : String(err));
+        }
+      }
       // Not listed in the index they seal; the verifier knows these two names.
       appendSealEntries(archive, sealBytes, jsonBuffer(sealSignature));
       sealResult = {

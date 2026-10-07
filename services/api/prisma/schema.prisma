@@ -943,6 +943,12 @@ model VerificationPackage {
   /// package assembled after its report includes nothing later than the
   /// report's own issuance.
   custodyThroughSequence           Int?      @map("custody_through_sequence")
+  /// 2026-10-07 — FULL_FORENSIC for packages issued with profiles; NULL = legacy
+  /// (issued before disclosure profiles, never relabelled).
+  disclosureProfile                String?   @map("disclosure_profile") @db.VarChar(32)
+  /// The companion EXTERNAL_DISCLOSURE package issued in the same run (id,
+  /// storage key + version, digest, size, seal). NULL = none (legacy).
+  externalDisclosureArtifact       Json?     @map("external_disclosure_artifact")
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   evidence                         Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)

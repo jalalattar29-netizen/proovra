@@ -58,11 +58,27 @@ export type PackageSeal = {
   schema: "PROOVRA_PACKAGE_SEAL";
   sealVersion: 1;
   packageFormatVersion: 5;
+  /**
+   * The package's immutable identity (2026-10-07): minted before any child
+   * document and carried by every one of them and by the package row. Absent
+   * on packages sealed before then (their row id still identifies them).
+   */
+  packageId?: string;
+  /** FULL_FORENSIC | EXTERNAL_DISCLOSURE; absent on earlier packages. */
+  disclosureProfile?: "FULL_FORENSIC" | "EXTERNAL_DISCLOSURE";
+  /** The package this one supersedes (the previous report version's package). */
+  supersedesPackageId?: string | null;
+  /** For EXTERNAL_DISCLOSURE: the FULL_FORENSIC package of the same version. */
+  sourceFullPackageId?: string | null;
   evidenceId: string;
   /** The report version this package certifies. */
   reportVersion: number;
-  /** Path of the embedded report PDF inside the ZIP. */
-  reportFile: string;
+  /**
+   * Path of the embedded report PDF inside the ZIP. Null only when the
+   * profile withholds the report (EXTERNAL_DISCLOSURE): reportSha256 then
+   * commits to the issued report without carrying it.
+   */
+  reportFile: string | null;
   /** SHA-256 (hex) of the embedded report PDF bytes. */
   reportSha256: string;
   /** When that report was issued (ISO-8601 UTC). */
@@ -140,7 +156,9 @@ export type SealVerificationCheck =
   | "CHECKSUM_INDEX_BOUND"
   | "ENTRIES_MATCH_INDEX"
   | "NO_UNLISTED_ENTRIES"
-  | "REPORT_BOUND";
+  | "REPORT_BOUND"
+  /** EXTERNAL_DISCLOSURE: the report is withheld; reportSha256 commits to it. */
+  | "REPORT_COMMITTED_WITHHELD";
 
 export type SealVerificationResult = {
   /** True only when EVERY check passed. */
@@ -261,6 +279,16 @@ export function verifySealedPackageEntries(input: {
     if (outside.length === 0) passed.push("NO_UNLISTED_ENTRIES");
     else fail("NO_UNLISTED_ENTRIES", `entries not covered by the index: ${outside.slice(0, 20).join(", ")}`);
 
+    if (seal.reportFile === null) {
+      // Only a profile that withholds the report may omit it, and it must
+      // still commit to the issued report's digest.
+      if (seal.disclosureProfile === "EXTERNAL_DISCLOSURE" && /^[a-f0-9]{64}$/.test(seal.reportSha256)) {
+        passed.push("REPORT_COMMITTED_WITHHELD");
+      } else {
+        fail("REPORT_BOUND", "the seal names no report and is not an external-disclosure package");
+      }
+      return { ok: failures.length === 0, passed, failures, seal };
+    }
     const reportEntry = index.files?.find((f) => f.path === seal!.reportFile);
     const reportBytes = input.entries.get(seal.reportFile);
     if (!reportEntry || !reportBytes) {

@@ -299,6 +299,14 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
       "the worker records the durable display step of every report/package run (recordRequestProgress) and /artifacts/status projects it; without the column every progress write fails and the Artifacts & Versions progress card cannot follow a request",
     suppliedBy: "20281004000000_report_request_progress_stage",
   },
+  {
+    id: "verification_packages.disclosure_profile",
+    kind: "column",
+    detail: 'column public."verification_packages"."disclosure_profile" must exist',
+    requiredBy:
+      "the worker commits every package row with its disclosure profile and the companion EXTERNAL_DISCLOSURE artifact (external_disclosure_artifact), and the package routes read both; without the columns every package commit fails",
+    suppliedBy: "20281005000000_verification_package_disclosure_profile",
+  },
 ]);
 
 /**
@@ -399,6 +407,13 @@ const PROBES = Object.freeze({
      WHERE table_schema = 'public'
        AND table_name = 'report_generation_requests'
        AND column_name = 'progress_stage'
+     LIMIT 1`,
+  "verification_packages.disclosure_profile": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'verification_packages'
+       AND column_name = 'disclosure_profile'
      LIMIT 1`,
   "plan_grants.table": `
     SELECT 1

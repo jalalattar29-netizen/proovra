@@ -250,6 +250,7 @@ async function main(): Promise<void> {
               tsaStatus: "STAMPED",
               tsaFailureReason: null,
               tsaValidatedAtUtc: decision.validatedAtUtc.toISOString(),
+              tsaValidation: decision.validationEvidence,
               // Repair-script forensic marker: distinguishes this from a
               // finalize-time TIMESTAMP_APPLIED.
               repair_source: "tsa_kept_token_validated",

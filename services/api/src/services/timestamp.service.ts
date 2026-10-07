@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import type { TsaValidationEvidence } from "@proovra/shared";
 import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -104,6 +105,8 @@ export function classifyTsaSubprocessError(error: unknown): {
 }
 
 export type TimestampResult = {
+  /** What the validation established (STAMPED only); recorded in custody. */
+  validationEvidence?: TsaValidationEvidence | null;
   provider: string;
   url: string;
   serialNumber: string | null;
@@ -341,6 +344,7 @@ async function createEvidenceTimestampInner(params: {
       warnings: parsed.warnings,
       validatedAtUtc: validation.validatedAtUtc,
       signerCertSha256: validation.signerCertSha256,
+      validationEvidence: validation.evidence,
       policyOid: validation.policyOid,
     };
   } finally {

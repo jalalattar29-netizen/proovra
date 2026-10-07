@@ -49,6 +49,7 @@
  * with the digest and the token's genTime). Nothing else decides validity.
  */
 import { execFile } from "node:child_process";
+import type { TsaValidationEvidence } from "@proovra/shared";
 import { X509Certificate } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -76,6 +77,12 @@ export type TsaValidationResult =
       validatedAtUtc: Date;
       signerCertSha256: string | null;
       policyOid: string | null;
+      /**
+       * What this validation established, recorded with it (custody
+       * TIMESTAMP_APPLIED.tsaValidation) so a package can state each check
+       * without re-running it (@proovra/shared buildTimestampValidationRecord).
+       */
+      evidence: TsaValidationEvidence;
     }
   | { ok: false; code: TsaValidationFailureCode; reason: string };
 
@@ -194,9 +201,9 @@ export async function inspectTsaTrustBundle(env: NodeJS.ProcessEnv = process.env
 
 async function resolveTrustAnchor(
   env: NodeJS.ProcessEnv,
-): Promise<{ ok: true; path: string } | { ok: false; code: TsaValidationFailureCode }> {
+): Promise<{ ok: true; path: string; rootSha256: string[] } | { ok: false; code: TsaValidationFailureCode }> {
   const inspection = await inspectTsaTrustBundle(env);
-  if (inspection.ok) return { ok: true, path: inspection.path };
+  if (inspection.ok) return { ok: true, path: inspection.path, rootSha256: inspection.rootSha256 };
   // A test certificate or a pin the bundle does not satisfy is a REFUSAL of
   // the anchor; every other issue means there is no usable anchor.
   return {
@@ -236,22 +243,29 @@ function classifyVerifyFailure(stderr: string): TsaValidationFailureCode {
   return "tsa_token_signature_invalid";
 }
 
-async function signerFingerprint(responseFile: string, workDir: string): Promise<string | null> {
+/** The signer's fingerprint and every certificate the token carries (signer first). */
+async function tokenCertificates(
+  responseFile: string,
+  workDir: string,
+): Promise<{ signer: string | null; all: string[] }> {
   const tokenFile = path.join(workDir, "token.der");
   try {
     await run("openssl", ["ts", "-reply", "-in", responseFile, "-token_out", "-out", tokenFile], { timeout: 20_000 });
     const { stdout } = await run("openssl", ["pkcs7", "-inform", "DER", "-in", tokenFile, "-print_certs"], { timeout: 20_000 });
+    let signer: string | null = null;
+    const others: string[] = [];
     for (const pem of splitPem(stdout)) {
       const cert = new X509Certificate(pem);
-      if (Array.isArray(cert.keyUsage) && cert.keyUsage.includes(TIME_STAMPING_EKU)) {
-        return cert.fingerprint256.replace(/:/g, "").toLowerCase();
-      }
+      const fp = cert.fingerprint256.replace(/:/g, "").toLowerCase();
+      if (!signer && Array.isArray(cert.keyUsage) && cert.keyUsage.includes(TIME_STAMPING_EKU)) signer = fp;
+      else others.push(fp);
     }
+    return { signer, all: signer ? [signer, ...others] : others };
   } catch {
     // The token already verified; an unreadable certificate list only means
     // the fingerprint projection stays empty.
   }
-  return null;
+  return { signer: null, all: [] };
 }
 
 export async function validateTsaToken(input: {
@@ -296,11 +310,20 @@ export async function validateTsaToken(input: {
     return fail(classifyVerifyFailure(`${e.stdout ?? ""}\n${e.stderr ?? ""}`));
   }
 
+  const certs = await tokenCertificates(input.responseFile, input.workDir);
   return {
     ok: true,
     validatedAtUtc: new Date(),
-    signerCertSha256: await signerFingerprint(input.responseFile, input.workDir),
+    signerCertSha256: certs.signer,
     policyOid: input.policyOid,
+    evidence: {
+      trustAnchorSha256: anchor.rootSha256,
+      tokenCertificateSha256: certs.all,
+      // A later validation of a kept token has no query: the nonce cannot
+      // be re-checked, and says so.
+      nonceChecked: Boolean(input.queryFile),
+      policyAllowlistEnforced: policies.length > 0,
+    },
   };
 }
 

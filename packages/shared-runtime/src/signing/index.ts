@@ -12,3 +12,11 @@ export {
   FixtureSigningKeyRefused,
   COMMITTED_FIXTURE_PUBLIC_FINGERPRINTS,
 } from "./fixture-key-guard.js";
+// THE signing-key registry (signing_keys): insert-only, SPKI-SHA-256 identity.
+export {
+  SigningKeyRegistryError,
+  assertSignatureVerifiesWithRegisteredKey,
+  publicKeyPemFromPrivateKeyPem,
+  publicKeySpkiSha256,
+  registerSigningKey,
+} from "./key-registry.js";
