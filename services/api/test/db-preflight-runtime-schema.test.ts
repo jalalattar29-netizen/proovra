@@ -81,6 +81,8 @@ function databaseWith(present: {
   // Evidence and derived-asset models declare.
   ucCaptureClosureColumns?: boolean;
   disclosureProfileColumn?: boolean;
+  packageProfileRows?: boolean;
+  signingKeyPurpose?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -138,7 +140,15 @@ function databaseWith(present: {
     ) {
       return present.ucCaptureClosureColumns === true;
     }
-    // 20281005000000 — the package row's disclosure profile (and companion artifact).
+    // 20281006000000 — one row per package profile, reserved before it is built.
+    if (sql.includes("verification_packages_external_version_key") || (sql.includes("table_name = 'verification_packages'") && sql.includes("column_name = 'state'"))) {
+      return present.packageProfileRows === true;
+    }
+    // 20281006000100 — every signing key states its purpose.
+    if (sql.includes("table_name = 'signing_keys'") && sql.includes("column_name = 'purpose'")) {
+      return present.signingKeyPurpose === true;
+    }
+    // 20281005000000 — the package row's disclosure profile.
     if (sql.includes("column_name = 'disclosure_profile'")) {
       return present.disclosureProfileColumn === true;
     }
@@ -181,6 +191,8 @@ const FULLY_MIGRATED = {
   uc0AcquisitionFoundation: true,
   ucCaptureClosureColumns: true,
   disclosureProfileColumn: true,
+  packageProfileRows: true,
+  signingKeyPurpose: true,
 };
 
 describe("runtime schema requirements", () => {

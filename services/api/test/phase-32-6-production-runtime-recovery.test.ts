@@ -187,7 +187,9 @@ describe("Phase 32.6 — bounded observability counters", () => {
     // invariant is unchanged and still holds: `createVerificationPackage()` →
     // `.staged` assignment → `bump("package_generation_completed_total")` (the
     // completion bump sits AFTER the package is materialised).
-    const marker = "finalizedVerificationStaged = finalizedVerificationPackage.staged";
+    // 2026-10-07: each reserved profile is built in one loop; a package is
+    // materialised (and output-verified) when it joins `builtPackageProfiles`.
+    const marker = "for (const profile of packageRows.toBuild) {";
     const block = enclosingSource(PROC_SRC, marker, "block", {
       unique: true,
       fileName: "processor.ts",

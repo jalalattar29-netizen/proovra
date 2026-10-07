@@ -11,8 +11,11 @@
  * (notably `Evidence.teamId` being intentionally nullable = the personal-
  * scope signal) so nobody "fixes" them into a regression.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import { describe, expect, it } from "vitest";
 
@@ -38,11 +41,35 @@ describe("Phase R11 — forensic schema invariants (F26)", () => {
     expect(m).toMatch(/@@unique\(\[evidenceId,\s*sequence\]\)/);
   });
 
-  it("Report and VerificationPackage are versioned one-per-(evidence,version)", () => {
+  it("Report is versioned one-per-(evidence,version); a package is one-per-(evidence,version,profile)", () => {
     expect(modelBlock("Report")).toMatch(/@@unique\(\[evidenceId,\s*version\]\)/);
-    expect(modelBlock("VerificationPackage")).toMatch(
-      /@@unique\(\[evidenceId,\s*version\]\)/,
+    // 2026-10-07 — each sealed package profile is its own row. Per (evidence,
+    // version): exactly one PRIMARY package (FULL_FORENSIC, or a legacy row with
+    // no profile) and at most one EXTERNAL_DISCLOSURE package. Two PARTIAL unique
+    // keys enforce it (Prisma cannot declare them); the model names them and the
+    // migration creates them with exactly these predicates.
+    const pkg = modelBlock("VerificationPackage");
+    expect(pkg).toMatch(/verification_packages_primary_version_key/);
+    expect(pkg).toMatch(/verification_packages_external_version_key/);
+    const sql = readFileSync(
+      resolve(__dirname, "../prisma/migrations/20281006000000_verification_package_profile_rows/migration.sql"),
+      "utf8",
     );
+    expect(sql).toContain(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "verification_packages_primary_version_key" ON "verification_packages" ("evidence_id", "version") WHERE "disclosure_profile" IS NULL OR "disclosure_profile" = ''FULL_FORENSIC''`,
+    );
+    expect(sql).toContain(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "verification_packages_external_version_key" ON "verification_packages" ("evidence_id", "version") WHERE "disclosure_profile" = ''EXTERNAL_DISCLOSURE''`,
+    );
+    // The (evidence_id, version) key is retired ONLY behind a guard that both
+    // partial keys exist.
+    expect(sql).toMatch(/indexname = 'verification_packages_primary_version_key'[\s\S]*indexname = 'verification_packages_external_version_key'[\s\S]*RAISE EXCEPTION[\s\S]*DROP INDEX IF EXISTS "verification_packages_evidence_id_version_key"/);
+    // No later migration drops either partial key.
+    const dir = resolve(__dirname, "../prisma/migrations");
+    for (const name of readdirSync(dir).filter((n) => /^\d{14}_/.test(n) && n > "20281006000000")) {
+      const later = readFileSync(resolve(dir, name, "migration.sql"), "utf8");
+      expect(later, name).not.toMatch(/DROP INDEX[^;]*verification_packages_(primary|external)_version_key/);
+    }
   });
 
   it("EvidenceLegalHold.teamId is REQUIRED — no personal-scope holds (guards F2)", () => {

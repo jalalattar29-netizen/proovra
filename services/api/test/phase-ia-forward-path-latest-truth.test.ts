@@ -155,7 +155,11 @@ describe("Phase IA-forward-path — every report/package read site selects the L
        * order by version desc, so a delayed regeneration write cannot freeze
        * the page on v1.
        */
-      const pinsAnExactVersion = /where:\s*\{[^}]*\bversion\b\s*[,}]/.test(body);
+      // (2026-10-07) The where may be wrapped in the canonical package predicate
+      // (`primaryPublishedPackageWhere({...})`, `publishedProfilePackageWhere("X", {...})`);
+      // the pin is read inside it the same way.
+      const pinsAnExactVersion =
+        /where:\s*(?:(?:primaryPublished|published|publishedProfile)PackageWhere\((?:"[A-Z_]+",\s*)?)?\{[^}]*\bversion\b\s*[,}]/.test(body);
       if (pinsAnExactVersion) continue;
       expect(body, `verificationPackage.findFirst call #${i} body`).toMatch(
         /orderBy:\s*\{\s*version:\s*"desc"\s*\}/,

@@ -29,6 +29,28 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { functionSource } from "../../../scripts/source-contract/index.mjs";
 
+
+/** Every `marker` call with its complete, balanced argument list. */
+function balancedCalls(src: string, marker: string): string[] {
+  const out: string[] = [];
+  let at = src.indexOf(marker);
+  while (at >= 0) {
+    let depth = 0;
+    let i = at + marker.length - 1;
+    for (; i < src.length; i += 1) {
+      const c = src[i];
+      if (c === "(") depth += 1;
+      else if (c === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    out.push(src.slice(at, i + 1));
+    at = src.indexOf(marker, i);
+  }
+  return out;
+}
+
 function readApi(rel: string): string {
   return readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
 }
@@ -102,7 +124,7 @@ describe("Phase 32.8D — case-workspace service contract", () => {
     expect(CASE_SVC).toMatch(/CASE_TIMELINE_LIMIT\s*=\s*30/);
     expect(CASE_SVC).toMatch(/CASE_ACTIVITY_LIMIT\s*=\s*25/);
     // Every findMany has a `take:` cap.
-    const findMany = CASE_SVC.match(/\.findMany\(\{[\s\S]*?\}\)/g) ?? [];
+    const findMany = balancedCalls(CASE_SVC, ".findMany(");
     expect(findMany.length).toBeGreaterThanOrEqual(6);
     for (const block of findMany) {
       expect(

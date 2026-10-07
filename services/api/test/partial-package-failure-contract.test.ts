@@ -97,8 +97,14 @@ describe("partial Report/Package failure — the state transition", () => {
     // 2026-09-29: a DETERMINISTIC storage refusal (e.g. S3 InvalidRequest) is
     // the one exception — retrying the same bytes the same way cannot succeed,
     // so it is terminal, after the CRITICAL incident naming the storage code.
-    expect(guard.indexOf("recordPackageGenerationIncident")).toBeLessThan(
-      guard.indexOf('createWorkerError("VERIFICATION_PACKAGE_STORAGE_REJECTED", false)'),
+    // 2026-10-07: the terminal throw keeps the failure's own cause — a storage
+    // refusal names VERIFICATION_PACKAGE_STORAGE_REJECTED, an output that
+    // contradicts the record names its own code — and both follow the incident.
+    const terminal = guard.indexOf("if (packageTechnicalFailure.retriable === false)");
+    expect(terminal).toBeGreaterThan(-1);
+    expect(guard.indexOf("recordPackageGenerationIncident")).toBeLessThan(terminal);
+    expect(guard.slice(terminal, terminal + 700)).toMatch(
+      /throw createWorkerError\(\s*packageTechnicalFailure\.phase === "store"\s*\?\s*"VERIFICATION_PACKAGE_STORAGE_REJECTED"\s*:\s*packageTechnicalFailure\.message,\s*false,?\s*\)/,
     );
   });
 
@@ -143,9 +149,11 @@ describe("partial Report/Package failure — the state transition", () => {
     const guard = PROCESSOR.slice(PROCESSOR.indexOf("const pairComplete ="))
       .slice(0, 600);
     expect(guard).toContain("!verificationPackageEntitled");
-    expect(guard).toContain("prisma.verificationPackage.findFirst");
-    // Complete means the package AT THE REPORT'S VERSION, not any package:
-    // report v2 beside package v1 is not a pair.
+    // Complete means EVERY package profile the version owes is PUBLISHED, AT
+    // THE REPORT'S VERSION — not "some row exists" (a RESERVED or FAILED row is
+    // not a package), and not any version: report v2 beside package v1 is not
+    // a pair. versionPackagesComplete is the one definition (shared-runtime).
+    expect(guard).toContain("versionPackagesComplete(prisma");
     expect(guard).toContain("version: packageTargetVersion");
     // The return is conditional on completeness, never on the report alone.
     // (ET-RPT-07: the no-op returns what it found — pair_complete at that
@@ -159,12 +167,22 @@ describe("partial Report/Package failure — the state transition", () => {
      * that a package exists. Both writes are inside ONE transaction, so the
      * pointer cannot outlive a rolled-back row.
      */
-    const tx = PROCESSOR.slice(
-      PROCESSOR.indexOf("await prisma.$transaction(async (tx) => {", PROCESSOR.indexOf("finalizedVerificationZip")),
-    // Widened 3000→6000 (2026-09-29): the commit transaction now opens with
-    // the advisory lock and the report-baseline re-check.
-    ).slice(0, 6000);
-    expect(tx).toContain("tx.verificationPackage.create");
-    expect(tx).toContain("verificationPackageVersion: prepared.version");
+    // 2026-10-07: the commit moved to package-issuance.ts (commitIssuance). In
+    // ONE transaction: every reserved row is published, the pointer advances,
+    // and the request records PACKAGE_PUBLISHED.
+    const ISSUANCE = readFileSync(
+      fileURLToPath(new URL("../../worker/src/package-issuance.ts", import.meta.url)),
+      "utf8",
+    );
+    const start = ISSUANCE.indexOf("export async function commitIssuance(");
+    expect(start).toBeGreaterThan(-1);
+    const fn = ISSUANCE.slice(start, ISSUANCE.indexOf("\nexport ", start + 10));
+    const tx = fn.slice(fn.indexOf("await prisma.$transaction(async (tx) => {"));
+    expect(tx).toContain("await commitPublishedPackage(tx,");
+    expect(tx).toContain("verificationPackageVersion: input.version");
+    expect(tx).toContain('stage: "PACKAGE_PUBLISHED"');
+    // The processor commits through it — no second package-row writer.
+    expect(PROCESSOR).toContain("await commitIssuance({");
+    expect(PROCESSOR).not.toMatch(/verificationPackage\.(create|update|upsert)\(/);
   });
 });

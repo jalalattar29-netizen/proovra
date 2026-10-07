@@ -81,6 +81,9 @@ describe("internal-grant rollout — migration state", () => {
       "20281004000000_report_request_progress_stage",
       // Report & verification-package truth closure (disclosure profiles).
       "20281005000000_verification_package_disclosure_profile",
+      // Per-profile package rows (reserved ids) and signing-key purpose.
+      "20281006000000_verification_package_profile_rows",
+      "20281006000100_signing_key_purpose",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

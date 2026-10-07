@@ -64,7 +64,7 @@ describe("Phase 32.6.1 — worker catch arm distinguishes gate denial", () => {
 
   it("imports PackageGateDeniedError so the catch arm can type-test it", () => {
     expect(PROC_SRC).toMatch(
-      /import \{ createVerificationPackage, PackageGateDeniedError \} from "\.\/verification-package\.js"/,
+      /import \{[^}]*\bcreateVerificationPackage\b[^}]*\bPackageGateDeniedError\b[^}]*\} from "\.\/verification-package\.js"/,
     );
   });
 

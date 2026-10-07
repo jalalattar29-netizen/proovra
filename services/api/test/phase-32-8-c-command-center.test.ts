@@ -28,6 +28,28 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { enclosingSource, functionSource } from "../../../scripts/source-contract/index.mjs";
 
+
+/** Every `marker` call with its complete, balanced argument list. */
+function balancedCalls(src: string, marker: string): string[] {
+  const out: string[] = [];
+  let at = src.indexOf(marker);
+  while (at >= 0) {
+    let depth = 0;
+    let i = at + marker.length - 1;
+    for (; i < src.length; i += 1) {
+      const c = src[i];
+      if (c === "(") depth += 1;
+      else if (c === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    out.push(src.slice(at, i + 1));
+    at = src.indexOf(marker, i);
+  }
+  return out;
+}
+
 function readApi(rel: string): string {
   // Normalize CRLF to LF so source-text contract scans (e.g. `\n}\n`
   // boundary detection in PART 2) behave the same on Windows checkouts
@@ -195,7 +217,7 @@ describe("Phase 32.8C — service layer composition", () => {
     expect(SERVICE).toMatch(/TOP_CASES_LIMIT\s*=\s*8/);
     expect(SERVICE).toMatch(/TOP_REVIEWERS_LIMIT\s*=\s*8/);
     expect(SERVICE).toMatch(/TIMELINE_LIMIT\s*=\s*30/);
-    const findMany = SERVICE.match(/\.findMany\(\{[\s\S]*?\}\)/g) ?? [];
+    const findMany = balancedCalls(SERVICE, ".findMany(");
     expect(findMany.length).toBeGreaterThanOrEqual(10);
     for (const block of findMany) {
       expect(block, `unbounded findMany: ${block.slice(0, 80)}`).toMatch(/take:/);
@@ -755,7 +777,7 @@ describe("Phase 32.8C (Full Rebuild) — operational pressure aggregation", () =
   it("missing-report + missing-package signals derive from real Prisma relations (no fabrication)", () => {
     expect(SERVICE).toMatch(/status:\s*"SIGNED",[\s\S]{0,80}reports:\s*\{\s*none:\s*\{\}\s*\}/);
     expect(SERVICE).toMatch(
-      /status:\s*"REPORTED",[\s\S]{0,80}verificationPackages:\s*\{\s*none:\s*\{\}\s*\}/,
+      /status:\s*"REPORTED",[\s\S]{0,80}verificationPackages:\s*\{\s*none:\s*primaryPublishedPackageWhere\(\)\s*\}/,
     );
   });
 
@@ -1125,7 +1147,7 @@ describe("Phase 32.8C+ — Queue Congestion engine", () => {
       /status:\s*"SIGNED",\s*reports:\s*\{\s*none:\s*\{\}\s*\}/,
     );
     expect(SERVICE).toMatch(
-      /status:\s*"REPORTED",[\s\S]{0,80}verificationPackages:\s*\{\s*none:\s*\{\}\s*\}/,
+      /status:\s*"REPORTED",[\s\S]{0,80}verificationPackages:\s*\{\s*none:\s*primaryPublishedPackageWhere\(\)\s*\}/,
     );
   });
 });

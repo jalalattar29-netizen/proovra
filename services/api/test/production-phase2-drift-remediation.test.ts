@@ -1195,7 +1195,7 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // 133 -> 134 (2026-10-07, REPORT AND PACKAGE TRUTH):
 // `public-package-verification.routes.ts`.
 //
-// PROOVRA's public package and signing-key record: GET /public/signing-keys,
+// PROOVRA's public package record (a Public Verify read):
 // GET /public/verification-packages/:packageId and /by-sha256/:sha256. A key
 // found only inside a package vouches for nothing — anyone can re-seal an
 // altered package with their own key — so a recipient needs a record OUTSIDE

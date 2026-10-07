@@ -304,8 +304,32 @@ export const RUNTIME_SCHEMA_REQUIREMENTS = Object.freeze([
     kind: "column",
     detail: 'column public."verification_packages"."disclosure_profile" must exist',
     requiredBy:
-      "the worker commits every package row with its disclosure profile and the companion EXTERNAL_DISCLOSURE artifact (external_disclosure_artifact), and the package routes read both; without the columns every package commit fails",
+      "every package row states its disclosure profile (FULL_FORENSIC or EXTERNAL_DISCLOSURE, each its own row) and every package reader filters on it; without the column every package read and commit fails",
     suppliedBy: "20281005000000_verification_package_disclosure_profile",
+  },
+  {
+    id: "verification_packages.state",
+    kind: "column",
+    detail: 'column public."verification_packages"."state" must exist',
+    requiredBy:
+      "the worker reserves each package row (RESERVED) before building it and publishes it (PUBLISHED); every reader counts only published rows; without the column every package read and reservation fails",
+    suppliedBy: "20281006000000_verification_package_profile_rows",
+  },
+  {
+    id: "verification_packages.external_version_key",
+    kind: "index",
+    detail: 'unique index public."verification_packages_external_version_key" must exist',
+    requiredBy:
+      "one issuance writes a FULL_FORENSIC and an EXTERNAL_DISCLOSURE row for the same version; the profile-aware keys (and the retirement of the (evidence_id, version) key in the same migration) are what admit the second row",
+    suppliedBy: "20281006000000_verification_package_profile_rows",
+  },
+  {
+    id: "signing_keys.purpose",
+    kind: "column",
+    detail: 'column public."signing_keys"."purpose" must exist',
+    requiredBy:
+      "every signing-key lookup names its purpose (EVIDENCE_SIGNATURE or PACKAGE_SEAL); without the column evidence signing, verification and package sealing fail",
+    suppliedBy: "20281006000100_signing_key_purpose",
   },
 ]);
 
@@ -510,6 +534,27 @@ const PROBES = Object.freeze({
      WHERE schemaname = 'public'
        AND tablename = 'evidence_part_derived_assets'
        AND indexname = 'evidence_part_derived_assets_team_part_kind_variant_uk'
+     LIMIT 1`,
+  "verification_packages.state": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'verification_packages'
+       AND column_name = 'state'
+     LIMIT 1`,
+  "verification_packages.external_version_key": `
+    SELECT 1
+      FROM pg_indexes
+     WHERE schemaname = 'public'
+       AND tablename = 'verification_packages'
+       AND indexname = 'verification_packages_external_version_key'
+     LIMIT 1`,
+  "signing_keys.purpose": `
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'signing_keys'
+       AND column_name = 'purpose'
      LIMIT 1`,
 });
 

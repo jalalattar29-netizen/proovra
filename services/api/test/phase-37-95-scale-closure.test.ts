@@ -58,8 +58,16 @@ describe("Phase 37.95 — public verify enumeration safety", () => {
       // `enforceRateLimit(` call sits inside that block.
       // Widened 1200→1600 (2026-09-29): the handler now opens with the
       // no-store header every answer carries.
-      /enforceRateLimit[\s\S]{0,1600}\/public\/verify\/|public\/verify[\s\S]{0,1600}enforceRateLimit/,
+      // 2026-10-07: the two-layer limit is THE Public Verify gate, shared with
+      // the package record; the route calls it before parsing the identifier.
+      /public\/verify[\s\S]{0,1600}admitPublicVerifyClient\(req, reply\)/,
     );
+    const GATE = readFileSync(
+      fileURLToPath(new URL("../src/services/public-verify/public-verify-gate.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(GATE).toMatch(/enforceRateLimit\(\{\s*key: `ratelimit:verify:ip:/);
+    expect(GATE).toMatch(/enforceDistinctClientLimit\(\{/);
   });
 
   it("public verify gates on publicVerifyState (records NOT_PUBLISHED / SUSPENDED return 404)", () => {

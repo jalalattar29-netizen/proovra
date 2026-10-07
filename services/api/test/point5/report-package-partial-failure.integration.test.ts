@@ -70,6 +70,17 @@ vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => ({
 }));
 
 /**
+ * The renderer above is a FIXTURE, not a report, so the post-render TEXT check
+ * (worker output-verification) is doubled with it. The render-input check and
+ * the read-back verification of every staged package (seal, registered seal
+ * key, profile rules, record facts) stay real.
+ */
+vi.mock("../../../worker/src/output-verification.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../worker/src/output-verification.js")>();
+  return { ...actual, assertRenderedReport: async () => {} };
+});
+
+/**
  * ===========================================================================
  * OBJECT STORAGE — A COMPLETE IN-PROCESS DOUBLE, NOT A CONTAINER.
  * ===========================================================================
@@ -431,9 +442,21 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
     // 2. THE REQUEST DID NOT FALSELY SUCCEED. This is the whole case.
     expect(after.state).not.toBe("SUCCEEDED");
 
-    // 3. THE PACKAGE IS ABSENT AND SAYS SO — no row, no false availability.
-    const packages = await prisma.verificationPackage.count({ where: { evidenceId } });
+    // 3. THE PACKAGE IS ABSENT AND SAYS SO — no PUBLISHED row (no false
+    // availability), and every package row this run reserved records that it
+    // FAILED, with when and why (2026-10-07: ids are reserved before building).
+    const packages = await prisma.verificationPackage.count({ where: { evidenceId, state: "PUBLISHED" } });
     expect(packages).toBe(0);
+    const reserved = await prisma.verificationPackage.findMany({
+      where: { evidenceId },
+      select: { state: true, failedAtUtc: true, terminalReason: true, storageKey: true },
+    });
+    for (const row of reserved) {
+      expect(row.state).toBe("FAILED");
+      expect(row.failedAtUtc).toBeInstanceOf(Date);
+      expect(row.terminalReason).toBeTruthy();
+      expect(row.storageKey, "a failed package names no stored object").toBeNull();
+    }
 
     // 4. THE EVIDENCE DOES NOT CLAIM A PACKAGE VERSION IT DOES NOT HAVE.
     const evidence = await prisma.evidence.findUniqueOrThrow({

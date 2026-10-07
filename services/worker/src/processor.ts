@@ -162,6 +162,13 @@ import {
   PackageSealKeyRegistrationError,
 } from "./verification-package.js";
 import {
+  assertRenderInputs,
+  assertRenderedReport,
+  assertStagedPackage,
+  loadCanonicalFacts,
+  OutputVerificationError,
+} from "./output-verification.js";
+import {
   commitIssuance,
   failIssuance,
   PACKAGE_REPORT_BASELINE_CHANGED,
@@ -172,7 +179,11 @@ import {
   type BuiltProfile,
   type PublishedProfile,
 } from "./package-issuance.js";
-import { primaryPublishedPackageWhere, versionPackagesComplete } from "@proovra/shared-runtime/reports";
+import {
+  PackageReservationLostError,
+  primaryPublishedPackageWhere,
+  versionPackagesComplete,
+} from "@proovra/shared-runtime/reports";
 import { loadProvenanceChainForPackage } from "./capture-trust/load-provenance-chain.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
 import { recheckEvidenceIntegrity, recordIntegrityObservation } from "./integrity-recheck.js";
@@ -4284,6 +4295,10 @@ async function runReportGeneration(
                 };
               })
             : null;
+        // BEFORE RENDERING (output-verification): the payload yields the
+        // RECORD's timestamp, anchoring and identity states, read fresh.
+        const reportCanonicalFacts = await loadCanonicalFacts(prepared.evidenceId);
+        assertRenderInputs(reportCanonicalFacts, effectiveReportEvidencePayload, custodyAtIssue);
         const finalizedReportPdf = await buildReportPdfV2({
           supersession,
           evidence: effectiveReportEvidencePayload,
@@ -4300,6 +4315,9 @@ async function runReportGeneration(
           derivedReview: finalizedReportDerivedReview,
           recordLegalHold: finalizedRecordLegalHold,
         });
+        // AFTER RENDERING: the text extracted from the PDF bytes states the
+        // record's facts and nothing stronger. A contradiction is not published.
+        await assertRenderedReport(finalizedReportPdf, reportCanonicalFacts, prepared.version);
 
         // The allowance is checked with the EXACT size, before any byte is
         // written to storage.
@@ -5181,6 +5199,8 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         // anything is published, and nothing builds a package by a path the
         // governance tests do not see.
         const reservedFull = packageRows.reserved.find((r) => r.profile === "FULL_FORENSIC") ?? null;
+        // The RECORD's facts, read fresh, that every sealed package must state.
+        const packageCanonicalFacts = await loadCanonicalFacts(prepared.evidenceId);
         for (const profile of packageRows.toBuild) {
           const supersedes = await previousPublishedPackage({
             evidenceId: prepared.evidenceId,
@@ -5197,6 +5217,31 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
               : {}),
             packageVerificationUrl: buildPackageVerificationUrl(profile.packageId),
           });
+          // AFTER SEALING: the final ZIP, read back from disk, is verified
+          // before anything is published.
+          if (!result.seal) throw new OutputVerificationError("PACKAGE_OUTPUT_INCONSISTENT", [{ check: "SEALED", detail: "the package was not sealed" }]);
+          try {
+            await assertStagedPackage({
+              zipPath: result.staged.tempPath,
+              facts: packageCanonicalFacts,
+              expect: {
+                packageId: profile.packageId,
+                evidenceId: prepared.evidenceId,
+                reportVersion: prepared.version,
+                disclosureProfile: profile.profile,
+                reportSha256: finalized.finalizedReportSha256,
+                seal: {
+                  signingKeyId: result.seal.signingKeyId,
+                  signingKeyVersion: result.seal.signingKeyVersion,
+                  signingKeyFingerprint: result.seal.signingKeyFingerprint,
+                },
+              },
+            });
+          } catch (verifyError) {
+            await cleanupStagedTemp(result.staged).catch(() => {});
+            for (const b of builtPackageProfiles) await cleanupStagedTemp(b.staged).catch(() => {});
+            throw verifyError;
+          }
           builtPackageProfiles.push({
             profile: profile.profile,
             packageId: profile.packageId,
@@ -5316,8 +5361,11 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
             message: toBoundedReasonCode(verificationError),
             // A seal key that cannot be bound to the registry (identity
             // conflict / unknown identity) is a configuration fault.
-            ...(verificationError instanceof PackageSealKeyRegistrationError
-              ? { retriable: verificationError.retriable }
+            // An error that states its own retriability (a seal key that cannot
+            // be bound, an output that contradicts the record) is not retried
+            // when it says so.
+            ...(typeof (verificationError as { retriable?: unknown } | null)?.retriable === "boolean"
+              ? { retriable: (verificationError as { retriable: boolean }).retriable }
               : {}),
           };
         }
@@ -5486,7 +5534,14 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         // orphan inventory, and the retry publishes under a fresh key.
         for (const b of built) await cleanupStagedTemp(b.staged).catch(() => {});
 
-        if (verificationError instanceof PackageAlreadyCommittedError) {
+        // A reservation lost to a concurrent issuance that PUBLISHED every
+        // profile is the same answer as "already committed": the pair exists,
+        // with the same package ids. Lost to one that has not finished, it is
+        // a retryable failure (the retry re-reserves the same rows).
+        const lostToCompletedIssuance =
+          verificationError instanceof PackageReservationLostError &&
+          (await versionPackagesComplete(prisma, { evidenceId: prepared.evidenceId, version: prepared.version }).catch(() => false));
+        if (verificationError instanceof PackageAlreadyCommittedError || lostToCompletedIssuance) {
           // Not a failure: the pair is complete. Any object this run published
           // is an unreferenced immutable orphan for the orphan inventory.
           logger.info(
@@ -5684,7 +5739,7 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         jobId: job.id ?? null,
         phase: packageTechnicalFailure.phase,
         reasonCode:
-          packageTechnicalFailure.retriable === false
+          packageTechnicalFailure.retriable === false && packageTechnicalFailure.phase === "store"
             ? `VERIFICATION_PACKAGE_STORAGE_REJECTED`
             : packageTechnicalFailure.message,
         reportVersion: packageTargetVersion ?? prepared.version,
@@ -5692,9 +5747,15 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
       });
       if (packageTechnicalFailure.retriable === false) {
         // Deterministic: terminal now, escalated with a CRITICAL incident that
-        // names the storage code. An operator path (supersede) exists once the
-        // configuration or code is fixed.
-        throw createWorkerError("VERIFICATION_PACKAGE_STORAGE_REJECTED", false);
+        // names the cause — a storage refusal, or an output that contradicts
+        // the record (never published). An operator path (supersede) exists
+        // once the configuration or code is fixed.
+        throw createWorkerError(
+          packageTechnicalFailure.phase === "store"
+            ? "VERIFICATION_PACKAGE_STORAGE_REJECTED"
+            : packageTechnicalFailure.message,
+          false,
+        );
       }
       throw createWorkerError(
         "VERIFICATION_PACKAGE_INCOMPLETE_" +

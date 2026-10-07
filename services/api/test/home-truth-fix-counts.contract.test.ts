@@ -107,7 +107,7 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
     const tail = betweenMarkers(TRUST_SUMMARY, anchor, "Stuck-SIGNED");
     expect(tail).toMatch(/status:\s*"REPORTED"/);
     expect(tail).toMatch(/reports:\s*\{\s*some:\s*\{\s*\}\s*\}/);
-    expect(tail).toMatch(/verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/);
+    expect(tail).toMatch(/verificationPackages:\s*\{\s*some:\s*primaryPublishedPackageWhere\(\)\s*\}/);
     expect(tail).toMatch(/publicVerifyState:\s*"SUSPENDED"/);
   });
 
@@ -135,7 +135,7 @@ describe("HOME-TRUTH-FIX — TrustSummary exposes operationally-truthful counts"
   it("reportedWithoutPackage requires status=REPORTED, no Package row, and entitlement", () => {
     const tail = betweenMarkers(TRUST_SUMMARY, "Stuck-REPORTED", "// INTAKE —");
     expect(tail).toMatch(/status:\s*"REPORTED"/);
-    expect(tail).toMatch(/verificationPackages:\s*\{\s*none:\s*\{\s*\}\s*\}/);
+    expect(tail).toMatch(/verificationPackages:\s*\{\s*none:\s*primaryPublishedPackageWhere\(\)\s*\}/);
     expect(tail).toMatch(/outputEntitledWhere/);
   });
 
@@ -169,7 +169,7 @@ describe("HOME-TRUTH-FIX — Reports/Packages KPI uses evidence-distinct counts"
 
   it("packagesReady counts EVIDENCE records (with at least one VerificationPackage), not Package rows", () => {
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+      /prisma\.evidence\.count\(\{\s*\n?\s*where:\s*\{\s*\n?\s*AND:\s*\[pop\.evidence\],\s*\n?\s*deletedAt:\s*null,\s*\n?\s*verificationPackages:\s*\{\s*some:\s*primaryPublishedPackageWhere\(\)\s*\}/,
     );
   });
 
@@ -181,7 +181,7 @@ describe("HOME-TRUTH-FIX — Reports/Packages KPI uses evidence-distinct counts"
       /prisma\.report\.count\(\{\s*\n?\s*where:\s*\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}\s*\}/,
     );
     expect(COMMAND_CENTER).toMatch(
-      /prisma\.verificationPackage\.count\(\{\s*\n?\s*where:\s*\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}\s*\}/,
+      /prisma\.verificationPackage\.count\(\{\s*\n?\s*where:\s*primaryPublishedPackageWhere\(\{\s*evidence:\s*\{\s*teamId,\s*deletedAt:\s*null\s*\}\s*\}\)/,
     );
   });
 

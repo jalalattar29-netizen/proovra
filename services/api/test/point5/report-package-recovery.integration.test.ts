@@ -97,6 +97,17 @@ vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => {
   };
 });
 
+/**
+ * The renderer above is a FIXTURE, not a report, so the post-render TEXT check
+ * (worker output-verification) is doubled with it. The render-input check and
+ * the read-back verification of every staged package (seal, registered seal
+ * key, profile rules, record facts) stay real.
+ */
+vi.mock("../../../worker/src/output-verification.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../worker/src/output-verification.js")>();
+  return { ...actual, assertRenderedReport: async () => {} };
+});
+
 const storage = vi.hoisted(() => {
   const objects = new Map<
     string,
@@ -401,18 +412,34 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       orderBy: { version: "asc" },
       select: { version: true, storageBucket: true, storageKey: true, verificationPackageVersion: true, pdfSha256: true } as never,
     }) as unknown as Array<{ version: number; storageBucket: string; storageKey: string; verificationPackageVersion: number | null; pdfSha256: string | null }>;
-    const packages = await prisma.verificationPackage.findMany({
+    // "The package" of a version is its PUBLISHED PRIMARY row (FULL_FORENSIC or
+    // legacy). Since 2026-10-07 every profile is its own row and a row exists
+    // (RESERVED / FAILED) from the moment its id is reserved, so the published
+    // primary rows are what these cases mean by "a package"; `packageRows` is
+    // every row, for the lifecycle assertions.
+    const packageRows = await prisma.verificationPackage.findMany({
       where: { evidenceId },
-      orderBy: { version: "asc" },
-      select: { version: true, storageBucket: true, storageKey: true, reportVersion: true, reportSha256: true } as never,
-    }) as unknown as Array<{ version: number; storageBucket: string; storageKey: string; reportVersion: number | null; reportSha256: string | null }>;
+      orderBy: [{ version: "asc" }, { disclosureProfile: "asc" }],
+      select: {
+        id: true, version: true, state: true, disclosureProfile: true, issuanceId: true,
+        storageBucket: true, storageKey: true, reportVersion: true, reportSha256: true,
+        failedAtUtc: true, terminalReason: true,
+      } as never,
+    }) as unknown as Array<{
+      id: string; version: number; state: string; disclosureProfile: string | null; issuanceId: string | null;
+      storageBucket: string; storageKey: string; reportVersion: number | null; reportSha256: string | null;
+      failedAtUtc: Date | null; terminalReason: string | null;
+    }>;
+    const packages = packageRows.filter(
+      (p) => p.state === "PUBLISHED" && (p.disclosureProfile === null || p.disclosureProfile === "FULL_FORENSIC"),
+    );
     const req = requestId
       ? await prisma.reportGenerationRequest.findUniqueOrThrow({
           where: { id: requestId },
           select: { state: true, terminalReasonCode: true, reportVersion: true, stage: true } as never,
         }) as unknown as { state: string; terminalReasonCode: string | null; reportVersion: number | null; stage: string | null }
       : null;
-    return { reports, packages, req };
+    return { reports, packages, packageRows, req };
   }
 
   const stored = (bucket: string, key: string) => storage.objects.get(storage.at(bucket, key))?.body ?? null;
@@ -667,12 +694,23 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(sha256Hex(packageReportBytes(after.packages[0]!, 1))).toBe(sha256Hex(reportBytes));
     expect(stored(report.storageBucket, report.storageKey)!.equals(reportBytes), "the stored report is untouched").toBe(true);
 
+    // One custody event per published artifact (2026-10-07): the full and the
+    // external disclosure package, each naming its own package id.
     const custody = await prisma.custodyEvent.findMany({
       where: { evidenceId, eventType: "VERIFICATION_PACKAGE_GENERATED" },
+      orderBy: { sequence: "asc" },
       select: { payload: true },
     });
-    expect(custody).toHaveLength(1);
-    expect(custody[0]!.payload).toMatchObject({ version: 1, reportVersion: 1, reportSha256: sha256Hex(reportBytes), recovery: true });
+    expect(custody).toHaveLength(2);
+    const published = after.packageRows.filter((p) => p.state === "PUBLISHED");
+    for (const event of custody) {
+      const payload = event.payload as { packageId?: string; disclosureProfile?: string };
+      expect(event.payload).toMatchObject({ version: 1, reportVersion: 1, reportSha256: sha256Hex(reportBytes), recovery: true });
+      expect(published.find((p) => p.id === payload.packageId)?.disclosureProfile).toBe(payload.disclosureProfile);
+    }
+    expect(new Set(custody.map((e) => (e.payload as { disclosureProfile?: string }).disclosureProfile))).toEqual(
+      new Set(["FULL_FORENSIC", "EXTERNAL_DISCLOSURE"]),
+    );
     expect(await tsaColumns(evidenceId)).toEqual(tsaBefore);
   });
 
@@ -1174,27 +1212,31 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     const r = await operatorRecover(evidenceId, { packageForReportVersion: 1 });
     const id = idOf(r);
     const concurrentKey = `verification/${evidenceId}/v1/concurrent.zip`;
+    // A concurrent issuance re-reserves THE SAME rows (same package ids) and
+    // publishes them while this run is between publication and commit.
     seam.packageVerifyHook = async () => {
-      const report = await prisma.report.findUniqueOrThrow({
-        where: { evidenceId_version: { evidenceId, version: 1 } },
-        select: { pdfSha256: true } as never,
-      }) as unknown as { pdfSha256: string | null };
-      await prisma.verificationPackage.create({
+      const otherIssuance = randomUUID();
+      await prisma.verificationPackage.updateMany({
+        where: { evidenceId, version: 1 },
         data: {
-          evidenceId,
-          version: 1,
+          issuanceId: otherIssuance,
+          state: "PUBLISHED",
           storageBucket: process.env.S3_BUCKET!,
           storageKey: concurrentKey,
           generatedAtUtc: new Date(),
-          packageType: "full_evidence_package",
-          reportVersion: 1,
-          reportSha256: report.pdfSha256,
+          completedAtUtc: new Date(),
         } as never,
       });
     };
+    const before = (await state(evidenceId, id)).packageRows.map((p) => p.id);
     expect(await run(id, 0)).toBeNull();
     const after = await state(evidenceId, id);
-    expect(after.packages.filter((p) => p.version === 1).map((p) => p.storageKey)).toEqual([concurrentKey]);
+    // Nothing attached a second package: the same rows, the same ids, the
+    // concurrent issuance's objects.
+    expect(after.packageRows.filter((p) => p.version === 1)).toHaveLength(2);
+    const v1Rows = after.packageRows.filter((p) => p.version === 1);
+    expect(v1Rows.every((p) => p.state === "PUBLISHED" && p.storageKey === concurrentKey)).toBe(true);
+    if (before.length) expect(after.packageRows.map((p) => p.id).sort()).toEqual([...new Set([...before, ...v1Rows.map((p) => p.id)])].sort());
     expect(after.req!.state).toBe("SUCCEEDED");
   });
 
@@ -1349,4 +1391,145 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     // 6. The status command proves completeness (both objects exist).
     expect(await evidenceOutputStatus({ evidenceId: ev.id, expectComplete: true })).toBe(0);
   }, 180_000);
+
+  // -------------------------------------------------------------------------
+  // PACKAGE ID IDEMPOTENCY (2026-10-07)
+  //
+  // A package id is RESERVED (a row per profile, state RESERVED) before any
+  // byte is built, in the claim-fenced transaction, and every retry, BullMQ
+  // redelivery, duplicate delivery and recovery of the same (evidence,
+  // version, profile) carries that same id until it is PUBLISHED. These cases
+  // drive the real processor through each failure point and assert: the same
+  // ids, one row per profile, no "successful" orphan (a published row always
+  // names the object it verified; an unrecorded object is never a package),
+  // the id sealed inside each ZIP, and no evidence credit moved.
+  // -------------------------------------------------------------------------
+  const rowsOf = async (evidenceId: string, version: number) =>
+    (await state(evidenceId)).packageRows.filter((p) => p.version === version);
+  const idsByProfile = (rows: Array<{ id: string; disclosureProfile: string | null }>) =>
+    Object.fromEntries(rows.map((r) => [r.disclosureProfile ?? "LEGACY", r.id]));
+  const creditEntries = (evidenceId: string) =>
+    prisma.evidenceCreditLedgerEntry.count({ where: { evidenceId } });
+  const manifestPackageId = (pkg: { storageBucket: string; storageKey: string }) => {
+    const entries = readZipEntries(stored(pkg.storageBucket, pkg.storageKey)!);
+    const key = [...entries.keys()].find((k) => k === "package-manifest.json");
+    return (JSON.parse(entries.get(key!)!.toString("utf8")) as { packageId?: string }).packageId;
+  };
+  async function expectPublishedPair(evidenceId: string, version: number, ids: Record<string, string>) {
+    const rows = await rowsOf(evidenceId, version);
+    expect(rows, "one row per profile").toHaveLength(2);
+    expect(idsByProfile(rows), "the reserved ids, unchanged").toEqual(ids);
+    for (const row of rows) {
+      expect(row.state).toBe("PUBLISHED");
+      expect(stored(row.storageBucket, row.storageKey), "a published row names a stored object").toBeTruthy();
+      expect(manifestPackageId(row), "the id sealed inside the ZIP is the row id").toBe(row.id);
+    }
+    return rows;
+  }
+
+  it("IDEMPOTENCY: a crash BEFORE upload keeps the reserved ids; the retry publishes them", async () => {
+    const ev = await signedEvidence();
+    const credits = await creditEntries(ev.evidenceId);
+    const id = await request(ev);
+    seam.packageBuildFailures = 1;
+    expect(await run(id, 0), "the build failure surfaces").toBeTruthy();
+    const failed = await rowsOf(ev.evidenceId, 1);
+    expect(failed).toHaveLength(2);
+    for (const row of failed) {
+      expect(row.state).toBe("FAILED");
+      expect(row.issuanceId).toBe(id);
+      expect(row.terminalReason).toBeTruthy();
+      expect(row.storageKey, "nothing was stored").toBeNull();
+    }
+    const ids = idsByProfile(failed);
+    expect(await run(id, 1)).toBeNull();
+    await expectPublishedPair(ev.evidenceId, 1, ids);
+    expect(await creditEntries(ev.evidenceId), "generation never consumes credit").toBe(credits);
+  });
+
+  it("IDEMPOTENCY: a crash AFTER upload, before the DB commit, leaves only an unreferenced object; the retry reuses the ids", async () => {
+    const ev = await signedEvidence();
+    const id = await request(ev);
+    const before = new Set(storage.objects.keys());
+    seam.packageVerifyHook = async () => {
+      throw new Error("ACC_CRASH_AFTER_UPLOAD");
+    };
+    expect(await run(id, 0)).toBeTruthy();
+    const orphans = [...storage.objects.keys()].filter((k) => !before.has(k) && k.includes("/verification/"));
+    expect(orphans.length, "the upload happened").toBeGreaterThan(0);
+    const reserved = await rowsOf(ev.evidenceId, 1);
+    expect(reserved.every((r) => r.state !== "PUBLISHED"), "nothing claims the uploaded object").toBe(true);
+    const ids = idsByProfile(reserved);
+    expect(await run(id, 1)).toBeNull();
+    const published = await expectPublishedPair(ev.evidenceId, 1, ids);
+    for (const row of published) {
+      expect(orphans, "a published row never names the crashed attempt's object").not.toContain(storage.at(row.storageBucket, row.storageKey));
+    }
+  });
+
+  it("IDEMPOTENCY: a REDELIVERED job after success builds and publishes nothing", async () => {
+    const ev = await signedEvidence();
+    const id = await request(ev);
+    expect(await run(id, 0)).toBeNull();
+    const rows = await rowsOf(ev.evidenceId, 1);
+    const ids = idsByProfile(rows);
+    const calls = seam.packageBuildCalls;
+    const objects = storage.objects.size;
+    expect(await run(id, 1)).toBeNull();
+    expect(await run(id, 2)).toBeNull();
+    expect(seam.packageBuildCalls, "no rebuild").toBe(calls);
+    expect(storage.objects.size, "no new object").toBe(objects);
+    await expectPublishedPair(ev.evidenceId, 1, ids);
+  });
+
+  it("IDEMPOTENCY: a DUPLICATE delivery (two workers at once) publishes one pair", async () => {
+    const ev = await signedEvidence();
+    const id = await request(ev);
+    const results = await Promise.all([run(id, 0), run(id, 0)]);
+    // One delivery claims the request; the other is a no-op answer.
+    expect(results.filter((r) => r === null).length).toBeGreaterThanOrEqual(1);
+    if (results.some((r) => r !== null)) expect(await run(id, 1)).toBeNull();
+    const rows = await rowsOf(ev.evidenceId, 1);
+    expect(rows).toHaveLength(2);
+    await expectPublishedPair(ev.evidenceId, 1, idsByProfile(rows));
+    const reports = (await state(ev.evidenceId)).reports.map((r) => r.version);
+    expect(reports, "one report version").toEqual([1]);
+  });
+
+  it("IDEMPOTENCY: a RECOVERY by a new request reuses the failed ids (and only re-issues them)", async () => {
+    const { evidenceId } = await historicalGap();
+    // historicalGap left report v1 whose package build failed: its rows are FAILED.
+    const failed = await rowsOf(evidenceId, 1);
+    expect(failed).toHaveLength(2);
+    expect(failed.every((r) => r.state === "FAILED")).toBe(true);
+    const ids = idsByProfile(failed);
+    const credits = await creditEntries(evidenceId);
+    const r = await operatorRecover(evidenceId, { packageForReportVersion: 1 });
+    expect(await run(idOf(r), 0)).toBeNull();
+    const published = await expectPublishedPair(evidenceId, 1, ids);
+    expect(published.every((row) => row.issuanceId === idOf(r)), "the recovering request issued them").toBe(true);
+    // Version 2's packages are untouched by the v1 recovery.
+    expect((await rowsOf(evidenceId, 2)).every((row) => row.state === "PUBLISHED")).toBe(true);
+    expect(await creditEntries(evidenceId)).toBe(credits);
+  });
+
+  it("IDEMPOTENCY: two CONCURRENT recovery runs of one version publish one pair under one set of ids", async () => {
+    const { evidenceId } = await historicalGap();
+    const ids = idsByProfile(await rowsOf(evidenceId, 1));
+    const a = await operatorRecover(evidenceId, { packageForReportVersion: 1 });
+    // A second, independent request row for the same version (as a reconciler
+    // or operator could create) racing the first.
+    const second = await request({
+      evidenceId,
+      teamId: harness.fixtures.teamA.teamId,
+      artifactType: "VERIFICATION_PACKAGE",
+      reportVersion: 1,
+    });
+    const results = await Promise.all([run(idOf(a), 0), run(second, 0)]);
+    for (const [i, res] of results.entries()) {
+      if (res !== null) expect(await run(i === 0 ? idOf(a) : second, 1)).toBeNull();
+    }
+    await expectPublishedPair(evidenceId, 1, ids);
+  });
+
 });

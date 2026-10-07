@@ -764,6 +764,54 @@ _Tables touched_: `extension_auth_codes`
 **Recommended action:**
 - Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
 
+### `20280720000000_billing_paypal_integrity`
+- `INDEX_COLUMN_RISK` (line 72) — Index evidence_credit_ledger_refund_reversal_provider_ref_key ON evidence_credit_ledger_entries(provider,provider_ref) references column(s) {provider,provider_ref} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: `billing_review_items`, `payments`, `subscriptions`, `workspace_storage_addons`
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20280809000000_worker_sweep_cursors`
+- `CREATE_TABLE_IF_NOT_EXISTS` (line 10) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
+
+_Tables touched_: `worker_sweep_cursors`
+
+**Recommended action:**
+- Confirm the table shape in production matches Prisma's expectations via `full-production-schema-audit.mjs`. If drift is present, author an additive repair migration (ADD COLUMN IF NOT EXISTS + deterministic backfill, Phase O-Final pattern).
+
+### `20281001000200_case_evidence_link_pair_unique`
+- `INDEX_COLUMN_RISK` (line 26) — Index case_evidence_links_case_id_evidence_id_key ON case_evidence_links(case_id,evidence_id) references column(s) {case_id,evidence_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20281001000300_entitlement_one_active`
+- `INDEX_COLUMN_RISK` (line 25) — Index entitlements_user_id_active_key ON entitlements(user_id) references column(s) {user_id} not added or guarded by this migration. Same failure class as 'mentioned_user_id does not exist'.
+
+_Tables touched_: (none detected)
+
+**Recommended action:**
+- Verify every index column exists in production before re-deploy. Wrap CREATE INDEX in a `DO $$ ... END $$` block with an `information_schema.columns` existence check (Phase O-Final pattern).
+
+### `20281006000000_verification_package_profile_rows`
+- `DROP_INDEX` (line 138) — DROP INDEX risks production-read regressions.
+
+_Tables touched_: `verification_packages`
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
+### `20281006000100_signing_key_purpose`
+- `DROP_INDEX` (line 77) — DROP INDEX risks production-read regressions.
+
+_Tables touched_: `signing_keys`
+
+**Recommended action:**
+- Operator review required. Document the production state of every affected table before any further action.
+
 ### `email_password_auth`
 - `CREATE_TABLE_IF_NOT_EXISTS` (line 19) — CREATE TABLE IF NOT EXISTS silently skips the entire block when the table already exists, hiding missed column evolution. This is the root cause of the Phase O-Final `discussion_mentions.team_id` failure.
 
@@ -1352,6 +1400,74 @@ _Tables touched_: `password_reset_tokens`, `users`
 - `ALTER_TYPE` (line 15) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
 - `ENUM_ADD_VALUE` (line 15) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
 
+### `20280650000000_uc4_screen_intelligence`
+- `ALTER_TYPE` (line 51) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 52) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 51) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 52) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280670000000_bd2_durable_batch_analysis_jobs`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 60) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 63) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 84) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 87) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20280690000000_billing_storage_attempt_abandoned`
+- `ALTER_TYPE` (line 6) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 6) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280700000000_billing_checkout_attempts`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 41) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 44) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20280710000000_billing_stripe_attempts_billed_currency`
+- `ALTER_TYPE` (line 7) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 7) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280804000000_custody_chain_transfer_event`
+- `ALTER_TYPE` (line 9) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 9) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280806000000_custody_unlock_and_retention_extension`
+- `ALTER_TYPE` (line 8) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 9) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 8) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 9) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280807000000_custody_redaction_and_review`
+- `ALTER_TYPE` (line 9) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 10) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 9) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 10) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280808000000_custody_retention_policy_applied`
+- `ALTER_TYPE` (line 9) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 9) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280815000000_integrity_recheck_reconciliation_kinds`
+- `ALTER_TYPE` (line 25) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ALTER_TYPE` (line 26) — ALTER TYPE on an enum requires consideration for in-flight transactions and dependent columns.
+- `ENUM_ADD_VALUE` (line 25) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+- `ENUM_ADD_VALUE` (line 26) — ALTER TYPE ... ADD VALUE cannot run inside a transaction in older PostgreSQL; verify deploy mode.
+
+### `20280815000001_evidence_integrity_checks`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 55) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 58) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20280816000000_verification_share_tokens`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 49) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 52) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 55) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20281002000000_internal_plan_grants`
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 48) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 50) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+- `CREATE_INDEX_NO_IF_NOT_EXISTS` (line 55) — CREATE INDEX without IF NOT EXISTS is not idempotent. Re-running fails on the second attempt.
+
+### `20281004000000_report_request_progress_stage`
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 19) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+- `ADD_COLUMN_NO_IF_NOT_EXISTS` (line 20) — ADD COLUMN without IF NOT EXISTS is not idempotent. Re-running the migration after a partial failure breaks.
+
 ## Prisma compatibility issues
 
 | Migration | Table | Column | Detail |
@@ -1471,6 +1587,7 @@ _Tables touched_: `password_reset_tokens`, `users`
 | `20280601000000_uc0_acquisition_provenance_foundation` | `evidence` | `artifact_class` | Migration ADDs column evidence.artifact_class but Prisma model Evidence no longer references it. |
 | `20280601000000_uc0_acquisition_provenance_foundation` | `evidence_parts` | `acquisition_mode_snapshot` | Migration ADDs column evidence_parts.acquisition_mode_snapshot but Prisma model EvidencePart no longer references it. |
 | `20280601000000_uc0_acquisition_provenance_foundation` | `capture_sessions` | `verifier_version` | Migration ADDs column capture_sessions.verifier_version but Prisma model CaptureSession no longer references it. |
+| `20281002000000_internal_plan_grants` | `plan_grants` | `OR` | Migration ADDs column plan_grants.OR but Prisma model PlanGrant no longer references it. |
 | `email_password_auth` | `password_reset_tokens` | `ON` | Migration ADDs column password_reset_tokens.ON but Prisma model PasswordResetToken no longer references it. |
 
 ## Naming drift (camelCase quoted identifiers)

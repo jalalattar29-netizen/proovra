@@ -138,7 +138,7 @@ Strict mode is opt-in. We do NOT recommend enabling it unless the workspace's pr
 
 ## 9. Disclosure profiles
 
-One generator, one seal and signer, two projections per report version:
+One generator, one seal and signer, two projections per report version — **each its own sealed package with its own package id**, issued together (one issuance) and recorded as its own row (state, digest, seal key, supersession):
 
 | Profile | Carries | For |
 | --- | --- | --- |
@@ -149,14 +149,13 @@ One generator, one seal and signer, two projections per report version:
 
 ## 10. `timestamp-validation.json`
 
-What PROOVRA's RFC 3161 validation established for the record's token: status and canonical trust state, message imprint and whether it equals the evidence digest, serial, genTime, policy OID, signer and token-certificate fingerprints, the trust anchor PROOVRA used, validation time, per-check results (`PASSED` / `FAILED` / `NOT_EVALUATED` / `NOT_APPLICABLE` / `NOT_RECORDED` / `UNAVAILABLE`) and the failure code. `qualifiedStatus.evaluated` is always `false`: PROOVRA does not evaluate EU Trusted List (qualified) status and claims none. A verifier validates the chain against a trust store they select.
+What PROOVRA's RFC 3161 validation established for the record's token: status and canonical trust state, message imprint and whether it equals the evidence digest, serial, genTime, policy OID, signer and token-certificate fingerprints, the trust anchor PROOVRA used, validation time, per-check results (`PASSED` / `FAILED` / `NOT_EVALUATED` / `NOT_APPLICABLE` / `NOT_RECORDED` / `UNAVAILABLE`) and the failure code. `qualifiedStatus.evaluated` is always `false`: PROOVRA does not evaluate EU Trusted List (qualified) status and claims none. `summary` of a validated token reads exactly: *Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.* A verifier validates the chain against a trust store they select.
 
 ## 11. Binding a package to PROOVRA (public, unauthenticated)
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /public/signing-keys` | every registered key: id, version, SPKI SHA-256 fingerprint, `ACTIVE` / `SUPERSEDED` / `REVOKED`, validity interval, successor. Public keys only; revoked and superseded keys stay listed. |
-| `GET /public/verification-packages/:packageId` | one package's record: profile, report version, package and seal SHA-256, seal-key fingerprint and its registry status (`BOUND`, `BOUND_KEY_REVOKED`, `KEY_NOT_PUBLISHED`, `NOT_SEALED`), supersession links |
+| `GET /public/verification-packages/:packageId` | one published package's record (`PublicPackageRecord`): profile, issuance and the packages issued with it, report version, package and seal SHA-256, and the seal key's binding — its exact registry identity with purpose `PACKAGE_SEAL`, algorithm, fingerprint, validity, rotation and revocation (`BOUND`, `BOUND_KEY_REVOKED`, `KEY_NOT_PUBLISHED`, `NOT_SEALED`) — plus the previous / next package of the same profile |
 | `GET /public/verification-packages/by-sha256/:sha256` | the same, for the SHA-256 of the exact ZIP held (works for legacy packages) |
 
-The human page is `<REPORT_VERIFY_BASE_URL>/package/<packageId>` (named in the README). These reads return no evidence content and do not publish the evidence record. They are rate-limited per client and per lookup key, `Cache-Control: no-store`, and answer one bounded 404 for unknown and malformed ids. If a package is not listed, or the record is unreachable, external key binding is unavailable and the package's attribution to PROOVRA cannot be confirmed from outside it.
+The human page is `<REPORT_VERIFY_BASE_URL>/package/<packageId>` (named in the README). These reads are part of Public Verify: they return no evidence content and do not publish the evidence record, share the Public Verify per-client budget and add a per-package distinct-client limit, send `Cache-Control: no-store`, and answer one bounded 404 for unknown and malformed ids. There is no key-inventory endpoint: a key is described only as the seal key of a package the caller identified. A key registered for the evidence signature (`EVIDENCE_SIGNATURE`) never binds a package. If a package is not listed, or the record is unreachable, external key binding is unavailable and the package's attribution to PROOVRA cannot be confirmed from outside it.

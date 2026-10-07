@@ -169,13 +169,21 @@ export type SealVerificationResult = {
 };
 
 /**
+ * A large entry verified by its streamed digest instead of its bytes (the
+ * verifier never needs an original file in memory). The seal, its signature,
+ * the checksum index and the public key file must always be bytes.
+ */
+export type SealEntryDigest = { sha256: string; sizeBytes: number };
+
+/**
  * Verify a format-5 package from its entries.
  *
- * `entries` maps ZIP paths to their exact bytes. Crypto is injected:
+ * `entries` maps ZIP paths to their exact bytes, or (for large entries) to
+ * their streamed SHA-256 and size. Crypto is injected:
  * `sha256Hex(bytes)` and `verifyEd25519(message, signatureBase64, publicKeyPem)`.
  */
 export function verifySealedPackageEntries(input: {
-  entries: ReadonlyMap<string, Uint8Array>;
+  entries: ReadonlyMap<string, Uint8Array | SealEntryDigest>;
   sha256Hex: (bytes: Uint8Array) => string;
   verifyEd25519: (message: Uint8Array, signatureBase64: string, publicKeyPem: string) => boolean;
   decodeUtf8: (bytes: Uint8Array) => string;
@@ -184,8 +192,15 @@ export function verifySealedPackageEntries(input: {
   const passed: SealVerificationCheck[] = [];
   const failures: SealVerificationResult["failures"] = [];
   const fail = (check: SealVerificationCheck, detail: string) => failures.push({ check, detail });
+  const isBytes = (e: Uint8Array | SealEntryDigest | undefined): e is Uint8Array => e instanceof Uint8Array;
+  const bytesOf = (path: string): Uint8Array | undefined => {
+    const e = input.entries.get(path);
+    return isBytes(e) ? e : undefined;
+  };
+  const digestOf = (e: Uint8Array | SealEntryDigest) => (isBytes(e) ? input.sha256Hex(e) : e.sha256.toLowerCase());
+  const sizeOf = (e: Uint8Array | SealEntryDigest) => (isBytes(e) ? e.length : e.sizeBytes);
 
-  const sealBytes = input.entries.get(PACKAGE_SEAL_FILE);
+  const sealBytes = bytesOf(PACKAGE_SEAL_FILE);
   if (!sealBytes) {
     fail("SEAL_PRESENT", "package-seal.json is absent (not a format-5 package)");
     return { ok: false, passed, failures, seal: null };
@@ -200,7 +215,7 @@ export function verifySealedPackageEntries(input: {
     return { ok: false, passed, failures, seal: null };
   }
 
-  const sigBytes = input.entries.get(PACKAGE_SEAL_SIGNATURE_FILE);
+  const sigBytes = bytesOf(PACKAGE_SEAL_SIGNATURE_FILE);
   let signature: PackageSealSignature | null = null;
   if (!sigBytes) {
     fail("SIGNATURE_PRESENT", "package-seal.sig is absent");
@@ -215,7 +230,7 @@ export function verifySealedPackageEntries(input: {
 
   if (signature) {
     const sealSha = input.sha256Hex(sealBytes);
-    const keyBytes = input.entries.get(signature.publicKeyFile);
+    const keyBytes = bytesOf(signature.publicKeyFile);
     if (sealSha !== signature.sealSha256) {
       fail("SIGNATURE_VALID", "seal digest does not match the digest the signature names");
     } else if (!keyBytes) {
@@ -236,7 +251,7 @@ export function verifySealedPackageEntries(input: {
     }
   }
 
-  const indexBytes = input.entries.get(PACKAGE_CHECKSUMS_FILE);
+  const indexBytes = bytesOf(PACKAGE_CHECKSUMS_FILE);
   let index: PackageChecksumIndex | null = null;
   if (!indexBytes) {
     fail("CHECKSUM_INDEX_BOUND", "package-checksums.json is absent");
@@ -256,12 +271,12 @@ export function verifySealedPackageEntries(input: {
     const mismatched: string[] = [];
     for (const file of index.files ?? []) {
       listed.add(file.path);
-      const bytes = input.entries.get(file.path);
-      if (!bytes) {
+      const entry = input.entries.get(file.path);
+      if (!entry) {
         mismatched.push(`${file.path}: missing`);
         continue;
       }
-      if (bytes.length !== file.sizeBytes || input.sha256Hex(bytes) !== file.sha256) {
+      if (sizeOf(entry) !== file.sizeBytes || digestOf(entry) !== file.sha256) {
         mismatched.push(`${file.path}: bytes differ`);
       }
     }
@@ -293,7 +308,7 @@ export function verifySealedPackageEntries(input: {
     const reportBytes = input.entries.get(seal.reportFile);
     if (!reportEntry || !reportBytes) {
       fail("REPORT_BOUND", `the sealed report ${seal.reportFile} is not in the package`);
-    } else if (reportEntry.sha256 !== seal.reportSha256 || input.sha256Hex(reportBytes) !== seal.reportSha256) {
+    } else if (reportEntry.sha256 !== seal.reportSha256 || digestOf(reportBytes) !== seal.reportSha256) {
       fail("REPORT_BOUND", "the embedded report does not hash to the sealed reportSha256");
     } else {
       passed.push("REPORT_BOUND");

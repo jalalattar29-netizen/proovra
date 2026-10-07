@@ -331,8 +331,10 @@ describe("UC-SEC-006 — the anonymous verify surface and the capture/presign li
     const { fileURLToPath } = await import("node:url");
     const read = (rel: string) => readFileSync(fileURLToPath(new URL(`../src/${rel}`, import.meta.url)), "utf8");
     const GLOBAL_KEYS: Array<[string, string]> = [
-      ["routes/evidence.routes.ts", "ratelimit:verify:ip:"],
-      ["routes/evidence.routes.ts", "ratelimit:verify:evidence-clients:"],
+      // THE Public Verify gate (record page and package record share it).
+      ["services/public-verify/public-verify-gate.ts", "ratelimit:verify:ip:"],
+      ["services/public-verify/public-verify-gate.ts", "ratelimit:verify:evidence-clients:"],
+      ["services/public-verify/public-verify-gate.ts", "ratelimit:verify:package-clients:"],
       ["routes/evidence.routes.ts", "ratelimit:evidence-part-presign:user:"],
       ["routes/capture-trust.routes.ts", "ratelimit:capture:direct-session:open:"],
     ];
@@ -345,7 +347,7 @@ describe("UC-SEC-006 — the anonymous verify surface and the capture/presign li
         continue;
       }
       // The verify IP key is built into a variable first; follow it to its call.
-      const callStart = key === "ratelimit:verify:ip:" ? src.indexOf("enforceRateLimit({", at) : at;
+      const callStart = at;
       const call = src.slice(callStart, src.indexOf("})", callStart));
       if (!/bound:\s*"global"/.test(call)) missing.push(`${file}: ${key}`);
     }

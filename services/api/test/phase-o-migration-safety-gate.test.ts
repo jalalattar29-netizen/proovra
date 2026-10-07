@@ -342,6 +342,23 @@ describe("Phase O — CI gate on post-baseline migrations", () => {
     // CONTRACT_DROP / CONTRACT_DROP_LATER in the Point-6 inventory (apply only
     // after the UC-0 image, which upserts against the composite key, is live).
     "20280602000000_derived_asset_variant_contract": new Set(["DROP_INDEX"]),
+    // VERIFICATION PACKAGE PROFILE ROWS (2026-10-07) — ONE guarded DROP INDEX
+    // retires the (evidence_id, version) unique key so a version can hold its
+    // FULL_FORENSIC and EXTERNAL_DISCLOSURE rows. The two partial keys that
+    // replace it (one primary — FULL_FORENSIC or legacy — and at most one
+    // external per version) are created first, and a DO-block RAISEs unless
+    // both exist; the DROP runs inside that block via EXECUTE. Unlike the UC-0
+    // precedent it is safe BEFORE the new code: the previous images insert one
+    // primary row per version with create (never ON CONFLICT against the
+    // retired key), which the primary partial key enforces exactly. An index
+    // is not data; no row or package byte is touched.
+    "20281006000000_verification_package_profile_rows": new Set(["DROP_INDEX"]),
+    // SIGNING-KEY PURPOSE (2026-10-07) — ONE guarded DROP INDEX retires the
+    // purpose-blind (key_id, version) key after (key_id, version, purpose)
+    // exists (DO-block RAISE + EXECUTE). Previous images register and look up
+    // evidence keys by (key_id, version) and get EVIDENCE_SIGNATURE rows; the
+    // purpose key enforces their uniqueness unchanged.
+    "20281006000100_signing_key_purpose": new Set(["DROP_INDEX"]),
     // Removes the unsupported anchor receipt_id / public_url columns
     // from `evidence_anchors`. PROOVRA relies solely on OpenTimestamps ->
     // Bitcoin anchoring (transaction_id + anchored_at_utc), the verification
