@@ -274,52 +274,33 @@ describe("A-4 — Stripe webhook signature timestamp tolerance", () => {
 // C-1: cover PDF compactValue derived from tone (no hard-coded "Verified")
 // ---------------------------------------------------------------------------
 
-describe("C-1 — cover PDF compactValue is derived from tone", () => {
+describe("C-1 — cover PDF compactValue is derived from the canonical state", () => {
   const COVER = "services/worker/src/report-v2/sections/cover.ts";
+  const SHARED = "packages/shared/src/trust-decision.ts";
 
-  it("immutable_storage warning tone does NOT render the word 'Verified'", () => {
-    // Source-contract assertion: the literal `compactValue = "Verified"`
-    // assignment under the `immutable storage` branch must be gone.
-    // The new branch reads tone first.
+  it("the cover reads THE canonical layer/state label and tone (no local word table)", () => {
+    // Since 2026-10-07 the compact value is getTrustLayerStateLabel(signal)
+    // and the tone getTrustSignalStateTone(signal): a layer reads
+    // "Verified"/"Anchored"/"Storage protected" only in the PASSED state.
     const src = read(COVER);
-    // Find the `immutable storage` branch body.
-    const m = src.match(
-      /includes\("immutable storage"\)\)\s*\{([\s\S]*?)\}\s*\n/,
-    );
-    expect(m).toBeTruthy();
-    const body = m![1];
-    expect.soft(body).toMatch(/params\.tone/);
-    expect.soft(body).not.toMatch(/compactValue\s*=\s*"Verified"/);
-    expect.soft(body).toMatch(/Storage protected/);
-    expect.soft(body).toMatch(/Storage protection failed|Storage protection unavailable/);
+    expect(src).toMatch(/value:\s*getTrustLayerStateLabel\(signal\)/);
+    expect(src).toMatch(/tone:\s*getTrustSignalStateTone\(signal\)/);
+    expect(src).not.toMatch(/compactValue\s*=\s*"Verified"/);
+    expect(src).not.toMatch(/"Anchored"/);
   });
 
-  it("core_integrity branch is also tone-derived (no hard-coded literal)", () => {
-    const src = read(COVER);
-    const m = src.match(
-      /includes\("core integrity"\)\)\s*\{([\s\S]*?)\}\s*else/,
+  it("only the PASSED state of a layer may say Verified, Anchored or Storage protected", () => {
+    const src = read(SHARED);
+    const table = src.slice(
+      src.indexOf("const TRUST_LAYER_STATE_LABELS"),
+      src.indexOf("export function getTrustLayerStateLabel"),
     );
-    expect(m).toBeTruthy();
-    const body = m![1];
-    expect.soft(body).toMatch(/params\.tone/);
-  });
-
-  it("trust signals NEVER render 'Verified' when tone is danger", () => {
-    // Brute-force a synthetic invocation by inspecting the source for
-    // any branch that emits the literal "Verified" without a tone check
-    // (we already exclude the success path via the tone derivation).
-    const src = read(COVER);
-    // Find every assignment of `compactValue = "Verified"` and assert
-    // it is preceded by a tone === "success" check in the same line
-    // chain. We accept the new pattern:
-    //    params.tone === "success" ? "Verified" : ... }
-    const literalAssigns = src.match(
-      /compactValue\s*=\s*"Verified"(?!\s*[?:])/g,
-    );
-    expect(
-      literalAssigns,
-      "No bare `compactValue = \"Verified\"` should remain.",
-    ).toBeNull();
+    expect(table.length).toBeGreaterThan(200);
+    for (const line of table.split("\n")) {
+      if (/"(Verified|Anchored, chain-verified|Storage protected|Validated|Chain verified|Organization verified)"/.test(line)) {
+        expect(line, line).toMatch(/^\s*PASSED:/);
+      }
+    }
   });
 });
 

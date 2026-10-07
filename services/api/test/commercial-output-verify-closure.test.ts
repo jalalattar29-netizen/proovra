@@ -1121,8 +1121,11 @@ describe("P3-4 — the public trust score carries no commercial input", () => {
     expect(fn).not.toMatch(/points:\s*[1-9]/);
     // …and the absent-but-materials-present case must not read as a
     // degradation, because `degradedSignals` drives the headline state.
+    // Since the canonical state (2026-10-07) that is NOT_APPLICABLE: neither a
+    // passed check nor a degradation (TRUST_SIGNAL_STATE_PRESENTATION).
     const absentBranch = fn.slice(fn.indexOf("hasCoreCryptoMaterials"));
-    expect(absentBranch).toMatch(/status:\s*"passed"/);
+    expect(absentBranch).toMatch(/state:\s*"NOT_APPLICABLE"/);
+    expect(fn).not.toMatch(/state:\s*"PASSED"/);
   });
 
   it("WIRING: the verify page no longer points at a download that does not exist", () => {
