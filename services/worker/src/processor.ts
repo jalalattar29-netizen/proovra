@@ -5153,19 +5153,39 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         // ONE generator, two projections of the same facts, sealed by the same
         // signer: the complete forensic package, and the external disclosure
         // package that withholds originals, the report and identifiers.
-        const finalizedVerificationPackage = await createVerificationPackage({
-          ...packageBuildInput,
-          packageId: fullPackageId,
-          disclosureProfile: "FULL_FORENSIC",
-          packageVerificationUrl: buildPackageVerificationUrl(fullPackageId),
-        });
-        const externalDisclosurePackage = await createVerificationPackage({
-          ...packageBuildInput,
-          packageId: externalPackageId,
-          disclosureProfile: "EXTERNAL_DISCLOSURE",
-          sourceFullPackageId: fullPackageId,
-          packageVerificationUrl: buildPackageVerificationUrl(externalPackageId),
-        });
+        // ONE call site for both (the full package first): a failure of
+        // either fails the run before anything is published, and nothing can
+        // build a package by a path the governance tests do not see.
+        const profileBuilds = [
+          {
+            packageId: fullPackageId,
+            disclosureProfile: "FULL_FORENSIC" as const,
+            sourceFullPackageId: undefined as string | undefined,
+          },
+          {
+            packageId: externalPackageId,
+            disclosureProfile: "EXTERNAL_DISCLOSURE" as const,
+            sourceFullPackageId: fullPackageId as string | undefined,
+          },
+        ];
+        const builtProfiles: Array<Awaited<ReturnType<typeof createVerificationPackage>>> = [];
+        for (const profile of profileBuilds) {
+          builtProfiles.push(
+            await createVerificationPackage({
+              ...packageBuildInput,
+              packageId: profile.packageId,
+              disclosureProfile: profile.disclosureProfile,
+              ...(profile.sourceFullPackageId
+                ? { sourceFullPackageId: profile.sourceFullPackageId }
+                : {}),
+              packageVerificationUrl: buildPackageVerificationUrl(profile.packageId),
+            }),
+          );
+        }
+        const [finalizedVerificationPackage, externalDisclosurePackage] = builtProfiles as [
+          (typeof builtProfiles)[number],
+          (typeof builtProfiles)[number],
+        ];
         externalDisclosureStaged = externalDisclosurePackage.staged;
         externalDisclosureSeal = externalDisclosurePackage.seal;
         finalizedVerificationStaged = finalizedVerificationPackage.staged;

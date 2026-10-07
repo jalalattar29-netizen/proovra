@@ -190,6 +190,20 @@ test("TSA valid + OTS independently verified → STRONGLY_VERIFIED and finalized
   assertNoOverclaim(d);
 });
 
+test("a chain check recorded with NO txid is never verified (the package's sealed precondition)", () => {
+  const d = decide({
+    otsStatus: "ANCHORED",
+    otsAnchoredAtUtc: "2026-10-01T02:00:00Z",
+    otsBitcoinTxid: null,
+    otsAnchorCheck: "BITCOIN_VERIFIED",
+    otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z",
+  });
+  assert.equal(anchoring(d).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  assert.notEqual(d.verdict, "STRONGLY_VERIFIED");
+  assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
+  assertNoOverclaim(d);
+});
+
 test("OTS unavailable / failed / stale never read as verified", () => {
   for (const [overrides, state] of [
     [{ otsStatus: null }, "UNAVAILABLE"],

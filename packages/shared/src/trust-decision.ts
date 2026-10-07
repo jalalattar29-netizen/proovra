@@ -908,6 +908,10 @@ function buildAnchoringSignal(
     upgradedAtUtc: evidence.otsUpgradedAtUtc ?? null,
     submittedAtUtc: evidence.otsSubmittedAtUtc ?? null,
     anchorCheckedAtUtc: evidence.otsAnchorCheckedAtUtc ?? null,
+    // The txid precondition the package seals: a chain check with no txid on
+    // the record is never "verified". Passed whenever the caller supplied the
+    // field (null = known to be absent).
+    ...(evidence.otsBitcoinTxid !== undefined ? { bitcoinTxid: evidence.otsBitcoinTxid } : {}),
   });
 
   const detail: Readonly<Record<TrustSignalState, string>> = {

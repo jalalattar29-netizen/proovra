@@ -484,7 +484,9 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     const callsBefore = seam.packageBuildCalls;
     expect(await run(id, 1)).toBeNull();
     const after = await state(evidenceId, id);
-    expect(seam.packageBuildCalls - callsBefore, "the retry must actually build the package").toBe(1);
+    // One run builds the version's two disclosure profiles (FULL_FORENSIC and
+    // its EXTERNAL_DISCLOSURE companion) through the one call site.
+    expect(seam.packageBuildCalls - callsBefore, "the retry must actually build the package").toBe(2);
     expect(after.req!.state).toBe("SUCCEEDED");
     expect(after.reports.map((r) => r.version), "no second report version").toEqual([1]);
     expect(after.packages.map((p) => p.version)).toEqual([1]);
