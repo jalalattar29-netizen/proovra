@@ -134,6 +134,9 @@ export function resolveSnapshotSignalState(signal: {
       return "FAILED";
     case "pending":
       return "PENDING";
+    // A historical "degraded" signal was recorded with limitations: present,
+    // never passed and never "unavailable".
+    case "degraded":
     case "partial":
       return "PRESENT_NOT_INDEPENDENTLY_VERIFIED";
     case "not_applicable":

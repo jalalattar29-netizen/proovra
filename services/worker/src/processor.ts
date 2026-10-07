@@ -855,9 +855,6 @@ case "TIMESTAMP_FAILED": {
       const captureMethodSnapshot = normalizePayloadPrimitive(
         obj.captureMethodSnapshot
       );
-      const identityLevelSnapshot = normalizePayloadPrimitive(
-        obj.identityLevelSnapshot
-      );
 
       // Role-safe capture presentation. The raw snapshot is the STRUCTURE
       // enum (MULTIPART_PACKAGE) after `completeEvidence`; render the
@@ -2878,9 +2875,6 @@ await recordIntegrityObservation({
   // one would hand every reader a page that answers "Evidence not found".
   const publicVerifyPublishedAtIssuance = evidence.publicVerifyState === "PUBLISHED";
 
-  const workspaceVerified =
-    workspaceTeam?.verificationState ===
-    prismaPkg.OrganizationVerificationState.VERIFIED;
 
   // THE ACQUISITION IDENTITY SNAPSHOT — what was true when the record was
   // created, from its IDENTITY_SNAPSHOT_RECORDED custody event. Identity is

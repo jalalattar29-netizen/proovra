@@ -58,7 +58,6 @@ import {
   mapAnchorModePublicLabel,
   mapCertificationStatusLabel,
   mapEvidenceAssetKindLabel,
-  mapIdentityLevelLabel,
   reportIdentityLevelLabel,
   reportIdentityRows,
   mapObjectLockModePublicLabel,

@@ -18,7 +18,6 @@ import {
 } from "./formatters.js";
 import {
   mapAuthProviderLabel,
-  mapIdentityLevelLabel,
   reportIdentityLevelLabel,
   reportIdentityRows,
   mapAnchorModePublicLabel,
