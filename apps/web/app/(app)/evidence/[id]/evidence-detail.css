@@ -5714,6 +5714,9 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .rga-history__list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .rga-history__empty { margin: 0; font-size: 14px; color: var(--rga-ink-2); }
 .rga-history__more { align-self: flex-start; }
+.rga-truth__note { margin: 2px 0 0; font-size: 12px; color: var(--rga-ink-2); }
+.rga-pair__link { color: var(--rga-accent); text-decoration: underline; text-underline-offset: 2px; }
+.rga-pair__link:focus-visible { outline: 2px solid var(--rga-accent); outline-offset: 2px; border-radius: 2px; }
 .rga-history__subtitle { margin: 0; font-size: 15px; font-weight: 650; }
 .rga-pair {
   display: flex;

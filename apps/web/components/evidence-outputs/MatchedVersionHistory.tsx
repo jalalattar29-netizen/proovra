@@ -15,7 +15,14 @@
 import { useState, type ReactNode } from "react";
 import { FileText, ShieldCheck } from "lucide-react";
 
-import type { MatchedHistory, MatchedPackage, MatchedVersion } from "./artifact-status-types";
+import { DISCLOSURE_PROFILE_LABELS } from "@proovra/shared";
+
+import type { ArtifactPackageAccess, MatchedHistory, MatchedPackage, MatchedVersion } from "./artifact-status-types";
+
+/** PROOVRA's public package record (Public Verify), where anyone holding a package checks it. */
+function packageRecordHref(packageId: string): string {
+  return `/verify/package/${encodeURIComponent(packageId)}`;
+}
 
 const VISIBLE_DEFAULT = 4;
 
@@ -35,6 +42,8 @@ function PackageCell({
   formatDateTime,
   formatBytes,
   onDownload,
+  onDownloadExternal,
+  access,
   missingAction,
 }: {
   version: MatchedVersion;
@@ -42,6 +51,8 @@ function PackageCell({
   formatDateTime: (v: string | null | undefined) => string;
   formatBytes: (v: string | number | null | undefined) => string;
   onDownload: (v: number) => void;
+  onDownloadExternal?: (v: number) => void;
+  access: ArtifactPackageAccess | null;
   missingAction: ReactNode;
 }) {
   if (!pkg) {
@@ -70,16 +81,52 @@ function PackageCell({
         {formatDateTime(pkg.generatedAtUtc)} · {formatBytes(pkg.sizeBytes)}
       </span>
       <Digest value={pkg.sha256} label={`Verification package v${pkg.version}`} />
-      <button
-        type="button"
-        className="app-secondary-action rga-pair__download"
-        onClick={() => onDownload(pkg.version)}
-        data-testid={`download-package-v${pkg.version}`}
-        data-evidence-artifact-version-download="package"
-        data-evidence-artifact-version-number={pkg.version}
-      >
-        Download Verification Package ZIP v{pkg.version}
-      </button>
+      {pkg.packageId ? (
+        <span className="rga-pair__meta" data-testid={`pair-${version.reportVersion}-package-profile`}>
+          {DISCLOSURE_PROFILE_LABELS[pkg.disclosureProfile === "FULL_FORENSIC" ? "FULL_FORENSIC" : "LEGACY"]}
+          {" · Package ID "}
+          <code dir="ltr">{pkg.packageId}</code>
+          {" · "}
+          <a className="rga-pair__link" href={packageRecordHref(pkg.packageId)} target="_blank" rel="noopener noreferrer">
+            Check with PROOVRA
+          </a>
+        </span>
+      ) : null}
+      {access?.fullForensic === false ? (
+        <span className="rga-pair__meta" data-testid={`pair-${version.reportVersion}-full-restricted`}>
+          The full forensic package contains the original files, which your role cannot download.
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="app-secondary-action rga-pair__download"
+          onClick={() => onDownload(pkg.version)}
+          data-testid={`download-package-v${pkg.version}`}
+          data-evidence-artifact-version-download="package"
+          data-evidence-artifact-version-number={pkg.version}
+        >
+          Download Verification Package ZIP v{pkg.version}
+        </button>
+      )}
+      {pkg.externalDisclosure && onDownloadExternal && access?.externalDisclosure !== false ? (
+        <button
+          type="button"
+          className="app-secondary-action rga-pair__download"
+          onClick={() => onDownloadExternal(pkg.version)}
+          data-testid={`download-external-package-v${pkg.version}`}
+          aria-describedby={`pair-${version.reportVersion}-external-note`}
+        >
+          Download external disclosure package v{pkg.version}
+        </button>
+      ) : null}
+      {pkg.externalDisclosure ? (
+        <span className="rga-pair__meta" id={`pair-${version.reportVersion}-external-note`}>
+          For sharing outside the workspace: every verification material, without the original files, the report or
+          personal identifiers.
+        </span>
+      ) : pkg.packageId ? null : (
+        <span className="rga-pair__meta">Issued before external disclosure packages existed.</span>
+      )}
     </div>
   );
 }
@@ -90,6 +137,8 @@ export function MatchedVersionHistory({
   formatBytes,
   onDownloadReportVersion,
   onDownloadPackageVersion,
+  onDownloadExternalPackageVersion,
+  packageAccess = null,
   latestPackageAction,
 }: {
   history: MatchedHistory;
@@ -97,6 +146,8 @@ export function MatchedVersionHistory({
   formatBytes: (v: string | number | null | undefined) => string;
   onDownloadReportVersion: (v: number) => void;
   onDownloadPackageVersion: (v: number) => void;
+  onDownloadExternalPackageVersion?: (v: number) => void;
+  packageAccess?: ArtifactPackageAccess | null;
   /** The server-offered Recover/Retry control for the LATEST version's missing package. */
   latestPackageAction?: ReactNode;
 }) {
@@ -174,6 +225,8 @@ export function MatchedVersionHistory({
                   formatDateTime={formatDateTime}
                   formatBytes={formatBytes}
                   onDownload={onDownloadPackageVersion}
+                  onDownloadExternal={onDownloadExternalPackageVersion}
+                  access={packageAccess}
                   missingAction={v.latest ? latestPackageAction : null}
                 />
               </div>

@@ -356,7 +356,8 @@ describe("artifact truth header", () => {
     );
     expect(getByTestId("truth-freshness").textContent).toContain("New verification facts are available");
     expect(getByTestId("truth-tsa").textContent).toBe("Validated");
-    expect(getByTestId("truth-ots").textContent).toBe("Anchored (chain not checked)");
+    // A structure-only anchor is a PRESENT proof, never "Anchored" (canonical state).
+    expect(getByTestId("truth-ots").textContent).toBe("Proof present, not chain-verified");
     rerender(
       <ArtifactTruthHeader latest={history.versions[0]!} trust={trust} freshness={{ ...freshness, reportVersion: 2, hasNewerFacts: false, changes: [] }} activeRequest={null} formatDateTime={fmt} formatBytes={fmt} actions={null} />,
     );
@@ -377,7 +378,7 @@ describe("artifact truth header", () => {
       />,
     );
     expect(getByTestId("truth-tsa").textContent).toBe("Not validated");
-    expect(getByTestId("truth-ots").textContent).toBe("Anchoring pending");
+    expect(getByTestId("truth-ots").textContent).toBe("Pending");
     expect(getByTestId("truth-freshness-state").textContent).toBe("Not available");
   });
 });

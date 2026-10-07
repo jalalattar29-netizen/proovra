@@ -74,6 +74,8 @@ export type EvidenceArtifactActions = {
   downloadVerificationPackage: () => Promise<void>;
   downloadReportVersion: (version: number) => Promise<void>;
   downloadVerificationPackageVersion: (version: number) => Promise<void>;
+  /** The EXTERNAL_DISCLOSURE package of one report version. */
+  downloadExternalDisclosurePackageVersion: (version: number) => Promise<void>;
   generateOutputs: (
     intent?: OutputRequestIntent,
     output?: "report" | "verificationPackage",
@@ -406,11 +408,35 @@ const downloadVerificationPackageVersion = async (version: number) => {
   }
 };
 
+  const downloadExternalDisclosurePackageVersion = async (version: number) => {
+    if (!evidenceId) return;
+    try {
+      const data = (await apiFetch(
+        `/v1/evidence/${evidenceId}/verification-packages/${version}/external-disclosure`,
+      )) as { url?: string | null };
+      if (!data.url) {
+        addToast(`The external disclosure package for v${version} is not available.`, "info");
+        return;
+      }
+      const externalUrl = data.url;
+      const externalFileName = `external-disclosure-package-${evidenceId}-v${version}.zip`;
+      const ok = await tryDownloadFile(externalUrl, externalFileName);
+      if (!ok) window.open(externalUrl, "_blank", "noopener,noreferrer");
+    } catch (downloadError) {
+      const feedback = describeArtifactDownloadFailure("verificationPackage", downloadError, { version });
+      addToast(feedback.message, feedback.tone);
+      if (feedback.report) {
+        captureException(downloadError, { feature: "web_evidence_download_external_package_version", evidenceId });
+      }
+    }
+  };
+
   return {
     downloadReport,
     downloadVerificationPackage,
     downloadReportVersion,
     downloadVerificationPackageVersion,
+    downloadExternalDisclosurePackageVersion,
     generateOutputs,
     createNewVersion,
     generateOutputsBusy,

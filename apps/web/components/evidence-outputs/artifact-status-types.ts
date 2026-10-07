@@ -27,6 +27,8 @@ export type ArtifactTrust = {
     status: string | null;
     anchorCheck: string | null;
     anchoredAtUtc: string | null;
+    /** When the current anchor check was recorded (absent from an older API). */
+    anchorCheckedAtUtc?: string | null;
   };
 };
 
@@ -36,6 +38,12 @@ export type ArtifactActiveRequest = OutputActiveRequestView & {
 };
 
 export type MatchedPackage = {
+  /** THE package identity (absent from an older API). */
+  packageId?: string;
+  /** FULL_FORENSIC, or LEGACY for a package issued before disclosure profiles. */
+  disclosureProfile?: "FULL_FORENSIC" | "LEGACY";
+  /** The EXTERNAL_DISCLOSURE companion issued with it, when one exists. */
+  externalDisclosure?: { packageId: string; sha256: string | null; sizeBytes: string | null } | null;
   version: number;
   generatedAtUtc: string;
   sizeBytes: string | null;
@@ -58,6 +66,9 @@ export type MatchedVersion = {
   package: MatchedPackage | null;
   digestMismatch: boolean;
 };
+
+/** Which package profiles the caller's role permits (absent from an older API). */
+export type ArtifactPackageAccess = { fullForensic: boolean; externalDisclosure: boolean };
 
 export type MatchedHistory = {
   versions: MatchedVersion[];

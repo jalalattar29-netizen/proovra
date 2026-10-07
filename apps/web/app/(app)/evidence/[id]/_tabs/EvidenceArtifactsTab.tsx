@@ -698,7 +698,7 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           Download Report PDF v{latestPair.reportVersion}
         </button>
       ) : null}
-      {latestPair?.package ? (
+      {latestPair?.package && workspace.artifactStatus.packageAccess?.fullForensic !== false ? (
         <button
           type="button"
           className="app-secondary-action"
@@ -853,6 +853,8 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
           formatBytes={formatBytes}
           onDownloadReportVersion={(v) => void ctx.downloadReportVersion(v)}
           onDownloadPackageVersion={(v) => void ctx.downloadVerificationPackageVersion(v)}
+          onDownloadExternalPackageVersion={(v) => void ctx.downloadExternalDisclosurePackageVersion(v)}
+          packageAccess={workspace.artifactStatus.packageAccess ?? null}
           latestPackageAction={
             packageOutput.action !== "NONE" && packageOutput.action !== "REGENERATE" ? (
               <OutputActionButton ctx={ctx} kind="verificationPackage" output={packageOutput} />

@@ -622,6 +622,19 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "generic",
     why: "As INTERNAL_ERROR.",
   },
+  EXTERNAL_DISCLOSURE_NOT_ISSUED: {
+    disposition: "generic",
+    why:
+      "The Artifacts tab offers the external disclosure download only for a version that has one " +
+      "(package.externalDisclosure), and says so for an older version; the 409 reaches only a " +
+      "stale client, which the generic line answers honestly.",
+  },
+  PACKAGE_NOT_FOUND: {
+    disposition: "generic",
+    why:
+      "Anti-enumeration 404 of the public package record: an unknown and a malformed id answer " +
+      "the same. The /verify/package page renders its own not-found state from the status.",
+  },
 };
 
 /** Every code the registry has an explicit decision for. */

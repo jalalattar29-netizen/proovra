@@ -512,7 +512,9 @@ test("18. the Technical Appendix states every signal and role as text", () => {
   assert.match(TA_ROW, /success: "green",[\s\S]{0,120}?neutral: "slate",/);
   // Scores, weighting and the signal vocabulary are untouched.
   assert.match(TA_TRUST, /\{signal\.points\} \/ \{signal\.maxPoints\}/);
-  assert.match(TA_TRUST, /passed: \{ label: "Passed", tone: "success", icon: CircleCheck \}/);
+  // The canonical state vocabulary (@proovra/shared TrustSignalState), one icon each.
+  assert.match(TA_TRUST, /PASSED: CircleCheck,/);
+  assert.match(TA_TRUST, /TRUST_SIGNAL_STATE_PRESENTATION\[state\]/);
   // The per-signal state still starts on one axis, without the pill geometry
   // that used to make every capsule the same height.
   const placement = rule(EV_DETAIL_CSS, ".ta-signals .ta-signal-state");

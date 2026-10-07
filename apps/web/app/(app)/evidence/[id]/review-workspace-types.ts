@@ -1,6 +1,7 @@
 import type {
   ArtifactOutputsExtras,
   MatchedHistory,
+  ArtifactPackageAccess,
 } from "../../../../components/evidence-outputs/artifact-status-types";
 import type { StoredBytesIntegrity } from "@proovra/shared";
 import type {
@@ -484,6 +485,7 @@ export type ReviewWorkspaceResponse = {
     } & Omit<ArtifactOutputsExtras, "newVersion" | "pollIntervalMs">;
     /** Immutable report/package pairs (absent from an older API). */
     versions?: MatchedHistory;
+    packageAccess?: ArtifactPackageAccess | null;
     report:
       | {
           available: true;

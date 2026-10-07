@@ -132,6 +132,7 @@ export type EvidenceDetailCtx = {
   // RELIABILITY CLOSURE (2026-09-09) — one retained version, by number.
   downloadReportVersion: (version: number) => Promise<void> | void;
   downloadVerificationPackageVersion: (version: number) => Promise<void> | void;
+  downloadExternalDisclosurePackageVersion: (version: number) => Promise<void> | void;
   /**
    * Request the action an output offers — GENERATE, RETRY or RECOVER, from the
    * server's `outputs.*.action`. The server re-derives what runs: a report

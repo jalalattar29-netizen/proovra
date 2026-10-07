@@ -182,7 +182,8 @@ describe("Evidence outputs card", () => {
     expect(getByTestId("evidence-outputs-report").textContent).toBe("v1");
     expect(getByTestId("evidence-outputs-package").textContent).toBe("v1");
     expect(getByTestId("evidence-outputs-tsa").textContent).toBe("Validated");
-    expect(getByTestId("evidence-outputs-ots").textContent).toMatch(/^Anchored/);
+    // The fixture anchor is PROOF_STRUCTURE: present, not chain-verified.
+    expect(getByTestId("evidence-outputs-ots").textContent).toBe("Proof present, not chain-verified");
     expect(queryByText("All generated outputs reflect the latest verified facts.")).not.toBeNull();
     expect(queryByText(/New verification facts/)).toBeNull();
     fireEvent.click(getByTestId("evidence-outputs-view"));

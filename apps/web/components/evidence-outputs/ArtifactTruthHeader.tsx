@@ -13,59 +13,91 @@
 import type { ReactNode } from "react";
 import { FileCheck2, RefreshCcw } from "lucide-react";
 import {
-  OTS_ANCHOR_CLAIM_LABELS,
+  TRUST_SIGNAL_STATE_PRESENTATION,
+  getTrustLayerStateLabel,
   presentedTsaStatus,
   reportFreshnessChangeCopy,
-  resolveOtsAnchorClaim,
-  TSA_RECORDED_NOT_VALIDATED,
+  resolveOtsTrustState,
+  resolveTsaTrustState,
   type ReportFreshness,
+  type TrustSignalState,
 } from "@proovra/shared";
 
 import type { ArtifactActiveRequest, ArtifactTrust, MatchedVersion } from "./artifact-status-types";
 
-export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; tone: "ok" | "warn" | "neutral" } {
-  if (!t) return { label: "Not available", tone: "neutral" };
+type TruthTone = "ok" | "warn" | "neutral";
+
+/** THE canonical state's tone, in this header's three tones ("ok" only for PASSED). */
+function toneOf(state: TrustSignalState): TruthTone {
+  const tone = TRUST_SIGNAL_STATE_PRESENTATION[state].tone;
+  return tone === "success" ? "ok" : tone === "danger" || tone === "warning" ? "warn" : "neutral";
+}
+
+export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; tone: TruthTone; measuredAtUtc: string | null } {
+  if (!t) return { label: "Not available", tone: "neutral", measuredAtUtc: null };
   const presented = presentedTsaStatus({ tsaStatus: t.status, tsaValidatedAtUtc: t.validatedAtUtc });
-  switch ((presented ?? "").toUpperCase()) {
-    case "STAMPED":
-      return { label: "Validated", tone: "ok" };
-    case TSA_RECORDED_NOT_VALIDATED:
-      return { label: "Recorded, not validated", tone: "warn" };
-    case "FAILED":
-      return { label: "Not validated", tone: "warn" };
-    case "PENDING":
-      return { label: "Pending", tone: "neutral" };
-    case "DISABLED":
-      return { label: "Not enabled", tone: "neutral" };
-    case "":
-      return { label: "Not recorded", tone: "neutral" };
-    default:
-      return { label: String(presented), tone: "neutral" };
+  const s = resolveTsaTrustState({
+    presentedStatus: presented,
+    // With a recorded code the canonical resolver decides: a validation code
+    // means a token was received, a provider code means none was.
+    tokenPresent: t.failureCode ? true : null,
+    failureCode: t.failureCode,
+    validatedAtUtc: t.validatedAtUtc,
+  });
+  // FAILED with no code, or a code this surface does not know: never claim
+  // that nothing was obtained, nor that a token was. Only a provider code
+  // says no token came back.
+  const providerCode = /^tsa_provider_|^tsa_unknown_error$|^tsa_token_missing$/.test(String(t.failureCode ?? ""));
+  if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && !providerCode) {
+    return { label: "Not validated", tone: "warn", measuredAtUtc: null };
   }
+  return {
+    label: getTrustLayerStateLabel({ key: "trusted_timestamp", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
+    tone: toneOf(s.state),
+    measuredAtUtc: s.measuredAtUtc,
+  };
 }
 
-export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: string; tone: "ok" | "warn" | "neutral" } {
-  if (!o) return { label: "Not available", tone: "neutral" };
-  const claim = resolveOtsAnchorClaim({ status: o.status, anchoredAtUtc: o.anchoredAtUtc, anchorCheck: o.anchorCheck });
-  switch (claim) {
-    case "VERIFIED":
-      return { label: "Anchored, verified against Bitcoin", tone: "ok" };
-    case "ANCHORED_NOT_CHECKED":
-      return { label: "Anchored (chain not checked)", tone: "ok" };
-    case "PENDING":
-      return { label: "Anchoring pending", tone: "neutral" };
-    case "FAILED":
-      return { label: "Anchoring failed", tone: "warn" };
-    default:
-      return { label: OTS_ANCHOR_CLAIM_LABELS[claim], tone: "neutral" };
-  }
+export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: string; tone: TruthTone; measuredAtUtc: string | null } {
+  if (!o) return { label: "Not available", tone: "neutral", measuredAtUtc: null };
+  // An attested proof is "present, not chain-verified"; only a recorded chain
+  // check is verified (resolveOtsTrustState).
+  const s = resolveOtsTrustState({
+    status: o.status,
+    anchoredAtUtc: o.anchoredAtUtc,
+    anchorCheck: o.anchorCheck,
+    anchorCheckedAtUtc: o.anchorCheckedAtUtc ?? null,
+  });
+  return {
+    label: getTrustLayerStateLabel({ key: "bitcoin_anchoring", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
+    tone: toneOf(s.state),
+    measuredAtUtc: s.measuredAtUtc,
+  };
 }
 
-function Fact({ label, value, tone, testId }: { label: string; value: ReactNode; tone?: "ok" | "warn" | "neutral"; testId?: string }) {
+function Fact({
+  label,
+  value,
+  tone,
+  testId,
+  note,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "ok" | "warn" | "neutral";
+  testId?: string;
+  /** When the state was measured (shown beside it, never mixed into it). */
+  note?: string | null;
+}) {
   return (
     <div className="rga-truth__fact" data-tone={tone ?? "neutral"}>
       <dt>{label}</dt>
       <dd data-testid={testId}>{value}</dd>
+      {note ? (
+        <dd className="rga-truth__note" data-testid={testId ? `${testId}-measured` : undefined}>
+          {note}
+        </dd>
+      ) : null}
     </div>
   );
 }
@@ -150,8 +182,20 @@ export function ArtifactTruthHeader({
           testId="truth-package"
         />
         <Fact label="Package size" value={pkg ? formatBytes(pkg.sizeBytes) : "—"} />
-        <Fact label="Trusted timestamp" value={tsa.label} tone={tsa.tone} testId="truth-tsa" />
-        <Fact label="OpenTimestamps" value={ots.label} tone={ots.tone} testId="truth-ots" />
+        <Fact
+          label="Trusted timestamp"
+          value={tsa.label}
+          tone={tsa.tone}
+          testId="truth-tsa"
+          note={tsa.measuredAtUtc ? `Validated ${formatDateTime(tsa.measuredAtUtc)}` : null}
+        />
+        <Fact
+          label="OpenTimestamps"
+          value={ots.label}
+          tone={ots.tone}
+          testId="truth-ots"
+          note={ots.measuredAtUtc ? `Checked against the Bitcoin chain ${formatDateTime(ots.measuredAtUtc)}` : null}
+        />
         <Fact
           label="Report facts"
           value={
