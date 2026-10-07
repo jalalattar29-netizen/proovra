@@ -22,6 +22,7 @@
  */
 
 import archiver from "archiver";
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 import { PassThrough, Readable } from "node:stream";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -160,6 +161,7 @@ async function buildSiuExportBundleInner(
       // Every package, so the one PAIRED with the latest report can be chosen
       // (2026-09-29): the newest package may certify an older report.
       verificationPackages: {
+        where: primaryPublishedPackageWhere(),
         orderBy: { version: "desc" },
         take: 50,
         select: {

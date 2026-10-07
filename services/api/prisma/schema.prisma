@@ -908,14 +908,16 @@ model VerificationPackage {
   id                               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   evidenceId                       String    @map("evidence_id") @db.Uuid
   version                          Int
-  storageBucket                    String    @map("storage_bucket") @db.VarChar(255)
-  storageKey                       String    @map("storage_key") @db.VarChar(512)
+  /// NULL only while RESERVED or FAILED (no stored object); a CHECK requires
+  /// it on every PUBLISHED row.
+  storageBucket                    String?   @map("storage_bucket") @db.VarChar(255)
+  storageKey                       String?   @map("storage_key") @db.VarChar(512)
   storageRegion                    String?   @map("storage_region") @db.VarChar(64)
   storageObjectLockMode            String?   @map("storage_object_lock_mode") @db.VarChar(32)
   storageObjectLockRetainUntilUtc  DateTime? @map("storage_object_lock_retain_until_utc") @db.Timestamptz(6)
   storageObjectLockLegalHoldStatus String?   @map("storage_object_lock_legal_hold_status") @db.VarChar(16)
   sizeBytes                        BigInt?   @map("size_bytes")
-  generatedAtUtc                   DateTime  @map("generated_at_utc") @db.Timestamptz(6)
+  generatedAtUtc                   DateTime? @map("generated_at_utc") @db.Timestamptz(6)
   packageType                      String?   @map("package_type") @db.VarChar(64)
   trustDecisionSnapshot            Json?     @map("trust_decision_snapshot")
   /// The report version this package certifies and embeds.
@@ -943,18 +945,40 @@ model VerificationPackage {
   /// package assembled after its report includes nothing later than the
   /// report's own issuance.
   custodyThroughSequence           Int?      @map("custody_through_sequence")
-  /// 2026-10-07 — FULL_FORENSIC for packages issued with profiles; NULL = legacy
-  /// (issued before disclosure profiles, never relabelled).
+  /// FULL_FORENSIC | EXTERNAL_DISCLOSURE — each profile is its own row. NULL =
+  /// legacy (issued before disclosure profiles, never relabelled; a primary
+  /// package like FULL_FORENSIC).
   disclosureProfile                String?   @map("disclosure_profile") @db.VarChar(32)
-  /// The companion EXTERNAL_DISCLOSURE package issued in the same run (id,
-  /// storage key + version, digest, size, seal). NULL = none (legacy).
+  /// RETIRED, never read or written. Shipped by 20281005000000 for a companion
+  /// artifact that is now its own row; dropped by a held contract migration.
   externalDisclosureArtifact       Json?     @map("external_disclosure_artifact")
+  /// RESERVED (id reserved, nothing built) | PUBLISHED | FAILED.
+  state                            String    @default("PUBLISHED") @db.VarChar(16)
+  /// The report-generation request that issued this row (one issuance = one
+  /// row per profile).
+  issuanceId                       String?   @map("issuance_id") @db.Uuid
+  /// The report row this package certifies.
+  reportId                         String?   @map("report_id") @db.Uuid
+  /// The previous published package of the same profile for this record.
+  supersedesPackageId              String?   @map("supersedes_package_id") @db.Uuid
+  /// The exact registry identity (PACKAGE_SEAL purpose) of the seal key.
+  sealSigningKeyId                 String?   @map("seal_signing_key_id") @db.VarChar(64)
+  sealSigningKeyVersion            Int?      @map("seal_signing_key_version")
+  reservedAtUtc                    DateTime? @map("reserved_at_utc") @db.Timestamptz(6)
+  completedAtUtc                   DateTime? @map("completed_at_utc") @db.Timestamptz(6)
+  failedAtUtc                      DateTime? @map("failed_at_utc") @db.Timestamptz(6)
+  terminalReason                   String?   @map("terminal_reason") @db.VarChar(64)
   createdAt                        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   evidence                         Evidence  @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
 
-  @@unique([evidenceId, version])
+  // Uniqueness per (evidence, version) is two PARTIAL unique keys (one primary
+  // package — FULL_FORENSIC or legacy — and at most one EXTERNAL_DISCLOSURE),
+  // which Prisma cannot declare: verification_packages_primary_version_key and
+  // verification_packages_external_version_key (20281006000000).
   @@index([evidenceId])
+  @@index([issuanceId], map: "verification_packages_issuance_idx")
+  @@index([packageSha256], map: "verification_packages_package_sha256_idx")
   @@index([generatedAtUtc(sort: Desc)])
   @@index([storageObjectLockMode])
   @@index([storageObjectLockRetainUntilUtc])
@@ -997,9 +1021,17 @@ model SigningKey {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
   version      Int
+  /// EVIDENCE_SIGNATURE | PACKAGE_SEAL. The same key material may be published
+  /// for both purposes as two rows; a lookup always names its purpose.
+  purpose      String    @default("EVIDENCE_SIGNATURE") @db.VarChar(32)
+  algorithm    String    @default("Ed25519") @db.VarChar(16)
+  /// SHA-256 of the DER SubjectPublicKeyInfo, recorded at registration (NULL
+  /// on rows registered before 20281006000100: computed from the key on read).
+  fingerprintSha256 String? @map("fingerprint_sha256") @db.VarChar(64)
 
-  @@unique([keyId, version])
+  @@unique([keyId, version, purpose], map: "signing_keys_key_id_version_purpose_key")
   @@index([revokedAt])
+  @@index([fingerprintSha256], map: "signing_keys_fingerprint_sha256_idx")
   @@map("signing_keys")
 }
 

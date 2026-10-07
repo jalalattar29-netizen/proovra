@@ -356,8 +356,9 @@ export async function getWorkspaceUsage(
       where: reportWhere,
       _sum: { sizeBytes: true },
     }),
+    // Every PUBLISHED package artifact (each profile is its own stored object).
     prisma.verificationPackage.aggregate({
-      where: verificationPackageWhere,
+      where: { ...verificationPackageWhere, state: "PUBLISHED" },
       _sum: { sizeBytes: true },
     }),
     prisma.evidence.count({

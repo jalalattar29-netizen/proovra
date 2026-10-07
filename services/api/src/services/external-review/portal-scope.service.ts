@@ -19,6 +19,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
+import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
 export type PortalGrantScope = {
   teamId: string;
   scopeKind: "EVIDENCE" | "CASE" | "PACKAGE";
@@ -50,7 +51,7 @@ export async function resolveWorkflowInGrantScope(input: {
     case "PACKAGE": {
       if (!scope.packageId) return { ok: false };
       const pkg = await prisma.verificationPackage.findFirst({
-        where: { id: scope.packageId },
+        where: publishedPackageWhere({ id: scope.packageId }),
         select: { evidenceId: true },
       });
       return pkg && pkg.evidenceId === workflow.evidenceId

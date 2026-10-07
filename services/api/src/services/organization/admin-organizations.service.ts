@@ -51,6 +51,7 @@ import {
 } from "@proovra/shared-runtime";
 import { resolveEnterpriseContract } from "./enterprise-contract.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 // Plans considered "paid" for lifecycle provisioning derivation.
 const PAID_PLANS = new Set(["PAYG", "PRO", "TEAM", "ENTERPRISE"]);
 
@@ -974,7 +975,7 @@ export async function getAdminOrganizationDetail(
     where: { evidence: { organizationId: org.id, deletedAt: null } },
   });
   const verificationPackageCount = await client.verificationPackage.count({
-    where: { evidence: { organizationId: org.id, deletedAt: null } },
+    where: primaryPublishedPackageWhere({ evidence: { organizationId: org.id, deletedAt: null } }),
   });
 
   // --- Governance (workspace-scoped counts; models keyed by teamId) ---
@@ -1110,7 +1111,7 @@ export async function getAdminOrganizationDetail(
   const firstPackage = await safeCall(
     () =>
       client.verificationPackage.findFirst({
-        where: { evidence: { organizationId: org.id, deletedAt: null } },
+        where: primaryPublishedPackageWhere({ evidence: { organizationId: org.id, deletedAt: null } }),
         select: { generatedAtUtc: true },
         orderBy: { generatedAtUtc: "asc" },
       }),
@@ -1242,7 +1243,7 @@ export async function getAdminOrganizationDetail(
     const wsPackageCount = await safeCall(
       () =>
         client.verificationPackage.count({
-          where: { evidence: { teamId: ws.id, deletedAt: null } },
+          where: primaryPublishedPackageWhere({ evidence: { teamId: ws.id, deletedAt: null } }),
         }),
       null as number | null,
     );

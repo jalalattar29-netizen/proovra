@@ -47,6 +47,7 @@ import {
 } from "@proovra/shared";
 
 import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
+import { versionPackagesComplete } from "@proovra/shared-runtime/reports";
 
 import { prisma } from "./db.js";
 import { evaluateEffectiveLegalHold } from "@proovra/shared-runtime";
@@ -638,11 +639,13 @@ export async function reconcileStrandedReportRequests(input: {
       select: { id: true },
     });
     if (!report) continue;
-    const pkg = await prisma.verificationPackage.findFirst({
-      where: { evidenceId: candidate.evidenceId, version: targetVersion },
-      select: { id: true },
+    // Complete = every profile the version owes is PUBLISHED (a reserved or
+    // failed package row is not a package).
+    const packagesComplete = await versionPackagesComplete(prisma, {
+      evidenceId: candidate.evidenceId,
+      version: targetVersion,
     });
-    if (!pkg && (await verificationPackageOwed(candidate.evidenceId))) continue;
+    if (!packagesComplete && (await verificationPackageOwed(candidate.evidenceId))) continue;
     const repaired = await markRequestTerminal({
       requestId: candidate.id,
       state: "SUCCEEDED",

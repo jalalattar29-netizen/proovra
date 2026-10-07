@@ -19,4 +19,11 @@ export {
   publicKeyPemFromPrivateKeyPem,
   publicKeySpkiSha256,
   registerSigningKey,
+  findRegisteredSigningKey,
+  describePublicSigningKey,
+  SIGNING_KEY_PURPOSES,
+  SIGNING_KEY_ALGORITHM,
+  type SigningKeyPurpose,
+  type PublicSigningKeyRecord,
+  type PublicKeyBindingStatus,
 } from "./key-registry.js";

@@ -5,6 +5,7 @@ import {
 import { normalizeOtsAnchorCheck } from "./ots.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
+  TSA_VALIDATED_QUALIFICATION_STATEMENT,
   TRUST_SIGNAL_STATE_PRESENTATION,
   resolveOtsTrustState,
   resolveSnapshotSignalState,
@@ -820,7 +821,7 @@ function buildTimestampSignal(
 
   const detail: Readonly<Record<TrustSignalState, string>> = {
     PASSED:
-      "An RFC 3161 timestamp token is recorded and was validated (signature, signer certificate chain to the configured trust anchor, signer validity at the stamped time, and the certified digest). It supports review of when the preserved integrity state existed.",
+      `An RFC 3161 timestamp token is recorded and was validated (signature, signer certificate chain to the configured trust anchor, signer validity at the stamped time, and the certified digest). It supports review of when the preserved integrity state existed. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`,
     PRESENT_NOT_INDEPENDENTLY_VERIFIED:
       "An RFC 3161 timestamp token was obtained and kept, but it has not been validated. It is not relied on as a trusted timestamp until it is validated.",
     NOT_CHECKED:

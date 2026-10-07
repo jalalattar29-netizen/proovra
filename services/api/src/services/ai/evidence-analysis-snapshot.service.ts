@@ -28,6 +28,7 @@ import { presentedTsaStatus, resolveEvidenceAcquisition } from "@proovra/shared"
 
 import { prisma } from "../../db.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 /**
  * The canonical `select`.
  *
@@ -70,7 +71,7 @@ export const EVIDENCE_ANALYSIS_SELECT = {
       custodyEvents: true,
       caseLinks: true,
       reports: true,
-      verificationPackages: true,
+      verificationPackages: { where: primaryPublishedPackageWhere() },
     },
   },
   caseLinks: { select: { caseId: true } },

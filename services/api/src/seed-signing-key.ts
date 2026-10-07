@@ -372,9 +372,9 @@ async function upsertSigningKeyRow(
   version: number,
   publicKeyPem: string,
 ): Promise<{ id: string; keyId: string; version: number }> {
-  await registerSigningKey(prisma, { keyId, version, publicKeyPem });
+  await registerSigningKey(prisma, { keyId, version, publicKeyPem, purpose: "EVIDENCE_SIGNATURE" });
   const saved = await prisma.signingKey.findUniqueOrThrow({
-    where: { keyId_version: { keyId, version } },
+    where: { keyId_version_purpose: { keyId, version, purpose: "EVIDENCE_SIGNATURE" } },
     select: { id: true, keyId: true, version: true },
   });
   return { id: saved.id, keyId: saved.keyId, version: saved.version };

@@ -19,6 +19,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 import { deriveCanonicalArtifactAvailability } from "@proovra/shared";
 
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "not_applicable";
@@ -549,7 +550,7 @@ export async function buildCaseWorkspace(input: {
           .then((rows) => new Set(rows.map((r) => r.evidenceId))),
         prisma.verificationPackage
           .findMany({
-            where: { evidenceId: { in: evidenceIds } },
+            where: primaryPublishedPackageWhere({ evidenceId: { in: evidenceIds } }),
             select: { evidenceId: true },
             distinct: ["evidenceId"],
             take: CASE_EVIDENCE_LIMIT,

@@ -55,6 +55,7 @@ import {
   type LoadedOutputFacts,
 } from "./output-recovery.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 /** `skipped` = the caller did not ask for it. NOT a failure. */
 export type SectionStatus = "ok" | "degraded" | "unavailable" | "skipped";
 
@@ -562,14 +563,14 @@ export async function listWorkspaceArtifacts(input: {
             {
               OR: [
                 { reports: { some: {} } },
-                { verificationPackages: { some: {} } },
+                { verificationPackages: { some: primaryPublishedPackageWhere() } },
               ],
             },
           ],
         },
       }),
       prisma.report.count({ where: { evidence: finalized } }),
-      prisma.verificationPackage.count({ where: { evidence: finalized } }),
+      prisma.verificationPackage.count({ where: primaryPublishedPackageWhere({ evidence: finalized }) }),
     ]);
     summary = {
       status: "ok",
@@ -794,7 +795,7 @@ export async function listWorkspaceArtifacts(input: {
           },
         }),
         prisma.verificationPackage.findMany({
-          where: { evidenceId: { in: evidenceIds } },
+          where: primaryPublishedPackageWhere({ evidenceId: { in: evidenceIds } }),
           orderBy: [{ evidenceId: "asc" }, { version: "desc" }],
           distinct: ["evidenceId"],
           select: {
@@ -1184,7 +1185,7 @@ export async function classifyWorkspaceOutputs(input: {
           select: { evidenceId: true, version: true },
         }),
         prisma.verificationPackage.findMany({
-          where: { evidenceId: { in: ids } },
+          where: primaryPublishedPackageWhere({ evidenceId: { in: ids } }),
           select: { evidenceId: true, version: true },
         }),
         prisma.reportGenerationRequest.findMany({

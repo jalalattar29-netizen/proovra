@@ -6,6 +6,7 @@ import {
   buildDisclosureManifest,
   projectJsonForDisclosure,
   validatePackageConsistency,
+  TSA_VALIDATED_QUALIFICATION_STATEMENT,
   type DisclosureProfile,
   type DisclosureReason,
   type DisclosureRecord,
@@ -78,6 +79,7 @@ import {
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import { renderCaptureLocationMapPreviewPng } from "./capture-location-map.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
+import { publicKeySpkiSha256 } from "@proovra/shared-runtime";
 import { assertWorkerSignerUsable } from "./signing/signer-control-guard.js";
 import { signPackageManifestDigest } from "./signing/package-signer.js";
 
@@ -275,6 +277,23 @@ type VerificationPackageMetadata = {
   identityLevelSnapshot?: string | null;
   submittedByEmail?: string | null;
   submittedByAuthProvider?: string | null;
+  /**
+   * THE acquisition identity snapshot's facts (creation-time custody event):
+   * who acted, on what footing, recorded when. No email, user id or name —
+   * those stay in the role-safe fields above.
+   */
+  acquisitionIdentity?: {
+    basis: string;
+    recordedAtUtc: string | null;
+    actorKind: string;
+    accountRole: string;
+    contributorEmailProvided: boolean | null;
+    identityLevel: string | null;
+    authProvider: string | null;
+    emailVerified: boolean | null;
+    workspaceKind: string;
+    organizationVerified: boolean | null;
+  } | null;
   /** True when this evidence was acquired via a Secure Intake Link. Drives
    *  role-safe labeling of the submitter/capture-method fields in
    *  case-metadata.json + original-linkage.json (the identity-snapshot email
@@ -1200,8 +1219,27 @@ function appendSealEntries(
 export type PackageSealResult = {
   packageFormatVersion: typeof PACKAGE_FORMAT_VERSION_SEALED;
   sealSha256: string;
-  signingKeyFingerprint: string | null;
+  signingKeyFingerprint: string;
+  /** The exact registry identity (purpose PACKAGE_SEAL) of the seal key. */
+  signingKeyId: string;
+  signingKeyVersion: number;
 };
+
+/**
+ * The seal key could not be bound to PROOVRA's registry. A package whose seal
+ * key is not published cannot be bound by a recipient, so it is not issued:
+ * an identity conflict is a configuration fault (terminal), anything else is
+ * retried.
+ */
+export class PackageSealKeyRegistrationError extends Error {
+  constructor(
+    readonly code: "PACKAGE_SEAL_KEY_IDENTITY_UNKNOWN" | "PACKAGE_SEAL_KEY_IDENTITY_CONFLICT" | "PACKAGE_SEAL_KEY_REGISTRY_UNAVAILABLE",
+    readonly retriable: boolean,
+  ) {
+    super(code);
+    this.name = "PackageSealKeyRegistrationError";
+  }
+}
 
 function buildPackageChecksums(entries: PackageEntry[]) {
   return {
@@ -1508,6 +1546,7 @@ export function buildCaseMetadata(
         ? { linkCreatorEmail: submitterFields.linkCreatorEmail }
         : {}),
       identityLevelSnapshot: metadata.identityLevelSnapshot ?? null,
+      acquisitionIdentity: metadata.acquisitionIdentity ?? null,
     },
     timestamps: {
       createdAtUtc: metadata.createdAtUtc ?? null,
@@ -2258,7 +2297,8 @@ These are four separate questions. A "yes" to one is not a "yes" to the next.
    trustAnchor); a root is not trustworthy merely because a package names it.
 3) Service status: whether the timestamp authority's service was qualified (for
    example on an EU Trusted List) at the stamped time. PROOVRA did not evaluate
-   this and claims no qualified status.
+   this and claims no qualified status. A validated token reads, exactly:
+   "${TSA_VALIDATED_QUALIFICATION_STATEMENT}"
 4) Legal effect: depends on the jurisdiction and the context in which the
    timestamp is presented. This package does not state it.
 `;
@@ -4027,14 +4067,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
       const sealBytes = Buffer.from(serializePackageSeal(seal), "utf8");
       const sealSha256 = sha256Hex(sealBytes);
       const signature = await signPackageManifestDigest(sealSha256);
-      let signingKeyFingerprint: string | null = null;
-      try {
-        signingKeyFingerprint = createHash("sha256")
-          .update(createPublicKey(signature.publicKeyPem).export({ type: "spki", format: "der" }))
-          .digest("hex");
-      } catch {
-        signingKeyFingerprint = null;
-      }
+      const signingKeyFingerprint = publicKeySpkiSha256(signature.publicKeyPem);
       const sealSignature: PackageSealSignature = {
         schema: "PROOVRA_PACKAGE_SEAL_SIGNATURE",
         version: 1,
@@ -4061,24 +4094,32 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         signatureBase64: signature.signatureBase64,
         publicKeyPem: signature.publicKeyPem,
       });
-      // THE key registry (signing_keys, insert-only) records the seal key, so
-      // PROOVRA's public package record can state its identity, status and
-      // validity. A naming conflict or an unreachable registry never blocks
-      // the package: the public record then says the key is not published.
+      // THE key registry (signing_keys, insert-only) records the seal key under
+      // its own purpose (PACKAGE_SEAL), so PROOVRA's public package record can
+      // bind the package to it — and it can never be read as an evidence-
+      // signing key. A package whose seal key cannot be registered is not
+      // issued: its recipient could not bind it.
       const sealKeyVersion = Number(signature.signingKeyVersion);
-      if (signature.signingKeyId && Number.isInteger(sealKeyVersion)) {
+      if (!signature.signingKeyId || !Number.isInteger(sealKeyVersion)) {
+        throw new PackageSealKeyRegistrationError("PACKAGE_SEAL_KEY_IDENTITY_UNKNOWN", false);
+      }
+      {
+        const [{ prisma }, { registerSigningKey, SigningKeyRegistryError }] = await Promise.all([
+          import("./db.js"),
+          import("@proovra/shared-runtime"),
+        ]);
         try {
-          const [{ prisma }, { registerSigningKey }] = await Promise.all([
-            import("./db.js"),
-            import("@proovra/shared-runtime"),
-          ]);
           await registerSigningKey(prisma, {
             keyId: signature.signingKeyId,
             version: sealKeyVersion,
+            purpose: "PACKAGE_SEAL",
             publicKeyPem: signature.publicKeyPem,
           });
         } catch (err) {
-          console.warn("[package] seal key registration skipped:", err instanceof Error ? err.message : String(err));
+          if (err instanceof SigningKeyRegistryError && err.code === "SIGNING_KEY_IDENTITY_CONFLICT") {
+            throw new PackageSealKeyRegistrationError("PACKAGE_SEAL_KEY_IDENTITY_CONFLICT", false);
+          }
+          throw new PackageSealKeyRegistrationError("PACKAGE_SEAL_KEY_REGISTRY_UNAVAILABLE", true);
         }
       }
       // Not listed in the index they seal; the verifier knows these two names.
@@ -4087,6 +4128,8 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         packageFormatVersion: PACKAGE_FORMAT_VERSION_SEALED,
         sealSha256,
         signingKeyFingerprint,
+        signingKeyId: signature.signingKeyId,
+        signingKeyVersion: sealKeyVersion,
       };
     }
 

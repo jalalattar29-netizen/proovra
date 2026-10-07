@@ -87,6 +87,7 @@ import {
   REPORTABLE_CUSTODY_EVENT_TYPES,
   parseTsaValidationEvidence,
   acquisitionIdentitySummary,
+  acquisitionActorLabel,
   resolveAcquisitionIdentitySnapshot,
   resolveOtsCustodyFacts,
   resolveTsaTrustState,
@@ -155,7 +156,23 @@ import {
   reportDlqQueue,
 } from "./queue.js";
 import { captureException } from "./sentry.js";
-import { createVerificationPackage, PackageGateDeniedError } from "./verification-package.js";
+import {
+  createVerificationPackage,
+  PackageGateDeniedError,
+  PackageSealKeyRegistrationError,
+} from "./verification-package.js";
+import {
+  commitIssuance,
+  failIssuance,
+  PACKAGE_REPORT_BASELINE_CHANGED,
+  PackageAlreadyCommittedError,
+  previousPublishedPackage,
+  publishBuiltProfiles,
+  reserveIssuanceForRun,
+  type BuiltProfile,
+  type PublishedProfile,
+} from "./package-issuance.js";
+import { primaryPublishedPackageWhere, versionPackagesComplete } from "@proovra/shared-runtime/reports";
 import { loadProvenanceChainForPackage } from "./capture-trust/load-provenance-chain.js";
 import { appendWorkerAuditLog } from "./platform-audit-append.js";
 import { recheckEvidenceIntegrity, recordIntegrityObservation } from "./integrity-recheck.js";
@@ -952,6 +969,9 @@ case "TIMESTAMP_FAILED": {
       const submittedByEmail = normalizePayloadPrimitive(obj.submittedByEmail);
       return [
         "Identity snapshot recorded",
+        snapshot.actorKind === "INTAKE_CONTRIBUTOR" || snapshot.actorKind === "GUEST_SESSION"
+          ? acquisitionActorLabel(snapshot)
+          : null,
         acquisitionIdentitySummary(snapshot).replace(/\.$/, ""),
         submittedByEmail ? `Email: ${submittedByEmail}` : null,
       ]
@@ -2002,15 +2022,7 @@ const { EvidenceStatus } = prismaPkg;
  * The report a package request was verified against is no longer the report
  * row for that version (or its recorded digest changed) at commit time.
  */
-export const PACKAGE_REPORT_BASELINE_CHANGED = "PACKAGE_REPORT_BASELINE_CHANGED";
-
-/** A concurrent run committed the package for this report version first. */
-export class PackageAlreadyCommittedError extends Error {
-  constructor(readonly reportVersion: number) {
-    super("VERIFICATION_PACKAGE_ALREADY_COMMITTED");
-    this.name = "PackageAlreadyCommittedError";
-  }
-}
+export { PACKAGE_REPORT_BASELINE_CHANGED, PackageAlreadyCommittedError } from "./package-issuance.js";
 
 /**
  * The object store answered "not found" (S3 HEAD answers a bare `NotFound`
@@ -2830,11 +2842,14 @@ await recordIntegrityObservation({
     },
   });
 
+  // THE evidence-signature key only: a key registered for another purpose
+  // (the package seal) is never read as the record's signing key.
   const signingKey = await prisma.signingKey.findUnique({
     where: {
-      keyId_version: {
+      keyId_version_purpose: {
         keyId: signingKeyId,
         version: signingKeyVersion,
+        purpose: "EVIDENCE_SIGNATURE",
       },
     },
   });
@@ -2883,6 +2898,7 @@ await recordIntegrityObservation({
   const acquisitionIdentity = resolveAcquisitionIdentitySnapshot({
     custodyEvents,
     row: evidence,
+    acquisitionMode: evidence.acquisitionMode ?? null,
   });
 
   const identitySnapshot: IdentitySnapshot = {
@@ -2897,17 +2913,17 @@ captureMethod: deriveReportCaptureMethod({
     identityLevelSnapshot: (acquisitionIdentity.identityLevel as prismaPkg.IdentityLevel | null) ?? null,
     submittedByEmail: acquisitionIdentity.submittedByEmail,
     submittedByAuthProvider: (acquisitionIdentity.authProvider as prismaPkg.AuthProvider | null) ?? null,
-    submittedByUserId: evidence.submittedByUserId ?? evidence.ownerUserId,
+    submittedByUserId: acquisitionIdentity.submittedByUserId ?? evidence.submittedByUserId ?? evidence.ownerUserId,
     createdByUserId: evidence.createdByUserId ?? evidence.ownerUserId,
     uploadedByUserId:
       evidence.uploadedByUserId ??
       parts.find((p) => p.uploadedByUserId)?.uploadedByUserId ??
       evidence.ownerUserId,
+    // As recorded at capture — never the workspace's CURRENT name. A personal
+    // capture records no name; its recorded kind is what is stated.
     workspaceNameSnapshot:
       acquisitionIdentity.workspaceName ??
-      workspaceTeam?.evidenceWorkspaceLabel ??
-      workspaceTeam?.name ??
-      null,
+      (acquisitionIdentity.workspaceKind === "PERSONAL" ? "Personal workspace" : null),
     organizationNameSnapshot: acquisitionIdentity.organizationName,
     // Organization verification AS RECORDED AT CAPTURE — never the current
     // workspace's state (`workspaceVerified` is package-time context only).
@@ -3381,6 +3397,9 @@ export async function processGenerateReport(job: Job<unknown>) {
     // ET-SEC-30 — both writes are fenced by this run's claim: a late worker
     // whose lease was re-claimed changes nothing.
     const fence = { claimedAtUtc: command.claimedAtUtc };
+    // This issuance's still-reserved package rows record the failure; the next
+    // attempt re-reserves the same rows and ids.
+    await failIssuance({ requestId: command.requestId, reason: toBoundedReasonCode(error) });
     if (isRetriableError(error)) {
       await markRequestRetryable({
         requestId: command.requestId,
@@ -3825,10 +3844,7 @@ async function runReportGeneration(
     if (runMode === "PACKAGE_FOR_VERSION" && packageTargetVersion != null) {
       const pairComplete =
         !verificationPackageEntitled ||
-        (await prisma.verificationPackage.findFirst({
-          where: { evidenceId, version: packageTargetVersion },
-          select: { id: true },
-        })) !== null;
+        (await versionPackagesComplete(prisma, { evidenceId, version: packageTargetVersion }));
       if (pairComplete) {
         logger.info(
           { ...ctx, reportVersion: packageTargetVersion, status: "pair_complete" },
@@ -3972,23 +3988,20 @@ async function runReportGeneration(
              * accompanies the latest report, not "some package". Report v2
              * beside package v1 is not complete — package v1 embeds report v1.
              */
-            const lockedPackage =
+            const lockedPairComplete =
               verificationPackageEntitled && existingLatestReport
-                ? await tx.verificationPackage.findFirst({
-                    where: {
-                      evidenceId: prepared.evidenceId,
-                      version: existingLatestReport.version,
-                    },
-                    select: { id: true },
+                ? await versionPackagesComplete(tx, {
+                    evidenceId: prepared.evidenceId,
+                    version: existingLatestReport.version,
                   })
-                : null;
+                : false;
 
             if (
               lockedEvidence.status === EvidenceStatus.REPORTED &&
               existingLatestReport &&
               !forceRegenerate
             ) {
-              if (!verificationPackageEntitled || lockedPackage !== null) {
+              if (!verificationPackageEntitled || lockedPairComplete) {
                 return {
                   skipped: true as const,
                   existingReportVersion: existingLatestReport.version,
@@ -4731,14 +4744,10 @@ async function runReportGeneration(
     // DURABLE PROGRESS — the report is committed (or already existed, for a
     // package-only run); the verification package is built next.
     if (!finalized.skipped) await recordRequestProgress(command, "BUILDING_PACKAGE");
-    let finalizedVerificationStaged: StagedPackage | null = null;
-    let finalizedVerificationSeal: PackageSealResult | null = null;
-    // THE package identities (2026-10-07): minted BEFORE any child document,
-    // so every document in each package and the package row carry the same id.
-    const fullPackageId = randomUUID();
-    const externalPackageId = randomUUID();
-    let externalDisclosureStaged: StagedPackage | null = null;
-    let externalDisclosureSeal: PackageSealResult | null = null;
+    // THE package identities are RESERVED rows (package-issuance.ts), one per
+    // owed disclosure profile, reused by every retry until published.
+    let packageRows: Awaited<ReturnType<typeof reserveIssuanceForRun>> | null = null;
+    const builtPackageProfiles: BuiltProfile[] = [];
     let finalizedVerificationArtifactPresence: VerificationPackageArtifactPresence | null = null;
 
     // Phase 32.6.6 — personal BASIC + team GOVERNED modes (was: skip
@@ -4783,6 +4792,14 @@ async function runReportGeneration(
         /* metrics are best-effort */
       }
       try {
+        // RESERVE the package rows BEFORE anything is built (package-issuance):
+        // every retry of this (evidence, version, profile) carries the same id.
+        packageRows = await reserveIssuanceForRun({
+          command,
+          evidenceId: prepared.evidenceId,
+          version: prepared.version,
+          now: prepared.now,
+        });
                 const finalizedLastEventHash =
           finalized.finalizedCustodyEvents.at(-1)?.eventHash ?? null;
 
@@ -4866,12 +4883,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
         const verificationPackageProvenanceChain =
           await loadProvenanceChainForPackage(prepared.evidenceId);
 
-        // The package this one supersedes: the previous report version's.
-        const previousPackage = await prisma.verificationPackage.findFirst({
-          where: { evidenceId: prepared.evidenceId, version: { lt: prepared.version } },
-          orderBy: { version: "desc" },
-          select: { id: true, version: true },
-        });
+        // What each profile supersedes is resolved per profile at build time.
         // timestamp-validation.json — from the record's TSA facts and the
         // validation evidence recorded with the validation (custody).
         const tsaValidationEvent = evidence.tsaValidatedAtUtc
@@ -4908,9 +4920,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
           ),
         });
         const packageBuildInput: Parameters<typeof createVerificationPackage>[0] = {
-          supersedesPackage: previousPackage
-            ? { packageId: previousPackage.id, reportVersion: previousPackage.version }
-            : null,
+          supersedesPackage: null,
           timestampValidation,
           teamId: evidence.teamId ?? undefined,
           // Phase 2 canonical workspace scope inputs. `isPersonalTeam`
@@ -5085,6 +5095,21 @@ submittedByAuthProvider:
   finalized.finalizedReportEvidencePayload.submittedByAuthProvider
     ? String(finalized.finalizedReportEvidencePayload.submittedByAuthProvider)
     : null,
+            acquisitionIdentity: (() => {
+              const a = prepared.identitySnapshot.acquisitionIdentity;
+              return {
+                basis: a.basis,
+                recordedAtUtc: a.recordedAtUtc,
+                actorKind: a.actorKind,
+                accountRole: a.accountRole,
+                contributorEmailProvided: a.contributorEmailProvided,
+                identityLevel: a.identityLevel,
+                authProvider: a.authProvider,
+                emailVerified: a.emailVerified,
+                workspaceKind: a.workspaceKind,
+                organizationVerified: a.organizationVerified,
+              };
+            })(),
             capturedAtUtc:
               finalized.finalizedReportEvidencePayload.capturedAtUtc ?? null,
             deviceTimeIso:
@@ -5150,48 +5175,39 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
                 .recordedIntegrityVerifiedAtUtc ?? null,
           },
         };
-        // ONE generator, two projections of the same facts, sealed by the same
-        // signer: the complete forensic package, and the external disclosure
-        // package that withholds originals, the report and identifiers.
-        // ONE call site for both (the full package first): a failure of
-        // either fails the run before anything is published, and nothing can
-        // build a package by a path the governance tests do not see.
-        const profileBuilds = [
-          {
-            packageId: fullPackageId,
-            disclosureProfile: "FULL_FORENSIC" as const,
-            sourceFullPackageId: undefined as string | undefined,
-          },
-          {
-            packageId: externalPackageId,
-            disclosureProfile: "EXTERNAL_DISCLOSURE" as const,
-            sourceFullPackageId: fullPackageId as string | undefined,
-          },
-        ];
-        const builtProfiles: Array<Awaited<ReturnType<typeof createVerificationPackage>>> = [];
-        for (const profile of profileBuilds) {
-          builtProfiles.push(
-            await createVerificationPackage({
-              ...packageBuildInput,
-              packageId: profile.packageId,
-              disclosureProfile: profile.disclosureProfile,
-              ...(profile.sourceFullPackageId
-                ? { sourceFullPackageId: profile.sourceFullPackageId }
-                : {}),
-              packageVerificationUrl: buildPackageVerificationUrl(profile.packageId),
-            }),
-          );
+        // ONE generator, one projection per RESERVED profile, sealed by the
+        // same signer, each carrying its reserved package id. ONE call site
+        // (the full package first): a failure of either fails the run before
+        // anything is published, and nothing builds a package by a path the
+        // governance tests do not see.
+        const reservedFull = packageRows.reserved.find((r) => r.profile === "FULL_FORENSIC") ?? null;
+        for (const profile of packageRows.toBuild) {
+          const supersedes = await previousPublishedPackage({
+            evidenceId: prepared.evidenceId,
+            version: prepared.version,
+            profile: profile.profile,
+          });
+          const result = await createVerificationPackage({
+            ...packageBuildInput,
+            supersedesPackage: supersedes,
+            packageId: profile.packageId,
+            disclosureProfile: profile.profile,
+            ...(profile.profile === "EXTERNAL_DISCLOSURE" && reservedFull
+              ? { sourceFullPackageId: reservedFull.packageId }
+              : {}),
+            packageVerificationUrl: buildPackageVerificationUrl(profile.packageId),
+          });
+          builtPackageProfiles.push({
+            profile: profile.profile,
+            packageId: profile.packageId,
+            supersedesPackageId: supersedes?.packageId ?? null,
+            staged: result.staged,
+            seal: result.seal,
+          });
+          if (profile.profile === "FULL_FORENSIC") {
+            finalizedVerificationArtifactPresence = result.artifactPresence;
+          }
         }
-        const [finalizedVerificationPackage, externalDisclosurePackage] = builtProfiles as [
-          (typeof builtProfiles)[number],
-          (typeof builtProfiles)[number],
-        ];
-        externalDisclosureStaged = externalDisclosurePackage.staged;
-        externalDisclosureSeal = externalDisclosurePackage.seal;
-        finalizedVerificationStaged = finalizedVerificationPackage.staged;
-        finalizedVerificationSeal = finalizedVerificationPackage.seal;
-        finalizedVerificationArtifactPresence =
-          finalizedVerificationPackage.artifactPresence;
         // Phase 32.6 — completion counter at the canonical success
         // site (after artifact-presence is populated). Failures
         // counted separately via the catch arm.
@@ -5226,7 +5242,15 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         // catalog vocabulary (outcome + reason are bounded strings
         // from the gate). NEVER contains storage keys, signed URLs,
         // raw stack traces, or private fields.
-        if (verificationError instanceof PackageGateDeniedError) {
+        if (verificationError instanceof PackageAlreadyCommittedError) {
+          // Every profile this version owed is already published (a concurrent
+          // issuance): nothing to build, and not a failure.
+          logger.info(
+            { evidenceId, reportVersion: prepared.version, status: "package_already_committed" },
+            "Every verification package of this report version is already published",
+          );
+        } else if (verificationError instanceof PackageGateDeniedError) {
+          await failIssuance({ requestId: command.requestId, reason: `PACKAGE_GATE_DENIED:${verificationError.reason}` });
           try {
             const { bump } = await import("@proovra/shared-runtime/ops");
             bump("package_generation_blocked_total");
@@ -5290,39 +5314,40 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           packageTechnicalFailure = {
             phase: "prepare",
             message: toBoundedReasonCode(verificationError),
+            // A seal key that cannot be bound to the registry (identity
+            // conflict / unknown identity) is a configuration fault.
+            ...(verificationError instanceof PackageSealKeyRegistrationError
+              ? { retriable: verificationError.retriable }
+              : {}),
           };
         }
       }
     }
 
-    if (!finalized.skipped && finalizedVerificationStaged) {
-      const staged = finalizedVerificationStaged;
-      // Set once the object is PUBLISHED (before the row is committed); the
-      // catch below uses it to tell "published but not recorded" (an
-      // immutable orphan) from "not published".
-      let publishedPackage: PublishedArtifact | null = null;
-            try {
+    if (!finalized.skipped && builtPackageProfiles.length > 0 && packageRows) {
+      const built = builtPackageProfiles;
+      const issuance = packageRows;
+      // Set once the objects are PUBLISHED (before the rows commit); the catch
+      // below tells "published but not recorded" (unreferenced objects — the
+      // rows are still RESERVED, so nothing claims them) from "not published".
+      let publishedProfiles: PublishedProfile[] = [];
+      try {
         /*
-         * PACKAGE PUBLICATION (2026-09-29) — one verified, immutable write.
+         * PACKAGE PUBLICATION — one verified, immutable write per artifact.
          *
-         *   exact size + SHA-256 known from the temp file
+         *   exact sizes + SHA-256 known from the temp files
          *   → allowance gate (BEFORE any byte leaves the worker)
-         *   → PutObject to a single-use key WITH x-amz-checksum-sha256 AND the
+         *   → each ZIP to a single-use key WITH x-amz-checksum-sha256 AND the
          *     Object Lock retention in the same request, If-None-Match: *
          *   → HEAD by VersionId: size, stored SHA-256, lock mode, retain-until
-         *   → DB row records the exact key, VersionId and digest.
-         *
-         * The UC-3 staging PUT (no checksum) and the promote CopyObject (lock
-         * headers, no checksum) are gone: they are the two candidate calls for
-         * the 2026-09-28 Object Lock refusal, and neither is needed — the gate
-         * already has the exact size before upload. No transaction is open
-         * while storage is written.
+         *   → ONE transaction moves every reserved row to PUBLISHED with the
+         *     exact key, VersionId and digest (package-issuance.ts).
          */
         try {
           await assertWorkspaceAllowsVerificationPackageArtifact({
             ownerUserId: evidence.ownerUserId,
             teamId: evidence.teamId ?? null,
-            incomingBytes: BigInt(staged.sizeBytes) + BigInt(externalDisclosureStaged?.sizeBytes ?? 0),
+            incomingBytes: built.reduce((sum, b) => sum + BigInt(b.staged.sizeBytes), BigInt(0)),
             // Credit-funded records earn their package on a FREE account.
             evidenceId: evidence.id,
           });
@@ -5330,243 +5355,36 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
           throw toPackageAllowanceRefusal(gateError);
         }
 
-        // A concurrent run may already have committed this exact package:
-        // nothing is published a second time for it.
-        if (
-          await prisma.verificationPackage.findFirst({
-            where: { evidenceId: prepared.evidenceId, version: prepared.version },
-            select: { id: true },
-          })
-        ) {
-          throw new PackageAlreadyCommittedError(prepared.version);
-        }
-
-        // DURABLE PROGRESS — built; publishing + reading back the stored ZIP.
+        // DURABLE PROGRESS — built; publishing + reading back the stored ZIPs.
         await recordRequestProgress(command, "VERIFYING_PACKAGE");
-        publishedPackage = await publishImmutableArtifact({
-          bucket: env.S3_BUCKET,
-          key: buildPublicationKey({
-            family: "verification",
-            evidenceId: prepared.evidenceId,
-            version: prepared.version,
-            requestId: command.requestId,
-            extension: "zip",
-          }),
-          body: { kind: "file", filePath: staged.tempPath, sizeBytes: staged.sizeBytes },
-          sha256Base64: staged.sha256Base64,
-          contentType: "application/zip",
-          metadata: {
-            evidence_id: prepared.evidenceId,
-            report_version: String(prepared.version),
-            artifact_type: "verification_package",
-            package_format_version: finalizedVerificationSeal
-              ? String(finalizedVerificationSeal.packageFormatVersion)
-              : "4",
-          },
-          tags: {
-            artifact: "verification-package",
-            evidenceId: prepared.evidenceId,
-            immutable: "true",
-          },
+        publishedProfiles = await publishBuiltProfiles({
+          built,
+          evidenceId: prepared.evidenceId,
+          version: prepared.version,
+          requestId: command.requestId,
         });
-        // Local temp is no longer the only copy — bound worker disk.
-        await cleanupStagedTemp(staged);
-        const verificationHead = publishedPackage;
-
-        // The external disclosure package: the same publication contract
-        // (checksum + Object Lock in one write, read back by VersionId).
-        let externalHead: PublishedArtifact | null = null;
-        if (externalDisclosureStaged) {
-          externalHead = await publishImmutableArtifact({
-            bucket: env.S3_BUCKET,
-            key: buildPublicationKey({
-              family: "verification",
-              evidenceId: prepared.evidenceId,
-              version: prepared.version,
-              requestId: command.requestId,
-              extension: "zip",
-              nonce: `external-${externalPackageId}`,
-            }),
-            body: { kind: "file", filePath: externalDisclosureStaged.tempPath, sizeBytes: externalDisclosureStaged.sizeBytes },
-            sha256Base64: externalDisclosureStaged.sha256Base64,
-            contentType: "application/zip",
-            metadata: {
-              evidence_id: prepared.evidenceId,
-              report_version: String(prepared.version),
-              artifact_type: "verification_package_external_disclosure",
-              package_format_version: externalDisclosureSeal
-                ? String(externalDisclosureSeal.packageFormatVersion)
-                : "4",
-            },
-            tags: {
-              artifact: "verification-package",
-              evidenceId: prepared.evidenceId,
-              immutable: "true",
-            },
-          });
-          await cleanupStagedTemp(externalDisclosureStaged);
-        }
-
-        await prisma.$transaction(async (tx) => {
-          /*
-           * THE BASELINE, RE-CHECKED WHERE IT IS COMMITTED (2026-09-29).
-           *
-           * Under the record's advisory lock: the report this package embeds
-           * must still be the report row for this version with the digest the
-           * run verified, and no package may exist for it yet. A request whose
-           * baseline moved is refused explicitly (never attached to another
-           * PDF); a concurrent run that committed first wins, and this run's
-           * published object stays an unreferenced immutable orphan.
-           */
-          await tx.$executeRaw`
-            SELECT pg_advisory_xact_lock(hashtext(${prepared.evidenceId}))
-          `;
-          const baseline = await tx.report.findUnique({
-            where: {
-              evidenceId_version: { evidenceId: prepared.evidenceId, version: prepared.version },
-            },
-            select: { pdfSha256: true },
-          });
-          if (!baseline) {
-            throw createWorkerError(PACKAGE_REPORT_BASELINE_CHANGED, false);
-          }
-          if (
-            baseline.pdfSha256 &&
-            baseline.pdfSha256.toLowerCase() !== finalized.finalizedReportSha256.toLowerCase()
-          ) {
-            throw createWorkerError(PACKAGE_REPORT_BASELINE_CHANGED, false);
-          }
-          if (
-            await tx.verificationPackage.findFirst({
-              where: { evidenceId: prepared.evidenceId, version: prepared.version },
-              select: { id: true },
-            })
-          ) {
-            throw new PackageAlreadyCommittedError(prepared.version);
-          }
-
-          await tx.verificationPackage.create({
-            data: {
-              // THE package identity every document inside it carries.
-              id: fullPackageId,
-              disclosureProfile: "FULL_FORENSIC",
-              externalDisclosureArtifact:
-                externalHead && externalDisclosureStaged
-                  ? ({
-                      packageId: externalPackageId,
-                      disclosureProfile: "EXTERNAL_DISCLOSURE",
-                      storageKey: externalHead.key,
-                      s3VersionId: externalHead.versionId,
-                      sizeBytes: String(externalDisclosureStaged.sizeBytes),
-                      packageSha256: externalDisclosureStaged.sha256Hex,
-                      packageFormatVersion: externalDisclosureSeal?.packageFormatVersion ?? null,
-                      sealSha256: externalDisclosureSeal?.sealSha256 ?? null,
-                      sealSigningKeySha256: externalDisclosureSeal?.signingKeyFingerprint ?? null,
-                      storageObjectLockMode: externalHead.objectLockMode,
-                      storageObjectLockRetainUntilUtc: externalHead.objectLockRetainUntilUtc
-                        ? new Date(externalHead.objectLockRetainUntilUtc).toISOString()
-                        : null,
-                    } as Prisma.InputJsonValue)
-                  : undefined,
-              evidenceId: prepared.evidenceId,
-              version: prepared.version,
-              storageBucket: env.S3_BUCKET,
-              storageKey: verificationHead.key,
-              storageRegion: process.env.S3_REGION?.trim() || null,
-              storageObjectLockMode: verificationHead.objectLockMode,
-              storageObjectLockRetainUntilUtc:
-                verificationHead.objectLockRetainUntilUtc,
-              storageObjectLockLegalHoldStatus:
-                verificationHead.objectLockLegalHoldStatus,
-              generatedAtUtc: prepared.now,
-              sizeBytes: BigInt(staged.sizeBytes),
-packageType: "full_evidence_package",
-trustDecisionSnapshot:
-  finalized.finalizedTrustDecision as unknown as Prisma.InputJsonValue,
-              // The report this package certifies, and the hash of the exact
-              // report bytes embedded in it.
-              reportVersion: prepared.version,
-              reportSha256: finalized.finalizedReportSha256,
-              packageSha256: staged.sha256Hex,
-              s3VersionId: verificationHead.versionId,
-              packageFormatVersion:
-                finalizedVerificationSeal?.packageFormatVersion ?? null,
-              // ET-PKG-02: what Public Verify serves so a recipient can check
-              // the seal key of the package they hold against PROOVRA.
-              sealSha256: finalizedVerificationSeal?.sealSha256 ?? null,
-              sealSigningKeySha256: finalizedVerificationSeal?.signingKeyFingerprint ?? null,
-              reportIssuedAtUtc: finalized.reportIssuedAtUtc,
-              custodyThroughSequence: finalized.custodyThroughSequence,
-            },
-          });
-
-          // ET-SEC-29 — the record's "latest package" pointer only ADVANCES. A
-          // package-only recovery of an older report version (e.g. v1 while v2
-          // is latest) attaches its own package row above but must not move the
-          // pointer (or its metadata) backwards. Equal is allowed: a rebuild of
-          // the same version refreshes its metadata.
-          await tx.evidence.updateMany({
-            where: {
-              id: prepared.evidenceId,
-              OR: [
-                { verificationPackageVersion: null },
-                { verificationPackageVersion: { lte: prepared.version } },
-              ],
-            },
-            data: {
-              verificationPackageGeneratedAtUtc: prepared.now,
-              verificationPackageVersion: prepared.version,
-              verificationPackageMetadata: {
-                manifestPresent:
-                  finalizedVerificationArtifactPresence?.manifestPresent === true,
-                signedManifestPresent:
-                  finalizedVerificationArtifactPresence?.signedManifestPresent === true,
-                checksumIndexPresent:
-                  finalizedVerificationArtifactPresence?.checksumIndexPresent === true,
-                auditExportIncluded:
-                  finalizedVerificationArtifactPresence?.auditExportIncluded === true,
-                custodyExportIncluded:
-                  finalizedVerificationArtifactPresence?.custodyExportIncluded === true,
-                accessExportIncluded:
-                  finalizedVerificationArtifactPresence?.accessExportIncluded === true,
-                packageVersion: "v1",
-                generatedAtUtc: prepared.now.toISOString(),
-                source: "GENERATION",
-              },
-            },
-          });
-
-          await tx.report.updateMany({
-  where: {
-    evidenceId: prepared.evidenceId,
-    version: prepared.version,
-  },
-  data: {
-    verificationPackageVersion: prepared.version,
-  },
-});
-
-          await appendCustodyEventTx(tx, {
-            evidenceId: prepared.evidenceId,
-            eventType:
-              prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_GENERATED,
-            atUtc: prepared.now,
-            payload: {
-              version: prepared.version,
-              packageType: "full_evidence_package",
-              reportVersion: prepared.version,
-              reportSha256: finalized.finalizedReportSha256,
-              // A package built for an existing, verified report rather than
-              // alongside a newly rendered one.
-              ...(finalized.reportCreated ? {} : { recovery: true }),
-            } as Prisma.InputJsonValue,
-          });
-
-          const fencedPublish = await tx.reportGenerationRequest.updateMany({
-            where: claimFenceWhere(command),
-            data: { reportVersion: prepared.version, stage: "PACKAGE_PUBLISHED" },
-          });
-          if (fencedPublish.count !== 1) throw new ReportClaimLost(command.requestId);
+        await commitIssuance({
+          command,
+          evidenceId: prepared.evidenceId,
+          version: prepared.version,
+          reportId: issuance.reportId,
+          now: prepared.now,
+          reportSha256: finalized.finalizedReportSha256,
+          reportIssuedAtUtc: finalized.reportIssuedAtUtc,
+          custodyThroughSequence: finalized.custodyThroughSequence,
+          trustDecisionSnapshot: finalized.finalizedTrustDecision as unknown as Prisma.InputJsonValue,
+          reportCreated: finalized.reportCreated,
+          published: publishedProfiles,
+          primaryArtifactPresence: finalizedVerificationArtifactPresence
+            ? {
+                manifestPresent: finalizedVerificationArtifactPresence.manifestPresent === true,
+                signedManifestPresent: finalizedVerificationArtifactPresence.signedManifestPresent === true,
+                checksumIndexPresent: finalizedVerificationArtifactPresence.checksumIndexPresent === true,
+                auditExportIncluded: finalizedVerificationArtifactPresence.auditExportIncluded === true,
+                custodyExportIncluded: finalizedVerificationArtifactPresence.custodyExportIncluded === true,
+                accessExportIncluded: finalizedVerificationArtifactPresence.accessExportIncluded === true,
+              }
+            : null,
         });
 
         appendWorkerAuditLog({
@@ -5600,10 +5418,10 @@ trustDecisionSnapshot:
         // sweeper backstops orphan rows in case this hook misses.
         try {
           const created = await prisma.verificationPackage.findFirst({
-            where: {
+            where: primaryPublishedPackageWhere({
               evidenceId: prepared.evidenceId,
               version: prepared.version,
-            },
+            }),
             select: { id: true },
           });
           if (created) {
@@ -5666,7 +5484,7 @@ trustDecisionSnapshot:
         // unrecorded object is NOT overwritten by the retry (single-use keys,
         // If-None-Match); it is left as an immutable orphan and listed by the
         // orphan inventory, and the retry publishes under a fresh key.
-        await cleanupStagedTemp(staged).catch(() => {});
+        for (const b of built) await cleanupStagedTemp(b.staged).catch(() => {});
 
         if (verificationError instanceof PackageAlreadyCommittedError) {
           // Not a failure: the pair is complete. Any object this run published
@@ -5675,7 +5493,7 @@ trustDecisionSnapshot:
             {
               ...withJobContext({ requestId, jobId: job.id, evidenceId, status: "package_already_committed" }),
               reportVersion: prepared.version,
-              orphanKeyPublished: publishedPackage !== null,
+              orphanKeysPublished: publishedProfiles.length,
             },
             "Verification package for this report version was committed by a concurrent run",
           );
@@ -5694,7 +5512,7 @@ trustDecisionSnapshot:
             verificationError instanceof StoragePublicationRejectedError
               ? verificationError.storageCode
               : null,
-          publishedButUnrecorded: publishedPackage !== null,
+          publishedButUnrecorded: publishedProfiles.length > 0,
         });
 
         logger.error(

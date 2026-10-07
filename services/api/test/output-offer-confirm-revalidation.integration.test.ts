@@ -282,8 +282,8 @@ describe("RGA-02 confirm-time offer revalidation (live PostgreSQL 16 + Redis, re
   it("the storage effect changes → stale (STORAGE_CHANGED)", async () => {
     const id = await seedV1();
     const s = await status(id);
-    await prisma.verificationPackage.update({
-      where: { evidenceId_version: { evidenceId: id, version: 1 } },
+    await prisma.verificationPackage.updateMany({
+      where: { evidenceId: id, version: 1 },
       data: { sizeBytes: BigInt(9_999_999) },
     });
     await expectStale(id, s.outputs.offer!.revision, "STORAGE_CHANGED");

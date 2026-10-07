@@ -1,5 +1,10 @@
+import {
+  packageProfileLabel,
+  primaryPublishedPackageWhere,
+  type VerificationPackageProfileLabel,
+} from "@proovra/shared-runtime/reports";
+
 import { prisma } from "../../db.js";
-import { readExternalDisclosureArtifact } from "../reports/external-disclosure-artifact.js";
 
 export async function listEvidenceArtifacts(evidenceId: string) {
   const [reports, verificationPackages] = await Promise.all([
@@ -14,8 +19,9 @@ export async function listEvidenceArtifacts(evidenceId: string) {
         storageObjectLockMode: true,
       },
     }),
+    // "The package" of each version: the published primary package.
     prisma.verificationPackage.findMany({
-      where: { evidenceId },
+      where: primaryPublishedPackageWhere({ evidenceId }),
       orderBy: [{ version: "desc" }],
       select: {
         id: true,
@@ -44,7 +50,7 @@ export async function listEvidenceArtifacts(evidenceId: string) {
     verificationPackages: verificationPackages.map((item) => ({
       id: item.id,
       version: item.version,
-      generatedAtUtc: item.generatedAtUtc.toISOString(),
+      generatedAtUtc: item.generatedAtUtc?.toISOString() ?? null,
       packageType: item.packageType ?? null,
       sizeBytes: item.sizeBytes?.toString() ?? null,
       immutableRecorded: Boolean(item.storageObjectLockMode),
@@ -59,36 +65,54 @@ export async function listEvidenceArtifacts(evidenceId: string) {
 }
 
 /**
- * ONE IMMUTABLE REPORT/PACKAGE PAIR per report version — THE history the
- * Artifacts & Versions tab renders (and native reads).
+ * ONE REPORT VERSION AND ITS PACKAGE ARTIFACTS — THE history the Artifacts &
+ * Versions tab renders (and native reads).
  *
- * Two independent lists (reports, packages) let a surface draw package v2 beside
- * report v1. Here the pairing is the database's own: a package belongs to the
- * report version it records in `report_version` (enforced by the RGA-05 foreign
- * key), and a legacy package with no recorded report version is paired by its
- * own version number and says so (`pairing: "LEGACY_VERSION_NUMBER"`). A package
- * whose report row does not exist is listed separately, never attached to some
- * other report.
+ * Every sealed package is its own artifact (2026-10-07): per report version,
+ * the PRIMARY package (FULL_FORENSIC, or a legacy row) and the
+ * EXTERNAL_DISCLOSURE package, each with its own package id, digest, seal key
+ * and supersession. They belong to the report version they record in
+ * `report_version` (enforced by the RGA-05 foreign key); a legacy package with
+ * no recorded report version is paired by its own version number and says so.
+ * A package whose report row does not exist is listed separately, never
+ * attached to some other report.
+ *
+ * Only PUBLISHED rows are packages. A profile still being issued, or whose
+ * last attempt failed, is reported as its lifecycle state (`issuance`) — never
+ * as a package.
  *
  * No storage key, bucket or signed URL leaves this function. Digests are the
  * SHA-256 of the stored bytes, which a verifier is meant to compare.
  */
 export type MatchedArtifactPackage = {
-  /** THE package identity (the row id; carried inside packages issued since 2026-10-07). */
+  /** THE package identity (the row id, carried inside packages since 2026-10-07). */
   packageId: string;
-  /** FULL_FORENSIC, or LEGACY for a package issued before disclosure profiles. */
-  disclosureProfile: "FULL_FORENSIC" | "LEGACY";
-  /** The EXTERNAL_DISCLOSURE companion issued with it, when one exists. */
-  externalDisclosure: { packageId: string; sha256: string | null; sizeBytes: string | null } | null;
+  /** FULL_FORENSIC | EXTERNAL_DISCLOSURE, or LEGACY (issued before profiles). */
+  disclosureProfile: VerificationPackageProfileLabel;
+  /** The issuance (report-generation request) that issued it, when recorded. */
+  issuanceId: string | null;
   version: number;
   generatedAtUtc: string;
   sizeBytes: string | null;
   sha256: string | null;
-  /** The report digest this package embeds (format 5 binds it in the seal). */
+  /** The report digest this package certifies (the full package embeds those bytes). */
   embeddedReportSha256: string | null;
   sealed: boolean;
+  /** The seal key's exact registry identity, when recorded. */
+  sealKey: { keyId: string; version: number; fingerprintSha256: string | null } | null;
+  supersedesPackageId: string | null;
   immutableRecorded: boolean;
   pairing: "REPORT_VERSION" | "LEGACY_VERSION_NUMBER";
+};
+
+/** A package profile of a version that is not (yet) published. */
+export type MatchedArtifactIssuance = {
+  disclosureProfile: VerificationPackageProfileLabel;
+  packageId: string;
+  state: "RESERVED" | "FAILED";
+  reservedAtUtc: string | null;
+  failedAtUtc: string | null;
+  terminalReason: string | null;
 };
 
 export type MatchedArtifactVersion = {
@@ -102,24 +126,29 @@ export type MatchedArtifactVersion = {
   /** The bounded reason an UPDATED_REPORT was issued. */
   issueReason: string | null;
   latest: boolean;
+  /** The published PRIMARY package (FULL_FORENSIC or legacy). */
   package: MatchedArtifactPackage | null;
+  /** The published EXTERNAL_DISCLOSURE package — its own artifact. */
+  externalDisclosure: MatchedArtifactPackage | null;
+  /** Profiles of this version still being issued, or whose last attempt failed. */
+  issuance: MatchedArtifactIssuance[];
   /**
-   * The package's embedded report digest disagrees with this report's stored
-   * digest. Never expected (the worker refuses it); surfaced, not hidden.
+   * The primary package's embedded report digest disagrees with this report's
+   * stored digest. Never expected (the worker refuses it); surfaced, not hidden.
    */
   digestMismatch: boolean;
 };
 
 export type MatchedArtifactHistory = {
   versions: MatchedArtifactVersion[];
-  /** Packages whose report row does not exist (legacy consistency cases). */
+  /** Published packages whose report row does not exist (legacy consistency cases). */
   unpairedPackages: MatchedArtifactPackage[];
 };
 
 export async function listMatchedArtifactVersions(
   evidenceId: string,
 ): Promise<MatchedArtifactHistory> {
-  const [reports, packages] = await Promise.all([
+  const [reports, rows] = await Promise.all([
     prisma.report.findMany({
       where: { evidenceId },
       orderBy: [{ version: "desc" }],
@@ -133,13 +162,16 @@ export async function listMatchedArtifactVersions(
         issueReason: true,
       },
     }),
+    // Every package row of the record, in any state: published rows are
+    // packages, the others are lifecycle facts.
     prisma.verificationPackage.findMany({
       where: { evidenceId },
       orderBy: [{ version: "desc" }],
       select: {
         id: true,
+        state: true,
         disclosureProfile: true,
-        externalDisclosureArtifact: true,
+        issuanceId: true,
         version: true,
         generatedAtUtc: true,
         sizeBytes: true,
@@ -147,42 +179,62 @@ export async function listMatchedArtifactVersions(
         reportSha256: true,
         reportVersion: true,
         packageFormatVersion: true,
+        sealSigningKeyId: true,
+        sealSigningKeyVersion: true,
+        sealSigningKeySha256: true,
+        supersedesPackageId: true,
         storageObjectLockMode: true,
+        reservedAtUtc: true,
+        failedAtUtc: true,
+        terminalReason: true,
       },
     }),
   ]);
-  const toPackage = (p: (typeof packages)[number]): MatchedArtifactPackage => {
-    const ext = readExternalDisclosureArtifact(p.externalDisclosureArtifact);
-    return {
+  type Row = (typeof rows)[number];
+  const toPackage = (p: Row): MatchedArtifactPackage => ({
     packageId: p.id,
-    disclosureProfile: p.disclosureProfile === "FULL_FORENSIC" ? "FULL_FORENSIC" : "LEGACY",
-    externalDisclosure: ext ? { packageId: ext.packageId, sha256: ext.packageSha256, sizeBytes: ext.sizeBytes } : null,
+    disclosureProfile: packageProfileLabel(p.disclosureProfile),
+    issuanceId: p.issuanceId ?? null,
     version: p.version,
-    generatedAtUtc: p.generatedAtUtc.toISOString(),
+    generatedAtUtc: (p.generatedAtUtc ?? new Date(0)).toISOString(),
     sizeBytes: p.sizeBytes?.toString() ?? null,
     sha256: p.packageSha256 ?? null,
     embeddedReportSha256: p.reportSha256 ?? null,
     sealed: (p.packageFormatVersion ?? 0) >= 5,
+    sealKey:
+      p.sealSigningKeyId && p.sealSigningKeyVersion != null
+        ? { keyId: p.sealSigningKeyId, version: p.sealSigningKeyVersion, fingerprintSha256: p.sealSigningKeySha256 ?? null }
+        : null,
+    supersedesPackageId: p.supersedesPackageId ?? null,
     immutableRecorded: Boolean(p.storageObjectLockMode),
     pairing: p.reportVersion != null ? "REPORT_VERSION" : "LEGACY_VERSION_NUMBER",
-    };
-  };
+  });
+  const isPrimary = (p: Row) => p.disclosureProfile == null || p.disclosureProfile === "FULL_FORENSIC";
+  const published = rows.filter((p) => p.state === "PUBLISHED" && p.generatedAtUtc != null);
   const reportVersions = new Set(reports.map((r) => r.version));
-  // The package certifying each report version: an explicit report_version wins
-  // over a legacy row that only shares the number.
-  const byReport = new Map<number, (typeof packages)[number]>();
-  for (const p of packages) {
-    const certifies = p.reportVersion ?? p.version;
-    if (!reportVersions.has(certifies)) continue;
-    const existing = byReport.get(certifies);
-    if (!existing || (existing.reportVersion == null && p.reportVersion != null)) {
-      byReport.set(certifies, p);
+
+  // The package certifying each report version, per kind: an explicit
+  // report_version wins over a legacy row that only shares the number.
+  const pick = (kind: (p: Row) => boolean) => {
+    const byReport = new Map<number, Row>();
+    for (const p of published.filter(kind)) {
+      const certifies = p.reportVersion ?? p.version;
+      if (!reportVersions.has(certifies)) continue;
+      const existing = byReport.get(certifies);
+      if (!existing || (existing.reportVersion == null && p.reportVersion != null)) {
+        byReport.set(certifies, p);
+      }
     }
-  }
-  const paired = new Set([...byReport.values()]);
+    return byReport;
+  };
+  const primaryByReport = pick(isPrimary);
+  const externalByReport = pick((p) => p.disclosureProfile === "EXTERNAL_DISCLOSURE");
+  const paired = new Set([...primaryByReport.values(), ...externalByReport.values()]);
+
   return {
     versions: reports.map((r, index) => {
-      const p = byReport.get(r.version) ?? null;
+      const p = primaryByReport.get(r.version) ?? null;
+      const ext = externalByReport.get(r.version) ?? null;
       return {
         reportVersion: r.version,
         generatedAtUtc: r.generatedAtUtc.toISOString(),
@@ -193,11 +245,22 @@ export async function listMatchedArtifactVersions(
         issueReason: r.issueReason ?? null,
         latest: index === 0,
         package: p ? toPackage(p) : null,
+        externalDisclosure: ext ? toPackage(ext) : null,
+        issuance: rows
+          .filter((x) => (x.reportVersion ?? x.version) === r.version && (x.state === "RESERVED" || x.state === "FAILED"))
+          .map((x) => ({
+            disclosureProfile: packageProfileLabel(x.disclosureProfile),
+            packageId: x.id,
+            state: x.state as "RESERVED" | "FAILED",
+            reservedAtUtc: x.reservedAtUtc?.toISOString() ?? null,
+            failedAtUtc: x.failedAtUtc?.toISOString() ?? null,
+            terminalReason: x.terminalReason ?? null,
+          })),
         digestMismatch: Boolean(
           p?.reportSha256 && r.pdfSha256 && p.reportSha256.toLowerCase() !== r.pdfSha256.toLowerCase(),
         ),
       };
     }),
-    unpairedPackages: packages.filter((p) => !paired.has(p)).map(toPackage),
+    unpairedPackages: published.filter((p) => !paired.has(p)).map(toPackage),
   };
 }

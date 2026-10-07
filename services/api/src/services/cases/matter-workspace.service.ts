@@ -49,6 +49,7 @@ import {
   type CaseAccessRole,
 } from "./case-permission.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 export type SectionStatus =
   | "ok"
   | "degraded"
@@ -748,7 +749,7 @@ async function runEvidenceBoard(
           select: {
             parts: true,
             reports: true,
-            verificationPackages: true,
+            verificationPackages: { where: primaryPublishedPackageWhere() },
             custodyEvents: true,
             caseLinks: true,
           },
@@ -1876,7 +1877,7 @@ async function runDeliverables(
           },
         }),
         prisma.verificationPackage.findMany({
-          where: { evidenceId: { in: evidenceIds } },
+          where: primaryPublishedPackageWhere({ evidenceId: { in: evidenceIds } }),
           orderBy: { generatedAtUtc: "desc" },
           take: 50,
           select: {
@@ -1906,7 +1907,7 @@ async function runDeliverables(
         prisma.evidence.count({
           where: {
             id: { in: evidenceIds },
-            verificationPackages: { some: {} },
+            verificationPackages: { some: primaryPublishedPackageWhere() },
           },
         }),
       ]);

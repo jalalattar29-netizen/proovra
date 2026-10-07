@@ -13,66 +13,11 @@
  */
 import {
   storedBytesVerificationRow,
+  TSA_VALIDATED_QUALIFICATION_STATEMENT,
   type BasicVerification,
-  type ComponentVerificationState,
 } from "@proovra/shared";
 
-const STATE_LABEL: Record<ComponentVerificationState, string> = {
-  verified: "Verified",
-  pending: "Pending",
-  failed: "Failed",
-  not_issued: "Not issued",
-  not_checked: "Not checked",
-};
-
-const STATE_TONE: Record<ComponentVerificationState, { fg: string; bg: string }> = {
-  verified: { fg: "#0b5d3b", bg: "rgba(11,93,59,0.08)" },
-  pending: { fg: "#7a5a12", bg: "rgba(138,106,47,0.10)" },
-  failed: { fg: "#9b1c1c", bg: "rgba(155,28,28,0.08)" },
-  not_issued: { fg: "#4b5563", bg: "rgba(75,85,99,0.08)" },
-  not_checked: { fg: "#4b5563", bg: "rgba(75,85,99,0.08)" },
-};
-
-function fmt(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : `${d.toISOString().replace("T", " ").slice(0, 19)} UTC`;
-}
-
-function Row(props: { label: string; state: ComponentVerificationState; detail: string; badge?: string }) {
-  const tone = STATE_TONE[props.state];
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) auto",
-        gap: 12,
-        padding: "14px 0",
-        borderTop: "1px solid rgba(15,23,42,0.08)",
-        alignItems: "start",
-      }}
-    >
-      <div>
-        <div style={{ fontWeight: 600 }}>{props.label}</div>
-        <div style={{ fontSize: 14, color: "#475569", marginTop: 4, overflowWrap: "anywhere" }}>{props.detail}</div>
-      </div>
-      <span
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: tone.fg,
-          background: tone.bg,
-          borderRadius: 999,
-          padding: "4px 10px",
-          whiteSpace: "nowrap",
-        }}
-        aria-label={`${props.label}: ${props.badge ?? STATE_LABEL[props.state]}`}
-      >
-        {props.badge ?? STATE_LABEL[props.state]}
-      </span>
-    </div>
-  );
-}
+import { Row, fmt } from "../_shared/verify-ui";
 
 /**
  * ET-PKG-02: a seal key found only inside a package vouches for nothing, so the
@@ -166,7 +111,7 @@ export default function BasicVerificationView({
   // (2026-09-29) Each "not checked" names the check that was not performed.
   const tsaDetail =
     data.timestamp.state === "verified"
-      ? `A trusted timestamp was issued (${fmt(data.timestamp.tokenTimeUtc)}). PROOVRA validated the authority's signature and certificate chain when it was issued, and the token certifies the recorded digest.`
+      ? `A trusted timestamp was issued (${fmt(data.timestamp.tokenTimeUtc)}). PROOVRA validated the authority's signature and certificate chain when it was issued, and the token certifies the recorded digest. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`
       : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_RECORDED_NOT_VALIDATED"
         ? `A timestamp token was recorded (${fmt(data.timestamp.tokenTimeUtc)}) before PROOVRA validated timestamp tokens, and it has not been validated since. It is not presented as a trusted timestamp.`
         : data.timestamp.state === "not_checked"

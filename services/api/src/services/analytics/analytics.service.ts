@@ -37,6 +37,7 @@ import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 // ---------------------------------------------------------------------------
 // Bounded window
 // ---------------------------------------------------------------------------
@@ -583,10 +584,10 @@ export async function getArtifactReadinessAnalytics(
     ),
     safe(
       prisma.verificationPackage.count({
-        where: {
+        where: primaryPublishedPackageWhere({
           generatedAtUtc: { gte: windowStart },
           evidence: { teamId: input.teamId },
-        },
+        }),
       }),
       "VerificationPackage",
       degraded,

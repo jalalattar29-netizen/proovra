@@ -149,7 +149,7 @@ describe("completion size gate and pre-hash (live PostgreSQL 16)", () => {
       select: { signingKeyId: true, signingKeyVersion: true, signingKeySha256: true },
     });
     const key = await prisma.signingKey.findUniqueOrThrow({
-      where: { keyId_version: { keyId: sealed.signingKeyId!, version: sealed.signingKeyVersion! } },
+      where: { keyId_version_purpose: { keyId: sealed.signingKeyId!, version: sealed.signingKeyVersion!, purpose: "EVIDENCE_SIGNATURE" } },
     });
     const { publicKeySpkiSha256 } = await import("../src/signing/key-registry.js");
     expect(sealed.signingKeySha256).toBe(publicKeySpkiSha256(key.publicKeyPem));

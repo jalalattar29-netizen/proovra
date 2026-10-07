@@ -18,7 +18,7 @@
  */
 import { resolveTsaProofStatus } from "./ots-status.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
-import { resolveTsaTrustState } from "./trust-signal-state.js";
+import { resolveTsaTrustState, TSA_VALIDATED_QUALIFICATION_STATEMENT } from "./trust-signal-state.js";
 
 export type TsaCheckResult = "PASSED" | "FAILED" | "NOT_EVALUATED" | "NOT_APPLICABLE" | "NOT_RECORDED" | "UNAVAILABLE";
 
@@ -86,6 +86,8 @@ export type TimestampValidationRecord = {
     policy: TsaCheckResult;
   };
   failureCode: string | null;
+  /** One sentence: what the validation established (and that qualification was not evaluated). */
+  summary: string;
   qualifiedStatus: {
     evaluated: false;
     statement: string;
@@ -177,6 +179,7 @@ export function buildTimestampValidationRecord(input: {
     validatedAtUtc: status === "VALIDATED" ? iso(input.tsaValidatedAtUtc) : null,
     checks,
     failureCode: status === "VALIDATED" ? null : input.tsaFailureCode ?? null,
+    summary: status === "VALIDATED" ? TSA_VALIDATED_QUALIFICATION_STATEMENT : trust.label,
     qualifiedStatus: { evaluated: false, statement: TSA_QUALIFIED_STATUS_NOT_EVALUATED },
     legalEffect: TSA_LEGAL_EFFECT_STATEMENT,
   };

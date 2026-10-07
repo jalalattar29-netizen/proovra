@@ -31,6 +31,7 @@ import { resolveEvidenceOutputEligibility } from "../services/billing/evidence-o
 import { requestReportGeneration } from "../services/reports/report-generation-authority.service.js";
 import { resolveInternalGrantSubject } from "../services/billing/internal-plan-grant.service.js";
 
+import { primaryPublishedPackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 const MACHINE_ID = "ops.recover-evidence-outputs";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIVE_LIFECYCLE = ["ACTIVE", "UNDER_REVIEW", "ON_HOLD", "RETENTION_LOCKED"] as const;
@@ -100,10 +101,10 @@ export async function evidenceOutputStatus(t: RecoveryTarget & { expectComplete?
       orderBy: { version: "asc" },
     });
     const packages = await prisma.verificationPackage.findMany({
-      where: { evidenceId: ev.id },
+      where: primaryPublishedPackageWhere({ evidenceId: ev.id }),
       select: { version: true, reportVersion: true, storageBucket: true, storageKey: true, packageSha256: true },
       orderBy: { version: "asc" },
-    });
+    }).then((rows) => rows.map(asPublishedPackage));
     const requests = await prisma.reportGenerationRequest.findMany({
       where: { evidenceId: ev.id },
       select: { state: true, purpose: true, artifactType: true, terminalReasonCode: true, createdAtUtc: true },
@@ -181,7 +182,7 @@ export async function recoverEvidenceOutputs(t: RecoveryTarget & { apply?: boole
     });
     const reports = await prisma.report.findMany({ where: { evidenceId: ev.id }, select: { version: true }, orderBy: { version: "desc" } });
     const latest = reports[0]?.version ?? null;
-    const paired = latest == null ? true : (await prisma.verificationPackage.count({ where: { evidenceId: ev.id, reportVersion: latest } })) > 0;
+    const paired = latest == null ? true : (await prisma.verificationPackage.count({ where: primaryPublishedPackageWhere({ evidenceId: ev.id, reportVersion: latest }) })) > 0;
 
     let purpose: "first_issuance" | "package_recovery" | null = null;
     if (row?.status === "SIGNED" && latest == null) purpose = "first_issuance";

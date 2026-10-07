@@ -33,6 +33,7 @@
 
 import { prisma } from "../../db.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 export type CapabilityKey =
   | "sso"
   | "scim"
@@ -264,7 +265,7 @@ export async function computeAdoptionReport(): Promise<AdoptionReport> {
       _min: { generatedAtUtc: true },
       _max: { generatedAtUtc: true },
     }),
-    prisma.verificationPackage.aggregate({
+    prisma.verificationPackage.aggregate({ where: primaryPublishedPackageWhere(),
       _count: { _all: true },
       _min: { createdAt: true },
       _max: { createdAt: true },

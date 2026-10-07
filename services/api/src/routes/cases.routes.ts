@@ -51,6 +51,7 @@ import {
   resolveEnforcementScopeForRequester,
 } from "../services/billing-enforcement.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 const CreateCaseBody = z.object({
   name: z.string().min(1).max(120),
   teamId: z.string().uuid().optional(),
@@ -1727,7 +1728,7 @@ export async function casesRoutes(app: FastifyInstance) {
             select: {
               parts: true,
               reports: true,
-              verificationPackages: true,
+              verificationPackages: { where: primaryPublishedPackageWhere() },
             },
           },
         },

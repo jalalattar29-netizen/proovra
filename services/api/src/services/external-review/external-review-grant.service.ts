@@ -50,6 +50,7 @@ import {
   withProovraSpan,
 } from "../../observability/otel.js";
 
+import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
 // =============================================================================
 // Bounded vocabulary
 // =============================================================================
@@ -266,7 +267,7 @@ async function scopeTargetBelongsToTeam(
   }
   if (scopeKind === "PACKAGE" && ids.packageId) {
     const row = await client.verificationPackage.findFirst({
-      where: { id: ids.packageId, evidence: { teamId, deletedAt: null } },
+      where: publishedPackageWhere({ id: ids.packageId, evidence: { teamId, deletedAt: null } }),
       select: { id: true },
     });
     return row !== null;
@@ -440,7 +441,7 @@ async function grantScopeHasActiveLegalHold(
   let evidenceId = grant.evidenceId;
   if (grant.scopeKind === "PACKAGE" && grant.packageId) {
     const pkg = await client.verificationPackage.findFirst({
-      where: { id: grant.packageId },
+      where: publishedPackageWhere({ id: grant.packageId }),
       select: { evidenceId: true },
     });
     evidenceId = pkg?.evidenceId ?? evidenceId;

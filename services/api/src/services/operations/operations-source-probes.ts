@@ -63,6 +63,7 @@ import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 // product decision out of the artifact-backlog conditions.
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 // ===========================================================================
 // THRESHOLDS — every one is real platform state
 //
@@ -847,7 +848,7 @@ async function observeEvidenceArtifact(
       const version = parsed.reportVersion ?? record.latestReportVersion;
       if (version == null) return { ...base, activity: "ACTIVE" };
       const pkg = await ctx.client.verificationPackage.findFirst({
-        where: { evidenceId, version },
+        where: primaryPublishedPackageWhere({ evidenceId, version }),
         select: { id: true },
       });
       return { ...base, activity: pkg ? "RECOVERED" : "ACTIVE" };

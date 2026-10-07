@@ -450,6 +450,8 @@ async function runWorkspaceReindexUnlocked(
          AND esd.document_type = 'PACKAGE'
          AND esd.source_id    = p.id
        WHERE e.deleted_at IS NULL
+         AND p.state = 'PUBLISHED'
+         AND (p.disclosure_profile IS NULL OR p.disclosure_profile = 'FULL_FORENSIC')
          AND e.team_id = ${teamId}::uuid
          AND esd.id IS NULL
        LIMIT ${limit}`;

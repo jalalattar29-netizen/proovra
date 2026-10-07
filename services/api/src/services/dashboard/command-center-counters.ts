@@ -56,6 +56,7 @@ import { prisma } from "../../db.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import type { OwedOutputEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 /** The statuses the product treats as "open work in the queue". */
 export const OPEN_REVIEW_STATUSES = [
   "QUEUED",
@@ -291,7 +292,7 @@ export async function loadEvidenceCounters(
         where: {
           AND: [population, ...(outputEntitledWhere ? [outputEntitledWhere] : [])],
           status: "REPORTED",
-          verificationPackages: { none: {} },
+          verificationPackages: { none: primaryPublishedPackageWhere() },
         } as never,
       }),
       /*

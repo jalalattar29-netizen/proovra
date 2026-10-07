@@ -28,6 +28,7 @@ import { presentedTsaStatus, resolveOtsAnchorClaim, TSA_RECORDED_NOT_VALIDATED }
 // product decision out of the operational "stuck" counters.
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 export type TrustSummary = {
   /** Total non-deleted evidence in the workspace. */
   totalEvidence: number;
@@ -237,7 +238,7 @@ export async function buildTrustSummary(input: {
           ...baseWhere,
           status: "REPORTED" as never,
           reports: { some: {} },
-          verificationPackages: { some: {} },
+          verificationPackages: { some: primaryPublishedPackageWhere() },
           NOT: { publicVerifyState: "SUSPENDED" as never },
         },
       }),
@@ -269,7 +270,7 @@ export async function buildTrustSummary(input: {
           // where (ET-COM-04) and a spread key could overwrite baseWhere's.
           AND: [baseWhere, ...(outputEntitledWhere ? [outputEntitledWhere] : [])],
           status: "REPORTED" as never,
-          verificationPackages: { none: {} },
+          verificationPackages: { none: primaryPublishedPackageWhere() },
         },
       }),
       // INTAKE — the same predicates the notification aggregator emits

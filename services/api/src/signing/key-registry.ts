@@ -10,4 +10,9 @@ export {
   publicKeyPemFromPrivateKeyPem,
   publicKeySpkiSha256,
   registerSigningKey,
+  findRegisteredSigningKey,
+  describePublicSigningKey,
+  SIGNING_KEY_PURPOSES,
+  type SigningKeyPurpose,
+  type PublicSigningKeyRecord,
 } from "@proovra/shared-runtime";

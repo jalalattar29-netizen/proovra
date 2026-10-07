@@ -326,7 +326,7 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     // The registry row is immutable (trigger): the PEM cannot be swapped.
     const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString().trim();
     await expect(
-      prisma.signingKey.update({ where: { keyId_version: { keyId, version: 1 } }, data: { publicKeyPem: other } }),
+      prisma.signingKey.update({ where: { keyId_version_purpose: { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" } }, data: { publicKeyPem: other } }),
     ).rejects.toThrow();
     // A record whose bound fingerprint is not the registered key fails.
     const forged = await signedRecordInStore({ signingKeySha256: "0".repeat(64) });

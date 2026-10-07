@@ -275,7 +275,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     if (ent) await prisma.entitlement.update({ where: { id: ent.id }, data: { plan: "PRO" } });
     else await prisma.entitlement.create({ data: { userId: owner.ownerUserId, plan: "PRO" } });
     await prisma.signingKey.upsert({
-      where: { keyId_version: { keyId: FIXTURE_SIGNING_KEY_ID, version: 1 } },
+      where: { keyId_version_purpose: { keyId: FIXTURE_SIGNING_KEY_ID, version: 1, purpose: "EVIDENCE_SIGNATURE" } },
       create: {
         keyId: FIXTURE_SIGNING_KEY_ID,
         version: 1,

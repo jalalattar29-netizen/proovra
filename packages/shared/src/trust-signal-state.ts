@@ -152,6 +152,19 @@ export function resolveSnapshotSignalState(signal: {
 // ---------------------------------------------------------------------------
 
 /**
+ * What a VALIDATED timestamp establishes — and what it does not. Certificate
+ * signature and chain validation is not EU qualified-service status: no
+ * trusted-list evaluation is performed, so qualification is never claimed
+ * (from a certificate subject or otherwise). Every surface that describes a
+ * validated timestamp states this sentence.
+ */
+export const TSA_VALIDATED_QUALIFICATION_STATEMENT =
+  "Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.";
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+
+/**
  * Validation could not be PERFORMED (no usable trust anchor in the issuing
  * environment): the token was obtained and kept, and nothing established it
  * to be invalid.
@@ -194,6 +207,7 @@ function isoOrNull(v: Date | string | null | undefined): string | null {
 export function resolveTsaTrustState(input: TsaTrustStateInput): TsaTrustState {
   const status = String(input.presentedStatus ?? "").trim().toUpperCase();
   const code = String(input.failureCode ?? "").trim().toLowerCase();
+  // A validated token is a certificate-chain fact, never a qualification.
   if (status === "STAMPED") {
     return {
       state: "PASSED",

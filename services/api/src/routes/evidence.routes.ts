@@ -225,7 +225,7 @@ import {
   isDomainError,
 } from "../errors.js";
 import { requireAuth } from "../middleware/auth.js";
-import { trustedClientIp, trustedClientIpKey } from "../middleware/client-ip.js";
+import { trustedClientIp } from "../middleware/client-ip.js";
 import { maskIp } from "@proovra/shared-runtime/technical-metadata";
 import { getAuthUserId } from "../auth.js";
 import { requireLegalAcceptance } from "../middleware/require-legal-acceptance.js";
@@ -264,8 +264,8 @@ import {
   getObjectRange,
 } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
-import { enforceDistinctClientLimit, enforceRateLimit } from "../services/rate-limit.js";
-import { readExternalDisclosureArtifact } from "../services/reports/external-disclosure-artifact.js";
+import { enforceRateLimit } from "../services/rate-limit.js";
+import { admitPublicVerifyClient, admitPublicVerifyTarget } from "../services/public-verify/public-verify-gate.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
 // The same enqueue function the evidence-complete service already uses
 // on first finalize, surfaced as an audited owner-only mutation.
@@ -451,6 +451,7 @@ import { requirePermission } from "../services/governance.service.js";
 import { buildTrustDecisionConsistency } from "../services/trust-decision-consistency.service.js";
 import { buildPublicVerifyConsistencySections } from "../services/public-verify-consistency.service.js";
 
+import { primaryPublishedPackageWhere, publishedProfilePackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 const EvidenceTypeSchema = prismaPkg.EvidenceType
   ? z.nativeEnum(prismaPkg.EvidenceType)
   : z.enum(["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"]);
@@ -1386,34 +1387,8 @@ function getTierLimit(plan: prismaPkg.PlanType) {
   }
 }
 
-function getVerifyLimit() {
-  // Phase 1 — tightened defaults. 30/min sustained, configurable.
-  // Was 60/min by default which the runtime audit demonstrated permits
-  // unrestricted scraping of evidence metadata over a UUID guess space.
-  // Operators can still raise via env if a legitimate fan-out is needed
-  // (e.g. a high-traffic shared verify URL).
-  return {
-    max: readPositiveIntEnv("VERIFY_RATE_LIMIT_MAX", 30),
-    windowSec: readPositiveIntEnv("VERIFY_RATE_LIMIT_WINDOW_SEC", 60),
-  };
-}
-
-// Phase 1 — per-evidence-id verify limit. Stops one attacker from
-// using rotated IPs / TLS-resumed connections to enumerate a single
-// evidence record's history.
-// ET-PKG-17 — the cap counts DISTINCT CLIENTS per window, not requests: a
-// shared request counter let two clients at their per-IP allowance lock every
-// legitimate viewer out of the record. Request volume per client is the
-// per-IP bucket's job.
-function getVerifyPerEvidenceLimit() {
-  return {
-    max: readPositiveIntEnv("VERIFY_RATE_LIMIT_PER_EVIDENCE_MAX", 60),
-    windowSec: readPositiveIntEnv(
-      "VERIFY_RATE_LIMIT_PER_EVIDENCE_WINDOW_SEC",
-      60,
-    ),
-  };
-}
+// The Public Verify limits (VERIFY_RATE_LIMIT_*) live in the Public Verify
+// gate: services/public-verify/public-verify-gate.ts.
 
 // =============================================================================
 // Phase 1 — public verify identity exposure policy
@@ -1973,9 +1948,10 @@ function captureIdentityTrustInput(
     workspaceNameSnapshot?: string | null;
     organizationNameSnapshot?: string | null;
     organizationVerifiedSnapshot?: boolean | null;
+    acquisitionMode?: string | null;
   },
 ) {
-  const acq = resolveAcquisitionIdentitySnapshot({ custodyEvents, row });
+  const acq = resolveAcquisitionIdentitySnapshot({ custodyEvents, row, acquisitionMode: row.acquisitionMode ?? null });
   return {
     identityLevelSnapshot: acq.identityLevel,
     submittedByEmail: acq.submittedByEmail,
@@ -7403,12 +7379,12 @@ return {
         reports: { some: {} },
       };
       const PACKAGES_READY_PREDICATE: Prisma.EvidenceWhereInput = {
-        verificationPackages: { some: {} },
+        verificationPackages: { some: primaryPublishedPackageWhere() },
       };
       const PACKAGES_MISSING_PREDICATE: Prisma.EvidenceWhereInput = {
         AND: [
           { status: prismaPkg.EvidenceStatus.REPORTED },
-          { verificationPackages: { none: {} } },
+          { verificationPackages: { none: primaryPublishedPackageWhere() } },
         ],
       };
       // Evidence-output incident (2026-10-05) — "protected" is the ONE
@@ -8357,10 +8333,10 @@ return {
       },
     });
     const latestPackage = await prisma.verificationPackage.findFirst({
-      where: { evidenceId: id },
+      where: primaryPublishedPackageWhere({ evidenceId: id }),
       orderBy: { version: "desc" },
       select: { version: true, generatedAtUtc: true, packageType: true, trustDecisionSnapshot: true },
-    });
+    }).then((row) => (row ? asPublishedPackage(row) : null));
 
     return reply.code(200).send({
       evidenceId: id,
@@ -9300,9 +9276,11 @@ return {
         const signingKey = signingKeyMetadataRecorded
           ? await prisma.signingKey.findUnique({
               where: {
-                keyId_version: {
+                // The evidence-signature key only; a package-seal key never verifies a record.
+                keyId_version_purpose: {
                   keyId: evidence.signingKeyId!,
                   version: evidence.signingKeyVersion!,
+                  purpose: "EVIDENCE_SIGNATURE",
                 },
               },
               select: { publicKeyPem: true },
@@ -9426,7 +9404,7 @@ return {
             },
           }),
           prisma.verificationPackage.findFirst({
-            where: { evidenceId: id },
+            where: primaryPublishedPackageWhere({ evidenceId: id }),
             orderBy: { version: "desc" },
             select: {
               version: true,
@@ -9439,7 +9417,7 @@ return {
               sealSha256: true,
               sealSigningKeySha256: true,
             },
-          }),
+          }).then((row) => (row ? asPublishedPackage(row) : null)),
           // UC-CASE-005 — every linked case the VIEWER may open (narrowed by
           // the canonical case-access rule), not just the earliest link read
           // without any access check.
@@ -11991,7 +11969,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       if (!gate.allowed) return gate.reply;
 
       const row = await prisma.verificationPackage.findFirst({
-        where: { evidenceId: id, version },
+        where: primaryPublishedPackageWhere({ evidenceId: id, version }),
         select: {
           id: true,
           disclosureProfile: true,
@@ -12007,7 +11985,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
           packageType: true,
           reportVersion: true,
         },
-      });
+      }).then((row) => (row ? asPublishedPackage(row) : null));
       if (!row) {
         return reply
           .code(404)
@@ -12135,23 +12113,42 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       });
       if (!gate.allowed) return gate.reply;
 
-      const row = await prisma.verificationPackage.findFirst({
-        where: { evidenceId: id, version },
-        select: { id: true, version: true, reportVersion: true, storageBucket: true, externalDisclosureArtifact: true },
-      });
-      if (!row) {
-        return reply.code(404).send({ message: "Verification package not found" });
-      }
-      const ext = readExternalDisclosureArtifact(row.externalDisclosureArtifact);
-      if (!ext) {
+      // THE external disclosure package of this version: its own published row.
+      const found = await prisma.verificationPackage.findFirst({
+        where: publishedProfilePackageWhere("EXTERNAL_DISCLOSURE", { evidenceId: id, version }),
+        select: {
+          id: true,
+          version: true,
+          reportVersion: true,
+          storageBucket: true,
+          storageKey: true,
+          s3VersionId: true,
+          packageSha256: true,
+          generatedAtUtc: true,
+        },
+      }).then((row) => (row ? asPublishedPackage(row) : null));
+      if (!found) {
+        const primary = await prisma.verificationPackage.findFirst({
+          where: primaryPublishedPackageWhere({ evidenceId: id, version }),
+          select: { id: true },
+        });
+        if (!primary) {
+          return reply.code(404).send({ message: "Verification package not found" });
+        }
         return reply.code(409).send({
           code: "EXTERNAL_DISCLOSURE_NOT_ISSUED",
           message:
             "This package version was issued before external disclosure packages existed. Generate an updated report to issue one.",
         });
       }
+      const row = found;
+      // The full package of the same version and issuance it projects.
+      const source = await prisma.verificationPackage.findFirst({
+        where: publishedProfilePackageWhere("FULL_FORENSIC", { evidenceId: id, version }),
+        select: { id: true },
+      });
       try {
-        const meta = await headObject({ bucket: row.storageBucket, key: ext.storageKey });
+        const meta = await headObject({ bucket: row.storageBucket, key: row.storageKey });
         if (!meta.sizeBytes || meta.sizeBytes <= 0) throw new Error("empty");
       } catch {
         return reply.code(410).send({
@@ -12163,7 +12160,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       await appendCustodyEvent({
         evidenceId: id,
         eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
-        payload: { version: row.version, packageId: ext.packageId, disclosureProfile: "EXTERNAL_DISCLOSURE" },
+        payload: { version: row.version, packageId: row.id, disclosureProfile: "EXTERNAL_DISCLOSURE" },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       }).catch(noteCustodyFailure);
@@ -12173,23 +12170,23 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         outcome: "success",
         resourceId: id,
         teamId: gate.teamId,
-        metadata: { version: row.version, packageId: ext.packageId, disclosureProfile: "EXTERNAL_DISCLOSURE" },
+        metadata: { version: row.version, packageId: row.id, disclosureProfile: "EXTERNAL_DISCLOSURE" },
       });
 
       const url = await presignGetObject({
         bucket: row.storageBucket,
-        key: ext.storageKey,
-        versionId: ext.s3VersionId,
+        key: row.storageKey,
+        versionId: row.s3VersionId,
         expiresInSeconds: 600,
       });
       return reply.code(200).send({
         evidenceId: id,
-        packageId: ext.packageId,
-        sourceFullPackageId: row.id,
+        packageId: row.id,
+        sourceFullPackageId: source?.id ?? null,
         disclosureProfile: "EXTERNAL_DISCLOSURE",
         version: row.version,
         certifiesReportVersion: row.reportVersion ?? row.version,
-        packageSha256: ext.packageSha256,
+        packageSha256: row.packageSha256 ?? null,
         url,
       });
     },
@@ -12442,14 +12439,14 @@ displayName: resolvedDisplayName,
         select: { version: true },
       });
       const newestPackageAnyVersion = await prisma.verificationPackage.findFirst({
-        where: { evidenceId: id },
+        where: primaryPublishedPackageWhere({ evidenceId: id }),
         orderBy: { version: "desc" },
         select: { version: true },
       });
       const latest = await prisma.verificationPackage.findFirst({
-        where: latestReportForPair
+        where: primaryPublishedPackageWhere(latestReportForPair
           ? { evidenceId: id, version: latestReportForPair.version }
-          : { evidenceId: id },
+          : { evidenceId: id }),
         orderBy: { version: "desc" },
         select: {
           id: true,
@@ -12466,7 +12463,7 @@ displayName: resolvedDisplayName,
           generatedAtUtc: true,
           packageType: true,
         },
-      });
+      }).then((row) => (row ? asPublishedPackage(row) : null));
 
       if (!latest) {
         // Phase 32.6.1 — structured "not yet ready" response.
@@ -12964,34 +12961,9 @@ action: "evidence.certification_requested",
     // Both buckets are observable via the `verification.page_opened`
     // audit + the new `public_verify.rate_limited` warn log so an
     // operator can detect coordinated abuse.
-    const limit = getVerifyLimit();
-    // PHASE 13 §1 (NEW-022) — SECURITY_BOUND: key on the canonical resolved
-    // client, not raw `req.ip`, so a forwarded header cannot mint fresh buckets
-    // for this public verify surface.
-    const ipKey = `ratelimit:verify:ip:${trustedClientIpKey(req)}`;
-    const ipRate = await enforceRateLimit({
-      key: ipKey,
-      max: limit.max,
-      windowSec: limit.windowSec,
-      // UC-SEC-006 — one budget across every replica, never a per-process count.
-      bound: "global",
-    });
-
-    if (!ipRate.allowed) {
-      const retryAfter = Math.max(
-        1,
-        Math.ceil((ipRate.resetAtMs - Date.now()) / 1000),
-      );
-      req.log.warn(
-        {
-          ip: req.ip,
-          bucket: "ip",
-          remaining: 0,
-          resetAtMs: ipRate.resetAtMs,
-          retryAfterSec: retryAfter,
-        },
-        "public_verify.rate_limited",
-      );
+    // THE Public Verify gate (services/public-verify/public-verify-gate.ts):
+    // one per-client budget shared by every Public Verify read.
+    if (!(await admitPublicVerifyClient(req, reply))) {
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
@@ -13000,10 +12972,7 @@ action: "evidence.certification_requested",
         resourceId: null,
         metadata: { outcome: "rate_limited", bucket: "ip" },
       });
-      reply.header("Retry-After", String(retryAfter));
-      return reply
-        .code(429)
-        .send({ code: "RATE_LIMITED", message: "Rate limit exceeded" });
+      return reply;
     }
 
     // PHASE 12 (anti-enumeration closure) — an INVALID-format token must be
@@ -13064,31 +13033,7 @@ action: "evidence.certification_requested",
     // FIRST (above) so the bucket key is only set after validation;
     // unparseable input is concealed as 404 without consuming a
     // rate-limit slot.
-    const perEvidenceLimit = getVerifyPerEvidenceLimit();
-    const perEvidenceRate = await enforceDistinctClientLimit({
-      key: `ratelimit:verify:evidence-clients:${id}`,
-      member: trustedClientIpKey(req),
-      max: perEvidenceLimit.max,
-      windowSec: perEvidenceLimit.windowSec,
-      bound: "global",
-    });
-
-    if (!perEvidenceRate.allowed) {
-      const retryAfter = Math.max(
-        1,
-        Math.ceil((perEvidenceRate.resetAtMs - Date.now()) / 1000),
-      );
-      req.log.warn(
-        {
-          ip: req.ip,
-          evidenceId: id,
-          bucket: "evidence",
-          remaining: 0,
-          resetAtMs: perEvidenceRate.resetAtMs,
-          retryAfterSec: retryAfter,
-        },
-        "public_verify.rate_limited",
-      );
+    if (!(await admitPublicVerifyTarget(req, reply, { kind: "evidence", id }))) {
       auditVerificationAction(req, {
         userId: null,
         action: "verification.page_opened",
@@ -13097,10 +13042,7 @@ action: "evidence.certification_requested",
         resourceId: id,
         metadata: { outcome: "rate_limited", bucket: "evidence" },
       });
-      reply.header("Retry-After", String(retryAfter));
-      return reply
-        .code(429)
-        .send({ code: "RATE_LIMITED", message: "Rate limit exceeded" });
+      return reply;
     }
 
     (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
@@ -13468,9 +13410,11 @@ action: "evidence.certification_requested",
 
     const signingKey = await prisma.signingKey.findUnique({
       where: {
-        keyId_version: {
+        // The evidence-signature key only; a package-seal key never verifies a record.
+        keyId_version_purpose: {
           keyId: evidence.signingKeyId,
           version: evidence.signingKeyVersion,
+          purpose: "EVIDENCE_SIGNATURE",
         },
       },
       // UC-TRUST-003 — revocation is read, not ignored.
@@ -13559,7 +13503,7 @@ const latestReport = await prisma.report.findFirst({
 });
 
 const latestVerificationPackage = await prisma.verificationPackage.findFirst({
-  where: { evidenceId: id },
+  where: primaryPublishedPackageWhere({ evidenceId: id }),
   orderBy: { version: "desc" },
   select: {
     version: true,
@@ -13572,7 +13516,7 @@ const latestVerificationPackage = await prisma.verificationPackage.findFirst({
     sealSha256: true,
     sealSigningKeySha256: true,
   },
-});
+}).then((row) => (row ? asPublishedPackage(row) : null));
 
 const verificationPackageAvailable = Boolean(latestVerificationPackage);
 
@@ -14248,11 +14192,16 @@ const overallIntegrity =
         "public_verify.identity_redacted",
       );
     }
+    // THE acquisition identity (creation-time custody snapshot). Every identity
+    // field of the public overview reads it — never the record's columns,
+    // which earlier report runs may have rewritten from current state.
+    const acquisitionIdentity = resolveAcquisitionIdentitySnapshot({
+      custodyEvents: allCustodyEvents,
+      row: evidence,
+      acquisitionMode: evidence.acquisitionMode ?? null,
+    });
     const overview = buildPublicVerifyOverview({
-      acquisitionIdentity: resolveAcquisitionIdentitySnapshot({
-        custodyEvents: allCustodyEvents,
-        row: evidence,
-      }),
+      acquisitionIdentity,
       evidence: {
         id: evidence.id,
 title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,
@@ -14262,7 +14211,7 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         captureMethod: evidence.captureMethod ?? null,
         acquisitionMode: evidence.acquisitionMode ?? null,
         acquisitionModeSource: evidence.acquisitionModeSource ?? null,
-        identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
+        identityLevelSnapshot: (acquisitionIdentity.identityLevel as prismaPkg.IdentityLevel | null),
         // Phase 1 — PII redaction. submittedByEmail is ALWAYS null
         // on the public surface. maskPublicEmail (used downstream)
         // still leaked the domain, which is enough to identify the
@@ -14270,15 +14219,14 @@ title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?
         // insurance claimant. The mask is no longer reachable on
         // the public response path.
         submittedByEmail: null,
-        submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+        submittedByAuthProvider: (acquisitionIdentity.authProvider as prismaPkg.AuthProvider | null),
         workspaceNameSnapshot: identityExposure.exposeAttribution
-          ? evidence.workspaceNameSnapshot ?? null
+          ? acquisitionIdentity.workspaceName
           : null,
         organizationNameSnapshot: identityExposure.exposeAttribution
-          ? evidence.organizationNameSnapshot ?? null
+          ? acquisitionIdentity.organizationName
           : null,
-        organizationVerifiedSnapshot:
-          evidence.organizationVerifiedSnapshot ?? null,
+        organizationVerifiedSnapshot: acquisitionIdentity.organizationVerified,
         mimeType: evidence.mimeType,
         createdAt: evidence.createdAt,
         capturedAtUtc: evidence.capturedAtUtc,
@@ -14627,7 +14575,7 @@ const technicalMetadata = await (async () => {
  */
 const pairedPackageForBasic = latestReport
   ? await prisma.verificationPackage.findFirst({
-      where: { evidenceId: evidence.id, version: latestReport.version },
+      where: primaryPublishedPackageWhere({ evidenceId: evidence.id, version: latestReport.version }),
       select: {
         version: true,
         reportVersion: true,
@@ -14637,7 +14585,7 @@ const pairedPackageForBasic = latestReport
         packageSha256: true,
         sealSigningKeySha256: true,
       },
-    })
+    }).then((row) => (row ? asPublishedPackage(row) : null))
   : null;
 // ET-SM-07 — `storedBytes` was resolved (and a recheck requested when it is
 // not current) above, before the verdict, because it is an input to it.

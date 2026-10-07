@@ -31,6 +31,21 @@ export type AcquisitionIdentityBasis = "OBSERVED_AT_CAPTURE" | "RECORDED_ON_RECO
 /** The workspace the record was created in, at creation. */
 export type AcquisitionWorkspaceKind = "PERSONAL" | "SHARED" | "NOT_RECORDED";
 
+/**
+ * WHO acted when the record entered PROOVRA (2026-10-07).
+ *   ACCOUNT_USER        a signed-in PROOVRA account submitted it
+ *   INTAKE_CONTRIBUTOR  a contributor who did not sign in submitted it through
+ *                       a secure intake link; the ACCOUNT fields describe the
+ *                       workspace account that ISSUED the link, never the
+ *                       contributor
+ *   GUEST_SESSION       a guest session submitted it
+ *   NOT_RECORDED        nothing recorded the actor; nothing is inferred
+ */
+export type AcquisitionActorKind = "ACCOUNT_USER" | "INTAKE_CONTRIBUTOR" | "GUEST_SESSION" | "NOT_RECORDED";
+
+/** What the account fields of the snapshot describe. */
+export type AcquisitionAccountRole = "SUBMITTER" | "INTAKE_LINK_ISSUER" | "NOT_RECORDED";
+
 export type AcquisitionIdentitySnapshot = {
   basis: AcquisitionIdentityBasis;
   /** When the snapshot was recorded (the creation event time), when known. */
@@ -47,6 +62,10 @@ export type AcquisitionIdentitySnapshot = {
   organizationVerified: boolean | null;
   submittedByEmail: string | null;
   submittedByUserId: string | null;
+  actorKind: AcquisitionActorKind;
+  accountRole: AcquisitionAccountRole;
+  /** Intake only: whether the contributor gave an email (never the address). */
+  contributorEmailProvided: boolean | null;
 };
 
 type Obj = Record<string, unknown>;
@@ -61,6 +80,29 @@ const iso = (v: unknown): string | null => {
 
 function workspaceKindOf(v: unknown): AcquisitionWorkspaceKind {
   return v === "PERSONAL" || v === "SHARED" ? v : "NOT_RECORDED";
+}
+
+/**
+ * The actor of a snapshot that does not name one (written before the field
+ * existed): read from facts that are themselves immutable from creation — the
+ * recorded acquisition mode and the recorded sign-in provider — never from
+ * current state.
+ */
+function legacyActor(
+  acquisitionMode: string | null | undefined,
+  authProvider: string | null,
+): { actorKind: AcquisitionActorKind; accountRole: AcquisitionAccountRole } {
+  if (acquisitionMode === "SECURE_INTAKE_LINK") return { actorKind: "INTAKE_CONTRIBUTOR", accountRole: "INTAKE_LINK_ISSUER" };
+  if (authProvider === "GUEST") return { actorKind: "GUEST_SESSION", accountRole: "SUBMITTER" };
+  if (authProvider) return { actorKind: "ACCOUNT_USER", accountRole: "SUBMITTER" };
+  return { actorKind: "NOT_RECORDED", accountRole: "NOT_RECORDED" };
+}
+
+function actorKindOf(v: unknown): AcquisitionActorKind | null {
+  return v === "ACCOUNT_USER" || v === "INTAKE_CONTRIBUTOR" || v === "GUEST_SESSION" ? v : null;
+}
+function accountRoleOf(v: unknown): AcquisitionAccountRole | null {
+  return v === "SUBMITTER" || v === "INTAKE_LINK_ISSUER" ? v : null;
 }
 
 /**
@@ -79,11 +121,18 @@ export function resolveAcquisitionIdentitySnapshot(params: {
     organizationNameSnapshot?: string | null;
     organizationVerifiedSnapshot?: boolean | null;
   } | null;
+  /** The record's acquisition mode (immutable, recorded at creation). */
+  acquisitionMode?: string | null;
 }): AcquisitionIdentitySnapshot {
   const creation = params.custodyEvents.find((e) => e.eventType === ACQUISITION_IDENTITY_SNAPSHOT_EVENT);
   if (creation) {
     const p = obj(creation.payload);
+    const legacy = legacyActor(params.acquisitionMode, str(p.submittedByAuthProvider));
+    const actorKind = actorKindOf(p.actorKind) ?? legacy.actorKind;
     return {
+      actorKind,
+      accountRole: accountRoleOf(p.accountRole) ?? legacy.accountRole,
+      contributorEmailProvided: actorKind === "INTAKE_CONTRIBUTOR" ? bool(p.contributorEmailProvided) : null,
       basis: "OBSERVED_AT_CAPTURE",
       recordedAtUtc: iso(creation.atUtc),
       identityLevel: str(p.identityLevelSnapshot),
@@ -103,6 +152,9 @@ export function resolveAcquisitionIdentitySnapshot(params: {
     (row.identityLevelSnapshot || row.submittedByAuthProvider || row.submittedByEmail || row.workspaceNameSnapshot);
   if (!any || !row) {
     return {
+      actorKind: params.acquisitionMode === "SECURE_INTAKE_LINK" ? "INTAKE_CONTRIBUTOR" : "NOT_RECORDED",
+      accountRole: params.acquisitionMode === "SECURE_INTAKE_LINK" ? "INTAKE_LINK_ISSUER" : "NOT_RECORDED",
+      contributorEmailProvided: null,
       basis: "UNAVAILABLE",
       recordedAtUtc: null,
       identityLevel: null,
@@ -117,6 +169,8 @@ export function resolveAcquisitionIdentitySnapshot(params: {
     };
   }
   return {
+    ...legacyActor(params.acquisitionMode, str(row.submittedByAuthProvider)),
+    contributorEmailProvided: null,
     basis: "RECORDED_ON_RECORD",
     recordedAtUtc: null,
     // A legacy row's level may have been re-derived by a report run, so it
@@ -127,7 +181,10 @@ export function resolveAcquisitionIdentitySnapshot(params: {
     workspaceKind: "NOT_RECORDED",
     workspaceName: str(row.workspaceNameSnapshot),
     organizationName: str(row.organizationNameSnapshot),
-    organizationVerified: row.organizationVerifiedSnapshot ?? null,
+    // Never strengthened: a legacy row's verification may have been rewritten
+    // from the organization's CURRENT state by an earlier report run, so it is
+    // not presented as recorded at capture.
+    organizationVerified: null,
     submittedByEmail: str(row.submittedByEmail),
     submittedByUserId: str(row.submittedByUserId),
   };
@@ -248,4 +305,31 @@ export function identityLevelLabel(level: string | null | undefined): string {
     default:
       return "Identity level not recorded";
   }
+}
+
+/** The acquisition actor, as a customer-facing phrase (no raw enum). */
+export function acquisitionActorLabel(snapshot: Pick<AcquisitionIdentitySnapshot, "actorKind" | "contributorEmailProvided">): string {
+  switch (snapshot.actorKind) {
+    case "ACCOUNT_USER":
+      return "Signed-in PROOVRA account";
+    case "INTAKE_CONTRIBUTOR":
+      return snapshot.contributorEmailProvided === true
+        ? "Contributor via a secure intake link (not signed in; an email address was provided)"
+        : snapshot.contributorEmailProvided === false
+          ? "Contributor via a secure intake link (not signed in; no email address was provided)"
+          : "Contributor via a secure intake link (not signed in)";
+    case "GUEST_SESSION":
+      return "Guest session";
+    default:
+      return "Not recorded";
+  }
+}
+
+/** What the snapshot's account fields describe, as a phrase. */
+export function acquisitionAccountRoleLabel(role: AcquisitionAccountRole): string {
+  return role === "INTAKE_LINK_ISSUER"
+    ? "The workspace account that issued the intake link (not the contributor)"
+    : role === "SUBMITTER"
+      ? "The submitting account"
+      : "Not recorded";
 }

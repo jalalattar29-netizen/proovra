@@ -45,6 +45,7 @@ import {
   workspaceEvidenceWhere,
 } from "@proovra/shared-runtime";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 // ---------------------------------------------------------------------------
 // Public envelope shape
 // ---------------------------------------------------------------------------
@@ -603,7 +604,7 @@ async function buildWorkspaceCounts(
     out.verificationPackageCount = await prisma.verificationPackage.count({
       // Scoped through the canonical Evidence population, not a raw teamId:
       // a part belongs to the workspace its Evidence belongs to.
-      where: { evidence: scope },
+      where: primaryPublishedPackageWhere({ evidence: scope }),
     });
   } catch {
     warnings.push("verification_package_count_unavailable");

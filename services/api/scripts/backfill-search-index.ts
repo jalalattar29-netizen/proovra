@@ -41,6 +41,7 @@ import {
   indexReport,
 } from "../src/services/search/artifact-indexing.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 type Flags = {
   batch: number;
   team: string | null;
@@ -230,9 +231,9 @@ async function backfillArtifacts(
       });
     } else if (kind === "PACKAGE") {
       rows = await prisma.verificationPackage.findMany({
-        where: flags.team
+        where: primaryPublishedPackageWhere(flags.team
           ? { evidence: { teamId: flags.team } }
-          : undefined,
+          : undefined),
         select: { id: true },
         orderBy: { id: "asc" },
         take: flags.batch,

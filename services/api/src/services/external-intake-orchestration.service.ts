@@ -348,6 +348,11 @@ export async function createOrLoadExternalEvidence(
     intakePlanJson: workflowTemplateSnapshotFromLink(pair.link),
     // UC-0 — the canonical secure-intake ingress (also Evidence Requests).
     acquisitionMode: "SECURE_INTAKE_LINK",
+    // The contributor did not sign in; the owner is the link's issuer.
+    acquisitionActor: {
+      kind: "INTAKE_CONTRIBUTOR",
+      contributorEmailProvided: Boolean(pair.session.submitterEmail),
+    },
     templateIdentity: trio?.templateSlug
       ? { templateSlug: trio.templateSlug, templateVersion: trio.templateVersion, templateDbId: trio.templateDbId }
       : null,

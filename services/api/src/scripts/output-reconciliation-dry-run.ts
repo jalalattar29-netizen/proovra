@@ -77,10 +77,12 @@ async function page(cursor: string | null, take: number): Promise<Row[]> {
            e.status::text AS status,
            e.signed_at_utc,
            (SELECT max(r.version) FROM reports r WHERE r.evidence_id = e.id) AS latest_report,
-           (SELECT max(vp.version) FROM verification_packages vp WHERE vp.evidence_id = e.id) AS latest_package,
+           (SELECT max(vp.version) FROM verification_packages vp WHERE vp.evidence_id = e.id AND vp.state = 'PUBLISHED' AND (vp.disclosure_profile IS NULL OR vp.disclosure_profile = 'FULL_FORENSIC')) AS latest_package,
            EXISTS (
              SELECT 1 FROM verification_packages vp
               WHERE vp.evidence_id = e.id
+                AND vp.state = 'PUBLISHED'
+                AND (vp.disclosure_profile IS NULL OR vp.disclosure_profile = 'FULL_FORENSIC')
                 AND vp.version = (SELECT max(r.version) FROM reports r WHERE r.evidence_id = e.id)
            ) AS package_at_latest,
            (SELECT q.state FROM report_generation_requests q
@@ -177,8 +179,8 @@ async function main(): Promise<void> {
     Array<{ reports_no_version: bigint; packages_unsealed: bigint; packages_no_digest: bigint }>
   >`
     SELECT (SELECT count(*) FROM reports WHERE s3_version_id IS NULL) AS reports_no_version,
-           (SELECT count(*) FROM verification_packages WHERE package_format_version IS NULL) AS packages_unsealed,
-           (SELECT count(*) FROM verification_packages WHERE package_sha256 IS NULL) AS packages_no_digest
+           (SELECT count(*) FROM verification_packages WHERE state = 'PUBLISHED' AND package_format_version IS NULL) AS packages_unsealed,
+           (SELECT count(*) FROM verification_packages WHERE state = 'PUBLISHED' AND package_sha256 IS NULL) AS packages_no_digest
   `;
 
   const plan = (group: Group, flagName: string | null) => {

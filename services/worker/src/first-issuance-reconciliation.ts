@@ -262,6 +262,8 @@ export async function runFirstIssuanceReconciliation(options: {
          AND r.version = (SELECT max(r2.version) FROM reports r2 WHERE r2.evidence_id = e.id)
         LEFT JOIN verification_packages vp
           ON vp.evidence_id = e.id AND vp.version = r.version
+         AND vp.state = 'PUBLISHED'
+         AND (vp.disclosure_profile IS NULL OR vp.disclosure_profile = 'FULL_FORENSIC')
        WHERE e.status = 'REPORTED'
          AND e.deleted_at IS NULL
          AND e.lifecycle_state IN ('ACTIVE','UNDER_REVIEW','ON_HOLD','RETENTION_LOCKED')

@@ -45,6 +45,7 @@ import {
   withProovraSpan,
 } from "../../observability/otel.js";
 
+import { publishedPackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 // ---------------------------------------------------------------------------
 // Bounded enums
 // ---------------------------------------------------------------------------
@@ -202,9 +203,9 @@ async function validateBackupInner(
           const bucketKey =
             detail ??
             (await client.verificationPackage.findFirst({
-              where: { id: r.exportId.split(":")[1] ?? "" },
+              where: publishedPackageWhere({ id: r.exportId.split(":")[1] ?? "" }),
               select: { storageBucket: true, storageKey: true },
-            }));
+            }).then((row) => (row ? asPublishedPackage(row) : null)));
           if (!bucketKey) {
             missing++;
             continue;

@@ -506,6 +506,7 @@ export async function reconcileTeamGraph(
            JOIN "evidence" e ON e."id" = vp."evidence_id"
            WHERE e."team_id" = $1
              AND e."deleted_at" IS NULL
+             AND vp."state" = 'PUBLISHED' AND (vp."disclosure_profile" IS NULL OR vp."disclosure_profile" = 'FULL_FORENSIC')
            ORDER BY vp."generated_at_utc" ASC`,
         teamId,
       )) as PackageRow[];
@@ -563,6 +564,7 @@ export async function reconcileTeamGraph(
                    JOIN "evidence" e ON e."id" = vp."evidence_id"
                   WHERE vp."id" = n."external_id"
                     AND e."team_id" = $1
+                    AND vp."state" = 'PUBLISHED' AND (vp."disclosure_profile" IS NULL OR vp."disclosure_profile" = 'FULL_FORENSIC')
                )`,
           teamId,
         ),

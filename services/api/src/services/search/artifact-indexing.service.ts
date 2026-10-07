@@ -181,6 +181,7 @@ export async function indexPackage(
         evidenceId: true,
         version: true,
         packageType: true,
+        state: true,
         generatedAtUtc: true,
         evidence: {
           select: {
@@ -202,6 +203,8 @@ export async function indexPackage(
     return { ok: false, reason: "package_load_failed" };
   }
   if (!row) return await deleteByKey(client, "PACKAGE", input.packageId);
+  // Only a PUBLISHED artifact is a package; a reserved or failed row is not searchable.
+  if (row.state !== "PUBLISHED" || !row.generatedAtUtc) return { ok: false, reason: "package_not_published" };
   if (!row.evidence?.teamId) {
     return { ok: false, reason: "package_team_missing" };
   }

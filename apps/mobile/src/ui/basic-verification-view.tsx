@@ -8,7 +8,7 @@
  */
 import React from "react";
 import { View } from "react-native";
-import { storedBytesVerificationRow, type BasicVerification, type ComponentVerificationState } from "@proovra/shared";
+import { storedBytesVerificationRow, TSA_VALIDATED_QUALIFICATION_STATEMENT, type BasicVerification, type ComponentVerificationState } from "@proovra/shared";
 
 import { ProovraBadge, ProovraCard, ProovraSection, ProovraText } from "./index";
 
@@ -92,7 +92,7 @@ export function BasicVerificationView({ data }: { data: BasicVerification }) {
             state={data.timestamp.state}
             detail={
               data.timestamp.state === "verified"
-                ? `A trusted timestamp was issued (${fmt(data.timestamp.tokenTimeUtc)}). PROOVRA validated the authority's signature and certificate chain when it was issued, and the token certifies the recorded digest.`
+                ? `A trusted timestamp was issued (${fmt(data.timestamp.tokenTimeUtc)}). PROOVRA validated the authority's signature and certificate chain when it was issued, and the token certifies the recorded digest. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}`
                 : data.timestamp.state === "not_checked" && data.timestamp.basis === "TOKEN_RECORDED_NOT_VALIDATED"
                   ? `A timestamp token was recorded (${fmt(data.timestamp.tokenTimeUtc)}) before PROOVRA validated timestamp tokens, and it has not been validated since. It is not presented as a trusted timestamp.`
                   : data.timestamp.state === "not_checked"

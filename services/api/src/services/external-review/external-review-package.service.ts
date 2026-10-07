@@ -15,7 +15,7 @@ import { prisma } from "../../db.js";
 import { headObject, presignGetObject } from "../../storage.js";
 import { appendCustodyEvent } from "../custody-events.service.js";
 import { noteCustodyFailure } from "../custody-events-observability.js";
-import { readExternalDisclosureArtifact } from "../reports/external-disclosure-artifact.js";
+import { asPublishedPackage, publishedProfilePackageWhere } from "@proovra/shared-runtime/reports";
 import type { ExternalReviewGrantRow } from "./external-review-grant.service.js";
 
 export type ExternalReviewPackageOutcome =
@@ -59,16 +59,18 @@ export async function releaseExternalDisclosurePackage(input: {
     orderBy: { version: "desc" },
     select: { version: true },
   });
-  const row = latestReport
+  // The EXTERNAL_DISCLOSURE package of the latest report version: its own
+  // published row.
+  const found = latestReport
     ? await prisma.verificationPackage.findFirst({
-        where: { evidenceId: evidence.id, version: latestReport.version },
-        select: { version: true, storageBucket: true, externalDisclosureArtifact: true },
+        where: publishedProfilePackageWhere("EXTERNAL_DISCLOSURE", { evidenceId: evidence.id, version: latestReport.version }),
+        select: { id: true, version: true, storageBucket: true, storageKey: true, s3VersionId: true, packageSha256: true, generatedAtUtc: true },
       })
     : null;
-  const ext = row ? readExternalDisclosureArtifact(row.externalDisclosureArtifact) : null;
-  if (!row || !ext) return { ok: false, status: 404, code: "external_disclosure_not_issued" };
+  if (!found) return { ok: false, status: 404, code: "external_disclosure_not_issued" };
+  const row = asPublishedPackage(found);
   try {
-    const meta = await headObject({ bucket: row.storageBucket, key: ext.storageKey });
+    const meta = await headObject({ bucket: row.storageBucket, key: row.storageKey });
     if (!meta.sizeBytes || meta.sizeBytes <= 0) throw new Error("empty");
   } catch {
     return { ok: false, status: 410, code: "package_file_unavailable" };
@@ -78,7 +80,7 @@ export async function releaseExternalDisclosurePackage(input: {
     eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
     payload: {
       version: row.version,
-      packageId: ext.packageId,
+      packageId: row.id,
       disclosureProfile: "EXTERNAL_DISCLOSURE",
       externalReviewGrantId: grant.id,
     },
@@ -87,9 +89,9 @@ export async function releaseExternalDisclosurePackage(input: {
   }).catch(noteCustodyFailure);
   const downloadUrl = await presignGetObject({
     bucket: row.storageBucket,
-    key: ext.storageKey,
-    versionId: ext.s3VersionId,
+    key: row.storageKey,
+    versionId: row.s3VersionId,
     expiresInSeconds: 600,
   });
-  return { ok: true, packageId: ext.packageId, reportVersion: row.version, packageSha256: ext.packageSha256, downloadUrl };
+  return { ok: true, packageId: row.id, reportVersion: row.version, packageSha256: row.packageSha256 ?? null, downloadUrl };
 }

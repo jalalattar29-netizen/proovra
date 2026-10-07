@@ -17,7 +17,7 @@ import { FileText, ShieldCheck } from "lucide-react";
 
 import { DISCLOSURE_PROFILE_LABELS } from "@proovra/shared";
 
-import type { ArtifactPackageAccess, MatchedHistory, MatchedPackage, MatchedVersion } from "./artifact-status-types";
+import type { ArtifactPackageAccess, MatchedHistory, MatchedIssuance, MatchedPackage, MatchedVersion } from "./artifact-status-types";
 
 /** PROOVRA's public package record (Public Verify), where anyone holding a package checks it. */
 function packageRecordHref(packageId: string): string {
@@ -108,26 +108,87 @@ function PackageCell({
           Download Verification Package ZIP v{pkg.version}
         </button>
       )}
-      {pkg.externalDisclosure && onDownloadExternal && access?.externalDisclosure !== false ? (
+      {/* An OLDER API summarised the external package on the full one. */}
+      {version.externalDisclosure === undefined && pkg.externalDisclosure && onDownloadExternal && access?.externalDisclosure !== false ? (
         <button
           type="button"
           className="app-secondary-action rga-pair__download"
           onClick={() => onDownloadExternal(pkg.version)}
           data-testid={`download-external-package-v${pkg.version}`}
-          aria-describedby={`pair-${version.reportVersion}-external-note`}
         >
           Download external disclosure package v{pkg.version}
         </button>
       ) : null}
-      {pkg.externalDisclosure ? (
-        <span className="rga-pair__meta" id={`pair-${version.reportVersion}-external-note`}>
-          For sharing outside the workspace: every verification material, without the original files, the report or
-          personal identifiers.
-        </span>
-      ) : pkg.packageId ? null : (
-        <span className="rga-pair__meta">Issued before external disclosure packages existed.</span>
-      )}
+      {!pkg.packageId ? <span className="rga-pair__meta">Issued before external disclosure packages existed.</span> : null}
     </div>
+  );
+}
+
+/** The EXTERNAL_DISCLOSURE package of a version — its own sealed artifact. */
+function ExternalPackageCell({
+  version,
+  pkg,
+  formatDateTime,
+  formatBytes,
+  onDownloadExternal,
+  access,
+}: {
+  version: MatchedVersion;
+  pkg: MatchedPackage;
+  formatDateTime: (v: string | null | undefined) => string;
+  formatBytes: (v: string | number | null | undefined) => string;
+  onDownloadExternal?: (v: number) => void;
+  access: ArtifactPackageAccess | null;
+}) {
+  const noteId = `pair-${version.reportVersion}-external-note`;
+  return (
+    <div className="rga-pair__artifact" data-testid={`pair-${version.reportVersion}-external`}>
+      <span className="rga-pair__name">
+        <ShieldCheck size={16} strokeWidth={2} aria-hidden="true" /> External disclosure package v{pkg.version}
+      </span>
+      <span className="rga-pair__meta" id={noteId}>
+        For sharing outside the workspace: every verification material, without the original files, the report or
+        personal identifiers.
+      </span>
+      <span className="rga-pair__meta">
+        {formatDateTime(pkg.generatedAtUtc)} · {formatBytes(pkg.sizeBytes)}
+      </span>
+      <Digest value={pkg.sha256} label={`External disclosure package v${pkg.version}`} />
+      {pkg.packageId ? (
+        <span className="rga-pair__meta" data-testid={`pair-${version.reportVersion}-external-profile`}>
+          {DISCLOSURE_PROFILE_LABELS.EXTERNAL_DISCLOSURE}
+          {" · Package ID "}
+          <code dir="ltr">{pkg.packageId}</code>
+          {" · "}
+          <a className="rga-pair__link" href={packageRecordHref(pkg.packageId)} target="_blank" rel="noopener noreferrer">
+            Check with PROOVRA
+          </a>
+        </span>
+      ) : null}
+      {onDownloadExternal && access?.externalDisclosure !== false ? (
+        <button
+          type="button"
+          className="app-secondary-action rga-pair__download"
+          onClick={() => onDownloadExternal(pkg.version)}
+          data-testid={`download-external-package-v${pkg.version}`}
+          aria-describedby={noteId}
+        >
+          Download external disclosure package v{pkg.version}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** A profile of this version that is not published: being issued, or its last attempt failed. */
+function IssuanceNote({ item, formatDateTime }: { item: MatchedIssuance; formatDateTime: (v: string | null | undefined) => string }) {
+  return (
+    <p className="rga-pair__reason" data-testid={`issuance-${item.disclosureProfile}-${item.state}`} role="status">
+      <span>{DISCLOSURE_PROFILE_LABELS[item.disclosureProfile]}:</span>{" "}
+      {item.state === "RESERVED"
+        ? "being issued. It is not available until it is published."
+        : `the last attempt failed${item.failedAtUtc ? ` (${formatDateTime(item.failedAtUtc)})` : ""}. It is not available; a retry keeps the same package ID.`}
+    </p>
   );
 }
 
@@ -229,7 +290,20 @@ export function MatchedVersionHistory({
                   access={packageAccess}
                   missingAction={v.latest ? latestPackageAction : null}
                 />
+                {v.externalDisclosure ? (
+                  <ExternalPackageCell
+                    version={v}
+                    pkg={v.externalDisclosure}
+                    formatDateTime={formatDateTime}
+                    formatBytes={formatBytes}
+                    onDownloadExternal={onDownloadExternalPackageVersion}
+                    access={packageAccess}
+                  />
+                ) : null}
               </div>
+              {(v.issuance ?? []).map((item) => (
+                <IssuanceNote key={item.packageId} item={item} formatDateTime={formatDateTime} />
+              ))}
               {v.issueReason ? (
                 <p className="rga-pair__reason">
                   <span>Reason recorded:</span> <span className="rga-pair__reason-text">{v.issueReason}</span>

@@ -59,6 +59,7 @@ import {
 import { resolveEvidenceOutputEligibilityByRecord } from "../services/billing/evidence-output-eligibility.service.js";
 import { resolveOutputRecordApplicability } from "../services/evidence-artifact-status.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   cursor: z.string().min(1).max(512).optional(),
@@ -335,7 +336,7 @@ export default async function registerReportsRoutes(
           },
         }),
         prisma.verificationPackage.findMany({
-          where: { evidenceId: { in: evidenceIds } },
+          where: primaryPublishedPackageWhere({ evidenceId: { in: evidenceIds } }),
           orderBy: [{ evidenceId: "asc" }, { version: "desc" }],
           distinct: ["evidenceId"],
           select: {

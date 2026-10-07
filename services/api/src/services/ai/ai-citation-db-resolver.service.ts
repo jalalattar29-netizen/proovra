@@ -17,6 +17,7 @@ import type {
   CitationType,
 } from "./ai-citation.service.js";
 
+import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
 export type CitationTypeLookup = (
   objectId: string,
 ) => Promise<CitationTarget | null>;
@@ -68,8 +69,8 @@ export type CitationPrisma = {
     }) => Promise<{ version: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
   };
   verificationPackage?: {
-    findUnique: (args: {
-      where: { id: string };
+    findFirst: (args: {
+      where: Record<string, unknown>;
       select: Record<string, true | { select: Record<string, true> }>;
     }) => Promise<{ version: number; evidence: { teamId: string | null; deletedAt: Date | null } } | null>;
   };
@@ -146,8 +147,8 @@ export function buildWorkspaceCitationLookups(
       };
     },
     VERIFICATION_PACKAGE: async (id) => {
-      const row = await prisma.verificationPackage?.findUnique({
-        where: { id },
+      const row = await prisma.verificationPackage?.findFirst({
+        where: publishedPackageWhere({ id }),
         select: { version: true, evidence: { select: { teamId: true, deletedAt: true } } },
       });
       if (!row) return null;

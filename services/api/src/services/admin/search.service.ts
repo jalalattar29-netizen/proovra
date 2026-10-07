@@ -32,6 +32,7 @@ import { customerOrganizationWhere } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 
+import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
 // Uniform, secret-free result shape returned for every entity type.
 export type AdminSearchResult = {
   type: AdminSearchType;
@@ -289,12 +290,12 @@ export async function adminGlobalSearch(
 
     wants("verificationPackage")
       ? client.verificationPackage.findMany({
-          where: {
+          where: publishedPackageWhere({
             OR: [
               ...(isUuidLike(q) ? [{ id: q }, { evidenceId: q }] : []),
               { packageType: insensitive(q) },
             ],
-          },
+          }),
           take: limit,
           orderBy: { generatedAtUtc: "desc" },
           // id + evidenceId + version + packageType. Never storageKey/bucket.

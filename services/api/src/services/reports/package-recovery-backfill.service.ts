@@ -208,6 +208,8 @@ async function selectGapPage(p: {
     WHERE NOT EXISTS (
       SELECT 1 FROM verification_packages p
       WHERE p.evidence_id = e.id AND p.version = lr.version
+        AND p.state = 'PUBLISHED'
+        AND (p.disclosure_profile IS NULL OR p.disclosure_profile = 'FULL_FORENSIC')
     )
     AND (${p.workspaceId}::uuid IS NULL OR e.team_id = ${p.workspaceId}::uuid)
     AND (${p.after}::uuid IS NULL OR e.id > ${p.after}::uuid)

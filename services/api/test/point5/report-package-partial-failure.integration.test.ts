@@ -329,7 +329,7 @@ describe("partial Report/Package failure (live PostgreSQL 16)", () => {
      * is inert fixture text; it signs nothing and verifies nothing.
      */
     await prisma.signingKey.upsert({
-      where: { keyId_version: { keyId: FIXTURE_SIGNING_KEY_ID, version: 1 } },
+      where: { keyId_version_purpose: { keyId: FIXTURE_SIGNING_KEY_ID, version: 1, purpose: "EVIDENCE_SIGNATURE" } },
       create: {
         keyId: FIXTURE_SIGNING_KEY_ID,
         version: 1,

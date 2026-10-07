@@ -53,6 +53,7 @@ import {
   getCaseAssignmentRoles,
 } from "../services/cases/case-permission.service.js";
 
+import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 /**
  * Phase 32.8D-frontend-closure — Canonical case mutation gate.
  *
@@ -824,7 +825,7 @@ export async function caseWorkspaceRoutes(app: FastifyInstance) {
           _count: {
             select: {
               reports: true,
-              verificationPackages: true,
+              verificationPackages: { where: primaryPublishedPackageWhere() },
             },
           },
         },

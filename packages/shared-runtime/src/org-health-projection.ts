@@ -50,6 +50,7 @@ import {
   workspaceEvidenceWhere,
 } from "./workspace-scope.js";
 
+import { primaryPublishedPackageWhere } from "./reports/verification-package-artifacts.js";
 /**
  * THE PIPELINE STAGES, named once.
  *
@@ -177,7 +178,7 @@ export async function computeOrgHealthCounts(
           AND: [evidence],
           deletedAt: null,
           status: { in: [...PACKAGE_ELIGIBLE_STATUSES] as never },
-          verificationPackages: { none: {} },
+          verificationPackages: { none: primaryPublishedPackageWhere() },
         },
       }),
     ]);

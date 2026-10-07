@@ -1,98 +1,49 @@
 "use client";
 
 /**
- * PROOVRA'S PUBLIC PACKAGE RECORD — /verify/package/<packageId>.
+ * PROOVRA'S PUBLIC PACKAGE RECORD — a Public Verify page.
  *
- * The verification package README sends a recipient here to bind the package
- * they hold to PROOVRA from OUTSIDE it: the package id, the SHA-256 of the
- * exact ZIP PROOVRA issued, the seal digest, and the seal key's fingerprint,
- * status and validity from PROOVRA's signing-key registry. A file can be
- * checked in the browser (hashed locally; nothing is uploaded).
- *
- * Reads GET /public/verification-packages/:packageId. It shows no evidence
- * content and does not publish the evidence record. If the record cannot be
- * read, the page says that external key binding is unavailable — never that
- * the package is genuine.
+ * Someone holding a verification package (often outside any workspace) checks
+ * it against PROOVRA's record: the package id, its SHA-256, and the binding of
+ * the key that sealed it (registered for PACKAGE SEALING, valid, rotated or
+ * revoked). The answer is `PublicPackageRecord` (@proovra/shared), read from
+ * the Public Verify API family, and rendered with the Public Verify vocabulary
+ * shared with the record page (../../_shared/verify-ui). The package file is
+ * hashed in the browser and never uploaded.
  */
-
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
+import {
+  DISCLOSURE_PROFILE_LABELS,
+  PUBLIC_PACKAGE_KEY_BINDING_TEXT,
+  type ComponentVerificationState,
+  type PublicPackageKeyBinding,
+  type PublicPackageRecord,
+} from "@proovra/shared";
+
 import { apiFetch } from "../../../../lib/api";
+import { toSafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { Row, VerifyCard, VerifyMain, fmt } from "../../_shared/verify-ui";
 
-type PackageRecord = {
-  packageId: string;
-  packageIdRecordedInPackage: boolean;
-  disclosureProfile: "FULL_FORENSIC" | "EXTERNAL_DISCLOSURE" | "LEGACY";
-  completeForensicPackage: boolean;
-  sourceFullPackageId: string | null;
-  externalDisclosurePackageId: string | null;
-  reportVersion: number;
-  issuedAtUtc: string;
-  packageSha256: string | null;
-  packageFormatVersion: number | null;
-  sealSha256: string | null;
-  sealKeyFingerprintSha256: string | null;
-  sealKey: {
-    keyId: string;
-    version: number;
-    algorithm: string;
-    status: "ACTIVE" | "SUPERSEDED" | "REVOKED";
-    validFromUtc: string;
-    validUntilUtc: string | null;
-    revokedAtUtc: string | null;
-  } | null;
-  keyBinding: "BOUND" | "BOUND_KEY_REVOKED" | "KEY_NOT_PUBLISHED" | "NOT_SEALED";
-  supersedes: { packageId: string; reportVersion: number } | null;
-  supersededBy: { packageId: string; reportVersion: number } | null;
-  statement: string;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The binding, in the Public Verify state vocabulary. */
+const BINDING_STATE: Record<PublicPackageKeyBinding, ComponentVerificationState> = {
+  BOUND: "verified",
+  BOUND_KEY_REVOKED: "failed",
+  KEY_NOT_PUBLISHED: "not_checked",
+  NOT_SEALED: "not_issued",
+};
+const BINDING_BADGE: Record<PublicPackageKeyBinding, string> = {
+  BOUND: "Bound to PROOVRA",
+  BOUND_KEY_REVOKED: "Key revoked",
+  KEY_NOT_PUBLISHED: "Key not registered",
+  NOT_SEALED: "Not sealed",
 };
 
-const PROFILE_LABEL: Record<PackageRecord["disclosureProfile"], string> = {
-  FULL_FORENSIC: "Full forensic package",
-  EXTERNAL_DISCLOSURE: "External disclosure package (not the complete forensic package)",
-  LEGACY: "Full package (issued before disclosure profiles)",
-};
-
-const BINDING_TEXT: Record<PackageRecord["keyBinding"], { title: string; body: string; tone: "ok" | "warn" }> = {
-  BOUND: {
-    title: "Seal key published by PROOVRA",
-    body: "The key that sealed this package is in PROOVRA's signing-key registry. Compare its fingerprint with signingKeyFingerprint in package-seal.sig.",
-    tone: "ok",
-  },
-  BOUND_KEY_REVOKED: {
-    title: "Seal key published by PROOVRA — now revoked",
-    body: "The key that sealed this package is in PROOVRA's registry and has since been revoked. The package was issued while the key was valid only if its issue time is before the revocation time below.",
-    tone: "warn",
-  },
-  KEY_NOT_PUBLISHED: {
-    title: "External key binding unavailable",
-    body: "PROOVRA issued this package, but its seal key is not in the published registry. The seal shows the package is internally consistent; its attribution to PROOVRA cannot be confirmed from outside it.",
-    tone: "warn",
-  },
-  NOT_SEALED: {
-    title: "Package not sealed",
-    body: "This package was issued before sealed packages. Its files can be checked against package-checksums.json, but no seal binds them.",
-    tone: "warn",
-  },
-};
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-1 border-b border-slate-200 py-3 sm:grid-cols-[14rem_1fr]">
-      <dt className="text-sm font-semibold text-slate-600">{label}</dt>
-      <dd className="min-w-0 text-sm text-slate-900">{children}</dd>
-    </div>
-  );
-}
-
-function Mono({ value }: { value: string | null }) {
-  if (!value) return <span className="text-slate-500">Not recorded</span>;
-  return (
-    <code dir="ltr" className="break-all font-mono text-[13px] text-slate-900">
-      {value}
-    </code>
-  );
+function recordHref(packageId: string): string {
+  return `/verify/package/${encodeURIComponent(packageId)}`;
 }
 
 async function sha256OfFile(file: File): Promise<string> {
@@ -103,177 +54,232 @@ async function sha256OfFile(file: File): Promise<string> {
 export default function PackageRecordPage() {
   const params = useParams<{ packageId: string }>();
   const packageId = params?.packageId ?? "";
-  const [record, setRecord] = useState<PackageRecord | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "not_found" | "unavailable">("loading");
+  const [record, setRecord] = useState<PublicPackageRecord | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "not_found" | "error">("loading");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fileCheck, setFileCheck] = useState<{ name: string; sha256: string } | null>(null);
   const [hashing, setHashing] = useState(false);
 
   useEffect(() => {
     if (!packageId) return;
+    // Same answer as the API for a malformed id, without spending a request.
+    if (!UUID.test(packageId)) {
+      setState("not_found");
+      return;
+    }
     let cancelled = false;
     setState("loading");
     apiFetch(`/public/verification-packages/${encodeURIComponent(packageId)}`)
       .then((data) => {
         if (cancelled) return;
-        setRecord(data as PackageRecord);
+        setRecord(data as PublicPackageRecord);
         setState("ready");
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const status = (err as { statusCode?: number } | null)?.statusCode;
-        setState(status === 404 ? "not_found" : "unavailable");
+        if ((err as { statusCode?: number } | null)?.statusCode === 404) {
+          setState("not_found");
+          return;
+        }
+        setErrorMessage(toSafeUserError(err, { message: "The package record could not be loaded." }).message);
+        setState("error");
       });
     return () => {
       cancelled = true;
     };
   }, [packageId]);
 
-  const binding = record ? BINDING_TEXT[record.keyBinding] : null;
-  const match =
-    fileCheck && record?.packageSha256 ? fileCheck.sha256 === record.packageSha256.toLowerCase() : null;
+  const match = fileCheck && record?.packageSha256 ? fileCheck.sha256 === record.packageSha256.toLowerCase() : null;
 
   return (
-    <main className="min-h-screen bg-white px-4 py-10 text-slate-900" data-testid="package-record-root">
-      <div className="mx-auto max-w-3xl">
-        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">PROOVRA package record</p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-900">Check a verification package with PROOVRA</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-700">
-          This page states what PROOVRA issued. It does not show or publish the evidence record, and it describes the
-          package as issued, not the record&apos;s current state.
+    <VerifyMain testId="package-record-root" tier="package">
+      <h1 style={{ fontSize: 26, lineHeight: 1.25, margin: "0 0 8px" }}>Check a verification package with PROOVRA</h1>
+      <p style={{ color: "#475569", margin: "0 0 20px" }}>
+        A key found only inside a package vouches for nothing: anyone can reseal an altered package with their own
+        key. This page states what PROOVRA recorded about the package it issued, so you can bind your copy to PROOVRA.
+      </p>
+
+      {state === "loading" ? (
+        <p role="status" aria-live="polite" style={{ color: "#475569" }}>
+          Loading the package record…
         </p>
+      ) : null}
+      {state === "not_found" ? (
+        <p role="alert" data-testid="package-record-not-found" style={{ color: "#9b1c1c", fontWeight: 600 }}>
+          No PROOVRA package record matches this package ID. Check the ID in the package&apos;s README.
+        </p>
+      ) : null}
+      {state === "error" ? (
+        <p role="alert" data-testid="package-record-unavailable" style={{ color: "#9b1c1c", fontWeight: 600 }}>
+          {errorMessage}
+        </p>
+      ) : null}
 
-        {state === "loading" ? (
-          <p className="mt-8 text-sm text-slate-600" role="status">
-            Reading PROOVRA&apos;s package record…
-          </p>
-        ) : null}
+      {state === "ready" && record ? (
+        <>
+          <VerifyCard id="package-identity" title="Package">
+            <Row
+              testId="package-record-profile"
+              label="Disclosure profile"
+              state={record.disclosureProfile === "LEGACY" ? "not_checked" : "verified"}
+              badge={DISCLOSURE_PROFILE_LABELS[record.disclosureProfile]}
+              detail={
+                <>
+                  Package ID <code dir="ltr" data-testid="package-record-id">{record.packageId}</code>, certifying report
+                  version {record.reportVersion}, issued {fmt(record.issuedAtUtc)}.
+                  {record.packageIdRecordedInPackage ? "" : " This package was issued before package IDs were sealed inside packages."}
+                </>
+              }
+            />
+            <Row
+              label="Package file SHA-256"
+              state={record.packageSha256 ? "verified" : "not_issued"}
+              badge={record.packageSha256 ? "Recorded" : undefined}
+              detail={
+                record.packageSha256 ? (
+                  <code dir="ltr" data-testid="package-record-sha256">{record.packageSha256}</code>
+                ) : (
+                  "PROOVRA did not record a digest for this package."
+                )
+              }
+            />
+            <Row
+              testId="package-record-binding"
+              label="Seal key"
+              state={BINDING_STATE[record.keyBinding]}
+              badge={BINDING_BADGE[record.keyBinding]}
+              detail={
+                <>
+                  <span data-testid="package-record-binding-text">{PUBLIC_PACKAGE_KEY_BINDING_TEXT[record.keyBinding]}</span>
+                  {record.sealKey ? (
+                    <span style={{ display: "block", marginTop: 6 }} data-testid="package-record-seal-key">
+                      Purpose: package seal · {record.sealKey.algorithm} · key {record.sealKey.keyId} version{" "}
+                      {record.sealKey.version} · fingerprint <code dir="ltr">{record.sealKey.fingerprintSha256}</code> ·
+                      valid from {fmt(record.sealKey.validFromUtc)}
+                      {record.sealKey.validUntilUtc ? ` until ${fmt(record.sealKey.validUntilUtc)}` : ""}
+                      {record.sealKey.status === "SUPERSEDED" && record.sealKey.supersededByVersion != null
+                        ? ` · rotated to version ${record.sealKey.supersededByVersion}`
+                        : ""}
+                      {record.sealKey.revokedAtUtc ? ` · revoked ${fmt(record.sealKey.revokedAtUtc)}` : ""}.
+                    </span>
+                  ) : record.sealKeyFingerprintSha256 ? (
+                    <span style={{ display: "block", marginTop: 6 }}>
+                      The package records a seal key with fingerprint{" "}
+                      <code dir="ltr">{record.sealKeyFingerprintSha256}</code>.
+                    </span>
+                  ) : null}
+                </>
+              }
+            />
+          </VerifyCard>
 
-        {state === "not_found" ? (
-          <section className="mt-8 rounded-lg border border-amber-300 bg-amber-50 p-4" role="alert" data-testid="package-record-not-found">
-            <h2 className="text-base font-semibold text-amber-900">No PROOVRA package record matches</h2>
-            <p className="mt-1 text-sm text-amber-900">
-              PROOVRA has no package with this ID. External key binding is unavailable: do not treat the package as
-              issued by PROOVRA on the strength of its own contents.
+          <VerifyCard id="package-file" title="Check your copy" style={{ marginTop: 16 }}>
+            <p style={{ fontSize: 14, color: "#475569", margin: "8px 0" }}>
+              Choose the package ZIP you hold. It is hashed in this browser and is not uploaded.
             </p>
-          </section>
-        ) : null}
-
-        {state === "unavailable" ? (
-          <section className="mt-8 rounded-lg border border-amber-300 bg-amber-50 p-4" role="alert" data-testid="package-record-unavailable">
-            <h2 className="text-base font-semibold text-amber-900">The package record could not be read</h2>
-            <p className="mt-1 text-sm text-amber-900">
-              External key binding is unavailable right now. Try again later; until then the package&apos;s attribution
-              to PROOVRA cannot be confirmed from outside it.
-            </p>
-          </section>
-        ) : null}
-
-        {state === "ready" && record && binding ? (
-          <>
-            <section
-              className={`mt-8 rounded-lg border p-4 ${binding.tone === "ok" ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}
-              data-testid="package-record-binding"
-              data-key-binding={record.keyBinding}
-            >
-              <h2 className={`text-base font-semibold ${binding.tone === "ok" ? "text-emerald-900" : "text-amber-900"}`}>{binding.title}</h2>
-              <p className={`mt-1 text-sm ${binding.tone === "ok" ? "text-emerald-900" : "text-amber-900"}`}>{binding.body}</p>
-            </section>
-
-            <dl className="mt-6" data-testid="package-record-facts">
-              <Row label="Package ID">
-                <Mono value={record.packageId} />
-                {!record.packageIdRecordedInPackage ? (
-                  <p className="mt-1 text-xs text-slate-600">This package was issued before package IDs were written into packages.</p>
-                ) : null}
-              </Row>
-              <Row label="Disclosure profile">{PROFILE_LABEL[record.disclosureProfile]}</Row>
-              <Row label="Certifies report version">v{record.reportVersion}</Row>
-              <Row label="Issued">
-                <time dateTime={record.issuedAtUtc}>{new Date(record.issuedAtUtc).toUTCString()}</time>
-              </Row>
-              <Row label="Package SHA-256">
-                <Mono value={record.packageSha256} />
-              </Row>
-              <Row label="Seal SHA-256">
-                <Mono value={record.sealSha256} />
-              </Row>
-              <Row label="Seal key fingerprint">
-                <Mono value={record.sealKeyFingerprintSha256} />
-              </Row>
-              {record.sealKey ? (
-                <Row label="Seal key">
-                  {record.sealKey.keyId} v{record.sealKey.version} · {record.sealKey.algorithm} ·{" "}
-                  <span data-testid="package-record-key-status">{record.sealKey.status.toLowerCase()}</span>
-                  <p className="mt-1 text-xs text-slate-600">
-                    Valid from {new Date(record.sealKey.validFromUtc).toUTCString()}
-                    {record.sealKey.validUntilUtc ? ` until ${new Date(record.sealKey.validUntilUtc).toUTCString()}` : ""}
-                    {record.sealKey.revokedAtUtc ? ` · revoked ${new Date(record.sealKey.revokedAtUtc).toUTCString()}` : ""}
-                  </p>
-                </Row>
-              ) : null}
-              {record.supersedes ? (
-                <Row label="Supersedes">
-                  <a className="text-violet-700 underline" href={`/verify/package/${record.supersedes.packageId}`}>
-                    Package for report v{record.supersedes.reportVersion}
-                  </a>{" "}
-                  (unchanged; still valid for what it stated when issued)
-                </Row>
-              ) : null}
-              {record.supersededBy ? (
-                <Row label="Superseded by">
-                  <a className="text-violet-700 underline" href={`/verify/package/${record.supersededBy.packageId}`}>
-                    Package for report v{record.supersededBy.reportVersion}
-                  </a>
-                </Row>
-              ) : null}
-            </dl>
-
-            <section className="mt-8" aria-labelledby="file-check-title">
-              <h2 id="file-check-title" className="text-base font-semibold text-slate-900">
-                Check the file you hold
-              </h2>
-              <p className="mt-1 text-sm text-slate-700">
-                Choose the package ZIP. Its SHA-256 is computed in this browser; the file is not uploaded.
-              </p>
-              <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-900 focus-within:outline focus-within:outline-2 focus-within:outline-violet-600">
-                <input
-                  type="file"
-                  accept=".zip,application/zip"
-                  className="app-visually-hidden"
-                  data-testid="package-record-file"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setHashing(true);
-                    try {
-                      setFileCheck({ name: file.name, sha256: await sha256OfFile(file) });
-                    } finally {
-                      setHashing(false);
-                    }
-                  }}
+            <label style={{ display: "inline-block", fontWeight: 600 }}>
+              <span>Package ZIP</span>{" "}
+              <input
+                type="file"
+                accept=".zip,application/zip"
+                data-testid="package-record-file"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setHashing(true);
+                  try {
+                    setFileCheck({ name: file.name, sha256: await sha256OfFile(file) });
+                  } finally {
+                    setHashing(false);
+                  }
+                }}
+              />
+            </label>
+            <div aria-live="polite" role="status" style={{ marginTop: 10 }}>
+              {hashing ? "Computing SHA-256…" : null}
+              {fileCheck && !hashing ? (
+                <Row
+                  testId="package-record-file-result"
+                  label={fileCheck.name}
+                  state={match === true ? "verified" : match === false ? "failed" : "not_checked"}
+                  badge={match === true ? "Matches" : match === false ? "Does not match" : undefined}
+                  detail={
+                    <>
+                      SHA-256 <code dir="ltr">{fileCheck.sha256}</code>.{" "}
+                      {match === true
+                        ? "Your copy is byte-for-byte the package PROOVRA issued. Check its seal with the commands in its README."
+                        : match === false
+                          ? "Your copy is not the package PROOVRA issued under this ID."
+                          : "PROOVRA recorded no digest to compare with."}
+                    </>
+                  }
                 />
-                Choose package ZIP
-              </label>
-              <div aria-live="polite" className="mt-3 text-sm">
-                {hashing ? <p className="text-slate-600">Computing SHA-256…</p> : null}
-                {fileCheck && !hashing ? (
-                  <p
-                    className={match ? "text-emerald-800" : "text-amber-900"}
-                    data-testid="package-record-file-result"
-                    data-match={match ? "true" : "false"}
-                  >
-                    {match
-                      ? `${fileCheck.name} is byte-for-byte the package PROOVRA issued.`
-                      : `${fileCheck.name} does not match the package PROOVRA issued (SHA-256 ${fileCheck.sha256}).`}
-                  </p>
-                ) : null}
-              </div>
-            </section>
+              ) : null}
+            </div>
+          </VerifyCard>
 
-            <p className="mt-8 text-xs leading-5 text-slate-600">{record.statement}</p>
-          </>
-        ) : null}
-      </div>
-    </main>
+          <VerifyCard id="package-related" title="Related packages" style={{ marginTop: 16 }}>
+            <Row
+              label="Issued with"
+              state={record.issuedWith.length ? "verified" : "not_issued"}
+              badge={record.issuedWith.length ? `${record.issuedWith.length}` : "None"}
+              detail={
+                record.issuedWith.length ? (
+                  <ul style={{ margin: 0, paddingInlineStart: 18 }}>
+                    {record.issuedWith.map((p) => (
+                      <li key={p.packageId}>
+                        {DISCLOSURE_PROFILE_LABELS[p.disclosureProfile]}:{" "}
+                        <a href={recordHref(p.packageId)}>
+                          <code dir="ltr">{p.packageId}</code>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  "No other package was issued with this one."
+                )
+              }
+            />
+            <Row
+              label="Supersedes"
+              state={record.supersedes ? "verified" : "not_issued"}
+              badge={record.supersedes ? `Report v${record.supersedes.reportVersion}` : "None"}
+              detail={
+                record.supersedes ? (
+                  <a href={recordHref(record.supersedes.packageId)}>
+                    <code dir="ltr">{record.supersedes.packageId}</code>
+                  </a>
+                ) : (
+                  "This is the first package of its profile for the record."
+                )
+              }
+            />
+            <Row
+              testId="package-record-superseded-by"
+              label="Superseded by"
+              state={record.supersededBy ? "pending" : "not_issued"}
+              badge={record.supersededBy ? `Report v${record.supersededBy.reportVersion}` : "Current"}
+              detail={
+                record.supersededBy ? (
+                  <>
+                    A later package of the same profile was issued:{" "}
+                    <a href={recordHref(record.supersededBy.packageId)}>
+                      <code dir="ltr">{record.supersededBy.packageId}</code>
+                    </a>
+                    . This package is unchanged and still verifies.
+                  </>
+                ) : (
+                  "No later package of this profile has been issued."
+                )
+              }
+            />
+          </VerifyCard>
+
+          <p style={{ fontSize: 13, color: "#475569", marginTop: 16 }} data-testid="package-record-statement">
+            {record.statement}
+          </p>
+        </>
+      ) : null}
+    </VerifyMain>
   );
 }

@@ -41,6 +41,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../../db.js";
 import { verifyObjectLockConfiguration } from "../../storage.js";
 
+import { publishedPackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 // ---------------------------------------------------------------------------
 // Bounded enums
 // ---------------------------------------------------------------------------
@@ -255,7 +256,7 @@ export async function listExports(
 
   if (kinds.includes("verification_package_zip")) {
     const packages = await client.verificationPackage.findMany({
-      where: { evidence: { teamId: input.teamId } },
+      where: publishedPackageWhere({ evidence: { teamId: input.teamId } }),
       select: {
         id: true,
         evidenceId: true,
@@ -267,7 +268,7 @@ export async function listExports(
       },
       orderBy: { generatedAtUtc: "desc" },
       take: limit,
-    });
+    }).then((rows) => rows.map(asPublishedPackage));
     for (const p of packages) {
       const packageMetadata = p.evidence
         .verificationPackageMetadata as
@@ -390,7 +391,7 @@ export async function resolveExportManifest(
 
   if (decoded.kind === "verification_package_zip") {
     const p = await client.verificationPackage.findFirst({
-      where: { id: decoded.rowId, evidence: { teamId: input.teamId } },
+      where: publishedPackageWhere({ id: decoded.rowId, evidence: { teamId: input.teamId } }),
       select: {
         id: true,
         evidenceId: true,
@@ -405,7 +406,7 @@ export async function resolveExportManifest(
         storageObjectLockLegalHoldStatus: true,
         evidence: { select: { teamId: true, organizationId: true, verificationPackageMetadata: true } },
       },
-    });
+    }).then((row) => (row ? asPublishedPackage(row) : null));
     if (!p) return { ok: false, code: "not_found", message: "Export not found." };
     const manifest: ExportManifest = {
       manifestVersion: 1,

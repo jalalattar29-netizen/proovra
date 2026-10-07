@@ -289,6 +289,13 @@ intakePlanJson?: prismaPkg.Prisma.InputJsonValue;
   requestContext?: { ip?: string | null; userAgent?: string | null; correlationId?: string | null };
   /** Extra non-secret facts for the evidence.create audit (e.g. a draft id). */
   auditMetadata?: Record<string, unknown>;
+  /**
+   * WHO acts at acquisition, when it is not the owner account itself: the
+   * secure-intake ingress declares an unauthenticated contributor (the owner
+   * is then the account that ISSUED the link). Recorded in the creation-time
+   * identity snapshot; never a value from a request body.
+   */
+  acquisitionActor?: { kind: "INTAKE_CONTRIBUTOR"; contributorEmailProvided: boolean } | null;
 })
 {
   // Fail closed on a caller that bypasses the type system: an unrecorded or
@@ -636,6 +643,19 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         // read as "not recorded", never as inferred.
         emailVerified: owner.emailVerifiedAt != null,
         workspaceKind: isPersonalWorkspaceCapture ? "PERSONAL" : "SHARED",
+        // WHO acted (2026-10-07). For an intake link the account fields below
+        // describe the account that ISSUED the link, never the contributor.
+        actorKind:
+          params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR"
+            ? "INTAKE_CONTRIBUTOR"
+            : owner.provider === "GUEST"
+              ? "GUEST_SESSION"
+              : "ACCOUNT_USER",
+        accountRole: params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR" ? "INTAKE_LINK_ISSUER" : "SUBMITTER",
+        contributorEmailProvided:
+          params.acquisitionActor?.kind === "INTAKE_CONTRIBUTOR"
+            ? params.acquisitionActor.contributorEmailProvided
+            : null,
         submittedByUserId: params.ownerUserId,
         createdByUserId: params.ownerUserId,
         uploadedByUserId: params.ownerUserId,

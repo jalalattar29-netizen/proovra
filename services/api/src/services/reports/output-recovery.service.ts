@@ -57,6 +57,7 @@ import {
   requestReportGeneration,
 } from "./report-generation-authority.service.js";
 
+import { primaryPublishedPackageWhere, versionPackagesComplete, asPublishedPackage } from "@proovra/shared-runtime/reports";
 /**
  * THE ONE MAPPING from a persisted `EvidenceStatus` to the record axis.
  *
@@ -238,11 +239,11 @@ export async function loadEvidenceOutputFacts(input: {
       select: { evidenceId: true, version: true, generatedAtUtc: true, sizeBytes: true },
     }),
     prisma.verificationPackage.findMany({
-      where: { evidenceId: { in: foundIds } },
+      where: primaryPublishedPackageWhere({ evidenceId: { in: foundIds } }),
       orderBy: [{ evidenceId: "asc" }, { version: "desc" }],
       distinct: ["evidenceId"],
       select: { evidenceId: true, version: true, generatedAtUtc: true, sizeBytes: true, packageType: true },
-    }),
+    }).then((rows) => rows.map(asPublishedPackage)),
     prisma.reportGenerationRequest.findMany({
       where: { evidenceId: { in: foundIds }, artifactType: "REPORT" },
       orderBy: [{ evidenceId: "asc" }, { createdAtUtc: "desc" }],
@@ -273,9 +274,9 @@ export async function loadEvidenceOutputFacts(input: {
   const pairs = reports.map((r) => ({ evidenceId: r.evidenceId, version: r.version }));
   const pairedPackages = pairs.length
     ? await prisma.verificationPackage.findMany({
-        where: { OR: pairs },
+        where: primaryPublishedPackageWhere({ OR: pairs }),
         select: { evidenceId: true, version: true, generatedAtUtc: true, sizeBytes: true, packageType: true },
-      })
+      }).then((rows) => rows.map(asPublishedPackage))
     : [];
   const pairedBy = new Map(pairedPackages.map((p) => [p.evidenceId, p]));
 
@@ -599,11 +600,12 @@ export async function requestOutputRecovery(input: {
     if (refusal) {
       return { kind: "declined", outcome: "NOT_RECOVERABLE", reason: refusal, loaded };
     }
-    const [report, pkg] = await Promise.all([
+    // Nothing to recover only when every profile this version owes is PUBLISHED.
+    const [report, packagesComplete] = await Promise.all([
       prisma.report.count({ where: { evidenceId: input.evidenceId, version } }),
-      prisma.verificationPackage.count({ where: { evidenceId: input.evidenceId, version } }),
+      versionPackagesComplete(prisma, { evidenceId: input.evidenceId, version }),
     ]);
-    if (pkg > 0) return { kind: "declined", outcome: "NOTHING_TO_RECOVER", reason: "NOT_REQUIRED", loaded };
+    if (packagesComplete) return { kind: "declined", outcome: "NOTHING_TO_RECOVER", reason: "NOT_REQUIRED", loaded };
     if (report === 0) {
       // A package is built for a report that exists; a missing report is not
       // repaired by minting one here.
@@ -856,7 +858,7 @@ export async function loadOutputPairing(
       select: { evidenceId: true, version: true },
     }),
     prisma.verificationPackage.findMany({
-      where: { evidenceId: { in: ids } },
+      where: primaryPublishedPackageWhere({ evidenceId: { in: ids } }),
       select: { evidenceId: true, version: true },
     }),
   ]);

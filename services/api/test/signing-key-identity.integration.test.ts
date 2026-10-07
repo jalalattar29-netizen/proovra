@@ -80,15 +80,15 @@ describe("evidence signing-key identity (live PostgreSQL 16)", () => {
     const keyId = `t003s-${randomUUID().slice(0, 8)}`;
     const k1 = generateKeyPairSync("ed25519");
     const k2 = generateKeyPairSync("ed25519");
-    expect((await registry.registerSigningKey(prisma, { keyId, version: 1, publicKeyPem: pem(k1.publicKey, "spki") })).outcome).toBe("created");
-    await prisma.signingKey.update({ where: { keyId_version: { keyId, version: 1 } }, data: { revokedAt: new Date() } });
-    const again = await registry.registerSigningKey(prisma, { keyId, version: 1, publicKeyPem: `\n${pem(k1.publicKey, "spki")}\n` });
+    expect((await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: pem(k1.publicKey, "spki") })).outcome).toBe("created");
+    await prisma.signingKey.update({ where: { keyId_version_purpose: { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" } }, data: { revokedAt: new Date() } });
+    const again = await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: `\n${pem(k1.publicKey, "spki")}\n` });
     expect(again.outcome).toBe("unchanged");
     expect(again.revokedAt).toBeInstanceOf(Date);
     await expect(
-      registry.registerSigningKey(prisma, { keyId, version: 1, publicKeyPem: pem(k2.publicKey, "spki") }),
+      registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: pem(k2.publicKey, "spki") }),
     ).rejects.toMatchObject({ code: "SIGNING_KEY_IDENTITY_CONFLICT" });
-    const row = await prisma.signingKey.findUniqueOrThrow({ where: { keyId_version: { keyId, version: 1 } } });
+    const row = await prisma.signingKey.findUniqueOrThrow({ where: { keyId_version_purpose: { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" } } });
     expect(registry.publicKeySpkiSha256(row.publicKeyPem)).toBe(registry.publicKeySpkiSha256(pem(k1.publicKey, "spki")));
     expect(row.revokedAt).not.toBeNull();
   });

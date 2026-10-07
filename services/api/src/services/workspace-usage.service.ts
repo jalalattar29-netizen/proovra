@@ -17,6 +17,7 @@ import {
   type PlanType,
 } from "@proovra/shared-billing";
 
+import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
 const GB = 1024n * 1024n * 1024n;
 
 type StorageAddonOffer = {
@@ -376,7 +377,7 @@ export async function getWorkspaceUsage(
       _sum: { sizeBytes: true },
     }),
     prisma.verificationPackage.aggregate({
-      where: verificationPackageWhere,
+      where: publishedPackageWhere(verificationPackageWhere),
       _sum: { sizeBytes: true },
     }),
     // ET-INT-03 / ET-COM-02 — the record meter counts the allowance-slot

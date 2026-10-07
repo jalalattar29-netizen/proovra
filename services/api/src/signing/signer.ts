@@ -146,6 +146,8 @@ class ControlledEvidenceSigner implements EvidenceSigner {
     const verified = await assertSignatureVerifiesWithRegisteredKey(prisma, {
       keyId: result.keyId,
       version: result.keyVersion,
+      // The evidence signer verifies only against an EVIDENCE_SIGNATURE key.
+      purpose: "EVIDENCE_SIGNATURE",
       messageHex: messageHex.trim().toLowerCase(),
       signatureBase64: result.signatureBase64,
       selfPublicKeyPem: this.inner.ownPublicKeyPem?.() ?? null,

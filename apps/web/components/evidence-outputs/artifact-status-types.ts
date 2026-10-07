@@ -40,9 +40,14 @@ export type ArtifactActiveRequest = OutputActiveRequestView & {
 export type MatchedPackage = {
   /** THE package identity (absent from an older API). */
   packageId?: string;
-  /** FULL_FORENSIC, or LEGACY for a package issued before disclosure profiles. */
-  disclosureProfile?: "FULL_FORENSIC" | "LEGACY";
-  /** The EXTERNAL_DISCLOSURE companion issued with it, when one exists. */
+  /** FULL_FORENSIC | EXTERNAL_DISCLOSURE, or LEGACY (issued before disclosure profiles). */
+  disclosureProfile?: "FULL_FORENSIC" | "EXTERNAL_DISCLOSURE" | "LEGACY";
+  /** The issuance that issued it (absent from an older API). */
+  issuanceId?: string | null;
+  /** The seal key's exact registry identity (absent from an older API). */
+  sealKey?: { keyId: string; version: number; fingerprintSha256: string | null } | null;
+  supersedesPackageId?: string | null;
+  /** An OLDER API's companion summary; the current API lists it as its own artifact. */
   externalDisclosure?: { packageId: string; sha256: string | null; sizeBytes: string | null } | null;
   version: number;
   generatedAtUtc: string;
@@ -63,8 +68,22 @@ export type MatchedVersion = {
   issueKind: string | null;
   issueReason: string | null;
   latest: boolean;
+  /** The published PRIMARY package (FULL_FORENSIC or legacy). */
   package: MatchedPackage | null;
+  /** The published EXTERNAL_DISCLOSURE package — its own artifact (absent from an older API). */
+  externalDisclosure?: MatchedPackage | null;
+  /** Package profiles of this version not (yet) published (absent from an older API). */
+  issuance?: MatchedIssuance[];
   digestMismatch: boolean;
+};
+
+export type MatchedIssuance = {
+  disclosureProfile: "FULL_FORENSIC" | "EXTERNAL_DISCLOSURE" | "LEGACY";
+  packageId: string;
+  state: "RESERVED" | "FAILED";
+  reservedAtUtc: string | null;
+  failedAtUtc: string | null;
+  terminalReason: string | null;
 };
 
 /** Which package profiles the caller's role permits (absent from an older API). */

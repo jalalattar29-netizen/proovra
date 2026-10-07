@@ -33,6 +33,7 @@ import {
   workspaceEvidenceWhereMany,
 } from "@proovra/shared-runtime";
 
+import { publishedPackageWhere } from "@proovra/shared-runtime/reports";
 type TrendBucket = {
   date: string;
   pageViews: number;
@@ -412,12 +413,12 @@ async function computeTeamWorkspaceHealth() {
     }),
     prisma.verificationPackage.groupBy({
       by: ["evidenceId"],
-      where: {
+      where: publishedPackageWhere({
         evidence: {
           teamId: { in: teamIds },
           deletedAt: null,
         },
-      },
+      }),
       _sum: {
         sizeBytes: true,
       },

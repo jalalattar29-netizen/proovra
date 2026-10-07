@@ -121,6 +121,7 @@ import { evaluateReconcileHealth } from "../ops-health/reconcile-health.service.
 import { evaluateSecurityRollupHealth } from "../ops-health/security-rollup-health.service.js";
 import type { OpsHealthState } from "../ops-health/types.js";
 
+import { primaryPublishedPackageWhere, asPublishedPackage } from "@proovra/shared-runtime/reports";
 // ---------------------------------------------------------------------------
 // Public contract types
 // ---------------------------------------------------------------------------
@@ -1659,7 +1660,7 @@ async function runCaseOperations(
             by: ["caseId"],
             where: {
               caseId: { in: caseIds },
-              evidence: { teamId, verificationPackages: { some: {} } },
+              evidence: { teamId, verificationPackages: { some: primaryPublishedPackageWhere() } },
             },
             _count: { _all: true },
           })
@@ -1944,14 +1945,14 @@ async function runPipelineDetail(
           where: {
             AND: [pop.evidence],
             deletedAt: null,
-            verificationPackages: { some: {} },
+            verificationPackages: { some: primaryPublishedPackageWhere() },
           },
         }),
         prisma.report.count({
           where: { evidence: { teamId, deletedAt: null } },
         }),
         prisma.verificationPackage.count({
-          where: { evidence: { teamId, deletedAt: null } },
+          where: primaryPublishedPackageWhere({ evidence: { teamId, deletedAt: null } }),
         }),
         // Phase HOME-NUMERIC-TRUTH-FIX — same `deletedAt: null`
         // omission as the status groupBy above. publicVerify.published
@@ -2232,10 +2233,10 @@ async function runOrganizationalIntelligence(
         },
       }),
       prisma.verificationPackage.count({
-        where: {
+        where: primaryPublishedPackageWhere({
           evidence: { teamId },
           generatedAtUtc: { gte: since7d },
-        },
+        }),
       }),
       prisma.teamActivity
         .count({ where: { teamId, createdAt: { gte: since7d } } })
@@ -2342,10 +2343,10 @@ async function runTimeline(
       },
     }),
     prisma.verificationPackage.findMany({
-      where: {
+      where: primaryPublishedPackageWhere({
         evidence: { teamId },
         generatedAtUtc: { gte: since14d },
-      },
+      }),
       orderBy: { generatedAtUtc: "desc" },
       take: 10,
       select: {
@@ -2357,7 +2358,7 @@ async function runTimeline(
           select: { title: true, displayFileName: true, originalFileName: true },
         },
       },
-    }),
+    }).then((rows) => rows.map(asPublishedPackage)),
     prisma.evidence.findMany({
       where: {
         AND: [pop.evidence],
@@ -4210,7 +4211,7 @@ async function runCustodyIntegrityAnomalies(
         AND: [pop.evidence],
         status: "REPORTED",
         reports: { none: {} },
-        verificationPackages: { some: {} },
+        verificationPackages: { some: primaryPublishedPackageWhere() },
       },
       orderBy: { updatedAt: "desc" },
       take: 6,
@@ -5131,10 +5132,10 @@ async function runReconstructedTimeline(
         },
       }),
       prisma.verificationPackage.findMany({
-        where: {
+        where: primaryPublishedPackageWhere({
           evidence: { teamId },
           generatedAtUtc: { gte: since },
-        },
+        }),
         orderBy: { generatedAtUtc: "desc" },
         take: 10,
         select: {
@@ -5143,7 +5144,7 @@ async function runReconstructedTimeline(
           version: true,
           generatedAtUtc: true,
         },
-      }),
+      }).then((rows) => rows.map(asPublishedPackage)),
     ]);
     for (const r of reports) {
       events.push({
@@ -5584,7 +5585,7 @@ async function runDeepIntegrityWatch(
         AND: [pop.evidence],
         status: "REPORTED",
         updatedAt: { lt: cutoff },
-        verificationPackages: { none: {} },
+        verificationPackages: { none: primaryPublishedPackageWhere() },
       },
       orderBy: { updatedAt: "asc" },
       take: 6,
