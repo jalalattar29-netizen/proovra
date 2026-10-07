@@ -5524,9 +5524,8 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
    version pairs and the updated-report dialog.
 
    Tokens are scoped here (the dialog renders in a portal, outside the page
-   wrapper) and read the global app tokens. The authenticated product is a
-   light surface; a future app-level [data-theme="dark"] flips these tokens in
-   one place. Logical properties throughout, so RTL mirrors without overrides;
+   wrapper) and read the global app tokens. The product is light-only: no
+   colour-scheme preference or theme attribute changes them. Logical properties throughout, so RTL mirrors without overrides;
    nothing animates under reduced motion.
    ========================================================================== */
 .rga-dialog-overlay,
@@ -5549,35 +5548,6 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   --rga-warn-soft: #fff8ef;
   --rga-bad: #b42318;
   --rga-bad-soft: #fff5f2;
-}
-[data-theme="dark"] .rga-dialog-overlay,
-[data-theme="dark"] .rga-truth,
-[data-theme="dark"] .rga-progress,
-[data-theme="dark"] .rga-history,
-[data-theme="dark"] .rga-attention {
-  --rga-ink: #e6eaf2;
-  --rga-ink-2: #a9b2c3;
-  --rga-label: #cfd6e3;
-  --rga-surface: #121826;
-  --rga-surface-2: #182032;
-  --rga-line: rgba(226, 232, 240, 0.14);
-  --rga-accent: #b79cff;
-  --rga-accent-soft: rgba(124, 58, 237, 0.18);
-  --rga-ok: #6fd3a0;
-  --rga-ok-soft: rgba(22, 121, 74, 0.18);
-  --rga-warn: #f6b26b;
-  --rga-warn-soft: rgba(182, 95, 24, 0.18);
-  --rga-bad: #ff9b8f;
-  --rga-bad-soft: rgba(180, 35, 24, 0.2);
-}
-/* Under the dark hook the section surface is the scoped token. The global
-   translucent surface these sections otherwise read is light-only, so light
-   ink sat on a near-white card (measured illegible, 2026-10-06). */
-[data-theme="dark"] .rga-truth,
-[data-theme="dark"] .rga-progress,
-[data-theme="dark"] .rga-history,
-[data-theme="dark"] .rga-attention {
-  background: var(--rga-surface);
 }
 
 
@@ -5744,7 +5714,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .rga-history__list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .rga-history__empty { margin: 0; font-size: 14px; color: var(--rga-ink-2); }
 .rga-history__more { align-self: flex-start; }
-.rga-history__subtitle { margin: 0; font-size: 15px; font-weight: 650; color: var(--rga-ink); }
+.rga-history__subtitle { margin: 0; font-size: 15px; font-weight: 650; }
 .rga-pair {
   display: flex;
   flex-direction: column;
@@ -5817,7 +5787,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 }
 .rga-dialog__head { border-block-end: 1px solid var(--rga-line); }
 .rga-dialog__foot { justify-content: flex-end; flex-wrap: wrap; border-block-start: 1px solid var(--rga-line); }
-.rga-dialog__title { flex: 1; margin: 0; font-size: 18px; line-height: 26px; font-weight: 650; overflow-wrap: anywhere; color: var(--rga-ink); }
+.rga-dialog__title { flex: 1; margin: 0; font-size: 18px; line-height: 26px; font-weight: 650; overflow-wrap: anywhere; }
 .rga-dialog__close {
   flex: none;
   inline-size: 36px;
@@ -5863,7 +5833,7 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
 .rga-dialog__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
 .rga-dialog__facts div { padding: 10px 12px; border-radius: 10px; background: var(--rga-surface-2); border: 1px solid var(--rga-line); }
 .rga-dialog__facts dt { font-size: 12px; color: var(--rga-ink-2); }
-.rga-dialog__facts dd { margin: 0; font-size: 18px; font-weight: 700; color: var(--rga-ink); }
+.rga-dialog__facts dd { margin: 0; font-size: 18px; font-weight: 700; }
 .rga-dialog__subtitle { margin: 0 0 4px; font-size: 14px; font-weight: 650; color: var(--rga-label); }
 .rga-dialog__list { margin: 0; padding-inline-start: 18px; font-size: 14px; line-height: 21px; list-style: disc; }
 .rga-dialog__list--effects li + li { margin-block-start: 4px; }

@@ -444,7 +444,7 @@ describe("One deterministic answer", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 15. Mobile width, RTL, dark: the stylesheet contract
+// 15. Mobile width, RTL, light-only: the stylesheet contract
 // ---------------------------------------------------------------------------
 
 describe("Layout contract", () => {
@@ -461,14 +461,12 @@ describe("Layout contract", () => {
     expect(section).not.toMatch(/animation|transition/);
   });
 
-  it("reads the scoped tokens in light and dark, and adds no colour literal", () => {
+  it("reads the scoped light tokens, adds no colour literal, and has no theme branch", () => {
     expect(section).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(CSS).toMatch(/\.rga-history,\n\.rga-attention,\n\.rga-tab-indicator \{\n {2}--rga-ink:/);
-    // The card flips with the dark hook, surface included (the global
-    // translucent surface is light-only); the tab indicator follows its host
-    // tab, which is a light-only global surface, so it does not flip.
-    expect(CSS).toMatch(/\[data-theme="dark"\] \.rga-history,\n\[data-theme="dark"\] \.rga-attention \{\n {2}--rga-ink:/);
-    expect(CSS).toMatch(/\[data-theme="dark"\] \.rga-attention \{\n {2}background: var\(--rga-surface\);\n\}/);
-    expect(CSS).not.toMatch(/\[data-theme="dark"\] \.rga-tab-indicator/);
+    // The product is light-only: no theme attribute or OS colour-scheme
+    // preference may switch these surfaces to a half-dark rendering.
+    expect(CSS).not.toMatch(/\[data-theme=/);
+    expect(CSS).not.toMatch(/prefers-color-scheme/);
   });
 });

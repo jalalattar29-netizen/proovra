@@ -211,24 +211,36 @@ test("long strings and RTL: content wraps, logical layout mirrors, nothing overf
   await page.screenshot({ path: join(SHOTS, "rtl-dialog.png") });
 });
 
-test("colour schemes and reduced motion: legible under a dark OS preference and the dark token hook; no motion", async ({ page }) => {
+test("light-only contract and reduced motion: a dark OS preference changes nothing; no motion", async ({ page }) => {
   test.setTimeout(300_000);
+  // PROOVRA is light-only. Advertising a dark preference is NOT dark-mode
+  // support being tested: it proves the surfaces keep the approved light
+  // tokens instead of rendering an unsupported half-dark interface.
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await signIn(page, A.email);
   await openArtifacts(page, evidenceId);
-  // The authenticated product is a light surface: a dark OS preference must not
-  // leave artifact text illegible.
+  const surfaces = ["[data-testid='artifact-truth-header']", "[data-testid='matched-version-history']"];
+  const paint = (sel: string) =>
+    page.evaluate((s) => {
+      const el = document.querySelector(s) as HTMLElement | null;
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { surface: cs.getPropertyValue("--rga-surface").trim(), ink: cs.getPropertyValue("--rga-ink").trim(), bg: cs.backgroundColor };
+    }, sel);
+  const darkPref = await Promise.all(surfaces.map(paint));
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  const lightPref = await Promise.all(surfaces.map(paint));
+  expect(darkPref).toEqual(lightPref);
+  for (const p of darkPref) expect(p?.surface).toBe("#ffffff");
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   for (const sel of ["[data-testid='truth-tsa']", ".rga-truth__fresh strong"]) {
-    expect(await contrastOf(page, sel), `dark-pref ${sel}`).toBeGreaterThanOrEqual(4.5);
+    expect(await contrastOf(page, sel), `light contract ${sel}`).toBeGreaterThanOrEqual(4.5);
   }
-  await page.screenshot({ path: join(SHOTS, "dark-preference.png"), fullPage: true });
-  // The surface's own dark tokens (the app-level theme hook) stay AA as well.
-  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
   const dialog = await openUpdatedReportDialog(page);
-  expect(await contrastOf(page, "[data-testid='updated-report-dialog'] .rga-dialog__title"), "dark dialog title").toBeGreaterThanOrEqual(4.5);
-  expect(await contrastOf(page, "[data-testid='updated-report-dialog'] .rga-dialog__lede"), "dark dialog lede").toBeGreaterThanOrEqual(4.5);
+  expect(await contrastOf(page, "[data-testid='updated-report-dialog'] .rga-dialog__title"), "dialog title").toBeGreaterThanOrEqual(4.5);
+  expect(await contrastOf(page, "[data-testid='updated-report-dialog'] .rga-dialog__lede"), "dialog lede").toBeGreaterThanOrEqual(4.5);
   const motion = await page.evaluate(() => getComputedStyle(document.querySelector(".rga-dialog-overlay")!).backdropFilter);
   expect(motion === "none" || motion === "").toBe(true);
-  await page.screenshot({ path: join(SHOTS, "dark-theme-dialog.png") });
+  await page.screenshot({ path: join(SHOTS, "light-under-dark-preference.png") });
   await dialog.getByRole("button", { name: "Cancel" }).click();
 });
