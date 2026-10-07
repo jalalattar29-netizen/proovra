@@ -94,12 +94,12 @@
     "INDEX_NAME_CONVENTION": 271,
     "UNIQUE_DECLARATION": 5,
     "PARTIAL_INDEX_DECLARATION": 2,
-    "PARTIAL_UNIQUE_DECLARATION": 7,
+    "PARTIAL_UNIQUE_DECLARATION": 8,
     "EXTENSION_CONDITIONAL_COLUMN": 2,
     "EXTENSION_CONDITIONAL_INDEX": 2,
     "ENUM_LABEL_RESIDUAL": 1
   },
-  "totalRegisteredObjects": 886,
+  "totalRegisteredObjects": 887,
   "objects": [
     {
       "table": "access_review_campaigns",
@@ -5577,6 +5577,21 @@
       "object": "Removed foreign key on columns (evidence_id, report_version)",
       "category": "FOREIGN_KEY_DECLARATION",
       "$note": "RGA-05 (20281003000000_verification_package_report_pair_fk): composite FK verification_packages(evidence_id, report_version) -> reports(evidence_id, version), ON DELETE RESTRICT / ON UPDATE RESTRICT. Not declared as a Prisma relation because report_version is nullable while evidence_id is required (Prisma requires a required relation for that shape); the database is the authority for the pairing."
+    },
+    {
+      "table": "verification_packages",
+      "sign": "-",
+      "object": "Removed unique index on columns (evidence_id, version)",
+      "category": "PARTIAL_UNIQUE_DECLARATION",
+      "indexName": "verification_packages_primary_version_key",
+      "columns": [
+        "evidence_id",
+        "version"
+      ],
+      "unique": true,
+      "predicate": "disclosure_profile IS NULL OR disclosure_profile = 'FULL_FORENSIC'",
+      "owningMigration": "services/api/prisma/migrations/20281006000000_verification_package_profile_rows/migration.sql",
+      "reason": "One sealed package per disclosure profile per report version. This key (the primary profile, or a legacy NULL row) and its sibling verification_packages_external_version_key (same columns, WHERE disclosure_profile = 'EXTERNAL_DISCLOSURE') replace the retired verification_packages_evidence_id_version_key; Prisma reads both as the same undeclared unique on (evidence_id, version), so this one entry registers the pair. Package-id reservation relies on the DATABASE to enforce them (point5 report-package-recovery integration suite). Prisma cannot express a partial unique index."
     }
   ]
 }

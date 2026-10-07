@@ -660,6 +660,15 @@ jobs:
       # because one runner building three monorepo images is the kind of
       # thing that dies of ENOSPC with a generic exit code.
       - name: Build full stack images
+        # The full-stack services build with `network: host` (the BuildKit
+        # mitigation documented in docker-compose.full.yml). Newer runner
+        # Compose releases delegate `build` to `buildx bake`, which refuses that
+        # entitlement ("additional privileges requested: pass
+        # --allow=network.host") and fails the build before any layer runs —
+        # first seen 2026-10-07 on an unchanged compose file. The classic
+        # Compose builder honours the build network as it always did.
+        env:
+          COMPOSE_BAKE: "false"
         run: |
           set +e
           df -h / | tail -1
