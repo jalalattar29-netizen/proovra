@@ -11,7 +11,7 @@ Every number below is produced by an analyzer executed at generation time and re
 | dimension            | status  | basis                                                                 |
 | -------------------- | ------- | --------------------------------------------------------------------- |
 | AuditEngineIntegrity | PASS    | instrument counters, conservation identities, single-authority checks |
-| ProductClosure       | CLOSED  | release-blocking measured facts + undisposed routes                   |
+| ProductClosure       | OPEN    | release-blocking measured facts + undisposed routes                   |
 | ExternalClosure      | NOT RUN | requires a real environment; never asserted from source analysis      |
 
 `AuditEngineIntegrity = PASS` alongside `ProductClosure = OPEN` is the expected state while work remains. They are separate exit codes on purpose: a permanent red meaning "open work" teaches everyone to ignore a red meaning "every number here is a guess".
@@ -21,22 +21,22 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | e415be5607cff34b8c4b4c12e16e52c06427d82530fdf2dcc45ac0d948cddf19 |
+| engineHash    | 1ac5eac8831a3eca41b548827ce0f5609a455faf6acc09bb8b11c73b39e42433 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1180  |
+| registeredRoutes              | 1185  |
 | developmentOnlyRoutes         | 1     |
-| productConsumerRoutes         | 975   |
+| productConsumerRoutes         | 977   |
 | machineOnlyConsumerRoutes     | 6     |
-| noConsumerRoutes              | 199   |
+| noConsumerRoutes              | 202   |
 | dispositionedNonProductRoutes | 204   |
-| undisposedRoutes              | 0     |
+| undisposedRoutes              | 3     |
 | authorizationUnresolved       | 0     |
-| publicUnguardedRoutes         | 33    |
+| publicUnguardedRoutes         | 36    |
 
 ## Instrument integrity
 
@@ -169,4 +169,5 @@ _(none — the instrument is sound)_
 
 ### Product closure
 
-_(none)_
+- UNWIRED EXECUTABLE WRITERS: 1 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
+- ArchitectureBacklog: UndisposedRoutes = 3 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)

@@ -4,22 +4,22 @@
   "generator": "services/api/scripts/generate-runtime-capability-map.mjs",
   "note": "GENERATED. Every field below is derived from the tree at run time by the AST analyzers. Human judgement lives ONLY in scripts/capability-authority/manifests/*, each entry carrying the source evidence it was read from. Do not hand-edit this file.",
   "generatorHash": "e505c1f1736b2ac5208be3386e64e438da63200d3bdde7e12d668973a11a8c2b",
-  "routeInventoryHash": "6913cadb4ce6adcbd39fedf3cf40d6d31b0595c1b84e71b2a3b38108a4fe49e6",
-  "consumerInventoryHash": "2068f7a6dcd591a09dc0b5f1b13e9015770ae4e3c66d45225cf2ec67d391da93",
+  "routeInventoryHash": "1f81f4b846e6e2dfd8ed386452196829bd708c9817aad6acc2dec830438ac2fc",
+  "consumerInventoryHash": "8c89aabfa28135283b9cb99d8c67a137bc79a46d20fe7dd81b626dec9161ecf7",
   "dispositionsHash": "b91e4fd4699fa26a59e2784e582b53fc7407b0b9712580d59c56732b6a28aee5",
   "totals": {
-    "RegisteredRoutes": 1180,
-    "ProductionRegisteredRoutes": 1179,
+    "RegisteredRoutes": 1185,
+    "ProductionRegisteredRoutes": 1184,
     "DevelopmentOnlyRoutes": 1,
-    "ProductConsumedRoutes": 975,
+    "ProductConsumedRoutes": 977,
     "NonProductDispositionedRoutes": 204,
-    "UndisposedRoutes": 0,
+    "UndisposedRoutes": 3,
     "ConservationIdentityHolds": true,
-    "ProductConsumerRoutes": 975,
+    "ProductConsumerRoutes": 977,
     "MachineOnlyConsumerRoutes": 6,
-    "NoConsumerRoutes": 199,
+    "NoConsumerRoutes": 202,
     "AuthorizationUnresolved": 0,
-    "PublicUnguardedRoutes": 33,
+    "PublicUnguardedRoutes": 36,
     "DynamicUnresolvedRouteRegistrations": 0,
     "DynamicUnresolvedConsumers": 0,
     "UnreviewedOriginConsumers": 0,
@@ -57,14 +57,14 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
     "TerminalWriters": 1326,
-    "ReachableSensitiveMutations": 1323,
-    "ClassifiedSensitiveMutations": 1323,
+    "ReachableSensitiveMutations": 1322,
+    "ClassifiedSensitiveMutations": 1322,
     "UnclassifiedMutationWriters": 0,
     "UnclassifiedWritersTotal": 0,
-    "NonRequestWriters": 3,
+    "NonRequestWriters": 4,
     "ModuleScopedAttributionWriters": 0,
-    "DeadUnreachableWriters": 0,
-    "DeadUnreachableWritersPending": 0,
+    "DeadUnreachableWriters": 1,
+    "DeadUnreachableWritersPending": 1,
     "PreservedPlannedWriters": 0,
     "PortAttributedWriters": 0,
     "AuthorizationAfterMutation": 0,
@@ -96,11 +96,11 @@
       "SEED": 0,
       "INJECTED_PORT_IMPLEMENTATION": 0,
       "PRESERVED_PLANNED_WRITER": 0,
-      "DEAD_UNREACHABLE_WRITER": 0
+      "DEAD_UNREACHABLE_WRITER": 1
     },
     "MutationConservationHolds": true,
     "byWriterBucket": {
-      "ROUTE_ATTRIBUTED_REACHABLE": 1185,
+      "ROUTE_ATTRIBUTED_REACHABLE": 1184,
       "JOB_ATTRIBUTED_REACHABLE": 128,
       "MODULE_SCOPED_REACHABLE": 0,
       "REGISTERED_CLI": 3,
@@ -109,7 +109,7 @@
       "TEST_OR_BUILD_ONLY": 0,
       "PRESERVED_PLANNED_WRITER": 0,
       "PORT_ATTRIBUTED_REACHABLE": 0,
-      "DEAD_UNREACHABLE": 0,
+      "DEAD_UNREACHABLE": 1,
       "UNRESOLVED": 0
     },
     "WriterBucketOverlaps": 0,
@@ -124,17 +124,17 @@
     "UnprocessedQueueFamilies": 0,
     "MutationReachabilityUnresolved": 0,
     "MutationUnresolvedByReason": {
-      "METHOD_ON_VALUE": 9548,
-      "UNRESOLVED_IDENTIFIER": 1297
+      "METHOD_ON_VALUE": 9620,
+      "UNRESOLVED_IDENTIFIER": 1308
     },
     "MutationFixpointRounds": 9,
-    "MutationClosurePass": true,
+    "MutationClosurePass": false,
     "PreservedWritersWithoutEvidence": 0,
     "PreservationEntriesUnmatched": 0,
     "byMandateDisposition": {
       "DEVELOPMENT_ONLY": 2,
-      "UNDISPOSED": 0,
-      "PRODUCT_CONNECTED": 980,
+      "UNDISPOSED": 3,
+      "PRODUCT_CONNECTED": 982,
       "EXTERNAL_API": 19,
       "MACHINE_OR_CRON": 21,
       "WEBHOOK": 4,
@@ -146,16 +146,16 @@
       "MISSING_PRODUCT_UI_POST_RELEASE": 30
     },
     "MandateDispositionConservationHolds": true,
-    "TenantBindingResolved": 1178,
+    "TenantBindingResolved": 1183,
     "TenantBindingUnresolved": 0,
     "byDataScope": {
-      "PUBLIC_DATA": 28,
+      "PUBLIC_DATA": 31,
       "GLOBAL_USER_SELF": 59,
       "PLATFORM_GLOBAL": 52,
-      "WORKSPACE_SCOPED": 702,
+      "WORKSPACE_SCOPED": 703,
       "ORGANIZATION_SCOPED": 109,
       "MULTI_TENANT_PLATFORM_ADMIN": 124,
-      "TOKEN_SCOPED": 35,
+      "TOKEN_SCOPED": 36,
       "PROVIDER_SCOPED": 4,
       "MACHINE_SCOPED": 16,
       "NO_DATA_ACCESS": 49
@@ -165,22 +165,22 @@
     "OrganizationAuthorizationUnresolved": 0,
     "OrganizationRoutesMissingRequiredAuthorization": 0,
     "CurrentWorkspaceIdAuthorizationUses": 0,
-    "ClassifiedSecurityRoutes": 1178,
+    "ClassifiedSecurityRoutes": 1183,
     "UnclassifiedSecurityRoutes": 0,
     "DevelopmentGatedRoutes": 1,
     "SecurityFamilyConservationHolds": true,
     "bySecurityFamily": {
       "PUBLIC_READ": {
-        "primary": 8,
-        "tagged": 8
+        "primary": 11,
+        "tagged": 11
       },
       "PUBLIC_WRITE": {
         "primary": 20,
         "tagged": 20
       },
       "SESSION_AUTHENTICATED": {
-        "primary": 421,
-        "tagged": 421
+        "primary": 422,
+        "tagged": 422
       },
       "WORKSPACE_AUTHORIZED": {
         "primary": 384,
@@ -219,8 +219,8 @@
         "tagged": 10
       },
       "PORTAL_OR_REVIEWER_TOKEN": {
-        "primary": 11,
-        "tagged": 11
+        "primary": 12,
+        "tagged": 12
       },
       "INTAKE_OR_EVIDENCE_REQUEST_TOKEN": {
         "primary": 6,
@@ -240,24 +240,25 @@
       }
     }
   },
-  "totalRoutes": 1180,
+  "totalRoutes": 1185,
   "classificationCounts": {
+    "BACKEND_ONLY_UNWIRED": 3,
     "COMPATIBILITY_TEMPORARY": 16,
     "INTERNAL_REQUIRED": 189,
-    "TARGET_COMPLETE": 975
+    "TARGET_COMPLETE": 977
   },
   "evidenceLevelCounts": {
     "BEHAVIORALLY_PROVEN": 401,
     "BEHAVIORAL_SERVICE_ONLY": 15,
     "STRUCTURALLY_CONNECTED_ONLY": 516,
-    "UNPROVEN": 248
+    "UNPROVEN": 253
   },
   "verticalCounts": {
     "ENTERPRISE_IDENTITY_SECURITY": 178,
     "EVIDENCE_OPERATIONS": 277,
     "OPERATIONS_AUTOMATION": 1,
     "OPERATIONS_INTELLIGENCE": 126,
-    "PLATFORM_CORE": 454,
+    "PLATFORM_CORE": 459,
     "TRUST_ADMINISTRATION": 144
   },
   "capabilities": [
@@ -824,6 +825,42 @@
       "authorization": "CRON_SECRET",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/public/signing-keys",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/public/signing-keys",
+      "registeringFile": "services/api/src/routes/public-package-verification.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "PUBLIC_UNGUARDED",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/public/verification-packages/:packageId",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/public/verification-packages/:packageId",
+      "registeringFile": "services/api/src/routes/public-package-verification.routes.ts",
+      "productConsumer": "apps/web/app/verify/package/[packageId]/page.tsx:115",
+      "machineConsumer": null,
+      "authorization": "PUBLIC_UNGUARDED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
+      "capabilityId": "GET:/public/verification-packages/by-sha256/:sha256",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/public/verification-packages/by-sha256/:sha256",
+      "registeringFile": "services/api/src/routes/public-package-verification.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "PUBLIC_UNGUARDED",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/public/verify/:id",
@@ -2902,6 +2939,18 @@
       "evidenceLevel": "UNPROVEN"
     },
     {
+      "capabilityId": "GET:/v1/evidence/:id/verification-packages/:version/external-disclosure",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/evidence/:id/verification-packages/:version/external-disclosure",
+      "registeringFile": "services/api/src/routes/evidence.routes.ts",
+      "productConsumer": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:414",
+      "machineConsumer": null,
+      "authorization": "AUTHENTICATED",
+      "classification": "TARGET_COMPLETE",
+      "evidenceLevel": "UNPROVEN"
+    },
+    {
       "capabilityId": "GET:/v1/evidence/:id/verify-links",
       "vertical": "PLATFORM_CORE",
       "method": "GET",
@@ -3020,6 +3069,18 @@
       "authorization": "PORTAL_TOKEN",
       "classification": "INTERNAL_REQUIRED",
       "evidenceLevel": "STRUCTURALLY_CONNECTED_ONLY"
+    },
+    {
+      "capabilityId": "GET:/v1/external-review/access/:token/verification-package",
+      "vertical": "PLATFORM_CORE",
+      "method": "GET",
+      "route": "/v1/external-review/access/:token/verification-package",
+      "registeringFile": "services/api/src/routes/external-review.routes.ts",
+      "productConsumer": null,
+      "machineConsumer": null,
+      "authorization": "PORTAL_TOKEN",
+      "classification": "BACKEND_ONLY_UNWIRED",
+      "evidenceLevel": "UNPROVEN"
     },
     {
       "capabilityId": "GET:/v1/external-review/activity",
@@ -14674,6 +14735,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -14683,6 +14745,7 @@
         "GET /v1/executive/trends",
         "GET /v1/external-intake/:token",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -15682,6 +15745,8 @@
         "GET /v1/evidence/:id/review-workspace",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/redaction/derivatives/:id/download-url",
         "PATCH /v1/evidence/:id/annotations/:annotationId",
         "PATCH /v1/evidence/:id/comments/:commentId",
@@ -15779,6 +15844,7 @@
         "MODULE services/api/src/routes/collaboration.routes.ts",
         "MODULE services/api/src/routes/evidence.routes.ts",
         "MODULE services/api/src/routes/external-intake.routes.ts",
+        "MODULE services/api/src/routes/external-review.routes.ts",
         "MODULE services/api/src/routes/governance-lifecycle.routes.ts",
         "MODULE services/api/src/routes/governance.routes.ts",
         "MODULE services/api/src/routes/graph.routes.ts",
@@ -15799,7 +15865,7 @@
         "SCHEDULE services/worker/src/index.ts:741#startIntegrityRecheckScheduler"
       ],
       "invariants": {
-        "authorizationAuthority": "AUTHENTICATED_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
+        "authorizationAuthority": "AUTHENTICATED_SUBJECT+BEARER_TOKEN_SUBJECT+CANONICAL_EVALUATOR_GUARD+MEMBERSHIP_LOOKUP+NAMED_AUTHORITY",
         "authorizationBeforeMutation": true,
         "ungovernedEntryRoutes": [],
         "tenantBinding": "BOUND",
@@ -17400,6 +17466,7 @@
         "GET /v1/evidence/:id/review-workspace",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/redaction/derivatives/:id/download-url",
         "POST /v1/cases/:id/siu-export",
         "POST /v1/evidence/:id/complete"
@@ -18260,6 +18327,36 @@
         "payloadVersionAuthority": "NOT_APPLICABLE",
         "canonicalOrLegacy": "UNREGISTERED"
       }
+    },
+    {
+      "writerId": "packages/shared-runtime/src/signing/key-registry.ts#signingKey.create@77",
+      "terminalLocation": "packages/shared-runtime/src/signing/key-registry.ts:77",
+      "file": "packages/shared-runtime/src/signing/key-registry.ts",
+      "enclosingDeclaration": "registerSigningKey",
+      "kind": "DATABASE",
+      "target": "signingKey",
+      "mutationKind": "create",
+      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
+      "insideTransaction": false,
+      "entryRoutes": [],
+      "entryJobs": [],
+      "entryModules": [],
+      "entrySchedules": [],
+      "invariants": {
+        "authorizationAuthority": "NON_REQUEST",
+        "authorizationBeforeMutation": "NOT_APPLICABLE",
+        "ungovernedEntryRoutes": [],
+        "tenantBinding": "NON_REQUEST",
+        "tenantUnboundEntryRoutes": [],
+        "organizationLifecycleRequirement": "NOT_APPLICABLE",
+        "transactionAuthority": "AUTOCOMMIT",
+        "externalSideEffectBoundary": "NOT_APPLICABLE",
+        "idempotencyAuthority": "NOT_DECLARED",
+        "retrySemantics": "NOT_APPLICABLE",
+        "payloadVersionAuthority": "NOT_APPLICABLE",
+        "canonicalOrLegacy": "UNREGISTERED"
+      },
+      "nonRequestDisposition": "DEAD_UNREACHABLE_WRITER"
     },
     {
       "writerId": "packages/shared-runtime/src/verification-share/authority.ts#verificationShareToken.create@151",
@@ -19871,8 +19968,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@5838",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5838",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSession.updateMany@5929",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5929",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19904,8 +20001,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5849",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5849",
+      "writerId": "services/api/src/routes/evidence.routes.ts#captureSessionEvent.create@5940",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5940",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19937,8 +20034,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12071",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12071",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@12254",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:12254",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -19970,8 +20067,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@13923",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13923",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@14109",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:14109",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20003,8 +20100,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5795",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5795",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@5886",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:5886",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20036,8 +20133,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6106",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6106",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.update@6197",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6197",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20069,8 +20166,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@13911",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13911",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@14097",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:14097",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20102,8 +20199,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6643",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6643",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6734",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6734",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20135,8 +20232,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6724",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6724",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6815",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6815",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20168,8 +20265,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6841",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6841",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidence.updateMany@6932",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6932",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20201,8 +20298,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@9128",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9128",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAiCategorization.create@9219",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:9219",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20234,8 +20331,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@8064",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8064",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.create@8155",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8155",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20267,8 +20364,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8143",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8143",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8234",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8234",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20300,8 +20397,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8222",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8222",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceAnnotation.update@8313",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8313",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20333,8 +20430,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7894",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7894",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.create@7985",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7985",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20366,8 +20463,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@7950",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7950",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8041",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8041",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20399,8 +20496,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8005",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8005",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceLegalNote.update@8096",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:8096",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20432,8 +20529,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7736",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7736",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.create@7827",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7827",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20465,8 +20562,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7792",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7792",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7883",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7883",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20498,8 +20595,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7847",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7847",
+      "writerId": "services/api/src/routes/evidence.routes.ts#evidenceReviewerComment.update@7938",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:7938",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20531,8 +20628,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6648",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6648",
+      "writerId": "services/api/src/routes/evidence.routes.ts#guestIdentity.updateMany@6739",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:6739",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -20564,8 +20661,8 @@
       }
     },
     {
-      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@13929",
-      "terminalLocation": "services/api/src/routes/evidence.routes.ts:13929",
+      "writerId": "services/api/src/routes/evidence.routes.ts#verificationView.create@14115",
+      "terminalLocation": "services/api/src/routes/evidence.routes.ts:14115",
       "file": "services/api/src/routes/evidence.routes.ts",
       "enclosingDeclaration": "evidenceRoutes",
       "kind": "DATABASE",
@@ -26610,6 +26707,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -26618,6 +26716,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -27648,6 +27747,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -27656,6 +27756,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -28686,6 +28787,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -28694,6 +28796,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -31079,6 +31182,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -31087,6 +31191,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -40017,8 +40122,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSession.update@1451",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1451",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSession.update@1455",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1455",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -40057,8 +40162,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSessionEvent.create@1455",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1455",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#captureSessionEvent.create@1459",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1459",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -40097,8 +40202,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1593",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1593",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.update@1597",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1597",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -40177,8 +40282,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1505",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1505",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1509",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1509",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -40217,8 +40322,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1830",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1830",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1834",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1834",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "runCompletionFanoutOnce",
       "kind": "DATABASE",
@@ -40257,8 +40362,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1928",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1928",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidence.updateMany@1932",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1932",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "runCompletionFanoutOnce",
       "kind": "DATABASE",
@@ -40337,8 +40442,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1619",
-      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1619",
+      "writerId": "services/api/src/services/evidence-complete.service.ts#evidencePart.update@1623",
+      "terminalLocation": "services/api/src/services/evidence-complete.service.ts:1623",
       "file": "services/api/src/services/evidence-complete.service.ts",
       "enclosingDeclaration": "completeEvidence",
       "kind": "DATABASE",
@@ -41407,8 +41512,8 @@
       }
     },
     {
-      "writerId": "services/api/src/services/evidence.service.ts#evidence.update@666",
-      "terminalLocation": "services/api/src/services/evidence.service.ts:666",
+      "writerId": "services/api/src/services/evidence.service.ts#evidence.update@671",
+      "terminalLocation": "services/api/src/services/evidence.service.ts:671",
       "file": "services/api/src/services/evidence.service.ts",
       "enclosingDeclaration": "writeRecord",
       "kind": "DATABASE",
@@ -42090,6 +42195,7 @@
       "primaryFamily": "EXTERNAL_REVIEW_INTAKE_SHARE",
       "insideTransaction": false,
       "entryRoutes": [
+        "GET /v1/external-review/access/:token/verification-package",
         "POST /v1/external-review/access/:token"
       ],
       "entryJobs": [],
@@ -42162,6 +42268,7 @@
       "insideTransaction": false,
       "entryRoutes": [
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/portal/activity",
         "GET /v1/portal/dashboard",
         "GET /v1/portal/work/:workflowId/comments",
@@ -44261,6 +44368,7 @@
         "GET /v1/evidence/:id/review-workspace",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/redaction/derivatives/:id/download-url",
         "POST /v1/cases/:id/siu-export",
         "POST /v1/evidence/:id/complete",
@@ -51542,6 +51650,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -51550,6 +51659,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -52525,6 +52635,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -52533,6 +52644,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -53506,6 +53618,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -53514,6 +53627,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -54489,6 +54603,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -54497,6 +54612,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -55469,6 +55585,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -55477,6 +55594,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -56449,6 +56567,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -56457,6 +56576,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -57429,6 +57549,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -57437,6 +57558,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -58409,6 +58531,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -58417,6 +58540,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -59390,6 +59514,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -59398,6 +59523,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -60373,6 +60499,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -60381,6 +60508,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -61868,6 +61996,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -61876,6 +62005,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -62849,6 +62979,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -62857,6 +62988,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -63830,6 +63962,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -63838,6 +63971,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -64811,6 +64945,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -64819,6 +64954,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -65792,6 +65928,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -65800,6 +65937,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -66773,6 +66911,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -66781,6 +66920,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -67754,6 +67894,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -67762,6 +67903,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -68735,6 +68877,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -68743,6 +68886,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -69719,6 +69863,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -69727,6 +69872,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -70703,6 +70849,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -70711,6 +70858,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -71684,6 +71832,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -71692,6 +71841,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -72668,6 +72818,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -72676,6 +72827,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -73649,6 +73801,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -73657,6 +73810,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -81838,6 +81992,7 @@
         "GET /v1/evidence/:id/technical-metadata",
         "GET /v1/evidence/:id/verification-package",
         "GET /v1/evidence/:id/verification-packages/:version",
+        "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
         "GET /v1/evidence/:id/verify-links",
         "GET /v1/evidence/library-summary",
         "GET /v1/exchange/chain-transfers",
@@ -81846,6 +82001,7 @@
         "GET /v1/executive/metrics",
         "GET /v1/executive/trends",
         "GET /v1/external-review/access/:token/context",
+        "GET /v1/external-review/access/:token/verification-package",
         "GET /v1/external-review/activity",
         "GET /v1/external-review/grants",
         "GET /v1/external-review/invitations",
@@ -85499,39 +85655,6 @@
       }
     },
     {
-      "writerId": "services/api/src/signing/key-registry.ts#signingKey.create@77",
-      "terminalLocation": "services/api/src/signing/key-registry.ts:77",
-      "file": "services/api/src/signing/key-registry.ts",
-      "enclosingDeclaration": "registerSigningKey",
-      "kind": "DATABASE",
-      "target": "signingKey",
-      "mutationKind": "create",
-      "primaryFamily": "API_KEY_SECRET_OPERATIONAL_ADMIN",
-      "insideTransaction": false,
-      "entryRoutes": [
-        "GET /public/verify/:id"
-      ],
-      "entryJobs": [],
-      "entryModules": [
-        "MODULE services/api/src/routes/evidence.routes.ts"
-      ],
-      "entrySchedules": [],
-      "invariants": {
-        "authorizationAuthority": "AUTHENTICATED_SUBJECT",
-        "authorizationBeforeMutation": true,
-        "ungovernedEntryRoutes": [],
-        "tenantBinding": "BOUND",
-        "tenantUnboundEntryRoutes": [],
-        "organizationLifecycleRequirement": "ENFORCED",
-        "transactionAuthority": "AUTOCOMMIT",
-        "externalSideEffectBoundary": "NOT_APPLICABLE",
-        "idempotencyAuthority": "NOT_DECLARED",
-        "retrySemantics": "NOT_APPLICABLE",
-        "payloadVersionAuthority": "NOT_APPLICABLE",
-        "canonicalOrLegacy": "UNREGISTERED"
-      }
-    },
-    {
       "writerId": "services/api/src/storage.ts#OBJECT_STORAGE.CopyObjectCommand@771",
       "terminalLocation": "services/api/src/storage.ts:771",
       "file": "services/api/src/storage.ts",
@@ -88203,8 +88326,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.update@4954",
-      "terminalLocation": "services/worker/src/processor.ts:4954",
+      "writerId": "services/worker/src/processor.ts#evidence.update@5217",
+      "terminalLocation": "services/worker/src/processor.ts:5217",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88234,8 +88357,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4258",
-      "terminalLocation": "services/worker/src/processor.ts:4258",
+      "writerId": "services/worker/src/processor.ts#evidence.updateMany@4460",
+      "terminalLocation": "services/worker/src/processor.ts:4460",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88265,8 +88388,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#evidence.updateMany@5170",
-      "terminalLocation": "services/worker/src/processor.ts:5170",
+      "writerId": "services/worker/src/processor.ts#evidence.updateMany@5488",
+      "terminalLocation": "services/worker/src/processor.ts:5488",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88296,8 +88419,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.create@4323",
-      "terminalLocation": "services/worker/src/processor.ts:4323",
+      "writerId": "services/worker/src/processor.ts#report.create@4517",
+      "terminalLocation": "services/worker/src/processor.ts:4517",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88327,8 +88450,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#report.updateMany@5201",
-      "terminalLocation": "services/worker/src/processor.ts:5201",
+      "writerId": "services/worker/src/processor.ts#report.updateMany@5519",
+      "terminalLocation": "services/worker/src/processor.ts:5519",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88358,8 +88481,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@3872",
-      "terminalLocation": "services/worker/src/processor.ts:3872",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4048",
+      "terminalLocation": "services/worker/src/processor.ts:4048",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88389,8 +88512,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4487",
-      "terminalLocation": "services/worker/src/processor.ts:4487",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@4681",
+      "terminalLocation": "services/worker/src/processor.ts:4681",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88420,8 +88543,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@5227",
-      "terminalLocation": "services/worker/src/processor.ts:5227",
+      "writerId": "services/worker/src/processor.ts#reportGenerationRequest.updateMany@5545",
+      "terminalLocation": "services/worker/src/processor.ts:5545",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -88451,8 +88574,8 @@
       }
     },
     {
-      "writerId": "services/worker/src/processor.ts#verificationPackage.create@5131",
-      "terminalLocation": "services/worker/src/processor.ts:5131",
+      "writerId": "services/worker/src/processor.ts#verificationPackage.create@5428",
+      "terminalLocation": "services/worker/src/processor.ts:5428",
       "file": "services/worker/src/processor.ts",
       "enclosingDeclaration": "runReportGeneration",
       "kind": "DATABASE",
@@ -90119,7 +90242,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 793,
+          "line": 794,
           "caller": "removeCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90137,7 +90260,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:319 (CaseDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:1455 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:793 (removeCase, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/case/[id].tsx:319 (CaseDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:1455 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:794 (removeCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90547,7 +90670,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7055",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7146",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90566,7 +90689,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 734,
+          "line": 735,
           "caller": "moveToTrash",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -90576,7 +90699,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:786 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:734 (moveToTrash, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:786 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:735 (moveToTrash, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -90624,7 +90747,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8198",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8289",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90694,7 +90817,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7826",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7917",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90764,7 +90887,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7984",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8075",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -90834,7 +90957,7 @@
       "method": "DELETE",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8837",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8928",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -92810,11 +92933,149 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /public/signing-keys",
+      "method": "GET",
+      "path": "/public/signing-keys",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:184",
+      "authorizationClass": "PUBLIC_UNGUARDED",
+      "authorizationEvidence": [
+        "no preHandler and no in-handler guard call was found"
+      ],
+      "gates": [],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "PUBLIC_READ",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "PUBLIC_UNGUARDED",
+      "authorizationAuthority": "PUBLIC_UNGUARDED",
+      "dataScope": "PUBLIC_DATA",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "signingKey"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "NONE_OBSERVED",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /public/verification-packages/:packageId",
+      "method": "GET",
+      "path": "/public/verification-packages/:packageId",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:212",
+      "authorizationClass": "PUBLIC_UNGUARDED",
+      "authorizationEvidence": [
+        "no preHandler and no in-handler guard call was found"
+      ],
+      "gates": [],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/verify/package/[packageId]/page.tsx",
+          "line": 115,
+          "caller": "PackageRecordPage",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/verify/package/[packageId]/page.tsx:115 (PackageRecordPage, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "PUBLIC_READ",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "PUBLIC_UNGUARDED",
+      "authorizationAuthority": "PUBLIC_UNGUARDED",
+      "dataScope": "PUBLIC_DATA",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "signingKey",
+        "verificationPackage"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findUnique — no tenant or self predicate",
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /public/verification-packages/by-sha256/:sha256",
+      "method": "GET",
+      "path": "/public/verification-packages/by-sha256/:sha256",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:196",
+      "authorizationClass": "PUBLIC_UNGUARDED",
+      "authorizationEvidence": [
+        "no preHandler and no in-handler guard call was found"
+      ],
+      "gates": [],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "PUBLIC_READ",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "PUBLIC_UNGUARDED",
+      "authorizationAuthority": "PUBLIC_UNGUARDED",
+      "dataScope": "PUBLIC_DATA",
+      "tenantType": "NONE",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "signingKey",
+        "verificationPackage"
+      ],
+      "modelsWritten": [],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/routes/public-package-verification.routes.ts: verificationPackage.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NONE",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /public/verify/:id",
       "method": "GET",
       "path": "/public/verify/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12762",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12948",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -92831,7 +93092,7 @@
         },
         {
           "file": "apps/web/app/verify/[token]/page.tsx",
-          "line": 3436,
+          "line": 3445,
           "caller": "fetchVerify",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -92841,7 +93102,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/verify.tsx:115 (VerifyScreen, MOBILE); apps/web/app/verify/[token]/page.tsx:3436 (fetchVerify, WEB)",
+      "dispositionEvidence": "apps/mobile/app/verify.tsx:115 (VerifyScreen, MOBILE); apps/web/app/verify/[token]/page.tsx:3445 (fetchVerify, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -102133,7 +102394,7 @@
       "method": "GET",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7099",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7190",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -102933,7 +103194,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10395",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10485",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103081,7 +103342,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/ai-categorization",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8878",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8969",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103155,7 +103416,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8021",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8112",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103221,7 +103482,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/artifacts/status",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11036",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11126",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103362,7 +103623,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/certifications",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12595",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12781",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103447,7 +103708,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7705",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7796",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103513,7 +103774,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/comparison",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8238",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8329",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103583,7 +103844,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/duplicates",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8322",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8413",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103654,7 +103915,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/external-intake-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8680",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8771",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactDisclosure -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -103792,7 +104053,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7863",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7954",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -103926,7 +104187,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/original",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12015",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12198",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104018,7 +104279,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6453",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6544",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104085,7 +104346,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8734",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8825",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104136,7 +104397,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/report/latest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11518",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11608",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104171,7 +104432,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
-          "line": 139,
+          "line": 141,
           "caller": "downloadReport",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -104268,7 +104529,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reports/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11768",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11856",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104295,7 +104556,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
-          "line": 367,
+          "line": 369,
           "caller": "downloadReportVersion",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -104305,7 +104566,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/artifact-history.tsx:99 (family, MOBILE); apps/mobile/src/ui/artifact-history.tsx:172 (ArtifactHistoryPanel, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:367 (downloadReportVersion, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/artifact-history.tsx:99 (family, MOBILE); apps/mobile/src/ui/artifact-history.tsx:172 (ArtifactHistoryPanel, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:369 (downloadReportVersion, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -104352,7 +104613,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/review-workspace",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9182",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9273",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104478,7 +104739,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8526",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8617",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104553,7 +104814,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/reviewer-workflow/events",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8711",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8802",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104621,7 +104882,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/technical-metadata",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6029",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6120",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104686,7 +104947,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-package",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12206",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12389",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104721,7 +104982,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
-          "line": 167,
+          "line": 169,
           "caller": "downloadVerificationPackage",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -104816,7 +105077,7 @@
       "method": "GET",
       "path": "/v1/evidence/:id/verification-packages/:version",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11881",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11969",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -104843,7 +105104,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
-          "line": 387,
+          "line": 389,
           "caller": "downloadVerificationPackageVersion",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -104853,7 +105114,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/src/ui/artifact-history.tsx:105 (family, MOBILE); apps/mobile/src/ui/artifact-history.tsx:191 (ArtifactHistoryPanel, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:387 (downloadVerificationPackageVersion, WEB)",
+      "dispositionEvidence": "apps/mobile/src/ui/artifact-history.tsx:105 (family, MOBILE); apps/mobile/src/ui/artifact-history.tsx:191 (ArtifactHistoryPanel, MOBILE); apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:389 (downloadVerificationPackageVersion, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -104889,6 +105150,73 @@
         "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate",
         "services/api/src/routes/evidence.routes.ts: report.findFirst — no tenant or self predicate"
+      ],
+      "tenantIdSource": "NAMED_AUTHORITY",
+      "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
+      "routeId": "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
+      "method": "GET",
+      "path": "/v1/evidence/:id/verification-packages/:version/external-disclosure",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12118",
+      "authorizationClass": "AUTHENTICATED",
+      "authorizationEvidence": [
+        "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
+      ],
+      "gates": [
+        "AUTHENTICATED"
+      ],
+      "productConsumers": [
+        {
+          "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
+          "line": 414,
+          "caller": "downloadExternalDisclosurePackageVersion",
+          "class": "WEB",
+          "primitive": "apiFetch",
+          "viaResolution": false
+        }
+      ],
+      "nonProductConsumers": [],
+      "primaryDisposition": "PRODUCT_CONSUMED",
+      "dispositionSource": "DERIVED",
+      "dispositionEvidence": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts:414 (downloadExternalDisclosurePackageVersion, WEB)",
+      "dispositionReason": "reached from a product surface",
+      "replacement": null,
+      "result": "DISPOSED_PRODUCT_CONSUMED",
+      "primarySecurityFamily": "SESSION_AUTHENTICATED",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "AUTHENTICATED",
+      "authorizationAuthority": "AUTHENTICATED",
+      "dataScope": "WORKSPACE_SCOPED",
+      "tenantType": "WORKSPACE",
+      "tenantBindingAuthority": "evaluateMemberAccess + teamMemberStatusGrantsAccess",
+      "membershipStatusRequirement": "ACTIVE (enforced by the named authority)",
+      "modelsRead": [
+        "adminAuditLog",
+        "custodyEvent",
+        "evidence",
+        "teamMember",
+        "user",
+        "verificationPackage"
+      ],
+      "modelsWritten": [
+        "adminAuditLog",
+        "custodyEvent",
+        "evidence",
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/identity/access-policy.service.ts: the canonical member access-policy evaluator — ACTIVE workspace membership, the permission matrix, AND the central `organization_not_active` deny for a workspace whose parent CUSTOMER organization is missing/SUSPENDED/ARCHIVED",
+        "packages/shared/src/identity.ts: the canonical workspace membership-status predicate (packages/shared/src/identity.ts)",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
+        "services/api/src/services/evidence/artifact-download-gate.service.ts: evidence.findUnique — no tenant or self predicate",
+        "packages/shared-runtime/src/integrity-recheck/authority.ts: evidence.updateMany — no tenant or self predicate",
+        "services/api/src/routes/evidence.routes.ts: verificationPackage.findFirst — no tenant or self predicate"
       ],
       "tenantIdSource": "NAMED_AUTHORITY",
       "organizationLifecycleRequirement": "ENFORCED_BY_CANONICAL_EVALUATOR",
@@ -104960,7 +105288,7 @@
       "method": "GET",
       "path": "/v1/evidence/library-summary",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7261",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7352",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "resolveRecipientContactSearchScope -> services/api/src/services/privacy/recipient-contact-disclosure.ts: reaches the canonical authorization evaluator (evaluateAuthorize)",
@@ -105516,7 +105844,7 @@
       "method": "GET",
       "path": "/v1/external-review/access/:token/context",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:395",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:397",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
@@ -105561,11 +105889,64 @@
       "tenantUnboundInsertSites": []
     },
     {
+      "routeId": "GET /v1/external-review/access/:token/verification-package",
+      "method": "GET",
+      "path": "/v1/external-review/access/:token/verification-package",
+      "productionRegistered": true,
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:429",
+      "authorizationClass": "PORTAL_TOKEN",
+      "authorizationEvidence": [
+        "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
+      ],
+      "gates": [
+        "PORTAL_TOKEN"
+      ],
+      "productConsumers": [],
+      "nonProductConsumers": [],
+      "primaryDisposition": null,
+      "dispositionSource": null,
+      "dispositionEvidence": null,
+      "dispositionReason": null,
+      "replacement": null,
+      "result": "UNDISPOSED",
+      "primarySecurityFamily": "PORTAL_OR_REVIEWER_TOKEN",
+      "secondarySecurityFamilies": [],
+      "authenticationAuthority": "PORTAL_TOKEN",
+      "authorizationAuthority": "PORTAL_TOKEN",
+      "dataScope": "TOKEN_SCOPED",
+      "tenantType": "TOKEN_BOUND",
+      "tenantBindingAuthority": null,
+      "membershipStatusRequirement": null,
+      "modelsRead": [
+        "caseEvidenceLink",
+        "custodyEvent",
+        "evidence",
+        "evidenceLegalHold",
+        "externalReviewerRoleAssignment",
+        "report",
+        "verificationPackage"
+      ],
+      "modelsWritten": [
+        "custodyEvent",
+        "securityEvent"
+      ],
+      "tenantBindingResolved": true,
+      "tenantBindingEvidence": [
+        "services/api/src/services/external-review/external-review-grant.service.ts: verificationPackage.findFirst — no tenant or self predicate",
+        "services/api/src/services/external-review/external-review-grant.service.ts: externalReviewerRoleAssignment.findUnique — no tenant or self predicate"
+      ],
+      "tenantIdSource": "BEARER_TOKEN_SUBJECT",
+      "organizationLifecycleRequirement": "NOT_APPLICABLE",
+      "crossTenantRefusalSemantics": "refuses with 403/404",
+      "tenantStampingInsertSites": [],
+      "tenantUnboundInsertSites": []
+    },
+    {
       "routeId": "GET /v1/external-review/activity",
       "method": "GET",
       "path": "/v1/external-review/activity",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:422",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:467",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -105620,7 +106001,7 @@
       "method": "GET",
       "path": "/v1/external-review/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:264",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:266",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -128533,7 +128914,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/annotations/:annotationId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8115",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8206",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128587,7 +128968,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/comments/:commentId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7770",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7861",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128657,7 +129038,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/label",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6062",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6153",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128728,7 +129109,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/legal-notes/:noteId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7928",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8019",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128798,7 +129179,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/relationships/:relationshipId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8790",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8881",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -128855,7 +129236,7 @@
       "method": "PATCH",
       "path": "/v1/evidence/:id/reviewer-workflow",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8538",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8629",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -138931,7 +139312,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 768,
+          "line": 769,
           "caller": "assignCase",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -138949,7 +139330,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1430 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/case-detail-sections.tsx:123 (CaseAttachEvidenceSheet, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:768 (assignCase, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1430 (EvidenceDetailScreen, MOBILE); apps/mobile/src/ui/case-detail-sections.tsx:123 (CaseAttachEvidenceSheet, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:769 (assignCase, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -142438,7 +142819,7 @@
       "method": "POST",
       "path": "/v1/evidence",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5587",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:5678",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuthAndLegal -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143794,7 +144175,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/ai-categorization/run",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8953",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:9044",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143894,7 +144275,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/annotations",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8054",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8145",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143964,7 +144345,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/archive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7011",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7102",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -143983,7 +144364,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1829,
+          "line": 1831,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -143993,7 +144374,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1196 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1829 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1196 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1831 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -144041,7 +144422,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/attest",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12672",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12858",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144113,7 +144494,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/request",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12625",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12811",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144185,7 +144566,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/certifications/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12720",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:12906",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144257,7 +144638,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/comments",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7730",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7821",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144326,7 +144707,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/complete",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10582",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:10672",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144446,7 +144827,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/legal-notes",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7888",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7979",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144515,7 +144896,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/lock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6679",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6770",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144534,7 +144915,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1717,
+          "line": 1719,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -144544,7 +144925,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1187 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1717 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1187 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1719 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -144588,7 +144969,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/parts",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6165",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6256",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144670,7 +145051,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/relationships",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8748",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:8839",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144742,7 +145123,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/reports/regenerate",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11129",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:11219",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144785,7 +145166,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
-          "line": 256,
+          "line": 258,
           "caller": "generateOutputs",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144793,7 +145174,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/_hooks/useEvidenceArtifactActions.ts",
-          "line": 304,
+          "line": 306,
           "caller": "createNewVersion",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144887,7 +145268,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/restore",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7074",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7165",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144914,7 +145295,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 750,
+          "line": 751,
           "caller": "restoreTrash",
           "class": "WEB",
           "primitive": "apiFetch",
@@ -144924,7 +145305,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:798 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:487 (EvidenceLibraryScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:750 (restoreTrash, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:798 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(tabs)/evidence.tsx:487 (EvidenceLibraryScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:751 (restoreTrash, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -144972,7 +145353,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unarchive",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7030",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7121",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -144999,7 +145380,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1872,
+          "line": 1874,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -145009,7 +145390,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1205 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:1799 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1872 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1205 (EvidenceDetailScreen, MOBILE); apps/mobile/app/(stack)/evidence/[id].tsx:1799 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1874 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145057,7 +145438,7 @@
       "method": "POST",
       "path": "/v1/evidence/:id/unlock",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6797",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6888",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -145076,7 +145457,7 @@
         },
         {
           "file": "apps/web/app/(app)/evidence/[id]/page.tsx",
-          "line": 1763,
+          "line": 1765,
           "caller": "EvidenceDetailPageInner",
           "class": "WEB",
           "primitive": "runRecordAction",
@@ -145086,7 +145467,7 @@
       "nonProductConsumers": [],
       "primaryDisposition": "PRODUCT_CONSUMED",
       "dispositionSource": "DERIVED",
-      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1225 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1763 (EvidenceDetailPageInner, WEB)",
+      "dispositionEvidence": "apps/mobile/app/(stack)/evidence/[id].tsx:1225 (EvidenceDetailScreen, MOBILE); apps/web/app/(app)/evidence/[id]/page.tsx:1765 (EvidenceDetailPageInner, WEB)",
       "dispositionReason": "reached from a product surface",
       "replacement": null,
       "result": "DISPOSED_PRODUCT_CONSUMED",
@@ -145414,7 +145795,7 @@
       "method": "POST",
       "path": "/v1/evidence/bulk",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7437",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:7528",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -145501,7 +145882,7 @@
       "method": "POST",
       "path": "/v1/evidence/claim",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6598",
+      "registrationEvidence": "services/api/src/routes/evidence.routes.ts:6689",
       "authorizationClass": "AUTHENTICATED",
       "authorizationEvidence": [
         "requireAuth -> services/api/src/middleware/auth.ts: reaches the session-cookie / bearer-JWT resolution (\"proovra_session\")"
@@ -146964,7 +147345,7 @@
       "method": "POST",
       "path": "/v1/external-review/access/:token",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:330",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:332",
       "authorizationClass": "PORTAL_TOKEN",
       "authorizationEvidence": [
         "handler body -> handler: reaches the external-review portal grant/session authority (lookupExternalReviewGrantByToken)"
@@ -147022,7 +147403,7 @@
       "method": "POST",
       "path": "/v1/external-review/grants",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:162",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:164",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",
@@ -147100,7 +147481,7 @@
       "method": "POST",
       "path": "/v1/external-review/grants/:id/revoke",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:289",
+      "registrationEvidence": "services/api/src/routes/external-review.routes.ts:291",
       "authorizationClass": "MULTI_GATE",
       "authorizationEvidence": [
         "authorizeOrFail -> services/api/src/middleware/authorize.ts: reaches the canonical authorization evaluator (authorizeOrFail)",

@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 317,
-    "classifiedMigrations": 317,
+    "filesystemMigrations": 318,
+    "classifiedMigrations": 318,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 317,
+    "productionSnapshotUnknown": 318,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 317,
-    "classifiedMigrations": 317,
+    "filesystemMigrations": 318,
+    "classifiedMigrations": 318,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 317,
+    "productionSnapshotUnknown": 318,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 91,
+      "EXPAND": 92,
       "BACKFILL": 25,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 104,
+      "SAFE_TO_APPLY_NOW": 105,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 317
+    "ProductionMigrationStateUnknown": 318
   },
   "gateFailures": [],
   "migrations": [
@@ -24107,8 +24107,74 @@
       "evidence": "DURABLE REPORT/PACKAGE PROGRESS (2026-10-06). Adds nullable report_generation_requests.progress_stage VARCHAR(32) and progress_at_utc TIMESTAMPTZ. WHY: the Artifacts & Versions progress card must show the same step after a reload, to another member and after a reconnect, so the step a running request reached is persisted by the worker (recordRequestProgress, claim-fenced) instead of advanced on a client timer; `stage` cannot carry it because it fences version reservation. EXPAND / SAFE_TO_APPLY_NOW and MUST precede the new worker image (which writes the columns; db:preflight Check 4 requires progress_stage). The previous images never read or write them. No default, no backfill, no index, no rewrite. ROLLBACK is code-first (leave the columns). NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281005000000_verification_package_disclosure_profile",
       "order": 316,
+      "sqlPresent": true,
+      "byteLength": 1786,
+      "checksumSha256": "34a6e46db41d25b080669ade22fbac26e7a0d5a3e0a6980e1741b932d2e917c9",
+      "checksumSha256Raw": "34a6e46db41d25b080669ade22fbac26e7a0d5a3e0a6980e1741b932d2e917c9",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "94b9592a32939b08760278901f625a3e35d9c2ca",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:2 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "verification_packages"
+        ],
+        "addedColumns": [
+          "disclosure_profile",
+          "external_disclosure_artifact"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "verification_packages_disclosure_profile_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260925000000_phase0_schema_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 1,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT count(*) FROM information_schema.columns WHERE table_name='verification_packages' AND column_name IN ('disclosure_profile','external_disclosure_artifact')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "VERIFICATION-PACKAGE DISCLOSURE PROFILES (2026-10-07). Adds nullable verification_packages.disclosure_profile VARCHAR(32) (CHECK NULL or 'FULL_FORENSIC') and external_disclosure_artifact JSONB. WHY: one generator now issues, per report version and sealed by the same signer, the FULL_FORENSIC package (the row) and an EXTERNAL_DISCLOSURE companion that withholds originals, the report and identifiers while keeping every commitment; both live on ONE row so the one-package-per-version unique key and the RGA-05 pairing FK are untouched. NULL = legacy (issued before profiles, never relabelled). EXPAND / SAFE_TO_APPLY_NOW and MUST precede the new worker and API images (the worker writes the columns; db:preflight Check 4 requires disclosure_profile). Previous images never read or write them. No default, no backfill, no index, no rewrite. Idempotent (IF NOT EXISTS; constraint guarded by pg_constraint). ROLLBACK is code-first (leave the columns). NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 317,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

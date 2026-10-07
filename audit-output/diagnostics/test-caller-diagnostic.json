@@ -5,12 +5,12 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "6913cadb4ce6adcbd39fedf3cf40d6d31b0595c1b84e71b2a3b38108a4fe49e6",
+  "capabilityRouteInventoryHash": "1f81f4b846e6e2dfd8ed386452196829bd708c9817aad6acc2dec830438ac2fc",
   "totals": {
-    "routes": 1180,
-    "routesWithAnyTestCaller": 41,
-    "testOnlyRoutes": 3,
-    "testCallSites": 71,
+    "routes": 1185,
+    "routesWithAnyTestCaller": 44,
+    "testOnlyRoutes": 5,
+    "testCallSites": 82,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
   "rows": [
@@ -303,10 +303,35 @@
       "testCallerFiles": []
     },
     {
-      "routeId": "GET /public/verify/:id",
+      "routeId": "GET /public/signing-keys",
       "testCallerCount": 2,
+      "testOnly": true,
+      "testCallerFiles": [
+        "e2e/updated-report/report-package-truth.spec.ts"
+      ]
+    },
+    {
+      "routeId": "GET /public/verification-packages/:packageId",
+      "testCallerCount": 5,
       "testOnly": false,
       "testCallerFiles": [
+        "e2e/updated-report/report-package-truth.spec.ts"
+      ]
+    },
+    {
+      "routeId": "GET /public/verification-packages/by-sha256/:sha256",
+      "testCallerCount": 2,
+      "testOnly": true,
+      "testCallerFiles": [
+        "e2e/updated-report/report-package-truth.spec.ts"
+      ]
+    },
+    {
+      "routeId": "GET /public/verify/:id",
+      "testCallerCount": 3,
+      "testOnly": false,
+      "testCallerFiles": [
+        "e2e/updated-report/report-package-truth.spec.ts",
         "services/api/test/phase-37-95-cross-tenant-runtime-probe.integration.test.ts"
       ]
     },
@@ -1362,6 +1387,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "GET /v1/evidence/:id/verification-packages/:version/external-disclosure",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "GET /v1/evidence/:id/verify-links",
       "testCallerCount": 0,
       "testOnly": false,
@@ -1417,6 +1448,12 @@
     },
     {
       "routeId": "GET /v1/external-review/access/:token/context",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/external-review/access/:token/verification-package",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -7181,5 +7218,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "0916afc21773de270bcc6d7e79870bbc81a7e4c839a6fd9953b8ce5eea479327"
+  "contentHash": "840bf02c4e143049fc91d33f49bb4822c37f5bfddf49802bf68d76c1881267b4"
 }
