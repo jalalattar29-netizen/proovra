@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 318,
-    "classifiedMigrations": 318,
+    "filesystemMigrations": 320,
+    "classifiedMigrations": 320,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 318,
+    "productionSnapshotUnknown": 320,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 318,
-    "classifiedMigrations": 318,
+    "filesystemMigrations": 320,
+    "classifiedMigrations": 320,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 318,
+    "productionSnapshotUnknown": 320,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 92,
+      "EXPAND": 94,
       "BACKFILL": 25,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 105,
+      "SAFE_TO_APPLY_NOW": 107,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 318
+    "ProductionMigrationStateUnknown": 320
   },
   "gateFailures": [],
   "migrations": [
@@ -24170,11 +24170,168 @@
       "releaseWave": "SAFE_TO_APPLY_NOW",
       "ownerAction": null,
       "removalCondition": null,
-      "evidence": "VERIFICATION-PACKAGE DISCLOSURE PROFILES (2026-10-07). Adds nullable verification_packages.disclosure_profile VARCHAR(32) (CHECK NULL or 'FULL_FORENSIC') and external_disclosure_artifact JSONB. WHY: one generator now issues, per report version and sealed by the same signer, the FULL_FORENSIC package (the row) and an EXTERNAL_DISCLOSURE companion that withholds originals, the report and identifiers while keeping every commitment; both live on ONE row so the one-package-per-version unique key and the RGA-05 pairing FK are untouched. NULL = legacy (issued before profiles, never relabelled). EXPAND / SAFE_TO_APPLY_NOW and MUST precede the new worker and API images (the worker writes the columns; db:preflight Check 4 requires disclosure_profile). Previous images never read or write them. No default, no backfill, no index, no rewrite. Idempotent (IF NOT EXISTS; constraint guarded by pg_constraint). ROLLBACK is code-first (leave the columns). NOT APPLIED TO PRODUCTION."
+      "evidence": "VERIFICATION-PACKAGE DISCLOSURE PROFILES (2026-10-07). Adds nullable verification_packages.disclosure_profile VARCHAR(32) (CHECK NULL or 'FULL_FORENSIC') and external_disclosure_artifact JSONB. WHY: one generator now issues, per report version and sealed by the same signer, the FULL_FORENSIC package (the row) and an EXTERNAL_DISCLOSURE companion that withholds originals, the report and identifiers while keeping every commitment; both live on ONE row so the one-package-per-version unique key and the RGA-05 pairing FK are untouched. NULL = legacy (issued before profiles, never relabelled). EXPAND / SAFE_TO_APPLY_NOW and MUST precede the new worker and API images (the worker writes the columns; db:preflight Check 4 requires disclosure_profile). Previous images never read or write them. No default, no backfill, no index, no rewrite. Idempotent (IF NOT EXISTS; constraint guarded by pg_constraint). ROLLBACK is code-first (leave the columns). SUPERSEDED IN USE by 20281006000000: external_disclosure_artifact is no longer read or written (each profile is its own row); the column is retired by a held contract migration. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "20281006000000_verification_package_profile_rows",
+      "order": 317,
+      "sqlPresent": true,
+      "byteLength": 7980,
+      "checksumSha256": "5f1597a2c315ec98512954aaedcad6e5615163b0a6ef637ded13a725e8bb53ea",
+      "checksumSha256Raw": "5f1597a2c315ec98512954aaedcad6e5615163b0a6ef637ded13a725e8bb53ea",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "fe32d546bb11fbe74f80b45bef375eb54c828dca",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:10 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "verification_packages"
+        ],
+        "addedColumns": [
+          "completed_at_utc",
+          "failed_at_utc",
+          "issuance_id",
+          "report_id",
+          "reserved_at_utc",
+          "seal_signing_key_id",
+          "seal_signing_key_version",
+          "state",
+          "supersedes_package_id",
+          "terminal_reason"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "verification_packages_external_version_key",
+          "verification_packages_issuance_idx",
+          "verification_packages_package_sha256_idx",
+          "verification_packages_primary_version_key"
+        ],
+        "droppedIndexes": [
+          "verification_packages_evidence_id_version_key"
+        ],
+        "addedConstraints": [
+          "verification_packages_disclosure_profile_check",
+          "verification_packages_failed_reason_check",
+          "verification_packages_published_storage_check",
+          "verification_packages_state_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260925000000_phase0_schema_catchup"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 4,
+      "guardRaises": 1,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_name='verification_packages' AND column_name IN ('state','issuance_id','report_id','supersedes_package_id','seal_signing_key_id','seal_signing_key_version','reserved_at_utc','completed_at_utc','failed_at_utc','terminal_reason')) || ':' || (SELECT count(*) FROM pg_indexes WHERE indexname IN ('verification_packages_primary_version_key','verification_packages_external_version_key'))\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "VERIFICATION PACKAGE PROFILE ROWS (2026-10-07). Every sealed, downloadable package is its own verification_packages row: one issuance (the report-generation request) writes one row per disclosure profile (FULL_FORENSIC, EXTERNAL_DISCLOSURE), grouped by issuance_id, each with its own state (RESERVED -> PUBLISHED | FAILED), report_id, seal key id/version, supersession and reserved/completed/failed times + terminal_reason. The package id is reserved before anything is built and reused by every retry. ADDS ten nullable columns plus state VARCHAR(16) NOT NULL DEFAULT 'PUBLISHED' (a constant default is catalog-only; every existing row was inserted at publication, so PUBLISHED is true); makes storage_bucket / storage_key / generated_at_utc nullable for RESERVED/FAILED rows with a CHECK that keeps them mandatory on PUBLISHED rows; widens the disclosure_profile CHECK to admit EXTERNAL_DISCLOSURE; creates two PARTIAL unique keys (one primary — FULL_FORENSIC or legacy NULL — and at most one EXTERNAL_DISCLOSURE per (evidence_id, version)) and indexes on issuance_id and package_sha256, every index on a pre-existing column inside an information_schema guard; then, in ONE guarded block that RAISEs unless both partial keys exist, DROP INDEX IF EXISTS verification_packages_evidence_id_version_key (an index is not data; the primary partial key enforces exactly what it enforced for every row the previous images write). SAFE BEFORE THE NEW CODE, and REQUIRED before it: the previous images insert one primary row per version with create (never ON CONFLICT against the retired key) and omit state, getting PUBLISHED; the new worker cannot insert the EXTERNAL row while the retired key exists. No backfill, no row rewritten, no package byte touched. Idempotent. ROLLBACK is code-first; the retired index can be recreated while only one row per version exists. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "20281006000100_signing_key_purpose",
+      "order": 318,
+      "sqlPresent": true,
+      "byteLength": 5002,
+      "checksumSha256": "37972c65225e0a0836b7bd4695f66dd998dc00e228fd2496701529036fb3ff22",
+      "checksumSha256Raw": "37972c65225e0a0836b7bd4695f66dd998dc00e228fd2496701529036fb3ff22",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": "fe32d546bb11fbe74f80b45bef375eb54c828dca",
+      "sqlChangedSinceIntroduction": false,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:3 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "signing_keys"
+        ],
+        "addedColumns": [
+          "algorithm",
+          "fingerprint_sha256",
+          "purpose"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [
+          "signing_keys_fingerprint_sha256_idx",
+          "signing_keys_key_id_version_purpose_key"
+        ],
+        "droppedIndexes": [
+          "signing_keys_key_id_version_key"
+        ],
+        "addedConstraints": [
+          "signing_keys_algorithm_check",
+          "signing_keys_purpose_check"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 3,
+      "guardRaises": 4,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_name='signing_keys' AND column_name IN ('purpose','algorithm','fingerprint_sha256')) || ':' || (SELECT count(*) FROM pg_indexes WHERE indexname='signing_keys_key_id_version_purpose_key')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "SIGNING-KEY PURPOSE (2026-10-07). signing_keys rows now state what they may verify: purpose VARCHAR(32) NOT NULL DEFAULT 'EVIDENCE_SIGNATURE' (CHECK EVIDENCE_SIGNATURE | PACKAGE_SEAL; every existing row was written by the evidence signer or its seed, so the constant default is true and catalog-only), algorithm VARCHAR(16) NOT NULL DEFAULT 'Ed25519' (CHECK), fingerprint_sha256 VARCHAR(64) recorded at registration (NULL on older rows, computed on read). WHY: the package seal registered its key in the same rows with no purpose, so a seal key was indistinguishable from an evidence-signing key and, in the default configuration, shared its (key_id, version). Uniqueness becomes (key_id, version, purpose) — guarded by an information_schema check — and, in ONE guarded block that RAISEs unless that key exists, DROP INDEX IF EXISTS signing_keys_key_id_version_key. The immutability trigger function is replaced to also freeze purpose, algorithm and a recorded fingerprint; a revocation still cannot be cleared and rows are still never deleted. SAFE BEFORE THE NEW CODE: previous images register evidence keys without a purpose (getting EVIDENCE_SIGNATURE) and look them up by (key_id, version), which still finds their row. No backfill, no row rewritten. Idempotent. ROLLBACK is code-first. NOT APPLIED TO PRODUCTION."
     },
     {
       "name": "email_password_auth",
-      "order": 317,
+      "order": 319,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

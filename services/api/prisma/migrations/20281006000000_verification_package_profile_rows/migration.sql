@@ -55,6 +55,25 @@ ALTER TABLE "verification_packages" ADD COLUMN IF NOT EXISTS "completed_at_utc" 
 ALTER TABLE "verification_packages" ADD COLUMN IF NOT EXISTS "failed_at_utc" TIMESTAMPTZ(6);
 ALTER TABLE "verification_packages" ADD COLUMN IF NOT EXISTS "terminal_reason" VARCHAR(64);
 
+-- PRECONDITION GUARD, before any relaxation: every existing row becomes a
+-- PUBLISHED row, so it must already name its stored object and issue time
+-- (what published_storage_check below requires), and carry a profile the new
+-- vocabulary admits. A database that does not hold refuses here, before any
+-- NOT NULL is dropped or any constraint swapped.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM "verification_packages"
+     WHERE "storage_bucket" IS NULL
+        OR "storage_key" IS NULL
+        OR "generated_at_utc" IS NULL
+        OR ("disclosure_profile" IS NOT NULL AND "disclosure_profile" NOT IN ('FULL_FORENSIC', 'EXTERNAL_DISCLOSURE'))
+  ) THEN
+    RAISE EXCEPTION
+      'verification-package profile rows refused: an existing package row has no stored object, no issue time or an unknown disclosure profile, so it cannot become a PUBLISHED profile row';
+  END IF;
+END $$;
+
 -- A RESERVED / FAILED row has no stored object yet.
 ALTER TABLE "verification_packages" ALTER COLUMN "storage_bucket" DROP NOT NULL;
 ALTER TABLE "verification_packages" ALTER COLUMN "storage_key" DROP NOT NULL;

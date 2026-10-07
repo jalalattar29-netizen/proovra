@@ -21,22 +21,22 @@ Every number below is produced by an analyzer executed at generation time and re
 | field         | value                                                            |
 | ------------- | ---------------------------------------------------------------- |
 | engineVersion | audit-engine@1.0.0                                               |
-| engineHash    | 1daa4f650f5a45a26b7f3fb7d06979c4a9bc154e36431543e4db2f55fce50d13 |
+| engineHash    | 75fab04c38bd5c7f8ceace8027ffe45bc5c04c105da2fa6ca5742042311a1677 |
 | schemaVersion | architecture-facts@1                                             |
 
 ## Measured surface
 
 | counter                       | value |
 | ----------------------------- | ----- |
-| registeredRoutes              | 1185  |
+| registeredRoutes              | 1184  |
 | developmentOnlyRoutes         | 1     |
 | productConsumerRoutes         | 977   |
 | machineOnlyConsumerRoutes     | 6     |
-| noConsumerRoutes              | 202   |
+| noConsumerRoutes              | 201   |
 | dispositionedNonProductRoutes | 204   |
-| undisposedRoutes              | 3     |
+| undisposedRoutes              | 2     |
 | authorizationUnresolved       | 0     |
-| publicUnguardedRoutes         | 36    |
+| publicUnguardedRoutes         | 35    |
 
 ## Instrument integrity
 
@@ -170,4 +170,4 @@ _(none — the instrument is sound)_
 ### Product closure
 
 - UNWIRED EXECUTABLE WRITERS: 1 terminal writers have zero entrypoints (PRESERVED_PLANNED_WRITER + DEAD_UNREACHABLE)
-- ArchitectureBacklog: UndisposedRoutes = 3 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)
+- ArchitectureBacklog: UndisposedRoutes = 2 — registered routes with no reviewed product disposition (NON-BLOCKING, no security or completeness credit)

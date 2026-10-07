@@ -5,11 +5,11 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "1f81f4b846e6e2dfd8ed386452196829bd708c9817aad6acc2dec830438ac2fc",
+  "capabilityRouteInventoryHash": "0012bd94b65b49835427c4194ea589da788ea51297995b668cd1fcf0e98bc556",
   "totals": {
-    "routes": 1185,
-    "routesWithAnyTestCaller": 44,
-    "testOnlyRoutes": 5,
+    "routes": 1184,
+    "routesWithAnyTestCaller": 43,
+    "testOnlyRoutes": 4,
     "testCallSites": 82,
     "testOnlyIsDisjointFromConsumedRoutes": true
   },
@@ -301,14 +301,6 @@
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
-    },
-    {
-      "routeId": "GET /public/signing-keys",
-      "testCallerCount": 2,
-      "testOnly": true,
-      "testCallerFiles": [
-        "e2e/updated-report/report-package-truth.spec.ts"
-      ]
     },
     {
       "routeId": "GET /public/verification-packages/:packageId",
@@ -7218,5 +7210,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "840bf02c4e143049fc91d33f49bb4822c37f5bfddf49802bf68d76c1881267b4"
+  "contentHash": "e91d8bd9ad45f396fc47fe363c34149c604675b7ac627b23fbf0e55d7a71c65c"
 }
