@@ -117,10 +117,7 @@ import {
   getObjectStream,
   headObject,
 } from "./storage.js";
-import {
-  cleanupStagedTemp,
-  type StagedPackage,
-} from "./verification-package-staging.js";
+import { cleanupStagedTemp } from "./verification-package-staging.js";
 // EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — the one way a report PDF or a
 // package ZIP is written: checksum-bound, retention in the same request,
 // single-use key, read back by VersionId before a row may say READY.
@@ -128,9 +125,7 @@ import {
   StoragePublicationRejectedError,
   buildPublicationKey,
   publishImmutableArtifact,
-  type PublishedArtifact,
 } from "./immutable-publication.js";
-import type { PackageSealResult } from "./verification-package.js";
 import { createHash, createPublicKey, randomUUID, verify as verifySignature } from "node:crypto";
 // Phase O1.5B — bounded integrity.signature.verify span on the
 // Ed25519 verification of report signing artifacts.
@@ -156,11 +151,7 @@ import {
   reportDlqQueue,
 } from "./queue.js";
 import { captureException } from "./sentry.js";
-import {
-  createVerificationPackage,
-  PackageGateDeniedError,
-  PackageSealKeyRegistrationError,
-} from "./verification-package.js";
+import { createVerificationPackage, PackageGateDeniedError } from "./verification-package.js";
 import {
   assertRenderInputs,
   assertRenderedReport,

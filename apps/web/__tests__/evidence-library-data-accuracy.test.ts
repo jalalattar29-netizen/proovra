@@ -62,7 +62,7 @@ test("Backend packages-ready uses verificationPackages.some — NOT latestReport
   const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(
     body,
-    /PACKAGES_READY_PREDICATE[\s\S]{0,200}verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+    /PACKAGES_READY_PREDICATE[\s\S]{0,200}verificationPackages:\s*\{\s*some:\s*primaryPublishedPackageWhere\(\)\s*\}/,
   );
   // Anti-regression — the predicate must NOT contain
   // `latestReportVersion` (that would be the rejected proxy).
@@ -74,7 +74,7 @@ test("Backend packages-missing predicate is REPORTED AND verificationPackages.no
   const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(
     body,
-    /PACKAGES_MISSING_PREDICATE[\s\S]{0,400}status:\s*prismaPkg\.EvidenceStatus\.REPORTED[\s\S]{0,400}verificationPackages:\s*\{\s*none:\s*\{\s*\}\s*\}/,
+    /PACKAGES_MISSING_PREDICATE[\s\S]{0,400}status:\s*prismaPkg\.EvidenceStatus\.REPORTED[\s\S]{0,400}verificationPackages:\s*\{\s*none:\s*primaryPublishedPackageWhere\(\)\s*\}/,
   );
   const missingBlock = enclosingSource(body, "PACKAGES_MISSING_PREDICATE", "statement");
   assert.doesNotMatch(missingBlock, /latestReportVersion/);

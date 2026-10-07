@@ -1,20 +1,20 @@
 /**
  * REPORT & VERIFICATION-PACKAGE TRUTH — helpers over the disposable stack.
  *
- * Every helper acts through a product authority wherever one exists. Three
+ * Every helper acts through a product authority wherever one exists. Two
  * fixtures stand in for parties the disposable stack does not have, and say so:
  *
  *   * publishAndShare — the owner's interactive step-up approval for
  *     publishing and minting a share link; the product's own services
  *     (publishPublicVerify, createVerificationLink) run inside the API image.
- *   * recordChainVerification — a Bitcoin node: there is none offline, so the
- *     worker's own OTS transition authority (decideOtsTransition /
- *     applyOtsTransition) records a BITCOIN_VERIFIED observation and the
- *     upgrade processor's OTS_APPLIED custody event, exactly as
- *     processOtsUpgrade would after a successful `ots verify`.
  *   * provisionVerifiedOrganization — the sales-led Enterprise provisioning
  *     authority (inside the API image, against the stack database) and the
  *     organization-verification decision (one column).
+ *
+ * There is NO Bitcoin-chain fixture (2026-10-07): the stack has no trusted
+ * Bitcoin verifier, and a fixture that WRITES a verified result proves nothing
+ * about the chain. Anchoring stays PRESENT_NOT_INDEPENDENTLY_VERIFIED here, and
+ * real chain verification is an external-proof item, not a passed journey.
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -45,30 +45,6 @@ export function publishAndShare(evidenceId: string, teamId: string, ownerUserId:
   const m = out.match(/TOKEN=(\S+)/);
   if (!m) throw new Error(`publishAndShare: no token in ${out}`);
   return m[1]!;
-}
-
-/** FIXTURE (Bitcoin node): record a BITCOIN_VERIFIED check through the worker's OTS authority. */
-export function recordChainVerification(evidenceId: string): void {
-  nodeIn(
-    "worker",
-    `const { prisma } = await import("/app/services/worker/dist/db.js");
-     const st = await import("/app/services/worker/dist/ots-state.js");
-     const { appendCustodyEventTx } = await import("/app/services/worker/dist/custody-events.js");
-     const id = ${JSON.stringify(evidenceId)};
-     const row = await prisma.evidence.findUniqueOrThrow({ where: { id }, select: { otsStatus: true, otsProofBase64: true, otsHash: true, otsCalendar: true, otsBitcoinTxid: true, otsAnchoredAtUtc: true, otsUpgradedAtUtc: true, otsFailureReason: true, otsAnchorCheck: true } });
-     const observedAt = new Date();
-     const t = st.decideOtsTransition(row, { kind: "ANCHOR_PROVEN", proofBase64: row.otsProofBase64, check: "BITCOIN_VERIFIED", txid: row.otsBitcoinTxid, blockTimeUtc: null, blockHeight: null }, observedAt);
-     if (t.kind !== "WRITE") { console.error("no write: " + JSON.stringify(t)); process.exit(3); }
-     await prisma.$transaction(async (tx) => {
-       const won = await st.applyOtsTransition(tx, id, row, t);
-       if (!won) throw new Error("row moved");
-       await appendCustodyEventTx(tx, { evidenceId: id, eventType: "OTS_APPLIED", atUtc: observedAt, payload: {
-         otsStatus: t.status, otsPhase: t.phase, previousOtsStatus: row.otsStatus, anchorCheck: "BITCOIN_VERIFIED",
-         bitcoinTxid: row.otsBitcoinTxid, anchoredAtUtc: t.data.otsAnchoredAtUtc instanceof Date ? t.data.otsAnchoredAtUtc.toISOString() : null,
-         observedAtUtc: observedAt.toISOString(), failureReason: null, fixture: "bitcoin-node-stand-in" } });
-     });
-     process.exit(0);`,
-  );
 }
 
 /** FIXTURE (sales-led provisioning + verification decision): a VERIFIED organization workspace. */

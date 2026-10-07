@@ -325,7 +325,8 @@ test("Backend /v1/cases/:id/available-evidence selects the filename fields the p
     // via deriveCanonicalArtifactAvailability — latestReportVersion and
     // verificationPackageVersion no longer needed in the Prisma select.
     "reports: true",
-    "verificationPackages: true",
+    // (2026-10-07) only PUBLISHED primary packages count as "a package".
+    "verificationPackages: { where: primaryPublishedPackageWhere() }",
     // _count.select is multi-line; check for parts individually
     "parts: true",
   ]) {

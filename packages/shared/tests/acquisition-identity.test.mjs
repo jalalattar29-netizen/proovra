@@ -12,6 +12,8 @@ import {
   acquisitionWorkspaceLabel,
   identityLevelLabel,
   resolveAcquisitionIdentitySnapshot,
+  acquisitionActorLabel,
+  acquisitionAccountRoleLabel,
 } from "../dist/index.js";
 
 const created = (payload) => ({ eventType: "IDENTITY_SNAPSHOT_RECORDED", atUtc: "2026-10-07T04:52:01.000Z", payload });
@@ -124,4 +126,54 @@ test("the snapshot is channel-independent: every acquisition mode reads the same
     assert.equal(s.basis, "OBSERVED_AT_CAPTURE", mode);
     assert.equal(acquisitionWorkspaceLabel(s.workspaceKind), "Personal workspace", mode);
   }
+});
+
+test("the ACTOR is recorded at capture: intake contributor, account, guest — and legacy reads only immutable facts", () => {
+  const snap = (payload, acquisitionMode = null) =>
+    resolveAcquisitionIdentitySnapshot({
+      custodyEvents: [{ eventType: "IDENTITY_SNAPSHOT_RECORDED", atUtc: "2026-10-01T00:00:00.000Z", payload }],
+      acquisitionMode,
+    });
+  const intake = snap(
+    { submittedByAuthProvider: "EMAIL", actorKind: "INTAKE_CONTRIBUTOR", accountRole: "INTAKE_LINK_ISSUER", contributorEmailProvided: false },
+    "SECURE_INTAKE_LINK",
+  );
+  assert.equal(intake.actorKind, "INTAKE_CONTRIBUTOR");
+  assert.equal(intake.accountRole, "INTAKE_LINK_ISSUER");
+  assert.equal(intake.contributorEmailProvided, false);
+  assert.match(acquisitionActorLabel(intake), /not signed in; no email address was provided/);
+  assert.match(acquisitionAccountRoleLabel(intake.accountRole), /issued the intake link \(not the contributor\)/);
+
+  const account = snap({ submittedByAuthProvider: "GOOGLE", actorKind: "ACCOUNT_USER", accountRole: "SUBMITTER" }, "PROOVRA_WEB_UPLOAD");
+  assert.equal(account.actorKind, "ACCOUNT_USER");
+  assert.equal(acquisitionActorLabel(account), "Signed-in PROOVRA account");
+  assert.equal(account.contributorEmailProvided, null);
+
+  // An older event without the field: the actor comes from the IMMUTABLE
+  // acquisition mode and the recorded provider — never from current state.
+  assert.equal(snap({ submittedByAuthProvider: "EMAIL" }, "SECURE_INTAKE_LINK").actorKind, "INTAKE_CONTRIBUTOR");
+  assert.equal(snap({ submittedByAuthProvider: "GUEST" }, "PROOVRA_WEB_UPLOAD").actorKind, "GUEST_SESSION");
+  assert.equal(snap({ submittedByAuthProvider: "EMAIL" }, "DIRECT_SCREEN_CAPTURE_IOS").actorKind, "ACCOUNT_USER");
+  assert.equal(snap({}, null).actorKind, "NOT_RECORDED");
+});
+
+test("a LEGACY record never claims organization verification its row may have been rewritten to", () => {
+  const legacy = resolveAcquisitionIdentitySnapshot({
+    custodyEvents: [],
+    row: { identityLevelSnapshot: "ORGANIZATION_ACCOUNT", submittedByAuthProvider: "EMAIL", organizationVerifiedSnapshot: true },
+    acquisitionMode: "PROOVRA_WEB_UPLOAD",
+  });
+  assert.equal(legacy.basis, "RECORDED_ON_RECORD");
+  assert.equal(legacy.organizationVerified, null);
+  assert.equal(legacy.actorKind, "ACCOUNT_USER");
+});
+
+test("a LEGACY intake record never presents the contributor's address as the issuing account's email", () => {
+  const legacy = resolveAcquisitionIdentitySnapshot({
+    custodyEvents: [],
+    row: { identityLevelSnapshot: "VERIFIED_EMAIL", submittedByAuthProvider: "EMAIL", submittedByEmail: "contributor@example.test" },
+    acquisitionMode: "SECURE_INTAKE_LINK",
+  });
+  assert.equal(legacy.accountRole, "INTAKE_LINK_ISSUER");
+  assert.equal(legacy.submittedByEmail, null);
 });

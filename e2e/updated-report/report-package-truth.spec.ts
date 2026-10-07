@@ -14,13 +14,16 @@
  *       NEW_VERSION path (idempotent): "proof present, not chain-verified",
  *       no verified claim or full points; v2 supersedes v1 and says what
  *       changed; v1 bytes unchanged; the README's openssl ts -verify runs.
- *   J3  chain verification recorded → freshness offers it → v3 states
- *       "verified against the Bitcoin chain" with its check time.
+ *   J3  NO trusted Bitcoin verifier exists in the stack, so no chain check is
+ *       recorded: v3 (re-issued) keeps "proof present, not chain-verified"
+ *       everywhere — never Verified, never full credit, never a verified
+ *       manifest claim. Real chain verification is an EXTERNAL-PROOF item.
  *   J4  Public Verify, the review workspace and the package carry the same
  *       canonical states and the capture-time identity.
  *   J5  account/workspace changes after capture do not rewrite identity; an
  *       organization-verified capture is stated only when established.
- *   J6  key registry: current, rotated, revoked, unknown key, unknown package.
+ *   J6  seal-key binding through the package record ONLY (no key inventory):
+ *       PACKAGE_SEAL purpose, rotation, revocation, unknown package.
  *   J7  a legacy package (no profile, no id inside) is honestly labelled and
  *       still downloadable.
  *   J8  a VIEWER gets the external disclosure package only; an outsider
@@ -61,7 +64,6 @@ import {
   provisionVerifiedOrganization,
   publishAndShare,
   readmeCommands,
-  recordChainVerification,
   sh,
   sha256,
   type ExtractedPackage,
@@ -182,16 +184,41 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
   expect(full.json("signers/signer-registry-snapshot.json").packageId).toBe(v1.packageId);
   expect(full.texts.get("signers/signer-registry-snapshot.json")).not.toMatch(/\/run\/signing|arn:aws/);
 
-  // --- The database row is the package -------------------------------------
-  const [row] = sql<{ id: string; disclosure_profile: string; package_sha256: string; external_disclosure_artifact: Record<string, unknown> }>(
-    "SELECT id, disclosure_profile, package_sha256, external_disclosure_artifact FROM verification_packages WHERE evidence_id = $1 AND version = 1",
+  // --- Each sealed package is its own row, issued together -----------------
+  const rows = sql<{
+    id: string; disclosure_profile: string; package_sha256: string; state: string; issuance_id: string | null;
+    seal_signing_key_id: string | null; seal_signing_key_version: number | null; seal_signing_key_sha256: string | null;
+    external_disclosure_artifact: unknown;
+  }>(
+    `SELECT id, disclosure_profile, package_sha256, state, issuance_id, seal_signing_key_id, seal_signing_key_version,
+            seal_signing_key_sha256, external_disclosure_artifact
+       FROM verification_packages WHERE evidence_id = $1 AND version = 1 ORDER BY disclosure_profile`,
     [evidenceId],
   );
-  expect(row?.id).toBe(v1.packageId);
-  expect(row?.disclosure_profile).toBe("FULL_FORENSIC");
-  expect(row?.package_sha256).toBe(sha256(zip));
-  expect(row?.external_disclosure_artifact.packageId).toBe(v1.extPackageId);
-  expect(row?.external_disclosure_artifact.packageSha256).toBe(sha256(ext.zip!));
+  expect(rows.map((r) => [r.disclosure_profile, r.id, r.state])).toEqual([
+    ["EXTERNAL_DISCLOSURE", v1.extPackageId, "PUBLISHED"],
+    ["FULL_FORENSIC", v1.packageId, "PUBLISHED"],
+  ]);
+  expect(rows[1]!.package_sha256).toBe(sha256(zip));
+  expect(rows[0]!.package_sha256).toBe(sha256(ext.zip!));
+  expect(rows[0]!.issuance_id).toBeTruthy();
+  expect(rows[0]!.issuance_id, "one issuance").toBe(rows[1]!.issuance_id);
+  expect(rows.every((r) => r.external_disclosure_artifact === null), "no companion column").toBe(true);
+  const sealSigDoc = full.json("package-seal.sig");
+  for (const r of rows) {
+    expect(r.seal_signing_key_id).toBe(sealSigDoc.signingKeyId);
+    expect(String(r.seal_signing_key_version)).toBe(String(sealSigDoc.signingKeyVersion));
+    expect(r.seal_signing_key_sha256).toBe(sealSigDoc.signingKeyFingerprint);
+  }
+  // The seal key is registered for PACKAGE SEALING — its own row, its own purpose.
+  const [sealKeyRow] = sql<{ purpose: string; fingerprint_sha256: string }>(
+    "SELECT purpose, fingerprint_sha256 FROM signing_keys WHERE key_id = $1 AND version = $2 AND purpose = 'PACKAGE_SEAL'",
+    [String(sealSigDoc.signingKeyId), Number(sealSigDoc.signingKeyVersion)],
+  );
+  expect(sealKeyRow?.fingerprint_sha256).toBe(sealSigDoc.signingKeyFingerprint);
+  // The acquisition snapshot is sealed in the full package's case metadata.
+  const acq = (full.json("case-metadata.json").submitter as Record<string, unknown>).acquisitionIdentity as Record<string, unknown>;
+  expect(acq).toMatchObject({ basis: "OBSERVED_AT_CAPTURE", actorKind: "ACCOUNT_USER", accountRole: "SUBMITTER", workspaceKind: "PERSONAL", emailVerified: true });
 
   // --- The README's commands, executed against the extracted package -------
   const readme = full.texts.get("README.txt")!;
@@ -236,7 +263,10 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
     expect(byId.body.packageSha256).toBe(sha);
     expect(byId.body.sealKeyFingerprintSha256).toBe(sig.signingKeyFingerprint);
     expect(byId.body.keyBinding).toBe("BOUND");
+    expect(byId.body.sealKey).toMatchObject({ purpose: "PACKAGE_SEAL", algorithm: "Ed25519", status: "ACTIVE", fingerprintSha256: sig.signingKeyFingerprint });
+    expect((byId.body.issuedWith as Array<Record<string, unknown>>).map((x) => x.packageId)).toEqual([id === v1.packageId ? v1.extPackageId : v1.packageId]);
     expect(JSON.stringify(byId.body)).not.toMatch(/@example\.test|storageKey|proovra-rga/);
+    expect(JSON.stringify(byId.body)).not.toContain(evidenceId);
     const bySha = await publicRecord(`/public/verification-packages/by-sha256/${sha}`);
     expect(bySha.body.packageId).toBe(id);
   }
@@ -274,6 +304,8 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(text).toContain("Anchoring proof present; not independently chain-verified");
   expect(text).toContain("Proof present, not chain-verified");
   expect(text).not.toMatch(/Bitcoin anchoring\s+Verified/);
+  // A validated token is a certificate-chain fact, never a qualification.
+  expect(text).toContain("Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.");
   expect(text).not.toMatch(/OAuth-backed|Organization account/);
 
   expect(consistencyFindings(full2)).toEqual([]);
@@ -297,6 +329,7 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(tv.status).toBe("VALIDATED");
   expect(tv.imprintMatchesEvidenceDigest).toBe(true);
   expect((tv.qualifiedStatus as Record<string, unknown>).evaluated).toBe(false);
+  expect(tv.summary).toBe("Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.");
   expect(tv.checks).toMatchObject({ signature: "PASSED", certificateChain: "PASSED", messageImprint: "PASSED" });
   const ca = spawnSync("docker", ["compose", "-p", "pv-rga", "-f", resolve(__dirname, "stack", "docker-compose.yml"), "exec", "-T", "tsa", "cat", "/tsa/ca.pem"], { encoding: "utf8" });
   writeFileSync(join(full2.dir, "TSA-ROOT.pem"), ca.stdout);
@@ -307,23 +340,35 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(consistencyFindings(extractPackage(ext2.zip!, join(PROOF_DIR, "v2-external")))).toEqual([]);
 });
 
-test("J3 v3 — a recorded chain verification is offered as a newer fact and v3 states it, with its check time", async () => {
+test("J3 v3 — with NO trusted Bitcoin verifier, anchoring stays present-not-verified everywhere; nothing claims chain verification", async () => {
   test.setTimeout(600_000);
-  recordChainVerification(evidenceId);
+  // The stack has no Bitcoin node: nothing records a chain check, so no newer
+  // anchoring fact is offered, and a re-issued v3 states exactly what v2 did.
   const st = await status(owner.api, evidenceId);
-  expect(st.outputs.freshness.changes.map((c) => c.code)).toContain("OTS_CHAIN_VERIFIED_AFTER_REPORT");
-  const r = await newVersion(owner.api, evidenceId, `truth-v3-${Date.now()}`, "Anchor verified against the Bitcoin chain");
+  expect(st.outputs.freshness.changes.map((c) => c.code)).not.toContain("OTS_CHAIN_VERIFIED_AFTER_REPORT");
+  expect(st.outputs.trust.ots.anchorCheck).not.toBe("BITCOIN_VERIFIED");
+  const r = await newVersion(owner.api, evidenceId, `truth-v3-${Date.now()}`, "Re-issue with the same anchoring facts");
   expect([200, 202]).toContain(r.status);
   await waitForPair(owner.api, evidenceId, 3);
   const text = pdfText(await downloadVersion(owner.api, evidenceId, "report", 3), "v3.pdf");
-  expect(text).toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
-  expect(text).toMatch(/verified against the Bitcoin chain after report v2/);
+  expect(text).toContain("Anchoring proof present; not independently chain-verified");
+  expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
+  expect(text).not.toContain("Anchored, chain-verified");
   v3Full = extractPackage(await downloadVersion(owner.api, evidenceId, "package", 3), join(PROOF_DIR, "v3-full"));
   expect(consistencyFindings(v3Full)).toEqual([]);
   const anchoring = signal(v3Full, "bitcoin_anchoring");
-  expect(anchoring.state).toBe("PASSED");
-  expect(anchoring.measuredAtUtc).toBeTruthy();
-  expect(v3Full.json("package-manifest.json").publicAnchoringVerified).toBe(true);
+  expect(anchoring.state).toBe("PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  expect(anchoring.status).not.toBe("passed");
+  expect(Number(anchoring.points), "never full credit").toBeLessThan(Number(anchoring.maxPoints));
+  expect(v3Full.json("package-manifest.json").publicAnchoringVerified).toBe(false);
+  expect(v3Full.json("trust-decision.json").verdict).not.toBe("STRONGLY_VERIFIED");
+  // EXTERNAL-PROOF ITEM, recorded with the proof artifacts: verifying the
+  // proof against the real Bitcoin chain needs a trusted verifier this
+  // disposable stack does not have. It is NOT claimed as passed here.
+  writeFileSync(
+    join(PROOF_DIR, "external-proof-blockers.json"),
+    JSON.stringify({ realBitcoinChainVerification: "NOT_EXECUTED — no trusted OTS/Bitcoin verifier in the disposable stack" }, null, 2),
+  );
 });
 
 test("J4 Public Verify, the review workspace and the package carry the same canonical states and identity", async () => {
@@ -343,7 +388,8 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   expect(rw.ok()).toBe(true);
   const rwBody = (await rw.json()) as Record<string, unknown>;
   // The authenticated review workspace states the same anchoring state.
-  expect(JSON.stringify(rwBody)).toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PASSED"/);
+  expect(JSON.stringify(rwBody)).toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PRESENT_NOT_INDEPENDENTLY_VERIFIED"/);
+  expect(JSON.stringify(rwBody)).not.toMatch(/"key":"bitcoin_anchoring"[^}]*"state":"PASSED"/);
 });
 
 test("J5 identity: a later account/workspace change rewrites nothing; an organization-verified capture is stated when established", async () => {
@@ -374,41 +420,49 @@ test("J5 identity: a later account/workspace change rewrites nothing; an organiz
 
 test("J6 key registry: current, rotated, revoked, unknown key and unknown package", async () => {
   test.setTimeout(400_000);
-  const sealFp = String(v1.full!.json("package-seal.sig").signingKeyFingerprint);
-  const keys = await publicRecord("/public/signing-keys");
-  expect(keys.status).toBe(200);
-  const listed = (keys.body.keys as Array<Record<string, unknown>>).find((k) => k.fingerprintSha256 === sealFp);
-  expect(listed?.status).toBe("ACTIVE");
-  expect(JSON.stringify(keys.body)).not.toMatch(/PRIVATE KEY|secret/i);
+  // There is no key inventory: a key is described only as the seal key of a
+  // package the caller identified.
+  expect((await publicRecord("/public/signing-keys")).status).toBe(404);
+  const sealSig = v1.full!.json("package-seal.sig");
+  const sealKeyId = String(sealSig.signingKeyId);
+  const sealVersion = Number(sealSig.signingKeyVersion);
+  const before = await publicRecord(`/public/verification-packages/${v1.packageId}`);
+  expect(before.body.sealKey).toMatchObject({ purpose: "PACKAGE_SEAL", keyId: sealKeyId, version: sealVersion, status: "ACTIVE" });
+  expect(JSON.stringify(before.body)).not.toMatch(/PRIVATE KEY|secret/i);
 
-  // FIXTURE (operator rotation): a newer version of the seal key's id. The
-  // registry is insert-only and a revocation can never be cleared, so the
-  // live signing key is never revoked here.
-  const [cur] = sql<{ key_id: string; version: number }>(
-    "SELECT key_id, version FROM signing_keys ORDER BY created_at ASC LIMIT 1",
-  );
+  // FIXTURE (operator rotation): a newer PACKAGE_SEAL version of the seal key's
+  // id. The registry is insert-only and a revocation can never be cleared, so
+  // the live seal key is never revoked here.
   const { publicKey } = generateKeyPairSync("ed25519");
   const rotatedPem = publicKey.export({ type: "spki", format: "pem" }).toString();
   const rotatedFp = sha256(publicKey.export({ type: "spki", format: "der" }));
-  sql("INSERT INTO signing_keys (key_id, version, public_key_pem) VALUES ($1, $2, $3)", [cur!.key_id, 900 + cur!.version, rotatedPem]);
+  const rotatedVersion = 900 + sealVersion;
+  sql(
+    "INSERT INTO signing_keys (key_id, version, purpose, public_key_pem, fingerprint_sha256) VALUES ($1, $2, 'PACKAGE_SEAL', $3, $4)",
+    [sealKeyId, rotatedVersion, rotatedPem, rotatedFp],
+  );
   const rec = await publicRecord(`/public/verification-packages/${v1.packageId}`);
-  expect((rec.body.sealKey as Record<string, unknown>).status).toBe("SUPERSEDED");
+  expect(rec.body.sealKey).toMatchObject({ status: "SUPERSEDED", supersededByVersion: rotatedVersion });
   expect(rec.body.keyBinding).toBe("BOUND");
   expect(sealOk(v1.full!).ok).toBe(true); // the historical package still verifies after rotation
 
-  // Revoked: a dedicated fixture record whose seal key is the fixture key,
-  // which is then revoked — it stays listed, as revoked.
+  // Revoked: a dedicated fixture record whose FULL package names the fixture
+  // key as its seal key, which is then revoked.
   const ev = await createFinalizedEvidence(owner.api, teamId, "truth-revoked-key");
   await waitForPair(owner.api, ev.id, 1);
-  sql("UPDATE verification_packages SET seal_signing_key_sha256 = $2 WHERE evidence_id = $1", [ev.id, rotatedFp]);
-  sql("UPDATE signing_keys SET revoked_at = now() WHERE key_id = $1 AND version = $2", [cur!.key_id, 900 + cur!.version]);
-  const [row] = sql<{ id: string }>("SELECT id FROM verification_packages WHERE evidence_id = $1", [ev.id]);
+  const [row] = sql<{ id: string }>(
+    "SELECT id FROM verification_packages WHERE evidence_id = $1 AND disclosure_profile = 'FULL_FORENSIC'",
+    [ev.id],
+  );
+  sql(
+    "UPDATE verification_packages SET seal_signing_key_id = $2, seal_signing_key_version = $3, seal_signing_key_sha256 = $4 WHERE id = $1",
+    [row!.id, sealKeyId, rotatedVersion, rotatedFp],
+  );
+  sql("UPDATE signing_keys SET revoked_at = now() WHERE key_id = $1 AND version = $2 AND purpose = 'PACKAGE_SEAL'", [sealKeyId, rotatedVersion]);
   const revoked = await publicRecord(`/public/verification-packages/${row!.id}`);
   expect(revoked.body.keyBinding).toBe("BOUND_KEY_REVOKED");
-  expect((revoked.body.sealKey as Record<string, unknown>).status).toBe("REVOKED");
+  expect(revoked.body.sealKey).toMatchObject({ purpose: "PACKAGE_SEAL", status: "REVOKED" });
   expect((revoked.body.sealKey as Record<string, unknown>).revokedAtUtc).toBeTruthy();
-  const after = await publicRecord("/public/signing-keys");
-  expect((after.body.keys as Array<Record<string, unknown>>).some((k) => k.fingerprintSha256 === rotatedFp && k.status === "REVOKED")).toBe(true);
 
   // Unknown package / malformed id / unknown digest: one bounded 404.
   expect((await publicRecord(`/public/verification-packages/00000000-0000-4000-8000-000000000000`)).status).toBe(404);
@@ -422,13 +476,17 @@ test("J7 a legacy package is labelled as legacy, its key as unpublished, and sta
   await waitForPair(owner.api, ev.id, 1);
   // FIXTURE: the row as a package issued before profiles (no profile, no
   // companion) sealed by a key the registry never published.
+  sql("DELETE FROM verification_packages WHERE evidence_id = $1 AND disclosure_profile = 'EXTERNAL_DISCLOSURE'", [ev.id]);
   sql(
-    "UPDATE verification_packages SET disclosure_profile = NULL, external_disclosure_artifact = NULL, seal_signing_key_sha256 = $2 WHERE evidence_id = $1",
+    `UPDATE verification_packages SET disclosure_profile = NULL, issuance_id = NULL, seal_signing_key_id = NULL,
+            seal_signing_key_version = NULL, seal_signing_key_sha256 = $2 WHERE evidence_id = $1`,
     [ev.id, "f".repeat(64)],
   );
-  const st = (await status(owner.api, ev.id)) as unknown as { versions: { versions: Array<{ package: Record<string, unknown> | null }> } };
+  const st = (await status(owner.api, ev.id)) as unknown as {
+    versions: { versions: Array<{ package: Record<string, unknown> | null; externalDisclosure?: Record<string, unknown> | null }> };
+  };
   expect(st.versions.versions[0]!.package!.disclosureProfile).toBe("LEGACY");
-  expect(st.versions.versions[0]!.package!.externalDisclosure).toBeNull();
+  expect(st.versions.versions[0]!.externalDisclosure ?? null).toBeNull();
   const ext = await downloadExternal(owner.api, ev.id, 1);
   expect(ext.status).toBe(409);
   expect(ext.body.code).toBe("EXTERNAL_DISCLOSURE_NOT_ISSUED");
@@ -471,8 +529,10 @@ test("J9 browser — Artifacts shows identity, profile and both downloads; the p
   await expect(profile).toContainText("Full forensic package");
   await expect(profile).toContainText(v1.packageId);
   await expect(page.getByTestId("download-external-package-v1")).toBeEnabled();
-  await expect(page.getByTestId("truth-ots")).toHaveText("Anchored, chain-verified");
-  await expect(page.getByTestId("truth-ots-measured")).toContainText("Checked against the Bitcoin chain");
+  // No chain check exists in the stack: the header never says chain-verified.
+  await expect(page.getByTestId("truth-ots")).toHaveText("Proof present, not chain-verified");
+  await expect(page.getByTestId("truth-ots")).not.toHaveText(/Anchored, chain-verified/);
+  await expect(page.getByTestId("pair-1-external")).toContainText(v1.extPackageId);
   await expect(page.getByTestId("truth-tsa")).toHaveText("Validated");
 
   await page.goto(`/verify/package/${v1.packageId}`);

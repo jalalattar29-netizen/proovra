@@ -273,7 +273,7 @@ test("FIX 7 — Real package readiness predicate (verificationPackages.some, NOT
   const body = routeSource(ROUTES, "GET", "/v1/evidence/library-summary");
   assert.match(
     body,
-    /PACKAGES_READY_PREDICATE[\s\S]{0,400}verificationPackages:\s*\{\s*some:\s*\{\s*\}\s*\}/,
+    /PACKAGES_READY_PREDICATE[\s\S]{0,400}verificationPackages:\s*\{\s*some:\s*primaryPublishedPackageWhere\(\)\s*\}/,
   );
   const packagesPredicateBlock = enclosingSource(body, "PACKAGES_READY_PREDICATE", "statement");
   assert.doesNotMatch(packagesPredicateBlock, /latestReportVersion/);

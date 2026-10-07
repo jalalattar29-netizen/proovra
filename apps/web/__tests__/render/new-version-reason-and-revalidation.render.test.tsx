@@ -343,6 +343,90 @@ describe("matched version history", () => {
     expect(queryByTestId("download-package-v2")).toBeNull();
     expect(getByTestId("pair-2").getAttribute("data-pair-package-version")).toBe("");
   });
+
+  it("the EXTERNAL disclosure package is its own artifact: its own id, digest, record link and download", () => {
+    const ext = {
+      ...history.versions[0]!.package!,
+      packageId: "11111111-2222-4333-8444-555555555555",
+      disclosureProfile: "EXTERNAL_DISCLOSURE" as const,
+      sha256: "e".repeat(64),
+      sizeBytes: "777",
+    };
+    const withExternal: MatchedHistory = {
+      versions: [{ ...history.versions[0]!, externalDisclosure: ext, issuance: [] }, history.versions[1]!],
+      unpairedPackages: [],
+    };
+    const downloads: string[] = [];
+    const { getByTestId } = render(
+      <MatchedVersionHistory
+        history={withExternal}
+        formatDateTime={fmt}
+        formatBytes={fmt}
+        onDownloadReportVersion={() => {}}
+        onDownloadPackageVersion={() => {}}
+        onDownloadExternalPackageVersion={(v) => downloads.push(`external-v${v}`)}
+      />,
+    );
+    const cell = getByTestId("pair-2-external");
+    expect(cell.textContent).toContain("External disclosure package v2");
+    expect(getByTestId("pair-2-external-profile").textContent).toContain(ext.packageId);
+    const link = cell.querySelector("a");
+    expect(link?.getAttribute("href")).toBe(`/verify/package/${ext.packageId}`);
+    fireEvent.click(getByTestId("download-external-package-v2"));
+    expect(downloads).toEqual(["external-v2"]);
+    // The primary package cell no longer speaks for the external one.
+    expect(getByTestId("pair-2-package").textContent).not.toContain(ext.packageId);
+  });
+
+  it("a profile still being issued, or whose last attempt failed, is a lifecycle note — never a package", () => {
+    const issuing: MatchedHistory = {
+      versions: [
+        {
+          ...history.versions[0]!,
+          package: null,
+          externalDisclosure: null,
+          issuance: [
+            { disclosureProfile: "FULL_FORENSIC", packageId: "a", state: "RESERVED", reservedAtUtc: "2026-10-07T07:00:00.000Z", failedAtUtc: null, terminalReason: null },
+            { disclosureProfile: "EXTERNAL_DISCLOSURE", packageId: "b", state: "FAILED", reservedAtUtc: null, failedAtUtc: "2026-10-07T07:01:00.000Z", terminalReason: "VERIFICATION_PACKAGE_INCOMPLETE_STORE" },
+          ],
+        },
+        history.versions[1]!,
+      ],
+      unpairedPackages: [],
+    };
+    const { getByTestId, queryByTestId } = render(
+      <MatchedVersionHistory history={issuing} formatDateTime={fmt} formatBytes={fmt} onDownloadReportVersion={() => {}} onDownloadPackageVersion={() => {}} />,
+    );
+    expect(getByTestId("issuance-FULL_FORENSIC-RESERVED").textContent).toContain("being issued");
+    expect(getByTestId("issuance-EXTERNAL_DISCLOSURE-FAILED").textContent).toContain("the last attempt failed");
+    expect(getByTestId("issuance-EXTERNAL_DISCLOSURE-FAILED").textContent).toContain("keeps the same package ID");
+    expect(queryByTestId("download-package-v2")).toBeNull();
+    expect(queryByTestId("download-external-package-v2")).toBeNull();
+  });
+
+  it("an OLDER API's external summary on the full package still offers the external download", () => {
+    const older: MatchedHistory = {
+      versions: [
+        {
+          ...history.versions[0]!,
+          package: { ...history.versions[0]!.package!, externalDisclosure: { packageId: "x", sha256: null, sizeBytes: null } },
+        },
+        history.versions[1]!,
+      ],
+      unpairedPackages: [],
+    };
+    const { getByTestId } = render(
+      <MatchedVersionHistory
+        history={older}
+        formatDateTime={fmt}
+        formatBytes={fmt}
+        onDownloadReportVersion={() => {}}
+        onDownloadPackageVersion={() => {}}
+        onDownloadExternalPackageVersion={() => {}}
+      />,
+    );
+    expect(getByTestId("download-external-package-v2")).toBeTruthy();
+  });
 });
 
 describe("artifact truth header", () => {

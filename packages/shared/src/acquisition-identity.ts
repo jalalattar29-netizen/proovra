@@ -185,7 +185,10 @@ export function resolveAcquisitionIdentitySnapshot(params: {
     // from the organization's CURRENT state by an earlier report run, so it is
     // not presented as recorded at capture.
     organizationVerified: null,
-    submittedByEmail: str(row.submittedByEmail),
+    // An intake record's row carries the CONTRIBUTOR's address (the ingress
+    // writes it there), while the account fields describe the link issuer: it is
+    // never presented as the account's email.
+    submittedByEmail: params.acquisitionMode === "SECURE_INTAKE_LINK" ? null : str(row.submittedByEmail),
     submittedByUserId: str(row.submittedByUserId),
   };
 }
@@ -333,3 +336,22 @@ export function acquisitionAccountRoleLabel(role: AcquisitionAccountRole): strin
       ? "The submitting account"
       : "Not recorded";
 }
+
+/**
+ * The acquisition snapshot's FACTS as a verification package records them
+ * (case-metadata.json → submitter.acquisitionIdentity): who acted, on what
+ * footing, recorded when. No email, user id or name.
+ */
+export type PackageAcquisitionIdentity = Pick<
+  AcquisitionIdentitySnapshot,
+  | "basis"
+  | "recordedAtUtc"
+  | "actorKind"
+  | "accountRole"
+  | "contributorEmailProvided"
+  | "identityLevel"
+  | "authProvider"
+  | "emailVerified"
+  | "workspaceKind"
+  | "organizationVerified"
+>;

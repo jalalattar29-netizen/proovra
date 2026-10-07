@@ -92,4 +92,94 @@ describe("evidence signing-key identity (live PostgreSQL 16)", () => {
     expect(registry.publicKeySpkiSha256(row.publicKeyPem)).toBe(registry.publicKeySpkiSha256(pem(k1.publicKey, "spki")));
     expect(row.revokedAt).not.toBeNull();
   });
+
+  // -------------------------------------------------------------------------
+  // KEY PURPOSE (2026-10-07): a package-seal key is never an evidence key.
+  // -------------------------------------------------------------------------
+  it("the same (key id, version) may be registered for both purposes, as two rows with two keys", async () => {
+    const keyId = `t-purpose-${randomUUID().slice(0, 8)}`;
+    const evidence = generateKeyPairSync("ed25519");
+    const seal = generateKeyPairSync("ed25519");
+    expect((await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE", publicKeyPem: pem(evidence.publicKey, "spki") })).outcome).toBe("created");
+    expect((await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "PACKAGE_SEAL", publicKeyPem: pem(seal.publicKey, "spki") })).outcome).toBe("created");
+    const rows = await prisma.signingKey.findMany({ where: { keyId }, select: { purpose: true, algorithm: true, fingerprintSha256: true } });
+    expect(rows.map((r) => r.purpose).sort()).toEqual(["EVIDENCE_SIGNATURE", "PACKAGE_SEAL"]);
+    expect(rows.every((r) => r.algorithm === "Ed25519" && /^[0-9a-f]{64}$/.test(r.fingerprintSha256 ?? ""))).toBe(true);
+
+    // The evidence path finds ONLY the evidence key.
+    const ev = await registry.findRegisteredSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" });
+    expect(ev?.fingerprintSha256).toBe(registry.publicKeySpkiSha256(pem(evidence.publicKey, "spki")));
+
+    // A signature made with the SEAL key does not verify as an evidence signature.
+    const { sign } = await import("node:crypto");
+    const message = "ab".repeat(32);
+    const sealSig = sign(null, Buffer.from(message, "hex"), seal.privateKey).toString("base64");
+    await expect(
+      registry.assertSignatureVerifiesWithRegisteredKey(prisma, {
+        keyId,
+        version: 1,
+        purpose: "EVIDENCE_SIGNATURE",
+        messageHex: message,
+        signatureBase64: sealSig,
+      }),
+    ).rejects.toMatchObject({ code: "SIGNING_SELF_VERIFICATION_FAILED" });
+    // …and the evidence key's own signature does.
+    const evSig = sign(null, Buffer.from(message, "hex"), evidence.privateKey).toString("base64");
+    await expect(
+      registry.assertSignatureVerifiesWithRegisteredKey(prisma, {
+        keyId,
+        version: 1,
+        purpose: "EVIDENCE_SIGNATURE",
+        messageHex: message,
+        signatureBase64: evSig,
+      }),
+    ).resolves.toMatchObject({ publicKeySha256: ev!.fingerprintSha256 });
+  });
+
+  it("a key registered ONLY for package sealing is not an evidence key", async () => {
+    const keyId = `t-seal-only-${randomUUID().slice(0, 8)}`;
+    const seal = generateKeyPairSync("ed25519");
+    await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "PACKAGE_SEAL", publicKeyPem: pem(seal.publicKey, "spki") });
+    expect(await registry.findRegisteredSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" })).toBeNull();
+    const { sign } = await import("node:crypto");
+    const message = "cd".repeat(32);
+    await expect(
+      registry.assertSignatureVerifiesWithRegisteredKey(prisma, {
+        keyId,
+        version: 1,
+        purpose: "EVIDENCE_SIGNATURE",
+        messageHex: message,
+        signatureBase64: sign(null, Buffer.from(message, "hex"), seal.privateKey).toString("base64"),
+      }),
+    ).rejects.toMatchObject({ code: "SIGNING_KEY_NOT_REGISTERED" });
+  });
+
+  it("the public binding of a seal key states purpose, validity, rotation and revocation — bounded to that identity", async () => {
+    const keyId = `t-binding-${randomUUID().slice(0, 8)}`;
+    const v1 = generateKeyPairSync("ed25519");
+    const v2 = generateKeyPairSync("ed25519");
+    await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "PACKAGE_SEAL", publicKeyPem: pem(v1.publicKey, "spki") });
+    const active = await registry.describePublicSigningKey(prisma, { keyId, version: 1, purpose: "PACKAGE_SEAL" });
+    expect(active).toMatchObject({ purpose: "PACKAGE_SEAL", algorithm: "Ed25519", keyId, version: 1, status: "ACTIVE", supersededByVersion: null, revokedAtUtc: null });
+    await registry.registerSigningKey(prisma, { keyId, version: 2, purpose: "PACKAGE_SEAL", publicKeyPem: pem(v2.publicKey, "spki") });
+    const rotated = await registry.describePublicSigningKey(prisma, { keyId, version: 1, purpose: "PACKAGE_SEAL" });
+    expect(rotated).toMatchObject({ status: "SUPERSEDED", supersededByVersion: 2 });
+    expect(rotated!.validUntilUtc).toBeTruthy();
+    await prisma.signingKey.update({
+      where: { keyId_version_purpose: { keyId, version: 1, purpose: "PACKAGE_SEAL" } },
+      data: { revokedAt: new Date() },
+    });
+    expect(await registry.describePublicSigningKey(prisma, { keyId, version: 1, purpose: "PACKAGE_SEAL" })).toMatchObject({ status: "REVOKED" });
+    // An evidence key of the same identity would not be described here.
+    expect(await registry.describePublicSigningKey(prisma, { keyId, version: 1, purpose: "EVIDENCE_SIGNATURE" })).toBeNull();
+  });
+
+  it("purpose, algorithm and a recorded fingerprint are immutable (trigger)", async () => {
+    const keyId = `t-immut-${randomUUID().slice(0, 8)}`;
+    const k = generateKeyPairSync("ed25519");
+    await registry.registerSigningKey(prisma, { keyId, version: 1, purpose: "PACKAGE_SEAL", publicKeyPem: pem(k.publicKey, "spki") });
+    const where = { keyId_version_purpose: { keyId, version: 1, purpose: "PACKAGE_SEAL" } };
+    await expect(prisma.signingKey.update({ where, data: { purpose: "EVIDENCE_SIGNATURE" } })).rejects.toThrow();
+    await expect(prisma.signingKey.update({ where, data: { fingerprintSha256: "0".repeat(64) } })).rejects.toThrow();
+  });
 });

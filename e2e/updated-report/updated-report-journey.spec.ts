@@ -322,7 +322,7 @@ test.describe("updated report — the real stack, end to end", () => {
     // Version-specific storage keys, read back from the object store.
     const keys = sql<{ kind: string; version: number; storage_key: string; s3_version_id: string | null }>(
       `SELECT 'report' AS kind, version, storage_key, s3_version_id FROM reports WHERE evidence_id = $1
-       UNION ALL SELECT 'package', version, storage_key, s3_version_id FROM verification_packages WHERE evidence_id = $1
+       UNION ALL SELECT 'package', version, storage_key, s3_version_id FROM verification_packages WHERE evidence_id = $1 AND state = 'PUBLISHED'
        ORDER BY kind, version`,
       [evidenceId],
     );

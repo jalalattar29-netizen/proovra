@@ -143,8 +143,8 @@ export default function PackageRecordPage() {
                 )
               }
             />
+            <div data-testid="package-record-binding" data-key-binding={record.keyBinding}>
             <Row
-              testId="package-record-binding"
               label="Seal key"
               state={BINDING_STATE[record.keyBinding]}
               badge={BINDING_BADGE[record.keyBinding]}
@@ -171,6 +171,7 @@ export default function PackageRecordPage() {
                 </>
               }
             />
+            </div>
           </VerifyCard>
 
           <VerifyCard id="package-file" title="Check your copy" style={{ marginTop: 16 }}>
@@ -198,8 +199,8 @@ export default function PackageRecordPage() {
             <div aria-live="polite" role="status" style={{ marginTop: 10 }}>
               {hashing ? "Computing SHA-256…" : null}
               {fileCheck && !hashing ? (
+                <div data-testid="package-record-file-result" data-match={match === null ? "unknown" : String(match)}>
                 <Row
-                  testId="package-record-file-result"
                   label={fileCheck.name}
                   state={match === true ? "verified" : match === false ? "failed" : "not_checked"}
                   badge={match === true ? "Matches" : match === false ? "Does not match" : undefined}
@@ -214,6 +215,7 @@ export default function PackageRecordPage() {
                     </>
                   }
                 />
+                </div>
               ) : null}
             </div>
           </VerifyCard>

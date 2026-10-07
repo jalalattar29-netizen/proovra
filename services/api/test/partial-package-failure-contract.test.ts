@@ -103,7 +103,15 @@ describe("partial Report/Package failure — the state transition", () => {
     const terminal = guard.indexOf("if (packageTechnicalFailure.retriable === false)");
     expect(terminal).toBeGreaterThan(-1);
     expect(guard.indexOf("recordPackageGenerationIncident")).toBeLessThan(terminal);
-    expect(guard.slice(terminal, terminal + 700)).toMatch(
+    // The `if` block itself, by brace matching — not a character window.
+    const open = guard.indexOf("{", terminal);
+    let depth = 0;
+    let close = open;
+    for (; close < guard.length; close += 1) {
+      if (guard[close] === "{") depth += 1;
+      else if (guard[close] === "}" && --depth === 0) break;
+    }
+    expect(guard.substring(terminal, close + 1)).toMatch(
       /throw createWorkerError\(\s*packageTechnicalFailure\.phase === "store"\s*\?\s*"VERIFICATION_PACKAGE_STORAGE_REJECTED"\s*:\s*packageTechnicalFailure\.message,\s*false,?\s*\)/,
     );
   });

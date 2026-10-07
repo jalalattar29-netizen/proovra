@@ -47,15 +47,23 @@ const E: string[] = [];
 /** The invariants every case ends on. */
 function assertPairsConsistent(evidenceId: string) {
   const reports = sql<{ version: number }>("SELECT version FROM reports WHERE evidence_id = $1 ORDER BY version", [evidenceId]).map((r) => r.version);
-  const pkgs = sql<{ version: number; report_version: number | null }>(
-    "SELECT version, report_version FROM verification_packages WHERE evidence_id = $1 ORDER BY version",
+  const rows = sql<{ version: number; report_version: number | null; disclosure_profile: string | null; state: string }>(
+    "SELECT version, report_version, disclosure_profile, state FROM verification_packages WHERE evidence_id = $1 ORDER BY version, disclosure_profile",
     [evidenceId],
   );
   // Contiguous versions, no duplicates.
   expect(reports).toEqual(reports.map((_, i) => i + 1));
   // Every package certifies exactly its own report version.
-  for (const p of pkgs) expect(p.report_version ?? p.version).toBe(p.version);
+  for (const p of rows) expect(p.report_version ?? p.version).toBe(p.version);
+  // Per version: at most ONE published primary package (FULL_FORENSIC or
+  // legacy) and at most ONE published external package, which never exists
+  // without its primary.
+  const published = rows.filter((p) => p.state === "PUBLISHED");
+  const pkgs = published.filter((p) => p.disclosure_profile === null || p.disclosure_profile === "FULL_FORENSIC");
+  const external = published.filter((p) => p.disclosure_profile === "EXTERNAL_DISCLOSURE");
   expect(new Set(pkgs.map((p) => p.version)).size).toBe(pkgs.length);
+  expect(new Set(external.map((p) => p.version)).size).toBe(external.length);
+  for (const e of external) expect(pkgs.map((p) => p.version)).toContain(e.version);
   return { reports, packages: pkgs.map((p) => p.version) };
 }
 
@@ -395,7 +403,7 @@ test("REPORT and PACKAGE OBJECT MISSING → typed, safe download errors; the oth
   test.setTimeout(300_000);
   const id = E[0]!; // has v1..v3
   const [rep] = sql<{ storage_key: string; s3_version_id: string | null }>("SELECT storage_key, s3_version_id FROM reports WHERE evidence_id = $1 AND version = 1", [id]);
-  const [pkg] = sql<{ storage_key: string; s3_version_id: string | null }>("SELECT storage_key, s3_version_id FROM verification_packages WHERE evidence_id = $1 AND version = 1", [id]);
+  const [pkg] = sql<{ storage_key: string; s3_version_id: string | null }>("SELECT storage_key, s3_version_id FROM verification_packages WHERE evidence_id = $1 AND version = 1 AND state = 'PUBLISHED' AND (disclosure_profile IS NULL OR disclosure_profile = 'FULL_FORENSIC')", [id]);
   mc(["rm", "--version-id", rep!.s3_version_id!, `local/proovra-rga/${rep!.storage_key}`]);
   mc(["rm", "--version-id", pkg!.s3_version_id!, `local/proovra-rga/${pkg!.storage_key}`]);
   const apiReport = await A.api.get(`/v1/evidence/${id}/reports/1`);

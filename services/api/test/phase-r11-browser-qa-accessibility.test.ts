@@ -210,7 +210,7 @@ describe("R11 Group 1 — cross-phase byte-pin guard", () => {
     // Rebaselined 2026-09-30: 67,985 -> 68,686 — ET-ACQ-05: the checklist plan comes from the owner's capture session and its template
     // Rebaselined 2026-09-30: 68,686 -> 69,911 — ET-COM-04: the completion transaction takes the issuance decision once and stores the record's earned funding fact
     // Rebaselined 2026-09-30: 69,911 -> 71,631 — ET-SM-07 / ET-PKG-07: the completion transaction records the first integrity check and finalizes every record NOT_PUBLISHED
-    ).toBe(80111) // Rebaselined 2026-10-07: 79,841 -> 80,111 — the TIMESTAMP_APPLIED custody payload records what the RFC 3161 validation established (tsaValidation: trust anchor, token certificates, nonce, policy) for timestamp-validation.json.
+    ).toBe(78882) // Rebaselined DOWN 2026-10-07: 80,111 -> 78,882 (below the 79,841 baseline) — the TIMESTAMP_APPLIED custody payload moved to services/timestamp/timestamp-custody-payload.ts.
     // Rebaselined 2026-10-01: 71,631 -> 79,841 — UC-ARCH-003: completeEvidence is the ONE finalization authority (EVIDENCE_COM…;
   });
   it("CR1.6 single-custody-writer invariant on custody-events.service.ts holds", () => {

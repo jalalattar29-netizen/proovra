@@ -91,8 +91,9 @@ BEGIN
     RAISE EXCEPTION 'signing_keys identity is immutable (rotate with a new version)'
       USING ERRCODE = 'check_violation';
   END IF;
+  -- A recorded fingerprint may be neither changed nor cleared.
   IF OLD."fingerprint_sha256" IS NOT NULL
-     AND NEW."fingerprint_sha256" IS DISTINCT FROM OLD."fingerprint_sha256" THEN
+     AND (NEW."fingerprint_sha256" IS NULL OR NEW."fingerprint_sha256" <> OLD."fingerprint_sha256") THEN
     RAISE EXCEPTION 'a recorded signing key fingerprint is immutable'
       USING ERRCODE = 'check_violation';
   END IF;

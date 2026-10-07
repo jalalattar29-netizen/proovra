@@ -355,7 +355,7 @@ const CAPTURE_ROUTES_BYTES_EXACT = 23876;
 // Rebaselined 2026-09-30: 69,911 -> 71,631 — ET-SM-07 / ET-PKG-07: the completion transaction records the first integrity check and finalizes every record NOT_PUBLISHED
 // Rebaselined 2026-10-01: 71,631 -> 79,841 — UC-ARCH-003: completeEvidence is the ONE finalization authority (EVIDENCE_COMPLETED custody, reviewer workflow and evidence.complete audit moved in from the web route, exactly once for every channel); UC-TRUST-003 persists the signing-key fingerprint; UC-STR-002 refuses a part set that differs from the claimed seal plan.
 // Rebaselined 2026-10-07: 79,841 -> 80,111 — the TIMESTAMP_APPLIED custody payload records what the RFC 3161 validation established (tsaValidation: trust anchor, token certificates, nonce, policy) for timestamp-validation.json.
-const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 80111;
+const EVIDENCE_COMPLETE_SVC_BYTES_EXACT = 78882; // 2026-10-07: down from 80,111 — the timestamp custody payload moved to services/timestamp/timestamp-custody-payload.ts
 // Phase CAPTURE-CLOSURE rebaseline: 23,045 → 24,618 — added the
 // "AI advisory is not saved" transient disclaimer + bounded JSDoc
 // comment. No new behaviour, no extra POST surface.
