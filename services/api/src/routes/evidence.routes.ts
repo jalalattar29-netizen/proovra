@@ -88,6 +88,14 @@ import {
   presentedTsaStatus,
   resolveOtsCustodyFacts,
   resolveSnapshotSignalState,
+  resolveAcquisitionIdentitySnapshot,
+  identityLevelLabel,
+  acquisitionIdentityLevelLabel,
+  acquisitionIdentityBasisLabel,
+  acquisitionAccountLabel,
+  acquisitionWorkspaceLabel,
+  acquisitionOrganizationVerificationLabel,
+  type AcquisitionIdentitySnapshot,
   TSA_RECORDED_NOT_VALIDATED,
   TSA_RECORDED_NOT_VALIDATED_LABEL,
   boundedOtsFailureCode,
@@ -1811,23 +1819,11 @@ function mapAuthProviderLabel(
   }
 }
 
+/** THE identity-level label (@proovra/shared identityLevelLabel). */
 function mapIdentityLevelLabel(
   level: prismaPkg.IdentityLevel | string | null | undefined
 ): string {
-  switch (String(level ?? "").toUpperCase()) {
-    case "BASIC_ACCOUNT":
-      return "Basic account";
-    case "VERIFIED_EMAIL":
-      return "Verified email";
-    case "OAUTH_BACKED_IDENTITY":
-      return "OAuth-backed identity";
-    case "ORGANIZATION_ACCOUNT":
-      return "Organization account";
-    case "VERIFIED_ORGANIZATION":
-      return "Verified organization";
-    default:
-      return "Identity level not recorded";
-  }
+  return identityLevelLabel(level);
 }
 
 function mapVerificationSourceLabel(
@@ -1962,6 +1958,30 @@ function maskPublicEmail(email: string | null | undefined): string | null {
  * and when its current check was recorded (custody), and the results of the
  * signature and custody-chain checks THIS request performed.
  */
+/**
+ * The identity facts a live trust decision reads: the capture-time snapshot
+ * from custody (resolveAcquisitionIdentitySnapshot), never the record's
+ * current columns, which earlier report runs re-derived.
+ */
+function captureIdentityTrustInput(
+  custodyEvents: ReadonlyArray<{ eventType: string; atUtc: Date; payload: unknown }>,
+  row: {
+    identityLevelSnapshot?: string | null;
+    submittedByEmail?: string | null;
+    submittedByAuthProvider?: string | null;
+    workspaceNameSnapshot?: string | null;
+    organizationNameSnapshot?: string | null;
+    organizationVerifiedSnapshot?: boolean | null;
+  },
+) {
+  const acq = resolveAcquisitionIdentitySnapshot({ custodyEvents, row });
+  return {
+    identityLevelSnapshot: acq.identityLevel,
+    submittedByEmail: acq.submittedByEmail,
+    submittedByAuthProvider: acq.authProvider,
+  };
+}
+
 function liveTrustFactsFor(
   evidence: {
     tsaFailureCode?: string | null;
@@ -4342,6 +4362,8 @@ async function buildPublicEvidenceContent(params: {
 }
 
 function buildPublicVerifyOverview(params: {
+  /** THE capture-time identity snapshot (custody); null when not resolved. */
+  acquisitionIdentity?: AcquisitionIdentitySnapshot | null;
   evidence: {
     id: string;
     title: string | null;
@@ -4468,8 +4490,25 @@ primaryContentLabel: buildPrimaryContentLabel(
     // / "APPLE" / "GUEST" / "EMAIL_PASSWORD") was a fingerprint-able
     // leak on top of the label. The label-only is sufficient public
     // signal. Removed from the response shape.
-    identityLevel: isIntakeRecord ? null : mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
+    identityLevel: isIntakeRecord
+      ? null
+      : params.acquisitionIdentity
+        ? acquisitionIdentityLevelLabel(params.acquisitionIdentity)
+        : mapIdentityLevelLabel(params.evidence.identityLevelSnapshot),
     identityLevelCode: isIntakeRecord ? null : params.evidence.identityLevelSnapshot ?? null,
+    // THE capture-time identity statement (acquisition-identity.ts): account
+    // type, workspace type and organization verification as recorded when
+    // the record was created, and whether that snapshot exists.
+    identitySnapshot:
+      isIntakeRecord || !params.acquisitionIdentity
+        ? null
+        : {
+            basis: params.acquisitionIdentity.basis,
+            basisLabel: acquisitionIdentityBasisLabel(params.acquisitionIdentity.basis),
+            accountLabel: acquisitionAccountLabel(params.acquisitionIdentity),
+            workspaceTypeLabel: acquisitionWorkspaceLabel(params.acquisitionIdentity.workspaceKind),
+            organizationVerificationLabel: acquisitionOrganizationVerificationLabel(params.acquisitionIdentity),
+          },
     workspaceName: params.evidence.workspaceNameSnapshot ?? null,
     organizationName: params.evidence.organizationNameSnapshot ?? null,
     organizationVerified: params.evidence.organizationVerifiedSnapshot ?? null,
@@ -9827,9 +9866,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             storageImmutable: storage?.immutable ?? null,
             storageObjectLockMode: storage?.mode ?? null,
             storageObjectLockRetainUntilUtc: storage?.retainUntil ?? null,
-            identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
-            submittedByEmail: evidence.submittedByEmail ?? null,
-            submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+            ...captureIdentityTrustInput(allCustodyEvents, evidence),
             verificationPackageVersion:
               latestVerificationPackage?.version ??
               evidence.verificationPackageVersion ??
@@ -13814,9 +13851,7 @@ const liveTrustDecision = buildEvidenceTrustDecision({
     storageImmutable: storageProtection?.immutable ?? null,
     storageObjectLockMode: storageProtection?.mode ?? null,
     storageObjectLockRetainUntilUtc: storageProtection?.retainUntil ?? null,
-    identityLevelSnapshot: evidence.identityLevelSnapshot ?? null,
-    submittedByEmail: evidence.submittedByEmail ?? null,
-    submittedByAuthProvider: evidence.submittedByAuthProvider ?? null,
+    ...captureIdentityTrustInput(allCustodyEvents, evidence),
     verificationPackageVersion:
       latestVerificationPackage?.version ??
       evidence.verificationPackageVersion ??
@@ -14117,6 +14152,10 @@ const overallIntegrity =
       );
     }
     const overview = buildPublicVerifyOverview({
+      acquisitionIdentity: resolveAcquisitionIdentitySnapshot({
+        custodyEvents: allCustodyEvents,
+        row: evidence,
+      }),
       evidence: {
         id: evidence.id,
 title: evidence.title ?? evidence.displayFileName ?? evidence.originalFileName ?? null,

@@ -1,4 +1,4 @@
-import type { CustodyLabelHints } from "@proovra/shared";
+import type { AcquisitionIdentitySnapshot, CustodyLabelHints } from "@proovra/shared";
 import type {
   TrustDecision,
   TrustDecisionTone,
@@ -286,6 +286,8 @@ export type ReportEvidence = {
   otsAnchoredAtUtc?: string | null;
   otsUpgradedAtUtc?: string | null;
   otsFailureReason?: string | null;
+  /** THE capture-time identity snapshot (custody IDENTITY_SNAPSHOT_RECORDED). */
+  acquisitionIdentity?: AcquisitionIdentitySnapshot | null;
   /** How the OTS anchor was established: BITCOIN_VERIFIED | PROOF_STRUCTURE | null. */
   otsAnchorCheck?: string | null;
   /** When the recorded anchor check was made (custody OTS_APPLIED). */

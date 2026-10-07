@@ -59,6 +59,8 @@ import {
   mapCertificationStatusLabel,
   mapEvidenceAssetKindLabel,
   mapIdentityLevelLabel,
+  reportIdentityLevelLabel,
+  reportIdentityRows,
   mapObjectLockModePublicLabel,
   mapOtsStatusPublicLabelWithTxid,
   mapRecordStatusLabel,
@@ -695,8 +697,9 @@ function buildReviewReadinessRows(
     },
     {
       label: "Identity Level",
-      value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),
+      value: reportIdentityLevelLabel(evidence),
     },
+    ...(isIntake ? [] : reportIdentityRows(evidence)),
     {
       label: "Capture Method",
       value: captureMethodDisplayLabel({

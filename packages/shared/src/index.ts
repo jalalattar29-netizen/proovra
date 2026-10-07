@@ -2589,3 +2589,6 @@ export * from "./stored-bytes-integrity.js";
 // STORAGE PROTECTION — one classification for the review alert, the Integrity
 // tab and the library filter (evidence-output incident, 2026-10-05).
 export * from "./storage-protection.js";
+
+// THE acquisition identity snapshot (capture-time, from custody) and its labels.
+export * from "./acquisition-identity.js";

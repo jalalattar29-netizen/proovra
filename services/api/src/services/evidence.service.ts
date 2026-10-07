@@ -631,6 +631,11 @@ const key = `evidence/${evidence.id}/original-${resolvedFileNames.displayFileNam
         identityLevelSnapshot,
         submittedByEmail: owner.email ?? null,
         submittedByAuthProvider: owner.provider,
+        // THE acquisition identity snapshot (resolveAcquisitionIdentitySnapshot)
+        // reads these two as observed at creation; older events lack them and
+        // read as "not recorded", never as inferred.
+        emailVerified: owner.emailVerifiedAt != null,
+        workspaceKind: isPersonalWorkspaceCapture ? "PERSONAL" : "SHARED",
         submittedByUserId: params.ownerUserId,
         createdByUserId: params.ownerUserId,
         uploadedByUserId: params.ownerUserId,

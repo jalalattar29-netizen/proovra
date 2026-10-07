@@ -110,7 +110,7 @@ describe("ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16)
     for (const v of seen.submittedByAuthProvider!) expect(v).toBe(INTAKE_SUBMITTED_BY_LABEL);
     for (const v of seen.identityLevel!) expect(v).toBeNull();
     for (const v of seen.identityLevelCode!) expect(v).toBeNull();
-    expect(res.body).not.toContain("OAuth-backed identity");
+    expect(res.body).not.toContain("Google account");
     expect(res.body).not.toContain("creator@");
   });
 
@@ -118,7 +118,7 @@ describe("ET-INT-12 — intake attribution on public Verify (live PostgreSQL 16)
     const res = await verify(await signedRecord("PROOVRA_WEB_UPLOAD"));
     expect(res.statusCode, res.body).toBe(200);
     expect(res.json().tier).toBe("RICH");
-    expect(res.body).toContain("OAuth-backed identity");
+    expect(res.body).toContain("Google account");
     expect(res.body).not.toContain(INTAKE_SUBMITTED_BY_LABEL);
   });
 });

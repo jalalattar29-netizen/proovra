@@ -19,6 +19,8 @@ import {
 import {
   mapAuthProviderLabel,
   mapIdentityLevelLabel,
+  reportIdentityLevelLabel,
+  reportIdentityRows,
   mapAnchorModePublicLabel,
   mapOtsStatusPublicLabelWithTxid,
   mapPublicAnchoringLabelFromOts,
@@ -203,7 +205,7 @@ export function buildTechnicalIdentityRows(
       { label: "Capture Method", value: "Secure Intake Link" },
       {
         label: "Requester Identity",
-        value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),
+        value: reportIdentityLevelLabel(evidence),
       },
       // Business metadata, not a PROOVRA identifier. The label says who
       // supplied it precisely so the reader does not read it as something the
@@ -255,8 +257,9 @@ export function buildTechnicalIdentityRows(
     },
     {
       label: "Identity Level",
-      value: mapIdentityLevelLabel(evidence.identityLevelSnapshot),
+      value: reportIdentityLevelLabel(evidence),
     },
+    ...reportIdentityRows(evidence),
     ...orgRows,
   ];
 }

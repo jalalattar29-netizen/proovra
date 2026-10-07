@@ -1,6 +1,7 @@
 import type { Job } from "bullmq";
 import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
+import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
 import {
   buildTrustDecision,
@@ -79,7 +80,10 @@ import {
   compareTimestampDigest,
   isCompleteOtsAnchor,
   presentedTsaStatus,
+  acquisitionIdentitySummary,
+  resolveAcquisitionIdentitySnapshot,
   resolveOtsCustodyFacts,
+  type AcquisitionIdentitySnapshot,
   custodyLabelHints,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
@@ -226,7 +230,8 @@ type EvidenceStorageSnapshot = {
 type IdentitySnapshot = {
   verificationStatus: prismaPkg.VerificationStatus;
   captureMethod: prismaPkg.CaptureMethod;
-  identityLevelSnapshot: prismaPkg.IdentityLevel;
+  /** From the capture-time snapshot; null when none was recorded. */
+  identityLevelSnapshot: prismaPkg.IdentityLevel | null;
   submittedByEmail: string | null;
   submittedByAuthProvider: prismaPkg.AuthProvider | null;
   submittedByUserId: string | null;
@@ -235,6 +240,8 @@ type IdentitySnapshot = {
   workspaceNameSnapshot: string | null;
   organizationNameSnapshot: string | null;
   organizationVerifiedSnapshot: boolean | null;
+  /** THE capture-time identity snapshot every identity statement reads. */
+  acquisitionIdentity: AcquisitionIdentitySnapshot;
   reviewerSummaryVersion: number;
   /**
    * Phase 2 canonical workspace-scope inputs captured at preparation
@@ -764,7 +771,6 @@ case "TIMESTAMP_FAILED": {
         capturePresentation.structure
           ? `Structure: ${capturePresentation.structure}`
           : null,
-        identityLevelSnapshot ? `Identity: ${identityLevelSnapshot}` : null,
         refreshReason ? `Refresh: ${refreshReason}` : null,
       ]
         .filter(Boolean)
@@ -822,14 +828,32 @@ case "TIMESTAMP_FAILED": {
     }
 
     case "IDENTITY_SNAPSHOT_RECORDED": {
-      const identityLevel = normalizePayloadPrimitive(obj.identityLevelSnapshot);
+      // THE canonical identity wording (acquisition-identity.ts) — never the
+      // raw level or provider enum.
+      const snapshot = resolveAcquisitionIdentitySnapshot({
+        custodyEvents: [{ eventType: "IDENTITY_SNAPSHOT_RECORDED", atUtc: null, payload: obj }],
+      });
       const submittedByEmail = normalizePayloadPrimitive(obj.submittedByEmail);
-      const authProvider = normalizePayloadPrimitive(obj.submittedByAuthProvider);
       return [
         "Identity snapshot recorded",
-        identityLevel ? `Identity: ${identityLevel}` : null,
+        acquisitionIdentitySummary(snapshot).replace(/\.$/, ""),
         submittedByEmail ? `Email: ${submittedByEmail}` : null,
-        authProvider ? `Provider: ${authProvider}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case "EVIDENCE_COMPLETED": {
+      const acquisitionMode = normalizePayloadPrimitive(obj.acquisitionMode);
+      const completedBy = normalizePayloadPrimitive(obj.completedBy);
+      return [
+        "Evidence record completed",
+        completedBy === "OWNER"
+          ? "Completed by the record owner"
+          : completedBy
+            ? "Completed through the secure intake flow"
+            : null,
+        acquisitionMode ? `Submitted through: ${captureMethodDisplayLabel({ acquisitionMode })}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -858,7 +882,7 @@ case "TIMESTAMP_FAILED": {
       return "An OpenTimestamps attempt was initiated but errored before a provider status was available.";
 
     case "REPORT_IDENTITY_CONTEXT_RECORDED":
-      return "Identity context re-snapshotted at report generation for the report's reviewer audit context.";
+      return "The report recorded which identity snapshot it states (the one recorded when the record was created).";
 
     case "EVIDENCE_ARCHIVED":
       return "Evidence record archived.";
@@ -1823,42 +1847,6 @@ async function resolveEvidenceStorageSnapshot(params: {
   }
 }
 
-function deriveIdentityLevel(params: {
-  provider: prismaPkg.AuthProvider;
-  emailVerifiedAt: Date | null;
-  organizationVerificationState: prismaPkg.OrganizationVerificationState | null;
-  currentWorkspaceVerified: boolean;
-  hasWorkspaceTeam: boolean;
-}): prismaPkg.IdentityLevel {
-  if (params.currentWorkspaceVerified) {
-    return prismaPkg.IdentityLevel.VERIFIED_ORGANIZATION;
-  }
-
-  if (
-    params.organizationVerificationState ===
-    prismaPkg.OrganizationVerificationState.VERIFIED
-  ) {
-    return prismaPkg.IdentityLevel.VERIFIED_ORGANIZATION;
-  }
-
-  if (params.hasWorkspaceTeam) {
-    return prismaPkg.IdentityLevel.ORGANIZATION_ACCOUNT;
-  }
-
-  if (
-    params.provider === prismaPkg.AuthProvider.GOOGLE ||
-    params.provider === prismaPkg.AuthProvider.APPLE
-  ) {
-    return prismaPkg.IdentityLevel.OAUTH_BACKED_IDENTITY;
-  }
-
-  if (params.emailVerifiedAt) {
-    return prismaPkg.IdentityLevel.VERIFIED_EMAIL;
-  }
-
-  return prismaPkg.IdentityLevel.BASIC_ACCOUNT;
-}
-
 function deriveReportCaptureMethod(params: {
   itemCount: number;
   mimeType: string | null;
@@ -2773,13 +2761,13 @@ await recordIntegrityObservation({
     workspaceTeam?.verificationState ===
     prismaPkg.OrganizationVerificationState.VERIFIED;
 
-  const identityLevel = deriveIdentityLevel({
-    provider: ownerUser.provider,
-    emailVerifiedAt: ownerUser.emailVerifiedAt ?? null,
-    organizationVerificationState:
-      ownerUser.organizationVerificationState ?? null,
-    currentWorkspaceVerified: workspaceVerified,
-    hasWorkspaceTeam: Boolean(evidence.teamId),
+  // THE ACQUISITION IDENTITY SNAPSHOT — what was true when the record was
+  // created, from its IDENTITY_SNAPSHOT_RECORDED custody event. Identity is
+  // never re-derived from the owner's CURRENT account or the record's team id
+  // (every record has one: the personal workspace is a Team).
+  const acquisitionIdentity = resolveAcquisitionIdentitySnapshot({
+    custodyEvents,
+    row: evidence,
   });
 
   const identitySnapshot: IdentitySnapshot = {
@@ -2791,9 +2779,9 @@ captureMethod: deriveReportCaptureMethod({
   mimeType: contentArtifacts.summary.primaryMimeType ?? evidence.mimeType,
   existingCaptureMethod: evidence.captureMethod ?? null,
 }),
-    identityLevelSnapshot: identityLevel,
-    submittedByEmail: ownerUser.email ?? null,
-    submittedByAuthProvider: ownerUser.provider ?? null,
+    identityLevelSnapshot: (acquisitionIdentity.identityLevel as prismaPkg.IdentityLevel | null) ?? null,
+    submittedByEmail: acquisitionIdentity.submittedByEmail,
+    submittedByAuthProvider: (acquisitionIdentity.authProvider as prismaPkg.AuthProvider | null) ?? null,
     submittedByUserId: evidence.submittedByUserId ?? evidence.ownerUserId,
     createdByUserId: evidence.createdByUserId ?? evidence.ownerUserId,
     uploadedByUserId:
@@ -2801,10 +2789,15 @@ captureMethod: deriveReportCaptureMethod({
       parts.find((p) => p.uploadedByUserId)?.uploadedByUserId ??
       evidence.ownerUserId,
     workspaceNameSnapshot:
-      workspaceTeam?.evidenceWorkspaceLabel ?? workspaceTeam?.name ?? null,
-    organizationNameSnapshot:
-      workspaceTeam?.legalName ?? workspaceTeam?.name ?? null,
-    organizationVerifiedSnapshot: workspaceVerified,
+      acquisitionIdentity.workspaceName ??
+      workspaceTeam?.evidenceWorkspaceLabel ??
+      workspaceTeam?.name ??
+      null,
+    organizationNameSnapshot: acquisitionIdentity.organizationName,
+    // Organization verification AS RECORDED AT CAPTURE — never the current
+    // workspace's state (`workspaceVerified` is package-time context only).
+    organizationVerifiedSnapshot: acquisitionIdentity.organizationVerified,
+    acquisitionIdentity,
     reviewerSummaryVersion: provisionalVersion,
     // Phase 2 — canonical workspace-scope inputs captured at prep time.
     workspaceIsPersonal: workspaceTeam?.isPersonal ?? null,
@@ -2903,6 +2896,7 @@ createdAtUtc: evidence.createdAt.toISOString(),
       acquisitionMode: evidence.acquisitionMode ?? null,
     }).mode,
     identityLevelSnapshot: identitySnapshot.identityLevelSnapshot,
+    acquisitionIdentity: identitySnapshot.acquisitionIdentity,
     submittedByEmail: identitySnapshot.submittedByEmail,
     submittedByAuthProvider: identitySnapshot.submittedByAuthProvider,
     submittedByUserId: identitySnapshot.submittedByUserId,
@@ -4277,6 +4271,8 @@ async function runReportGeneration(
               atUtc: prepared.now,
               payload: {
                 phase: "report_identity_context",
+                // Which identity snapshot this report rendered, and its basis.
+                identityBasis: prepared.identitySnapshot.acquisitionIdentity.basis,
                 submittedByEmail: prepared.identitySnapshot.submittedByEmail,
                 submittedByAuthProvider:
                   prepared.identitySnapshot.submittedByAuthProvider,
@@ -4332,20 +4328,12 @@ async function runReportGeneration(
                     ? new Date(effectiveRecordedIntegrityVerifiedAtUtc)
                     : null,
                 captureMethod: effectiveIdentitySnapshot.captureMethod,
-                identityLevelSnapshot:
-                  effectiveIdentitySnapshot.identityLevelSnapshot,
-                submittedByEmail: effectiveIdentitySnapshot.submittedByEmail,
-                submittedByAuthProvider:
-                  effectiveIdentitySnapshot.submittedByAuthProvider,
+                // The capture-time identity columns (level, email, provider,
+                // workspace, organization) are NOT rewritten by a report run:
+                // they belong to the acquisition, not to the report.
                 submittedByUserId: effectiveIdentitySnapshot.submittedByUserId,
                 createdByUserId: effectiveIdentitySnapshot.createdByUserId,
                 uploadedByUserId: effectiveIdentitySnapshot.uploadedByUserId,
-                workspaceNameSnapshot:
-                  effectiveIdentitySnapshot.workspaceNameSnapshot,
-                organizationNameSnapshot:
-                  effectiveIdentitySnapshot.organizationNameSnapshot,
-                organizationVerifiedSnapshot:
-                  effectiveIdentitySnapshot.organizationVerifiedSnapshot,
                 latestReportVersion: prepared.version,
                 reportGeneratedAtUtc: prepared.now,
                 lastVerifiedAtUtc: prepared.now,

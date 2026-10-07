@@ -420,6 +420,9 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       label: "Identity Level",
       value: findRowValue(vm.reviewReadinessRows, "Identity Level"),
     },
+    ...["Workspace Type", "Organization Verification"]
+      .map((label) => ({ label, value: findRowValue(vm.reviewReadinessRows, label, "") }))
+      .filter((row) => row.value !== ""),
     {
       label: "Lead Item",
       value: leadItemValue,

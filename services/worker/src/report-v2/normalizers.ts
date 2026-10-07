@@ -1,5 +1,14 @@
 import { custodyEventLabel } from "@proovra/shared";
 import { OTS_ANCHOR_CLAIM_LABELS, resolveOtsAnchorClaim } from "@proovra/shared";
+import {
+  acquisitionAccountLabel,
+  acquisitionIdentityBasisLabel,
+  acquisitionIdentityLevelLabel,
+  acquisitionOrganizationVerificationLabel,
+  acquisitionWorkspaceLabel,
+  identityLevelLabel,
+  type AcquisitionIdentitySnapshot,
+} from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
 import { ReportEvidenceAssetKind } from "./types.js";
@@ -192,21 +201,9 @@ export function mapCertificationStatusLabel(
 // Every report "Capture Method" row reads `captureMethodDisplayLabel` over
 // the record's acquisition snapshot instead.
 
+/** THE identity-level label (@proovra/shared identityLevelLabel), for rows without a capture snapshot. */
 export function mapIdentityLevelLabel(value: string | null | undefined): string {
-  switch (safe(value, "").toUpperCase()) {
-    case "BASIC_ACCOUNT":
-      return "Basic account";
-    case "VERIFIED_EMAIL":
-      return "Verified email";
-    case "OAUTH_BACKED_IDENTITY":
-      return "OAuth-backed identity";
-    case "ORGANIZATION_ACCOUNT":
-      return "Organization account";
-    case "VERIFIED_ORGANIZATION":
-      return "Verified organization";
-    default:
-      return "Identity level not recorded";
-  }
+  return identityLevelLabel(value);
 }
 
 export function mapAuthProviderLabel(value: string | null | undefined): string {
@@ -295,11 +292,12 @@ export const INTAKE_IDENTITY_SNAPSHOT_SUMMARY =
  * Upload / Mobile Capture) IDENTITY_SNAPSHOT_RECORDED event. The submitter is
  * the authenticated workspace user themselves — NOT a remote contributor — so
  * the intake "link creator / not independently verified" wording must never
- * appear. This states the authenticated, OAuth-backed identity positively.
+ * appear. It names no sign-in method: the snapshot line that follows states
+ * the account type recorded at capture (acquisitionIdentitySummary).
  * Raw custody data is unchanged.
  */
 export const CAPTURE_IDENTITY_SNAPSHOT_SUMMARY =
-  "Authenticated workspace user identity was recorded at submission. Submitted by an authenticated workspace user via an OAuth-backed account.";
+  "Authenticated workspace user identity was recorded at submission.";
 
 /**
  * ET-CUS-13: the report names custody events through THE shared label
@@ -573,16 +571,42 @@ export function mapEvidenceAssetKindLabel(
 
 export function normalizeReviewerText(value: string | null | undefined): string {
   return safe(value, "")
-    .replace(/\bOAUTH_BACKED_IDENTITY\b/g, "OAuth-backed identity")
+    .replace(/\bOAUTH_BACKED_IDENTITY\b/g, identityLevelLabel("OAUTH_BACKED_IDENTITY"))
     .replace(/\bMULTIPART_PACKAGE\b/g, "Multipart package")
     // UC-PROV-008 — no production writer emits SECURE_CAMERA; a legacy value
     // is named as what it is, never as a PROOVRA secure-camera capture.
     .replace(/\bSECURE_CAMERA\b/g, "Legacy capture-method value")
     .replace(/\bUPLOADED_FILE\b/g, "Uploaded existing file")
     .replace(/\bIMPORTED_DOCUMENT\b/g, "Imported document")
-    .replace(/\bBASIC_ACCOUNT\b/g, "Basic account")
-    .replace(/\bVERIFIED_EMAIL\b/g, "Verified email")
-    .replace(/\bORGANIZATION_ACCOUNT\b/g, "Organization account")
-    .replace(/\bVERIFIED_ORGANIZATION\b/g, "Verified organization")
+    .replace(/\bBASIC_ACCOUNT\b/g, identityLevelLabel("BASIC_ACCOUNT"))
+    .replace(/\bVERIFIED_EMAIL\b/g, identityLevelLabel("VERIFIED_EMAIL"))
+    .replace(/\bORGANIZATION_ACCOUNT\b/g, identityLevelLabel("ORGANIZATION_ACCOUNT"))
+    .replace(/\bVERIFIED_ORGANIZATION\b/g, identityLevelLabel("VERIFIED_ORGANIZATION"))
     .replace(/_/g, " ");
+}
+
+/**
+ * The report's identity rows, from THE capture-time acquisition snapshot when
+ * the record has one (acquisition-identity.ts), else the legacy level label.
+ */
+export function reportIdentityLevelLabel(evidence: {
+  identityLevelSnapshot?: string | null;
+  acquisitionIdentity?: AcquisitionIdentitySnapshot | null;
+}): string {
+  return evidence.acquisitionIdentity
+    ? acquisitionIdentityLevelLabel(evidence.acquisitionIdentity)
+    : mapIdentityLevelLabel(evidence.identityLevelSnapshot);
+}
+
+export function reportIdentityRows(evidence: {
+  acquisitionIdentity?: AcquisitionIdentitySnapshot | null;
+}): Array<{ label: string; value: string }> {
+  const s = evidence.acquisitionIdentity;
+  if (!s) return [];
+  return [
+    { label: "Account Type", value: acquisitionAccountLabel(s) },
+    { label: "Workspace Type", value: acquisitionWorkspaceLabel(s.workspaceKind) },
+    { label: "Organization Verification", value: acquisitionOrganizationVerificationLabel(s) },
+    { label: "Identity Snapshot", value: acquisitionIdentityBasisLabel(s.basis) },
+  ];
 }

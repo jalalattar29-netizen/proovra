@@ -79,7 +79,7 @@ function renderDecisionIndicator(params: {
   tone: "success" | "warning" | "danger";
 }): string {
   // The compact value is THE canonical layer/state label (getTrustLayerStateLabel),
-  // passed in by the caller: a layer reads "Verified"/"Anchored" only in PASSED.
+  // passed in by the caller: only the PASSED state of a layer reads as verified or anchored.
   const compactValue = params.value;
 
   return `

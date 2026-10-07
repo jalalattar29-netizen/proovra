@@ -704,7 +704,7 @@ describe("Evidence Acquisition table (Executive Summary only)", () => {
     expect(text).toMatch(/Contributor Identity\s+Not independently verified/);
     expect(text).not.toMatch(/Contributor Identity\s+Verified\b/);
     // The requester's verification is shown separately.
-    expect(text).toMatch(/Requester Identity\s+Verified email/);
+    expect(text).toMatch(/Requester Identity\s+Authenticated email account/);
   });
 
   it("Web Capture: Capture Method reads 'PROOVRA Web Upload' in Exec Summary AND Technical Appendix; structure label unchanged", async () => {
