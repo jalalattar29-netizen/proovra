@@ -221,8 +221,10 @@ jobs:
           pnpm prisma migrate deploy
           pnpm prisma:seed
 
+      # Bounded, retried and annotated: see the script header.
       - name: Install Playwright browser
-        run: pnpm test:e2e:playwright:install
+        timeout-minutes: 25
+        run: bash scripts/install-playwright-chromium.sh
 
       - name: Start API (background)
         working-directory: services/api
@@ -511,8 +513,10 @@ jobs:
           pnpm prisma migrate deploy
           pnpm exec tsx scripts/seed-admin-fixture.ts
 
+      # Bounded, retried and annotated: see the script header.
       - name: Install Playwright browser
-        run: pnpm test:e2e:playwright:install
+        timeout-minutes: 25
+        run: bash scripts/install-playwright-chromium.sh
 
       - name: Start the fixture API (background)
         run: |
@@ -758,8 +762,10 @@ jobs:
       - name: Build the web app (production)
         run: pnpm --filter proovra-web build
 
+      # Bounded, retried and annotated: see the script header.
       - name: Install Playwright browser
-        run: pnpm test:e2e:playwright:install
+        timeout-minutes: 25
+        run: bash scripts/install-playwright-chromium.sh
 
       # A JOB THAT RUNS ZERO TESTS IS GREEN AND WORTHLESS.
       #
