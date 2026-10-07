@@ -8,6 +8,8 @@ import {
   getTrustDecisionLabel,
   getTrustNarrative,
   getTrustDecisionPresentationTone,
+  getTrustLayerStateLabel,
+  getTrustSignalStateTone,
   formatTimestampForReportUtc,
 } from "@proovra/shared";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
@@ -76,61 +78,9 @@ function renderDecisionIndicator(params: {
   value: string;
   tone: "success" | "warning" | "danger";
 }): string {
-  let compactValue = params.value;
-  const normalizedLabel = params.label.trim().toLowerCase();
-
-  // Phase O-blockers / C-1 — every compactValue must be derived from
-  // the signal tone, never hard-coded. The prior implementation
-  // rendered the literal word "Verified" for `immutable_storage`
-  // even when the tone was `warning` (signal:
-  // STORAGE_PROTECTION_UNAVAILABLE) — the badge color flipped to
-  // red, but the rendered word still said "Verified". That created
-  // a contradictory trust signal on the most-read page of the PDF.
-  //
-  // `core_integrity` failure is unreachable via Phase A0 hard-gate
-  // (failed integrity → no report rendered → no cover), so its
-  // value can remain "Verified" — but we still derive it from tone
-  // so the contract is uniform across every signal.
-  if (normalizedLabel.includes("core integrity")) {
-    compactValue =
-      params.tone === "success"
-        ? "Verified"
-        : params.tone === "danger"
-          ? "Failed"
-          : "Degraded";
-  } else if (normalizedLabel.includes("digital signature")) {
-    compactValue =
-      params.tone === "success"
-        ? "Recorded"
-        : params.tone === "danger"
-          ? "Signature failed"
-          : "Recording incomplete";
-  } else if (normalizedLabel.includes("trusted timestamp")) {
-    compactValue =
-      params.tone === "success"
-        ? "Recorded"
-        : params.tone === "danger"
-          ? "Timestamp failed"
-          : "Timestamp pending";
-  } else if (normalizedLabel.includes("bitcoin anchoring")) {
-    compactValue =
-      params.tone === "success"
-        ? "Anchored"
-        : params.tone === "danger"
-          ? "Failed"
-          : "Pending";
-  } else if (normalizedLabel.includes("immutable storage")) {
-    // Phase O-blockers / C-1 — replace the prior hard-coded "Verified"
-    // for `immutable_storage`. `STORAGE_PROTECTION_UNAVAILABLE`
-    // produces a warning tone; rendering "Verified" with a warning
-    // badge was the documented misleading-trust-signal incident.
-    compactValue =
-      params.tone === "success"
-        ? "Storage protected"
-        : params.tone === "danger"
-          ? "Storage protection failed"
-          : "Storage protection unavailable";
-  }
+  // The compact value is THE canonical layer/state label (getTrustLayerStateLabel),
+  // passed in by the caller: a layer reads "Verified"/"Anchored" only in PASSED.
+  const compactValue = params.value;
 
   return `
     <div class="cover-decision-indicator tone-${params.tone}">
@@ -343,14 +293,9 @@ const integrityBadgeText = decision.shortLabel;
               .map((signal) =>
                 renderDecisionIndicator({
                   label: signal.label,
-                  value: signal.summary,
-tone:
-  signal.tone === "success"
-    ? "success"
-    : signal.tone === "danger"
-      ? "danger"
-      : "warning",
-                    })
+                  value: getTrustLayerStateLabel(signal),
+                  tone: getTrustSignalStateTone(signal),
+                })
               )
               .join("")}
           </div>

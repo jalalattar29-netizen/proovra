@@ -474,6 +474,9 @@ export type {
 
 export {
   buildEvidenceTrustDecision,
+  describeAccountSignInMethod,
+  getTrustLayerStateLabel,
+  getTrustSignalStateTone,
   evaluateRecordedIntegrityPromotion,
   getReviewerRelianceLabel,
   getTrustDecisionConfidenceLabel,
@@ -2570,6 +2573,9 @@ export * from "./package-seal.js";
 export * from "./basic-verification.js";
 
 export * from "./tsa-validation-state.js";
+
+// THE canonical trust-signal state (PASSED … NOT_APPLICABLE) and its TSA/OTS resolvers.
+export * from "./trust-signal-state.js";
 
 // ET-CUS-13 — THE one custody event label (report, web and mobile timelines).
 export * from "./custody-labels.js";

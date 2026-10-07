@@ -48,11 +48,11 @@ export function normalizeTimestampTone(
 ): Tone {
   const s = safe(status, "").toUpperCase();
 
-  if (["GRANTED", "STAMPED", "VERIFIED", "SUCCEEDED"].includes(s)) {
-    return "success";
-  }
-  // ET-TSA-01: a kept, never-validated token is a caution, not a failure.
-  if (["PENDING", "UNAVAILABLE", "RECORDED_NOT_VALIDATED"].includes(s)) return "warning";
+  // The presented status: STAMPED is a VALIDATED token and the only success.
+  if (s === "STAMPED") return "success";
+  // ET-TSA-01: a kept, never-validated token is a caution, not a failure;
+  // legacy positive strings never carried a validation either.
+  if (["PENDING", "UNAVAILABLE", "RECORDED_NOT_VALIDATED", "GRANTED", "VERIFIED", "SUCCEEDED"].includes(s)) return "warning";
   if (s) return "danger";
   return "neutral";
 }
@@ -60,6 +60,8 @@ export function normalizeTimestampTone(
 export function normalizeOtsTone(status: string | null | undefined): Tone {
   const s = safe(status, "").toUpperCase();
 
+  // ANCHORED alone is an attested proof; the claim follows the check
+  // (normalizeBitcoinAnchorTone). The status tone is a caution.
   if (s === "ANCHORED") return "success";
   if (s === "PENDING") return "warning";
   if (s === "FAILED") return "danger";
@@ -67,9 +69,10 @@ export function normalizeOtsTone(status: string | null | undefined): Tone {
 }
 
 /**
- * Truthful Bitcoin-anchoring tone: returns "success" only when the OTS proof
- * is ANCHORED AND a valid Bitcoin transaction id is recorded. Without the
- * txid the public-anchoring step is incomplete, so the tone is "warning".
+ * Truthful Bitcoin-anchoring tone: "success" only when the OTS proof is
+ * ANCHORED, a valid Bitcoin transaction id is recorded AND the anchor was
+ * checked against the Bitcoin chain (BITCOIN_VERIFIED). An attested proof
+ * read by structure alone is a caution, never a success.
  */
 function isValidBitcoinTxid(value: string | null | undefined): boolean {
   return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
@@ -78,10 +81,13 @@ function isValidBitcoinTxid(value: string | null | undefined): boolean {
 export function normalizeBitcoinAnchorTone(params: {
   status: string | null | undefined;
   bitcoinTxid: string | null | undefined;
+  anchorCheck?: string | null;
 }): Tone {
   const baseTone = normalizeOtsTone(params.status);
   if (baseTone !== "success") return baseTone;
-  return isValidBitcoinTxid(params.bitcoinTxid) ? "success" : "warning";
+  return isValidBitcoinTxid(params.bitcoinTxid) && params.anchorCheck === "BITCOIN_VERIFIED"
+    ? "success"
+    : "warning";
 }
 
 export function normalizeStorageTone(
@@ -110,29 +116,12 @@ export function normalizeStorageTone(
   return "neutral";
 }
 
-/**
- * ET-RPT-09 — the conclusion's anchoring claim follows the check. An
- * OpenTimestamps proof upgraded to a Bitcoin attestation but not verified
- * against the chain (ANCHORED_NOT_CHECKED) scores as anchored; the same PDF's
- * OTS callout says "chain not checked", so the conclusion may not call its
- * publication materials "finalized".
- */
-function anchoringNotChainChecked(decision: ReportTrustDecision): boolean {
-  return (decision.signals ?? []).some(
-    (s) => s.key === "bitcoin_anchoring" && s.summary === OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED,
-  );
-}
-
 export function buildExecutiveConclusion(
   decision: ReportTrustDecision
 ): CalloutModel {
-  if (decision.presentationState === "VERIFIED_FINALIZED" && anchoringNotChainChecked(decision)) {
-    return {
-      title: "Executive conclusion",
-      body: "The preserved evidence record reached a verified recorded-integrity state at report generation time. Its OpenTimestamps proof is anchored to a Bitcoin block, but that attestation was not checked against the Bitcoin chain for this report, so the anchoring is stated as anchored, not as independently verified. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation.",
-      tone: "success",
-    };
-  }
+  // ET-RPT-09: VERIFIED_FINALIZED now REQUIRES a chain-verified anchor and a
+  // validated timestamp (buildEvidenceTrustDecision), so a finalized
+  // conclusion can no longer sit over an unchecked anchor.
   return {
     title:
       decision.presentationState === "VERIFIED_FINALIZED"
@@ -141,6 +130,8 @@ export function buildExecutiveConclusion(
     body:
       decision.presentationState === "VERIFIED_FINALIZED"
         ? "The preserved evidence record reached a verified recorded-integrity state with finalized supporting publication materials at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
+        : decision.anchoringState === "present_not_verified" && decision.verdict === "VERIFIED"
+          ? "The preserved evidence record reached a verified recorded-integrity state at report generation time. Its OpenTimestamps proof carries a Bitcoin attestation, but that attestation has not been independently checked against the Bitcoin chain, so this report does not claim verified Bitcoin anchoring. Verify the proof against the Bitcoin chain if independent anchoring is required."
         : decision.presentationState === "VERIFIED_PENDING_ANCHORING"
           ? `The preserved evidence record reached a verified recorded-integrity state at report generation time, but Bitcoin anchoring has not finalized yet. An OpenTimestamps proof is recorded. Technical confidence remains ${getTrustDecisionConfidenceLabel(
               decision
@@ -486,12 +477,22 @@ export function buildTrustDecision(params: {
       publicKeyPem: params.evidence.publicKeyPem,
       tsaStatus: params.evidence.tsaStatus,
       tsaFailureReason: params.evidence.tsaFailureReason,
+      tsaFailureCode: params.evidence.tsaFailureCode ?? null,
+      tsaTokenPresent: Boolean(params.evidence.tsaTokenBase64),
+      tsaValidatedAtUtc: params.evidence.tsaValidatedAtUtc ?? null,
       otsStatus: params.evidence.otsStatus,
       otsHash: params.evidence.otsHash,
       otsBitcoinTxid: params.evidence.otsBitcoinTxid,
       otsAnchoredAtUtc: params.evidence.otsAnchoredAtUtc,
       otsCalendar: params.evidence.otsCalendar,
       otsFailureReason: params.evidence.otsFailureReason,
+      otsAnchorCheck: params.evidence.otsAnchorCheck ?? null,
+      otsAnchorCheckedAtUtc: params.evidence.otsAnchorCheckedAtUtc ?? null,
+      otsProofPresent: Boolean(params.evidence.otsProofBase64),
+      otsSubmittedAtUtc: params.evidence.otsSubmittedAtUtc ?? null,
+      otsUpgradedAtUtc: params.evidence.otsUpgradedAtUtc ?? null,
+      signatureVerified: params.evidence.signatureVerified ?? null,
+      custodyChainValid: params.evidence.custodyChainValid ?? null,
       storageImmutable: params.evidence.storageImmutable,
       storageObjectLockMode: params.evidence.storageObjectLockMode,
       storageObjectLockRetainUntilUtc:

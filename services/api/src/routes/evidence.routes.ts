@@ -86,6 +86,8 @@ import {
   compareTimestampDigest,
   // ET-TSA-01 — the one reading of a stored timestamp status.
   presentedTsaStatus,
+  resolveOtsCustodyFacts,
+  resolveSnapshotSignalState,
   TSA_RECORDED_NOT_VALIDATED,
   TSA_RECORDED_NOT_VALIDATED_LABEL,
   boundedOtsFailureCode,
@@ -1114,6 +1116,7 @@ const SAFE_EVIDENCE_SELECT = {
   tsaFailureReason: true,
   tsaValidatedAtUtc: true,
   tsaFailureCode: true,
+  tsaTokenBase64: true,
 
   otsProofBase64: true,
   otsHash: true,
@@ -1952,6 +1955,39 @@ function maskPublicEmail(email: string | null | undefined): string | null {
   return `${visible}***@${domain}`;
 }
 
+
+/**
+ * The live facts the canonical trust decision needs beyond the stored
+ * columns: the TSA token/validation facts, when the OTS proof was requested
+ * and when its current check was recorded (custody), and the results of the
+ * signature and custody-chain checks THIS request performed.
+ */
+function liveTrustFactsFor(
+  evidence: {
+    tsaFailureCode?: string | null;
+    tsaTokenBase64?: string | null;
+    tsaValidatedAtUtc?: Date | null;
+    otsProofBase64?: string | null;
+    otsUpgradedAtUtc?: Date | null;
+    otsAnchorCheck?: string | null;
+  },
+  custodyEvents: ReadonlyArray<{ eventType: string; atUtc: Date; payload: unknown }>,
+  signatureVerified: boolean | null,
+  custodyChainValid: boolean,
+) {
+  const ots = resolveOtsCustodyFacts(custodyEvents, evidence.otsAnchorCheck ?? null);
+  return {
+    tsaFailureCode: evidence.tsaFailureCode ?? null,
+    tsaTokenPresent: Boolean(evidence.tsaTokenBase64),
+    tsaValidatedAtUtc: evidence.tsaValidatedAtUtc?.toISOString() ?? null,
+    otsProofPresent: Boolean(evidence.otsProofBase64),
+    otsUpgradedAtUtc: evidence.otsUpgradedAtUtc?.toISOString() ?? null,
+    otsSubmittedAtUtc: ots.submittedAtUtc,
+    otsAnchorCheckedAtUtc: ots.anchorCheckedAtUtc,
+    signatureVerified,
+    custodyChainValid,
+  };
+}
 function normalizeTrustDecisionSnapshot(
   value: Prisma.JsonValue | null | undefined
 ): TrustDecision | null {
@@ -1961,12 +1997,27 @@ function normalizeTrustDecisionSnapshot(
 
   const candidate = value as Partial<TrustDecision>;
 
-  return typeof candidate.verdict === "string" &&
-    typeof candidate.verdictLabel === "string" &&
-    typeof candidate.score === "number" &&
-    Array.isArray(candidate.signals)
-    ? (candidate as TrustDecision)
-    : null;
+  if (
+    !(
+      typeof candidate.verdict === "string" &&
+      typeof candidate.verdictLabel === "string" &&
+      typeof candidate.score === "number" &&
+      Array.isArray(candidate.signals)
+    )
+  ) {
+    return null;
+  }
+  // A snapshot written before the canonical state (2026-10-07) carries only
+  // the legacy status; every signal is given its state here, read
+  // conservatively (an unchecked anchor is never PASSED).
+  return {
+    ...(candidate as TrustDecision),
+    signals: (candidate.signals as TrustDecision["signals"]).map((signal) => ({
+      ...signal,
+      state: resolveSnapshotSignalState(signal),
+      measuredAtUtc: signal.measuredAtUtc ?? null,
+    })),
+  };
 }
 
 function mapIntegrityHeadline(params: {
@@ -9772,6 +9823,7 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
             otsCalendar: evidence.otsCalendar ?? null,
             otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
             otsAnchorCheck: evidence.otsAnchorCheck ?? null,
+            ...liveTrustFactsFor(evidence, allCustodyEvents, signingKey ? signatureValid : null, custodyChain.valid),
             storageImmutable: storage?.immutable ?? null,
             storageObjectLockMode: storage?.mode ?? null,
             storageObjectLockRetainUntilUtc: storage?.retainUntil ?? null,
@@ -13016,6 +13068,7 @@ action: "evidence.certification_requested",
         tsaFailureReason: true,
         tsaValidatedAtUtc: true,
         tsaFailureCode: true,
+        tsaTokenBase64: true,
         otsProofBase64: true,
         otsHash: true,
         otsStatus: true,
@@ -13757,6 +13810,7 @@ const liveTrustDecision = buildEvidenceTrustDecision({
     // ET-OTS-04 — a bounded code on the public payload, never stored text.
     otsFailureReason: boundedOtsFailureCode(evidence.otsFailureReason),
     otsAnchorCheck: evidence.otsAnchorCheck ?? null,
+    ...liveTrustFactsFor(evidence, allCustodyEvents, signatureValid, custodyChain.valid),
     storageImmutable: storageProtection?.immutable ?? null,
     storageObjectLockMode: storageProtection?.mode ?? null,
     storageObjectLockRetainUntilUtc: storageProtection?.retainUntil ?? null,

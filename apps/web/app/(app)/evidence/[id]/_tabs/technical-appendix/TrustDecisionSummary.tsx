@@ -28,12 +28,19 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
+import {
+  TRUST_SIGNAL_STATE_PRESENTATION,
+  resolveSnapshotSignalState,
+  type TrustSignalState,
+} from "@proovra/shared";
 import { appendixAppTone } from "./MetadataRow";
 import { TechnicalDisclosure } from "./TechnicalDisclosure";
 
 export type TrustSignalForRender = {
   key: string;
   label: string;
+  /** THE canonical state; derived from `status` when an older API omits it. */
+  state?: string | null;
   status: string;
   tone: string;
   points: number;
@@ -61,33 +68,27 @@ export type TrustDecisionForRender = {
 };
 
 /**
- * The signal-state vocabulary this surface may render. Each maps to one
- * label, one icon and one semantic tone — text AND colour, never colour
- * alone. An unrecognised backend status is shown verbatim under the neutral
- * tone rather than being coerced into a state we cannot vouch for.
+ * The signal-state vocabulary this surface may render: THE canonical state
+ * (@proovra/shared TrustSignalState), its one label and tone, and an icon —
+ * text AND colour, never colour alone. A signal from an older API is read
+ * through resolveSnapshotSignalState, so an unchecked anchor is never shown
+ * as "Verified".
  */
-const SIGNAL_STATES: Record<
-  string,
-  { label: string; tone: "success" | "warning" | "danger" | "neutral" | "info"; icon: LucideIcon }
-> = {
-  passed: { label: "Passed", tone: "success", icon: CircleCheck },
-  partial: { label: "Degraded", tone: "warning", icon: TriangleAlert },
-  degraded: { label: "Degraded", tone: "warning", icon: TriangleAlert },
-  failed: { label: "Failed", tone: "danger", icon: CircleAlert },
-  pending: { label: "Pending", tone: "info", icon: Clock },
-  missing: { label: "Unavailable", tone: "neutral", icon: CircleHelp },
-  unavailable: { label: "Unavailable", tone: "neutral", icon: CircleHelp },
-  not_applicable: { label: "Not applicable", tone: "neutral", icon: CircleMinus },
+const STATE_ICONS: Record<TrustSignalState, LucideIcon> = {
+  PASSED: CircleCheck,
+  FAILED: CircleAlert,
+  PENDING: Clock,
+  PRESENT_NOT_INDEPENDENTLY_VERIFIED: TriangleAlert,
+  NOT_CHECKED: CircleHelp,
+  STALE: TriangleAlert,
+  UNAVAILABLE: CircleHelp,
+  NOT_APPLICABLE: CircleMinus,
 };
 
-function describeSignalState(status: string) {
-  return (
-    SIGNAL_STATES[status] ?? {
-      label: status,
-      tone: "neutral" as const,
-      icon: CircleSlash,
-    }
-  );
+function describeSignalState(signal: TrustSignalForRender) {
+  const state = resolveSnapshotSignalState(signal);
+  const p = TRUST_SIGNAL_STATE_PRESENTATION[state];
+  return { state, label: p.label, tone: p.tone, icon: STATE_ICONS[state] ?? CircleSlash };
 }
 
 function capitalise(s: string): string {
@@ -240,7 +241,7 @@ export function TrustDecisionSummary({
 
           <div className="ta-signals__list">
             {signals.map((signal) => {
-              const state = describeSignalState(signal.status);
+              const state = describeSignalState(signal);
               const StateIcon = state.icon;
               return (
                 <TechnicalDisclosure
@@ -248,6 +249,7 @@ export function TrustDecisionSummary({
                   title={signal.label}
                   data-trust-signal-key={signal.key}
                   data-trust-signal-status={signal.status}
+                  data-trust-signal-state={state.state}
                   data-trust-signal-tone={state.tone}
                   leading={<StateIcon size={15} strokeWidth={2.4} aria-hidden="true" />}
                   trailing={

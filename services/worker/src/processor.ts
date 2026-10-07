@@ -79,6 +79,7 @@ import {
   compareTimestampDigest,
   isCompleteOtsAnchor,
   presentedTsaStatus,
+  resolveOtsCustodyFacts,
   custodyLabelHints,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
@@ -965,6 +966,52 @@ function resolveTimestampDigestMatch(params: {
     tsaInputDigestHex: params.tsaInputDigestHex,
     fileSha256: params.fileSha256,
   });
+}
+
+/**
+ * The signature and custody-chain checks a report run performs, as facts for
+ * the trust decision (a signal reads "Verified" only on a check that ran).
+ */
+function evaluateReportCryptoChecks(params: {
+  evidenceId: string;
+  fingerprintCanonicalJson: string;
+  fingerprintHash: string;
+  signatureBase64: string;
+  publicKeyPem: string;
+  custodyEvents: Array<{
+    sequence: number;
+    atUtc: Date;
+    eventType: prismaPkg.CustodyEventType;
+    payload: Prisma.JsonValue | null;
+    prevEventHash: string | null;
+    eventHash: string | null;
+  }>;
+}): { signatureVerified: boolean; custodyChainValid: boolean } {
+  const recomputed = createHash("sha256").update(params.fingerprintCanonicalJson).digest("hex");
+  let signatureVerified = false;
+  try {
+    signatureVerified =
+      recomputed === params.fingerprintHash &&
+      verifyEd25519HexSignature({
+        messageHex: recomputed,
+        signatureBase64: params.signatureBase64,
+        publicKeyPem: params.publicKeyPem,
+      });
+  } catch {
+    signatureVerified = false;
+  }
+  const custodyChainValid = evaluateCustodyChain({
+    evidenceId: params.evidenceId,
+    records: params.custodyEvents.map((event) => ({
+      sequence: event.sequence,
+      eventType: event.eventType,
+      atUtc: event.atUtc,
+      payload: event.payload,
+      prevEventHash: event.prevEventHash,
+      eventHash: event.eventHash,
+    })),
+  }).valid;
+  return { signatureVerified, custodyChainValid };
 }
 
 function resolveRecordedIntegrityPromotionDecision(params: {
@@ -2016,6 +2063,7 @@ async function prepareReportArtifacts(
       tsaStatus: true,
       tsaFailureReason: true,
       tsaValidatedAtUtc: true,
+      tsaFailureCode: true,
       otsProofBase64: true,
       otsHash: true,
       otsStatus: true,
@@ -2823,6 +2871,16 @@ captureMethod: deriveReportCaptureMethod({
 
   const verificationPackageIncluded =
     evidenceOutputs.verificationPackageIncluded;
+  const otsCustodyFacts = resolveOtsCustodyFacts(custodyEvents, evidence.otsAnchorCheck ?? null);
+  const reportCryptoChecks = evaluateReportCryptoChecks({
+    evidenceId: evidence.id,
+    fingerprintCanonicalJson,
+    fingerprintHash,
+    signatureBase64,
+    publicKeyPem: signingKey.publicKeyPem,
+    custodyEvents,
+  });
+
 
   const reportEvidencePayload = {
     id: evidence.id,
@@ -2958,6 +3016,8 @@ evidenceStructure:
     // so the report and the package never call it a trusted timestamp.
     tsaStatus: presentedTsaStatus(evidence),
     tsaFailureReason: evidence.tsaFailureReason ?? null,
+    tsaFailureCode: evidence.tsaFailureCode ?? null,
+    tsaValidatedAtUtc: evidence.tsaValidatedAtUtc?.toISOString() ?? null,
 
     // The record's own OTS state, as stored by the one lifecycle that writes
     // it. A report says what is true when it is built; if the anchor is still
@@ -2976,6 +3036,13 @@ evidenceStructure:
     otsFailureReason: evidence.otsFailureReason ?? null,
     // How the anchor was established — only BITCOIN_VERIFIED may read verified.
     otsAnchorCheck: evidence.otsAnchorCheck ?? null,
+    // When that check (and the proof request) happened, from custody.
+    otsAnchorCheckedAtUtc: otsCustodyFacts.anchorCheckedAtUtc,
+    otsSubmittedAtUtc: otsCustodyFacts.submittedAtUtc,
+    // The cryptographic checks THIS run performed; the trust decision says
+    // "Verified" for the signature and the custody chain only on these.
+    signatureVerified: reportCryptoChecks.signatureVerified,
+    custodyChainValid: reportCryptoChecks.custodyChainValid,
 
     anchor: anchorSummary,
     certifications,

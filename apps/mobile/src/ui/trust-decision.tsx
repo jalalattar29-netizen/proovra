@@ -54,7 +54,7 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
             ) : null}
             <ProovraText variant="label" color={theme.color.ink.muted}>{TRUST_POINTS_BOUNDARY}</ProovraText>
             {trust.signals.map((s) => {
-              const state = trustSignalState(s.status);
+              const state = trustSignalState(s.state);
               return (
                 <View key={s.key} style={{ gap: 2 }}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.space.s2 }}>

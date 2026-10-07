@@ -1,3 +1,4 @@
+import type { TrustSignalState } from "@proovra/shared";
 // Pure type declarations extracted from page.tsx (P7 R5.1 decomposition).
 // No runtime code — import-only.
 
@@ -342,7 +343,8 @@ export type TrustSignalStatus =
   | "partial"
   | "pending"
   | "missing"
-  | "failed";
+  | "failed"
+  | "not_applicable";
 
 export type TrustDecisionTone = "success" | "warning" | "danger" | "neutral";
 
@@ -357,6 +359,13 @@ export type VerifyTrustSignal = {
     | "identity"
     | "verification_package";
   label: string;
+  /**
+   * THE canonical state (@proovra/shared TrustSignalState). Optional on the
+   * wire: an older API omits it, and the page derives it with
+   * resolveSnapshotSignalState (normalizeVerifyTrustDecision).
+   */
+  state?: TrustSignalState;
+  measuredAtUtc?: string | null;
   status: TrustSignalStatus;
   tone: TrustDecisionTone;
   points: number;
@@ -386,6 +395,8 @@ export type VerifyTrustDecision = {
   presentationTone?: TrustDecisionTone;
   anchoringState?:
     | "finalized"
+    | "present_not_verified"
+    | "stale"
     | "pending"
     | "degraded"
     | "unavailable"

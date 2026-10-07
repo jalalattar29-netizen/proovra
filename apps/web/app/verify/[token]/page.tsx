@@ -26,7 +26,9 @@ import {
   maskPublicEmailsInText,
   OTS_FAILURE_CODE_LABELS,
   OTS_FAILURE_CODES,
+  resolveSnapshotSignalState,
   storedBytesCheckStatusOf,
+  type TrustSignalState,
   type OtsFailureCode,
 } from "@proovra/shared";
 import {
@@ -1510,7 +1512,8 @@ function renderVerifyEvidenceMedia(
 
 function normalizeVerifyTrustDecision(
   decision: VerifyTrustDecision
-): VerifyTrustDecision & {
+): Omit<VerifyTrustDecision, "signals"> & {
+  signals: Array<VerifyTrustSignal & { state: TrustSignalState; measuredAtUtc: string | null }>;
   presentationState:
     | "VERIFIED_FINALIZED"
     | "VERIFIED_PENDING_ANCHORING"
@@ -1521,6 +1524,12 @@ function normalizeVerifyTrustDecision(
 } {
   return {
     ...decision,
+    // Every signal carries its canonical state, including from an older API.
+    signals: decision.signals.map((signal) => ({
+      ...signal,
+      state: resolveSnapshotSignalState(signal),
+      measuredAtUtc: signal.measuredAtUtc ?? null,
+    })),
     presentationState:
       decision.presentationState ??
       (decision.verdict === "PARTIALLY_VERIFIED"

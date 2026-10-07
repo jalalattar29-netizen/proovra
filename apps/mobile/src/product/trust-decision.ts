@@ -7,6 +7,12 @@
  * Pure: no React, no fetch.
  */
 
+import {
+  TRUST_SIGNAL_STATE_PRESENTATION,
+  resolveSnapshotSignalState,
+  type TrustSignalState,
+} from "@proovra/shared";
+
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
@@ -15,6 +21,8 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 export interface TrustSignal {
   key: string;
   label: string;
+  /** THE canonical state (derived from status when an older API omits it). */
+  state: TrustSignalState;
   status: string;
   points: number;
   maxPoints: number;
@@ -45,6 +53,12 @@ export function projectTrustDecision(rw: unknown): TrustDecision | null {
       key: str(s.key) as string,
       label: str(s.label) ?? (str(s.key) as string),
       status: str(s.status) ?? "unavailable",
+      state: resolveSnapshotSignalState({
+        key: str(s.key),
+        state: s.state,
+        status: str(s.status),
+        summary: str(s.summary),
+      }),
       points: num(s.points) ?? 0,
       maxPoints: num(s.maxPoints) ?? 0,
       summary: str(s.summary),
@@ -73,26 +87,11 @@ export function projectTrustDecision(rw: unknown): TrustDecision | null {
   };
 }
 
-/** The web SIGNAL_STATES vocabulary; an unknown status is shown raw, neutrally. */
-export function trustSignalState(status: string): { label: string; tone: "verified" | "pending" | "risk" | "neutral" } {
-  switch (status) {
-    case "passed":
-      return { label: "Passed", tone: "verified" };
-    case "partial":
-    case "degraded":
-      return { label: "Degraded", tone: "pending" };
-    case "failed":
-      return { label: "Failed", tone: "risk" };
-    case "pending":
-      return { label: "Pending", tone: "neutral" };
-    case "missing":
-    case "unavailable":
-      return { label: "Unavailable", tone: "neutral" };
-    case "not_applicable":
-      return { label: "Not applicable", tone: "neutral" };
-    default:
-      return { label: status, tone: "neutral" };
-  }
+/** The web's state vocabulary: THE canonical state's one label, as a native tone. */
+export function trustSignalState(state: TrustSignalState): { label: string; tone: "verified" | "pending" | "risk" | "neutral" } {
+  const p = TRUST_SIGNAL_STATE_PRESENTATION[state];
+  const tone = p.tone === "success" ? "verified" : p.tone === "danger" ? "risk" : p.tone === "warning" ? "pending" : "neutral";
+  return { label: p.label, tone };
 }
 
 export const TRUST_POINTS_BOUNDARY =

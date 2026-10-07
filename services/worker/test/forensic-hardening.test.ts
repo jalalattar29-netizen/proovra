@@ -76,12 +76,11 @@ describe("OTS labels (Phase B #9 / Phase C #4)", () => {
     expect(tone).toBe("warning");
   });
 
-  it("escalates anchor tone to success when valid Bitcoin txid is recorded", () => {
-    const tone = normalizeBitcoinAnchorTone({
-      status: "ANCHORED",
-      bitcoinTxid: "a".repeat(64),
-    });
-    expect(tone).toBe("success");
+  it("escalates anchor tone to success only for a chain-verified anchor with a valid txid", () => {
+    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "BITCOIN_VERIFIED" })).toBe("success");
+    // An attested proof read by structure alone is a caution, never a success.
+    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64), anchorCheck: "PROOF_STRUCTURE" })).toBe("warning");
+    expect(normalizeBitcoinAnchorTone({ status: "ANCHORED", bitcoinTxid: "a".repeat(64) })).toBe("warning");
   });
 
   it("rejects malformed Bitcoin txids (not 64 hex)", () => {

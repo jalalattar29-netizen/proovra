@@ -269,6 +269,7 @@ export const REPORT_FRESHNESS_CHANGE_CODES = [
   "TSA_VALIDATED_AFTER_REPORT",
   "TSA_STATUS_CHANGED_AFTER_REPORT",
   "OTS_ANCHORED_AFTER_REPORT",
+  "OTS_CHAIN_VERIFIED_AFTER_REPORT",
   "CUSTODY_CHANGED_AFTER_REPORT",
   "INTEGRITY_REVERIFIED_AFTER_REPORT",
 ] as const;
@@ -296,7 +297,15 @@ export type ReportFreshnessInput = {
   /** The TSA status the report was rendered with (from its trust snapshot), when recorded. */
   reportTsaStatus?: string | null;
   tsa: { status: string | null; validatedAtUtc: string | null };
-  ots: { status: string | null; anchoredAtUtc: string | null; upgradedAtUtc: string | null };
+  ots: {
+    status: string | null;
+    anchoredAtUtc: string | null;
+    upgradedAtUtc: string | null;
+    /** BITCOIN_VERIFIED | PROOF_STRUCTURE | null — the check now on the record. */
+    anchorCheck?: string | null;
+    /** When that check was recorded (custody OTS_APPLIED). */
+    anchorCheckedAtUtc?: string | null;
+  };
   /** Reportable custody events recorded after the report's custody horizon. */
   custodyAfterReport: { count: number; latestAtUtc: string | null };
   integrity: { lastVerifiedAtUtc: string | null; reportLastVerifiedAtUtc: string | null };
@@ -332,6 +341,15 @@ export function deriveReportFreshness(input: ReportFreshnessInput): ReportFreshn
   if (otsStatus === "ANCHORED" && after(anchoredAt, base)) {
     changes.push({ code: "OTS_ANCHORED_AFTER_REPORT", atUtc: anchoredAt });
   }
+  // A chain verification recorded after the report is a newer fact even when
+  // the attestation itself predates it: the report could only say "present".
+  if (
+    otsStatus === "ANCHORED" &&
+    input.ots.anchorCheck === "BITCOIN_VERIFIED" &&
+    after(input.ots.anchorCheckedAtUtc ?? null, base)
+  ) {
+    changes.push({ code: "OTS_CHAIN_VERIFIED_AFTER_REPORT", atUtc: input.ots.anchorCheckedAtUtc ?? null });
+  }
   if (input.custodyAfterReport.count > 0) {
     changes.push({
       code: "CUSTODY_CHANGED_AFTER_REPORT",
@@ -360,7 +378,9 @@ export function reportFreshnessChangeCopy(
     case "TSA_STATUS_CHANGED_AFTER_REPORT":
       return `The trusted timestamp's status changed after ${v} was generated.`;
     case "OTS_ANCHORED_AFTER_REPORT":
-      return `The OpenTimestamps anchor was confirmed after ${v} was generated.`;
+      return `A Bitcoin attestation was added to the OpenTimestamps proof after ${v} was generated.`;
+    case "OTS_CHAIN_VERIFIED_AFTER_REPORT":
+      return `The OpenTimestamps anchor was verified against the Bitcoin chain after ${v} was generated.`;
     case "CUSTODY_CHANGED_AFTER_REPORT":
       return `${change.count ?? "Some"} reportable custody event${change.count === 1 ? " was" : "s were"} recorded after ${v}.`;
     case "INTEGRITY_REVERIFIED_AFTER_REPORT":

@@ -28,6 +28,7 @@ import {
   deriveReportFreshness,
   diffOutputOfferBindings,
   normalizeOtsAnchorCheck,
+  resolveOtsCustodyFacts,
   resolveEffectiveOtsStatus,
   type OutputOfferBinding,
   type OutputOfferChangeCode,
@@ -59,6 +60,8 @@ export type ReportableFacts = {
     status: string | null;
     anchorCheck: string | null;
     anchoredAtUtc: string | null;
+    /** When the current anchor check was recorded (custody), when known. */
+    anchorCheckedAtUtc: string | null;
   };
   freshness: ReportFreshness;
 };
@@ -100,7 +103,7 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
     }),
   ]);
   const reportableTypes = REPORTABLE_CUSTODY_EVENT_TYPES as prismaPkg.CustodyEventType[];
-  const [maxReportable, afterReport] = await Promise.all([
+  const [maxReportable, afterReport, otsEvents] = await Promise.all([
     prisma.custodyEvent.aggregate({
       where: { evidenceId, eventType: { in: reportableTypes } },
       _max: { sequence: true },
@@ -118,6 +121,13 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
           _max: { atUtc: true },
         })
       : Promise.resolve(null),
+    // The OTS lifecycle events (few per record): when the proof was requested
+    // and when its current check was recorded.
+    prisma.custodyEvent.findMany({
+      where: { evidenceId, eventType: prismaPkg.CustodyEventType.OTS_APPLIED },
+      orderBy: { sequence: "asc" },
+      select: { eventType: true, atUtc: true, payload: true },
+    }),
   ]);
 
   const tsaStatus = ev?.tsaStatus ?? null;
@@ -127,6 +137,7 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
     anchoredAtUtc: ev?.otsAnchoredAtUtc ?? null,
   });
   const anchorCheck = normalizeOtsAnchorCheck(ev?.otsAnchorCheck ?? null);
+  const otsCustody = resolveOtsCustodyFacts(otsEvents, anchorCheck);
   const fingerprint = [
     `status:${ev?.status ?? "-"}`,
     `tsa:${tsaStatus ?? "-"}:${iso(ev?.tsaValidatedAtUtc) ?? "-"}:${ev?.tsaFailureCode ?? "-"}`,
@@ -148,6 +159,7 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
       status: otsStatus,
       anchorCheck,
       anchoredAtUtc: otsStatus === "ANCHORED" ? iso(ev?.otsAnchoredAtUtc) : null,
+      anchorCheckedAtUtc: otsCustody.anchorCheckedAtUtc,
     },
     freshness: deriveReportFreshness({
       reportVersion: latest?.version ?? null,
@@ -157,6 +169,8 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
         status: otsStatus,
         anchoredAtUtc: iso(ev?.otsAnchoredAtUtc),
         upgradedAtUtc: iso(ev?.otsUpgradedAtUtc),
+        anchorCheck,
+        anchorCheckedAtUtc: otsCustody.anchorCheckedAtUtc,
       },
       custodyAfterReport: {
         count: afterReport?._count._all ?? 0,

@@ -124,35 +124,32 @@ test("each total keeps its own semantic tone — nothing is painted green", () =
   assert.doesNotMatch(warn.slice(0, 160), /#E7F6EF/i);
 });
 
-test("the full signal-state vocabulary is supported and never colour-only", () => {
+test("the full canonical signal-state vocabulary is supported and never colour-only", () => {
+  // THE canonical states (@proovra/shared TrustSignalState), each with an icon.
   for (const state of [
-    "passed",
-    "partial",
-    "degraded",
-    "failed",
-    "pending",
-    "missing",
-    "unavailable",
-    "not_applicable",
+    "PASSED",
+    "FAILED",
+    "PENDING",
+    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+    "NOT_CHECKED",
+    "STALE",
+    "UNAVAILABLE",
+    "NOT_APPLICABLE",
   ]) {
     assert.match(DECISION, new RegExp(`\\b${state}:`), `missing state: ${state}`);
   }
-  for (const label of ["Passed", "Degraded", "Failed", "Pending", "Unavailable", "Not applicable"]) {
-    assert.match(DECISION, new RegExp(`label: "${label}"`));
-  }
+  // Labels and tones come from the one shared presentation table.
+  assert.match(DECISION, /TRUST_SIGNAL_STATE_PRESENTATION\[state\]/);
   // Every state carries an icon AND a text label alongside its tone.
-  assert.match(DECISION, /icon: CircleCheck/);
-  assert.match(DECISION, /icon: TriangleAlert/);
-  assert.match(DECISION, /icon: CircleAlert/);
+  assert.match(DECISION, /CircleCheck/);
+  assert.match(DECISION, /TriangleAlert/);
+  assert.match(DECISION, /CircleAlert/);
   assert.match(DECISION, /<StateIcon/);
   assert.match(DECISION, /\{state\.label\}/);
 });
 
-test("an unrecognised backend status is shown verbatim, not coerced", () => {
-  assert.match(
-    DECISION,
-    /SIGNAL_STATES\[status\] \?\? \{\s*\n?\s*label: status,\s*\n?\s*tone: "neutral"/,
-  );
+test("a signal without a state (older API) is read conservatively, not coerced upward", () => {
+  assert.match(DECISION, /resolveSnapshotSignalState\(signal\)/);
 });
 
 test("only the returned signals render — none are fabricated", () => {

@@ -45,6 +45,8 @@ function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecis
         points: status === "passed" ? 10 : status === "partial" ? 5 : 0,
         maxPoints: 10,
         summary: "Anchoring snapshot",
+        state: status === "passed" ? "PASSED" : status === "failed" ? "FAILED" : "PENDING",
+        measuredAtUtc: null,
         detail: "Anchoring status recorded at generation time.",
       },
     ],

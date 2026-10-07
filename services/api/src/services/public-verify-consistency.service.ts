@@ -1,4 +1,5 @@
 import type { TrustDecision } from "@proovra/shared";
+import { resolveSnapshotSignalState } from "@proovra/shared";
 
 export type PublicVerifySnapshotSource =
   | "REPORT_SNAPSHOT"
@@ -35,16 +36,25 @@ export type PublicVerifyLiveAnchoringSection = {
   autoRefreshRecommended: boolean;
 };
 
-function mapSignalStatusToOtsStatus(status: string | null | undefined): string | null {
-  const normalized = typeof status === "string" ? status.trim().toLowerCase() : "";
-
-  switch (normalized) {
-    case "passed":
+/**
+ * The OTS lifecycle status a snapshot's anchoring signal implies, read from
+ * its canonical state: an attested proof (present, chain not checked) and a
+ * chain-verified anchor are both ANCHORED in lifecycle terms — the CLAIM
+ * difference between them lives in the state, never in this status.
+ */
+function mapSignalToOtsStatus(
+  signal: Parameters<typeof resolveSnapshotSignalState>[0] | null | undefined,
+): string | null {
+  if (!signal) return null;
+  switch (resolveSnapshotSignalState(signal)) {
+    case "PASSED":
+    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
+    case "NOT_CHECKED":
       return "ANCHORED";
-    case "partial":
-    case "pending":
+    case "PENDING":
+    case "STALE":
       return "PENDING";
-    case "failed":
+    case "FAILED":
       return "FAILED";
     default:
       return null;
@@ -83,7 +93,7 @@ export function deriveSnapshotOtsStatus(
     (signal) => signal.key === "bitcoin_anchoring",
   );
 
-  return mapSignalStatusToOtsStatus(publicAnchoringSignal?.status);
+  return mapSignalToOtsStatus(publicAnchoringSignal);
 }
 
 export function buildPublicVerifyConsistencySections(params: {

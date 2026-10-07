@@ -276,6 +276,8 @@ export type ReportEvidence = {
   tsaHashAlgorithm: string | null;
   tsaStatus: string | null;
   tsaFailureReason: string | null;
+  tsaFailureCode?: string | null;
+  tsaValidatedAtUtc?: string | null;
   otsProofBase64?: string | null;
   otsHash?: string | null;
   otsStatus?: string | null;
@@ -286,6 +288,13 @@ export type ReportEvidence = {
   otsFailureReason?: string | null;
   /** How the OTS anchor was established: BITCOIN_VERIFIED | PROOF_STRUCTURE | null. */
   otsAnchorCheck?: string | null;
+  /** When the recorded anchor check was made (custody OTS_APPLIED). */
+  otsAnchorCheckedAtUtc?: string | null;
+  otsSubmittedAtUtc?: string | null;
+  /** The Ed25519 check this report run performed (null: not run). */
+  signatureVerified?: boolean | null;
+  /** The custody hash-chain recomputation this run performed (null: not run). */
+  custodyChainValid?: boolean | null;
   anchor?: ReportAnchorSummary | null;
   certifications?: {
     custodian?: ReportCertificationSnapshot;

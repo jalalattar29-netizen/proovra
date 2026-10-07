@@ -171,24 +171,29 @@ test("custody-chain scoring counts forensic events only", () => {
   assert.equal(custodySignal.summary, "3 forensic events recorded");
 });
 
-test("anchored with valid ots bitcoin txid passes public anchoring", () => {
-  const trustDecision = buildEvidenceTrustDecision({
-    evidence: buildBaseEvidence({
-      otsStatus: "ANCHORED",
-      otsBitcoinTxid: "c".repeat(64),
-    }),
-    custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
-  });
+test("an attested proof with a txid is present, not passed, until the chain check is recorded", () => {
+  const decide = (otsAnchorCheck) =>
+    buildEvidenceTrustDecision({
+      evidence: buildBaseEvidence({
+        otsStatus: "ANCHORED",
+        otsBitcoinTxid: "c".repeat(64),
+        otsAnchoredAtUtc: "2026-05-02T11:00:00.000Z",
+        otsAnchorCheck,
+      }),
+      custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
+    }).signals.find((signal) => signal.key === "bitcoin_anchoring");
 
-  const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "bitcoin_anchoring"
-  );
-
-  assert.equal(anchoring?.status, "passed");
-  assert.equal(anchoring?.points, 10);
+  const unchecked = decide("PROOF_STRUCTURE");
+  assert.equal(unchecked.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
+  assert.equal(unchecked.status, "partial");
+  assert.equal(unchecked.points, 6);
+  const verified = decide("BITCOIN_VERIFIED");
+  assert.equal(verified.state, "PASSED");
+  assert.equal(verified.status, "passed");
+  assert.equal(verified.points, 10);
 });
 
-test("anchored without defensible public material stays partial", () => {
+test("anchored without an anchor time is pending (the shared effective status)", () => {
   const trustDecision = buildEvidenceTrustDecision({
     evidence: buildBaseEvidence({
       otsStatus: "ANCHORED",
@@ -202,8 +207,8 @@ test("anchored without defensible public material stays partial", () => {
     (signal) => signal.key === "bitcoin_anchoring"
   );
 
-  assert.equal(anchoring?.status, "partial");
-  assert.equal(anchoring?.points, 6);
+  assert.equal(anchoring?.state, "PENDING");
+  assert.equal(anchoring?.points, 4);
 });
 
 test("pending ots yields pending anchoring signal", () => {
@@ -244,30 +249,41 @@ test("pending Bitcoin anchoring degrades presentation tone and confidence label"
   assert.match(trustDecision.verdictLabel, /Bitcoin anchoring pending/i);
 });
 
-test("finalized publication can retain a success presentation tone", () => {
-  const trustDecision = buildEvidenceTrustDecision({
-    evidence: buildBaseEvidence({
-      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
-      recordedIntegrityVerifiedAtUtc: "2026-05-02T10:00:00.000Z",
-      otsStatus: "ANCHORED",
-      otsBitcoinTxid: "c".repeat(64),
-      anchor: {
-        transactionId: "c".repeat(64),
-      },
-    }),
-    custodyEvents: [
-      buildForensicEvent(1),
-      buildForensicEvent(2),
-      buildForensicEvent(3),
-      buildForensicEvent(4),
-      buildForensicEvent(5),
-    ],
-  });
+test("finalized publication requires a validated timestamp and a chain-verified anchor", () => {
+  const decide = (otsAnchorCheck) =>
+    buildEvidenceTrustDecision({
+      evidence: buildBaseEvidence({
+        verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+        recordedIntegrityVerifiedAtUtc: "2026-05-02T10:00:00.000Z",
+        otsStatus: "ANCHORED",
+        otsBitcoinTxid: "c".repeat(64),
+        otsAnchoredAtUtc: "2026-05-02T11:00:00.000Z",
+        otsAnchorCheck,
+        signatureVerified: true,
+        custodyChainValid: true,
+      }),
+      custodyEvents: [
+        buildForensicEvent(1),
+        buildForensicEvent(2),
+        buildForensicEvent(3),
+        buildForensicEvent(4),
+        buildForensicEvent(5),
+      ],
+    });
 
-  assert.equal(trustDecision.presentationState, "VERIFIED_FINALIZED");
-  assert.equal(getTrustDecisionPresentationTone(trustDecision), "success");
-  assert.equal(getTrustDecisionConfidenceLabel(trustDecision), "High");
-  assert.equal(trustDecision.verdictLabel, "Recorded integrity verified");
+  const finalized = decide("BITCOIN_VERIFIED");
+  assert.equal(finalized.presentationState, "VERIFIED_FINALIZED");
+  assert.equal(finalized.verdict, "STRONGLY_VERIFIED");
+  assert.equal(getTrustDecisionPresentationTone(finalized), "success");
+  assert.equal(getTrustDecisionConfidenceLabel(finalized), "High");
+  assert.equal(finalized.verdictLabel, "Recorded integrity verified");
+
+  // The same record with a structure-only anchor is NOT finalized.
+  const unchecked = decide("PROOF_STRUCTURE");
+  assert.notEqual(unchecked.presentationState, "VERIFIED_FINALIZED");
+  assert.notEqual(unchecked.verdict, "STRONGLY_VERIFIED");
+  assert.match(unchecked.verdictLabel, /not independently chain-verified/);
+  assert.doesNotMatch(unchecked.primaryReason, /No degraded signals/);
 });
 
 test("failed ots yields failed anchoring signal", () => {
@@ -322,40 +338,21 @@ test("malformed txid alone does not pass anchoring", () => {
   assert.equal(anchoring?.points, 2);
 });
 
-test("valid txid with matching ots hash passes anchoring", () => {
-  const trustDecision = buildEvidenceTrustDecision({
-    evidence: buildBaseEvidence({
-      otsStatus: "ANCHORED",
-      otsHash: "b".repeat(64),
-      otsBitcoinTxid: "c".repeat(64),
-    }),
-    custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
-  });
-
-  const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "bitcoin_anchoring"
-  );
-
-  assert.equal(anchoring?.status, "passed");
-  assert.equal(anchoring?.points, 10);
-});
-
-test("valid txid with missing ots hash can still pass anchoring", () => {
-  const trustDecision = buildEvidenceTrustDecision({
-    evidence: buildBaseEvidence({
-      otsStatus: "ANCHORED",
-      otsHash: null,
-      otsBitcoinTxid: "c".repeat(64),
-    }),
-    custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
-  });
-
-  const anchoring = trustDecision.signals.find(
-    (signal) => signal.key === "bitcoin_anchoring"
-  );
-
-  assert.equal(anchoring?.status, "passed");
-  assert.equal(anchoring?.points, 10);
+test("valid txid with matching ots hash passes anchoring only with a recorded chain check", () => {
+  for (const otsHash of ["b".repeat(64), null]) {
+    const anchoring = buildEvidenceTrustDecision({
+      evidence: buildBaseEvidence({
+        otsStatus: "ANCHORED",
+        otsHash,
+        otsBitcoinTxid: "c".repeat(64),
+        otsAnchoredAtUtc: "2026-05-02T11:00:00.000Z",
+        otsAnchorCheck: "BITCOIN_VERIFIED",
+      }),
+      custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
+    }).signals.find((signal) => signal.key === "bitcoin_anchoring");
+    assert.equal(anchoring?.state, "PASSED");
+    assert.equal(anchoring?.points, 10);
+  }
 });
 
 test("reviewer package trust serialization omits numeric score fields by default", () => {
