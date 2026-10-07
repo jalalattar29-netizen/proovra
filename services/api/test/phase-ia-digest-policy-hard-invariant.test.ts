@@ -317,7 +317,14 @@ describe("Phase IA-digest-policy-hard-invariant — persistence ALWAYS records r
   });
 
   it("TIMESTAMP_APPLIED / TIMESTAMP_FAILED custody event includes tsaParseWarnings", () => {
-    expect(EVIDENCE_COMPLETE).toMatch(/tsaParseWarnings:\s*tsaResult\.warnings/);
+    // 2026-10-07: the payload is built in one place beside the validator; the
+    // completion writes exactly that payload.
+    const PAYLOAD = readFileSync(
+      fileURLToPath(new URL("../src/services/timestamp/timestamp-custody-payload.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(PAYLOAD).toMatch(/tsaParseWarnings:\s*tsaResult\.warnings/);
+    expect(EVIDENCE_COMPLETE).toMatch(/payload:\s*timestampCustodyPayload\(tsaResult, tsaInputKind\)/);
   });
 });
 

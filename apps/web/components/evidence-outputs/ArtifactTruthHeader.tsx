@@ -33,8 +33,8 @@ function toneOf(state: TrustSignalState): TruthTone {
   return tone === "success" ? "ok" : tone === "danger" || tone === "warning" ? "warn" : "neutral";
 }
 
-export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; tone: TruthTone; measuredAtUtc: string | null } {
-  if (!t) return { label: "Not available", tone: "neutral", measuredAtUtc: null };
+export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; tone: TruthTone; state: TrustSignalState | null; measuredAtUtc: string | null } {
+  if (!t) return { label: "Not available", tone: "neutral", state: null, measuredAtUtc: null };
   const presented = presentedTsaStatus({ tsaStatus: t.status, tsaValidatedAtUtc: t.validatedAtUtc });
   const s = resolveTsaTrustState({
     presentedStatus: presented,
@@ -49,17 +49,18 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: s
   // says no token came back.
   const providerCode = /^tsa_provider_|^tsa_unknown_error$|^tsa_token_missing$/.test(String(t.failureCode ?? ""));
   if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && !providerCode) {
-    return { label: "Not validated", tone: "warn", measuredAtUtc: null };
+    return { label: "Not validated", tone: "warn", state: s.state, measuredAtUtc: null };
   }
   return {
     label: getTrustLayerStateLabel({ key: "trusted_timestamp", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
     tone: toneOf(s.state),
+    state: s.state,
     measuredAtUtc: s.measuredAtUtc,
   };
 }
 
-export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: string; tone: TruthTone; measuredAtUtc: string | null } {
-  if (!o) return { label: "Not available", tone: "neutral", measuredAtUtc: null };
+export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: string; tone: TruthTone; state: TrustSignalState | null; measuredAtUtc: string | null } {
+  if (!o) return { label: "Not available", tone: "neutral", state: null, measuredAtUtc: null };
   // An attested proof is "present, not chain-verified"; only a recorded chain
   // check is verified (resolveOtsTrustState).
   const s = resolveOtsTrustState({
@@ -71,8 +72,27 @@ export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: s
   return {
     label: getTrustLayerStateLabel({ key: "bitcoin_anchoring", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
     tone: toneOf(s.state),
+    state: s.state,
     measuredAtUtc: s.measuredAtUtc,
   };
+}
+
+/**
+ * The dated note under each trust fact names what the date IS. Only a PASSED
+ * state carries a validation / chain-check date: a present OpenTimestamps
+ * proof is dated by its structure check, never as a chain check.
+ */
+export function tsaNote(t: ReturnType<typeof tsaLabel>, fmt: (v: string) => string): string | null {
+  return t.state === "PASSED" && t.measuredAtUtc ? `Validated ${fmt(t.measuredAtUtc)}` : null;
+}
+
+export function otsNote(o: ReturnType<typeof otsLabel>, fmt: (v: string) => string): string | null {
+  if (!o.measuredAtUtc) return null;
+  if (o.state === "PASSED") return `Checked against the Bitcoin chain ${fmt(o.measuredAtUtc)}`;
+  if (o.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED") {
+    return `Proof structure checked ${fmt(o.measuredAtUtc)}; not checked against the Bitcoin chain`;
+  }
+  return null;
 }
 
 function Fact({
@@ -187,14 +207,14 @@ export function ArtifactTruthHeader({
           value={tsa.label}
           tone={tsa.tone}
           testId="truth-tsa"
-          note={tsa.measuredAtUtc ? `Validated ${formatDateTime(tsa.measuredAtUtc)}` : null}
+          note={tsaNote(tsa, formatDateTime)}
         />
         <Fact
           label="OpenTimestamps"
           value={ots.label}
           tone={ots.tone}
           testId="truth-ots"
-          note={ots.measuredAtUtc ? `Checked against the Bitcoin chain ${formatDateTime(ots.measuredAtUtc)}` : null}
+          note={otsNote(ots, formatDateTime)}
         />
         <Fact
           label="Report facts"

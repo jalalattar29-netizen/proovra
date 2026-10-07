@@ -79,7 +79,7 @@ import { createPublicKey } from "node:crypto";
 import { KMSClient, GetPublicKeyCommand } from "@aws-sdk/client-kms";
 
 import { prisma } from "./db.js";
-import { registerSigningKey } from "./signing/key-registry.js";
+import { registerSigningKey, type SigningKeyPurpose } from "./signing/key-registry.js";
 
 type Provider = "aws-kms" | "local-pem";
 
@@ -367,14 +367,18 @@ export function resolvePublicKeyPemFromLocalPem(): ResolvedPublicKey {
  * made with it — and never clears a revocation. Re-running it with the same key
  * is a no-op; with a different key it fails (rotate with a new version).
  */
+type SigningKeyDb = Parameters<typeof registerSigningKey>[0] & Pick<typeof prisma, "signingKey">;
+
 async function upsertSigningKeyRow(
+  db: SigningKeyDb,
   keyId: string,
   version: number,
   publicKeyPem: string,
+  purpose: SigningKeyPurpose,
 ): Promise<{ id: string; keyId: string; version: number }> {
-  await registerSigningKey(prisma, { keyId, version, publicKeyPem, purpose: "EVIDENCE_SIGNATURE" });
-  const saved = await prisma.signingKey.findUniqueOrThrow({
-    where: { keyId_version_purpose: { keyId, version, purpose: "EVIDENCE_SIGNATURE" } },
+  await registerSigningKey(db, { keyId, version, publicKeyPem, purpose });
+  const saved = await db.signingKey.findUniqueOrThrow({
+    where: { keyId_version_purpose: { keyId, version, purpose } },
     select: { id: true, keyId: true, version: true },
   });
   return { id: saved.id, keyId: saved.keyId, version: saved.version };
@@ -407,40 +411,63 @@ async function main() {
     }
   }
 
-  const evidenceKey = await upsertSigningKeyRow(
-    signingKeyId,
-    signingKeyVersion,
+  await seedSigningKeyRows(prisma, {
+    evidence: { keyId: signingKeyId, version: signingKeyVersion },
+    packageSeal: readPackageSealIdentity(),
     publicKeyPem,
+    providerLabel,
+  });
+}
+
+/**
+ * The package seal identity from PACKAGE_SIGNING_KEY_ID / _VERSION, or null
+ * when either is unset or the version is not an integer.
+ */
+function readPackageSealIdentity(): { keyId: string; version: number } | null {
+  const keyId = process.env.PACKAGE_SIGNING_KEY_ID?.trim();
+  const versionRaw = process.env.PACKAGE_SIGNING_KEY_VERSION?.trim();
+  if (!keyId || !versionRaw) return null;
+  const version = Number.parseInt(versionRaw, 10);
+  return Number.isFinite(version) ? { keyId, version } : null;
+}
+
+/**
+ * Registers the evidence signing key as EVIDENCE_SIGNATURE and, when its
+ * identity is configured, the package seal key as PACKAGE_SEAL — never
+ * EVIDENCE_SIGNATURE — so an evidence row naming the seal's (keyId, version)
+ * can never verify against it. The same pair and key material may be
+ * published for both purposes, as two rows. (In the local-pem profile the
+ * seal shares the evidence key material; a production split onto its own KMS
+ * key resolves a distinct PEM here.)
+ */
+export async function seedSigningKeyRows(
+  db: SigningKeyDb,
+  input: {
+    evidence: { keyId: string; version: number };
+    packageSeal: { keyId: string; version: number } | null;
+    publicKeyPem: string;
+    providerLabel: string;
+  },
+): Promise<void> {
+  const evidenceKey = await upsertSigningKeyRow(
+    db,
+    input.evidence.keyId,
+    input.evidence.version,
+    input.publicKeyPem,
+    "EVIDENCE_SIGNATURE",
   );
   // eslint-disable-next-line no-console
-  console.log(`Evidence signing public key saved (${providerLabel})`, evidenceKey);
-
-  // Also seed the package signing key row if env vars are set and the
-  // pair differs from the evidence signing key. The verification
-  // package worker uses an independent (keyId, version) pair, even
-  // when the underlying key material is currently shared.
-  const packageKeyId = process.env.PACKAGE_SIGNING_KEY_ID?.trim();
-  const packageKeyVersionRaw = process.env.PACKAGE_SIGNING_KEY_VERSION?.trim();
-  if (
-    packageKeyId &&
-    packageKeyVersionRaw &&
-    !(packageKeyId === signingKeyId && packageKeyVersionRaw === String(signingKeyVersion))
-  ) {
-    const packageKeyVersion = Number.parseInt(packageKeyVersionRaw, 10);
-    if (Number.isFinite(packageKeyVersion)) {
-      // Package signing key currently shares the same key material as
-      // evidence signing in the local-pem dev profile. If you split
-      // the package key onto its own KMS key in production, resolve a
-      // distinct PEM from PACKAGE_SIGNING_PUBLIC_KEY_PATH here.
-      const packageKey = await upsertSigningKeyRow(
-        packageKeyId,
-        packageKeyVersion,
-        publicKeyPem,
-      );
-      // eslint-disable-next-line no-console
-      console.log("Package signing public key saved (mirrors evidence key)", packageKey);
-    }
-  }
+  console.log(`Evidence signing public key saved (${input.providerLabel})`, evidenceKey);
+  if (!input.packageSeal) return;
+  const packageKey = await upsertSigningKeyRow(
+    db,
+    input.packageSeal.keyId,
+    input.packageSeal.version,
+    input.publicKeyPem,
+    "PACKAGE_SEAL",
+  );
+  // eslint-disable-next-line no-console
+  console.log("Package seal public key saved (PACKAGE_SEAL; mirrors evidence key material)", packageKey);
 }
 
 // Run main() ONLY when this file is invoked directly as a script

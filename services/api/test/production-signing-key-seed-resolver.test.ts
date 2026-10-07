@@ -185,8 +185,11 @@ describe("signing-key seed — 5-step public-key resolver", () => {
     // re-run could replace the key under old signatures and un-revoke it. It now registers
     // through the key registry (create if absent; same key = no-op; different key = refused),
     // and the signing_keys triggers refuse identity changes at the database.
-    expect(SEED_SRC).toMatch(/registerSigningKey\(prisma,/);
-    expect(SEED_SRC).not.toMatch(/prisma\.signingKey\.upsert/);
+    // Every row goes through the registry with an explicit purpose (the seal key is
+    // PACKAGE_SEAL — behaviourally proven in signing-key-identity.integration.test.ts).
+    expect(SEED_SRC).toMatch(/registerSigningKey\(db, \{ keyId, version, publicKeyPem, purpose \}\)/);
+    expect(SEED_SRC).toMatch(/"PACKAGE_SEAL",\s*\)/);
+    expect(SEED_SRC).not.toMatch(/\.signingKey\.upsert/);
     expect(SEED_SRC).not.toMatch(/revokedAt:\s*null/);
   });
 

@@ -359,7 +359,15 @@ test("J3 v3 — with NO trusted Bitcoin verifier, anchoring stays present-not-ve
   const anchoring = signal(v3Full, "bitcoin_anchoring");
   expect(anchoring.state).toBe("PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   expect(anchoring.status).not.toBe("passed");
-  expect(Number(anchoring.points), "never full credit").toBeLessThan(Number(anchoring.maxPoints));
+  // Credit is carried by the scored decision in the canonical record (the
+  // public trust-decision.json projection states no points).
+  const scored = (
+    v3Full.json("canonical-record.json") as {
+      materials: { trustDecision: { decision: { signals: Array<{ key: string; points: number; maxPoints: number }> } } };
+    }
+  ).materials.trustDecision.decision.signals.find((s) => s.key === "bitcoin_anchoring");
+  expect(Number.isFinite(scored?.points) && Number.isFinite(scored?.maxPoints), "credit is recorded").toBe(true);
+  expect(scored!.points, "never full credit").toBeLessThan(scored!.maxPoints);
   expect(v3Full.json("package-manifest.json").publicAnchoringVerified).toBe(false);
   expect(v3Full.json("trust-decision.json").verdict).not.toBe("STRONGLY_VERIFIED");
   // EXTERNAL-PROOF ITEM, recorded with the proof artifacts: verifying the
@@ -532,6 +540,9 @@ test("J9 browser — Artifacts shows identity, profile and both downloads; the p
   // No chain check exists in the stack: the header never says chain-verified.
   await expect(page.getByTestId("truth-ots")).toHaveText("Proof present, not chain-verified");
   await expect(page.getByTestId("truth-ots")).not.toHaveText(/Anchored, chain-verified/);
+  // Nor does its dated note call the proof-structure check a chain check.
+  const otsNote = page.getByTestId("truth-ots-measured");
+  if (await otsNote.count()) await expect(otsNote).not.toHaveText(/Checked against the Bitcoin chain/);
   await expect(page.getByTestId("pair-1-external")).toContainText(v1.extPackageId);
   await expect(page.getByTestId("truth-tsa")).toHaveText("Validated");
 

@@ -182,4 +182,45 @@ describe("evidence signing-key identity (live PostgreSQL 16)", () => {
     await expect(prisma.signingKey.update({ where, data: { purpose: "EVIDENCE_SIGNATURE" } })).rejects.toThrow();
     await expect(prisma.signingKey.update({ where, data: { fingerprintSha256: "0".repeat(64) } })).rejects.toThrow();
   });
+  it("the seed registers the package seal key as PACKAGE_SEAL — never as an evidence key — even when it shares the evidence pair", async () => {
+    const { seedSigningKeyRows } = await import("../src/seed-signing-key.js");
+    const k = generateKeyPairSync("ed25519");
+    const publicKeyPem = pem(k.publicKey, "spki");
+    const evidenceId = `t-seed-ev-${randomUUID().slice(0, 8)}`;
+    const sealId = `t-seed-pk-${randomUUID().slice(0, 8)}`;
+    const rows = (keyId: string) =>
+      prisma.signingKey.findMany({ where: { keyId }, select: { version: true, purpose: true }, orderBy: { purpose: "asc" } });
+
+    await seedSigningKeyRows(prisma, {
+      evidence: { keyId: evidenceId, version: 1 },
+      packageSeal: { keyId: sealId, version: 1 },
+      publicKeyPem,
+      providerLabel: "test",
+    });
+    expect(await rows(evidenceId)).toEqual([{ version: 1, purpose: "EVIDENCE_SIGNATURE" }]);
+    expect(await rows(sealId)).toEqual([{ version: 1, purpose: "PACKAGE_SEAL" }]);
+    // The seal identity is not an evidence key: the evidence lookup finds nothing.
+    expect(await registry.findRegisteredSigningKey(prisma, { keyId: sealId, version: 1, purpose: "EVIDENCE_SIGNATURE" })).toBeNull();
+
+    // Shared identity: one pair published for both purposes, as two rows.
+    const sharedId = `t-seed-sh-${randomUUID().slice(0, 8)}`;
+    await seedSigningKeyRows(prisma, {
+      evidence: { keyId: sharedId, version: 1 },
+      packageSeal: { keyId: sharedId, version: 1 },
+      publicKeyPem,
+      providerLabel: "test",
+    });
+    expect(await rows(sharedId)).toEqual([
+      { version: 1, purpose: "EVIDENCE_SIGNATURE" },
+      { version: 1, purpose: "PACKAGE_SEAL" },
+    ]);
+    // Re-running is a no-op (insert-only).
+    await seedSigningKeyRows(prisma, {
+      evidence: { keyId: sharedId, version: 1 },
+      packageSeal: { keyId: sharedId, version: 1 },
+      publicKeyPem,
+      providerLabel: "test",
+    });
+    expect(await rows(sharedId)).toHaveLength(2);
+  });
 });
