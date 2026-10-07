@@ -1414,6 +1414,8 @@ describe("Phase 32.7.2 — no new Prisma migration was authored", () => {
       // (fail-closed preflight) and two nullable progress columns. EXPAND only.
       "20281003000000_verification_package_report_pair_fk",
       "20281004000000_report_request_progress_stage",
+      // Report & verification-package truth closure (disclosure profiles).
+      "20281005000000_verification_package_disclosure_profile",
     ]);
 
   /** The gate itself, unchanged: exact-name membership, nothing else. */

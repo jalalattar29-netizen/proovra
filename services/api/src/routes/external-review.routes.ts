@@ -35,6 +35,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
+import { releaseExternalDisclosurePackage } from "../services/external-review/external-review-package.service.js";
+
 import { requireAuth } from "../middleware/auth.js";
 // PLATFORM COMMERCIAL AUTHORITY CLOSURE (2026-09-07) — THE canonical
 // commercial authority for External Review. It resolves the WORKSPACE's
@@ -408,6 +410,49 @@ export async function externalReviewRoutes(app: FastifyInstance) {
       }
       return reply.code(200).send({
         context: projectGrantForReviewer(lookup.grant),
+      });
+    },
+  );
+
+  // ===========================================================================
+  // GET /v1/external-review/access/:token/verification-package — the
+  // EXTERNAL_DISCLOSURE package for an EVIDENCE-scope grant (2026-10-07).
+  //
+  // A reviewer outside the workspace receives the disclosure projection only:
+  // every cryptographic commitment, no original bytes, no report, no
+  // identifiers or infrastructure. Never the FULL_FORENSIC package. Granted
+  // only when the grant is active, EVIDENCE-scoped, allows package download,
+  // passes the portal MFA gate, and the record still belongs to the grant's
+  // workspace and passes export eligibility (legal hold, lifecycle,
+  // destruction review). Every download is a custody event.
+  // ===========================================================================
+  app.get(
+    "/v1/external-review/access/:token/verification-package",
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { token } = TokenParamSchema.parse(req.params);
+      const lookup = await lookupExternalReviewGrantByToken(token);
+      if (!lookup.ok) {
+        bump("external_review_grant_lookup_denied_total");
+        return reply.code(401).send({ error: { code: "grant_not_active" } });
+      }
+      if (await externalReviewGrantRequiresPortalMfa(lookup.grant.id)) {
+        return reply.code(403).send(PORTAL_MFA_REQUIRED_BODY);
+      }
+      const released = await releaseExternalDisclosurePackage({
+        grant: lookup.grant,
+        ip: req.ip ?? null,
+        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+      });
+      if (!released.ok) {
+        return reply.code(released.status).send({ error: { code: released.code } });
+      }
+      await recordExternalReviewAccess({ grantId: lookup.grant.id, teamId: lookup.grant.teamId });
+      return reply.code(200).send({
+        packageId: released.packageId,
+        disclosureProfile: "EXTERNAL_DISCLOSURE",
+        reportVersion: released.reportVersion,
+        packageSha256: released.packageSha256,
+        url: released.downloadUrl,
       });
     },
   );

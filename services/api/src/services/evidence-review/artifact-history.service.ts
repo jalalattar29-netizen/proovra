@@ -1,4 +1,5 @@
 import { prisma } from "../../db.js";
+import { readExternalDisclosureArtifact } from "../reports/external-disclosure-artifact.js";
 
 export async function listEvidenceArtifacts(evidenceId: string) {
   const [reports, verificationPackages] = await Promise.all([
@@ -73,6 +74,12 @@ export async function listEvidenceArtifacts(evidenceId: string) {
  * SHA-256 of the stored bytes, which a verifier is meant to compare.
  */
 export type MatchedArtifactPackage = {
+  /** THE package identity (the row id; carried inside packages issued since 2026-10-07). */
+  packageId: string;
+  /** FULL_FORENSIC, or LEGACY for a package issued before disclosure profiles. */
+  disclosureProfile: "FULL_FORENSIC" | "LEGACY";
+  /** The EXTERNAL_DISCLOSURE companion issued with it, when one exists. */
+  externalDisclosure: { packageId: string; sha256: string | null; sizeBytes: string | null } | null;
   version: number;
   generatedAtUtc: string;
   sizeBytes: string | null;
@@ -130,6 +137,9 @@ export async function listMatchedArtifactVersions(
       where: { evidenceId },
       orderBy: [{ version: "desc" }],
       select: {
+        id: true,
+        disclosureProfile: true,
+        externalDisclosureArtifact: true,
         version: true,
         generatedAtUtc: true,
         sizeBytes: true,
@@ -141,7 +151,12 @@ export async function listMatchedArtifactVersions(
       },
     }),
   ]);
-  const toPackage = (p: (typeof packages)[number]): MatchedArtifactPackage => ({
+  const toPackage = (p: (typeof packages)[number]): MatchedArtifactPackage => {
+    const ext = readExternalDisclosureArtifact(p.externalDisclosureArtifact);
+    return {
+    packageId: p.id,
+    disclosureProfile: p.disclosureProfile === "FULL_FORENSIC" ? "FULL_FORENSIC" : "LEGACY",
+    externalDisclosure: ext ? { packageId: ext.packageId, sha256: ext.packageSha256, sizeBytes: ext.sizeBytes } : null,
     version: p.version,
     generatedAtUtc: p.generatedAtUtc.toISOString(),
     sizeBytes: p.sizeBytes?.toString() ?? null,
@@ -150,7 +165,8 @@ export async function listMatchedArtifactVersions(
     sealed: (p.packageFormatVersion ?? 0) >= 5,
     immutableRecorded: Boolean(p.storageObjectLockMode),
     pairing: p.reportVersion != null ? "REPORT_VERSION" : "LEGACY_VERSION_NUMBER",
-  });
+    };
+  };
   const reportVersions = new Set(reports.map((r) => r.version));
   // The package certifying each report version: an explicit report_version wins
   // over a legacy row that only shares the number.

@@ -80,6 +80,7 @@ function databaseWith(present: {
   // UC capture closure (20281001000000 / 000400 / 000600) — columns the
   // Evidence and derived-asset models declare.
   ucCaptureClosureColumns?: boolean;
+  disclosureProfileColumn?: boolean;
 }) {
   return async (sql: string): Promise<boolean> => {
     if (sql.includes("WORKSPACE_OPERATIONS")) return present.reconciliationEnumValue === true;
@@ -137,6 +138,10 @@ function databaseWith(present: {
     ) {
       return present.ucCaptureClosureColumns === true;
     }
+    // 20281005000000 — the package row's disclosure profile (and companion artifact).
+    if (sql.includes("column_name = 'disclosure_profile'")) {
+      return present.disclosureProfileColumn === true;
+    }
     if (sql.includes("table_name = 'plan_grants'")) {
       return present.planGrantsTable === true;
     }
@@ -175,6 +180,7 @@ const FULLY_MIGRATED = {
   evidenceCreditLedgerEvidenceIdUnique: true,
   uc0AcquisitionFoundation: true,
   ucCaptureClosureColumns: true,
+  disclosureProfileColumn: true,
 };
 
 describe("runtime schema requirements", () => {

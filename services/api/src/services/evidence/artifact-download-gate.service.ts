@@ -77,11 +77,20 @@ import { noteCustodyFailure } from "../custody-events-observability.js";
  * gate. The integrity recheck stays originals-only: a derivative carries its
  * own digest and is never the original.
  */
-export type ArtifactKind = "report" | "package" | "original" | "redaction" | "derived";
+/**
+ * "package" is the FULL_FORENSIC verification package, which embeds the
+ * original evidence bytes: it requires the package capability AND the
+ * original-download capability (2026-10-07; a role that may not download
+ * originals could otherwise take them inside the package). "package_external"
+ * is the EXTERNAL_DISCLOSURE package, which carries no original bytes, no
+ * report and no identifiers: the package capability is enough.
+ */
+export type ArtifactKind = "report" | "package" | "package_external" | "original" | "redaction" | "derived";
 
 const DOWNLOAD_PERMISSION = {
   report: "evidence.download_report",
   package: "evidence.download_package",
+  package_external: "evidence.download_package",
   original: "evidence.download_original",
   redaction: "evidence.read",
   derived: "evidence.download_original",
@@ -90,6 +99,7 @@ const DOWNLOAD_PERMISSION = {
 const SENSITIVE_ACTION = {
   report: "download_report",
   package: "download_package",
+  package_external: "download_package",
   original: "download_original",
   redaction: null,
   derived: "download_original",
@@ -98,6 +108,7 @@ const SENSITIVE_ACTION = {
 const CUSTODY_ACTION = {
   report: "report_download",
   package: "verification_package_download",
+  package_external: "verification_package_external_download",
   original: "download_original",
   redaction: "redaction_derivative_download",
   derived: "derived_asset_download",
@@ -106,6 +117,7 @@ const CUSTODY_ACTION = {
 const SUBJECT = {
   report: "Report download",
   package: "Verification package download",
+  package_external: "External disclosure package download",
   original: "Original file download",
   redaction: "Redacted derivative download",
   derived: "Derived review material",
@@ -225,6 +237,29 @@ export async function evaluateArtifactDownload(input: {
     }
   }
 
+  // The FULL_FORENSIC package embeds the original bytes: the original-file
+  // capability is required as well, from the same canonical decision.
+  if (kind === "package" && teamId) {
+    const originals = await resolveEvidenceRecordAccess({
+      userId: actorUserId,
+      evidenceId: evidenceForGate.id,
+      permission: "evidence.download_original",
+    });
+    if (!originals.allowed) {
+      return denied(
+        teamId,
+        403,
+        {
+          code: "FULL_PACKAGE_REQUIRES_ORIGINAL_ACCESS",
+          reason: originals.internalReason,
+          message:
+            "The full forensic package contains the original files, which you cannot download in this workspace. The external disclosure package is available instead.",
+        },
+        { action, reason: "full_package_requires_original_download" },
+      );
+    }
+  }
+
   if (kind === "redaction") {
     const capability = teamId
       ? await assertRedactionCapability({
@@ -282,7 +317,7 @@ export async function evaluateArtifactDownload(input: {
     );
   }
 
-  if (kind === "package" && teamId) {
+  if ((kind === "package" || kind === "package_external") && teamId) {
     const { gateVerificationAction } = await import(
       "../governance/policy-runtime-gates.service.js"
     );

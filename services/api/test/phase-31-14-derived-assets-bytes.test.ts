@@ -393,7 +393,8 @@ describe("Phase 31.14 — worker processor wires verification-package intelligen
   it("call site populates intelligence on createVerificationPackage", () => {
     expect(src).toMatch(/buildVerificationPackageIntelligence\(\{/);
     expect(src).toMatch(
-      /createVerificationPackage\(\{[\s\S]*?intelligence:\s*verificationPackageIntelligence/,
+      // The shared build input both disclosure profiles are built from (2026-10-07).
+      /packageBuildInput: Parameters<typeof createVerificationPackage>\[0\] = \{[\s\S]*?intelligence:\s*verificationPackageIntelligence/,
     );
   });
 });

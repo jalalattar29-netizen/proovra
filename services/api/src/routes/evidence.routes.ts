@@ -265,6 +265,7 @@ import {
 } from "../storage.js";
 import { verifyJwt } from "../services/jwt.js";
 import { enforceDistinctClientLimit, enforceRateLimit } from "../services/rate-limit.js";
+import { readExternalDisclosureArtifact } from "../services/reports/external-disclosure-artifact.js";
 // Phase A.1D — explicit retry/regenerate path for report artifacts.
 // The same enqueue function the evidence-complete service already uses
 // on first finalize, surfaced as an audited owner-only mutation.
@@ -3351,7 +3352,7 @@ async function assertArtifactDownloadAllowed(
   input: {
     evidenceId: string;
     actorUserId: string;
-    kind: "report" | "package" | "original";
+    kind: "report" | "package" | "package_external" | "original";
   },
 ): Promise<ArtifactDownloadGateResult> {
   // The decision lives in the shared gate (artifact-download-gate.service.ts)
@@ -11766,8 +11767,6 @@ limitationsSnapshot: true,
       return reply.code(200).send({
         evidenceId: id,
         version: latest.version,
-        bucket: latest.storageBucket,
-        key: latest.storageKey,
         url,
         generatedAtUtc: latest.generatedAtUtc.toISOString(),
         reviewerSnapshot: {
@@ -11994,6 +11993,8 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       const row = await prisma.verificationPackage.findFirst({
         where: { evidenceId: id, version },
         select: {
+          id: true,
+          disclosureProfile: true,
           version: true,
           storageBucket: true,
           storageKey: true,
@@ -12036,7 +12037,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
       await appendCustodyEvent({
         evidenceId: id,
         eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
-        payload: { version: row.version, historicalVersion: true },
+        payload: { version: row.version, historicalVersion: true, packageId: row.id, disclosureProfile: row.disclosureProfile ?? "LEGACY" },
         ip: req.ip,
         userAgent: req.headers["user-agent"],
       }).catch(noteCustodyFailure);
@@ -12047,7 +12048,7 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
         outcome: "success",
         resourceId: id,
         teamId: gate.teamId,
-        metadata: { version: row.version, historicalVersion: true },
+        metadata: { version: row.version, historicalVersion: true, packageId: row.id, disclosureProfile: row.disclosureProfile ?? "LEGACY" },
       });
 
       const url = await presignGetObject({
@@ -12076,6 +12077,9 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
 
       return reply.code(200).send({
         evidenceId: id,
+        packageId: row.id,
+        // NULL on the row = issued before disclosure profiles (complete content).
+        disclosureProfile: row.disclosureProfile ?? "LEGACY",
         version: row.version,
         certifiesReportVersion,
         latestReportVersion: latestReportForPairing?.version ?? null,
@@ -12097,6 +12101,96 @@ legalLimitations: toJsonSafe(latest.limitationsSnapshot ?? null),
               row.storageObjectLockLegalHoldStatus,
           },
         ),
+      });
+    },
+  );
+
+  /*
+   * THE EXTERNAL DISCLOSURE PACKAGE of one report version (2026-10-07): the
+   * companion the worker issued with the FULL_FORENSIC package, from the same
+   * facts and the same signer, without original bytes, the report or
+   * identifiers. Gated as "package_external" (the package capability, the
+   * workspace's package-download policy, the verification policy and export
+   * eligibility — not the original-file capability, because it carries no
+   * original bytes). Every download is a custody event and an audit record.
+   * A version issued before profiles has none (409, with the reason).
+   */
+  app.get(
+    "/v1/evidence/:id/verification-packages/:version/external-disclosure",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply) => {
+      const actorUserId = getAuthUserId(req);
+      const parsed = VersionParamSchema.safeParse(req.params);
+      if (!parsed.success) {
+        return reply.code(404).send({ message: "Verification package not found" });
+      }
+      const { id } = parsed.data;
+      const version = Number.parseInt(parsed.data.version, 10);
+      (req as FastifyRequest & { evidenceId?: string }).evidenceId = id;
+
+      const gate = await assertArtifactDownloadAllowed(req, reply, {
+        evidenceId: id,
+        actorUserId,
+        kind: "package_external",
+      });
+      if (!gate.allowed) return gate.reply;
+
+      const row = await prisma.verificationPackage.findFirst({
+        where: { evidenceId: id, version },
+        select: { id: true, version: true, reportVersion: true, storageBucket: true, externalDisclosureArtifact: true },
+      });
+      if (!row) {
+        return reply.code(404).send({ message: "Verification package not found" });
+      }
+      const ext = readExternalDisclosureArtifact(row.externalDisclosureArtifact);
+      if (!ext) {
+        return reply.code(409).send({
+          code: "EXTERNAL_DISCLOSURE_NOT_ISSUED",
+          message:
+            "This package version was issued before external disclosure packages existed. Generate an updated report to issue one.",
+        });
+      }
+      try {
+        const meta = await headObject({ bucket: row.storageBucket, key: ext.storageKey });
+        if (!meta.sizeBytes || meta.sizeBytes <= 0) throw new Error("empty");
+      } catch {
+        return reply.code(410).send({
+          code: "verification_package_artifact_missing",
+          message: "The external disclosure package exists, but its file is unavailable.",
+        });
+      }
+
+      await appendCustodyEvent({
+        evidenceId: id,
+        eventType: prismaPkg.CustodyEventType.VERIFICATION_PACKAGE_DOWNLOADED,
+        payload: { version: row.version, packageId: ext.packageId, disclosureProfile: "EXTERNAL_DISCLOSURE" },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      }).catch(noteCustodyFailure);
+      auditEvidenceAction(req, {
+        userId: actorUserId,
+        action: "evidence.verification_package.downloaded",
+        outcome: "success",
+        resourceId: id,
+        teamId: gate.teamId,
+        metadata: { version: row.version, packageId: ext.packageId, disclosureProfile: "EXTERNAL_DISCLOSURE" },
+      });
+
+      const url = await presignGetObject({
+        bucket: row.storageBucket,
+        key: ext.storageKey,
+        versionId: ext.s3VersionId,
+        expiresInSeconds: 600,
+      });
+      return reply.code(200).send({
+        evidenceId: id,
+        packageId: ext.packageId,
+        sourceFullPackageId: row.id,
+        disclosureProfile: "EXTERNAL_DISCLOSURE",
+        version: row.version,
+        certifiesReportVersion: row.reportVersion ?? row.version,
+        packageSha256: ext.packageSha256,
+        url,
       });
     },
   );
@@ -12358,6 +12452,8 @@ displayName: resolvedDisplayName,
           : { evidenceId: id },
         orderBy: { version: "desc" },
         select: {
+          id: true,
+          disclosureProfile: true,
           version: true,
           storageBucket: true,
           trustDecisionSnapshot: true,
@@ -12670,9 +12766,10 @@ displayName: resolvedDisplayName,
 
 return reply.code(200).send({
   evidenceId: id,
+  packageId: latest.id,
+  disclosureProfile: latest.disclosureProfile ?? "LEGACY",
   version: latest.version,
   packageType: latest.packageType ?? null,
-  key: latest.storageKey,
   url,
   generatedAtUtc: latest.generatedAtUtc.toISOString(),
   storage,

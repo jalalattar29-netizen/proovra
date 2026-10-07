@@ -79,6 +79,8 @@ describe("internal-grant rollout — migration state", () => {
       // Updated-report / recovery closure (RGA-05 pairing FK, durable progress).
       "20281003000000_verification_package_report_pair_fk",
       "20281004000000_report_request_progress_stage",
+      // Report & verification-package truth closure (disclosure profiles).
+      "20281005000000_verification_package_disclosure_profile",
     ];
     expect(timestamped.slice(end + 1)).toEqual(LATER_RELEASES);
   });

@@ -245,6 +245,13 @@ export interface EvidenceArtifactStatus {
   };
   /** Immutable report/package pairs, newest first (null = not readable now). */
   versions: MatchedArtifactHistory | null;
+  /**
+   * Which package profiles the CALLER's role permits (the canonical record
+   * access decision the download gate uses). The full forensic package embeds
+   * original bytes, so it needs the original-file capability too. Workspace
+   * policy and export eligibility are still applied at download time.
+   */
+  packageAccess: { fullForensic: boolean; externalDisclosure: boolean } | null;
   report:
     | {
         available: true;
@@ -344,7 +351,7 @@ export async function buildEvidenceArtifactStatus(params: {
   evidenceVerificationPackageMetadata?: prismaPkg.Prisma.JsonValue | null;
 }): Promise<EvidenceArtifactStatus> {
   const { evidenceId } = params;
-  const [latestReport, loadedMap, reportable, versions] = await Promise.all([
+  const [latestReport, loadedMap, reportable, versions, packageAccess] = await Promise.all([
     prisma.report.findFirst({
       where: { evidenceId },
       orderBy: { version: "desc" },
@@ -375,6 +382,7 @@ export async function buildEvidenceArtifactStatus(params: {
     // (null), never to a failed status read for the outputs above.
     loadReportableFacts(evidenceId).catch(() => null),
     listMatchedArtifactVersions(evidenceId).catch(() => null),
+    resolvePackageAccess(evidenceId, params.callerUserId ?? null).catch(() => null),
   ]);
   const loaded = loadedMap.get(evidenceId);
   if (!loaded) {
@@ -663,6 +671,7 @@ export async function buildEvidenceArtifactStatus(params: {
       activeRequest,
     },
     versions,
+    packageAccess,
     report: latestReport
       ? {
           available: true,
@@ -743,4 +752,18 @@ function readBlockedMetadata(
     blockedAtUtc:
       typeof obj.blockedAtUtc === "string" ? obj.blockedAtUtc : null,
   };
+}
+
+/** The caller's package capabilities, from THE record-access decision. */
+async function resolvePackageAccess(
+  evidenceId: string,
+  callerUserId: string | null,
+): Promise<{ fullForensic: boolean; externalDisclosure: boolean } | null> {
+  if (!callerUserId) return null;
+  const { resolveEvidenceRecordAccess } = await import("./evidence/evidence-record-access.service.js");
+  const [pkg, originals] = await Promise.all([
+    resolveEvidenceRecordAccess({ userId: callerUserId, evidenceId, permission: "evidence.download_package" }),
+    resolveEvidenceRecordAccess({ userId: callerUserId, evidenceId, permission: "evidence.download_original" }),
+  ]);
+  return { fullForensic: pkg.allowed && originals.allowed, externalDisclosure: pkg.allowed };
 }
