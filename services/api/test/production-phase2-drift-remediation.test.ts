@@ -1191,7 +1191,20 @@ describe("Phase 2 Drift Remediation — Prisma field pins (GROUP D)", () => {
 // than six more routes in the 14,000-line evidence.routes.ts: every route
 // here asks one authority (evidence.publish_verify on the record) and owns
 // nothing else.
-const ROUTE_COUNT_PHASE_2_BASELINE = 133;
+//
+// 133 -> 134 (2026-10-07, REPORT AND PACKAGE TRUTH):
+// `public-package-verification.routes.ts`.
+//
+// PROOVRA's public package and signing-key record: GET /public/signing-keys,
+// GET /public/verification-packages/:packageId and /by-sha256/:sha256. A key
+// found only inside a package vouches for nothing — anyone can re-seal an
+// altered package with their own key — so a recipient needs a record OUTSIDE
+// the package to bind its seal key and digest to PROOVRA. Anonymous,
+// read-only, rate-limited, and it returns no evidence content. A file of its
+// own because it is the only unauthenticated, workspace-free reader of the
+// package and key registries; folding it into evidence.routes.ts would put an
+// anonymous surface inside the authenticated evidence plugin.
+const ROUTE_COUNT_PHASE_2_BASELINE = 134;
 
 describe("Phase 2 Drift Remediation — central handler sanity (GROUP E)", () => {
   it("E.1 — central error handler maps Prisma P2022/P2021 → 503 SCHEMA_NOT_READY", () => {

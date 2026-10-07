@@ -92937,7 +92937,7 @@
       "method": "GET",
       "path": "/public/signing-keys",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:184",
+      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:191",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -92976,7 +92976,7 @@
       "method": "GET",
       "path": "/public/verification-packages/:packageId",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:212",
+      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:219",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"
@@ -93030,7 +93030,7 @@
       "method": "GET",
       "path": "/public/verification-packages/by-sha256/:sha256",
       "productionRegistered": true,
-      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:196",
+      "registrationEvidence": "services/api/src/routes/public-package-verification.routes.ts:203",
       "authorizationClass": "PUBLIC_UNGUARDED",
       "authorizationEvidence": [
         "no preHandler and no in-handler guard call was found"

@@ -26,6 +26,13 @@
  *       evidence content and does NOT publish the evidence record: a record's
  *       Public Verify publication is unchanged by this read.
  *
+ * TENANT_SCOPE_EXCEPTION: public_verify_token_readonly
+ *   Anonymous by design and read-only: a recipient outside any workspace
+ *   holds the package, so no session or workspace can be asked. The lookup
+ *   key is the package's own id or the SHA-256 of its exact bytes, and the
+ *   answer is that package's identity and key record only — no evidence
+ *   content, no workspace or owner data, nothing written.
+ *
  * Anonymous and bounded: a per-client rate limit shared across replicas, a
  * second per-lookup-key limit against rotating-IP enumeration, the same 404
  * for an unknown and a malformed id, and `Cache-Control: no-store` (a key's
