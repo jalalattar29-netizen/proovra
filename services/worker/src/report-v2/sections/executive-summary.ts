@@ -3,6 +3,7 @@ import { escapeHtml } from "../formatters.js";
 import {
   ACQUISITION_GLOBAL_QUALIFIER,
   ACQUISITION_LIMITATION_TEXT,
+  formatTimestampForReportUtc,
   getTrustDecisionConfidenceLabel,
   getTrustDecisionLabel,
   resolveEvidenceAcquisition,
@@ -36,6 +37,33 @@ function captureTimestampLabel(vm: ReportViewModel): string {
  * qualifier. Always rendered, and always neutral — a legacy record says the
  * acquisition was not recorded; nothing here is a verification signal.
  */
+/**
+ * An UPDATED report says, first, which version it supersedes and what changed.
+ * The earlier version is unchanged and still states only what was true when it
+ * was issued.
+ */
+function renderSupersession(vm: ReportViewModel): string {
+  const s = vm.supersession;
+  if (!s) return "";
+  const changes = s.changes.length
+    ? `<ul class="acquisition-limitations">${s.changes.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
+    : `<div class="capture-context-note">No verification fact changed since report v${s.previousVersion}; this version was issued on request.</div>`;
+  return `
+    <section class="capture-context-panel acquisition-statement-panel" data-report-supersession>
+      <div class="capture-context-header">
+        <div class="executive-confirmation-kicker">Updated report</div>
+        <div class="capture-context-intro">This version supersedes report v${s.previousVersion}${
+          s.previousGeneratedAtUtc ? ` (issued ${escapeHtml(formatTimestampForReportUtc(s.previousGeneratedAtUtc))})` : ""
+        }.</div>
+      </div>
+      <div class="capture-context-note">What changed since report v${s.previousVersion}:</div>
+      ${changes}
+      ${s.reason ? `<div class="capture-context-note">Reason recorded: ${escapeHtml(s.reason)}</div>` : ""}
+      <div class="capture-context-note">Report v${s.previousVersion} is unchanged and remains available. It states only what was true when it was issued.</div>
+    </section>
+  `;
+}
+
 function renderAcquisitionStatement(vm: ReportViewModel): string {
   const a = resolveEvidenceAcquisition({
     acquisitionMode: vm.meta.acquisitionMode ?? null,
@@ -314,6 +342,7 @@ function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
     "Trust Signal Analysis",
     `
       <div class="trust-signal-analysis-page">
+        ${renderSupersession(vm)}
         <section class="trust-signal-analysis-hero">
           <div class="executive-confirmation-kicker">Verification layer review</div>
           <div class="executive-confirmation-title">

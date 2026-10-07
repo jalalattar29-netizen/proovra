@@ -2598,3 +2598,6 @@ export * from "./disclosure-profile.js";
 
 // THE RFC 3161 validation record (timestamp-validation.json).
 export * from "./tsa-validation-record.js";
+
+// THE cross-artifact consistency validator (worker pre-seal and the e2e proof).
+export * from "./package-consistency.js";

@@ -81,10 +81,16 @@ import {
   isCompleteOtsAnchor,
   presentedTsaStatus,
   buildTimestampValidationRecord,
+  deriveReportFreshness,
+  reportFreshnessChangeCopy,
+  resolveEffectiveOtsStatus,
+  REPORTABLE_CUSTODY_EVENT_TYPES,
   parseTsaValidationEvidence,
   acquisitionIdentitySummary,
   resolveAcquisitionIdentitySnapshot,
   resolveOtsCustodyFacts,
+  resolveTsaTrustState,
+  resolveOtsTrustState,
   type AcquisitionIdentitySnapshot,
   custodyLabelHints,
 } from "@proovra/shared";
@@ -530,6 +536,75 @@ function buildPublicUrl(key: string): string | null {
 // (see `reportShareToken` in prepareReportArtifacts): revocable and rotatable
 // on its own, and inert until the owner publishes the record.
 /**
+ * What changed between the previous report version and now, from the recorded
+ * facts only (deriveReportFreshness — the same authority that offers the
+ * updated report). Never inferred.
+ */
+async function buildReportSupersession(input: {
+  evidenceId: string;
+  previousVersion: number;
+  evidence: {
+    tsaStatus: string | null;
+    tsaValidatedAtUtc: Date | null;
+    otsStatus: string | null;
+    otsAnchoredAtUtc: Date | null;
+    otsUpgradedAtUtc: Date | null;
+    otsAnchorCheck: string | null;
+    lastVerifiedAtUtc?: Date | null;
+  };
+  reason: string | null;
+}): Promise<{ previousVersion: number; previousGeneratedAtUtc: string | null; changes: string[]; reason: string | null }> {
+  const previous = await prisma.report.findUnique({
+    where: { evidenceId_version: { evidenceId: input.evidenceId, version: input.previousVersion } },
+    select: { generatedAtUtc: true, custodyThroughSequence: true, lastVerifiedAtUtcSnapshot: true },
+  });
+  const [afterReport, otsEvents] = await Promise.all([
+    previous
+      ? prisma.custodyEvent.aggregate({
+          where: {
+            evidenceId: input.evidenceId,
+            eventType: { in: REPORTABLE_CUSTODY_EVENT_TYPES as prismaPkg.CustodyEventType[] },
+            ...(previous.custodyThroughSequence != null
+              ? { sequence: { gt: previous.custodyThroughSequence } }
+              : { atUtc: { gt: previous.generatedAtUtc } }),
+          },
+          _count: { _all: true },
+          _max: { atUtc: true },
+        })
+      : null,
+    prisma.custodyEvent.findMany({
+      where: { evidenceId: input.evidenceId, eventType: prismaPkg.CustodyEventType.OTS_APPLIED },
+      orderBy: { sequence: "asc" },
+      select: { eventType: true, atUtc: true, payload: true },
+    }),
+  ]);
+  const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
+  const freshness = deriveReportFreshness({
+    reportVersion: input.previousVersion,
+    reportGeneratedAtUtc: iso(previous?.generatedAtUtc),
+    tsa: { status: input.evidence.tsaStatus, validatedAtUtc: iso(input.evidence.tsaValidatedAtUtc) },
+    ots: {
+      status: resolveEffectiveOtsStatus({ status: input.evidence.otsStatus, anchoredAtUtc: input.evidence.otsAnchoredAtUtc }),
+      anchoredAtUtc: iso(input.evidence.otsAnchoredAtUtc),
+      upgradedAtUtc: iso(input.evidence.otsUpgradedAtUtc),
+      anchorCheck: input.evidence.otsAnchorCheck,
+      anchorCheckedAtUtc: resolveOtsCustodyFacts(otsEvents, input.evidence.otsAnchorCheck).anchorCheckedAtUtc,
+    },
+    custodyAfterReport: { count: afterReport?._count._all ?? 0, latestAtUtc: iso(afterReport?._max.atUtc ?? null) },
+    integrity: {
+      lastVerifiedAtUtc: iso(input.evidence.lastVerifiedAtUtc ?? null),
+      reportLastVerifiedAtUtc: iso(previous?.lastVerifiedAtUtcSnapshot ?? null),
+    },
+  });
+  return {
+    previousVersion: input.previousVersion,
+    previousGeneratedAtUtc: iso(previous?.generatedAtUtc),
+    changes: freshness.changes.map((c) => reportFreshnessChangeCopy(c, input.previousVersion)),
+    reason: input.reason,
+  };
+}
+
+/**
  * PROOVRA's public package record (Public Verify), where a recipient
  * confirms a package's identity, digest and seal key from outside it.
  */
@@ -687,7 +762,7 @@ const fingerprintHash = normalizePayloadPrimitive(obj.fingerprintHash);
         signingKeyId ? `Key: ${signingKeyId}` : null,
         signingKeyVersion ? `Version: ${signingKeyVersion}` : null,
         fingerprintHash ? `Fingerprint: ${fingerprintHash}` : null,
-        tsaStatus ? `Timestamp: ${tsaStatus}` : null,
+        tsaStatus ? `Timestamp: ${tsaStatus === "STAMPED" ? "validated" : tsaStatus === "PENDING" ? "pending" : "not validated"}` : null,
         tsaProvider ? `TSA: ${tsaProvider}` : null,
       ]
         .filter(Boolean)
@@ -700,7 +775,7 @@ const fingerprintHash = normalizePayloadPrimitive(obj.fingerprintHash);
       const serial = normalizePayloadPrimitive(obj.tsaSerialNumber);
       return [
         "Trusted timestamp applied",
-        tsaStatus ? `Status: ${tsaStatus}` : null,
+        tsaStatus === "STAMPED" ? "Token validated" : tsaStatus ? "Token recorded" : null,
         tsaProvider ? `TSA: ${tsaProvider}` : null,
         serial ? `Serial: ${serial}` : null,
       ]
@@ -709,11 +784,15 @@ const fingerprintHash = normalizePayloadPrimitive(obj.fingerprintHash);
     }
 
 case "TIMESTAMP_FAILED": {
-  const tsaStatus = normalizePayloadPrimitive(obj.tsaStatus);
-
+  // THE canonical TSA reading: a kept token that was not validated is
+  // "received; not validated", never "could not be obtained".
+  const tsa = resolveTsaTrustState({
+    presentedStatus: "FAILED",
+    tokenPresent: Boolean(normalizePayloadPrimitive(obj.tsaSerialNumber) || normalizePayloadPrimitive(obj.tsaMessageImprint)),
+    failureCode: normalizePayloadPrimitive(obj.tsaFailureCode),
+  });
   return [
-    "Trusted timestamp could not be obtained",
-    tsaStatus ? `Status: ${tsaStatus}` : null,
+    tsa.label,
     "Reviewer should rely on the recorded digest, signature, custody history, and available verification materials.",
   ]
     .filter(Boolean)
@@ -725,13 +804,33 @@ case "TIMESTAMP_FAILED": {
       const otsPhase = normalizePayloadPrimitive(obj.otsPhase);
       const bitcoinTxid = normalizePayloadPrimitive(obj.bitcoinTxid);
       const calendar = normalizePayloadPrimitive(obj.calendar);
+      // THE canonical OTS reading of this event: an attestation recorded by
+      // proof structure is "present, not chain-verified"; only a recorded
+      // BITCOIN_VERIFIED check is verified. Never the raw status code.
+      const anchorCheck = normalizePayloadPrimitive(obj.anchorCheck);
+      const eventState = resolveOtsTrustState({
+        status: otsStatus,
+        anchoredAtUtc: normalizePayloadPrimitive(obj.anchoredAtUtc),
+        anchorCheck,
+        proofPresent: true,
+      });
       return [
-        otsPhase === "anchored"
-          ? "OpenTimestamp anchoring completed"
-          : "OpenTimestamp proof created",
-        otsStatus ? `Status: ${otsStatus}` : null,
+        otsPhase === "anchored" || otsStatus === "ANCHORED"
+          ? eventState.label
+          : "OpenTimestamps proof submitted; Bitcoin anchoring pending",
         bitcoinTxid ? `Bitcoin Tx: ${bitcoinTxid}` : null,
         calendar ? `Calendar: ${calendar}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+    }
+
+    case "REPORT_PDF_SIGNED": {
+      const reportVersion = normalizePayloadPrimitive(obj.reportVersion);
+      const status = normalizePayloadPrimitive(obj.pdfSignatureStatus);
+      return [
+        status === "SIGNED" ? "Report PDF digitally signed" : "Report PDF signature not applied",
+        reportVersion ? `Version: ${reportVersion}` : null,
       ]
         .filter(Boolean)
         .join(" • ");
@@ -777,7 +876,13 @@ case "TIMESTAMP_FAILED": {
           ? `Verification report generated • Version: ${reportVersion}`
           : "Verification report generated.",
         verificationStatusSnapshot
-          ? `Verification: ${verificationStatusSnapshot}`
+          ? `Verification: ${
+              verificationStatusSnapshot === "RECORDED_INTEGRITY_VERIFIED"
+                ? "recorded integrity verified"
+                : verificationStatusSnapshot === "MATERIALS_AVAILABLE"
+                  ? "integrity materials recorded"
+                  : "not verified"
+            }`
           : null,
         capturePresentation.method
           ? `Capture: ${capturePresentation.method}`
@@ -4149,7 +4254,31 @@ async function runReportGeneration(
 
         // Phase O1.5C — bounded report.render.pdf span.
         await withProovraSpan(PROOVRA_SPAN_NAMES.REPORT_RENDER_PDF, { "proovra.operation": "report_render_pdf", "proovra.evidence_id": prepared.evidenceId }, () => undefined);
+        // An UPDATED report names the version it supersedes and what changed
+        // since it — THE freshness authority (deriveReportFreshness), against
+        // the previous report's own issuance facts.
+        const supersession =
+          forceRegenerate && reservation.previousReportVersion != null
+            ? await buildReportSupersession({
+                evidenceId: prepared.evidenceId,
+                previousVersion: reservation.previousReportVersion,
+                evidence,
+                reason: regenerateReason ?? null,
+              }).catch((err: unknown) => {
+                logger.warn(
+                  { evidenceId: prepared.evidenceId, err: err instanceof Error ? err.message : String(err) },
+                  "report.supersession_facts_unavailable",
+                );
+                return {
+                  previousVersion: reservation.previousReportVersion as number,
+                  previousGeneratedAtUtc: null,
+                  changes: [],
+                  reason: regenerateReason ?? null,
+                };
+              })
+            : null;
         const finalizedReportPdf = await buildReportPdfV2({
+          supersession,
           evidence: effectiveReportEvidencePayload,
           custodyEvents: finalizedCustodyForReport,
           version: prepared.version,

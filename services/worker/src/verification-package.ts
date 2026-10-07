@@ -5,6 +5,7 @@ import {
   DISCLOSURE_PROFILE_LABELS,
   buildDisclosureManifest,
   projectJsonForDisclosure,
+  validatePackageConsistency,
   type DisclosureProfile,
   type DisclosureReason,
   type DisclosureRecord,
@@ -2019,7 +2020,7 @@ function buildPackageManifest(params: {
     contents: {
       // EXTERNAL_DISCLOSURE withholds the original files (their digests stay).
       evidenceFiles: params.disclosureProfile === "FULL_FORENSIC",
-      fingerprint: true,
+      fingerprint: params.disclosureProfile === "FULL_FORENSIC",
       signature: true,
       publicKey: true,
       custody: true,
@@ -2111,6 +2112,8 @@ function buildReadme(params: {
   hasTimestampValidationRecord?: boolean;
   /** The in-package name of the single original file (FULL profile). */
   singleEvidenceEntryName?: string | null;
+  /** SHA-256 of the canonical fingerprint (the evidence signature's message). */
+  fingerprintHash?: string | null;
 }): string {
   const profile: DisclosureProfile = params.disclosureProfile ?? "FULL_FORENSIC";
   const external = profile === "EXTERNAL_DISCLOSURE";
@@ -2165,6 +2168,7 @@ Not included in this package. Trusted timestamp: ${params.timestampStateLabel ??
 
   const verifyUrl = params.packageVerificationUrl ?? null;
   const identitySection = `Package ID: ${safeText(params.packageId, "Not recorded (issued before package identities)")}
+Certified evidence digest (package-manifest.json → evidenceFileSha256): ${digest ?? "Not recorded"}
 Disclosure Profile: ${DISCLOSURE_PROFILE_LABELS[profile]}
 ${DISCLOSURE_PROFILE_DESCRIPTIONS[profile]}
 ${
@@ -2211,9 +2215,15 @@ Linux and macOS (bash), Windows (Git Bash or WSL; OpenSSL 3 is required):
   openssl pkey -pubin -in package-manifest-public-key.pem -outform DER | openssl dgst -sha256
 
   # Evidence signature: Ed25519 over the 32 raw bytes of fingerprintHash
-  sha256sum fingerprint.json
+${
+  external
+    ? `  # (fingerprint.json is withheld in this profile; fingerprintHash is
+  #  ${params.fingerprintHash ?? "not recorded"}, also in package-seal.json)
+  echo ${params.fingerprintHash ? Buffer.from(params.fingerprintHash, "hex").toString("base64") : "NOT_RECORDED"} | openssl base64 -d -A > fingerprint-digest.bin`
+    : `  sha256sum fingerprint.json
+  openssl dgst -sha256 -binary fingerprint.json > fingerprint-digest.bin`
+}
   openssl base64 -d -A -in signature.txt > evidence-signature.bin
-  openssl dgst -sha256 -binary fingerprint.json > fingerprint-digest.bin
   openssl pkeyutl -verify -pubin -inkey public-key.pem -rawin -in fingerprint-digest.bin -sigfile evidence-signature.bin
 ${
   params.hasTimestampToken && digest
@@ -3089,6 +3099,10 @@ export async function createVerificationPackage(data: {
     ]);
     const appendEntry = (name: string, buffer: Buffer, contentType?: string) => {
       if (profile === "EXTERNAL_DISCLOSURE") {
+        if (name === "fingerprint.json") {
+          withheldFiles.push({ file: name, sha256: sha256Hex(buffer), reason: "SIGNED_CONTAINS_INFRASTRUCTURE" });
+          return;
+        }
         if (name === "map-preview.png") {
           withheldFiles.push({ file: name, sha256: sha256Hex(buffer), reason: "PRECISE_LOCATION" });
           return;
@@ -3638,6 +3652,7 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
           evidenceFileSha256: data.seal?.fileSha256 ?? null,
           timestampStateLabel: data.timestampValidation?.statusLabel ?? null,
           hasTimestampValidationRecord: Boolean(data.timestampValidation),
+          fingerprintHash: data.seal?.fingerprintHash ?? null,
           singleEvidenceEntryName:
             evidenceFilesWithFinalName.length === 1 ? evidenceFilesWithFinalName[0]!.finalName : null,
         })
@@ -3940,6 +3955,34 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
         ),
         "application/json",
       );
+    }
+
+    // A CONTRADICTION IS A GENERATION FAILURE (2026-10-07): the documents
+    // about to be sealed are checked against one another first, with THE
+    // shared validator the end-to-end proof also runs.
+    if (packageId && data.seal) {
+      const findings = validatePackageConsistency({
+        texts: new Map(
+          packageEntries.flatMap((entry) =>
+            "buffer" in entry && /\.(json|txt|md)$/.test(entry.name)
+              ? [[entry.name, entry.buffer.toString("utf8")] as const]
+              : [],
+          ),
+        ),
+        paths: packageEntries.map((entry) => entry.name),
+        expect: {
+          packageId,
+          evidenceId: data.evidenceId as string,
+          reportVersion: Number(data.reportVersion),
+          disclosureProfile: profile,
+          evidenceFileSha256: data.seal.fileSha256,
+        },
+      });
+      if (findings.length > 0) {
+        throw new Error(
+          `PACKAGE_INCONSISTENT: ${findings.map((x) => `${x.check} (${x.detail})`).join("; ").slice(0, 900)}`,
+        );
+      }
     }
 
     // Compute the package checksum index over all packaged entries.

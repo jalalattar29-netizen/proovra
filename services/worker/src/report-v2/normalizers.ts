@@ -7,6 +7,7 @@ import {
   acquisitionOrganizationVerificationLabel,
   acquisitionWorkspaceLabel,
   identityLevelLabel,
+  resolveOtsTrustState,
   type AcquisitionIdentitySnapshot,
 } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
@@ -312,10 +313,12 @@ export function mapTimestampStatusPublicLabel(
 ): string {
   switch (safe(status, "").toUpperCase()) {
     case "STAMPED":
+      // The PRESENTED status: STAMPED is a validated token.
+      return "Trusted timestamp validated";
     case "GRANTED":
     case "VERIFIED":
     case "SUCCEEDED":
-      return "Trusted timestamp token recorded";
+      return "Trusted timestamp recorded, not validated";
     case "RECORDED_NOT_VALIDATED":
       // ET-TSA-01: a token kept from before validation existed; never validated.
       return "Trusted timestamp recorded, not validated";
@@ -324,7 +327,9 @@ export function mapTimestampStatusPublicLabel(
     case "UNAVAILABLE":
       return "Trusted timestamp unavailable";
     case "FAILED":
-      return "Trusted timestamp attempt failed";
+      // The record holds no validated token; whether one was received is
+      // stated by the canonical TSA state (resolveTsaTrustState).
+      return "Trusted timestamp not validated";
     default:
       return "Trusted timestamp not configured";
   }
@@ -474,7 +479,8 @@ export function mapAnchorModePublicLabel(mode: string | null | undefined): strin
       return OTS_ANCHOR_CLAIM_LABELS.ANCHORED_NOT_CHECKED;
     case "BITCOIN_ANCHORING_PENDING":
     case "READY":
-      return "OTS proof present; Bitcoin anchoring pending";
+      // A MODE names a configuration, not a proof: never "proof present".
+      return "Bitcoin anchoring pending";
     case "FAILED":
       return "OpenTimestamps anchoring failed";
     case "NOT_CONFIGURED":
@@ -523,29 +529,16 @@ export function mapPublicAnchoringLabelFromOts(input: {
   fallbackAnchorMode?: string | null;
   otsAnchorCheck?: string | null;
 }): string {
-  const status = safe(input.otsStatus, "").toUpperCase();
-  const hasProof = Boolean(input.otsProofPresent);
-
-  // THE ONE OTS CLAIM (2026-09-29): a txid or anchored-at time shows anchor
-  // material; only a chain-verified anchor reads "verified".
-  if (status === "ANCHORED") {
-    const claim = resolveOtsAnchorClaim({
-      status: input.otsStatus,
-      anchoredAtUtc: input.otsAnchoredAtUtc ?? null,
-      anchorCheck: input.otsAnchorCheck ?? null,
-    });
-    if (claim === "VERIFIED" || claim === "ANCHORED_NOT_CHECKED") return OTS_ANCHOR_CLAIM_LABELS[claim];
-  }
-  if (status === "FAILED") {
-    return "OpenTimestamps anchoring failed";
-  }
-  if (status === "PENDING" || hasProof) {
-    return "OTS proof present; Bitcoin anchoring pending";
-  }
-  if (status === "DISABLED") {
-    return "Anchoring not recorded";
-  }
-  return mapAnchorModePublicLabel(input.fallbackAnchorMode ?? null);
+  // THE canonical OTS state (resolveOtsTrustState): a proof is "present" only
+  // when the record holds one, and only a recorded chain check is verified.
+  // The external-anchor MODE is not OTS evidence and is never read here.
+  const state = resolveOtsTrustState({
+    status: input.otsStatus,
+    anchoredAtUtc: input.otsAnchoredAtUtc ?? null,
+    anchorCheck: input.otsAnchorCheck ?? null,
+    proofPresent: input.otsProofPresent ?? null,
+  });
+  return state.label;
 }
 
 export function mapEvidenceAssetKindLabel(

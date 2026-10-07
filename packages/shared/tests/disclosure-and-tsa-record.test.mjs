@@ -63,6 +63,16 @@ test("EXTERNAL_DISCLOSURE removes identifiers and infrastructure, coarsens coord
   assert.ok(m.fields.every((f) => f.reasonText.length > 10));
 });
 
+test("an email inside any other value (a personal workspace label) is withheld where it appears", () => {
+  const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "package-mode.json", {
+    workspaceLabelAtPackageTime: "someone@example.test's personal workspace",
+    nested: [{ note: "sent to a.b@c.example and x@y.example" }],
+  });
+  assert.equal(value.workspaceLabelAtPackageTime, "[withheld email]'s personal workspace");
+  assert.equal(value.nested[0].note, "sent to [withheld email] and [withheld email]");
+  assert.ok(records.some((r) => r.path === "$.workspaceLabelAtPackageTime" && r.reason === "DIRECT_IDENTIFIER"));
+});
+
 function sealedEntries(sealInput, files) {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   const entries = new Map(Object.entries(files).map(([k, v]) => [k, Buffer.from(v)]));

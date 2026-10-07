@@ -62,7 +62,8 @@ export type DisclosureReason =
   | "PRECISE_LOCATION"
   | "NETWORK_OR_DEVICE_IDENTIFIER"
   | "ORIGINAL_CONTENT"
-  | "CONTAINS_DIRECT_IDENTIFIERS";
+  | "CONTAINS_DIRECT_IDENTIFIERS"
+  | "SIGNED_CONTAINS_INFRASTRUCTURE";
 
 export const DISCLOSURE_REASON_TEXT: Readonly<Record<DisclosureReason, string>> = {
   DIRECT_IDENTIFIER: "A personal identifier (such as an email address) not needed to verify integrity.",
@@ -72,6 +73,8 @@ export const DISCLOSURE_REASON_TEXT: Readonly<Record<DisclosureReason, string>> 
   NETWORK_OR_DEVICE_IDENTIFIER: "A network address or detailed browser/device identifier.",
   ORIGINAL_CONTENT: "The original evidence content; its SHA-256 digest is included as a commitment.",
   CONTAINS_DIRECT_IDENTIFIERS: "The issued report names the submitter; its SHA-256 digest is included as a commitment.",
+  SIGNED_CONTAINS_INFRASTRUCTURE:
+    "Signed canonical material that records internal storage locations and cannot be redacted without breaking its signature; its SHA-256 (fingerprintHash in package-seal.json) is included, and the evidence signature verifies over that digest.",
 };
 
 export type DisclosureRecord = {
@@ -88,6 +91,9 @@ export const DISCLOSURE_COORDINATE_DECIMALS = 2;
 type KeyRule = { test: (key: string, value: unknown) => boolean; action: DisclosureAction; reason: DisclosureReason };
 
 const lower = (k: string) => k.toLowerCase();
+
+const EMBEDDED_EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+const EMBEDDED_EMAIL_GLOBAL = new RegExp(EMBEDDED_EMAIL.source, "g");
 
 /**
  * THE external-disclosure field policy, by key name, applied at every depth.
@@ -142,6 +148,12 @@ export function projectJsonForDisclosure(
   const records: DisclosureRecord[] = [];
   const walk = (node: unknown, path: string): unknown => {
     if (Array.isArray(node)) return node.map((v, i) => walk(v, `${path}[${i}]`));
+    // An email address inside any other value (e.g. a personal workspace named
+    // "<address>'s personal workspace") is withheld where it appears.
+    if (typeof node === "string" && EMBEDDED_EMAIL.test(node)) {
+      records.push({ file, path, action: "WITHHELD", reason: "DIRECT_IDENTIFIER" });
+      return node.replace(EMBEDDED_EMAIL_GLOBAL, "[withheld email]");
+    }
     if (!node || typeof node !== "object") return node;
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(node as Record<string, unknown>)) {

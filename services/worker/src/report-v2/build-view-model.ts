@@ -1732,6 +1732,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     technicalUrl,
     publicVerificationPublished,
     captureManifest: input.captureManifest ?? null,
+    supersession: input.supersession ?? null,
     certifiedOriginal: input.certifiedOriginal ?? null,
     version: input.version,
 

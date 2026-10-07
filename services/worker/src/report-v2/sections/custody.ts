@@ -70,9 +70,11 @@ function renderLifecycleSummary(vm: ReportViewModel): string {
         <span>Upload completed</span>
         <span>Signed</span>
         <span>${
-          String(timestampStatus ?? "").toLowerCase().includes("failed")
-            ? "Timestamp unavailable"
-            : "Timestamped"
+          // "Timestamped" only for a VALIDATED token (the presented status).
+          String(timestampStatus ?? "").toUpperCase() === "STAMPED" ||
+          /validated/i.test(String(timestampStatus ?? "")) && !/not validated/i.test(String(timestampStatus ?? ""))
+            ? "Timestamped"
+            : "Timestamp not validated"
         }</span>
         <span>Locked</span>
         <span>Report generated</span>

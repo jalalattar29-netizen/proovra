@@ -89,6 +89,8 @@ const LABELS: Readonly<Record<string, string>> = {
  * carry without the raw payload (the report keeps no payloads on its rows).
  */
 export type CustodyLabelHints = {
+  /** TIMESTAMP_FAILED: the authority answered with a token PROOVRA did not validate. */
+  tsaTokenReceived?: true;
   retentionApplied?: true;
   lockedByUserId?: true;
   action?: string;
@@ -103,6 +105,7 @@ export function custodyLabelHints(payload: unknown): CustodyLabelHints | null {
   if (typeof p.lockedByUserId === "string" && p.lockedByUserId) out.lockedByUserId = true;
   if (typeof p.action === "string" && p.action) out.action = p.action.slice(0, 64);
   if (p.blockedByLegalHold === true) out.blockedByLegalHold = true;
+  if (p.tsaTokenReceived === true || TSA_TOKEN_RECEIVED_CODES.has(String(p.tsaFailureCode ?? ""))) out.tsaTokenReceived = true;
   return Object.keys(out).length > 0 ? out : null;
 }
 
@@ -110,6 +113,17 @@ export function custodyLabelHints(payload: unknown): CustodyLabelHints | null {
 export const CUSTODY_EVENT_LABELED_TYPES: ReadonlyArray<string> = Object.keys(LABELS);
 
 const FINALIZATION_ACTIONS = new Set(["finalize", "finalization", "publish_on_finalize", "complete"]);
+
+/** Failure codes that mean a token WAS received and then not validated. */
+const TSA_TOKEN_RECEIVED_CODES = new Set([
+  "tsa_trust_anchor_not_configured",
+  "tsa_trust_anchor_refused",
+  "tsa_token_untrusted",
+  "tsa_token_signature_invalid",
+  "tsa_nonce_mismatch",
+  "tsa_message_imprint_mismatch",
+  "tsa_policy_not_accepted",
+]);
 
 export function custodyEventLabel(
   eventType: string | null | undefined,
@@ -125,6 +139,9 @@ export function custodyEventLabel(
     const action = String(p.action ?? "").toLowerCase();
     if (FINALIZATION_ACTIONS.has(action) || action.includes("finaliz")) return "Finalization blocked by policy";
     if (action.includes("download") || action.includes("export")) return "Download blocked by policy";
+  }
+  if (type === "TIMESTAMP_FAILED" && p && (p.tsaTokenReceived === true || TSA_TOKEN_RECEIVED_CODES.has(String(p.tsaFailureCode ?? "")))) {
+    return "Trusted timestamp received; not validated";
   }
   if (type === "RETENTION_CANDIDATE_IDENTIFIED" && p?.blockedByLegalHold === true) {
     return "Retention period ended (held by legal hold)";

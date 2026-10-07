@@ -472,6 +472,20 @@ export type ReportV2Input = {
    * Executive Summary emits no acquisition table.
    */
   acquisition?: ReportAcquisitionInput | null;
+  /**
+   * An UPDATED report names the version it supersedes and what changed since
+   * it (from the shared freshness authority). Absent for a first issue.
+   */
+  supersession?: ReportSupersession | null;
+};
+
+export type ReportSupersession = {
+  previousVersion: number;
+  previousGeneratedAtUtc: string | null;
+  /** One sentence per recorded change since the previous version. */
+  changes: string[];
+  /** The bounded reason recorded with the request, when one was given. */
+  reason: string | null;
 };
 
 /** Public Evidence Acquisition context for the PDF (no recipient). */
@@ -615,6 +629,8 @@ export type ReportPresentationBuckets = {
 };
 
 export type ReportViewModel = {
+  /** See ReportV2Input.supersession. */
+  supersession?: ReportSupersession | null;
   mode: ReportArtifactMode;
   presentationMode: PresentationMode;
   reportVariant: ReportVariant;
