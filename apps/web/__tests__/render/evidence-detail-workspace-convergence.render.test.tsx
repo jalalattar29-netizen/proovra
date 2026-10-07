@@ -257,7 +257,7 @@ function makeWorkspace(): unknown {
       accuracyMeters: null,
       capturedAtUtc: null,
       deviceTimeIso: null,
-      source: "PROOVRA secure capture",
+      source: "Reported by the submitting browser",
       externalMapUrl: null,
       legalBoundary: "Location metadata is device/browser-reported.",
     },

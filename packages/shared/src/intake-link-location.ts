@@ -22,7 +22,7 @@
  *     Evidence row. Stored on evidence.location_source. Drives the
  *     display label so reports/verify can honestly attribute the
  *     coordinates to their actual source without overclaiming
- *     ("contributor browser permission" vs "PROOVRA secure capture").
+ *     ("contributor browser permission" vs "reported by the submitting browser").
  */
 
 export const INTAKE_LINK_LOCATION_POLICIES = [
@@ -123,7 +123,9 @@ export const EVIDENCE_LOCATION_SOURCE_LABEL: Record<
   EvidenceLocationSource,
   string
 > = {
-  CAPTURE_BROWSER_GEOLOCATION: "PROOVRA secure capture",
+  // The submitting browser reported these coordinates; PROOVRA did not
+  // observe them, and they are not a "secure capture" claim.
+  CAPTURE_BROWSER_GEOLOCATION: "Reported by the submitting browser",
   INTAKE_LINK_GEOLOCATION: "Contributor browser permission",
   EXIF_GPS: "EXIF metadata in the source file",
   MANUAL_ENTRY: "Manually entered by operator",

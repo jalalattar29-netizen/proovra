@@ -8,7 +8,7 @@
  *   - INTAKE_LINK_GEOLOCATION         → "Contributor browser permission"
  *                                       + "Upload session location" title
  *                                       + legally-careful body copy
- *   - CAPTURE_BROWSER_GEOLOCATION     → "PROOVRA secure capture"
+ *   - CAPTURE_BROWSER_GEOLOCATION     → "Reported by the submitting browser"
  *                                       + historical "Location metadata
  *                                         included" title + CAPTURE_LOCATION_
  *                                         CONTEXT_DESCRIPTION body (byte-
@@ -143,13 +143,13 @@ describe("Report-v2 — location source provenance", () => {
     );
   });
 
-  it("CAPTURE_BROWSER_GEOLOCATION renders the historical PROOVRA secure capture label", async () => {
+  it("CAPTURE_BROWSER_GEOLOCATION renders the browser-reported label, never a secure-capture claim", async () => {
     const vm = await buildReportViewModel(
       withCoords(baseInput(), "CAPTURE_BROWSER_GEOLOCATION"),
     );
     const ctx = vm.meta?.captureContext;
     expect(ctx).toBeTruthy();
-    expect(ctx?.sourceLabel).toBe("PROOVRA secure capture");
+    expect(ctx?.sourceLabel).toBe("Reported by the submitting browser");
     expect(ctx?.statusLabel).toBe("Location metadata included");
   });
 
@@ -161,7 +161,7 @@ describe("Report-v2 — location source provenance", () => {
     const vm = await buildReportViewModel(withCoords(baseInput(), null));
     const ctx = vm.meta?.captureContext;
     expect(ctx).toBeTruthy();
-    expect(ctx?.sourceLabel).toBe("PROOVRA secure capture");
+    expect(ctx?.sourceLabel).toBe("Reported by the submitting browser");
     expect(ctx?.statusLabel).toBe("Location metadata included");
   });
 

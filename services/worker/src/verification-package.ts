@@ -1317,6 +1317,16 @@ export function buildPackageAcquisitionRecord(params: {
       recordedBy: acquisition.recordedBy,
       label: acquisition.label,
       statement: acquisition.statement,
+      // What PROOVRA observed, what was attested, and what preceded its
+      // visibility — always from THE current mapping for the recorded mode.
+      ...(() => {
+        const wording = resolveEvidenceAcquisition({ acquisitionMode: acquisition.mode === "LEGACY_NOT_RECORDED" ? null : acquisition.mode });
+        return {
+          observedByProovra: wording.observedByProovra,
+          attested: wording.attested,
+          beforeProovraVisibility: wording.beforeProovraVisibility,
+        };
+      })(),
       isDirectCapture: acquisition.isDirectCapture,
       provenanceTier: acquisition.provenanceTier,
       limitations: acquisition.limitations.map((code) => ({

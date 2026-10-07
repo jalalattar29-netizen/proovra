@@ -50,6 +50,11 @@ function renderAcquisitionStatement(vm: ReportViewModel): string {
         <div class="capture-context-intro">${escapeHtml(a.label)}</div>
       </div>
       <div class="capture-context-note">${escapeHtml(a.statement)}</div>
+      <dl class="acquisition-basis">
+        <div><dt>Observed by PROOVRA</dt><dd>${escapeHtml(a.observedByProovra)}</dd></div>
+        <div><dt>Reported by the submitter or capture client</dt><dd>${escapeHtml(a.attested)}</dd></div>
+        <div><dt>Before PROOVRA received it</dt><dd>${escapeHtml(a.beforeProovraVisibility)}</dd></div>
+      </dl>
       <ul class="acquisition-limitations">${limitations}</ul>
       ${renderCaptureManifestFacts(vm)}
       <div class="capture-context-note">${escapeHtml(ACQUISITION_GLOBAL_QUALIFIER)}</div>

@@ -55,7 +55,7 @@ export const PROOVRA_FORBIDDEN_SURFACE_PATTERNS = [
  * statements are these facts, plus ACQUISITION_GLOBAL_QUALIFIER.
  */
 export const PROOVRA_ALLOWED_ACQUISITION_CLAIMS = [
-  "Uploaded to PROOVRA by a signed-in account.",
+  "Files submitted through PROOVRA Web Upload.",
   "Submitted to PROOVRA through a secure intake link.",
   "Submitted through the PROOVRA mobile app in a server-issued capture session.",
   "How this record entered PROOVRA was not recorded when it was created.",

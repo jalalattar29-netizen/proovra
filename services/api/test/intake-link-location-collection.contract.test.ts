@@ -64,8 +64,8 @@ describe("Intake Links — location collection contract", () => {
     );
     assert.equal(
       evidenceLocationSourceLabel(null),
-      "PROOVRA secure capture",
-      "null source must default to historical CAPTURE label so existing rows don't visually regress",
+      "Reported by the submitting browser",
+      "a null source reads as browser-reported, never as a secure-capture claim",
     );
     assert.ok(isIntakeLinkLocationPolicy("OPTIONAL"));
     assert.ok(!isIntakeLinkLocationPolicy("MAYBE"));

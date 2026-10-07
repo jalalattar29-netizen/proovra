@@ -4073,6 +4073,30 @@ body {
   margin-top: 0.3mm !important;
 }
 
+/* How this record entered PROOVRA — observed / attested / before visibility */
+.acquisition-basis {
+  display: grid !important;
+  gap: 0.6mm !important;
+  margin: 0.8mm 0 0 !important;
+}
+.acquisition-basis div {
+  display: grid !important;
+  grid-template-columns: 34mm 1fr !important;
+  gap: 2mm !important;
+  break-inside: avoid !important;
+}
+.acquisition-basis dt {
+  color: ${c.muted} !important;
+  font-size: 7.6px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+}
+.acquisition-basis dd {
+  margin: 0 !important;
+  font-size: 7.6px !important;
+  line-height: 1.3 !important;
+}
+
 /* TRUST SIGNAL ANALYSIS — separate enterprise page */
 
 .trust-signal-analysis-page {

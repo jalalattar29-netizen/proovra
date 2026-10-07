@@ -184,6 +184,12 @@ type ModeDescriptor = {
   label: string;
   /** One factual sentence. Never a trust assertion. */
   statement: string;
+  /** What PROOVRA itself observed (server-side), and nothing more. */
+  observedByProovra: string;
+  /** What the client or the submitter reported, unverified by PROOVRA. */
+  attested: string;
+  /** What happened before PROOVRA had any visibility of the material. */
+  beforeProovraVisibility: string;
   /**
    * True for the direct-capture CHANNELS (a PROOVRA capture client in a
    * server-issued session). It names the channel only — see provenanceTier.
@@ -262,7 +268,13 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     category: "UPLOAD",
     label: "Uploaded to PROOVRA",
     statement:
-      "This material was uploaded to PROOVRA by a signed-in account. PROOVRA established integrity when the upload was completed.",
+      "Files submitted through PROOVRA Web Upload. PROOVRA did not observe creation or editing before submission.",
+    observedByProovra:
+      "The upload of these files by a signed-in account, their bytes as received, and their digests when the upload was completed.",
+    attested:
+      "File names and any device or browser details sent with the upload.",
+    beforeProovraVisibility:
+      "How, when and by whom the files were created, and any editing before submission.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["CREATION_NOT_OBSERVED_BY_PROOVRA"],
@@ -272,6 +284,12 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     label: "Submitted through a secure intake link",
     statement:
       "This material was submitted to PROOVRA through a secure intake link. PROOVRA established integrity when the submission was completed.",
+    observedByProovra:
+      "The submission of these files through a secure intake link, their bytes as received, and their digests when the submission was completed.",
+    attested:
+      "Everything the contributor entered or their browser reported, including file names and any location the contributor shared.",
+    beforeProovraVisibility:
+      "How, when and by whom the files were created, and any editing before submission. The contributor's identity is not independently verified.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["CREATION_NOT_OBSERVED_BY_PROOVRA"],
@@ -281,6 +299,12 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     label: "Submitted through the PROOVRA mobile app",
     statement:
       "This material was submitted through the PROOVRA mobile app in a server-issued capture session. PROOVRA established integrity when the session was completed.",
+    observedByProovra:
+      "The submission in a server-issued capture session, the bytes as received, and their digests when the session was completed.",
+    attested:
+      "Whether an item came from the app's camera or from files on the device, and the device details the app reported.",
+    beforeProovraVisibility:
+      "How the material was produced on the device, and any editing before submission.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: [
@@ -294,6 +318,12 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     label: "Web capture — PROOVRA extension (client-attested)",
     statement:
       "The PROOVRA browser extension reports that it captured this web page, in a server-issued capture session. PROOVRA independently recomputed the digest of every captured artifact and established integrity when the session was completed.",
+    observedByProovra:
+      "A server-issued capture session, the captured artifacts as received, and the digest of every artifact, recomputed by PROOVRA.",
+    attested:
+      "That the PROOVRA extension captured the page, when it did so relative to the session, and the page address and browser details it reported.",
+    beforeProovraVisibility:
+      "The page's content and how it was served or altered in the browser before capture.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -308,6 +338,12 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     label: "Android screen capture — PROOVRA app (client-attested)",
     statement:
       "The PROOVRA Android app reports that it captured this device screen, using Android's screen-capture consent, in a server-issued capture session. PROOVRA independently recomputed the digest of every captured frame and established integrity when the session was completed.",
+    observedByProovra:
+      "A server-issued capture session, the captured frames as received, and the digest of every frame, recomputed by PROOVRA.",
+    attested:
+      "That the PROOVRA Android app captured the screen, when, and the device details it reported.",
+    beforeProovraVisibility:
+      "What produced the content shown on screen, and the state of the device.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -322,6 +358,12 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     label: "Android screen recording — PROOVRA app (client-attested)",
     statement:
       "The PROOVRA Android app reports that it recorded this device screen continuously, using Android's screen-capture consent, in a server-issued capture session. The recording is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
+    observedByProovra:
+      "A server-issued capture session, the recorded segments as received, their order, and the digest of every segment, recomputed by PROOVRA.",
+    attested:
+      "That the PROOVRA Android app recorded the screen continuously, the interruptions it reported, and the device details it reported.",
+    beforeProovraVisibility:
+      "What produced the content shown on screen, and the state of the device.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -337,6 +379,12 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     label: "iOS screen recording — PROOVRA app (client-attested)",
     statement:
       "The PROOVRA iOS app reports that it recorded this device screen through Apple's user-authorised system screen broadcast, in a server-issued capture session. The broadcast is preserved as ordered segments; PROOVRA independently recomputed the digest of every segment and established integrity when the session was completed.",
+    observedByProovra:
+      "A server-issued capture session, the broadcast segments as received, their order, and the digest of every segment, recomputed by PROOVRA.",
+    attested:
+      "That the PROOVRA iOS app recorded Apple's system screen broadcast, the interruptions it reported, and the device details it reported.",
+    beforeProovraVisibility:
+      "What produced the content shown on screen, and the state of the device.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -352,6 +400,12 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     label: "Not recorded",
     statement:
       "How this record entered PROOVRA was not recorded when it was created.",
+    observedByProovra:
+      "How this record entered PROOVRA was not recorded.",
+    attested:
+      "Not recorded.",
+    beforeProovraVisibility:
+      "Not known.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["ACQUISITION_NOT_RECORDED"],
@@ -368,6 +422,10 @@ export type EvidenceAcquisitionProjection = {
   recordedBy: EvidenceAcquisitionModeSource | null;
   label: string;
   statement: string;
+  /** What PROOVRA observed / what was attested / what preceded visibility. */
+  observedByProovra: string;
+  attested: string;
+  beforeProovraVisibility: string;
   isDirectCapture: boolean;
   /** Owner decision 4: what may be said about who produced the bytes. */
   provenanceTier: EvidenceProvenanceTier;
@@ -400,6 +458,9 @@ export function resolveEvidenceAcquisition(input: {
           : null,
     label: d.label,
     statement: d.statement,
+    observedByProovra: d.observedByProovra,
+    attested: d.attested,
+    beforeProovraVisibility: d.beforeProovraVisibility,
     isDirectCapture: d.isDirectCapture,
     provenanceTier: d.provenanceTier,
     limitations: d.limitations,
