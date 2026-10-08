@@ -304,7 +304,7 @@
     },
     {
       "routeId": "GET /public/verification-packages/:packageId",
-      "testCallerCount": 5,
+      "testCallerCount": 4,
       "testOnly": false,
       "testCallerFiles": [
         "e2e/updated-report/report-package-truth.spec.ts"
@@ -7210,5 +7210,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "e91d8bd9ad45f396fc47fe363c34149c604675b7ac627b23fbf0e55d7a71c65c"
+  "contentHash": "7e4eeca4ced56b5314309e84e6c12314c2b1dad93ac14be4f6c56ab422da1a1d"
 }
