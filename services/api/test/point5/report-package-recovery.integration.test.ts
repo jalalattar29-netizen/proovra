@@ -1707,4 +1707,195 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(await creditEntries(ev.evidenceId), "recovery consumes no credit").toBe(credits);
   });
 
+  // -------------------------------------------------------------------------
+  // EVIDENCE-DETAIL RECOVERY UX (2026-10-08). The record itself offers
+  // "Retry report generation" for an exhausted TECHNICAL Report v1 failure to
+  // a caller holding the EXISTING supersession right, and the click runs the
+  // SAME supersession the Operations remediation runs — through the Evidence
+  // route's own call into requestOutputRecovery, re-derived at click time.
+  // -------------------------------------------------------------------------
+  /** Exactly the Evidence route's call for a per-output Retry. */
+  const recordRetry = async (
+    evidenceId: string,
+    actorUserId: string,
+    over: Record<string, unknown> = {},
+  ) => {
+    const { requestOutputRecovery } = await recovery();
+    return requestOutputRecovery({
+      evidenceId,
+      actorUserId,
+      intent: "RETRY",
+      targetOutput: "report",
+      purpose: "operator_regenerate",
+      regenerateReason: "recovery_requested",
+      resolveSupersedeRight: true,
+      ...over,
+    } as never);
+  };
+  const recordActions = async (evidenceId: string, callerUserId: string, resolveSupersedeRight = true) => {
+    const { loadEvidenceOutputFacts } = await recovery();
+    return (await loadEvidenceOutputFacts({ evidenceIds: [evidenceId], callerUserId, resolveSupersedeRight })).get(evidenceId)!;
+  };
+  /** The production DLQ shape: Report v1 failed non-retriably, no report. */
+  async function failedFirstIssuance() {
+    const ev = await signedEvidence();
+    const { requestReportGeneration } = await import("../../src/services/reports/report-generation-authority.service.js");
+    const completion = await requestReportGeneration({
+      evidenceId: ev.evidenceId,
+      purpose: "evidence_completed",
+      requestedByMachineId: "api.evidence-complete",
+    } as never);
+    const failedId = (completion as { requestId: string }).requestId;
+    seam.renderInputFailures = 1;
+    expect(String(((await run(failedId, 0)) as Error)?.message)).toMatch(/REPORT_RENDER_INPUT_INCONSISTENT/);
+    const failedRow = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: failedId },
+      select: { state: true, terminalReasonCode: true, idempotencyKey: true, attemptCount: true, completedAtUtc: true },
+    });
+    expect(failedRow.state).toBe("FAILED_TERMINAL");
+    expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } })).toBe(0);
+    return { ...ev, failedId, failedRow };
+  }
+  const requestCount = (evidenceId: string) => prisma.reportGenerationRequest.count({ where: { evidenceId } });
+
+  it("RECORD RETRY: the right holder is offered 'Retry report generation'; a viewer, another tenant and the non-opted surfaces are not", async () => {
+    const ev = await failedFirstIssuance();
+    const { teamA, teamB } = harness.fixtures;
+
+    const owner = await recordActions(ev.evidenceId, teamA.ownerUserId);
+    expect(owner.facts.callerMaySupersede).toBe(true);
+    expect(owner.actions.report).toEqual({
+      action: "RETRY",
+      reason: null,
+      operation: "FULL_GENERATION",
+      supersedesTechnicalTerminal: true,
+    });
+    expect(owner.actions.newVersion.action, "never a new version when v1 never existed").toBe("NONE");
+
+    // A viewer holds neither right: the escalation stays, read-only.
+    const viewer = await recordActions(ev.evidenceId, teamA.viewerUserId);
+    expect(viewer.facts.callerMaySupersede).toBe(false);
+    expect(viewer.actions.report.action).toBe("NONE");
+    // Another workspace's owner: no record access, so nothing at all.
+    const stranger = await recordActions(ev.evidenceId, teamB.ownerUserId);
+    expect(stranger.facts.callerMayGenerate).toBe(false);
+    expect(stranger.facts.callerMaySupersede).toBe(false);
+    expect(stranger.actions.report.action).toBe("NONE");
+    // Operations, backfill and list surfaces do not opt in: still escalated.
+    const plain = await recordActions(ev.evidenceId, teamA.ownerUserId, false);
+    expect(plain.actions.report).toMatchObject({ action: "NONE", reason: "ESCALATED_TO_OPERATOR" });
+
+    // The server re-decides at click time: a viewer's (or another tenant's) click creates nothing.
+    const before = await requestCount(ev.evidenceId);
+    for (const actor of [teamA.viewerUserId, teamB.ownerUserId]) {
+      const r = await recordRetry(ev.evidenceId, actor);
+      expect(r.kind, actor).toBe("declined");
+    }
+    expect(await requestCount(ev.evidenceId)).toBe(before);
+  });
+
+  it("RECORD RETRY: double and concurrent clicks create ONE successor; v1 and both packages land; the failed request stays as history; no credit", async () => {
+    const ev = await failedFirstIssuance();
+    const owner = harness.fixtures.teamA.ownerUserId;
+    const credits = await creditEntries(ev.evidenceId);
+
+    // Three concurrent clicks, then a double-click replay before any worker runs.
+    const clicks = await Promise.all([1, 2, 3].map(() => recordRetry(ev.evidenceId, owner)));
+    for (const c of clicks) expect(c.kind).toBe("accepted");
+    const ids = new Set(clicks.map(idOf));
+    expect(ids.size, "concurrent clicks resolve to one request").toBe(1);
+    const [successorId] = [...ids];
+    expect(successorId).not.toBe(ev.failedId);
+    const replay = await recordRetry(ev.evidenceId, owner);
+    expect(replay.kind === "accepted" ? idOf(replay) : successorId, "a replay collapses onto it").toBe(successorId);
+    expect(await requestCount(ev.evidenceId), "the dead row and ONE successor").toBe(2);
+    const successor = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: successorId },
+      select: { idempotencyKey: true, forceRegenerate: true, regenerateReason: true },
+    });
+    expect(successor.idempotencyKey).toBe(`${ev.failedRow.idempotencyKey}:s1`);
+    expect(successor.forceRegenerate, "a first issuance, not a new version").toBe(false);
+    expect(successor.regenerateReason).toBe("retry_after_exhausted_failure");
+
+    // While it is live the record offers no second retry.
+    expect((await recordActions(ev.evidenceId, owner)).actions.report).toMatchObject({ action: "NONE", reason: "IN_PROGRESS" });
+
+    expect(await run(successorId, 0)).toBeNull();
+    const s = await state(ev.evidenceId);
+    expect(s.reports.map((r) => r.version), "exactly Report v1 — no v2").toEqual([1]);
+    expect((await rowsOf(ev.evidenceId, 1)).map((r) => r.state), "both profiles published").toEqual(["PUBLISHED", "PUBLISHED"]);
+    expect(await prisma.verificationPackage.count({ where: { evidenceId: ev.evidenceId } }), "one row per profile").toBe(2);
+
+    // Refresh / replay after success: nothing more is created.
+    const stale = await recordRetry(ev.evidenceId, owner);
+    expect(stale.kind).toBe("declined");
+    expect(await requestCount(ev.evidenceId)).toBe(2);
+    expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } })).toBe(1);
+    const done = await recordActions(ev.evidenceId, owner);
+    expect(done.actions.report.reason).toBe("NOT_REQUIRED");
+    expect(done.actions.verificationPackage.reason).toBe("NOT_REQUIRED");
+
+    // The failed request is history, unchanged.
+    expect(
+      await prisma.reportGenerationRequest.findUniqueOrThrow({
+        where: { id: ev.failedId },
+        select: { state: true, terminalReasonCode: true, idempotencyKey: true, attemptCount: true, completedAtUtc: true },
+      }),
+    ).toEqual(ev.failedRow);
+    expect(await creditEntries(ev.evidenceId), "recovery consumes no credit").toBe(credits);
+  });
+
+  it("RECORD RETRY: an integrity or policy terminal is never superseded, whoever clicks", async () => {
+    for (const code of ["EVIDENCE_INTEGRITY_FAILED", "WORKSPACE_MISMATCH"]) {
+      const ev = await failedFirstIssuance();
+      await prisma.reportGenerationRequest.update({ where: { id: ev.failedId }, data: { terminalReasonCode: code } });
+      const owner = harness.fixtures.teamA.ownerUserId;
+      const loaded = await recordActions(ev.evidenceId, owner);
+      expect(loaded.actions.report.action, code).toBe("NONE");
+      expect(loaded.actions.report.reason, code).not.toBe("ESCALATED_TO_OPERATOR");
+      const before = await requestCount(ev.evidenceId);
+      const r = await recordRetry(ev.evidenceId, owner);
+      expect(r.kind, code).toBe("declined");
+      // Even the explicit operator path refuses it.
+      const op = await operatorRecover(ev.evidenceId, { operatorSupersede: true });
+      expect(op.kind, code).toBe("declined");
+      expect(await requestCount(ev.evidenceId), code).toBe(before);
+      expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } }), code).toBe(0);
+    }
+  });
+
+  it("RECORD RETRY of the PACKAGE: report v1 stands, its exhausted technical package failure is retried package-only", async () => {
+    const { evidenceId, teamId } = await signedEvidence();
+    const first = await request({ evidenceId, teamId });
+    seam.packageBuildFailures = 1;
+    await run(first, 0);
+    await prisma.reportGenerationRequest.update({
+      where: { id: first },
+      data: { state: "FAILED_TERMINAL", terminalReasonCode: "retry_budget_exhausted", completedAtUtc: new Date() },
+    });
+    const owner = harness.fixtures.teamA.ownerUserId;
+    const loaded = await recordActions(evidenceId, owner);
+    expect(loaded.actions.report.reason).toBe("NOT_REQUIRED");
+    expect(loaded.actions.verificationPackage).toEqual({
+      action: "RETRY",
+      reason: null,
+      operation: "PACKAGE_RECOVERY",
+      supersedesTechnicalTerminal: true,
+    });
+    const reportIdentity = (rs: Array<{ version: number; storageKey: string; pdfSha256: string | null }>) => rs.map((r) => [r.version, r.storageKey, r.pdfSha256]);
+    const reportBefore = reportIdentity((await state(evidenceId)).reports);
+    const clicks = await Promise.all([1, 2].map(() => recordRetry(evidenceId, owner, { targetOutput: "verificationPackage" })));
+    for (const c of clicks) expect(c.kind).toBe("accepted");
+    expect(new Set(clicks.map(idOf)).size).toBe(1);
+    const made = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: idOf(clicks[0]) },
+      select: { artifactType: true, reportVersion: true, forceRegenerate: true },
+    });
+    expect(made).toEqual({ artifactType: "VERIFICATION_PACKAGE", reportVersion: 1, forceRegenerate: false });
+    expect(await run(idOf(clicks[0]), 0)).toBeNull();
+    const after = await state(evidenceId);
+    expect(reportIdentity(after.reports), "the stored report is untouched (same version, object and digest)").toEqual(reportBefore);
+    expect((await rowsOf(evidenceId, 1)).filter((r) => r.state === "PUBLISHED").length).toBe(2);
+  });
+
 });

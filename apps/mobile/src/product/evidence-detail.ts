@@ -882,7 +882,7 @@ export function readGenerationOutcome(payload: unknown): GenerationOutcome {
 /**
  * THE PER-OUTPUT VERBS AND THE NEW-VERSION WORDS are the shared table
  * (`@proovra/shared` output-action-copy), the same one the web renders: a
- * missing package is "Recover verification package", never a regeneration of
+ * missing package is "Retry verification package", never a regeneration of
  * both, and a new version is its own confirmed action.
  */
 export {

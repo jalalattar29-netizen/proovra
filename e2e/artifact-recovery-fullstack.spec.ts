@@ -179,7 +179,7 @@ test.describe("artifact recovery — the real stack", () => {
     const panel = page.locator('[data-evidence-section="package-recovery"]');
     await expect(panel).toContainText("The verification package for report version 1 is missing");
     const recover = panel.locator('[data-evidence-action="generate-outputs"]');
-    await expect(recover).toHaveText("Recover verification package");
+    await expect(recover).toHaveText("Retry verification package");
     await expect(page.getByText(/Regenerate/)).toHaveCount(0);
 
     await recover.click();

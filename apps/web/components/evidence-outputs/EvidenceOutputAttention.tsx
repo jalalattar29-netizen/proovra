@@ -29,6 +29,8 @@ import {
 import { otsLabel, tsaLabel } from "./ArtifactTruthHeader";
 import {
   presentOutputAttention,
+  recoveryBusyLabel,
+  recoveryStandingSentence,
   recoverySentence,
   type ArtifactsFocusTarget,
   type EvidenceOutputAttention,
@@ -216,10 +218,10 @@ export function EvidenceOutputsCard({
       body = (
         <>
           <p className="rga-attention__lead">{recoverySentence(a)}</p>
-          {a.target === "verificationPackage" && a.reportVersion != null ? (
-            <p className="rga-attention__text">Report v{a.reportVersion} remains safely recorded.</p>
-          ) : a.target === "newVersion" ? (
+          {a.target === "newVersion" ? (
             <p className="rga-attention__text">{a.error.title}. Earlier versions are unchanged.</p>
+          ) : a.target === "verificationPackage" || a.action === "RETRY" ? (
+            <p className="rga-attention__text">{recoveryStandingSentence(a)}</p>
           ) : null}
         </>
       );
@@ -238,7 +240,7 @@ export function EvidenceOutputsCard({
               data-testid="evidence-outputs-recover"
               data-evidence-generate-verb={a.action}
             >
-              {busy ? "Requesting…" : outputActionLabel(a.target as "report" | "verificationPackage", a.action)}
+              {busy ? recoveryBusyLabel(a.action) : outputActionLabel(a.target as "report" | "verificationPackage", a.action)}
             </button>
           ) : null}
           <button type="button" className="app-secondary-action" onClick={() => onOpenArtifacts("recovery")} data-testid="evidence-outputs-review">
@@ -317,39 +319,100 @@ export function OutputAttentionTabIndicator({ attention }: { attention: Evidence
   );
 }
 
-/** The page-level banner — critical / action-required states only. */
+/**
+ * The page-level banner — critical / action-required states only.
+ *
+ * "Output action required" (2026-10-08): when the server OFFERS a recovery
+ * verb, the banner names the output, says whether a report exists, gives the
+ * bounded technical explanation and carries that one verb — the same handler
+ * the Overview card and the Artifacts tab use. With no offered verb (an
+ * integrity, policy, hold or permission refusal) it states the refusal and
+ * links to Artifacts; it never renders a control the server did not offer.
+ */
 export function EvidenceOutputAttentionBanner({
   attention,
   onReview,
+  onRecover,
+  onGenerateUpdatedReport,
+  busy = false,
 }: {
   attention: EvidenceOutputAttention | null;
   onReview: (focus: ArtifactsFocusTarget) => void;
+  /** The server-offered recovery verb, through the existing recovery path. */
+  onRecover?: (action: "GENERATE" | "RETRY" | "RECOVER", output: "report" | "verificationPackage") => void;
+  /** Opens the ONE canonical updated-report dialog. */
+  onGenerateUpdatedReport?: () => void;
+  busy?: boolean;
 }) {
   if (!attention) return null;
   const banner = presentOutputAttention(attention).banner;
   if (!banner) return null;
   const critical = attention.state === "BLOCKED" && attention.severity === "CRITICAL";
+  const recovery = attention.state === "RECOVERY_AVAILABLE" ? attention : null;
+  let primary: ReactNode = null;
+  if (recovery && recovery.target === "newVersion" && onGenerateUpdatedReport) {
+    primary = (
+      <button
+        type="button"
+        className="app-primary-action"
+        onClick={onGenerateUpdatedReport}
+        disabled={busy}
+        data-testid="output-attention-banner-action"
+      >
+        Try the updated report again
+      </button>
+    );
+  } else if (recovery && recovery.action !== "NEW_VERSION" && recovery.target !== "newVersion" && onRecover) {
+    const output = recovery.target;
+    const verb = recovery.action;
+    primary = (
+      <button
+        type="button"
+        className="app-primary-action"
+        onClick={() => onRecover(verb, output)}
+        disabled={busy}
+        aria-disabled={busy || undefined}
+        data-testid="output-attention-banner-action"
+        data-evidence-generate-verb={verb}
+        data-evidence-output={output}
+      >
+        {busy ? recoveryBusyLabel(verb) : outputActionLabel(output, verb)}
+      </button>
+    );
+  }
   return (
     <aside
       className="evidence-detail-record-banner evidence-detail-record-banner--split"
       data-banner-tone={critical ? "danger" : "warn"}
       role="status"
       aria-live="polite"
+      aria-labelledby="output-attention-banner-title"
       data-testid="output-attention-banner"
       data-output-attention={attention.state}
     >
       <div className="evidence-detail-record-banner__copy">
-        <strong className="evidence-detail-record-banner__title">{banner.title}</strong>
+        <strong className="evidence-detail-record-banner__title" id="output-attention-banner-title">
+          {banner.title}
+        </strong>
         <span className="evidence-detail-record-banner__body">{banner.body}</span>
+        {recovery && recovery.target !== "newVersion" ? (
+          <span className="evidence-detail-record-banner__body" data-testid="output-attention-banner-detail">
+            {recoveryStandingSentence(recovery)}
+            {recovery.action === "RETRY" ? ` ${recovery.error.title}. ${recovery.error.description.replace(/ with the reference below/g, "")}` : ""}
+          </span>
+        ) : null}
       </div>
-      <button
-        type="button"
-        className="app-secondary-action app-secondary-action--filled"
-        onClick={() => onReview(banner.focus)}
-        data-testid="output-attention-banner-review"
-      >
-        Review artifacts
-      </button>
+      <div className="evidence-detail-record-banner__actions">
+        {primary}
+        <button
+          type="button"
+          className="app-secondary-action app-secondary-action--filled"
+          onClick={() => onReview(banner.focus)}
+          data-testid="output-attention-banner-review"
+        >
+          Review artifacts
+        </button>
+      </div>
     </aside>
   );
 }

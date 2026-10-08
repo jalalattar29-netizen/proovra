@@ -188,7 +188,7 @@ const OUTPUT_REASON_MESSAGE: Partial<Record<OutputActionUnavailableReason, strin
   EVIDENCE_DESTROYED: "This record has been destroyed.",
   BLOCKED_BY_POLICY: "A workspace policy blocks generating this output.",
   ESCALATED_TO_OPERATOR:
-    "Automatic retries for this output were exhausted. The issue has been reported to your workspace operators, who can retry it from Operations.",
+    "Automatic retries for this output were exhausted. The issue has been reported to your workspace operators, A member who can resolve workspace operations can retry it from this record or from Operations.",
   REPORT_INTEGRITY_REVIEW:
     "The stored report could not be verified, so it will not be used or replaced automatically. The issue has been reported for review.",
   CONSISTENCY_REVIEW_REQUIRED:
@@ -11355,6 +11355,9 @@ if (
             evidenceIds: [id],
             callerUserId: userId,
             includeNewVersionEstimate: true,
+            // The confirmation was signed over the Evidence-detail projection,
+            // which resolves the supersession right; derive it identically.
+            resolveSupersedeRight: true,
           })
         ).get(id);
         if (preLoaded) {
@@ -11469,6 +11472,11 @@ if (
           regenerateReason: isNewVersion ? updatedReportReason : "recovery_requested",
           offerRevision,
           requireOffer: isNewVersion,
+          // A retry over an exhausted TECHNICAL failure is the operator
+          // supersession; the right is re-resolved from the caller here (and,
+          // for a NEW_VERSION, only so the offer binding matches the one the
+          // Evidence-detail projection signed).
+          resolveSupersedeRight: true,
         });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Failed to request generation.";
@@ -11523,6 +11531,9 @@ if (
         metadata: {
           generationOutcome: result.outcome,
           operation: result.kind === "accepted" ? result.operation : null,
+          // The click started a fresh identity beside an exhausted technical
+          // terminal (kept as history) — the operator supersession.
+          supersededTechnicalTerminal: result.kind === "accepted" && result.outcome === "SUPERSEDED",
           reason: result.kind === "declined" ? (result.reason ?? null) : null,
           requestedIntent: intent ?? null,
           requestId: result.kind === "accepted" ? result.requestId : null,

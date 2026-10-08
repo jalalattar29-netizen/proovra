@@ -603,7 +603,7 @@ export const OUTPUT_OPERATION_ERRORS: Record<OutputOperationErrorKey, Def> = {
   REQUEST_ACTIVE: def("A report request is already in progress", "Wait for the current request to finish; its progress is shown on this page.", "info", false, "REFRESH"),
   VERSION_CONFLICT: def("A newer version already exists", "Another request completed a newer report version. Review the latest version before issuing another.", "info", false, "REFRESH"),
   TECHNICAL_TERMINAL_RETRYABLE: def("The last attempt failed", "Report generation failed for a technical reason. You can try again.", "warning", true, "RETRY", true),
-  RETRY_BUDGET_EXHAUSTED: def("Report generation needs support", "This record's report could not be generated after repeated attempts. Contact support with the reference below.", "error", false, "CONTACT_SUPPORT", true),
+  RETRY_BUDGET_EXHAUSTED: def("Report generation needs an operator", "This output could not be generated after repeated attempts, and it was reported to your workspace operators. A member who can resolve workspace operations can retry it; otherwise contact support with the reference below.", "error", false, "CONTACT_SUPPORT", true),
   INTEGRITY_TERMINAL: def("This record needs review", "A stored artifact or the record itself failed an integrity check, so nothing is regenerated automatically. Contact support with the reference below.", "error", false, "CONTACT_SUPPORT", true),
   PERMISSION_REFUSED: def("You don't have permission to do that", "You can view this record, but you can't generate or recover its report and verification package.", "warning", false, "NONE"),
   MEMBERSHIP_REFUSED: def("This record isn't available to you", "You may no longer be a member of the workspace that holds it.", "warning", false, "NONE"),

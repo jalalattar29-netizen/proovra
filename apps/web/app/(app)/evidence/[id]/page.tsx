@@ -1334,7 +1334,13 @@ function EvidenceDetailPageInner() {
 
         {/* "Is there a problem?" answered above any tab body. Top risk
             signals; hidden when there is nothing to act on. */}
-        <EvidenceOutputAttentionBanner attention={outputAttention} onReview={openArtifacts} />
+        <EvidenceOutputAttentionBanner
+          attention={outputAttention}
+          onReview={openArtifacts}
+          onRecover={(action, output) => void generateOutputs(action, output)}
+          onGenerateUpdatedReport={() => setUpdatedReportOpen(true)}
+          busy={generateOutputsBusy}
+        />
 
         <WhatNeedsAttentionStrip
           ctx={ctx}

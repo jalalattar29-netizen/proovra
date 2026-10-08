@@ -1856,7 +1856,7 @@ describe("evidence output attention — one canonical value across the page", ()
       banner: "RECOVERY_AVAILABLE",
     });
     expect(banner()!.textContent).toMatch(/Verification package v2 could not be completed./);
-    expect(document.querySelector("[data-testid='evidence-outputs-recover']")?.textContent).toBe("Recover verification package");
+    expect(document.querySelector("[data-testid='evidence-outputs-recover']")?.textContent).toBe("Retry verification package");
     await act(async () => {
       (document.querySelector("[data-testid='output-attention-banner-review']") as HTMLButtonElement).click();
     });
@@ -1865,7 +1865,7 @@ describe("evidence output attention — one canonical value across the page", ()
     expect(panel).not.toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(panel));
     // The Artifacts panel offers the very verb the card offered.
-    expect(panel!.querySelector("[data-evidence-generate-verb='RECOVER']")?.textContent).toBe("Recover verification package");
+    expect(panel!.querySelector("[data-evidence-generate-verb='RECOVER']")?.textContent).toBe("Retry verification package");
     // The banner stays across tabs while the state holds.
     expect(banner()).not.toBeNull();
   }, 15_000);

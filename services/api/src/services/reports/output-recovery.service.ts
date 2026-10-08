@@ -47,6 +47,7 @@ import { resolveEvidenceRecordAccess } from "../evidence/evidence-record-access.
 import { isEvidenceUnderAnyLegalHold } from "../governance/legal-hold.service.js";
 import { resolveCommercialContext } from "../billing/commercial-context.service.js";
 import { getWorkspaceUsage } from "../workspace-usage.service.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import {
   buildOutputOfferBinding,
   checkOutputOffer,
@@ -101,6 +102,8 @@ type RequestRow = {
   progressStage: string | null;
   intent: string | null;
   updatedAtUtc: Date;
+  /** The writer's identity; its `:s<n>` suffix is the supersession ordinal. */
+  idempotencyKey?: string | null;
 };
 
 type ArtifactRow = {
@@ -163,6 +166,7 @@ const REQUEST_SELECT = {
   intent: true,
   updatedAtUtc: true,
   forceRegenerate: true,
+  idempotencyKey: true,
 } as const;
 
 function toRequestFact(
@@ -175,7 +179,14 @@ function toRequestFact(
     terminalReasonCode: row.terminalReasonCode,
     afterLatestReport:
       latestReport != null && row.createdAtUtc > latestReport.generatedAtUtc,
+    supersessionOrdinal: supersessionOrdinalOf(row.idempotencyKey),
   };
+}
+
+/** The writer's `<baseKey>:s<n>` ordinal (0 for the first identity). */
+function supersessionOrdinalOf(key: string | null | undefined): number {
+  const m = /:s(d+)$/.exec(key ?? "");
+  return m ? Number.parseInt(m[1]!, 10) : 0;
 }
 
 function readPackageBlocked(raw: unknown): boolean {
@@ -206,6 +217,15 @@ export async function loadEvidenceOutputFacts(input: {
   callerIsPlatformOperator?: boolean;
   /** Compute the storage estimate for a new version (single-record views). */
   includeNewVersionEstimate?: boolean;
+  /**
+   * Resolve whether the caller holds the EXISTING supersession right (the
+   * Operations remediation's rule: the domain right `evidence.generate_report`
+   * plus `operations.resolve` in the record's workspace), so an exhausted
+   * TECHNICAL failure is offered as a retry on the record itself. Opt-in: the
+   * Evidence-detail projection and the Evidence recovery route ask for it;
+   * Operations, backfill and list surfaces keep the escalation as it was.
+   */
+  resolveSupersedeRight?: boolean;
 }): Promise<Map<string, LoadedOutputFacts>> {
   const ids = [...new Set(input.evidenceIds)];
   const out = new Map<string, LoadedOutputFacts>();
@@ -322,6 +342,27 @@ export async function loadEvidenceOutputFacts(input: {
           : Promise.resolve(false),
       ]);
 
+      /*
+       * THE SUPERSESSION RIGHT — the same two checks the Operations route
+       * makes before `report.supersede_failed_generation`, evaluated against
+       * the workspace that holds the record. A platform operator acts through
+       * its own audited admin route, not this one.
+       */
+      const callerMaySupersede =
+        input.resolveSupersedeRight === true &&
+        callerMayGenerate &&
+        !input.callerIsPlatformOperator &&
+        input.callerUserId != null &&
+        workspaceId != null
+          ? await evaluateMemberAccess({
+              teamId: workspaceId,
+              userId: input.callerUserId,
+              permission: "operations.resolve",
+            })
+              .then((d) => d.allowed === true)
+              .catch(() => false)
+          : false;
+
       let newVersionEstimate: NewVersionStorageEstimate | null = null;
       if (input.includeNewVersionEstimate && latestReport) {
         newVersionEstimate = await estimateNewVersionStorage({
@@ -353,6 +394,7 @@ export async function loadEvidenceOutputFacts(input: {
           workspaceResolved: workspaceId != null,
         },
         callerMayGenerate,
+        callerMaySupersede,
         newVersionFitsStorage: newVersionEstimate?.fitsStorage ?? null,
       };
 
@@ -515,6 +557,14 @@ export async function requestOutputRecovery(input: {
   offerRevision?: string | null;
   /** A customer NEW_VERSION confirmation must carry a revision. */
   requireOffer?: boolean;
+  /**
+   * The Evidence-detail route: the caller's supersession right is resolved
+   * (see loadEvidenceOutputFacts) so an offered "Retry report generation" /
+   * "Retry verification package" over an exhausted TECHNICAL terminal runs the
+   * SAME supersession the Operations remediation runs. Re-derived here, at
+   * click time; the client's view of the offer is never trusted.
+   */
+  resolveSupersedeRight?: boolean;
 }): Promise<OutputRecoveryResult & { loaded?: LoadedOutputFacts }> {
   const checksOffer = input.offerRevision != null || input.requireOffer === true;
   const loaded = (
@@ -525,6 +575,11 @@ export async function requestOutputRecovery(input: {
       // The binding includes the storage effect, so a checked confirmation
       // derives it exactly as the status projection did.
       includeNewVersionEstimate: input.intent === "NEW_VERSION" || checksOffer,
+      // Never on the operator paths: their supersession is the explicit,
+      // reasoned `operatorSupersede` below, and a plain operator recovery must
+      // keep collapsing onto an exhausted terminal.
+      resolveSupersedeRight:
+        input.resolveSupersedeRight === true && !input.operatorSupersede && input.platformOperator !== true,
     })
   ).get(input.evidenceId);
   if (!loaded) return { kind: "not_found" };
@@ -816,6 +871,19 @@ export async function requestOutputRecovery(input: {
     };
   }
 
+  /*
+   * RETRY OF AN EXHAUSTED TECHNICAL FAILURE (2026-10-08) — the operator
+   * supersession, reached from the record. The decision above offered it only
+   * because THIS caller holds the supersession right and the writer's budget
+   * is not spent; the writer still supersedes nothing but a FAILED_TERMINAL
+   * TECHNICAL head, keeps the dead row, and collapses concurrent clicks onto
+   * one successor identity (`<baseKey>:s<n+1>`). With no report this is the
+   * first issuance again — report v1, never a new version.
+   */
+  const supersede = chosen.decision.supersedesTechnicalTerminal === true
+    ? ({ supersedeTechnicalTerminal: true, regenerateReason: "retry_after_exhausted_failure" } as const)
+    : {};
+
   if (chosen.output === "package") {
     return fromRequested(
       "PACKAGE_RECOVERY",
@@ -825,6 +893,7 @@ export async function requestOutputRecovery(input: {
         reportVersion: latestVersion,
         forceRegenerate: false,
         intent: input.intent ?? "RECOVER",
+        ...supersede,
       }),
     );
   }
@@ -835,6 +904,7 @@ export async function requestOutputRecovery(input: {
       artifactType: "REPORT",
       forceRegenerate: false,
       intent: input.intent ?? "GENERATE",
+      ...supersede,
     }),
   );
 }

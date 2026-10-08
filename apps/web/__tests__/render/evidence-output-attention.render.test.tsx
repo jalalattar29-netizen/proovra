@@ -250,9 +250,9 @@ describe("Evidence outputs card", () => {
     const { getByTestId, calls, container } = mountCard(a);
     expect(getByTestId("evidence-outputs-badge").textContent).toBe("Action required");
     expect(container.textContent).toMatch(/Verification package v1 could not be completed\./);
-    expect(container.textContent).toMatch(/Report v1 remains safely recorded\./);
+    expect(container.textContent).toMatch(/Report v1 remains valid and downloadable\./);
     const verb = getByTestId("evidence-outputs-recover");
-    expect(verb.textContent).toBe("Recover verification package");
+    expect(verb.textContent).toBe("Retry verification package");
     fireEvent.click(verb);
     expect(calls.recover).toEqual(["RECOVER:verificationPackage"]);
     expect(container.textContent).not.toMatch(/Regenerate|\bFix\b/);
@@ -367,7 +367,7 @@ describe("Page-level banner", () => {
     const onReview = vi.fn();
     const { getByTestId } = render(<EvidenceOutputAttentionBanner attention={derive(STATES.RECOVERY_AVAILABLE)} onReview={onReview} />);
     const banner = getByTestId("output-attention-banner");
-    expect(banner.textContent).toMatch(/Evidence output needs attention/);
+    expect(banner.textContent).toMatch(/Output action required/);
     expect(banner.textContent).toMatch(/Verification package v1 could not be completed\./);
     expect(banner.getAttribute("role")).toBe("status");
     fireEvent.click(getByTestId("output-attention-banner-review"));
@@ -469,5 +469,157 @@ describe("Layout contract", () => {
     // preference may switch these surfaces to a half-dark rendering.
     expect(CSS).not.toMatch(/\[data-theme=/);
     expect(CSS).not.toMatch(/prefers-color-scheme/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OUTPUT RECOVERY UX (2026-10-08) — initial report retry, updated report and
+// package recovery are three distinct verbs, each the server's own.
+// ---------------------------------------------------------------------------
+
+/** No report exists: the first issuance failed terminally. */
+function noReport(report: Slice, pkg: Slice = out("ELIGIBLE_NOT_GENERATED", "NONE", { actionUnavailableReason: "FOLLOWS_REPORT" })) {
+  const s = status({
+    report,
+    pkg,
+    latest: null,
+    newVersion: { action: "NONE", reason: "PAIR_INCOMPLETE", currentVersion: null, nextVersion: null },
+    freshness: null,
+  });
+  s.report = { version: null, generatedAtUtc: null };
+  s.verificationPackage = null;
+  return s;
+}
+const TECHNICAL_TERMINAL = { terminalReasonClass: "TECHNICAL", terminalReasonCode: "REPORT_RENDER_FAILED", version: null };
+
+describe("Output action required — Report v1 failed for a technical reason", () => {
+  const retry = () => derive(noReport(out("TERMINAL_FAILURE", "RETRY", TECHNICAL_TERMINAL)))!;
+
+  it("the right holder sees one verb, 'Retry report generation', on the banner and the Overview card", () => {
+    const a = retry();
+    expect(a).toMatchObject({ state: "RECOVERY_AVAILABLE", target: "report", action: "RETRY", reportVersion: null });
+    const onRecover = vi.fn();
+    const { getByTestId, getByRole } = render(
+      <EvidenceOutputAttentionBanner attention={a} onReview={() => {}} onRecover={onRecover} />,
+    );
+    const banner = getByTestId("output-attention-banner");
+    expect(banner.textContent).toMatch(/^Output action required/);
+    expect(banner.textContent).toMatch(/Report v1 could not be generated, so no report exists for this record yet\./);
+    expect(banner.textContent).toMatch(/The signed evidence record is preserved and unaffected\./);
+    // Never "Regenerate", never a new version.
+    expect(banner.textContent).not.toMatch(/Regenerate|updated report|v2/i);
+    // Accessible: a named button and a labelled, polite live region.
+    const button = getByRole("button", { name: "Retry report generation" });
+    expect(banner.getAttribute("aria-live")).toBe("polite");
+    expect(banner.getAttribute("aria-labelledby")).toBe("output-attention-banner-title");
+    fireEvent.click(button);
+    expect(onRecover).toHaveBeenCalledWith("RETRY", "report");
+    cleanup();
+
+    const card = render(
+      <EvidenceOutputsCard
+        attention={a}
+        onOpenArtifacts={() => {}}
+        onGenerateUpdatedReport={() => {}}
+        onRecover={onRecover}
+        busy={false}
+        formatDateTime={(v) => String(v)}
+      />,
+    );
+    expect(card.getByTestId("evidence-outputs-recover").textContent).toBe("Retry report generation");
+  });
+
+  it("while the request is being made the control says Retrying… and cannot be submitted again", () => {
+    const onRecover = vi.fn();
+    const { getByTestId } = render(
+      <EvidenceOutputAttentionBanner attention={retry()} onReview={() => {}} onRecover={onRecover} busy />,
+    );
+    const button = getByTestId("output-attention-banner-action") as HTMLButtonElement;
+    expect(button.textContent).toBe("Retrying…");
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    expect(onRecover).not.toHaveBeenCalled();
+  });
+
+  it("a member without the supersession right gets the read-only escalation — no executable control", () => {
+    const a = derive(
+      noReport(out("TERMINAL_FAILURE", "NONE", { ...TECHNICAL_TERMINAL, actionUnavailableReason: "ESCALATED_TO_OPERATOR" })),
+    )!;
+    expect(a.state).toBe("BLOCKED");
+    const { getByTestId, queryByTestId, queryAllByRole } = render(
+      <EvidenceOutputAttentionBanner attention={a} onReview={() => {}} onRecover={() => {}} />,
+    );
+    expect(queryByTestId("output-attention-banner-action")).toBeNull();
+    expect(queryAllByRole("button").map((b) => b.textContent)).toEqual(["Review artifacts"]);
+    expect(getByTestId("output-attention-banner").textContent).toMatch(/needs an operator/);
+  });
+
+  it("an integrity or policy terminal shows the refusal and never a retry", () => {
+    for (const [cls, code, reason] of [
+      ["INTEGRITY", "EVIDENCE_INTEGRITY_FAILED", "INTEGRITY_FAILED"],
+      ["POLICY", "WORKSPACE_MISMATCH", "BLOCKED_BY_POLICY"],
+    ] as const) {
+      const a = derive(
+        noReport(out("TERMINAL_FAILURE", "NONE", { terminalReasonClass: cls, terminalReasonCode: code, actionUnavailableReason: reason, version: null })),
+      )!;
+      expect(a.state, cls).toBe("BLOCKED");
+      const { queryByTestId, container } = render(
+        <EvidenceOutputAttentionBanner attention={a} onReview={() => {}} onRecover={() => {}} />,
+      );
+      expect(queryByTestId("output-attention-banner-action"), cls).toBeNull();
+      expect(container.textContent, cls).not.toMatch(/Retry/);
+      cleanup();
+    }
+  });
+
+  it("an accepted retry in flight offers no second retry and raises no banner", () => {
+    const a = derive(noReport(out("QUEUED", "NONE", { actionUnavailableReason: "IN_PROGRESS", version: null })))!;
+    expect(a.state).toBe("IN_PROGRESS");
+    const { container } = render(<EvidenceOutputAttentionBanner attention={a} onReview={() => {}} onRecover={() => {}} />);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("after Report v1 and both packages land, the banner is gone", () => {
+    const a = derive(status())!;
+    expect(a.state).toBe("CURRENT");
+    const { container } = render(<EvidenceOutputAttentionBanner attention={a} onReview={() => {}} onRecover={() => {}} />);
+    expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("Package-only recovery and the updated report stay distinct", () => {
+  it("report exists + package technical terminal: 'Retry verification package', and the report stays valid", () => {
+    const a = derive(
+      status({
+        pkg: out("TERMINAL_FAILURE", "RETRY", { terminalReasonClass: "TECHNICAL", terminalReasonCode: "PACKAGE_RENDER_FAILED", version: null }),
+        latest: pair(1, false),
+      }),
+    )!;
+    expect(a).toMatchObject({ state: "RECOVERY_AVAILABLE", target: "verificationPackage", action: "RETRY" });
+    const onRecover = vi.fn();
+    const { getByRole, getByTestId } = render(
+      <EvidenceOutputAttentionBanner attention={a} onReview={() => {}} onRecover={onRecover} />,
+    );
+    expect(getByTestId("output-attention-banner").textContent).toMatch(/Report v1 remains valid and downloadable\./);
+    fireEvent.click(getByRole("button", { name: "Retry verification package" }));
+    expect(onRecover).toHaveBeenCalledWith("RETRY", "verificationPackage");
+  });
+
+  it("report exists + newer facts: 'Generate updated report' on the card, no retry and no banner", () => {
+    const a = derive(STATES.UPDATE_AVAILABLE)!;
+    expect(a.state).toBe("UPDATE_AVAILABLE");
+    expect(presentOutputAttention(a).banner).toBeNull();
+    const { getByTestId, container } = render(
+      <EvidenceOutputsCard
+        attention={a}
+        onOpenArtifacts={() => {}}
+        onGenerateUpdatedReport={() => {}}
+        onRecover={() => {}}
+        busy={false}
+        formatDateTime={(v) => String(v)}
+      />,
+    );
+    expect(getByTestId("evidence-outputs-generate").textContent).toBe("Generate updated report");
+    expect(container.textContent).not.toMatch(/Retry/);
   });
 });

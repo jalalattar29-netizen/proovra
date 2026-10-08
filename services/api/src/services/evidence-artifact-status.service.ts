@@ -377,6 +377,9 @@ export async function buildEvidenceArtifactStatus(params: {
       evidenceIds: [evidenceId],
       callerUserId: params.callerUserId ?? null,
       includeNewVersionEstimate: true,
+      // The Evidence-detail projection: an exhausted TECHNICAL failure is
+      // offered as a retry to a caller who holds the supersession right.
+      resolveSupersedeRight: true,
     }),
     // Additive projections: a failure to read them degrades to "not known"
     // (null), never to a failed status read for the outputs above.

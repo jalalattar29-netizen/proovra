@@ -407,7 +407,7 @@ export function presentOutputAttention(a: EvidenceOutputAttention): OutputAttent
           a.action === "GENERATE"
             ? null
             : {
-                title: "Evidence output needs attention",
+                title: "Output action required",
                 body: recoverySentence(a),
                 focus: "recovery",
               },
@@ -437,5 +437,26 @@ export function recoverySentence(a: Extract<EvidenceOutputAttention, { state: "R
   if (a.target === "newVersion") return "The updated report could not be completed.";
   if (a.action === "GENERATE") return "No report or verification package has been generated for this record yet.";
   if (a.action === "RECOVER") return "The report is missing and can be recovered.";
-  return "Report generation did not complete.";
+  // A RETRY with no report: the FIRST issuance failed, so nothing is downloadable.
+  return a.reportVersion == null
+    ? "Report v1 could not be generated, so no report exists for this record yet."
+    : "Report generation did not complete.";
+}
+
+/**
+ * What stays true while the output is missing — said beside the action so
+ * nobody reads a failed output as a damaged record.
+ */
+export function recoveryStandingSentence(a: Extract<EvidenceOutputAttention, { state: "RECOVERY_AVAILABLE" }>): string {
+  if (a.target === "report" && a.reportVersion == null) {
+    return "The signed evidence record is preserved and unaffected.";
+  }
+  return a.reportVersion != null
+    ? `Report v${a.reportVersion} remains valid and downloadable.`
+    : "The signed evidence record is preserved and unaffected.";
+}
+
+/** The busy text of a recovery control: a RETRY says it is retrying. */
+export function recoveryBusyLabel(action: string): string {
+  return action === "RETRY" ? "Retrying…" : "Requesting…";
 }

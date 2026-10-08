@@ -3943,7 +3943,26 @@ details[open] > .evidence-detail-tool__summary .evidence-detail-tool__chevron {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1 1 320px;
   min-inline-size: 0;
+}
+/* The banner's controls: the server-offered verb first, then the link to
+   Artifacts. They wrap under the copy on a narrow screen. */
+.evidence-detail-record-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+@media (max-width: 560px) {
+  .evidence-detail-record-banner__actions {
+    inline-size: 100%;
+  }
+  .evidence-detail-record-banner__actions > button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }
 .evidence-detail-record-banner__title {
   font-size: 14px;

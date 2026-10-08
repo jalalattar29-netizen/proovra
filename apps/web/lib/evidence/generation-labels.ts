@@ -30,7 +30,7 @@ import type { EvidenceOutputState } from "@proovra/shared";
 /*
  * THE ACTION VERBS moved to `@proovra/shared` (`outputActionLabel`,
  * `NEW_VERSION_LABEL`, `newVersionConsequence`) on 2026-09-26, when the verb
- * became per output: a missing package is "Recover verification package",
+ * became per output: a missing package is "Retry verification package",
  * never a regeneration of both, and a new version is its own confirmed
  * action. One table now serves web, PWA and native.
  */

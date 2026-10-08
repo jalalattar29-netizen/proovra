@@ -99,8 +99,8 @@ describe("AI Copilot — the offer comes from the canonical action", () => {
     );
     expect(outputActionLabel("report", "GENERATE")).toBe("Generate report & verification package");
     expect(outputActionLabel("report", "RETRY")).toBe("Retry report generation");
-    expect(outputActionLabel("verificationPackage", "RECOVER")).toBe("Recover verification package");
-    expect(outputActionLabel("verificationPackage", "RETRY")).toBe("Retry package recovery");
+    expect(outputActionLabel("verificationPackage", "RECOVER")).toBe("Retry verification package");
+    expect(outputActionLabel("verificationPackage", "RETRY")).toBe("Retry verification package");
     // A new version is a deliberate, separately confirmed action on the
     // record — never an AI suggestion, and never labelled as recovery.
     expect(block).toMatch(/!== "REGENERATE"/);

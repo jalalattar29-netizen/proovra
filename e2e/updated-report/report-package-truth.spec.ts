@@ -686,3 +686,97 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
   await expect(page.getByTestId("truth-ots-status")).toHaveText(/NOT_CHECKED/);
   await page.screenshot({ path: join(PROOF_DIR, "ots-pending-artifacts.png"), fullPage: true });
 });
+
+test("J11 RECOVERY UX — Report v1 failed terminally (technical): the Overview offers 'Retry report generation'; one click → Report v1 and BOTH packages; the banner clears; the failed request stays as history", async ({ page }) => {
+  // The production DLQ shape (evidence ce465a9e…): the first issuance failed
+  // non-retriably before any report existed, and the record offered no action.
+  // The worker is paused at finalize and the completion request is given that
+  // exact terminal; its queued job is then a replay the worker ignores.
+  test.setTimeout(600_000);
+  await clearTestRateLimits();
+  const session = await createGuestSession({ plan: "TEAM" });
+  const team = await personalTeamId(session.api);
+  stackCtl("pause", "worker");
+  let id = "";
+  try {
+    id = (await createFinalizedEvidence(session.api, team, "terminal-retry")).id;
+    await expect
+      .poll(() => sql("SELECT id FROM report_generation_requests WHERE evidence_id = $1", [id]).length, { timeout: 60_000 })
+      .toBe(1);
+    sql(
+      `UPDATE report_generation_requests
+          SET state = 'FAILED_TERMINAL', terminal_reason_code = 'REPORT_RENDER_INPUT_INCONSISTENT',
+              attempt_count = 1, completed_at_utc = now()
+        WHERE evidence_id = $1`,
+      [id],
+    );
+  } finally {
+    stackCtl("unpause", "worker");
+  }
+  const [failed] = sql<{ id: string; state: string; terminal_reason_code: string; idempotency_key: string; completed_at_utc: string }>(
+    "SELECT id, state, terminal_reason_code, idempotency_key, completed_at_utc::text FROM report_generation_requests WHERE evidence_id = $1",
+    [id],
+  );
+  expect(failed!.idempotency_key).toBe(`REPORT:${id}:v0`);
+  // The resumed worker must not produce anything for the dead request.
+  await new Promise((r) => setTimeout(r, 5_000));
+  expect(sql("SELECT 1 FROM reports WHERE evidence_id = $1", [id]).length, "no report exists").toBe(0);
+  const before = await status(session.api, id);
+  expect(before.outputs.report).toMatchObject({ state: "TERMINAL_FAILURE", action: "RETRY" });
+
+  // ---- The Evidence page, phone width first: the banner, its one verb, no overflow.
+  await signIn(page, session.email);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`/evidence/${id}`);
+  await page.waitForSelector(".evidence-detail-hero", { timeout: 60_000 });
+  const banner = page.getByTestId("output-attention-banner");
+  await expect(banner).toBeVisible();
+  await expect(banner).toHaveAttribute("aria-live", "polite");
+  await expect(banner).toContainText("Output action required");
+  await expect(banner).toContainText("Report v1 could not be generated, so no report exists for this record yet.");
+  await expect(banner).not.toContainText(/Regenerate|updated report/i);
+  const retry = banner.getByRole("button", { name: "Retry report generation" });
+  await expect(retry).toBeEnabled();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    "no horizontal page scroll at 375px",
+  ).toBe(true);
+  await page.screenshot({ path: join(PROOF_DIR, "terminal-retry-overview-375.png"), fullPage: true });
+  // The Overview card names the same verb; the Artifacts section offers it beside the report.
+  await expect(page.getByTestId("evidence-outputs-recover")).toHaveText("Retry report generation");
+
+  // ---- Keyboard: focus the banner's verb and press Enter twice (a double submit).
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await retry.focus();
+  await expect(retry).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+
+  await waitForPair(session.api, id, 1);
+
+  // ---- Server truth: one successor, the dead row unchanged, v1 only, one row per profile.
+  const requests = sql<{ id: string; state: string; terminal_reason_code: string | null; idempotency_key: string; completed_at_utc: string }>(
+    "SELECT id, state, terminal_reason_code, idempotency_key, completed_at_utc::text FROM report_generation_requests WHERE evidence_id = $1 ORDER BY created_at_utc",
+    [id],
+  );
+  expect(requests.map((r) => r.idempotency_key), "the dead row and ONE successor").toEqual([`REPORT:${id}:v0`, `REPORT:${id}:v0:s1`]);
+  expect(requests[0], "the failed request is kept, unchanged").toEqual(failed);
+  expect(requests[1]!.state).toBe("SUCCEEDED");
+  expect(sql<{ version: number }>("SELECT version FROM reports WHERE evidence_id = $1", [id]).map((r) => r.version), "Report v1 only").toEqual([1]);
+  expect(
+    sql<{ state: string }>("SELECT state FROM verification_packages WHERE evidence_id = $1", [id]).map((r) => r.state),
+    "one PUBLISHED row per profile",
+  ).toEqual(["PUBLISHED", "PUBLISHED"]);
+  expect(sql("SELECT 1 FROM evidence_credit_ledger_entries WHERE evidence_id = $1", [id]).length, "no credit moved").toBe(0);
+
+  // ---- The page converges to Complete: banner gone, both packages listed.
+  await page.reload();
+  await page.waitForSelector(".evidence-detail-hero", { timeout: 60_000 });
+  await expect(page.getByTestId("evidence-outputs-card")).toHaveAttribute("data-output-attention", "CURRENT", { timeout: 60_000 });
+  await expect(page.getByTestId("output-attention-banner")).toHaveCount(0);
+  await openArtifacts(page, id);
+  await expect(page.getByTestId("pair-1-report")).toBeVisible();
+  await expect(page.getByTestId("pair-1-package-profile")).toContainText("Full forensic package");
+  await expect(page.getByTestId("pair-1-external")).toBeVisible();
+  await page.screenshot({ path: join(PROOF_DIR, "terminal-retry-complete.png"), fullPage: true });
+});

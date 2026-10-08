@@ -33,12 +33,12 @@ export function outputActionLabel(
   if (action === "REGENERATE") return NEW_VERSION_LABEL;
   if (output === "verificationPackage") {
     switch (action) {
+      // Offered only once the report exists. Missing or failed, the click
+      // produces ONLY the package profiles that report is still owed; the
+      // stored report is never regenerated.
       case "RECOVER":
-        return compact ? "Recover package" : "Recover verification package";
       case "RETRY":
-        // Offered only once the report exists: it retries the package's
-        // recovery around that stored report.
-        return compact ? "Retry recovery" : "Retry package recovery";
+        return compact ? "Retry package" : "Retry verification package";
       case "GENERATE":
         // A package is generated WITH its report; the report's action names it.
         return compact ? "Generate report & package" : "Generate report & verification package";
@@ -63,7 +63,7 @@ export function outputActionLabel(
  * custody events). It carries its own issue date and a stated reason, and it
  * never replaces or relabels the first issue.
  */
-export const NEW_VERSION_LABEL = "Issue updated report";
+export const NEW_VERSION_LABEL = "Generate updated report";
 
 /**
  * A sentence for a reason no action is offered — only for reasons a person
@@ -85,7 +85,7 @@ export function outputUnavailableReasonCopy(
     case "PAIR_INCOMPLETE":
       return null;
     case "ESCALATED_TO_OPERATOR":
-      return "Automatic retries were exhausted, so this has been reported to your workspace operators, who can retry it from Operations. The evidence record and any existing downloads are unaffected.";
+      return "Automatic retries were exhausted, so this has been reported to your workspace operators. A member who can resolve workspace operations can retry it from this record or from Operations. The evidence record and any existing downloads are unaffected.";
     case "REPORT_INTEGRITY_REVIEW":
       return "The stored report could not be verified, so it will not be used or replaced automatically. The issue has been reported for review; the evidence record is unaffected.";
     case "CONSISTENCY_REVIEW_REQUIRED":

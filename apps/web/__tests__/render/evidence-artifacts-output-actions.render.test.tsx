@@ -201,7 +201,7 @@ describe("Evidence Artifacts — per-output actions", () => {
     expect(panel?.textContent).toMatch(/from the stored report bytes — it does not create a new report\s+version/);
     expect(panel?.textContent).toContain("The earlier package (version 2) stays downloadable");
     const btn = panel?.querySelector("[data-evidence-action='generate-outputs']") as HTMLButtonElement;
-    expect(btn.textContent).toBe("Recover verification package");
+    expect(btn.textContent).toBe("Retry verification package");
     expect(btn.getAttribute("data-evidence-output")).toBe("verificationPackage");
     expect(container.textContent).not.toMatch(/Regenerate/);
     fireEvent.click(btn);
@@ -225,7 +225,7 @@ describe("Evidence Artifacts — per-output actions", () => {
     expect(panel?.textContent).toContain("Recovering the verification package failed");
     expect(panel?.textContent).toContain("(attempt 2)");
     const btn = panel?.querySelector("[data-evidence-action='generate-outputs']") as HTMLButtonElement;
-    expect(btn.textContent).toBe("Retry package recovery");
+    expect(btn.textContent).toBe("Retry verification package");
     fireEvent.click(btn);
     expect(calls).toEqual([{ kind: "generate", arg: "RETRY" }]);
   });

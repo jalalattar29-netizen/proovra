@@ -76,7 +76,7 @@ type OutputKind = "report" | "verificationPackage";
  * ONE OUTPUT'S ACTION — the verb the server chose, named by the shared table.
  *
  * 2026-09-26 — the verb is per output now. A report whose package is missing
- * offers "Recover verification package" on the PACKAGE, and that request
+ * offers "Retry verification package" on the PACKAGE, and that request
  * rebuilds only the package, from the stored report bytes. The old single
  * control called this "Regenerate report & verification package", which is
  * a different operation with a different result.
@@ -106,8 +106,39 @@ function OutputActionButton({
       data-evidence-generate-verb={action}
       data-evidence-operation={output.operation ?? ""}
     >
-      {ctx.generateOutputsBusy ? "Requesting…" : outputActionLabel(kind, action)}
+      {ctx.generateOutputsBusy ? (action === "RETRY" ? "Retrying…" : "Requesting…") : outputActionLabel(kind, action)}
     </button>
+  );
+}
+
+/**
+ * THE FAILED REQUEST, AS HISTORY — when it stopped, how many attempts it made
+ * and its bounded reason code (a support reference, never raw worker text).
+ * It is immutable: a retry creates a new request beside it.
+ */
+function FailedRequestDetail({ output }: { output: EvidenceOutputProjection }) {
+  const at = output.completedAtUtc ?? output.requestedAtUtc;
+  return (
+    <dl className="evidence-detail-artifact-note" data-testid="failed-request-detail">
+      {at ? (
+        <>
+          <dt>Stopped</dt>
+          <dd>{formatUserDateTime(at)}</dd>
+        </>
+      ) : null}
+      {output.attemptCount ? (
+        <>
+          <dt>Attempts</dt>
+          <dd>{output.attemptCount}</dd>
+        </>
+      ) : null}
+      {output.terminalReasonCode ? (
+        <>
+          <dt>Reference</dt>
+          <dd data-testid="failed-request-reason">{output.terminalReasonCode}</dd>
+        </>
+      ) : null}
+    </dl>
   );
 }
 
@@ -388,11 +419,28 @@ function ArtifactLifecyclePanel({
           data-evidence-output-state={output.state}
           data-evidence-terminal-class={output.terminalReasonClass ?? ""}
         >
-          <strong>Report generation stopped</strong>
+          <strong>
+            {output.action === "RETRY" && workspace.artifactStatus.outputs.report.version == null
+              ? "Report v1 was not generated"
+              : "Report generation stopped"}
+          </strong>
           {/* The server's reason (escalated to operators, integrity review,
               ...) is the more specific sentence; the class copy is the
               fallback when there is none. */}
-          {reasonCopy ? null : <p>{terminalFailureCopy(output.terminalReasonClass)}</p>}
+          {output.action === "RETRY" ? (
+            <>
+              <p>
+                A technical step failed after automatic retries, so no report
+                exists for this record yet. The signed evidence record and its
+                integrity state are unaffected. Retrying starts a new attempt
+                at report v1 and its verification packages; the failed attempt
+                stays in this record's history.
+              </p>
+              <FailedRequestDetail output={output} />
+            </>
+          ) : reasonCopy ? null : (
+            <p>{terminalFailureCopy(output.terminalReasonClass)}</p>
+          )}
           {action}
         </div>
       );
@@ -566,11 +614,18 @@ function PackageRecoveryPanel({
           version or a new timestamp.
         </p>
       ) : pkg.action === "RETRY" ? (
-        <p>
-          The last attempt did not complete
-          {pkg.attemptCount ? ` (attempt ${pkg.attemptCount})` : ""}. The
-          report and the evidence record are unaffected.
-        </p>
+        <>
+          <p>
+            The last attempt did not complete
+            {pkg.attemptCount ? ` (attempt ${pkg.attemptCount})` : ""}.
+            {report.version != null
+              ? ` Report v${report.version} remains valid and the evidence record is unaffected.`
+              : " The report and the evidence record are unaffected."}{" "}
+            Retrying builds only the missing verification packages around the
+            stored report.
+          </p>
+          {pkg.state === "TERMINAL_FAILURE" ? <FailedRequestDetail output={pkg} /> : null}
+        </>
       ) : null}
       {older}
       {pkg.action !== "NONE" &&

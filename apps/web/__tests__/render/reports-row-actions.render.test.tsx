@@ -242,7 +242,7 @@ describe("Reports row — generation actions", () => {
     const { container } = await mount();
     const btn = (id: string) =>
       container.querySelector(`[data-reports-regenerate='${id}']`) as HTMLButtonElement | null;
-    expect(btn("ev-pkg")?.textContent).toBe("Recover package");
+    expect(btn("ev-pkg")?.textContent).toBe("Retry package");
     expect(btn("ev-pkg")?.getAttribute("data-reports-output")).toBe("verificationPackage");
     expect(btn("ev-new")?.textContent).toBe("Generate report & package");
     expect(btn("ev-failed")?.textContent).toBe("Retry report");
@@ -293,12 +293,12 @@ describe("Reports row — generation actions", () => {
    * The fixture's ev-ready still carries CREATE_NEW_VERSION, as an API from
    * before this rule would send: the row must not render it either way.
    */
-  it("a complete pair offers no Recover, Retry, Regenerate or Issue updated report — even if a stale API advertises one", async () => {
+  it("a complete pair offers no Recover, Retry, Regenerate or Generate updated report — even if a stale API advertises one", async () => {
     const { container } = await mount();
     expect(container.querySelector("[data-reports-regenerate='ev-ready']")).toBeNull();
     expect(container.querySelector("[data-testid='reports-new-version-ev-ready']")).toBeNull();
     expect(document.querySelector("[data-reports-row-row-action='create-new-version']")).toBeNull();
-    expect(container.textContent).not.toMatch(/Issue updated report|Regenerate/);
+    expect(container.textContent).not.toMatch(/Generate updated report|Regenerate/);
     const actions = container.querySelector("[data-reports-row-actions='ev-ready']");
     expect(actions?.querySelector("[data-reports-open-evidence='ev-ready']")).toBeTruthy();
     expect(actions?.textContent).not.toMatch(/Recover|Retry/);

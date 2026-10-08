@@ -354,11 +354,11 @@ test("the recovery outcomes read in their own words", () => {
 });
 
 test("each output's verb is the shared table; a new version is its own confirmed action", () => {
-  assert.equal(mod.outputActionLabel("verificationPackage", "RECOVER"), "Recover verification package");
-  assert.equal(mod.outputActionLabel("verificationPackage", "RETRY"), "Retry package recovery");
+  assert.equal(mod.outputActionLabel("verificationPackage", "RECOVER"), "Retry verification package");
+  assert.equal(mod.outputActionLabel("verificationPackage", "RETRY"), "Retry verification package");
   assert.equal(mod.outputActionLabel("report", "GENERATE"), "Generate report & verification package");
   assert.equal(mod.outputActionLabel("report", "RETRY"), "Retry report generation");
-  assert.equal(mod.NEW_VERSION_LABEL, "Issue updated report");
+  assert.equal(mod.NEW_VERSION_LABEL, "Generate updated report");
   // Only GENERATE / RETRY / RECOVER are per-output verbs; nothing else posts.
   for (const a of ["GENERATE", "RETRY", "RECOVER"]) assert.equal(mod.asOutputRequestIntent(a), a);
   for (const a of ["REGENERATE", "NONE", "CREATE_NEW_VERSION", null, undefined]) {

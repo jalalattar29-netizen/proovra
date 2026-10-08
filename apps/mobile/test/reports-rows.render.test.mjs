@@ -4,7 +4,7 @@
  * never showed it, never showed the org-supplied Customer ID, and had no
  * generation verb on the list — so its withheld reason could not be said.
  * The verbs are the SERVER's, per output (outputs.*.action); the list derives
- * none. A missing package is "Recover package"; a new version is optional,
+ * none. A missing package is "Retry package"; a new version is optional,
  * behind "⋯" and a confirmation that reads the record's current offer.
  */
 import { test, before, beforeEach } from "node:test";
@@ -84,10 +84,10 @@ test("each row says its integrity verdict once, its case, and the org's Customer
   r.unmount();
 });
 
-test("each output shows the server's own verb: a missing package is Recover package, posted as RECOVER", async () => {
+test("each output shows the server's own verb: a missing package is Retry package, posted as RECOVER", async () => {
   const r = await render();
   assert.equal(r.texts().some((t) => /Regenerate/.test(t)), false);
-  await r.press("Recover package: Gate video");
+  await r.press("Retry package: Gate video");
   await settle();
   assert.deepEqual(posts, [
     { path: "/v1/evidence/e3/reports/regenerate", body: { intent: "RECOVER", output: "verificationPackage" } },
@@ -99,12 +99,12 @@ test("each output shows the server's own verb: a missing package is Recover pack
 // the record's explicit, reasoned action on the evidence screen. The fixture's
 // complete row may still carry CREATE_NEW_VERSION (an API from before the
 // rule): the row renders nothing for it.
-test("a complete record offers no verb and no Issue updated report on the Reports row", async () => {
+test("a complete record offers no verb and no Generate updated report on the Reports row", async () => {
   const r = await render();
   assert.equal(r.byLabel("Generate report & package: Roof photo").length, 0);
   assert.equal(r.byLabel("More actions: Roof photo").length, 0);
-  assert.equal(r.byLabel("Issue updated report: Roof photo").length, 0);
-  assert.equal(r.texts().some((t) => /Issue updated report|Regenerate/.test(t)), false);
+  assert.equal(r.byLabel("Generate updated report: Roof photo").length, 0);
+  assert.equal(r.texts().some((t) => /Generate updated report|Regenerate/.test(t)), false);
   assert.deepEqual(posts, []);
   r.unmount();
 });
@@ -113,14 +113,14 @@ test("a withheld verb is said, and no button is offered", async () => {
   const r = await render();
   assert.ok(r.byLabel("Needs a workspace association").length >= 1);
   assert.ok(r.byLabel("Escalated to operators").length >= 1);
-  assert.equal(r.texts().some((t) => t.startsWith("Generate report & package") || t.startsWith("Retry")), false);
+  assert.equal(r.texts().some((t) => t.startsWith("Generate report & package") || t.startsWith("Retry report")), false);
   r.unmount();
 });
 
 test("a permission refusal is said in the web's words", async () => {
   regen = () => ({ __status: 403, message: "forbidden" });
   const r = await render();
-  await r.press("Recover package: Gate video");
+  await r.press("Retry package: Gate video");
   await settle();
   assert.ok(r.hasText("You do not have permission to generate reports in this workspace."));
   r.unmount();
@@ -135,7 +135,7 @@ test("a declined request shows the server's reason", async () => {
     message: "The stored report could not be verified, so it will not be reused.",
   });
   const r = await render();
-  await r.press("Recover package: Gate video");
+  await r.press("Retry package: Gate video");
   await settle();
   assert.ok(r.hasText("The stored report could not be verified, so it will not be reused."), r.texts().join(" | "));
   r.unmount();

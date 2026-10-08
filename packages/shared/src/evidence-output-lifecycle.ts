@@ -1032,6 +1032,13 @@ export type OutputRequestFact = {
    * is disclosed beside the still-downloadable report.
    */
   afterLatestReport?: boolean;
+  /**
+   * How many times this request's identity has already superseded a dead
+   * TECHNICAL terminal (the writer's `:s<n>` ordinal; 0 = the first attempt).
+   * At MAX_TERMINAL_SUPERSESSIONS the writer mints no further identity, so the
+   * retry is no longer offered.
+   */
+  supersessionOrdinal?: number;
 } | null;
 
 /** Everything the decision needs, gathered once by the API. */
@@ -1053,6 +1060,13 @@ export type EvidenceOutputFacts = {
   restrictions: OutputRestrictions;
   /** May the caller generate or recover outputs for this record? */
   callerMayGenerate: boolean;
+  /**
+   * Does the caller ALSO hold the existing operator right to supersede an
+   * exhausted TECHNICAL terminal (the domain right plus `operations.resolve`
+   * in the record's workspace — the rule the Operations remediation applies)?
+   * Absent = no: the failure stays escalated, stated read-only.
+   */
+  callerMaySupersede?: boolean;
   /** Would a new pair fit the workspace storage allowance? `null` = unknown. */
   newVersionFitsStorage: boolean | null;
 };
@@ -1063,6 +1077,13 @@ export type OutputActionDecision = {
   reason: OutputActionUnavailableReason | null;
   /** The server operation the offered action performs. */
   operation: OutputOperation | null;
+  /**
+   * The offered RETRY starts a fresh request identity beside an exhausted
+   * TECHNICAL terminal (the operator supersession), rather than re-running a
+   * retryable request. The terminal row is kept as history. Only ever true
+   * with `action: "RETRY"`.
+   */
+  supersedesTechnicalTerminal?: true;
 };
 
 export type EvidenceOutputActions = {
@@ -1122,6 +1143,11 @@ function blockingRestriction(
 function failedRequestDecision(
   request: NonNullable<OutputRequestFact>,
   eligible: boolean,
+  /**
+   * When an exhausted TECHNICAL terminal may be retried by THIS caller, the
+   * operation the retry performs. Null = it stays escalated to an operator.
+   */
+  supersedeAs: OutputOperation | null = null,
 ): OutputActionDecision | null {
   const code = (request.terminalReasonCode ?? "").trim().toUpperCase();
   if (request.state === "FAILED_RETRYABLE") {
@@ -1152,6 +1178,12 @@ function failedRequestDecision(
       case "POLICY":
         return { action: "NONE", reason: "BLOCKED_BY_POLICY", operation: null };
       case "TECHNICAL":
+        // The caller holds the operator's supersession right and the writer's
+        // budget is not spent: the escalation is actionable HERE, through the
+        // same supersession the Operations remediation performs.
+        if (supersedeAs && (request.supersessionOrdinal ?? 0) < MAX_TERMINAL_SUPERSESSIONS) {
+          return { action: "RETRY", reason: null, operation: supersedeAs, supersedesTechnicalTerminal: true };
+        }
         return { action: "NONE", reason: "ESCALATED_TO_OPERATOR", operation: null };
     }
   }
@@ -1216,9 +1248,12 @@ export function resolveEvidenceOutputActions(
     if (f.reportEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
     if (f.reportEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
     if (f.reportRequest) {
+      // No report exists, so a retry of an exhausted technical failure is the
+      // FIRST issuance again (report v1 and its package) — never a new version.
       const failed = failedRequestDecision(
         f.reportRequest,
         f.reportEligibility === "ELIGIBLE",
+        f.callerMaySupersede === true ? "FULL_GENERATION" : null,
       );
       if (failed) return failed;
     }
@@ -1238,12 +1273,16 @@ export function resolveEvidenceOutputActions(
     if (f.packageEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
     if (f.packageBlockedByGovernance) return none("BLOCKED_BY_POLICY");
     if (f.packageRequest) {
-      const failed = failedRequestDecision(f.packageRequest, true);
+      const failed = failedRequestDecision(
+        f.packageRequest,
+        true,
+        f.callerMaySupersede === true ? "PACKAGE_RECOVERY" : null,
+      );
       if (failed) {
         // A retry of a failed request whose report is committed is a package
         // recovery for that report; say so.
         return failed.action === "RETRY"
-          ? { action: "RETRY", reason: null, operation: "PACKAGE_RECOVERY" }
+          ? { ...failed, operation: "PACKAGE_RECOVERY" }
           : failed;
       }
     }

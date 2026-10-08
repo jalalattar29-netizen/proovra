@@ -321,28 +321,66 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
     }
   });
 
-  it("F — no report: retryable failure offers RETRY; an exhausted technical failure escalates with no button", async () => {
+  it("F — no report: retryable failure offers RETRY; an exhausted technical failure is escalated read-only to a viewer and retried by the supersession-right holder", async () => {
     const id = await evidence({ status: "SIGNED" });
     await request(id, "FAILED_RETRYABLE", { terminalReasonCode: "RENDER_TIMEOUT" });
     expect((await status(id)).outputs.report).toMatchObject({ action: "RETRY" });
 
     const id2 = await evidence({ status: "SIGNED" });
-    await request(id2, "FAILED_TERMINAL", { terminalReasonCode: "retry_budget_exhausted" });
-    const s = await status(id2);
-    expect(s.outputs.report).toMatchObject({
+    const dead = await request(id2, "FAILED_TERMINAL", { terminalReasonCode: "retry_budget_exhausted" });
+    // The completion path's own identity, as production writes it.
+    await prisma.reportGenerationRequest.update({ where: { id: dead.id }, data: { idempotencyKey: `REPORT:${id2}:v0` } });
+
+    // A viewer: the escalation, stated, with no executable verb.
+    const asViewer = await status(id2, A().viewerToken);
+    expect(asViewer.outputs.report).toMatchObject({
       state: "TERMINAL_FAILURE",
       action: "NONE",
       actionUnavailableReason: "ESCALATED_TO_OPERATOR",
     });
     const before = await requestCount(id2);
-    const res = await post(A().ownerToken, id2);
-    expect(res.statusCode).toBe(409);
-    expect(res.json()).toMatchObject({
-      code: "OUTPUT_ACTION_UNAVAILABLE",
-      outcome: "NOT_RECOVERABLE",
-      reason: "ESCALATED_TO_OPERATOR",
+    const refused = await post(A().viewerToken, id2, { intent: "RETRY", output: "report" });
+    expect([403, 409], refused.body).toContain(refused.statusCode);
+    expect(await requestCount(id2), "a viewer's click creates nothing").toBe(before);
+
+    // The owner holds evidence.generate_report AND operations.resolve here:
+    // the record offers the supersession itself.
+    const asOwner = await status(id2);
+    expect(asOwner.outputs.report).toMatchObject({
+      state: "TERMINAL_FAILURE",
+      action: "RETRY",
+      actionUnavailableReason: null,
+      operation: "FULL_GENERATION",
     });
-    expect(await requestCount(id2)).toBe(before);
+    const revision = (asOwner.outputs as { offer?: { revision?: string } | null }).offer?.revision;
+    const body = { intent: "RETRY", output: "report", ...(revision ? { offerRevision: revision } : {}) };
+    // A double click: both answered, one successor.
+    const clicks = await Promise.all([post(A().ownerToken, id2, body), post(A().ownerToken, id2, body)]);
+    for (const c of clicks) expect(c.statusCode, c.body).toBe(202);
+    const ids = new Set(clicks.map((c) => (c.json() as { requestId: string }).requestId));
+    expect(ids.size, "one successor").toBe(1);
+    expect(await requestCount(id2)).toBe(before + 1);
+    const successor = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: [...ids][0]! },
+      select: { idempotencyKey: true, forceRegenerate: true },
+    });
+    expect(successor).toEqual({ idempotencyKey: `REPORT:${id2}:v0:s1`, forceRegenerate: false });
+    expect(
+      (await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: dead.id }, select: { state: true } })).state,
+      "the failed request is kept as history",
+    ).toBe("FAILED_TERMINAL");
+    // The Evidence route audits the retry (written asynchronously).
+    await expect
+      .poll(async () => {
+        const rows = await prisma.adminAuditLog.findMany({
+          where: { action: "evidence.report.regenerate_requested", resourceId: id2, outcome: "success" },
+          select: { metadata: true },
+        });
+        return rows.some((r) => JSON.stringify(r.metadata).includes('"supersededTechnicalTerminal":true'));
+      })
+      .toBe(true);
+    // While it is live, no second retry is offered.
+    expect((await status(id2)).outputs.report).toMatchObject({ action: "NONE", actionUnavailableReason: "IN_PROGRESS" });
   });
 
   it("G — a new version in flight: no verb, progress and a poll interval, and the older version stays downloadable", async () => {
@@ -614,12 +652,21 @@ describe("artifact action contract (live PostgreSQL 16, real HTTP)", () => {
       },
       select: { id: true },
     });
-    expect((await status(id)).outputs.verificationPackage).toMatchObject({
+    // Without the supersession right (a viewer) it is escalated, read-only,
+    // and a click cannot do it.
+    expect((await status(id, A().viewerToken)).outputs.verificationPackage).toMatchObject({
       action: "NONE",
       actionUnavailableReason: "ESCALATED_TO_OPERATOR",
     });
-    // A customer click cannot do it.
-    expect((await post(A().ownerToken, id)).statusCode).toBe(409);
+    const viewerClick = await post(A().viewerToken, id, { intent: "RETRY", output: "verificationPackage" });
+    expect([403, 409], viewerClick.body).toContain(viewerClick.statusCode);
+    expect(await requestCount(id)).toBe(1);
+    // The right holder is offered the same supersession on the record
+    // ("Retry verification package"); here it is taken through Operations.
+    expect((await status(id)).outputs.verificationPackage).toMatchObject({
+      action: "RETRY",
+      operation: "PACKAGE_RECOVERY",
+    });
 
     const incident = await prisma.operationalIncident.create({
       data: {

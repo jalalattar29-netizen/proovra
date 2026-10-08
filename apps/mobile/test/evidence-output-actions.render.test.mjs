@@ -2,7 +2,7 @@
  * EVIDENCE DETAIL (native) — per-output actions from the server's projection
  * (2026-09-26), driven through the REAL screen:
  *
- *   * a missing package offers "Recover verification package" in its own panel
+ *   * a missing package offers "Retry verification package" in its own panel
  *     and posts intent RECOVER;
  *   * when the status cannot be read, NO action is offered (the screen used
  *     to invent GENERATE);
@@ -96,7 +96,7 @@ test("a missing package is recovered from the stored report: its own panel, its 
   assert.ok(r.hasText("The verification package for report version 3 is missing"));
   assert.ok(r.hasText("The earlier package (version 2) stays downloadable from the version history."));
   assert.equal(r.texts().some((t) => /Regenerate/.test(t)), false);
-  await r.press("Recover verification package");
+  await r.press("Retry verification package");
   await settle();
   assert.deepEqual(posts, [
     { path: "/v1/evidence/ev-1/reports/regenerate", body: { intent: "RECOVER", output: "verificationPackage" } },
