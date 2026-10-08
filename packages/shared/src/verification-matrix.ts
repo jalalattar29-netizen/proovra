@@ -384,6 +384,21 @@ export function buildVerificationMatrix(input: BuildVerificationMatrixInput): Ve
   };
 }
 
+/**
+ * The matrix for a surface that may not describe who submitted the record
+ * (the BASIC Public Verify tier): the account and organization rows are
+ * withheld — NOT_APPLICABLE, "Not disclosed" — and the summary is derived
+ * again. Every other row is unchanged.
+ */
+export function withholdIdentityRows(matrix: VerificationMatrix): VerificationMatrix {
+  const rows = matrix.rows.map((r) =>
+    r.key === "account_identity" || r.key === "organization_verification"
+      ? { ...r, status: "NOT_APPLICABLE" as const, statement: "Not disclosed on this verification page.", measuredAtUtc: null }
+      : r,
+  );
+  return { ...matrix, rows, summary: verificationMatrixSummary(rows) };
+}
+
 /** Parse a matrix read back from a package, API response or snapshot. */
 export function parseVerificationMatrix(value: unknown): VerificationMatrix | null {
   if (!value || typeof value !== "object") return null;

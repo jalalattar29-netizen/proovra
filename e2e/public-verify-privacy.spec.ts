@@ -113,7 +113,15 @@ test.describe("public verify privacy @critical", () => {
       ]) {
         expect(text, `public verify must not carry ${key}`).not.toContain(`"${key}"`);
       }
-      expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "link", "tier"]);
+      expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "link", "tier", "verificationMatrix"]);
+      // The per-signal matrix is public, but at this tier it withholds the
+      // account and organization rows: it never describes who submitted.
+      const matrixRows = (body.verificationMatrix as { rows: Array<{ key: string; status: string; statement: string }> }).rows;
+      for (const key of ["account_identity", "organization_verification"]) {
+        const row = matrixRows.find((r) => r.key === key);
+        expect(row?.status, key).toBe("NOT_APPLICABLE");
+        expect(row?.statement, key).toBe("Not disclosed on this verification page.");
+      }
       // About the link, only its kind and when it ends — never who it was for.
       expect(Object.keys(body.link as object).sort()).toEqual(["expiresAtUtc", "kind"]);
       expect((body.link as { kind: string }).kind).toBe("SHARE_TOKEN");

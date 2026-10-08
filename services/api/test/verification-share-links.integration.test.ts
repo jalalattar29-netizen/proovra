@@ -376,7 +376,13 @@ describe("public verification share links (live PostgreSQL 16, real HTTP)", () =
     const body = res.json();
     // A BASIC link narrows the projection whatever the record is entitled to.
     expect(body.tier).toBe("BASIC");
-    expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "link", "tier"]);
+    expect(Object.keys(body).sort()).toEqual(["basicVerification", "evidenceId", "link", "tier", "verificationMatrix"]);
+    // The matrix at this tier never describes who submitted the record.
+    for (const key of ["account_identity", "organization_verification"]) {
+      const row = body.verificationMatrix.rows.find((r: { key: string }) => r.key === key);
+      expect(row.status, key).toBe("NOT_APPLICABLE");
+      expect(row.statement, key).toBe("Not disclosed on this verification page.");
+    }
     expect(Object.keys(body.link).sort()).toEqual(["expiresAtUtc", "kind"]);
     for (const forbidden of [
       audience,

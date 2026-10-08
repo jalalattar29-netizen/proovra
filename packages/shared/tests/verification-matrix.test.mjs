@@ -244,3 +244,18 @@ test("a legacy timestamp pass without an explicit state is never re-read as vali
   // An explicit PASSED (written from a recorded validation) stays VERIFIED.
   assert.equal(toVerificationStatus(resolveSnapshotSignalState({ key: "trusted_timestamp", state: "PASSED", status: "passed" })), "VERIFIED");
 });
+
+test("the BASIC tier withholds who submitted: identity rows are not disclosed, nothing else moves", async () => {
+  const { withholdIdentityRows } = await import("../dist/index.js");
+  const m = matrix();
+  const w = withholdIdentityRows(m);
+  for (const key of ["account_identity", "organization_verification"]) {
+    assert.equal(statusOf(w, key), "NOT_APPLICABLE", key);
+    assert.equal(rowOf(w, key).statement, "Not disclosed on this verification page.");
+  }
+  for (const r of m.rows.filter((x) => x.key !== "account_identity" && x.key !== "organization_verification")) {
+    assert.deepEqual(rowOf(w, r.key), r);
+  }
+  assert.doesNotMatch(JSON.stringify(w), /Authenticated email account|personal workspace/i);
+  assert.ok(w.summary.endsWith(VERIFICATION_LIMITATION));
+});

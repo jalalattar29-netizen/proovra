@@ -89,6 +89,7 @@ import {
   resolveOtsCustodyFacts,
   readStoredTrustDecision,
   buildVerificationMatrix,
+  withholdIdentityRows,
   resolveAcquisitionIdentitySnapshot,
   identityLevelLabel,
   acquisitionIdentityLevelLabel,
@@ -14666,7 +14667,8 @@ if (!richVerifyEntitled || shareLink?.projection === "BASIC") {
     tier: "BASIC",
     evidenceId: evidence.id,
     basicVerification,
-    verificationMatrix,
+    // The BASIC tier never describes who submitted the record.
+    verificationMatrix: withholdIdentityRows(verificationMatrix),
     link,
   });
 }
