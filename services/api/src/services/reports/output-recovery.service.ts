@@ -165,8 +165,8 @@ const REQUEST_SELECT = {
   progressStage: true,
   intent: true,
   updatedAtUtc: true,
-  forceRegenerate: true,
   idempotencyKey: true,
+  forceRegenerate: true,
 } as const;
 
 function toRequestFact(
