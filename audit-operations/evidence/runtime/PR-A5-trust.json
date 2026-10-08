@@ -1,0 +1,71 @@
+{
+  "proofId": "PR-A5-trust",
+  "title": "TSA/OTS conditions resolve on any non-FAILED status",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-019"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "A TSA condition closes only on a validated stamp; an OTS condition closes only on ANCHORED/UPGRADED (registry text); PENDING is never 'recovered'.",
+  "observed": [
+    {
+      "case": "TSA -> NULL (no stamp at all)",
+      "openedOnFailed": "OPEN",
+      "afterTransition": "RESOLVED",
+      "note": "Resolved from Evidence domain truth: tsaStatus is no longer FAILED.",
+      "originalFailurePreservedInHistory": true
+    },
+    {
+      "case": "TSA -> PENDING",
+      "openedOnFailed": "OPEN",
+      "afterTransition": "RESOLVED",
+      "note": "Resolved from Evidence domain truth: tsaStatus is no longer FAILED.",
+      "originalFailurePreservedInHistory": true
+    },
+    {
+      "case": "TSA -> STAMPED without validation",
+      "openedOnFailed": "OPEN",
+      "afterTransition": "RESOLVED",
+      "note": "Resolved from Evidence domain truth: tsaStatus is no longer FAILED.",
+      "originalFailurePreservedInHistory": true
+    },
+    {
+      "case": "TSA -> STAMPED and validated",
+      "openedOnFailed": "OPEN",
+      "afterTransition": "RESOLVED",
+      "note": "Resolved from Evidence domain truth: tsaStatus is no longer FAILED.",
+      "originalFailurePreservedInHistory": true
+    },
+    {
+      "case": "OTS -> PENDING (proof submitted, not anchored)",
+      "openedOnFailed": "OPEN",
+      "afterTransition": "RESOLVED",
+      "note": "Resolved from Evidence domain truth: otsStatus is no longer FAILED.",
+      "originalFailurePreservedInHistory": true
+    },
+    {
+      "case": "OTS -> NULL",
+      "openedOnFailed": "OPEN",
+      "afterTransition": "RESOLVED",
+      "note": "Resolved from Evidence domain truth: otsStatus is no longer FAILED.",
+      "originalFailurePreservedInHistory": true
+    },
+    {
+      "case": "OTS -> ANCHORED",
+      "openedOnFailed": "OPEN",
+      "afterTransition": "RESOLVED",
+      "note": "Resolved from Evidence domain truth: otsStatus is no longer FAILED.",
+      "originalFailurePreservedInHistory": true
+    }
+  ],
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+    "services/api/src/services/operations/evidence-integrity-conditions.service.ts": "207f410ff1aea26eab1b741d2f9ca0100d6aeec57f1a1a7539cfbfdc206f8593",
+    "services/api/src/services/operations/operations-source-registry.ts": "09c0442d1acd977615be0fc5e93fb6a69109ea0d530c93394dc13978b440806b"
+  },
+  "harnessFile": "audit-operations/harness/a5-trust-search.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

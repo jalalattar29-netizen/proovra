@@ -1,0 +1,1016 @@
+{
+  "baseline": "85c8800778e4c09e7681f83c1ee8fed4661beff9",
+  "model": {
+    "tenantPredicate": "workspaceIncidentWhere: scope=WORKSPACE AND teamId AND NOT platform-internal source (services/api/src/services/observability/incident-scope.ts)",
+    "platformPredicate": "platformIncidentWhere: scope=PLATFORM",
+    "platformInternalSources": [
+      "ai.condition",
+      "billing.provider_authorization",
+      "database.condition",
+      "job.background_failure",
+      "platform.worker_heartbeat_stale",
+      "storage.condition"
+    ],
+    "platformScopeWriters": []
+  },
+  "sources": [
+    {
+      "id": "ai.condition",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "billing.dependent_cancellation_failed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "intendedScope": "BILLING_ACCOUNT",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-dependent-cancellation"
+      ],
+      "finding": "OPS-003"
+    },
+    {
+      "id": "billing.provider_authorization",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PROVIDER_GLOBAL",
+      "writtenScopes": [
+        "LEGACY_UNSCOPED"
+      ],
+      "tenantVisible": false,
+      "producers": [
+        "P-billing-provider-auth"
+      ],
+      "finding": null
+    },
+    {
+      "id": "communications.provider_failure",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "coordination.backlog_stale",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-agg-coordination-backlog"
+      ],
+      "finding": null
+    },
+    {
+      "id": "database.condition",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "evidence_integrity.ots_budget_exhausted",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE_OR_LEGACY_UNSCOPED"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-ots-budget-exhausted"
+      ],
+      "finding": "OPS-018"
+    },
+    {
+      "id": "evidence_integrity.ots_failed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-integrity-ots-failed"
+      ],
+      "finding": "OPS-019"
+    },
+    {
+      "id": "evidence_integrity.ots_initialization_stalled",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-integrity-ots-init-stalled"
+      ],
+      "finding": null
+    },
+    {
+      "id": "evidence_integrity.ots_pending_aged",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-integrity-ots-pending-aged"
+      ],
+      "finding": null
+    },
+    {
+      "id": "evidence_integrity.tsa_failed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.read",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-integrity-tsa-failed"
+      ],
+      "finding": "OPS-019"
+    },
+    {
+      "id": "governance.destruction_executed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-destruction-executed"
+      ],
+      "finding": null
+    },
+    {
+      "id": "governance.notification_escalated",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-governance-notification-escalated"
+      ],
+      "finding": null
+    },
+    {
+      "id": "governance.policy_condition",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "identity.high_risk_session_surge",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "intendedScope": "SECURITY_RESTRICTED",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-runtime-high-risk-surge"
+      ],
+      "finding": null
+    },
+    {
+      "id": "identity.idp_outage",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "intendedScope": "SECURITY_RESTRICTED",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-idp-outage"
+      ],
+      "finding": "OPS-018"
+    },
+    {
+      "id": "identity.runtime_block",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "intendedScope": "SECURITY_RESTRICTED",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-runtime-block"
+      ],
+      "finding": null
+    },
+    {
+      "id": "identity.security_condition",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "intendedScope": "SECURITY_RESTRICTED",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "intake.delivery_failed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "integration.configuration_failure",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "integration.webhook.manage",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "job.background_failure",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "pipeline.package_backlog",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-agg-package-backlog"
+      ],
+      "finding": null
+    },
+    {
+      "id": "pipeline.package_generation_denied",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE_OR_LEGACY_UNSCOPED"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-package-gate-denied"
+      ],
+      "finding": "OPS-018"
+    },
+    {
+      "id": "pipeline.package_generation_failed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE",
+        "WORKSPACE_OR_LEGACY_UNSCOPED"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-package-generation-failed",
+        "P-report-retry-budget-package"
+      ],
+      "finding": null
+    },
+    {
+      "id": "pipeline.report_backlog",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-agg-report-backlog"
+      ],
+      "finding": null
+    },
+    {
+      "id": "pipeline.report_generation_failed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE",
+        "WORKSPACE_OR_LEGACY_UNSCOPED"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-report-failure-dlq",
+        "P-report-retry-budget-report"
+      ],
+      "finding": "OPS-004"
+    },
+    {
+      "id": "pipeline.signed_without_report_aged",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-agg-signed-without-report-aged"
+      ],
+      "finding": null
+    },
+    {
+      "id": "platform.operational_seed",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-operational-seed"
+      ],
+      "finding": null
+    },
+    {
+      "id": "platform.telemetry_stale",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-agg-telemetry-stale"
+      ],
+      "finding": "OPS-001"
+    },
+    {
+      "id": "platform.worker_heartbeat_stale",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": false,
+      "producers": [
+        "P-agg-worker-heartbeat-stale"
+      ],
+      "finding": "OPS-009"
+    },
+    {
+      "id": "queue.retry_storm",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-agg-retry-storm"
+      ],
+      "finding": "OPS-002"
+    },
+    {
+      "id": "review.escalation",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "review.queue.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-review-escalation"
+      ],
+      "finding": "OPS-018"
+    },
+    {
+      "id": "review.escalation_storm",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "review.queue.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-review-escalation-storm"
+      ],
+      "finding": null
+    },
+    {
+      "id": "review.stale_workflows",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "review.queue.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-agg-stale-review-workflows"
+      ],
+      "finding": null
+    },
+    {
+      "id": "search.indexing_failure",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "evidence.read",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-search-index"
+      ],
+      "finding": "OPS-017"
+    },
+    {
+      "id": "security.unclassified_signal",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "audit.read",
+      "intendedScope": "SECURITY_RESTRICTED",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "storage.condition",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "intendedScope": "PLATFORM_GLOBAL",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    },
+    {
+      "id": "storage.immutable_drift",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "intendedScope": "EVIDENCE_RECORD",
+      "writtenScopes": [
+        "WORKSPACE"
+      ],
+      "tenantVisible": true,
+      "producers": [
+        "P-immutable-drift"
+      ],
+      "finding": null
+    },
+    {
+      "id": "webhook.security_failure",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "integration.webhook.manage",
+      "intendedScope": "WORKSPACE",
+      "writtenScopes": [],
+      "tenantVisible": false,
+      "producers": [],
+      "finding": null
+    }
+  ],
+  "adminSeparation": [
+    {
+      "function": "worker heartbeat / liveness",
+      "adminWebPage": "/admin/platform-health apps/web/app/(app)/admin/platform-health/page.tsx:362; /admin/platform/queues apps/web/app/(app)/admin/platform/queues/page.tsx:177; /admin/platform/observability apps/web/app/(app)/admin/platform/observability/page.tsx:718",
+      "adminApi": "GET /v1/admin/platform-health services/api/src/routes/admin-platform-health.routes.ts:30 (requirePlatformAdmin); GET /v1/admin/platform/health-snapshot services/api/src/routes/admin-platform-telemetry.routes.ts:200 (requirePlatformAdmin); GET /v1/operations/queues/workers services/api/src/routes/operations-queues.routes.ts:136 (requirePlatformOpsActor :143); GET /v1/admin/runtime/workers services/api/src/routes/runtime-readiness.routes.ts:170 (requirePlatformAdmin, no web consumer)",
+      "telemetrySource": "WorkerTelemetrySnapshot (services/api/prisma/schema.prisma:10165) via getWorkerFleetLiveness services/api/src/services/operations/worker-liveness.service.ts:164, stale threshold WORKER_HEARTBEAT_STALE_SECONDS=180 (:82); getWorkerHealth queue-inventory.service.ts:444; buildPlatformHealthSnapshot platform-health-snapshot.service.ts:420",
+      "adminRemediation": null,
+      "customerOperationsExposure": "platform.worker_heartbeat_stale is persisted as an OperationalIncident in EVERY workspace (services/api/src/services/dashboard/incident-generator.service.ts:283 loop, recordIncident teamId: ctx.teamId :315) using a separate 15-minute rule (operations-source-probes.ts:85, raw table read :492). Hidden from tenant lists by platformInternalExclusion (services/api/src/services/observability/incident-scope.ts:132) but counted by GET /v1/ops/health (services/api/src/routes/ops.routes.ts:580, gate operations.view) fields incidents.openTotal/openHigh/openCritical, which use a strict teamId predicate (ops.routes.ts:623-652)",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": false,
+      "notes": "Four admin read paths (platform-health, health-snapshot, operations/queues/workers, admin/runtime/workers) plus an Operations re-detector with a different threshold (15 min vs 180 s). The platform fact is fanned out into N workspace rows."
+    },
+    {
+      "function": "queue depth / backlog",
+      "adminWebPage": "/admin/platform/queues apps/web/app/(app)/admin/platform/queues/page.tsx:173",
+      "adminApi": "GET /v1/operations/queues services/api/src/routes/operations-queues.routes.ts:98 (requirePlatformOpsActor :105 = platform admin AND member of the teamId passed); GET /v1/admin/runtime/queues services/api/src/routes/runtime-readiness.routes.ts:132 (requirePlatformAdmin, no web consumer)",
+      "telemetrySource": "BullMQ via getQueueInventory services/api/src/services/operations/queue-inventory.service.ts:228; QueueTelemetrySnapshot (schema.prisma:10116)",
+      "adminRemediation": null,
+      "customerOperationsExposure": "GET /v1/investigation/diagnostics services/api/src/routes/investigation-diagnostics.routes.ts:50 (gate identity.member.read OR evidence.update_metadata :92-103) returns queues.{graphSearchProjection, mediaIntelligence, miEmbed, searchIndexing, report}.depth from GLOBAL queues (services/api/src/services/investigation-diagnostics.service.ts:639-648); GET /v1/graph/diagnostics services/api/src/routes/graph.routes.ts:1354 (requireGraphAdminActor :1384) returns queueDepth of the global graph-reconcile queue (graph.routes.ts:1508-1515). Operations QueueSummary (apps/web/app/(app)/operations/_components/QueueSummary.tsx) shows incident counts only (open/critical/high/warning/sla*/resolved/assignedToMe/unassigned), not BullMQ depth",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": false,
+      "notes": "Admin platform queue API lives under the customer-looking /v1/operations/* prefix and requires workspace membership as an audit ticket; a second admin endpoint (/v1/admin/runtime/queues) answers the same question. Platform-global depth leaks to workspace members through two diagnostics endpoints."
+    },
+    {
+      "function": "failed jobs / DLQ",
+      "adminWebPage": "/admin/platform/queues apps/web/app/(app)/admin/platform/queues/page.tsx:226; /admin/alerts apps/web/app/(app)/admin/alerts/page.tsx:138",
+      "adminApi": "GET /v1/operations/queues/:queueName/failed services/api/src/routes/operations-queues.routes.ts:171 (requirePlatformOpsActor :184); GET /v1/admin/alerts services/api/src/routes/admin-alerts.routes.ts:28 (requirePlatformAdmin; buildPlatformAlerts services/api/src/services/admin/alerts.service.ts:144 includes failed jobs)",
+      "telemetrySource": "listFailedJobs services/api/src/services/operations/queue-inventory.service.ts:372 (BullMQ failed set)",
+      "adminRemediation": "POST /v1/operations/queues/:queueName/jobs/:jobId/retry operations-queues.routes.ts:197",
+      "customerOperationsExposure": "GET /v1/investigation/diagnostics (investigation-diagnostics.routes.ts:50, identity.member.read) returns lastError = top.failureReason and lastRunAt of the newest failed job on each GLOBAL queue (investigation-diagnostics.service.ts:658-665) — failure text from any tenant's job. Operations source job.background_failure is registered PLATFORM_INTERNAL with no writer (packages/shared-runtime/src/ops/source-lifecycle.ts:1677-1692)",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": false,
+      "notes": "Highest-risk exposure in this set: unscoped failureReason from platform queues reaches workspace members."
+    },
+    {
+      "function": "job replay",
+      "adminWebPage": "/admin/platform/queues apps/web/app/(app)/admin/platform/queues/page.tsx:281",
+      "adminApi": "POST /v1/operations/queues/:queueName/jobs/:jobId/retry services/api/src/routes/operations-queues.routes.ts:197 (requirePlatformOpsActor :210); POST .../replay :261 (requirePlatformOpsActor :281 + requireStepUpForSensitiveAction when getJobReplayCategory = requires_step_up); POST .../cancel :340 (:353)",
+      "telemetrySource": "queue-replay-action.service.ts (retryFailedJob/replayFailedJob/cancelJob) + replay safety matrix queue-replay-safety.service.ts (getReplaySafetyMatrix)",
+      "adminRemediation": "POST /v1/operations/queues/:queueName/jobs/:jobId/{retry,replay,cancel} operations-queues.routes.ts:197/:261/:340",
+      "customerOperationsExposure": "No BullMQ replay is customer-reachable. But customer Operations exposes a retry concept that executes nothing: POST /v1/ops/workflows/:id/schedule-retry services/api/src/routes/ops.routes.ts:2443 (operations.acknowledge) -> scheduleRetry services/api/src/services/observability/workflow.service.ts:275-312 only writes nextRetryAtUtc/retryCount; BULK_SCHEDULE_RETRY services/api/src/services/dashboard/bulk-actions.service.ts:306 likewise (header :11-14 'only records retry intent')",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": false,
+      "notes": "Real replay is platform-only (correct). The customer 'Schedule retry' is a second, inert retry vocabulary with no consumer of nextRetryAtUtc."
+    },
+    {
+      "function": "scheduler / reconciler coverage & backlog",
+      "adminWebPage": "/admin/platform/observability apps/web/app/(app)/admin/platform/observability/page.tsx:704 (readiness only)",
+      "adminApi": "GET /v1/admin/platform/readiness services/api/src/routes/admin-platform-telemetry.routes.ts:156 (requirePlatformAdmin) -> runReadinessCheck services/api/src/runtime/runtime-readiness.ts:1759 (checkWorkers reviewer-reconcile presence :903, checkSearchIndexing lag :1262)",
+      "telemetrySource": "GovernanceReconciliationRun kind WORKSPACE_OPERATIONS (schema.prisma:9672; packages/shared-runtime/src/workspace-operations-reconciliation.ts:51, read :516); scheduler services/api/src/jobs/workspace-operations-reconciliation.job.ts (registered services/api/src/server.ts:1572)",
+      "adminRemediation": null,
+      "customerOperationsExposure": "Per-workspace discovery-run state in GET /v1/ops/summary (ops.routes.ts:911, operations.view; buildOperationsSummary services/api/src/services/operations/operations-summary.service.ts:226) and POST /v1/ops/workspace-reconcile (ops.routes.ts:1002) — legitimately workspace-scoped. Platform master reconcile POST /v1/ops/reconcile (ops.routes.ts:843, cron secret :846; runMasterReconcile :278) lives in the Operations namespace and mutates identity/communications/uploads globally",
+      "duplicated": false,
+      "consolidationRequired": true,
+      "missingInAdmin": true,
+      "notes": "No admin view of cross-tenant WORKSPACE_OPERATIONS run coverage, lag, or never-run workspaces. Platform-global reconcile job is registered in ops.routes.ts rather than an admin/jobs surface."
+    },
+    {
+      "function": "provider configuration readiness (Stripe/PayPal/Twilio/Resend/TSA/OTS/S3/KMS)",
+      "adminWebPage": "/admin/platform-health apps/web/app/(app)/admin/platform-health/page.tsx:362; /admin/platform/readiness apps/web/app/(app)/admin/platform/readiness/page.tsx:176",
+      "adminApi": "GET /v1/admin/platform-health admin-platform-health.routes.ts:30 (requirePlatformAdmin) -> buildPlatformHealth services/api/src/services/admin/platform-health.service.ts:184 (KMS live probe :344-370; TSA 'no live probe' :375-383; Stripe/PayPal webhook rows :473-475; Twilio/Resend/Stripe API/PayPal API 'not measured' :545-566); GET /v1/operations/readiness services/api/src/routes/operations-readiness.routes.ts:45 (requirePlatformAdmin) -> computeReadinessPosture services/api/src/services/operations/readiness-posture.service.ts:439 (KMS signer, S3 Object Lock)",
+      "telemetrySource": "getFeatureSnapshot services/api/src/config/index.ts:153 (env presence for Twilio, Verify, Resend, OpenAI, integrations, cron secrets); checkS3ObjectLock runtime-readiness.ts:803; signer probe",
+      "adminRemediation": null,
+      "customerOperationsExposure": "GET /v1/ops/health services/api/src/routes/ops.routes.ts:580 (requireOpsActor operations.view :615) field `snapshot` = getFeatureSnapshot() (ops.routes.ts:662): communications.twilio/verify, notifications.resend/idempotencySecret, ai, integrations, cronSecrets each {configured, reason:'<ENV_NAME>_missing'}, plus nodeEnv/isProduction. Consumed by customer org-admin readiness page apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:226",
+      "duplicated": false,
+      "consolidationRequired": true,
+      "missingInAdmin": true,
+      "notes": "Admin says Twilio/Resend/Stripe/PayPal are 'not measured' while the configured-state snapshot exists and is only served to workspace members. No OTS provider readiness anywhere in admin."
+    },
+    {
+      "function": "deployment / build revision",
+      "adminWebPage": "/admin/platform-health apps/web/app/(app)/admin/platform-health/page.tsx:362",
+      "adminApi": "GET /v1/admin/platform-health admin-platform-health.routes.ts:30 -> describeFleetBuilds services/api/src/services/admin/platform-health.service.ts:141-152 (worker revisions only)",
+      "telemetrySource": "WorkerTelemetrySnapshot.buildRevision (services/api/src/services/operations/worker-liveness.service.ts:130, :233)",
+      "adminRemediation": null,
+      "customerOperationsExposure": "GET /v1/runtime/otel-health services/api/src/routes/runtime-otel-health.routes.ts:75 (requireOpsReader identity.member.read :38) returns getOtelStatus (serviceName, serviceNamespace, environment, resourceAttributes incl. deployment.environment — services/api/src/observability/otel.ts:237-298) and getOtelRuntimeDiagnostics (OTEL package versions, exporter kind, auth-header scheme/length) (runtime-otel-health.routes.ts:90); GET /v1/ops/health snapshot.nodeEnv/isProduction (ops.routes.ts:662)",
+      "duplicated": false,
+      "consolidationRequired": true,
+      "missingInAdmin": true,
+      "notes": "API process revision is not shown in admin; runtime diagnostics are reachable by any active workspace member and have no web consumer."
+    },
+    {
+      "function": "environment / feature flags",
+      "adminWebPage": null,
+      "adminApi": "none found (getFeatureSnapshot is only called at services/api/src/routes/ops.routes.ts:662)",
+      "telemetrySource": "getFeatureSnapshot services/api/src/config/index.ts:153 (COMMUNICATIONS_ENABLED, IDENTITY_SECURITY_ENABLED, NOTIFICATIONS_ENABLED, OPENAI_AI_ENABLED, INTEGRATIONS_ENABLED)",
+      "adminRemediation": null,
+      "customerOperationsExposure": "GET /v1/ops/health (ops.routes.ts:580, operations.view) `snapshot` with per-feature enabled state and reasons like 'COMMUNICATIONS_ENABLED_off' / 'missing:TWILIO_ACCOUNT_SID,...' (config/index.ts:153-198)",
+      "duplicated": false,
+      "consolidationRequired": true,
+      "missingInAdmin": true,
+      "notes": "Platform flags are visible to tenants and invisible to platform admins."
+    },
+    {
+      "function": "startup violations",
+      "adminWebPage": null,
+      "adminApi": "none found; public GET /readyz services/api/src/routes/ops.routes.ts:490 returns only reason 'production_config_violations' (:491-497)",
+      "telemetrySource": "collectStartupViolations services/api/src/config/index.ts:227 (envName + reason)",
+      "adminRemediation": null,
+      "customerOperationsExposure": "GET /v1/ops/health (ops.routes.ts:580, operations.view) field `violations` = collectStartupViolations() (ops.routes.ts:663) — env var names and reasons (required_missing, stripe_key_shape_invalid, signing_provider_inconsistent, ...). Rendered as a count on customer org-admin readiness page apps/web/app/(app)/organizations/[id]/admin/readiness/page.tsx:437-438 (type :106)",
+      "duplicated": false,
+      "consolidationRequired": true,
+      "missingInAdmin": true,
+      "notes": "Configuration-violation detail exists only on a workspace-gated endpoint."
+    },
+    {
+      "function": "alert routing",
+      "adminWebPage": "/admin/alerts apps/web/app/(app)/admin/alerts/page.tsx:138; /admin/platform/observability apps/web/app/(app)/admin/platform/observability/page.tsx:687",
+      "adminApi": "GET /v1/admin/alerts services/api/src/routes/admin-alerts.routes.ts:28 (requirePlatformAdmin; buildPlatformAlerts alerts.service.ts:144); GET /v1/admin/platform/alerts admin-platform-telemetry.routes.ts:131 (requirePlatformAdmin; platformAlertsHandler evaluateAlerts over snapshotMetrics); deprecated alias GET /v1/ops/alerts ops.routes.ts:770 (requirePlatformAdmin)",
+      "telemetrySource": "getAlertProvider / buildAlertHealth services/api/src/services/alerts/alert.service.ts:35 / :143 (provider noop|webhook|email, ready)",
+      "adminRemediation": null,
+      "customerOperationsExposure": "GET /v1/ops/health (ops.routes.ts:580, operations.view) field `alerts` = buildAlertHealth() (ops.routes.ts:665) {provider, ready}; also `observability` = buildObservabilityHealth() (:664)",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": true,
+      "notes": "Two different admin 'alerts' lists (signal list vs metric-rule evaluation) plus an alias; the routing/provider readiness itself is shown only to tenants."
+    },
+    {
+      "function": "platform incidents (PLATFORM scope + platform-internal sources)",
+      "adminWebPage": "/admin/operations apps/web/app/(app)/admin/operations/page.tsx:268 (list), :233 (detail), :312 (ack/resolve/assign), :740 (remediate)",
+      "adminApi": "GET /v1/admin/incidents services/api/src/routes/admin-security.routes.ts:363 (requirePlatformAdmin); GET /v1/admin/incidents/:id :646; POST /v1/admin/incidents/:id/remediate :691; POST /v1/admin/incidents/:id/{acknowledge,resolve,assign} :746-751 — transitions via the shared transitionIncident with scope PLATFORM_ADMIN (admin-security.routes.ts:574-587; services/api/src/services/observability/incident.service.ts:1113)",
+      "telemetrySource": "OperationalIncident (schema.prisma:7643) with platformInternalIncidentWhere / platformIncidentWhere (services/api/src/services/observability/incident-scope.ts:174, :186); PLATFORM_INTERNAL sources = platformInternalSourceIds packages/shared-runtime/src/ops/source-lifecycle.ts:2095",
+      "adminRemediation": "POST /v1/admin/incidents/:id/remediate admin-security.routes.ts:691 -> executePlatformRecordRecovery services/api/src/services/operations/remediation-executor.ts:358",
+      "customerOperationsExposure": "Platform facts are written per workspace (incident-generator.service.ts:283-315) and platform.telemetry_stale is TENANT_ADVISORY (source-lifecycle.ts:1001) so it appears in GET /v1/ops/incidents (ops.routes.ts:1045) with WORKER guidance 'The platform owns the queue' (remediation-registry.ts:461-465). GET /v1/ops/health incident counts (ops.routes.ts:623-652) use strict teamId without platformInternalExclusion, so PLATFORM_INTERNAL rows inflate tenant openTotal/openHigh/openCritical; GET /v1/teams/:id/operations/health (workspace-operations.routes.ts:93) uses workspaceIncidentWhere and therefore disagrees",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": false,
+      "notes": "Three tenant health counters (buildOperationsSummary operations-summary.service.ts:226, /v1/ops/health ops.routes.ts:623, /v1/teams/:id/operations/health workspace-operations.routes.ts:112-136) with different scope predicates and status sets."
+    },
+    {
+      "function": "secrets health",
+      "adminWebPage": null,
+      "adminApi": "none found",
+      "telemetrySource": "getSecretsHealth packages/shared-runtime/src/config/secrets-authority.ts:529-551 (mode, awsEnabled, awsConnected, fallbackMode, lastRefreshAtUtc, lastErrorCode, cachedKeyCount, secretName, region, degraded); getMigratedSecretsAudit services/api/src/config/runtime-secrets.ts:134 (secret name, source, present)",
+      "adminRemediation": null,
+      "customerOperationsExposure": "GET /v1/runtime/secrets-health services/api/src/routes/runtime-secrets-health.routes.ts:72 gated by requireOpsReader (:35, evaluateMemberAccess identity.member.read) — any ACTIVE member of any workspace, including their own personal workspace — returns {health, migrated, otel} (:82-93): AWS secret name + region + per-secret source/presence",
+      "duplicated": false,
+      "consolidationRequired": true,
+      "missingInAdmin": true,
+      "notes": "Not platform-gated (contrast ADM-013 comment in operations-queues.routes.ts that identity.member.read is held by every authenticated user). No web consumer."
+    },
+    {
+      "function": "schema / migration readiness",
+      "adminWebPage": "/admin/platform/readiness apps/web/app/(app)/admin/platform/readiness/page.tsx:176 (schemaDriftSummary); /admin/platform/observability apps/web/app/(app)/admin/platform/observability/page.tsx:704",
+      "adminApi": "GET /v1/operations/readiness operations-readiness.routes.ts:45 (requirePlatformAdmin); GET /v1/admin/platform/readiness admin-platform-telemetry.routes.ts:156 (runReadinessCheck: checkSchema runtime-readiness.ts:417, checkMigrations :485); GET /v1/admin/runtime/readiness runtime-readiness.routes.ts:97 (same runReadinessCheck, no web consumer); GET /v1/admin/runtime/migrations runtime-readiness.routes.ts:207 (runMigrationDriftCheck services/api/src/runtime/migration-drift.ts:122); GET /v1/admin/runtime/schema-status services/api/src/routes/ops.routes.ts:801 (runSchemaValidation services/api/src/runtime/schema-validation.ts:574) — all requirePlatformAdmin",
+      "telemetrySource": "runSchemaValidation / runMigrationDriftCheck / runReadinessCheck",
+      "adminRemediation": null,
+      "customerOperationsExposure": "Public GET /readyz ops.routes.ts:490 returns bounded reason 'required_schema_missing' (:503-509); GET /v1/runtime/status services/api/src/routes/platform-context.routes.ts:152 returns bounded tenant capability projection — no Operations-page exposure",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": false,
+      "notes": "Five admin endpoints across three route files answer schema/migration readiness; the schema-status endpoint is registered inside ops.routes.ts."
+    },
+    {
+      "function": "media-intelligence DLQ",
+      "adminWebPage": "/admin/platform/media-graph apps/web/app/(app)/admin/platform/media-graph/page.tsx:379 (runs), :495 (retry), :549 (dismiss), :594 (DLQ replay)",
+      "adminApi": "GET /v1/ops/media-intelligence/runs services/api/src/routes/ops.routes.ts:3259 (requirePlatformAdmin); POST /v1/ops/media-intelligence/runs/:runId/retry ops.routes.ts:3329 (requirePlatformOpsActor :3339); POST /v1/ops/media-intelligence/runs/:runId/dismiss ops.routes.ts:3389 (requireDomainActionOnOpsSurface intelligence.run — WORKSPACE permission, ops.routes.ts:218); POST /v1/ops/media-intelligence/dlq/replay ops.routes.ts:3414 (requirePlatformOpsActor, scope platform_global)",
+      "telemetrySource": "MediaIntelligenceRun (schema.prisma:14636); BullMQ DLQ replayMediaIntelligenceDlq services/api/src/queue/media-intelligence-queue.ts:122; readiness checkMediaIntelligence runtime-readiness.ts:1563",
+      "adminRemediation": "POST /v1/ops/media-intelligence/dlq/replay ops.routes.ts:3414; POST /v1/ops/media-intelligence/runs/:runId/retry ops.routes.ts:3329",
+      "customerOperationsExposure": "Dismiss is reachable by any workspace member holding intelligence.run for runs in that workspace (ops.routes.ts:3389-3407, dismissRun(runId, teamId)); global mediaIntelligence/miEmbed queue depth + newest failureReason exposed via GET /v1/investigation/diagnostics (investigation-diagnostics.service.ts:625-627, :639-665)",
+      "duplicated": true,
+      "consolidationRequired": true,
+      "missingInAdmin": false,
+      "notes": "Platform DLQ operations are hosted under the customer /v1/ops namespace with three different gates on four sibling routes."
+    }
+  ],
+  "runtimeTenancy": [
+    {
+      "cell": "PLAN_FREE",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_PAYG",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_PRO",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_TEAM_PERSONAL",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_TEAM_OWNED",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_ENTERPRISE",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_INTERNAL_GRANT",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_EXPIRED_GRANT",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_REVOKED_GRANT",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_CANCELLED_TEAM",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_LAPSED_TEAM",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_INACTIVE_TEAM",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "PLAN_LAPSED_PERSONAL_ENTITLEMENT",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_PERSONAL_OWNER",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_TEAM_OWNER",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_TEAM_ADMIN",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_TEAM_MEMBER",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_TEAM_VIEWER",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_INVITED",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_REVOKED",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 403,
+      "nonexistentDetail": 403,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_SUSPENDED",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 403,
+      "nonexistentDetail": 403,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_ACCESS_EXPIRED",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 403,
+      "nonexistentDetail": 403,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_ENT_ORG_OWNER",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_ENT_ORG_ADMIN",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_ENT_WS_ADMIN",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_ENT_WS_MEMBER",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_ENT_WS_VIEWER",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_ENT_SUSPENDED_ORG",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 403,
+      "nonexistentDetail": 403,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_PLATFORM_ADMIN_TENANT_API",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "ROLE_UNAUTHENTICATED",
+      "ownVisible": false,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 401,
+      "nonexistentDetail": 401,
+      "enumerationIndistinguishable": false
+    },
+    {
+      "cell": "WS_PLATFORM_INCIDENT",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    },
+    {
+      "cell": "WS_LEGACY_UNSCOPED_INCIDENT",
+      "ownVisible": true,
+      "otherTenantVisible": false,
+      "platformVisible": false,
+      "legacyVisible": false,
+      "otherTenantDetailById": 404,
+      "nonexistentDetail": 404,
+      "enumerationIndistinguishable": true
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "baseline": "85c8800778e4c09e7681f83c1ee8fed4661beff9",
+  "blockers": [
+    {
+      "id": "BLK-NATIVE-DEVICE",
+      "blocker": "No Android SDK / emulator and no Java runtime on this Windows host, and no iOS toolchain on Windows. Native Operations UI could not be executed on a device or simulator.",
+      "affects": [
+        "WS_NATIVE_DEVICE"
+      ],
+      "covered": "All 11 Operations-related mobile test files (156 tests) executed with the package runner; native source checks recorded in operations-native-matrix.json.",
+      "toUnblock": "Run the mobile app on an Android emulator / iOS simulator against the disposable stack and repeat the browser scenarios B01–B15 natively."
+    },
+    {
+      "id": "BLK-PRODUCTION-DATA",
+      "blocker": "Production must not be contacted. The exact Production rows behind the six observed conditions (Reem's add-on state, occurrence counts, reconciler interval/replicas, total team count for OPS-008 sizing) cannot be read.",
+      "affects": [
+        "OPS-003",
+        "OPS-008",
+        "OPS-025"
+      ],
+      "covered": "Every mechanism reproduced on a disposable stack with the same code.",
+      "toUnblock": "Owner reads the named rows / config in Production and applies the per-finding data reconciliation."
+    },
+    {
+      "id": "BLK-STEP-UP-FACTORS",
+      "blocker": "Bulk actions require SMS or TOTP step-up; no SMS provider is configured locally and no TOTP enrolment exists for fixture users.",
+      "affects": [
+        "PR-B07-bulk-outcome"
+      ],
+      "covered": "Server vocabulary proven via the bulk service and the GET run route; web rendering proven with the server's own response shape replayed through Playwright.",
+      "toUnblock": "Enrol TOTP for a fixture user and run the end-to-end bulk flow in the browser."
+    }
+  ]
+}

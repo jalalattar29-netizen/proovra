@@ -1,0 +1,158 @@
+{
+  "proofId": "PR-A3-storage-addon",
+  "title": "Storage add-on obligation incidents: wording, scope, auto-resolution and manual resolution",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-003",
+    "OPS-023"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "Title matches the add-on state; the condition closes when the provider confirms; manual resolve is refused while the obligation is live; the drawer links to Billing.",
+  "observed": [
+    {
+      "case": "PERSONAL_PENDING",
+      "addonStatus": "ACTIVE (paid through +20d)",
+      "incidentInPersonalSpace": true,
+      "storedTitle": "Storage add-on still billing after cancellation",
+      "projectedTitle": "Storage add-on still billing after cancellation",
+      "category": "STORAGE",
+      "relatedProvider": "STRIPE",
+      "remediation": {
+        "disposition": "READ_ONLY_GUIDANCE",
+        "actions": [],
+        "deepLink": null,
+        "guidance": "Storage reported a fault. This is platform infrastructure — no workspace action will change it, and it is being handled by the platform.",
+        "unsafeReason": null
+      },
+      "manualResolveWhileLive": {
+        "status": 200,
+        "body": "{\"incident\":{\"id\":\"a0ed85fa-7572-4c31-951e-1ada31195081\",\"teamId\":\"1ca221d1-1c88-46d4-bc5e-099f47a0cf9d\",\"scope\":\"WORKSPACE\",\"lifecycle\":{\"sourceId\":\"billing.de"
+      }
+    },
+    {
+      "case": "PERSONAL_RETRY_SCHEDULED",
+      "addonStatus": "ACTIVE (paid through +20d)",
+      "incidentInPersonalSpace": true,
+      "storedTitle": "Storage add-on still billing after cancellation",
+      "projectedTitle": "Storage add-on still billing after cancellation",
+      "category": "STORAGE",
+      "relatedProvider": "STRIPE",
+      "remediation": {
+        "disposition": "READ_ONLY_GUIDANCE",
+        "actions": [],
+        "deepLink": null,
+        "guidance": "Storage reported a fault. This is platform infrastructure — no workspace action will change it, and it is being handled by the platform.",
+        "unsafeReason": null
+      },
+      "manualResolveWhileLive": {
+        "status": 200,
+        "body": "{\"incident\":{\"id\":\"e121cd11-14b2-4fd5-a2a4-3cc9abd9fbb2\",\"teamId\":\"1ca221d1-1c88-46d4-bc5e-099f47a0cf9d\",\"scope\":\"WORKSPACE\",\"lifecycle\":{\"sourceId\":\"billing.de"
+      }
+    },
+    {
+      "case": "PERSONAL_ACTION_REQUIRED",
+      "addonStatus": "ACTIVE (paid through +20d)",
+      "incidentInPersonalSpace": true,
+      "storedTitle": "Storage add-on still billing after cancellation",
+      "projectedTitle": "Storage add-on still billing after cancellation",
+      "category": "STORAGE",
+      "relatedProvider": "STRIPE",
+      "remediation": {
+        "disposition": "READ_ONLY_GUIDANCE",
+        "actions": [],
+        "deepLink": null,
+        "guidance": "Storage reported a fault. This is platform infrastructure — no workspace action will change it, and it is being handled by the platform.",
+        "unsafeReason": null
+      },
+      "manualResolveWhileLive": {
+        "status": 200,
+        "body": "{\"incident\":{\"id\":\"f0c34937-3d11-493a-8854-7f627f8f2391\",\"teamId\":\"1ca221d1-1c88-46d4-bc5e-099f47a0cf9d\",\"scope\":\"WORKSPACE\",\"lifecycle\":{\"sourceId\":\"billing.de"
+      }
+    },
+    {
+      "case": "PERSONAL_MANUAL_INTERVENTION",
+      "addonStatus": "ACTIVE (paid through +20d)",
+      "incidentInPersonalSpace": true,
+      "storedTitle": "Storage add-on still billing — support needed",
+      "projectedTitle": "Storage add-on still billing after cancellation",
+      "category": "STORAGE",
+      "relatedProvider": "STRIPE",
+      "remediation": {
+        "disposition": "READ_ONLY_GUIDANCE",
+        "actions": [],
+        "deepLink": null,
+        "guidance": "Storage reported a fault. This is platform infrastructure — no workspace action will change it, and it is being handled by the platform.",
+        "unsafeReason": null
+      },
+      "manualResolveWhileLive": {
+        "status": 200,
+        "body": "{\"incident\":{\"id\":\"b2c724e1-cf8a-4796-ba2d-2e205d80125b\",\"teamId\":\"1ca221d1-1c88-46d4-bc5e-099f47a0cf9d\",\"scope\":\"WORKSPACE\",\"lifecycle\":{\"sourceId\":\"billing.de"
+      }
+    },
+    {
+      "case": "PERSONAL_CONFIRMED_AFTER_OPEN",
+      "before": "OPEN",
+      "afterConfirmedAnd3Sweeps": "OPEN",
+      "occurrencesFrozenAt": 1,
+      "lastSeenEqualsFirstSeenDay": true
+    },
+    {
+      "case": "PERSONAL_OBLIGATION_WITHDRAWN",
+      "retrySweep": {
+        "subjects": 1,
+        "attempted": 0,
+        "confirmed": 0,
+        "failed": 0,
+        "escalated": 0,
+        "conditionsOpened": 4
+      },
+      "providerStubCalls": 0,
+      "addonStateAfterRetrySweep": {
+        "dependentCancellationState": "NONE",
+        "dependentCancellationReasonCode": "OBLIGATION_WITHDRAWN_NOT_DEPENDENT"
+      },
+      "conditionAfter2Sweeps": "OPEN"
+    },
+    {
+      "case": "TEAM_PAYER",
+      "incidentInTeam": true,
+      "storedTitle": "Storage add-on still billing after cancellation",
+      "projectedTitle": "Storage add-on still billing after cancellation",
+      "providerOutageDistinguishedInTitle": false,
+      "summary": "This storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.",
+      "remediation": {
+        "disposition": "READ_ONLY_GUIDANCE",
+        "actions": [],
+        "deepLink": null,
+        "guidance": "Storage reported a fault. This is platform infrastructure — no workspace action will change it, and it is being handled by the platform.",
+        "unsafeReason": null
+      },
+      "manualResolveWhileLive": {
+        "status": 409,
+        "code": "CONDITION_STILL_ACTIVE"
+      },
+      "customerRetryForOrgAccount": {
+        "status": 404,
+        "body": "{\"error\":{\"code\":\"BILLING_ACCOUNT_NOT_FOUND\",\"message\":\"That billing account is not available to your account.\",\"requestId\":\"88cbd3a6-1080-4c49-919c-d642b9ecde7"
+      },
+      "afterProviderConfirmedAndSweep": "OPEN",
+      "manualResolveAfterConfirm": 200
+    }
+  ],
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "packages/shared-runtime/src/incident-transition-authority.ts": "d4600d2ac82c3f1a6eaa22810addaa0e97961f0f015f02831af098022853d355",
+    "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+    "services/api/src/jobs/dependent-cancellation-retry.job.ts": "70b274dc9e2eddd788918eeccd9e42779e11f278cab72ba43380762a999e6c4c",
+    "services/api/src/routes/billing.routes.ts": "3fdd653454eca620ed576e72042664771fb252a767479def8eb05ab95716955f",
+    "services/api/src/services/billing/dependent-cancellation-conditions.service.ts": "07c2c803e72dce4abe40c093c91223499d1469df87e95bae4e932b6605974b6d",
+    "services/api/src/services/billing/dependent-cancellation.service.ts": "dc10f91ed1b839af2684ef1a4bec2f96b263cf746e5255d264bf94c4868c2208",
+    "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+    "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3",
+    "services/api/src/services/operations/remediation-registry.ts": "79fe0c164fa587effb53e98ca708d4c59deda3f7946023bcefdcc15e549d2373"
+  },
+  "harnessFile": "audit-operations/harness/a3-storage-billing.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

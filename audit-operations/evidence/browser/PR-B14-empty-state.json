@@ -1,0 +1,26 @@
+{
+  "proofId": "PR-B14-empty-state",
+  "title": "Reconciled TEAM workspace with zero conditions",
+  "proofType": "BROWSER_PROVEN",
+  "findingIds": [
+    "OPS-020"
+  ],
+  "webBuild": "production (next build) via apps/web/scripts/dev-admin-fixture.mjs --mode=production, NEXT_PUBLIC_API_BASE=http://localhost:8191",
+  "sourceFingerprints": {
+    "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+    "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+    "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+    "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+    "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+    "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+    "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+    "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+  },
+  "command": "node audit-operations/harness/browser/run-browser.mjs",
+  "persona": "TEAM owner",
+  "plan": "TEAM",
+  "workspaceType": "organization",
+  "observed": {
+    "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nAudit Empty WS\nUpdated <datetime>\n\nRefresh\nQueue summary\n0\nUnresolved\nOpen or acknowledged.\n0\nCritical\nAffecting records now.\n0\nHigh\nNeeds an operator soon.\n0\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApproaching the committed time.\n0\nResolved\nClosed operational conditions.\n\nA condition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n0 groups · 0 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nWorkspace operations are clear\n\nThere are no unresolved operational conditions requiring action in th"
+  }
+}

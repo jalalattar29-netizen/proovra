@@ -1,0 +1,154 @@
+{
+  "proofId": "PR-A4-report-package",
+  "title": "Report/package failure conditions: version truth, recovery, supersede offer, raw text, personal scope",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-004",
+    "OPS-013",
+    "OPS-015",
+    "OPS-016"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "A failed newer version keeps its condition open until that version exists; supersede is offered to an authorized operator for a terminal technical failure; customer text is sanitized; personal-record failures are visible to their owner.",
+  "observed": [
+    {
+      "case": "REPORT_V1_FAILED_NO_REPORT",
+      "expect": "OPEN",
+      "got": {
+        "status": "OPEN",
+        "resolutionNote": null
+      }
+    },
+    {
+      "case": "REPORT_V2_FAILED_WHILE_V1_EXISTS",
+      "expect": "OPEN",
+      "got": {
+        "status": "RESOLVED",
+        "resolutionNote": "Resolved from source truth: Report generation failed is no longer reported by its source."
+      },
+      "failedRequestStage": null
+    },
+    {
+      "case": "REPORT_V2_PROCESSING_WHILE_V1_EXISTS",
+      "expect": "OPEN",
+      "got": {
+        "status": "RESOLVED",
+        "resolutionNote": "Resolved from source truth: Report generation failed is no longer reported by its source."
+      }
+    },
+    {
+      "case": "REPORT_RECOVERED_V1_CREATED",
+      "expect": "RESOLVED",
+      "got": {
+        "status": "RESOLVED",
+        "resolutionNote": "Resolved from source truth: Report generation failed is no longer reported by its source."
+      }
+    },
+    {
+      "case": "REPORT_ROW_PRESENT_OBJECT_MISSING",
+      "note": "no object store is consulted by the probe",
+      "got": {
+        "status": "RESOLVED",
+        "resolutionNote": "Resolved from source truth: Report generation failed is no longer reported by its source."
+      }
+    },
+    {
+      "case": "DETAIL_ACTIONS_FOR_OWNER",
+      "offeredActionIds": [
+        "report.regenerate_artifacts"
+      ],
+      "supersedeViaDirectPost": {
+        "status": 409,
+        "body": {
+          "remediation": {
+            "result": "NOT_ELIGIBLE",
+            "message": "This record is no longer eligible for this action."
+          },
+          "error": {
+            "code": "remediation_not_eligible",
+            "message": "This record is no longer eligible for this action.",
+            "remediation": {
+              "result": "NOT_ELIGIBLE",
+              "message": "This record is no longer eligible for this action."
+            }
+          }
+        }
+      },
+      "regenerate": {
+        "status": 409,
+        "body": {
+          "remediation": {
+            "result": "NOT_ELIGIBLE",
+            "message": "This record is no longer eligible for this action."
+          },
+          "error": {
+            "code": "remediation_not_eligible",
+            "message": "This record is no longer eligible for this action.",
+            "remediation": {
+              "result": "NOT_ELIGIBLE",
+              "message": "This record is no longer eligible for this action."
+            }
+          }
+        }
+      },
+      "regenerateAgain": {
+        "status": 409,
+        "body": {
+          "remediation": {
+            "result": "NOT_ELIGIBLE",
+            "message": "This record is no longer eligible for this action."
+          },
+          "error": {
+            "code": "remediation_not_eligible",
+            "message": "This record is no longer eligible for this action.",
+            "remediation": {
+              "result": "NOT_ELIGIBLE",
+              "message": "This record is no longer eligible for this action."
+            }
+          }
+        }
+      },
+      "requestsBefore": 1,
+      "requestsAfter": [
+        {
+          "state": "FAILED_TERMINAL",
+          "idempotencyKey": "opsaudit-<uuid>-6d37cxr0a88",
+          "forceRegenerate": false,
+          "intent": null
+        }
+      ],
+      "viewerRemediate": 403,
+      "conditionAfter": {
+        "status": "OPEN",
+        "resolutionNote": null
+      }
+    },
+    {
+      "case": "RAW_TEXT_TO_VIEWER",
+      "projectedSummary": "PutObject failed: AccessDenied for s3://proovra-evidence-prod-eu/evidence/abc/original.bin (KMS key arn:aws:kms:eu-central-1:123456789012:key/opsaudit)",
+      "leaksBucket": true,
+      "leaksKmsArn": true
+    },
+    {
+      "case": "PERSONAL_NULL_TEAM_RECORD_FAILURE",
+      "storedScope": "LEGACY_UNSCOPED",
+      "visibleToOwnerInPersonalSpace": false,
+      "ownerSummaryOpenCount": 0
+    }
+  ],
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "services/api/src/jobs/workspace-operations-reconciliation.job.ts": "0604924da4ee2ed161ee48ece7aea87c1e91b93e665cbeca33d3c48c21d99d0e",
+    "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+    "services/api/src/services/observability/incident-scope.ts": "d5c2ed493589b3912483f0eae994b6d3c7ca060a4fdda04db43de63157933eb7",
+    "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3",
+    "services/api/src/services/operations/remediation-registry.ts": "79fe0c164fa587effb53e98ca708d4c59deda3f7946023bcefdcc15e549d2373",
+    "services/api/src/services/operations/source-truth-recovery.service.ts": "655b469d74beb6dbdf2373cc37ed2b75c68c3be527b674fcd7bce5a285860e0a",
+    "services/worker/src/governance/incident-emitter.ts": "371f150a79f68eb593fe4a73dd96fc8afc1f0020d7b43e0c0dc9040ea892bfbb",
+    "services/worker/src/processor.ts": "202f675a7532a49d83ddc401374d7d43e70a25a6383bef036587d953c8088d8e"
+  },
+  "harnessFile": "audit-operations/harness/a4-report-package.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

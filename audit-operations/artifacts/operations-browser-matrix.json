@@ -1,0 +1,452 @@
+{
+  "baseline": "85c8800778e4c09e7681f83c1ee8fed4661beff9",
+  "proofs": [
+    {
+      "proofId": "PR-B01-reem-view",
+      "title": "Reem-shaped personal workspace rendered: grouped list, group drawer, condition drawers",
+      "findingIds": [
+        "OPS-001",
+        "OPS-002",
+        "OPS-003",
+        "OPS-012",
+        "OPS-013"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "groupedView": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nQueue summary\n5\nUnresolved\nOpen or acknowledged.\n1\nCritical\nAffecting records now.\n3\nHigh\nNeeds an operator soon.\n1\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApproaching the committed time.\n1\nResolved\nClosed operational conditions.\n\nA condition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n6 groups · 6 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nCritical\nReport generation failed\nOpen\nReport generation\n·\n1 affected records\n·\n·\nlast seen just now\nHigh\nTrusted timestamping failed\nResolved\nEvidence integrity\n·\n1 affected records\n·\n·\nlast seen just now\nHigh\nStorage add-on still billing after cancellation\nOpen\nStorage\n·\n1 affected records\n·\n·\nlast seen just now\nHigh\nQueue telemetry sampler delayed\nOpen\nBackground processing\n·\nLast telemetry sample 17h ago\n·\n·\nlast seen just now\nHigh\nQueue retry storm\nOpen\nBackground processing\n·\n3 repeatedly observed conditions\n·\nthreshold 1\n·\n·\nlast seen just now\nWarning\nSearch index reconciliation failing\nOpen\nReconciliation\n·\n1 condition\n·\n·\nlast seen just now\nNeed help?",
+        "groupDrawerStorage": {
+          "text": "High\nOpen\nStorage add-on still billing after cancellation\nWHAT THIS IS\nSource\nStorage\nConditions\n1\nAffected records\n1\nSource observations\nObserved in 6 checks\nFirst seen\n<datetime> (just now)\nLast seen\n<datetime> (just now)\nAFFECTED RECORDS\nStorage add-on still billing after cancellation\nHigh\n·\njust now",
+          "controls": [
+            "Close"
+          ]
+        },
+        "groupDrawerRetryStorm": {
+          "text": "High\nOpen\nQueue retry storm\nWHAT THIS IS\nSource\nBackground processing\nConditions\n1\nAffected conditions\n3\nThreshold\n1 (critical at 3)\nSource observations\nObserved in 3 checks\nFirst seen\n<datetime> (just now)\nLast seen\n<datetime> (just now)\nAFFECTED RECORDS\nQueue retry storm\nHigh\n·\njust now",
+          "controls": [
+            "Close"
+          ]
+        },
+        "flatView": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nQueue summary\n5\nUnresolved\nOpen or acknowledged.\n1\nCritical\nAffecting records now.\n3\nHigh\nNeeds an operator soon.\n1\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApproaching the committed time.\n1\nResolved\nClosed operational conditions.\n\nA condition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n6 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nOperational conditions in this workspace\nSELECT\n\tSEVERITY\tCONDITION\tFIRST SEEN\tLATEST ACTIVITY\tSTATUS\t\nACTIONS\n\n\tWarning\t\nSearch index reconciliation failing\nReconciliation\n\t\njust now\n\t\njust now\nObserved in 7 checks\n\tOpen\t\nActions\n\n\tHigh\t\nQueue telemetry sampler delayed\nBackground processing\n·\nlast sample 17h ago\n·\nwindow 30m\n\t\njust now\n\t\njust now\nObserved in 7 checks\n\tOpen\t\nActions\n\n\tHigh\t\nQueue retry storm\nBackground processing\n·\n3 affected conditions\n·\nthreshold 1\n\t\njust now\n\t\njust now\nObserved in 3 checks\n\tOpen\t\nActions\n\n\tHigh\t\nStorage add-on still billing after cancellation\nStorage\n·\nPAYPAL\n\t\njust now\n\t\njust now\nObserved in 6 checks\n\tOpen\t\nActions\n\n\tCritical\t\nReport generation failed\nReport generat",
+        "storageDrawer": {
+          "text": "High\nOpen\nStorage add-on still billing after cancellation\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\n\nSource\nStorage\nSeverity\nHigh — Needs an operator before it becomes critical.\nAffected record\nPAYPAL\nWHAT YOU CAN DO\n\nStorage reported a fault. This is platform infrastructure — no workspace action will change it, and it is being handled by the platform.\n\nWHEN\nFirst seen\n<datetime> (just now)\nLatest occurrence\n<datetime> (just now)\nSource observations\nObserved in 6 checks\nTime commitment\nNo SLA applies\nNo time commitment applies to this condition.\nHISTORY\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nOpened\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nTECHNICAL REFERENCES\n\nIdentifiers to quote if you contact support about this condition.\n\nProvider\nPAYPAL\nCopy\n\nThis condition closes itself when its source recovers. It cannot be marked resolved by hand.\n\nAcknowledge\nStop notifying",
+          "controls": [
+            "Close condition details",
+            "Copy",
+            "Acknowledge",
+            "Stop notifying"
+          ]
+        },
+        "reportDrawer": {
+          "text": "Critical\nOpen\nReport generation failed\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nReport run observed inconsistent proof state\n\nSource\nReport generation\nSeverity\nCritical — Records or delivery are affected now.\nAffected record\nEvidence record\nWHAT YOU CAN DO\nRecover report or package\n\nRebuilds exactly what is missing or failed for this record: only the verification package when the report exists (built from the stored report after its hash is verified), or the report and its package together when there is no report. Existing versions are never replaced. This runs in the background; this condition closes on its own once the record recovers.\n\nWHEN\nFirst seen\n<datetime> (just now)\nLatest occurrence\n<datetime> (just now)\nSource observations\nObserved in 1 checks\nTime commitment\nNo SLA recorded\nNo historical SLA was recorded for this incident, so no commitment can be reported for it.\nHISTORY\n\nNothing has happened to this condition since it opened.\n\nTECHNICAL REFERENCES\n\nIdentifiers to quote if you contact support about this condition.\n\nJob\nreport-job-123\nCopy\n\nThis condition closes itself when its source recovers. It cannot be marked resolved by hand.\n\nAcknowledge\nStop notifying",
+          "controls": [
+            "Close condition details",
+            "Evidence record -> /evidence/8e6a76da-374f-4d56-a559-8bbb793e67d0",
+            "Recover report or package",
+            "Copy",
+            "Acknowledge",
+            "Stop notifying"
+          ]
+        },
+        "telemetryDrawer": {
+          "text": "High\nOpen\nQueue telemetry sampler delayed\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\n\nSource\nBackground processing\nSeverity\nHigh — Needs an operator before it becomes critical.\nWHAT YOU CAN DO\n\nBackground processing reported a fault. The platform owns the queue; the affected records recover when it does.\n\nHOW MUCH\nAffected now\n1,020 minutes\nThreshold\n30 (critical at 120)\nPrevious observation\n1,020 (+0)\nObserved\n<datetime> (just now)\nWHEN\nFirst seen\n<datetime> (just now)\nLatest occurrence\n<datetime> (just now)\nSource observations\nObserved in 7 checks\nTime commitment\nNo SLA applies\nNo time commitment applies to this condition.\nHISTORY\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nOpened\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\n\nThis condition closes itself when its source recovers. It cannot be marked resolved by hand.\n\nAcknowledge\nStop notifying",
+          "controls": [
+            "Close condition details",
+            "Acknowledge",
+            "Stop notifying"
+          ]
+        },
+        "apiRequests": 31
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B01-reem-view.json"
+    },
+    {
+      "proofId": "PR-B02-drawer-refresh-deadlock",
+      "title": "Acknowledge with the condition drawer open",
+      "findingIds": [
+        "OPS-007"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "drawerHeadBefore": "Warning\nOpen\nSearch index reconciliation",
+        "drawerHeadAfter": "Warning\nOpen\nSearch index reconciliation",
+        "refreshControlAfter": {
+          "text": "Refreshing…",
+          "disabled": true
+        },
+        "refreshControlAfterDrawerClosed": {
+          "text": "Refreshing…",
+          "disabled": true
+        },
+        "serverStatus": [
+          "ACKNOWLEDGED"
+        ],
+        "requestsAfterAck": [
+          "POST /v1/ops/incidents/f06120ef-0536-4a62-9367-c38783027a34/ack",
+          "GET /v1/ops/summary?teamId=<ws>",
+          "GET /v1/ops/incidents?teamId=<ws>&sort=recent&limit=50",
+          "GET /v1/ops/incidents/f06120ef-0536-4a62-9367-c38783027a34?teamId=<ws>",
+          "GET /v1/ops/incidents?teamId=<ws>"
+        ]
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B02-drawer-refresh-deadlock.json"
+    },
+    {
+      "proofId": "PR-B03-workspace-switch-inflight",
+      "title": "Workspace switch with a delayed old-workspace list and an open drawer",
+      "findingIds": [
+        "OPS-007"
+      ],
+      "persona": "owner of personal + TEAM org workspace",
+      "observed": {
+        "switcherClickWithDrawerOpen": "blocked: locator.click: Timeout 5000ms exceeded.",
+        "switcherItems": [
+          "Personal Space\nPersonal",
+          "Audit Empty WS\nOrganization",
+          "Audit Team WS\nOrganization"
+        ],
+        "delayedOldListRequests": 0,
+        "headerAfterSwitch": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nAudit Team WS\nUpdated <datetime>\n\nRefresh\nQueue summary\n122\nUnresolved\nOpen or acknowledged.\n1\nCritical\nAffecting records now.\n40\nHigh\nNeeds an operator soon.\n81\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApp",
+        "showsOrgConditions": true,
+        "stillShowsPersonalConditions": false,
+        "drawerStillOpenAfterSwitch": null,
+        "requests": [
+          "GET /v1/ops/incidents?teamId=<ws>&sort=recent&limit=50",
+          "GET /v1/ops/saved-views?teamId=<ws>",
+          "GET /v1/ops/incidents/8755e49e-3628-4042-9ef4-b2fba8843c96?teamId=<ws>",
+          "POST /v1/platform/context/switch-workspace",
+          "GET /v1/me/inbox/summary?workspaceId=61cbfe2c-ba59-43c0-8bb2-d7ab8065c12d",
+          "GET /v1/ops/summary?teamId=<ws>",
+          "GET /v1/ops/incidents?teamId=<ws>&sort=recent&limit=50",
+          "GET /v1/ops/assignable-operators?teamId=<ws>",
+          "GET /v1/ops/saved-views?teamId=<ws>",
+          "GET /v1/runtime/status",
+          "GET /v1/ops/incidents?teamId=<ws>&status=OPEN&limit=50",
+          "GET /v1/reviewer-ops/escalations?teamId=<ws>&status=OPEN&limit=100"
+        ]
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B03-workspace-switch-inflight.json"
+    },
+    {
+      "proofId": "PR-B04-viewer-controls",
+      "title": "TEAM viewer: rendered controls",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "TEAM viewer",
+      "observed": {
+        "drawerControls": [
+          "Close condition details",
+          "Open governance -> /governance"
+        ],
+        "bulkCheckboxes": 0,
+        "rowActionMenus": 0
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B04-viewer-controls.json"
+    },
+    {
+      "proofId": "PR-B05-free-gate",
+      "title": "FREE personal owner opens /operations directly",
+      "findingIds": [
+        "OPS-005"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "pageText": "OPERATIONS\nPermission required\n\nMissing required capability: OPERATIONS_VIEW\n\nNeed help?",
+        "navHasOperations": false
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B05-free-gate.json"
+    },
+    {
+      "proofId": "PR-B06-error-states",
+      "title": "Rendered states for failed / slow reads",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "incidents_403": {
+          "allClearShown": false,
+          "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nThis workspace or feature may require additional permissions. Ask a workspace admin for access, or return to the dashboard.\n\nTr"
+        },
+        "incidents_404": {
+          "allClearShown": false,
+          "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nThe item may have moved or is no longer available. Refresh and try again.\n\nTry again\nNeed help?"
+        },
+        "incidents_409": {
+          "allClearShown": false,
+          "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nPlease review your input and try again.\n\nTry again\nNeed help?"
+        },
+        "incidents_429": {
+          "allClearShown": false,
+          "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nPlease wait a moment and try again.\n\nTry again\nNeed help?"
+        },
+        "incidents_500": {
+          "allClearShown": false,
+          "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nPlease try again in a moment. Your evidence data has not been changed.\n\nTry again\nNeed help?"
+        },
+        "summary_500": {
+          "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nThe queue summary could not be loaded. Please try again in a moment. Your evidence data has not been changed. Anything shown below may be incomplete.\nRetry\nFilt"
+        },
+        "slowNetwork_at200ms": {
+          "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nQueue summary\n5\nUnresolved\nOpen or acknowledged.\n1\nCritical\n"
+        },
+        "detail_500": {
+          "drawer": "High\nOpen\nQueue retry storm\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nActive conditions in this workspace are recurring with occurrenceCount >= 5. Source: OperationalIncident.occurrenceCount.\n\nSo",
+          "listIntact": true
+        },
+        "groups_500": {
+          "saysNoMatch": true,
+          "saysCouldNotLoad": false,
+          "tail": "ondition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n0 groups · 0 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nNo operational conditions match these filters\n\nThis workspace may still have unresolved work. Widen the filters to see it.\n\nClear filters\nNeed help?"
+        }
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B06-error-states.json"
+    },
+    {
+      "proofId": "PR-B07-bulk-outcome",
+      "title": "Web rendering of a fully successful bulk run (server vocabulary COMPLETED)",
+      "findingIds": [
+        "OPS-011"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "selected": 2,
+        "postedBody": {
+          "actionType": "BULK_ACKNOWLEDGE_INCIDENTS",
+          "targets": 2,
+          "idempotencyKey": null
+        },
+        "rendered": [
+          "Updated <datetime>",
+          "0 of 2 updated. 2 could not be changed and remain selected."
+        ]
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B07-bulk-outcome.json"
+    },
+    {
+      "proofId": "PR-B08-pagination",
+      "title": "Pagination with 121 conditions",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "TEAM viewer",
+      "observed": {
+        "groupedSummary": "4 groups · 123 conditions",
+        "loadMoreButtonsInGroupedView": 1,
+        "countLabelFlat": "50+ conditions",
+        "orgTitlesRenderedAfterLoadMore": 97,
+        "rowActionMenusBeforeLoadMore": 0,
+        "checkboxesAfter": 0
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B08-pagination.json"
+    },
+    {
+      "proofId": "PR-B09-responsive",
+      "title": "Responsive widths and 200% root text size",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "widths": {
+          "320": {
+            "scrollWidth": 320,
+            "viewport": 320,
+            "overflowingElements": 0,
+            "targetsUnder24px": 0,
+            "smallSample": []
+          },
+          "375": {
+            "scrollWidth": 375,
+            "viewport": 375,
+            "overflowingElements": 0,
+            "targetsUnder24px": 0,
+            "smallSample": []
+          },
+          "768": {
+            "scrollWidth": 768,
+            "viewport": 768,
+            "overflowingElements": 0,
+            "targetsUnder24px": 0,
+            "smallSample": []
+          },
+          "1024": {
+            "scrollWidth": 1024,
+            "viewport": 1024,
+            "overflowingElements": 0,
+            "targetsUnder24px": 0,
+            "smallSample": []
+          },
+          "1440": {
+            "scrollWidth": 1440,
+            "viewport": 1440,
+            "overflowingElements": 0,
+            "targetsUnder24px": 0,
+            "smallSample": []
+          }
+        },
+        "rootText200pct": {
+          "scrollWidth": 1440,
+          "viewport": 1440
+        }
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B09-responsive.json"
+    },
+    {
+      "proofId": "PR-B10-locales",
+      "title": "English / German / Arabic (RTL) rendering of /operations",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "en": {
+          "lang": "en",
+          "dir": "ltr",
+          "headingSample": "Operations |  | Monitor, assign and resolve operational conditions in this workspace.",
+          "containsEnglishQueueSummary": true
+        },
+        "de": {
+          "lang": "de",
+          "dir": "ltr",
+          "headingSample": "Operations |  | Monitor, assign and resolve operational conditions in this workspace.",
+          "containsEnglishQueueSummary": true
+        },
+        "ar": {
+          "lang": "ar",
+          "dir": "rtl",
+          "headingSample": "Operations |  | Monitor, assign and resolve operational conditions in this workspace.",
+          "containsEnglishQueueSummary": true
+        }
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B10-locales.json"
+    },
+    {
+      "proofId": "PR-B11-accessibility",
+      "title": "Keyboard, focus trap/restore, headings, names, live regions, reduced motion",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "openerFocusable": "BUTTON",
+        "focusMovedIntoDrawer": false,
+        "tabPressesUntilFocusLeftDrawer": 1,
+        "focusAfterEscape": "Select Queue telemetry sampler delayed for a bulk action",
+        "headings": [
+          "H1:Operations",
+          "H2:Queue summary"
+        ],
+        "nestedInteractive": 0,
+        "unnamedControls": 0,
+        "liveRegions": [],
+        "runningAnimationsUnderReducedMotion": 0
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B11-accessibility.json"
+    },
+    {
+      "proofId": "PR-B12-history-deeplink",
+      "title": "Back/forward over filters; deep link to an open condition",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "urlAfterFilter": "/operations?severity=CRITICAL",
+        "urlAfterBack": "/home",
+        "urlAfterForward": "/operations?severity=CRITICAL",
+        "urlWhileDrawerOpen": "/operations?severity=CRITICAL",
+        "drawerRestoredAfterReload": false
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B12-history-deeplink.json"
+    },
+    {
+      "proofId": "PR-B13-drawer-churn-polling",
+      "title": "10x drawer open/close; idle 65s request cadence; measured API latency",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "personal owner",
+      "observed": {
+        "elapsedMs": 88471,
+        "detailReadsFor10Opens": 10,
+        "listReadsDuringChurn": 0,
+        "requestsDuringIdle65s": [],
+        "latencyMeasured": {
+          "/v1/ops/incident-groups": {
+            "n": 1,
+            "medianMs": 97
+          },
+          "/v1/ops/summary": {
+            "n": 1,
+            "medianMs": 98
+          },
+          "/v1/ops/incidents": {
+            "n": 1,
+            "medianMs": 112
+          },
+          "/v1/ops/saved-views": {
+            "n": 1,
+            "medianMs": 113
+          },
+          "/v1/ops/incidents/:id": {
+            "n": 10,
+            "medianMs": 33
+          }
+        }
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B13-drawer-churn-polling.json"
+    },
+    {
+      "proofId": "PR-B14-empty-state",
+      "title": "Reconciled TEAM workspace with zero conditions",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "persona": "TEAM owner",
+      "observed": {
+        "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nAudit Empty WS\nUpdated <datetime>\n\nRefresh\nQueue summary\n0\nUnresolved\nOpen or acknowledged.\n0\nCritical\nAffecting records now.\n0\nHigh\nNeeds an operator soon.\n0\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApproaching the committed time.\n0\nResolved\nClosed operational conditions.\n\nA condition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n0 groups · 0 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nWorkspace operations are clear\n\nThere are no unresolved operational conditions requiring action in th"
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B14-empty-state.json"
+    },
+    {
+      "proofId": "PR-B15-two-tabs",
+      "title": "Second tab acknowledges a condition already acknowledged in the first",
+      "findingIds": [
+        "OPS-007"
+      ],
+      "persona": "TEAM owner",
+      "observed": {
+        "secondTabMessages": [
+          "Refreshing…",
+          "Refreshing…"
+        ],
+        "dialogs": [
+          "Critical\nOpen\nReport generation failed\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nrender failed\n\nSource\nReport generation\nSeverity\nCritical — Records or del",
+          "WorkspaceHomeNotificationsCasesEvidenceCaptureIntake linksSearchCollaboration TeamsGovernanceMembers & AccessOutputsReportsSystemBilling & planOperationsStorage"
+        ]
+      },
+      "evidenceFile": "audit-operations/evidence/browser/PR-B15-two-tabs.json"
+    }
+  ],
+  "widths": [
+    320,
+    375,
+    768,
+    1024,
+    1440
+  ],
+  "locales": [
+    "en",
+    "de",
+    "ar"
+  ],
+  "darkTheme": {
+    "present": "PARTIAL (no global authority)",
+    "evidence": [
+      "apps/web/app/(app)/admin/platform/admin-platform.css:314-325 (prefers-color-scheme: dark + :root[data-theme=dark] for .apf-stat/.apf-table th)",
+      "apps/web/app/(app)/admin/platform/runbooks/runbooks.css:318-319"
+    ],
+    "detail": "Only two admin-platform stylesheets react to dark mode. No ThemeProvider/next-themes, nothing sets data-theme, no color-scheme in the app shell or operations.css. A test asserts a CSS file has neither (apps/web/__tests__/render/evidence-output-attention.render.test.tsx:470-471). Operations: no dark theme."
+  }
+}

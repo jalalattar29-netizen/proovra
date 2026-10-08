@@ -1,0 +1,1186 @@
+{
+  "proofId": "PR-A2-matrix",
+  "title": "Persona x plan x workspace access matrix (API executed; web decision from capability envelope)",
+  "proofType": "RUNTIME_PROVEN",
+  "findingIds": [
+    "OPS-005",
+    "OPS-010",
+    "OPS-021"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "API authorization agrees with the web capability decision for every cell; tenant reads never include platform, legacy-unscoped or other-workspace rows.",
+  "observed": [
+    {
+      "cell": "PERSONAL_FREE_OWNER",
+      "persona": "personal owner",
+      "plan": "FREE",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": false
+    },
+    {
+      "cell": "PERSONAL_PAYG_OWNER",
+      "persona": "personal owner",
+      "plan": "PAYG",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "PAYG"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "PERSONAL_PRO_OWNER",
+      "persona": "personal owner",
+      "plan": "PRO",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "PRO"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "PERSONAL_TEAM_OWNER",
+      "persona": "personal owner",
+      "plan": "TEAM",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "PERSONAL_INTERNAL_TEAM_GRANT",
+      "persona": "personal owner",
+      "plan": "FREE + internal TEAM grant",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "PERSONAL_EXPIRED_GRANT",
+      "persona": "personal owner",
+      "plan": "expired internal TEAM grant",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": false
+    },
+    {
+      "cell": "PERSONAL_REVOKED_GRANT",
+      "persona": "personal owner",
+      "plan": "revoked internal TEAM grant",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": false
+    },
+    {
+      "cell": "PERSONAL_PRO_LAPSED_ENTITLEMENT",
+      "persona": "personal owner",
+      "plan": "PRO entitlement validUntil past",
+      "workspaceType": "personal",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "PRO"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_ACTIVE_OWNER",
+      "persona": "TEAM owner (sole member)",
+      "plan": "TEAM billingStatus=ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_PAST_DUE_OWNER",
+      "persona": "TEAM owner (sole member)",
+      "plan": "TEAM billingStatus=PAST_DUE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_CANCELED_OWNER",
+      "persona": "TEAM owner (sole member)",
+      "plan": "TEAM billingStatus=CANCELED",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": false
+    },
+    {
+      "cell": "OWNED_TEAM_INACTIVE_OWNER",
+      "persona": "TEAM owner (sole member)",
+      "plan": "TEAM billingStatus=INACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": false
+    },
+    {
+      "cell": "OWNED_TEAM_ACTIVE_ADMIN",
+      "persona": "TEAM admin",
+      "plan": "TEAM ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "true",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_ACTIVE_MEMBER",
+      "persona": "TEAM member",
+      "plan": "TEAM ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_ACTIVE_VIEWER",
+      "persona": "TEAM viewer",
+      "plan": "TEAM ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 403,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_REVOKED_MEMBER",
+      "persona": "revoked member",
+      "plan": "TEAM ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": "{\"message\":\"Not a member of this workspace\",\"code\":\"workspace_membership_required\",\"requestId\":\"da2587da-c949-4264-8d77-46a9f12845f2\"}",
+        "switchStatus": 403,
+        "activeTeamMatches": false,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 403,
+        "listCode": "permission_denied",
+        "summary": 403,
+        "detail": 403,
+        "ack": 403,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 403,
+        "workspaceReconcile": 403
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 403,
+        "nonexistentDetail": 403,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_SUSPENDED_MEMBER",
+      "persona": "suspended member",
+      "plan": "TEAM ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": "{\"message\":\"Not a member of this workspace\",\"code\":\"workspace_membership_required\",\"requestId\":\"0c058918-2d03-4cd5-a6ae-f6ef01c452ee\"}",
+        "switchStatus": 403,
+        "activeTeamMatches": false,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 403,
+        "listCode": "permission_denied",
+        "summary": 403,
+        "detail": 403,
+        "ack": 403,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 403,
+        "workspaceReconcile": 403
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 403,
+        "nonexistentDetail": 403,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_TEAM_ACCESS_EXPIRED_MEMBER",
+      "persona": "member whose access expired",
+      "plan": "TEAM ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "TEAM"
+      },
+      "api": {
+        "list": 403,
+        "listCode": "permission_denied",
+        "summary": 403,
+        "detail": 403,
+        "ack": 403,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 403,
+        "workspaceReconcile": 403
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 403,
+        "nonexistentDetail": 403,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": false
+    },
+    {
+      "cell": "OWNED_TEAM_INVITED_NOT_ACCEPTED",
+      "persona": "invited, not accepted",
+      "plan": "TEAM ACTIVE",
+      "workspaceType": "owned team",
+      "web": {
+        "switchBody": "{\"message\":\"Not a member of this workspace\",\"code\":\"workspace_membership_required\",\"requestId\":\"4490194b-ed2c-4e08-ac53-991de3bd1889\"}",
+        "switchStatus": 403,
+        "activeTeamMatches": false,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 404,
+        "listCode": "not_found",
+        "summary": 404,
+        "detail": 404,
+        "ack": 404,
+        "suppress": 404,
+        "assignableOperators": 404,
+        "health": 404,
+        "workspaceReconcile": 404
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "OWNED_FREE_OWNER_WITH_REVOKED_EXMEMBER",
+      "persona": "sole active owner + 1 revoked row",
+      "plan": "FREE",
+      "workspaceType": "owned",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "true",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "ASSIGN_TO_REVOKED",
+      "operators": {
+        "operators": [
+          {
+            "userId": "<uuid>",
+            "displayName": null,
+            "email": "free-owned-1791490623403-18@opsaudit.test",
+            "role": "OWNER"
+          }
+        ],
+        "selfUserId": "<uuid>"
+      },
+      "assignRevokedStatus": 400,
+      "assignRevokedBody": "{\"error\":\"invalid_assignee\",\"message\":\"Assignee must be an active member of this workspace who can act on operational work.\"}"
+    },
+    {
+      "cell": "ENT_ORG_ADMIN_NOT_WORKSPACE_MEMBER",
+      "persona": "Enterprise org admin (no workspace membership row)",
+      "plan": "ENTERPRISE",
+      "workspaceType": "organization",
+      "web": {
+        "switchBody": "{\"message\":\"Not a member of this workspace\",\"code\":\"workspace_membership_required\",\"requestId\":\"4d84012d-36da-4931-bf99-e821bf720d17\"}",
+        "switchStatus": 403,
+        "activeTeamMatches": false,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 404,
+        "listCode": "not_found",
+        "summary": 404,
+        "detail": 404,
+        "ack": 404,
+        "suppress": 404,
+        "assignableOperators": 404,
+        "health": 404,
+        "workspaceReconcile": 404
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "ENT_WS_OWNER",
+      "persona": "Enterprise workspace owner/org owner",
+      "plan": "ENTERPRISE",
+      "workspaceType": "organization",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "false",
+        "resolvedPlan": "ENTERPRISE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "ENT_WS_ADMIN",
+      "persona": "Enterprise workspace admin",
+      "plan": "ENTERPRISE",
+      "workspaceType": "organization",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "true",
+        "resolvedPlan": "ENTERPRISE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 200,
+        "assignableOperators": 200,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "ENT_WS_MEMBER",
+      "persona": "Enterprise workspace member",
+      "plan": "ENTERPRISE",
+      "workspaceType": "organization",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "ENTERPRISE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 200,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "ENT_WS_VIEWER",
+      "persona": "Enterprise workspace viewer",
+      "plan": "ENTERPRISE",
+      "workspaceType": "organization",
+      "web": {
+        "switchBody": null,
+        "switchStatus": 200,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "ENTERPRISE"
+      },
+      "api": {
+        "list": 200,
+        "listCode": null,
+        "summary": 200,
+        "detail": 200,
+        "ack": 403,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 200,
+        "workspaceReconcile": 202
+      },
+      "tenancy": {
+        "ownVisible": true,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "ENT_SUSPENDED_ORG_OWNER",
+      "persona": "owner of suspended org",
+      "plan": "ENTERPRISE",
+      "workspaceType": "organization (suspended)",
+      "web": {
+        "switchBody": "{\"message\":\"This organization is not currently active\",\"code\":\"organization_unavailable\",\"requestId\":\"3f374c7c-c836-440a-afe2-ad6339ca5b61\"}",
+        "switchStatus": 403,
+        "activeTeamMatches": true,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "true",
+        "ACK": "true",
+        "RESOLVE": "true",
+        "SUPPRESS": "true",
+        "ASSIGN": "true",
+        "resolvedPlan": "ENTERPRISE"
+      },
+      "api": {
+        "list": 403,
+        "listCode": "permission_denied",
+        "summary": 403,
+        "detail": 403,
+        "ack": 403,
+        "suppress": 403,
+        "assignableOperators": 403,
+        "health": 403,
+        "workspaceReconcile": 403
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 403,
+        "nonexistentDetail": 403,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": false
+    },
+    {
+      "cell": "PLATFORM_ADMIN_NOT_MEMBER",
+      "persona": "Platform Admin (no membership)",
+      "plan": "n/a",
+      "workspaceType": "organization",
+      "web": {
+        "switchBody": "{\"message\":\"Not a member of this workspace\",\"code\":\"workspace_membership_required\",\"requestId\":\"afc95f86-5113-44f3-a726-7ad25b5b06ad\"}",
+        "switchStatus": 403,
+        "activeTeamMatches": false,
+        "envelopeStatus": 200,
+        "OPERATIONS_VIEW": "false",
+        "ACK": "false",
+        "RESOLVE": "false",
+        "SUPPRESS": "false",
+        "ASSIGN": "false",
+        "resolvedPlan": "FREE"
+      },
+      "api": {
+        "list": 404,
+        "listCode": "not_found",
+        "summary": 404,
+        "detail": 404,
+        "ack": 404,
+        "suppress": 404,
+        "assignableOperators": 404,
+        "health": 404,
+        "workspaceReconcile": 404
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 404,
+        "nonexistentDetail": 404,
+        "enumerationIndistinguishable": true
+      },
+      "apiAgreesWithWeb": true
+    },
+    {
+      "cell": "PLATFORM_ADMIN_CONSOLE",
+      "adminIncidents": 200,
+      "scopesVisible": [
+        "WORKSPACE",
+        "LEGACY_UNSCOPED",
+        "PLATFORM"
+      ],
+      "adminRowCount": 100,
+      "adminItemKeys": [
+        "id",
+        "teamId",
+        "scope",
+        "lifecycle",
+        "metric",
+        "category",
+        "severity",
+        "status",
+        "title",
+        "safeSummary",
+        "fingerprint",
+        "occurrenceCount",
+        "firstSeenAtUtc",
+        "lastSeenAtUtc",
+        "requestId",
+        "traceId",
+        "relatedEvidenceId",
+        "relatedJobId",
+        "relatedProvider",
+        "runbookSlug",
+        "acknowledgedByUserId",
+        "resolvedByUserId",
+        "acknowledgedAtUtc",
+        "resolvedAtUtc",
+        "assignedOperatorUserId",
+        "assignedAtUtc",
+        "target",
+        "affected"
+      ],
+      "customerOwnerOnAdminRoute": 403
+    },
+    {
+      "cell": "UNAUTHENTICATED",
+      "persona": "unauthenticated",
+      "plan": "n/a",
+      "workspaceType": "organization",
+      "web": {
+        "switchBody": null,
+        "switchStatus": null,
+        "activeTeamMatches": null,
+        "envelopeStatus": 0,
+        "OPERATIONS_VIEW": null,
+        "ACK": null,
+        "RESOLVE": null,
+        "SUPPRESS": null,
+        "ASSIGN": null,
+        "resolvedPlan": null
+      },
+      "api": {
+        "list": 401,
+        "listCode": "UNAUTHORIZED",
+        "summary": 401,
+        "detail": 401,
+        "ack": 401,
+        "suppress": 401,
+        "assignableOperators": 401,
+        "health": 401,
+        "workspaceReconcile": 401
+      },
+      "tenancy": {
+        "ownVisible": false,
+        "otherTenantVisible": false,
+        "platformVisible": false,
+        "legacyVisible": false,
+        "otherTenantDetailById": 401,
+        "nonexistentDetail": 401,
+        "enumerationIndistinguishable": false
+      },
+      "apiAgreesWithWeb": null
+    },
+    {
+      "cell": "MULTI_WORKSPACE_USER",
+      "xHasOnlyX": true,
+      "yHasOnlyY": true,
+      "modifyYIncidentFromXContext": {
+        "ack": 404,
+        "resolve": 404
+      }
+    }
+  ],
+  "outcome": "INFORMATIONAL",
+  "sourceFingerprints": {
+    "packages/shared-billing/src/plan-catalog.ts": "6519e28a99f70f6b328fafdbd357bc5904987f90a1e0ec845af0bc6d31bfbc38",
+    "packages/shared/src/permissions.ts": "3980bc67a18674190411ed22c735294192ae67527af77d5bd53e9fa8bc045001",
+    "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+    "services/api/src/services/identity/access-policy.service.ts": "f2a54d67172a720a1e2155db40c512fc77fa8c3d44cd4c495422cb9ba16307da",
+    "services/api/src/services/observability/incident-scope.ts": "d5c2ed493589b3912483f0eae994b6d3c7ca060a4fdda04db43de63157933eb7",
+    "services/api/src/services/platform-context/capability-registry.ts": "f665f3ecef4b9677075a85d6e7a10a526c6f7ff1b6fec2371c61b5c01c789955",
+    "services/api/src/services/platform-context/platform-context.service.ts": "aca73b9f98af2a25e8e21cde759e705b46cd08abe98298976cd25ff8c2845981"
+  },
+  "harnessFile": "audit-operations/harness/a2-persona-matrix.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

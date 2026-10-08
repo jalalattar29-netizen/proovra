@@ -1,0 +1,41 @@
+{
+  "proofId": "PR-A1-telemetry-fabricated",
+  "title": "Workspace telemetry condition is derived from Home page loads, not the worker sampler",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-001"
+  ],
+  "persona": "personal owner",
+  "plan": "FREE (plan irrelevant: sweep runs for every workspace)",
+  "workspaceType": "personal",
+  "expected": "A 'Queue telemetry sampler delayed' condition is raised only when the real BullMQ sampler is stale, and recovers when it samples.",
+  "observed": {
+    "workerSampleAgeSec": 0,
+    "conditionWithFreshWorker": {
+      "status": "OPEN",
+      "severity": "HIGH",
+      "minutes": 1020,
+      "summary": "The most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused."
+    },
+    "homeGet1": 200,
+    "afterHomeVisit": "RESOLVED",
+    "afterHomeNote": "Queue telemetry sampler delayed: the source is below its threshold of 30 minutes. Resolved from positive observation, not from absence in a scan.",
+    "homeGet2": 200,
+    "newestWorkspaceRowAgeMinAfterSecondHome": 31,
+    "after31MinAndHomeVisit": {
+      "status": "OPEN",
+      "severity": "WARNING"
+    },
+    "neverVisitedHomeWorkspaceWithZeroWorkerSamples_conditions": 0
+  },
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "services/api/src/services/dashboard/command-center.service.ts": "7b240db45991f54f705d0870293211020719c7df6f796898c9aa33e06830c374",
+    "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+    "services/api/src/services/dashboard/queue-telemetry.service.ts": "bd56db261e72fa699b617436f4c63292934b3310710c3be1132e248113b2dfab",
+    "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3",
+    "services/worker/src/telemetry.ts": "1dad7ea7f3b9b242f2a5d2f8522a37dd150cad6918b2356b1ac4c091aeeef5d4"
+  },
+  "harnessFile": "audit-operations/harness/a1-telemetry-storm.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

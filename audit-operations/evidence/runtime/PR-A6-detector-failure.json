@@ -1,0 +1,75 @@
+{
+  "proofId": "PR-A6-detector-failure",
+  "title": "Unreadable source => PARTIAL run, all-clear refused; concurrent reconcile",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "A detector failure never renders a healthy all-clear; concurrent reconcile requests produce one run.",
+  "observed": {
+    "partial": {
+      "runKind": "ran",
+      "failedSources": [
+        "platform.telemetry_stale"
+      ],
+      "summaryReadiness": "PARTIAL",
+      "mayAssertAllClear": false,
+      "clearRefusalReason": "PARTIAL_SOURCES"
+    },
+    "concurrentReconcileStatuses": [
+      202,
+      202,
+      202,
+      202,
+      202
+    ],
+    "concurrentBodies": [
+      {
+        "started": false,
+        "alreadyRunning": false,
+        "refusedReason": null,
+        "retryable": true,
+        "readiness": "READY"
+      },
+      {
+        "started": true,
+        "alreadyRunning": true,
+        "refusedReason": null,
+        "retryable": true,
+        "readiness": "RUNNING"
+      },
+      {
+        "started": true,
+        "alreadyRunning": true,
+        "refusedReason": null,
+        "retryable": true,
+        "readiness": "RUNNING"
+      },
+      {
+        "started": true,
+        "alreadyRunning": true,
+        "refusedReason": null,
+        "retryable": true,
+        "readiness": "RUNNING"
+      },
+      {
+        "started": true,
+        "alreadyRunning": true,
+        "refusedReason": null,
+        "retryable": true,
+        "readiness": "RUNNING"
+      }
+    ],
+    "runsCreated": 1
+  },
+  "outcome": "BEHAVIOUR_CORRECT",
+  "sourceFingerprints": {
+    "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+    "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+    "services/api/src/services/operations/operations-reconciliation.service.ts": "28c42a56ebe07a8316db68e248ad6409ae8f26db9f32385fdbefe9f2e31bdd1d",
+    "services/api/src/services/operations/operations-summary.service.ts": "fa1086015e212f488acb68aad62a7f249c984e39812a5bae94d521db44068846"
+  },
+  "harnessFile": "audit-operations/harness/a6-scheduler-resolvers.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

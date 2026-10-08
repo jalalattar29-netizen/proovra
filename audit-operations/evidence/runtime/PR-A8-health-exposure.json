@@ -1,0 +1,42 @@
+{
+  "proofId": "PR-A8-health-exposure",
+  "title": "GET /v1/ops/health content for a workspace VIEWER",
+  "proofType": "RUNTIME_PROVEN",
+  "findingIds": [
+    "OPS-010"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "No process-global configuration, env-var names or platform-internal counts reach a workspace member.",
+  "observed": {
+    "status": 200,
+    "topLevelKeys": [
+      "alerts",
+      "database",
+      "incidents",
+      "observability",
+      "ok",
+      "snapshot",
+      "violations"
+    ],
+    "envVarNamesExposed": [
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_API_KEY",
+      "TWILIO_API_SECRET"
+    ],
+    "incidentsBlock": {
+      "openTotal": 1,
+      "openHigh": 0,
+      "openCritical": 1
+    },
+    "tenantListCount": 0,
+    "tenantListIncludesHeartbeat": false
+  },
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919"
+  },
+  "harnessFile": "audit-operations/harness/a8-actions-cron-health.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

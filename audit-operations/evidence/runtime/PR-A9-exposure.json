@@ -1,0 +1,43 @@
+{
+  "proofId": "PR-A9-exposure",
+  "title": "Platform/infrastructure data reachable by workspace members outside /operations",
+  "proofType": "RUNTIME_PROVEN",
+  "findingIds": [
+    "OPS-010"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "Workspace members cannot read platform secrets posture or other tenants' job failure text.",
+  "observed": {
+    "secretsHealthForViewer": {
+      "status": 200,
+      "keys": [
+        "health",
+        "migrated",
+        "otel"
+      ],
+      "sample": "{\"health\":{\"mode\":\"disabled\",\"refreshSuspended\":false,\"awsEnabled\":false,\"awsConnected\":false,\"cacheLoaded\":false,\"fallbackMode\":\"env_only\",\"lastRefreshAtUtc\":null,\"lastErrorCode\":null,\"cachedKeyCount\":0,\"secretName\":null,\"region\":\"us-east-1\",\"degraded\":false,\"initialised\":true,\"usingLegacyEnabledVariable\":true},\"migrated\":[{\"name\":\"OPENAI_API_KEY\",\"source\":\"missing\",\"present\":false},{\"name\":\"AUTH"
+    },
+    "workspaceOperationsHealthViewer": {
+      "status": 200,
+      "sample": "{\"scope\":\"WORKSPACE\",\"workspaceId\":\"f12a81a6-cda6-43e5-9b65-d599cb181324\",\"state\":\"HEALTHY\",\"openIncidents\":{\"total\":0,\"bySeverity\":{}},\"unresolvedIncidents\":0,\"lastIncidentActivityUtc\":null,\"evaluatedAtUtc\":\"2026-10-08T20:17:38.659Z\"}"
+    },
+    "investigationDiagnosticsViewerOfA": {
+      "status": 200,
+      "leaksTenantBFailureText": true,
+      "leakedFragment": "},\"mediaIntelligence\":{\"depth\":0,\"lastError\":null,\"lastRunAt\":null},\"miEmbed\":{\"depth\":0,\"lastError\":null,\"lastRunAt\":null},\"searchIndexing\":{\"depth\":1,\"lastError\":null,\"lastRunAt\":null},\"report\":{\"depth\":0,\"lastError\":\"TENANT-B-SECRET evidence <uuid> failed for <uuid>\",\"lastRunAt\":\"<ts>\"}},\"produce",
+      "viewerRole": "VIEWER of tenant A",
+      "producerTenant": "tenant B"
+    }
+  },
+  "outcome": "INFORMATIONAL",
+  "sourceFingerprints": {
+    "services/api/src/routes/investigation-diagnostics.routes.ts": "2cbeac16a6449f8e3d3d684c72239200459a5eee9c6867cc5e4d976ddfedd04c",
+    "services/api/src/routes/runtime-secrets-health.routes.ts": "bc076cf03d3bfe7ec482057e44747ef45f4cc5e1554112ca548ded54a3d4c65f",
+    "services/api/src/routes/workspace-operations.routes.ts": "589d0484a61a8595ac38b19fc54256ec22ce125b444f66328ea0c7bdcc54c563",
+    "services/api/src/services/investigation-diagnostics.service.ts": "2d9316692c0d5f51f0fbd5c9b18488ae17f3b32dbf30238dde8eb0909408b89e"
+  },
+  "harnessFile": "audit-operations/harness/a9-enterprise-exposure.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

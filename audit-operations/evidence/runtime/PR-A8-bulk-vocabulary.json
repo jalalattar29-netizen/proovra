@@ -1,0 +1,32 @@
+{
+  "proofId": "PR-A8-bulk-vocabulary",
+  "title": "Bulk item vocabulary returned by the API vs the value the web counts as success",
+  "proofType": "RUNTIME_PROVEN",
+  "findingIds": [
+    "OPS-011"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "The web counts the server's success value as success.",
+  "observed": {
+    "serverRunStatus": "COMPLETED",
+    "serverItemStatuses": [
+      "COMPLETED"
+    ],
+    "webSuccessValueChecked": "SUCCEEDED (page.tsx: i.status !== \"SUCCEEDED\")",
+    "webWouldReportUpdated": 0,
+    "httpPostWithoutStepUp": {
+      "status": 401,
+      "code": "STEP_UP_REQUIRED"
+    }
+  },
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+    "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+    "services/api/src/services/dashboard/bulk-actions.service.ts": "e9145bfe667a585808c4662b396f62771b16076f26df31d37dbf97f0906f70c5"
+  },
+  "harnessFile": "audit-operations/harness/a8-actions-cron-health.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

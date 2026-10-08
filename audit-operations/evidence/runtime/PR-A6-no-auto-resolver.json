@@ -1,0 +1,72 @@
+{
+  "proofId": "PR-A6-no-auto-resolver",
+  "title": "Sources declared PROBE_AUTO_RESOLVE that no sweep closes",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-018"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "A PROBE_AUTO_RESOLVE condition closes once its source is healthy.",
+  "observed": [
+    {
+      "sourceId": "evidence_integrity.ots_budget_exhausted",
+      "sourceHealthy": "record's otsStatus is ANCHORED",
+      "afterTwoSweeps": "OPEN",
+      "manualResolve": {
+        "status": 200,
+        "code": null
+      }
+    },
+    {
+      "sourceId": "pipeline.package_generation_denied",
+      "sourceHealthy": "no current denial exists",
+      "afterTwoSweeps": "OPEN",
+      "manualResolve": {
+        "status": 409,
+        "code": "CONDITION_STILL_ACTIVE"
+      }
+    },
+    {
+      "sourceId": "review.escalation",
+      "sourceHealthy": "the workflow no longer exists / escalation cleared",
+      "afterTwoSweeps": "OPEN",
+      "manualResolve": {
+        "status": 200,
+        "code": null
+      }
+    },
+    {
+      "sourceId": "identity.idp_outage",
+      "sourceHealthy": "no SSO failures recorded",
+      "afterTwoSweeps": "OPEN",
+      "manualResolve": {
+        "status": 200,
+        "code": null
+      }
+    },
+    {
+      "sourceId": "billing.provider_authorization",
+      "storedScopes": [
+        "LEGACY_UNSCOPED",
+        "LEGACY_UNSCOPED"
+      ],
+      "openRows": 2,
+      "note": "PLATFORM scope never written; hourly fingerprints accumulate",
+      "_ids": [
+        "ok",
+        "ok"
+      ]
+    }
+  ],
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+    "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+    "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd",
+    "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3"
+  },
+  "harnessFile": "audit-operations/harness/a6-scheduler-resolvers.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

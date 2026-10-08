@@ -1,0 +1,2618 @@
+{
+  "baseline": "85c8800778e4c09e7681f83c1ee8fed4661beff9",
+  "sourceRegistry": [
+    {
+      "id": "ai.condition",
+      "category": "AI",
+      "displayLabel": "AI service condition",
+      "resolutionAuthority": "NO_DIRECT_RESOLUTION",
+      "recoveryPolicy": "NO_RECOVERY_SIGNAL",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "NOT_YET_DISCOVERED",
+      "declaredProducers": [],
+      "registryScopeAuthority": "PLATFORM_TELEMETRY",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1751",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:383"
+    },
+    {
+      "id": "billing.dependent_cancellation_failed",
+      "category": "STORAGE",
+      "displayLabel": "Storage add-on still billing after cancellation",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/billing/dependent-cancellation-conditions.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1448",
+      "activityProbeKey": "billing.dependent_cancellation_state",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:556"
+    },
+    {
+      "id": "billing.provider_authorization",
+      "category": "RECONCILIATION",
+      "displayLabel": "Payment provider refused our credentials",
+      "resolutionAuthority": "NO_DIRECT_RESOLUTION",
+      "recoveryPolicy": "NO_RECOVERY_SIGNAL",
+      "remediationDisposition": "NO_SAFE_REMEDIATION_AUTHORITY",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/billing/pending-payments.service.ts"
+      ],
+      "registryScopeAuthority": "PLATFORM_TELEMETRY",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1387",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:591"
+    },
+    {
+      "id": "communications.provider_failure",
+      "category": "COMMUNICATIONS",
+      "displayLabel": "Communications provider failure",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/security/security-event.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1084",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:297"
+    },
+    {
+      "id": "coordination.backlog_stale",
+      "category": "GOVERNANCE",
+      "displayLabel": "Coordination backlog",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.read",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "EVIDENCE_RELATION_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:919",
+      "activityProbeKey": "coordination.stale_backlog_count",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:228"
+    },
+    {
+      "id": "database.condition",
+      "category": "DATABASE",
+      "displayLabel": "Database condition",
+      "resolutionAuthority": "NO_DIRECT_RESOLUTION",
+      "recoveryPolicy": "NO_RECOVERY_SIGNAL",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "NOT_YET_DISCOVERED",
+      "declaredProducers": [],
+      "registryScopeAuthority": "PLATFORM_TELEMETRY",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1727",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:393"
+    },
+    {
+      "id": "evidence_integrity.ots_budget_exhausted",
+      "category": "WORKER",
+      "displayLabel": "Blockchain anchoring abandoned",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/worker/src/ots-upgrade.processor.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:663",
+      "activityProbeKey": "evidence.ots_status",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:417"
+    },
+    {
+      "id": "evidence_integrity.ots_failed",
+      "category": "EVIDENCE_INTEGRITY",
+      "displayLabel": "Blockchain anchoring failed",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:509",
+      "activityProbeKey": "evidence.ots_status",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:156"
+    },
+    {
+      "id": "evidence_integrity.ots_initialization_stalled",
+      "category": "EVIDENCE_INTEGRITY",
+      "displayLabel": "Blockchain anchoring has not started",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:591",
+      "activityProbeKey": "evidence.ots_initialization_stalled",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:440"
+    },
+    {
+      "id": "evidence_integrity.ots_pending_aged",
+      "category": "EVIDENCE_INTEGRITY",
+      "displayLabel": "Blockchain anchoring still pending",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.publish_verify",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:537",
+      "activityProbeKey": "evidence.ots_pending_aged",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:166"
+    },
+    {
+      "id": "evidence_integrity.tsa_failed",
+      "category": "EVIDENCE_INTEGRITY",
+      "displayLabel": "Trusted timestamping failed",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "NO_SAFE_REMEDIATION_AUTHORITY",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:476",
+      "activityProbeKey": "evidence.tsa_status",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:146"
+    },
+    {
+      "id": "governance.destruction_executed",
+      "category": "GOVERNANCE",
+      "displayLabel": "Evidence destruction executed",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/governance-lifecycle/destruction-review.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1322",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:536"
+    },
+    {
+      "id": "governance.notification_escalated",
+      "category": "GOVERNANCE",
+      "displayLabel": "Governance notification escalated",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/worker/src/governance/notification-emitter.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1351",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:546"
+    },
+    {
+      "id": "governance.policy_condition",
+      "category": "GOVERNANCE",
+      "displayLabel": "Governance policy condition",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/security/security-event.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1160",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:363"
+    },
+    {
+      "id": "identity.high_risk_session_surge",
+      "category": "IDENTITY_SECURITY",
+      "displayLabel": "High-risk session surge",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/access-control/runtime-risk.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1290",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:526"
+    },
+    {
+      "id": "identity.idp_outage",
+      "category": "IDENTITY_SECURITY",
+      "displayLabel": "Identity provider outage",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/access-control/sso-hardening.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1231",
+      "activityProbeKey": "identity.idp_outage_state",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:506"
+    },
+    {
+      "id": "identity.runtime_block",
+      "category": "IDENTITY_SECURITY",
+      "displayLabel": "Sign-in blocked by runtime risk",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/access-control/adaptive-runtime-gate.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1262",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:516"
+    },
+    {
+      "id": "identity.security_condition",
+      "category": "IDENTITY_SECURITY",
+      "displayLabel": "Identity security condition",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "audit.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/security/security-event.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1134",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:353"
+    },
+    {
+      "id": "intake.delivery_failed",
+      "category": "UPLOAD",
+      "displayLabel": "Intake delivery failed",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/security/security-event.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1060",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:283"
+    },
+    {
+      "id": "integration.configuration_failure",
+      "category": "INTEGRATION",
+      "displayLabel": "Integration configuration invalid",
+      "resolutionAuthority": "NO_DIRECT_RESOLUTION",
+      "recoveryPolicy": "NO_RECOVERY_SIGNAL",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "integration.webhook.manage",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "NOT_YET_DISCOVERED",
+      "declaredProducers": [],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1633",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:343"
+    },
+    {
+      "id": "job.background_failure",
+      "category": "WORKER",
+      "displayLabel": "Background job failure",
+      "resolutionAuthority": "NO_DIRECT_RESOLUTION",
+      "recoveryPolicy": "NO_RECOVERY_SIGNAL",
+      "remediationDisposition": "SPECIALIZED_SURFACE",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "NOT_YET_DISCOVERED",
+      "declaredProducers": [],
+      "registryScopeAuthority": "PLATFORM_TELEMETRY",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1677",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:333"
+    },
+    {
+      "id": "pipeline.package_backlog",
+      "category": "PACKAGE",
+      "displayLabel": "Verification package backlog",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:724",
+      "activityProbeKey": "pipeline.package_backlog_count",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:189"
+    },
+    {
+      "id": "pipeline.package_generation_denied",
+      "category": "GOVERNANCE",
+      "displayLabel": "Verification package denied",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/worker/src/governance/package-eligibility-gate.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:805",
+      "activityProbeKey": "evidence.package_present",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:466"
+    },
+    {
+      "id": "pipeline.package_generation_failed",
+      "category": "PACKAGE",
+      "displayLabel": "Verification package generation failed",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/worker/src/processor.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:637",
+      "activityProbeKey": "evidence.package_present",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:455"
+    },
+    {
+      "id": "pipeline.report_backlog",
+      "category": "REPORT",
+      "displayLabel": "Report generation backlog",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:694",
+      "activityProbeKey": "pipeline.report_backlog_count",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:179"
+    },
+    {
+      "id": "pipeline.report_generation_failed",
+      "category": "REPORT",
+      "displayLabel": "Report generation failed",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/worker/src/processor.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:776",
+      "activityProbeKey": "evidence.report_present",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:427"
+    },
+    {
+      "id": "pipeline.signed_without_report_aged",
+      "category": "GOVERNANCE",
+      "displayLabel": "Uploaded evidence awaiting signing",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_REMEDIATION",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "evidence.generate_report",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:750",
+      "activityProbeKey": "pipeline.signed_without_report_aged_count",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:199"
+    },
+    {
+      "id": "platform.operational_seed",
+      "category": "GOVERNANCE",
+      "displayLabel": "Seeded demonstration condition",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/ops/operational-seed.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1549",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:618"
+    },
+    {
+      "id": "platform.telemetry_stale",
+      "category": "WORKER",
+      "displayLabel": "Queue telemetry sampler delayed",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "PLATFORM_TELEMETRY",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:982",
+      "activityProbeKey": "platform.telemetry_age",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:251"
+    },
+    {
+      "id": "platform.worker_heartbeat_stale",
+      "category": "WORKER",
+      "displayLabel": "Worker heartbeat stale",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "PLATFORM_TELEMETRY",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1012",
+      "activityProbeKey": "platform.worker_heartbeat_age",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:265"
+    },
+    {
+      "id": "queue.retry_storm",
+      "category": "WORKER",
+      "displayLabel": "Queue retry storm",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_INCIDENT_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:945",
+      "activityProbeKey": "queue.retry_storm_count",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:241"
+    },
+    {
+      "id": "review.escalation",
+      "category": "GOVERNANCE",
+      "displayLabel": "Review escalated",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "review.queue.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/reviewer-ops/escalation-engine.service.ts"
+      ],
+      "registryScopeAuthority": "EVIDENCE_RELATION_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:862",
+      "activityProbeKey": "review.workflow_open",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:476"
+    },
+    {
+      "id": "review.escalation_storm",
+      "category": "GOVERNANCE",
+      "displayLabel": "Review escalations surging",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "review.queue.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:889",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:486"
+    },
+    {
+      "id": "review.stale_workflows",
+      "category": "WORKER",
+      "displayLabel": "Stale review workflows",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "review.queue.read",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/dashboard/incident-generator.service.ts"
+      ],
+      "registryScopeAuthority": "EVIDENCE_RELATION_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:836",
+      "activityProbeKey": "review.stale_workflow_count",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:214"
+    },
+    {
+      "id": "search.indexing_failure",
+      "category": "RECONCILIATION",
+      "displayLabel": "Search index reconciliation failing",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "SPECIALIZED_SURFACE",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "evidence.read",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/operations/search-index-conditions.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1577",
+      "activityProbeKey": "search.index_health",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:317"
+    },
+    {
+      "id": "security.unclassified_signal",
+      "category": "WORKER",
+      "displayLabel": "Unclassified security signal",
+      "resolutionAuthority": "NO_DIRECT_RESOLUTION",
+      "recoveryPolicy": "NO_RECOVERY_SIGNAL",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "TENANT_ADVISORY",
+      "requiredCapability": "audit.read",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/security/security-event.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1184",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:496"
+    },
+    {
+      "id": "storage.condition",
+      "category": "STORAGE",
+      "displayLabel": "Object storage condition",
+      "resolutionAuthority": "NO_DIRECT_RESOLUTION",
+      "recoveryPolicy": "NO_RECOVERY_SIGNAL",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "PLATFORM_INTERNAL",
+      "requiredCapability": "operations.view",
+      "notApplicableDisposition": "REFUSE",
+      "discoveryState": "NOT_YET_DISCOVERED",
+      "declaredProducers": [],
+      "registryScopeAuthority": "PLATFORM_TELEMETRY",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1703",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:373"
+    },
+    {
+      "id": "storage.immutable_drift",
+      "category": "GOVERNANCE",
+      "displayLabel": "Immutable storage drift",
+      "resolutionAuthority": "SOURCE_TRUTH",
+      "recoveryPolicy": "PROBE_AUTO_RESOLVE",
+      "remediationDisposition": "GUIDANCE_ONLY",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "governance.policy.read",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/worker/src/governance/immutable-storage-reconciliation.worker.ts"
+      ],
+      "registryScopeAuthority": "WORKSPACE_EVIDENCE_SCOPE",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1501",
+      "activityProbeKey": "storage.immutable_reconciliation_state",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:608"
+    },
+    {
+      "id": "webhook.security_failure",
+      "category": "WEBHOOK",
+      "displayLabel": "Webhook security event",
+      "resolutionAuthority": "OPERATOR_DECISION",
+      "recoveryPolicy": "OPERATOR_CLOSES",
+      "remediationDisposition": "SAFE_DEEP_LINK",
+      "audience": "TENANT_ACTIONABLE",
+      "requiredCapability": "integration.webhook.manage",
+      "notApplicableDisposition": "ALLOW_OPERATOR_CLOSE",
+      "discoveryState": "ACTIVE",
+      "declaredProducers": [
+        "services/api/src/services/security/security-event.service.ts"
+      ],
+      "registryScopeAuthority": "STRICT_WORKSPACE_COLUMN",
+      "lifecycleLine": "packages/shared-runtime/src/ops/source-lifecycle.ts:1110",
+      "activityProbeKey": "NONE",
+      "registryLine": "services/api/src/services/operations/operations-source-registry.ts:307"
+    }
+  ],
+  "producers": [
+    {
+      "id": "P-agg-coordination-backlog",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "coordination.backlog_stale",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:coordination:stale_backlog:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base WARNING; HIGH when value >= COORDINATION_STALE_HIGH_COUNT*3 (GTE); threshold COORDINATION_STALE_HIGH_COUNT)",
+      "category": "spec.category = \"GOVERNANCE\" (services/api/src/services/operations/operations-source-probes.ts:350)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": ""
+    },
+    {
+      "id": "P-agg-package-backlog",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "pipeline.package_backlog",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:pipeline:package_backlog:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base HIGH; CRITICAL when value >= PACKAGE_BACKLOG_CRITICAL (GTE); threshold PACKAGE_BACKLOG_HIGH)",
+      "category": "spec.category = \"PACKAGE\" (services/api/src/services/operations/operations-source-probes.ts:256)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": ""
+    },
+    {
+      "id": "P-agg-report-backlog",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "pipeline.report_backlog",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:pipeline:report_backlog:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base HIGH; CRITICAL when value >= REPORT_BACKLOG_CRITICAL (GTE). thresholdValue REPORT_BACKLOG_HIGH=20)",
+      "category": "spec.category = \"REPORT\" (services/api/src/services/operations/operations-source-probes.ts:228)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": ""
+    },
+    {
+      "id": "P-agg-retry-storm",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "queue.retry_storm",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:reliability:retry_storms:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base WARNING; HIGH when value >= 3 (GTE); threshold 1)",
+      "category": "spec.category = \"WORKER\" (services/api/src/services/operations/operations-source-probes.ts:401)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": "Counts OPEN/ACKNOWLEDGED workspace conditions with occurrenceCount >= RETRY_STORM_OCCURRENCE_THRESHOLD (5), excluding only its own fingerprint prefix. Every persistent condition re-observed by the sweep (aggregate, per-record integrity, dependent-cancellation which is re-recorded every 60s by the API retry job) increments occurrenceCount, so any condition that survives ~5 observations makes the storm ACTIVE."
+    },
+    {
+      "id": "P-agg-signed-without-report-aged",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "pipeline.signed_without_report_aged",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:integrity:unsigned_aged:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base WARNING; HIGH when value >= UNSIGNED_FINALIZED_HIGH_COUNT*3 (GTE); threshold UNSIGNED_FINALIZED_HIGH_COUNT)",
+      "category": "spec.category = \"GOVERNANCE\" (services/api/src/services/operations/operations-source-probes.ts:284)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": ""
+    },
+    {
+      "id": "P-agg-stale-review-workflows",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "review.stale_workflows",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:review:stale_assignments:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base WARNING; HIGH when value >= STALE_REVIEW_HIGH_COUNT*3 (GTE); threshold STALE_REVIEW_HIGH_COUNT)",
+      "category": "spec.category = \"WORKER\" (services/api/src/services/operations/operations-source-probes.ts:318)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": ""
+    },
+    {
+      "id": "P-agg-telemetry-stale",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "platform.telemetry_stale",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:telemetry:queue_stale:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base WARNING; HIGH when minutes > TELEMETRY_STALE_MINUTES*4 (GT); threshold TELEMETRY_STALE_MINUTES=30 (observeAggregate compares value >= threshold))",
+      "category": "spec.category = \"WORKER\" (services/api/src/services/operations/operations-source-probes.ts:444)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": "Count reads QueueTelemetrySnapshot WHERE teamId = ctx.teamId. The worker sampler (services/worker/src/telemetry.ts:160) writes ONLY teamId:null rows; per-workspace rows are written solely by recordDbDerivedSnapshotsForWorkspace, called lazily from Home (command-center.service.ts:5990) when no snapshot exists within 240 minutes. So a workspace whose Home was opened goes ACTIVE 30 minutes later (threshold 30m) and stays ACTIVE until Home is opened again after 240m; a never-opened workspace has no rows -> value 0 -> RECOVERED. The condition measures Home visits, not the sampler."
+    },
+    {
+      "id": "P-agg-worker-heartbeat-stale",
+      "file": "services/api/src/services/dashboard/incident-generator.service.ts",
+      "line": 310,
+      "symbol": "generateIncidentsForWorkspace",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Operations discovery sweep generateIncidentsForWorkspace (called only by reconcileWorkspaceOperations, services/api/src/services/operations/operations-reconciliation.service.ts:62) <- runWorkspaceOperationsSweep (services/api/src/jobs/workspace-operations-reconciliation.job.ts:195, setInterval services/api/src/server.ts:1594 + startup setTimeout :1588) and <- ensureWorkspaceOperationsFresh (operations-reconciliation.service.ts:244) <- POST reconcile route services/api/src/routes/ops.routes.ts:1032 (user-triggered). Fires when observeAggregate(...).activity === \"ACTIVE\" (count >= spec.thresholdValue).",
+      "sourceId": "platform.worker_heartbeat_stale",
+      "fingerprintTemplate": "`${spec.fingerprintPrefix}:${teamId}` (aggregateFingerprint, services/api/src/services/operations/operations-source-probes.ts:524) => `dashboard:worker:heartbeat_stale:${teamId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (static prefix + workspace id)",
+      "teamIdSource": "ctx.teamId (= input.teamId, the workspace id passed to generateIncidentsForWorkspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "observation.severity ?? \"WARNING\" (severityForAggregate: base HIGH; CRITICAL when minutes > WORKER_HEARTBEAT_STALE_MINUTES*4 (GT); threshold WORKER_HEARTBEAT_STALE_MINUTES=15)",
+      "category": "spec.category = \"WORKER\" (services/api/src/services/operations/operations-source-probes.ts:478)",
+      "summaryInputs": "spec.describe({ value: observation.currentValue ?? 0 }) — constant template text from AGGREGATE_SPECS; value not interpolated",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (no relatedEvidenceId/relatedJobId/relatedProvider); metric snapshot via buildConditionMetric",
+      "notes": "Count reads WorkerTelemetrySnapshot WHERE workerKind='WORKER' with NO tenant predicate (operations-source-probes.ts ~:492) yet writes one WORKSPACE-scoped row per workspace. Audience PLATFORM_INTERNAL, so every tenant read (workspaceIncidentWhere -> platformInternalExclusion) hides it."
+    },
+    {
+      "id": "P-billing-provider-auth",
+      "file": "services/api/src/services/billing/pending-payments.service.ts",
+      "line": 220,
+      "symbol": "recordProviderFailureSignal",
+      "host": "api",
+      "trigger": "user",
+      "triggerDetail": "recheckPayment (:344) and abandonPendingPayment (:522) when the provider observation failure is AUTHORIZATION_FAILED.",
+      "sourceId": "billing.provider_authorization",
+      "fingerprintTemplate": "\"billing-provider-auth:\" + input.provider + \":\" + String(Math.floor(Date.now() / 3600_000))",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "null (literal)",
+      "resultingScope": "LEGACY_UNSCOPED",
+      "severity": "\"HIGH\"",
+      "category": "RECONCILIATION",
+      "summaryInputs": "input.provider + \" answered 401/403 during \" + input.operation + \". Payment states cannot be verified ...\"",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (paymentId in metadata)",
+      "notes": "teamId null => scopeForWorkspaceId -> LEGACY_UNSCOPED, not PLATFORM (no writer ever produces PLATFORM scope). Hour-bucketed fingerprint + NO_DIRECT_RESOLUTION + no resolver => a new OPEN row per provider per hour of failures that is never closed. Comment in source-lifecycle names the emitter recordProviderReconciliationFailure; the actual function is recordProviderFailureSignal."
+    },
+    {
+      "id": "P-dependent-cancellation",
+      "file": "services/api/src/services/billing/dependent-cancellation-conditions.service.ts",
+      "line": 158,
+      "symbol": "syncDependentCancellationConditions",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Three callers: (1) generateIncidentsForWorkspace services/api/src/services/dashboard/incident-generator.service.ts:236 with { teamId } (Operations sweep); (2) runDependentCancellationRetrySweep services/api/src/jobs/dependent-cancellation-retry.job.ts:135 with NO teamId (global), every BILLING_ADDON_RETRY_INTERVAL_MS (default 60s, server.ts:1644); (3) reconciliation.service.ts:295 (billing reconciliation, global) when stillOwed > 0. Rows: WorkspaceStorageAddon.dependentCancellationState in UNRESOLVED_STATES, take input.limit ?? 100, orderBy dependentCancellationRequestedAtUtc asc.",
+      "sourceId": "billing.dependent_cancellation_failed",
+      "fingerprintTemplate": "`billing_dependent_cancellation:${addon.id}` (dependentCancellationFingerprint)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "scopeTeamId = addon.teamId ?? (await prisma.team.findFirst({ where: { ownerUserId: addon.ownerUserId, isPersonal: true } }))?.id ?? null; null => skipped (skippedUnscoped), never written",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "STORAGE",
+      "summaryInputs": "manual ? fixed MANUAL_INTERVENTION text : fixed retrying text",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedProvider = addon.paymentProvider ?? null",
+      "notes": "Re-recorded on every 60s retry tick while unresolved, so occurrenceCount grows ~1/min and feeds queue.retry_storm within ~5 minutes."
+    },
+    {
+      "id": "P-destruction-executed",
+      "file": "services/api/src/services/governance-lifecycle/destruction-review.service.ts",
+      "line": 812,
+      "symbol": "executeApprovedReview",
+      "host": "api",
+      "trigger": "user",
+      "triggerDetail": "transitionDestructionReview(nextStatus = EXECUTED) (:440) — operator API path.",
+      "sourceId": "governance.destruction_executed",
+      "fingerprintTemplate": "`destruction_executed:${existing.id}` (DestructionReview id)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "input.teamId",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "GOVERNANCE",
+      "summaryInputs": "`Destruction review ${existing.id} executed for evidence ${existing.evidenceId}`",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = existing.evidenceId",
+      "notes": "The worker destruction orchestrator (scheduled) executes destruction too but does NOT write this source: it emits a HIGH DESTRUCTION_EXECUTED governance notification whose fan-out writes governance.notification_escalated instead."
+    },
+    {
+      "id": "P-governance-notification-escalated",
+      "file": "services/worker/src/governance/notification-emitter.ts",
+      "line": 228,
+      "symbol": "emitWorkerGovernanceNotification",
+      "host": "worker",
+      "trigger": "scheduled",
+      "triggerDetail": "Fan-out when finalSeverity is HIGH/CRITICAL AND the GovernanceNotification row has no relatedIncidentId yet. HIGH callers: immutable-storage-reconciliation.worker.ts:324 (IMMUTABLE_RECONCILIATION_FAILURE), retention-reconciliation.worker.ts:560 (LIFECYCLE_DRIFT), destruction-orchestrator.worker.ts:699 (DESTRUCTION_EXECUTED) and :723 (DESTRUCTION_BLOCKED) — all on worker setInterval schedulers (index.ts:1473, :1343, :1417).",
+      "sourceId": "governance.notification_escalated",
+      "fingerprintTemplate": "`governance_notification:${input.kind}:${input.dedupeKey}`.slice(0, 120)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "input.dedupeKey (caller-built from ids/outcome enums)",
+      "teamIdSource": "input.teamId (string, required by type)",
+      "resultingScope": "WORKSPACE",
+      "severity": "finalSeverity (escalate-only of input.severity vs existing notification)",
+      "category": "GOVERNANCE",
+      "summaryInputs": "summary = input.summary.trim().slice(0, NOTIFICATION_SUMMARY_MAX_LEN) (immutable drift passes driftSummary, a code-built string)",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = input.relatedEvidenceId ?? null",
+      "notes": "Because the fan-out is skipped once row.relatedIncidentId is set, a resolved incident is never re-observed/reopened by later notifications with the same dedupe key. An immutable drift raises BOTH storage.immutable_drift (P-immutable-drift) and this source for the same fact."
+    },
+    {
+      "id": "P-idp-outage",
+      "file": "services/api/src/services/access-control/sso-hardening.service.ts",
+      "line": 351,
+      "symbol": "noteSsoFailure",
+      "host": "api",
+      "trigger": "event",
+      "triggerDetail": "SSO/SAML callback failure: sso-auth.routes.ts:420/:426, saml-auth.routes.ts:504/:1025. Fires once when consecutiveFailureCount crosses IDP_OUTAGE_FAILURE_THRESHOLD and outageDetectedAtUtc was null.",
+      "sourceId": "identity.idp_outage",
+      "fingerprintTemplate": "`idp-outage:${row.id}` (SsoConnection id)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "row.teamId (SsoConnection.teamId, NOT NULL in schema)",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "IDENTITY_SECURITY",
+      "summaryInputs": "`Identity provider ${row.provider} has produced ${newCount} consecutive callback failures.`",
+      "summaryUsesRawError": false,
+      "relatedResource": "none (provider only in title/metadata)",
+      "notes": "noteSsoSuccess clears outageDetectedAtUtc but does not touch the incident."
+    },
+    {
+      "id": "P-immutable-drift",
+      "file": "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
+      "line": 297,
+      "symbol": "raiseGovernanceIncident",
+      "host": "worker",
+      "trigger": "scheduled",
+      "triggerDetail": "runImmutableStorageReconciliation (:211, outcome !== OK) <- setInterval services/worker/src/index.ts:1473 (IMMUTABLE_STORAGE_RECONCILIATION_INTERVAL_MS default 1h, withCronLock).",
+      "sourceId": "storage.immutable_drift",
+      "fingerprintTemplate": "`immutable_storage_drift:${outcome}:${evidenceId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (ImmutableStorageCheckOutcome enum)",
+      "teamIdSource": "evidenceTeamId = ev.teamId (candidates filtered teamId not null; null rows skipped)",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "GOVERNANCE",
+      "summaryInputs": "driftSummary ?? `Drift outcome ${outcome} on evidence ${evidenceId.slice(0, 8)}…` (driftSummary is code-built: legal_hold_active db=.. storage=.., retention_mismatch db=.. storage=.., etc.)",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = evidenceId",
+      "notes": "STORAGE_UNAVAILABLE probe results (which carry raw err.message in driftSummary) do NOT raise an incident. Candidate selection is orderBy id asc, take batchSize (100) with no cursor, so the same first 100 records are re-checked every tick."
+    },
+    {
+      "id": "P-integrity-ots-failed",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "line": 744,
+      "symbol": "recordIntegrityCondition",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "syncEvidenceIntegrityConditions (services/api/src/services/operations/evidence-integrity-conditions.service.ts:339) <- generateIncidentsForWorkspace (services/api/src/services/dashboard/incident-generator.service.ts:193) <- Operations discovery sweep (server.ts:1594 interval / ops.routes.ts:1032 ensure). Selected: otsStatus=FAILED in the same bounded query.",
+      "sourceId": "evidence_integrity.ots_failed",
+      "fingerprintTemplate": "`ots_failure:${evidence.id}` (integrityConditionFingerprint :122)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "teamId (= input.teamId workspace id)",
+      "resultingScope": "WORKSPACE",
+      "severity": "deriveIntegritySeverity({ failureClass, firstSeenAtUtc, now, underLegalHold })",
+      "category": "EVIDENCE_INTEGRITY",
+      "summaryInputs": "`This record has no ${proof}: ${describeFailureClass(failureClass)}. It stays unresolved until the record's own otsStatus leaves FAILED. ...`",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = evidence.id; relatedProvider = null",
+      "notes": ""
+    },
+    {
+      "id": "P-integrity-ots-init-stalled",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "line": 1196,
+      "symbol": "recordOtsInitializationStalledCondition",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "syncEvidenceIntegrityConditions (services/api/src/services/operations/evidence-integrity-conditions.service.ts:339) <- generateIncidentsForWorkspace (services/api/src/services/dashboard/incident-generator.service.ts:193) <- Operations discovery sweep (server.ts:1594 interval / ops.routes.ts:1032 ensure). Selected: second query, fingerprintCanonicalJson not null, otsStatus null, otsProofBase64 null, createdAt <= now - getOtsInitializationStalledMs() (take 2001, orderBy createdAt asc,id asc).",
+      "sourceId": "evidence_integrity.ots_initialization_stalled",
+      "fingerprintTemplate": "`ots_initialization_stalled:${evidence.id}` (otsInitializationStalledFingerprint :164)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "teamId (= input.teamId workspace id)",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"WARNING\"",
+      "category": "EVIDENCE_INTEGRITY",
+      "summaryInputs": "static text; title `Blockchain anchoring has not started for ${recordLabel}`",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = evidence.id",
+      "notes": ""
+    },
+    {
+      "id": "P-integrity-ots-pending-aged",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "line": 831,
+      "symbol": "recordOtsPendingAgedCondition",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "syncEvidenceIntegrityConditions (services/api/src/services/operations/evidence-integrity-conditions.service.ts:339) <- generateIncidentsForWorkspace (services/api/src/services/dashboard/incident-generator.service.ts:193) <- Operations discovery sweep (server.ts:1594 interval / ops.routes.ts:1032 ensure). Selected: otsStatus in OTS_PENDING_STATUSES, narrowed per row by isOtsPendingAged(row, now) (OTS_GLOBAL_BUDGET_DAYS, default 30).",
+      "sourceId": "evidence_integrity.ots_pending_aged",
+      "fingerprintTemplate": "`ots_pending_aged:${evidence.id}` (otsPendingAgedFingerprint :137)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "teamId (= input.teamId workspace id)",
+      "resultingScope": "WORKSPACE",
+      "severity": "posture === \"HIGH\" ? \"HIGH\" : \"WARNING\" (otsPendingOperationalPosture(evidence, now, readOtsOperationsAgingPolicy()))",
+      "category": "EVIDENCE_INTEGRITY",
+      "summaryInputs": "static text with `${policy.warningHours}h` and `${policy.highHours}h` interpolated; title `Blockchain anchoring still pending for ${recordLabel}` (evidence.title)",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = evidence.id",
+      "notes": ""
+    },
+    {
+      "id": "P-integrity-tsa-failed",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "line": 744,
+      "symbol": "recordIntegrityCondition",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "syncEvidenceIntegrityConditions (services/api/src/services/operations/evidence-integrity-conditions.service.ts:339) <- generateIncidentsForWorkspace (services/api/src/services/dashboard/incident-generator.service.ts:193) <- Operations discovery sweep (server.ts:1594 interval / ops.routes.ts:1032 ensure). Selected: Evidence in workspaceEvidenceWhere scope, deletedAt null, tsaStatus=FAILED (take SCAN_BOUND+1=2001, orderBy updatedAt desc,id desc).",
+      "sourceId": "evidence_integrity.tsa_failed",
+      "fingerprintTemplate": "`${integrityClass}:${evidenceId}` => `tsa_failure:${evidence.id}` (integrityConditionFingerprint :122)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "teamId (= args.teamId = input.teamId of syncEvidenceIntegrityConditions, the workspace id; NOT evidence.teamId, so personal NULL-team records are attributed to the personal workspace)",
+      "resultingScope": "WORKSPACE",
+      "severity": "deriveIntegritySeverity({ failureClass: classifyIntegrityFailure(failureReasonFor(evidence, integrityClass)), firstSeenAtUtc: existing?.firstSeenAtUtc ?? now, now, underLegalHold })",
+      "category": "EVIDENCE_INTEGRITY_CATEGORY = \"EVIDENCE_INTEGRITY\"",
+      "summaryInputs": "`This record has no ${proof}: ${describeFailureClass(failureClass)}. It stays unresolved until the record's own tsaStatus leaves FAILED. ...` (title: `${proof} missing for ${recordLabel}` where recordLabel embeds evidence.title, user content, clipped 80)",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = evidence.id; relatedProvider = evidence.tsaProvider",
+      "notes": "Raw tsaFailureReason is only classified (classifyIntegrityFailure), never copied into summary."
+    },
+    {
+      "id": "P-operational-seed",
+      "file": "services/api/src/services/ops/operational-seed.service.ts",
+      "line": 636,
+      "symbol": "runOperationalSeed",
+      "host": "api",
+      "trigger": "user",
+      "triggerDetail": "Seed route (opsSeedRoutes registered only when OPERATIONAL_SEEDING_ENABLED === \"true\", server.ts:1161) for scenarios escalation_storm | full_lifecycle.",
+      "sourceId": "platform.operational_seed",
+      "fingerprintTemplate": "`seed:${seedRunId}:${input.scenario}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "input.teamId",
+      "resultingScope": "WORKSPACE",
+      "severity": "input.scenario === \"escalation_storm\" ? \"HIGH\" : \"WARNING\"",
+      "category": "GOVERNANCE",
+      "summaryInputs": "static text",
+      "summaryUsesRawError": false,
+      "relatedResource": "none",
+      "notes": ""
+    },
+    {
+      "id": "P-ots-budget-exhausted",
+      "file": "services/worker/src/ots-upgrade.processor.ts",
+      "line": 745,
+      "symbol": "processOtsUpgrade",
+      "host": "worker",
+      "trigger": "event",
+      "triggerDetail": "BullMQ ots-upgrade job (worker registered services/worker/src/index.ts:2152) when transition.phase === \"global_budget_exhausted\" (OTS_GLOBAL_BUDGET_DAYS, default 30).",
+      "sourceId": "evidence_integrity.ots_budget_exhausted",
+      "fingerprintTemplate": "`OTS:${evidenceId}:GLOBAL_BUDGET_EXHAUSTED`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "evidence.teamId ?? null (nullable)",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "\"CRITICAL\"",
+      "category": "WORKER",
+      "summaryInputs": "static text",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = evidenceId; relatedJobId = job.id",
+      "notes": ""
+    },
+    {
+      "id": "P-package-gate-denied",
+      "file": "services/worker/src/governance/package-eligibility-gate.ts",
+      "line": 258,
+      "symbol": "emitDenial",
+      "host": "worker",
+      "trigger": "event",
+      "triggerDetail": "assertPackageEligibleOrDeny <- createVerificationPackage (services/worker/src/verification-package.ts:3010) during a report/package job when the governance gate denies.",
+      "sourceId": "pipeline.package_generation_denied",
+      "fingerprintTemplate": "`worker_package_gate:${input.teamId}:${input.evidenceId}:${denial.outcome}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (outcome enum); NOTE a null teamId renders the literal string \"null\" into the fingerprint",
+      "teamIdSource": "input.teamId (string | null; null for a legacy Personal record with no workspace row)",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "denial.outcome === \"GOVERNANCE_STATE_UNAVAILABLE\" ? \"HIGH\" : \"WARNING\"",
+      "category": "GOVERNANCE",
+      "summaryInputs": "`Verification package denied for evidence record. ${label}` (label = mapOutcomeToLabel(outcome))",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = input.evidenceId",
+      "notes": "denial.reason (free text) goes to metadata only."
+    },
+    {
+      "id": "P-package-generation-failed",
+      "file": "services/worker/src/processor.ts",
+      "line": 6045,
+      "symbol": "recordPackageGenerationIncident",
+      "host": "worker",
+      "trigger": "event",
+      "triggerDetail": "runReportGeneration (processor.ts:5713) when packageTechnicalFailure && verificationPackageEntitled.",
+      "sourceId": "pipeline.package_generation_failed",
+      "fingerprintTemplate": "`PACKAGE:${input.evidenceId}:v${input.reportVersion}:${errorClass}` where errorClass = reasonCode.split(/[:\\n]/,1)[0].trim().slice(0,80).toUpperCase().replace(/\\s+/g,\"_\")",
+      "fingerprintUsesRawText": true,
+      "fingerprintRawInput": "reasonCode = packageTechnicalFailure.message (raw) unless retriable===false && phase===\"store\" => \"VERIFICATION_PACKAGE_STORAGE_REJECTED\"",
+      "teamIdSource": "evidence.teamId ?? null (nullable)",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "deterministic (errorClass === \"VERIFICATION_PACKAGE_STORAGE_REJECTED\") ? \"CRITICAL\" : \"HIGH\"",
+      "category": "PACKAGE",
+      "summaryInputs": "fixed templates with input.reportVersion",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = input.evidenceId; relatedJobId = String(input.jobId) or null",
+      "notes": ""
+    },
+    {
+      "id": "P-report-failure-dlq",
+      "file": "services/worker/src/processor.ts",
+      "line": 5972,
+      "symbol": "recordReportFailureIncident",
+      "host": "worker",
+      "trigger": "event",
+      "triggerDetail": "runReportGeneration non-retriable failure branch (processor.ts:5846, after job.discard + ReportDLQ add), severity CRITICAL, retriable false. Skipped when isPackageOwnedFailure(error).",
+      "sourceId": "pipeline.report_generation_failed",
+      "fingerprintTemplate": "`REPORT:${input.evidenceId}:${errorClass}` where errorClass = rawMessage.split(/[:\\n]/,1)[0].trim().slice(0,80).toUpperCase().replace(/\\s+/g,\"_\") || \"UNKNOWN\"",
+      "fingerprintUsesRawText": true,
+      "fingerprintRawInput": "rawMessage = error.message || error.code || \"Unknown error\" (first segment before ':' or newline)",
+      "teamIdSource": "ev?.teamId ?? null (Evidence.teamId, nullable)",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "input.severity (\"CRITICAL\" from the only caller)",
+      "category": "REPORT",
+      "summaryInputs": "rawMessage.slice(0, 380); title `Report generation failure (${evidenceLabel})` where evidenceLabel = ev.title.slice(0,80) (user content) or id prefix",
+      "summaryUsesRawError": true,
+      "relatedResource": "relatedEvidenceId = input.evidenceId; relatedJobId = input.jobId ?? null",
+      "notes": "Raw error message becomes both fingerprint identity (different messages => different conditions) and the operator-visible safeSummary."
+    },
+    {
+      "id": "P-report-retry-budget-package",
+      "file": "services/worker/src/report-generation-authority.ts",
+      "line": 713,
+      "symbol": "reconcileStrandedReportRequests",
+      "host": "worker",
+      "trigger": "scheduled",
+      "triggerDetail": "Same pass as P-report-retry-budget-report; branch when packageOnly = row.reportVersion != null && (row.artifactType === \"VERIFICATION_PACKAGE\" || row.stage === \"REPORT_COMMITTED\").",
+      "sourceId": "pipeline.package_generation_failed",
+      "fingerprintTemplate": "`PACKAGE:${row.evidenceId}:v${row.reportVersion}:RETRY_BUDGET_EXHAUSTED`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "row.teamId (NOT NULL)",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "PACKAGE",
+      "summaryInputs": "template with row.reportVersion",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = row.evidenceId",
+      "notes": ""
+    },
+    {
+      "id": "P-report-retry-budget-report",
+      "file": "services/worker/src/report-generation-authority.ts",
+      "line": 713,
+      "symbol": "reconcileStrandedReportRequests",
+      "host": "worker",
+      "trigger": "scheduled",
+      "triggerDetail": "Pass 3 (FAILED_RETRYABLE with attemptCount >= REPORT_RECONCILE_MAX_ATTEMPTS retired to FAILED_TERMINAL) <- runLifecycleRecovery services/worker/src/lifecycle-recovery.ts:185 <- setInterval services/worker/src/index.ts:846 (LIFECYCLE_RECOVERY_INTERVAL_MS default 5m, withCronLock). Branch when !packageOnly.",
+      "sourceId": "pipeline.report_generation_failed",
+      "fingerprintTemplate": "`REPORT:${row.evidenceId}:RETRY_BUDGET_EXHAUSTED`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "row.teamId (ReportGenerationRequest.teamId, NOT NULL)",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "REPORT",
+      "summaryInputs": "static text",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = row.evidenceId",
+      "notes": "Same call site as P-report-retry-budget-package (ternary on packageOnly). Errors swallowed (.catch(() => null))."
+    },
+    {
+      "id": "P-review-escalation",
+      "file": "services/api/src/services/reviewer-ops/escalation-engine.service.ts",
+      "line": 334,
+      "symbol": "createEscalation",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "Only when the new ReviewEscalation severity is HIGH or CRITICAL. createEscalation callers: reviewer-operations-engine.service.ts:1289 and :1503 (runReconcile, driven by worker setInterval services/worker/src/index.ts:1698 -> POST /v1/reviewer-ops/reconcile); user paths reviewer-ops.routes.ts:1391 and bulk-triage.service.ts:182.",
+      "sourceId": "review.escalation",
+      "fingerprintTemplate": "`review-escalation:${input.reason}:${input.workflowId}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (enum reason + workflow id)",
+      "teamIdSource": "input.teamId (string, required)",
+      "resultingScope": "WORKSPACE",
+      "severity": "severity === \"CRITICAL\" ? \"CRITICAL\" : \"HIGH\"",
+      "category": "GOVERNANCE",
+      "summaryInputs": "summary = sanitiseSummary(input.safeSummary) (caller-provided text)",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedEvidenceId = workflow.evidenceId",
+      "notes": "recordIncident is called WITHOUT the `client` argument (default prisma) while the escalation itself is written through `client`. The same function also emits safeEmitSecurityEvent eventType \"reviewer_escalation_created\" at HIGH/WARNING; that type is in no ROUTINE/DEDICATED/CLASSIFIED list, so the bridge additionally opens a security.unclassified_signal condition (fingerprint worker:security_event:reviewer_escalation_created). Resolving the escalation (resolveEscalation) does not touch the incident."
+    },
+    {
+      "id": "P-review-escalation-storm",
+      "file": "services/api/src/services/reviewer-ops/reviewer-operations-engine.service.ts",
+      "line": 1376,
+      "symbol": "runReconcileInner",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "runReconcile <- POST /v1/reviewer-ops/reconcile (cron secret) <- worker reviewer reconciliation setInterval services/worker/src/index.ts:1698. Fires when escalationsCreated >= REVIEWER_ESCALATION_STORM_THRESHOLD (default 10).",
+      "sourceId": "review.escalation_storm",
+      "fingerprintTemplate": "`reviewer:escalation_storm:${input.teamId}:${today}` (today = ISO date YYYY-MM-DD)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "input.teamId",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "GOVERNANCE",
+      "summaryInputs": "`Reviewer reconcile created ${escalationsCreated} escalations in a single sweep. ...`",
+      "summaryUsesRawError": false,
+      "relatedResource": "none",
+      "notes": ""
+    },
+    {
+      "id": "P-runtime-block",
+      "file": "services/api/src/services/access-control/adaptive-runtime-gate.service.ts",
+      "line": 198,
+      "symbol": "runtimeAdaptiveGate",
+      "host": "api",
+      "trigger": "user",
+      "triggerDetail": "A privileged request gated by runtimeAdaptiveGate (admin-identity.routes.ts, reviewer-ops.routes.ts) where decideAdaptiveAuth returns BLOCK.",
+      "sourceId": "identity.runtime_block",
+      "fingerprintTemplate": "`runtime-block:${input.teamId}:${input.action}:${Math.floor(Date.now() / 3600_000)}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none (PrivilegedAction enum)",
+      "teamIdSource": "input.teamId",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "IDENTITY_SECURITY",
+      "summaryInputs": "`Adaptive auth blocked a ${input.action} attempt with risk score ${decision.riskScore}.`",
+      "summaryUsesRawError": false,
+      "relatedResource": "none",
+      "notes": ""
+    },
+    {
+      "id": "P-runtime-high-risk-surge",
+      "file": "services/api/src/services/access-control/runtime-risk.service.ts",
+      "line": 168,
+      "symbol": "runtimeRiskRecomputeSweep",
+      "host": "api",
+      "trigger": "user",
+      "triggerDetail": "Only caller: POST /v1/admin/identity/runtime/reconcile (services/api/src/routes/admin-identity.routes.ts:1456), cron-secret or step-up-gated operator. No in-repo scheduler (setInterval/cron) calls this endpoint. Fires when highRiskCount >= HIGH_RISK_INCIDENT_DEFAULT_THRESHOLD (5).",
+      "sourceId": "identity.high_risk_session_surge",
+      "fingerprintTemplate": "`runtime-high-risk-sessions:${input.teamId}:${Math.floor(now.getTime() / (HIGH_RISK_INCIDENT_DEDUP_HOURS * 3600_000))}` (hour bucket, DEDUP_HOURS=1)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "input.teamId",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"HIGH\"",
+      "category": "IDENTITY_SECURITY",
+      "summaryInputs": "`Runtime risk recompute detected ${highRiskCount} sessions at HIGH+ risk in one sweep.` (title also carries the count)",
+      "summaryUsesRawError": false,
+      "relatedResource": "none",
+      "notes": "Classified trigger 'user' because the only in-repo invocation is an HTTP route; an external cron may call it."
+    },
+    {
+      "id": "P-search-index",
+      "file": "services/api/src/services/operations/search-index-conditions.service.ts",
+      "line": 123,
+      "symbol": "syncSearchIndexConditions",
+      "host": "api",
+      "trigger": "scheduled",
+      "triggerDetail": "generateIncidentsForWorkspace services/api/src/services/dashboard/incident-generator.service.ts:387 (Operations sweep) when classifySearchReadiness(readiness.state) === \"FAILING\" (readiness from resolveWorkspaceSearchReadiness; worker search-index reconciler writes the GovernanceReconciliationRun rows it reads).",
+      "sourceId": "search.indexing_failure",
+      "fingerprintTemplate": "`search:index_reconciliation:${teamId}` (searchIndexFingerprint :73)",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "none",
+      "teamIdSource": "input.teamId (workspace id)",
+      "resultingScope": "WORKSPACE",
+      "severity": "\"WARNING\"",
+      "category": "RECONCILIATION",
+      "summaryInputs": "static text",
+      "summaryUsesRawError": false,
+      "relatedResource": "none; metadata carries readiness.failureReason (not in summary)",
+      "notes": "sourceId passed as a constant, not a literal.",
+      "sourceIdNote": "SEARCH_INDEX_SOURCE_ID = \"search.indexing_failure\" (constant, :67)"
+    },
+    {
+      "id": "P-secevent-communications",
+      "file": "services/api/src/services/security/security-event.service.ts",
+      "line": 240,
+      "symbol": "maybeAutoCreateIncident",
+      "host": "api",
+      "trigger": "event",
+      "triggerDetail": "safeEmitSecurityEvent(input) -> emitSecurityEvent row written -> if input.severity is HIGH or WARNING -> maybeAutoCreateIncident (services/api/src/services/security/security-event.service.ts:186). 319 safeEmitSecurityEvent call sites across 94 API files. Direct emitSecurityEvent callers (custody-attestation.service.ts:328/:759, recovery-validation.service.ts:520/:527, signer-rotation.service.ts:383) bypass the bridge. mapEventTypeToIncident returns null for DEDICATED_SOURCE_EVENT_TYPES and ROUTINE_SECURITY_EVENTS. Event types routed here: communication_message_failed, communication_provider_unconfigured, communication_rate_limit_exceeded, verification_check_failed.",
+      "sourceId": "MAPPED:mapEventTypeToIncident(input.eventType) -> CLASSIFIED_SECURITY_EVENTS[eventType].sourceId = communications.provider_failure",
+      "fingerprintTemplate": "`${category.toLowerCase()}:security_event:${input.eventType}` => `communications:security_event:${eventType}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "input.eventType (code-defined event identifier, not free text)",
+      "teamIdSource": "input.teamId ?? null",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "input.severity === \"HIGH\" ? \"HIGH\" : \"WARNING\"",
+      "category": "mapping.category = \"COMMUNICATIONS\"",
+      "summaryInputs": "buildSafeSummaryFromDetails(input) = [`Severity ${input.severity}`, `team ${teamId.slice(0,8)}…`, `fields: ${Object.keys(details).slice(0,6)}`].join(\" · \") — keys only, never values",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedJobId = securityEventId (the SecurityEvent row id)",
+      "notes": "Fire-and-forget (void ... .catch). Fingerprint is per event CLASS, not per subject; dedupe is (teamId, fingerprint). Account-tier events (teamId null) land LEGACY_UNSCOPED and never reach a tenant surface."
+    },
+    {
+      "id": "P-secevent-governance",
+      "file": "services/api/src/services/security/security-event.service.ts",
+      "line": 240,
+      "symbol": "maybeAutoCreateIncident",
+      "host": "api",
+      "trigger": "event",
+      "triggerDetail": "safeEmitSecurityEvent(input) -> emitSecurityEvent row written -> if input.severity is HIGH or WARNING -> maybeAutoCreateIncident (services/api/src/services/security/security-event.service.ts:186). 319 safeEmitSecurityEvent call sites across 94 API files. Direct emitSecurityEvent callers (custody-attestation.service.ts:328/:759, recovery-validation.service.ts:520/:527, signer-rotation.service.ts:383) bypass the bridge. mapEventTypeToIncident returns null for DEDICATED_SOURCE_EVENT_TYPES and ROUTINE_SECURITY_EVENTS. Event types routed here: governance_bypass_attempt, governance_lifecycle_drift_detected, governance_notification_delivery_failed, governance_reconciliation_failed.",
+      "sourceId": "MAPPED:mapEventTypeToIncident(input.eventType) -> CLASSIFIED_SECURITY_EVENTS[eventType].sourceId = governance.policy_condition",
+      "fingerprintTemplate": "`${category.toLowerCase()}:security_event:${input.eventType}` => `governance:security_event:${eventType}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "input.eventType (code-defined event identifier, not free text)",
+      "teamIdSource": "input.teamId ?? null",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "input.severity === \"HIGH\" ? \"HIGH\" : \"WARNING\"",
+      "category": "mapping.category = \"GOVERNANCE\"",
+      "summaryInputs": "buildSafeSummaryFromDetails(input) = [`Severity ${input.severity}`, `team ${teamId.slice(0,8)}…`, `fields: ${Object.keys(details).slice(0,6)}`].join(\" · \") — keys only, never values",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedJobId = securityEventId (the SecurityEvent row id)",
+      "notes": "Fire-and-forget (void ... .catch). Fingerprint is per event CLASS, not per subject; dedupe is (teamId, fingerprint). Account-tier events (teamId null) land LEGACY_UNSCOPED and never reach a tenant surface."
+    },
+    {
+      "id": "P-secevent-identity",
+      "file": "services/api/src/services/security/security-event.service.ts",
+      "line": 240,
+      "symbol": "maybeAutoCreateIncident",
+      "host": "api",
+      "trigger": "event",
+      "triggerDetail": "safeEmitSecurityEvent(input) -> emitSecurityEvent row written -> if input.severity is HIGH or WARNING -> maybeAutoCreateIncident (services/api/src/services/security/security-event.service.ts:186). 319 safeEmitSecurityEvent call sites across 94 API files. Direct emitSecurityEvent callers (custody-attestation.service.ts:328/:759, recovery-validation.service.ts:520/:527, signer-rotation.service.ts:383) bypass the bridge. mapEventTypeToIncident returns null for DEDICATED_SOURCE_EVENT_TYPES and ROUTINE_SECURITY_EVENTS. Event types routed here: permission_denied, step_up_denied, suspicious_login_detected, high_risk_action_blocked, high_risk_action_step_up_required, service_account_risk_detected, contributor_risk_detected, impossible_travel_signal, trusted_device_auto_invalidated.",
+      "sourceId": "MAPPED:mapEventTypeToIncident(input.eventType) -> CLASSIFIED_SECURITY_EVENTS[eventType].sourceId = identity.security_condition",
+      "fingerprintTemplate": "`${category.toLowerCase()}:security_event:${input.eventType}` => `identity_security:security_event:${eventType}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "input.eventType (code-defined event identifier, not free text)",
+      "teamIdSource": "input.teamId ?? null",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "input.severity === \"HIGH\" ? \"HIGH\" : \"WARNING\"",
+      "category": "mapping.category = \"IDENTITY_SECURITY\"",
+      "summaryInputs": "buildSafeSummaryFromDetails(input) = [`Severity ${input.severity}`, `team ${teamId.slice(0,8)}…`, `fields: ${Object.keys(details).slice(0,6)}`].join(\" · \") — keys only, never values",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedJobId = securityEventId (the SecurityEvent row id)",
+      "notes": "Fire-and-forget (void ... .catch). Fingerprint is per event CLASS, not per subject; dedupe is (teamId, fingerprint). Account-tier events (teamId null) land LEGACY_UNSCOPED and never reach a tenant surface."
+    },
+    {
+      "id": "P-secevent-intake",
+      "file": "services/api/src/services/security/security-event.service.ts",
+      "line": 240,
+      "symbol": "maybeAutoCreateIncident",
+      "host": "api",
+      "trigger": "event",
+      "triggerDetail": "safeEmitSecurityEvent(input) -> emitSecurityEvent row written -> if input.severity is HIGH or WARNING -> maybeAutoCreateIncident (services/api/src/services/security/security-event.service.ts:186). 319 safeEmitSecurityEvent call sites across 94 API files. Direct emitSecurityEvent callers (custody-attestation.service.ts:328/:759, recovery-validation.service.ts:520/:527, signer-rotation.service.ts:383) bypass the bridge. mapEventTypeToIncident returns null for DEDICATED_SOURCE_EVENT_TYPES and ROUTINE_SECURITY_EVENTS. Event types routed here: upload_part_hash_mismatch, upload_session_create_failed, upload_session_resume_failed, upload_stalled.",
+      "sourceId": "MAPPED:mapEventTypeToIncident(input.eventType) -> CLASSIFIED_SECURITY_EVENTS[eventType].sourceId = intake.delivery_failed",
+      "fingerprintTemplate": "`${category.toLowerCase()}:security_event:${input.eventType}` => `upload:security_event:${eventType}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "input.eventType (code-defined event identifier, not free text)",
+      "teamIdSource": "input.teamId ?? null",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "input.severity === \"HIGH\" ? \"HIGH\" : \"WARNING\"",
+      "category": "mapping.category = \"UPLOAD\"",
+      "summaryInputs": "buildSafeSummaryFromDetails(input) = [`Severity ${input.severity}`, `team ${teamId.slice(0,8)}…`, `fields: ${Object.keys(details).slice(0,6)}`].join(\" · \") — keys only, never values",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedJobId = securityEventId (the SecurityEvent row id)",
+      "notes": "Fire-and-forget (void ... .catch). Fingerprint is per event CLASS, not per subject; dedupe is (teamId, fingerprint). Account-tier events (teamId null) land LEGACY_UNSCOPED and never reach a tenant surface."
+    },
+    {
+      "id": "P-secevent-unclassified",
+      "file": "services/api/src/services/security/security-event.service.ts",
+      "line": 240,
+      "symbol": "maybeAutoCreateIncident",
+      "host": "api",
+      "trigger": "event",
+      "triggerDetail": "safeEmitSecurityEvent(input) -> emitSecurityEvent row written -> if input.severity is HIGH or WARNING -> maybeAutoCreateIncident (services/api/src/services/security/security-event.service.ts:186). 319 safeEmitSecurityEvent call sites across 94 API files. Direct emitSecurityEvent callers (custody-attestation.service.ts:328/:759, recovery-validation.service.ts:520/:527, signer-rotation.service.ts:383) bypass the bridge. mapEventTypeToIncident returns null for DEDICATED_SOURCE_EVENT_TYPES and ROUTINE_SECURITY_EVENTS. Event types routed here: ANY eventType at WARNING/HIGH not in DEDICATED/ROUTINE/CLASSIFIED (fail-closed default). Observed examples: reviewer_escalation_created (escalation-engine), automation_webhook_delivery_failed / _retry_exhausted / _dead_lettered_unknown / automation_webhook_delivery_ambiguous / automation_webhook_destination_auto_disabled (automation services).",
+      "sourceId": "MAPPED:mapEventTypeToIncident(input.eventType) -> fail-closed default branch = security.unclassified_signal",
+      "fingerprintTemplate": "`${category.toLowerCase()}:security_event:${input.eventType}` => `worker:security_event:${eventType}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "input.eventType (code-defined event identifier, not free text)",
+      "teamIdSource": "input.teamId ?? null",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "input.severity === \"HIGH\" ? \"HIGH\" : \"WARNING\"",
+      "category": "mapping.category = \"WORKER\"",
+      "summaryInputs": "buildSafeSummaryFromDetails(input) = [`Severity ${input.severity}`, `team ${teamId.slice(0,8)}…`, `fields: ${Object.keys(details).slice(0,6)}`].join(\" · \") — keys only, never values",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedJobId = securityEventId (the SecurityEvent row id)",
+      "notes": "Fire-and-forget (void ... .catch). Fingerprint is per event CLASS, not per subject; dedupe is (teamId, fingerprint). Account-tier events (teamId null) land LEGACY_UNSCOPED and never reach a tenant surface."
+    },
+    {
+      "id": "P-secevent-webhook",
+      "file": "services/api/src/services/security/security-event.service.ts",
+      "line": 240,
+      "symbol": "maybeAutoCreateIncident",
+      "host": "api",
+      "trigger": "event",
+      "triggerDetail": "safeEmitSecurityEvent(input) -> emitSecurityEvent row written -> if input.severity is HIGH or WARNING -> maybeAutoCreateIncident (services/api/src/services/security/security-event.service.ts:186). 319 safeEmitSecurityEvent call sites across 94 API files. Direct emitSecurityEvent callers (custody-attestation.service.ts:328/:759, recovery-validation.service.ts:520/:527, signer-rotation.service.ts:383) bypass the bridge. mapEventTypeToIncident returns null for DEDICATED_SOURCE_EVENT_TYPES and ROUTINE_SECURITY_EVENTS. Event types routed here: communication_webhook_invalid_signature, webhook_signature_failure, webhook_failure_loop, webhook_target_blocked, webhook_unsafe_redirect.",
+      "sourceId": "MAPPED:mapEventTypeToIncident(input.eventType) -> CLASSIFIED_SECURITY_EVENTS[eventType].sourceId = webhook.security_failure",
+      "fingerprintTemplate": "`${category.toLowerCase()}:security_event:${input.eventType}` => `webhook:security_event:${eventType}`",
+      "fingerprintUsesRawText": false,
+      "fingerprintRawInput": "input.eventType (code-defined event identifier, not free text)",
+      "teamIdSource": "input.teamId ?? null",
+      "resultingScope": "WORKSPACE_OR_LEGACY_UNSCOPED",
+      "severity": "input.severity === \"HIGH\" ? \"HIGH\" : \"WARNING\"",
+      "category": "mapping.category = \"WEBHOOK\"",
+      "summaryInputs": "buildSafeSummaryFromDetails(input) = [`Severity ${input.severity}`, `team ${teamId.slice(0,8)}…`, `fields: ${Object.keys(details).slice(0,6)}`].join(\" · \") — keys only, never values",
+      "summaryUsesRawError": false,
+      "relatedResource": "relatedJobId = securityEventId (the SecurityEvent row id)",
+      "notes": "Fire-and-forget (void ... .catch). Fingerprint is per event CLASS, not per subject; dedupe is (teamId, fingerprint). Account-tier events (teamId null) land LEGACY_UNSCOPED and never reach a tenant surface."
+    }
+  ],
+  "resolvers": [
+    {
+      "id": "R-admin-platform-resolve",
+      "file": "services/api/src/routes/admin-security.routes.ts",
+      "line": 586,
+      "symbol": "runIncidentAction(\"resolve\") -> incidents.resolveIncident({ scope: \"PLATFORM_ADMIN\" }) -> transitionIncident",
+      "kind": "ADMIN",
+      "sourceIdsCovered": [
+        "*"
+      ],
+      "invokedFrom": [
+        "services/api/src/routes/admin-security.routes.ts:747 (POST /v1/admin/incidents/:id/resolve, preHandler requirePlatformAdmin)"
+      ],
+      "predicate": "same decideManualResolution gate as R-manual-tenant-resolve; probe workspace = existing.teamId ?? resolveIncidentSourceWorkspace(existing) (null => UNKNOWN => SOURCE_TRUTH refused)",
+      "lookupScope": "{ id: input.incidentId } (no tenant predicate and no platformInternalExclusion)",
+      "writesResolutionNote": "note = ActionBody.note (z.string().trim().max(2000).optional()) passed as resolutionNote, clipped by clipSafeSummary; null if absent",
+      "writesEvent": "resolved",
+      "compareAndSet": false,
+      "notes": "Only path that can close PLATFORM_INTERNAL workspace rows (e.g. worker_heartbeat_stale, if its probe answers RECOVERED) and LEGACY_UNSCOPED OPERATOR_DECISION rows."
+    },
+    {
+      "id": "R-aggregate-source-recovery",
+      "file": "services/api/src/services/observability/incident.service.ts",
+      "line": 804,
+      "symbol": "resolveConditionFromSourceRecovery",
+      "kind": "AUTO_SOURCE_TRUTH",
+      "sourceIdsCovered": [
+        "pipeline.report_backlog",
+        "pipeline.package_backlog",
+        "pipeline.signed_without_report_aged",
+        "review.stale_workflows",
+        "coordination.backlog_stale",
+        "queue.retry_storm",
+        "platform.telemetry_stale",
+        "platform.worker_heartbeat_stale"
+      ],
+      "invokedFrom": [
+        "services/api/src/services/dashboard/incident-generator.service.ts:352"
+      ],
+      "predicate": "observation.activity === \"RECOVERED\" (observeAggregate: counted.value < spec.thresholdValue) AND decideObservationTransition({ currentStatus: existing.status, observation: \"SOURCE_RECOVERED\" }) === \"AUTO_RESOLVE_SOURCE_RECOVERY\" (status OPEN | ACKNOWLEDGED | SUPPRESSED)",
+      "lookupScope": "client.operationalIncident.findFirst({ where: { ...workspaceIncidentWhere(input.teamId), fingerprint: input.fingerprint } }) — workspaceIncidentWhere = { scope: WORKSPACE, teamId, AND: [{ OR: [{ sourceId: null }, { sourceId: { notIn: platformInternalSourceIds() } }] }] }",
+      "writesResolutionNote": "clipSafeSummary(input.safeMessage) = `${spec.stableTitle}: the source is below its threshold of ${spec.thresholdValue} ${spec.unit}. Resolved from positive observation, not from absence in a scan.`",
+      "writesEvent": "resolved_by_domain_truth (RESOLVED_BY_DOMAIN_TRUTH_EVENT)",
+      "compareAndSet": false,
+      "notes": "Update is by id only (no status in WHERE). platform.worker_heartbeat_stale is PLATFORM_INTERNAL, so platformInternalExclusion removes its rows from this lookup: the resolver is wired but can never find them. Also closes the SLA cycle."
+    },
+    {
+      "id": "R-integrity-failed-recovery",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "line": 1067,
+      "symbol": "resolveRecoveredConditions",
+      "kind": "AUTO_SOURCE_TRUTH",
+      "sourceIdsCovered": [
+        "evidence_integrity.ots_failed",
+        "evidence_integrity.tsa_failed"
+      ],
+      "invokedFrom": [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts:631"
+      ],
+      "predicate": "parseIntegrityFingerprint(row.fingerprint) != null (tsa_failure:|ots_failure:<id>) AND evidence readable in scopeWhere AND !isCurrentlyFailing(evidence, parts.integrityClass) AND decideObservationTransition(... \"SOURCE_RECOVERED\") === \"AUTO_RESOLVE_SOURCE_RECOVERY\"",
+      "lookupScope": "{ teamId: args.teamId, category: \"EVIDENCE_INTEGRITY\", status: { in: [OPEN, ACKNOWLEDGED, SUPPRESSED] } }, orderBy [{ lastSeenAtUtc: \"desc\" }, { id: \"desc\" }] (no take — unbounded)",
+      "writesResolutionNote": "`Resolved from Evidence domain truth: ${parts.integrityClass === \"tsa_failure\" ? \"tsaStatus\" : \"otsStatus\"} is no longer FAILED.`",
+      "writesEvent": "resolved_by_domain_truth",
+      "compareAndSet": false,
+      "notes": "Lookup does not filter scope/sourceId; rows are selected by category + teamId and fingerprint-parsed. Update by id only."
+    },
+    {
+      "id": "R-integrity-ots-init-stalled-recovery",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "line": 1303,
+      "symbol": "resolveRecoveredOtsInitializationStalled",
+      "kind": "AUTO_SOURCE_TRUTH",
+      "sourceIdsCovered": [
+        "evidence_integrity.ots_initialization_stalled"
+      ],
+      "invokedFrom": [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts:646"
+      ],
+      "predicate": "evidence readable in scopeWhere AND evidence.otsStatus !== null AND decideObservationTransition(... \"SOURCE_RECOVERED\") === \"AUTO_RESOLVE_SOURCE_RECOVERY\"",
+      "lookupScope": "{ teamId: args.teamId, category: \"EVIDENCE_INTEGRITY\", fingerprint: { startsWith: \"ots_initialization_stalled:\" }, status: { in: [OPEN, ACKNOWLEDGED, SUPPRESSED] } }, orderBy [{ lastSeenAtUtc: \"desc\" }, { id: \"desc\" }] (unbounded)",
+      "writesResolutionNote": "Resolved from Evidence domain truth: the record has entered the OpenTimestamps lifecycle.",
+      "writesEvent": "resolved_by_domain_truth",
+      "compareAndSet": false,
+      "notes": ""
+    },
+    {
+      "id": "R-integrity-ots-pending-aged-recovery",
+      "file": "services/api/src/services/operations/evidence-integrity-conditions.service.ts",
+      "line": 947,
+      "symbol": "resolveRecoveredOtsPendingAged",
+      "kind": "AUTO_SOURCE_TRUTH",
+      "sourceIdsCovered": [
+        "evidence_integrity.ots_pending_aged"
+      ],
+      "invokedFrom": [
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts:637"
+      ],
+      "predicate": "evidence readable in scopeWhere AND !isOtsPendingAged(evidence, args.now) AND decideObservationTransition(... \"SOURCE_RECOVERED\") === \"AUTO_RESOLVE_SOURCE_RECOVERY\"",
+      "lookupScope": "{ teamId: args.teamId, category: \"EVIDENCE_INTEGRITY\", fingerprint: { startsWith: \"ots_pending_aged:\" }, status: { in: [OPEN, ACKNOWLEDGED, SUPPRESSED] } }, orderBy [{ lastSeenAtUtc: \"desc\" }, { id: \"desc\" }] (unbounded)",
+      "writesResolutionNote": "Resolved from Evidence domain truth: the record is no longer an aged-pending OpenTimestamps anchor.",
+      "writesEvent": "resolved_by_domain_truth",
+      "compareAndSet": false,
+      "notes": ""
+    },
+    {
+      "id": "R-manual-tenant-resolve",
+      "file": "services/api/src/services/observability/incident.service.ts",
+      "line": 1252,
+      "symbol": "transitionIncident (via resolveIncident :927)",
+      "kind": "MANUAL",
+      "sourceIdsCovered": [
+        "*"
+      ],
+      "invokedFrom": [
+        "services/api/src/routes/ops.routes.ts:1722"
+      ],
+      "predicate": "isAllowedIncidentStatusTransition(existing.status, RESOLVED) AND decideManualResolution({ authority: lifecycle.resolutionAuthority, requiresResolutionNote, hasResolutionNote: note.trim().length > 0, activity: SOURCE_TRUTH ? (probeTeamId === null ? \"UNKNOWN\" : probeConditionActivity(...)) : null, notApplicableDisposition }) is not a refusal: NO_DIRECT_RESOLUTION => refused; OPERATOR_DECISION => allowed iff note present; SOURCE_TRUTH => allowed iff activity RECOVERED, or NOT_APPLICABLE with notApplicableDisposition ALLOW_OPERATOR_CLOSE",
+      "lookupScope": "{ id: input.incidentId, ...workspaceIncidentWhere(input.teamId) } (route requires operations.resolve capability on body.teamId)",
+      "writesResolutionNote": "input.resolutionNote != null ? clipSafeSummary(input.resolutionNote) : null (ResolveBody.resolutionNote z.string().min(1).max(400).optional())",
+      "writesEvent": "resolved",
+      "compareAndSet": false,
+      "notes": "Update by id only. No BULK resolve exists: bulk-actions.service.ts offers BULK_SUPPRESS_INCIDENTS / BULK_ACKNOWLEDGE_INCIDENTS / BULK_ASSIGN_INCIDENTS only. PLATFORM_INTERNAL and LEGACY_UNSCOPED rows are unreachable from this path."
+    },
+    {
+      "id": "R-source-truth-unscoped-sweep",
+      "file": "services/api/src/services/operations/source-truth-recovery.service.ts",
+      "line": 260,
+      "symbol": "sweepUnscopedSourceTruthRecoveries -> closeRecoveredConditions",
+      "kind": "AUTO_SOURCE_TRUTH",
+      "sourceIdsCovered": [
+        "pipeline.package_generation_failed",
+        "pipeline.report_generation_failed"
+      ],
+      "invokedFrom": [
+        "services/api/src/jobs/workspace-operations-reconciliation.job.ts:213"
+      ],
+      "predicate": "same as R-source-truth-workspace-sweep; probe read in workspace resolveIncidentSourceWorkspace(row) (evidence owner's workspace); rows whose workspace resolves null are skipped",
+      "lookupScope": "{ ...legacyUnscopedIncidentWhere() /* scope: LEGACY_UNSCOPED */, teamId: null, relatedEvidenceId: { not: null }, sourceId: input.sourceId, status: { in: [OPEN, ACKNOWLEDGED, SUPPRESSED] } }, orderBy [{ firstSeenAtUtc: \"asc\" }, { id: \"asc\" }], take: limit + 1",
+      "writesResolutionNote": "`Resolved from source truth: ${args.lifecycle.displayLabel} is no longer reported by its source.`",
+      "writesEvent": "resolved_by_domain_truth",
+      "compareAndSet": true,
+      "notes": "Only exact sourceId match: legacy LEGACY_UNSCOPED rows with sourceId NULL are not selected. Only the two pipeline sources are swept; other LEGACY_UNSCOPED producers (ots_budget_exhausted, package_generation_denied, security-event bridge, billing.provider_authorization) have no unscoped sweep."
+    },
+    {
+      "id": "R-source-truth-workspace-sweep",
+      "file": "services/api/src/services/operations/source-truth-recovery.service.ts",
+      "line": 260,
+      "symbol": "sweepSourceTruthRecoveries -> closeRecoveredConditions",
+      "kind": "AUTO_SOURCE_TRUTH",
+      "sourceIdsCovered": [
+        "pipeline.package_generation_failed",
+        "pipeline.report_generation_failed",
+        "search.indexing_failure",
+        "storage.immutable_drift"
+      ],
+      "invokedFrom": [
+        "services/api/src/services/dashboard/incident-generator.service.ts:434",
+        "services/api/src/services/dashboard/incident-generator.service.ts:461",
+        "services/api/src/services/operations/search-index-conditions.service.ts:176"
+      ],
+      "predicate": "lifecycle.resolutionAuthority === \"SOURCE_TRUTH\" && recoveryPolicy === \"PROBE_AUTO_RESOLVE\" && activityProbeKey !== \"NONE\" (else no-op); per row: observation.activity === \"RECOVERED\" (probeSource(lifecycle.activityProbeKey, ctx)) AND decideObservationTransition(... \"SOURCE_RECOVERED\") === \"AUTO_RESOLVE_SOURCE_RECOVERY\"",
+      "lookupScope": "workspaceIncidentWhereWith(input.teamId, { OR: [{ sourceId: input.sourceId }, ...legacy PREFIX patterns as { sourceId: null, fingerprint: { startsWith: `${prefix}:` } }], status: { in: [OPEN, ACKNOWLEDGED, SUPPRESSED] } }), orderBy [{ firstSeenAtUtc: \"asc\" }, { id: \"asc\" }], take: limit + 1 (SWEEP_LIMIT 200)",
+      "writesResolutionNote": "`Resolved from source truth: ${args.lifecycle.displayLabel} is no longer reported by its source.`",
+      "writesEvent": "resolved_by_domain_truth",
+      "compareAndSet": true,
+      "notes": "updateMany where { id: row.id, status: row.status }. NOT_APPLICABLE leaves rows open. search.indexing_failure is only swept when syncSearchIndexConditions classifies readiness HEALTHY (READY/EMPTY_WORKSPACE)."
+    }
+  ],
+  "scheduledReconcilers": [
+    {
+      "id": "S-automation-dispatch",
+      "file": "services/worker/src/index.ts",
+      "line": 1898,
+      "host": "worker",
+      "intervalDefault": "60000 ms + one startup run gated on API readiness",
+      "envKnobs": [
+        "AUTOMATION_DISPATCH_SWEEP_ENABLED",
+        "AUTOMATION_DISPATCH_SWEEP_INTERVAL_MS",
+        "AUTOMATION_DISPATCH_SWEEP_BATCH_SIZE"
+      ],
+      "what": "withCronLock runAutomationDispatchSweepTick -> API /v1/automation/runs/process; delivery runtime emits WARNING security events (automation_webhook_delivery_failed/_retry_exhausted/_dead_lettered_unknown, automation_webhook_delivery_ambiguous, automation_webhook_destination_auto_disabled) that are unclassified and open security.unclassified_signal via the bridge.",
+      "incidentEffect": "WRITES",
+      "selectionBound": "batchSize and deliveryBatchSize default 25",
+      "notes": "Indirect write via safeEmitSecurityEvent -> maybeAutoCreateIncident."
+    },
+    {
+      "id": "S-billing-reconciler",
+      "file": "services/api/src/server.ts",
+      "line": 1697,
+      "host": "api",
+      "intervalDefault": "3600000 ms + startup 120000 ms + random 0-60000 ms",
+      "envKnobs": [
+        "BILLING_RECONCILER_ENABLED",
+        "BILLING_RECONCILER_INTERVAL_MS",
+        "BILLING_RECONCILER_STARTUP_DELAY_MS"
+      ],
+      "what": "runBillingReconciliationSweep -> reconcileBillingAccount per candidate; calls syncDependentCancellationConditions() (reconciliation.service.ts:295) when add-on obligations are still owed.",
+      "incidentEffect": "WRITES",
+      "selectionBound": "selectReconciliationCandidates(ACCOUNT_BATCH = 20) — several category queries each take limit (one take limit*4), ordered updatedAt/createdAt",
+      "notes": ""
+    },
+    {
+      "id": "S-dependent-cancellation-retry",
+      "file": "services/api/src/server.ts",
+      "line": 1644,
+      "host": "api",
+      "intervalDefault": "60000 ms + startup 30000 ms + random 0-15000 ms",
+      "envKnobs": [
+        "BILLING_ADDON_RETRY_ENABLED",
+        "BILLING_ADDON_RETRY_INTERVAL_MS",
+        "BILLING_ADDON_RETRY_STARTUP_DELAY_MS"
+      ],
+      "what": "runDependentCancellationRetrySweep: attemptDependentCancellations for due subjects, then syncDependentCancellationConditions() globally (opens/re-observes billing.dependent_cancellation_failed). Never resolves.",
+      "incidentEffect": "WRITES",
+      "selectionBound": "subjects: workspaceStorageAddon.findMany take SUBJECT_BATCH*4 = 100 orderBy dependentCancellationNextRetryAtUtc asc, deduped to <= 25 subjects; conditions: take 100 orderBy dependentCancellationRequestedAtUtc asc (no teamId)",
+      "notes": ""
+    },
+    {
+      "id": "S-destruction-orchestrator",
+      "file": "services/worker/src/index.ts",
+      "line": 1417,
+      "host": "worker",
+      "intervalDefault": "300000 ms (5 min)",
+      "envKnobs": [
+        "DESTRUCTION_ORCHESTRATOR_ENABLED",
+        "DESTRUCTION_ORCHESTRATOR_INTERVAL_MS"
+      ],
+      "what": "withCronLock runDestructionOrchestration: executes APPROVED destruction reviews; DESTRUCTION_EXECUTED / DESTRUCTION_BLOCKED HIGH notifications fan out to governance.notification_escalated.",
+      "incidentEffect": "WRITES",
+      "selectionBound": "destructionReview.findMany status APPROVED take 50 (max 200) orderBy decidedAtUtc asc",
+      "notes": ""
+    },
+    {
+      "id": "S-immutable-storage-reconciliation",
+      "file": "services/worker/src/index.ts",
+      "line": 1473,
+      "host": "worker",
+      "intervalDefault": "3600000 ms (1h); no startup run",
+      "envKnobs": [
+        "IMMUTABLE_STORAGE_RECONCILIATION_ENABLED",
+        "IMMUTABLE_STORAGE_RECONCILIATION_INTERVAL_MS"
+      ],
+      "what": "withCronLock runImmutableStorageReconciliation: probes object-lock state, writes ImmutableStorageCheck rows, opens storage.immutable_drift (direct) and governance.notification_escalated (via HIGH notification fan-out).",
+      "incidentEffect": "WRITES",
+      "selectionBound": "evidence.findMany teamId not null, deletedAt null, retention/hold/policy set; orderBy id asc, take 100 (DEFAULT_BATCH_SIZE, max 500); NO cursor — same first 100 rows every tick",
+      "notes": "Never resolves; resolution is the API workspace sweep reading the newest ImmutableStorageCheck."
+    },
+    {
+      "id": "S-lifecycle-recovery",
+      "file": "services/worker/src/index.ts",
+      "line": 846,
+      "host": "worker",
+      "intervalDefault": "300000 ms (5 min); no startup run in the scheduler function",
+      "envKnobs": [
+        "LIFECYCLE_RECOVERY_ENABLED",
+        "LIFECYCLE_RECOVERY_INTERVAL_MS"
+      ],
+      "what": "withCronLock(\"lifecycle-recovery\") runLifecycleRecovery: first-issuance reconciliation, reconcileStrandedReportRequests (stranded report requests; retires exhausted requests and opens pipeline.report_generation_failed / package_generation_failed), runOtsInitializationReconciler (re-enqueues OTS for never-attempted records; no incident write).",
+      "incidentEffect": "WRITES",
+      "selectionBound": "lifecycle batch DEFAULT 200 (max 1000); reconcileStrandedReportRequests batchSize default 100 (max 500) per pass, orderBy createdAtUtc asc",
+      "notes": ""
+    },
+    {
+      "id": "S-observability-heartbeat",
+      "file": "services/worker/src/index.ts",
+      "line": 1970,
+      "host": "worker",
+      "intervalDefault": "30000 ms",
+      "envKnobs": [
+        "WORKER_HEARTBEAT_INTERVAL_MS"
+      ],
+      "what": "heartbeat(\"worker-main\") log line.",
+      "incidentEffect": "NONE",
+      "selectionBound": "n/a",
+      "notes": ""
+    },
+    {
+      "id": "S-operations-sweep",
+      "file": "services/api/src/server.ts",
+      "line": 1594,
+      "host": "api",
+      "intervalDefault": "900000 ms (15 min) + startup setTimeout 45000 ms + random 0-30000 ms (:1588)",
+      "envKnobs": [
+        "OPERATIONS_RECONCILER_ENABLED",
+        "OPERATIONS_RECONCILER_INTERVAL_MS",
+        "OPERATIONS_RECONCILER_STARTUP_DELAY_MS"
+      ],
+      "what": "runWorkspaceOperationsSweepSafe -> runWorkspaceOperationsSweep: per due workspace reconcileWorkspaceOperations (lock WORKSPACE_OPERATIONS:<id>) -> generateIncidentsForWorkspace (integrity, dependent cancellation, 8 aggregates, search index, immutable drift + pipeline recovery sweeps) + derived intelligence; then sweepUnscopedSourceTruthRecoveries for pipeline.report_generation_failed and pipeline.package_generation_failed.",
+      "incidentEffect": "BOTH",
+      "selectionBound": "team.findMany take WORKSPACE_BATCH*20 = 500 orderBy createdAt asc (so teams beyond the 500 oldest are never candidates); keep those with no run or last run older than OPERATIONS_FRESHNESS_WINDOW_MS (45 min); sort never-run first then oldest run; slice 25 per tick (batchSize clamp 1..200). Unscoped sweep: take 201 per source orderBy firstSeenAtUtc asc, id asc.",
+      "notes": "At 25 workspaces/15 min with a 45-min freshness window, steady-state coverage is ~75 workspaces per window."
+    },
+    {
+      "id": "S-org-invite-delivery",
+      "file": "services/worker/src/index.ts",
+      "line": 1792,
+      "host": "worker",
+      "intervalDefault": "300000 ms (5 min)",
+      "envKnobs": [
+        "ORG_INVITE_DELIVERY_SWEEP_ENABLED",
+        "ORG_INVITE_DELIVERY_SWEEP_INTERVAL_MS",
+        "ORG_INVITE_DELIVERY_SWEEP_BATCH_SIZE"
+      ],
+      "what": "withCronLock runOrgInviteDeliverySweep -> API /v1/org-invite-deliveries/process (stranded PENDING invite outbox rows).",
+      "incidentEffect": "NONE",
+      "selectionBound": "batchSize default 50 (API caps at 200)",
+      "notes": "No incident write found in the sweep path; not traced through every downstream email-transport call."
+    },
+    {
+      "id": "S-ots-upgrade-queue",
+      "file": "services/worker/src/index.ts",
+      "line": 2152,
+      "host": "worker",
+      "intervalDefault": "Not a timer: BullMQ ots-upgrade Worker (concurrency 1); processOtsUpgrade self-re-enqueues PENDING records with delayMs 3600000 (1h)",
+      "envKnobs": [
+        "OTS_GLOBAL_BUDGET_DAYS"
+      ],
+      "what": "OTS upgrade polling per record; on global_budget_exhausted opens evidence_integrity.ots_budget_exhausted.",
+      "incidentEffect": "WRITES",
+      "selectionBound": "one record per job (job id ots-upgrade-<evidenceId>)",
+      "notes": ""
+    },
+    {
+      "id": "S-queue-health-sampler",
+      "file": "services/worker/src/index.ts",
+      "line": 2037,
+      "host": "worker",
+      "intervalDefault": "60000 ms",
+      "envKnobs": [
+        "WORKER_QUEUE_HEALTH_INTERVAL_MS"
+      ],
+      "what": "snapshotQueueHealth over 12 BullMQ queues; held in memory + logged.",
+      "incidentEffect": "NONE",
+      "selectionBound": "n/a",
+      "notes": ""
+    },
+    {
+      "id": "S-retention-reconciliation",
+      "file": "services/worker/src/index.ts",
+      "line": 1343,
+      "host": "worker",
+      "intervalDefault": "900000 ms (15 min)",
+      "envKnobs": [
+        "RETENTION_RECONCILIATION_ENABLED",
+        "RETENTION_RECONCILIATION_INTERVAL_MS"
+      ],
+      "what": "withCronLock runRetentionReconciliation; LIFECYCLE_DRIFT HIGH notification (retention-reconciliation.worker.ts:560) fans out to governance.notification_escalated.",
+      "incidentEffect": "WRITES",
+      "selectionBound": "expired-retention scan take 200 (DEFAULT_BATCH_SIZE, max 1000) orderBy retentionUntilUtc asc",
+      "notes": ""
+    },
+    {
+      "id": "S-reviewer-reconciliation",
+      "file": "services/worker/src/index.ts",
+      "line": 1698,
+      "host": "worker",
+      "intervalDefault": "300000 ms (5 min)",
+      "envKnobs": [
+        "REVIEWER_OPS_RECONCILIATION_ENABLED",
+        "REVIEWER_OPS_RECONCILIATION_INTERVAL_MS",
+        "REVIEWER_OPS_RECONCILIATION_BATCH_SIZE",
+        "REVIEWER_OPS_MAX_TEAMS_PER_SWEEP",
+        "REVIEWER_OPS_CRON_SECRET",
+        "INTEGRATION_CRON_SECRET",
+        "REVIEWER_ESCALATION_STORM_THRESHOLD"
+      ],
+      "what": "withCronLock runReviewerReconciliation -> HTTP POST /v1/reviewer-ops/reconcile { allTeams: true } -> runReconcile per team: SLA flips, createEscalation (review.escalation for HIGH/CRITICAL), storm detection (review.escalation_storm), and reviewer_escalation_created security events (security.unclassified_signal).",
+      "incidentEffect": "WRITES",
+      "selectionBound": "API: team.findMany where evidenceReviewWorkflows some, orderBy id asc, take maxTeamsPerSweep (default 500); runReconcile batchSize default 200",
+      "notes": ""
+    },
+    {
+      "id": "S-search-index-reconciler",
+      "file": "services/worker/src/index.ts",
+      "line": 1238,
+      "host": "worker",
+      "intervalDefault": "600000 ms (10 min) + startup 30000 ms + random 0-30000 ms",
+      "envKnobs": [
+        "SEARCH_INDEX_RECONCILER_ENABLED",
+        "SEARCH_INDEX_RECONCILER_INTERVAL_MS",
+        "SEARCH_INDEX_RECONCILER_STARTUP_DELAY_MS"
+      ],
+      "what": "runSearchIndexReconciler: graph/signal projection recovery then per-workspace SEARCH_INDEX GovernanceReconciliationRun (the durable fact the API's search.indexing_failure producer/resolver reads).",
+      "incidentEffect": "NONE",
+      "selectionBound": "workspaceBatchSize default 50 (max 500); graph recovery <= 25 workspaces; batchSize ENTRY.recovery.reconcileBatchSize (<= 1000)",
+      "notes": "Indirect only: affects incidents through the API Operations sweep."
+    },
+    {
+      "id": "S-telemetry-sampler",
+      "file": "services/worker/src/telemetry.ts",
+      "line": 241,
+      "host": "worker",
+      "intervalDefault": "60000 ms (index.ts:2725 passes intervalMs 60_000; clamp 15000..600000); recursive setTimeout",
+      "envKnobs": [
+        "WORKER_HEARTBEAT_INTERVAL_MS (only when intervalMs not passed)",
+        "WORKER_ID",
+        "HOSTNAME"
+      ],
+      "what": "Writes QueueTelemetrySnapshot (teamId: null) per queue and WorkerTelemetrySnapshot (workerKind WORKER) + lease. The heartbeat rows feed the platform.worker_heartbeat_stale probe; the teamId:null queue rows are NOT read by the per-workspace platform.telemetry_stale probe.",
+      "incidentEffect": "NONE",
+      "selectionBound": "n/a (fixed queue list from buildSampledQueues)",
+      "notes": "Indirect only."
+    }
+  ],
+  "conservation": [
+    {
+      "id": "ai.condition",
+      "producerIds": [],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy NO_RECOVERY_SIGNAL; no automatic resolver expected.",
+      "visibleToTenant": false,
+      "notes": "No production producer (discoveryState NOT_YET_DISCOVERED).",
+      "findingId": null
+    },
+    {
+      "id": "billing.dependent_cancellation_failed",
+      "producerIds": [
+        "P-dependent-cancellation"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "syncDependentCancellationConditions explicitly does not resolve and no sweep calls sweepSourceTruthRecoveries for this source, although its comments and the retry job assume 'its probe closes it'. Manual resolve only once billing.dependent_cancellation_state probe answers RECOVERED.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-003"
+    },
+    {
+      "id": "billing.provider_authorization",
+      "producerIds": [
+        "P-billing-provider-auth"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy NO_RECOVERY_SIGNAL; no automatic resolver expected.",
+      "visibleToTenant": false,
+      "notes": "Producer writes teamId null => LEGACY_UNSCOPED (not PLATFORM). NO_DIRECT_RESOLUTION and hour-bucketed fingerprint => unbounded accumulation of OPEN rows; no resolver, manual resolve refused.",
+      "findingId": null
+    },
+    {
+      "id": "communications.provider_failure",
+      "producerIds": [
+        "P-secevent-communications"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "coordination.backlog_stale",
+      "producerIds": [
+        "P-agg-coordination-backlog"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "database.condition",
+      "producerIds": [],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy NO_RECOVERY_SIGNAL; no automatic resolver expected.",
+      "visibleToTenant": false,
+      "notes": "No production producer (discoveryState NOT_YET_DISCOVERED).",
+      "findingId": null
+    },
+    {
+      "id": "evidence_integrity.ots_budget_exhausted",
+      "producerIds": [
+        "P-ots-budget-exhausted"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "No sweep covers it: R-integrity-failed-recovery filters category EVIDENCE_INTEGRITY + tsa_failure/ots_failure fingerprints, but this source writes category WORKER with fingerprint OTS:<id>:GLOBAL_BUDGET_EXHAUSTED; sweepSourceTruthRecoveries is never called for it. Closes only via manual resolve when probe evidence.ots_status answers RECOVERED/NOT_APPLICABLE.",
+      "visibleToTenant": true,
+      "notes": "Producer teamId may be null => LEGACY_UNSCOPED rows invisible to tenants with no resolver able to reach them.",
+      "findingId": "OPS-018"
+    },
+    {
+      "id": "evidence_integrity.ots_failed",
+      "producerIds": [
+        "P-integrity-ots-failed"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-integrity-failed-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-019"
+    },
+    {
+      "id": "evidence_integrity.ots_initialization_stalled",
+      "producerIds": [
+        "P-integrity-ots-init-stalled"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-integrity-ots-init-stalled-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "evidence_integrity.ots_pending_aged",
+      "producerIds": [
+        "P-integrity-ots-pending-aged"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-integrity-ots-pending-aged-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "evidence_integrity.tsa_failed",
+      "producerIds": [
+        "P-integrity-tsa-failed"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-integrity-failed-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-019"
+    },
+    {
+      "id": "governance.destruction_executed",
+      "producerIds": [
+        "P-destruction-executed"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "Only the API executeApprovedReview path writes this source; worker-orchestrated destructions surface as governance.notification_escalated instead.",
+      "findingId": null
+    },
+    {
+      "id": "governance.notification_escalated",
+      "producerIds": [
+        "P-governance-notification-escalated"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "Fan-out only once per GovernanceNotification (relatedIncidentId latch).",
+      "findingId": null
+    },
+    {
+      "id": "governance.policy_condition",
+      "producerIds": [
+        "P-secevent-governance"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "identity.high_risk_session_surge",
+      "producerIds": [
+        "P-runtime-high-risk-surge"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "identity.idp_outage",
+      "producerIds": [
+        "P-idp-outage"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "noteSsoSuccess clears SsoConnection.outageDetectedAtUtc but never resolves the incident, and no sweep covers this source. Manual resolve only (probe identity.idp_outage_state).",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-018"
+    },
+    {
+      "id": "identity.runtime_block",
+      "producerIds": [
+        "P-runtime-block"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "identity.security_condition",
+      "producerIds": [
+        "P-secevent-identity"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "intake.delivery_failed",
+      "producerIds": [
+        "P-secevent-intake"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "integration.configuration_failure",
+      "producerIds": [],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy NO_RECOVERY_SIGNAL; no automatic resolver expected.",
+      "visibleToTenant": false,
+      "notes": "No production producer (discoveryState NOT_YET_DISCOVERED).",
+      "findingId": null
+    },
+    {
+      "id": "job.background_failure",
+      "producerIds": [],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy NO_RECOVERY_SIGNAL; no automatic resolver expected.",
+      "visibleToTenant": false,
+      "notes": "No production producer (discoveryState NOT_YET_DISCOVERED).",
+      "findingId": null
+    },
+    {
+      "id": "pipeline.package_backlog",
+      "producerIds": [
+        "P-agg-package-backlog"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "pipeline.package_generation_denied",
+      "producerIds": [
+        "P-package-gate-denied"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "No sweepSourceTruthRecoveries call for this source anywhere; only manual/admin resolve after the evidence.package_present probe answers RECOVERED.",
+      "visibleToTenant": true,
+      "notes": "Producer teamId may be null => LEGACY_UNSCOPED rows invisible to tenants with no resolver able to reach them.",
+      "findingId": "OPS-018"
+    },
+    {
+      "id": "pipeline.package_generation_failed",
+      "producerIds": [
+        "P-package-generation-failed",
+        "P-report-retry-budget-package"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve",
+        "R-source-truth-unscoped-sweep",
+        "R-source-truth-workspace-sweep"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "WORKSPACE rows via workspace sweep; NULL-team rows via unscoped sweep (exact sourceId only). P-package-gate-denied rows are a different source and are not swept.",
+      "visibleToTenant": true,
+      "notes": "Visible to tenant only for WORKSPACE rows; NULL-team (personal legacy) rows are LEGACY_UNSCOPED and invisible to tenants though auto-resolvable. Declared producers list only services/worker/src/processor.ts, but services/worker/src/report-generation-authority.ts:713 also writes this source (retry-budget exhaustion).",
+      "findingId": null
+    },
+    {
+      "id": "pipeline.report_backlog",
+      "producerIds": [
+        "P-agg-report-backlog"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "pipeline.report_generation_failed",
+      "producerIds": [
+        "P-report-failure-dlq",
+        "P-report-retry-budget-report"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve",
+        "R-source-truth-unscoped-sweep",
+        "R-source-truth-workspace-sweep"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "WORKSPACE rows via workspace sweep; NULL-team rows via unscoped sweep (exact sourceId only; legacy NULL-sourceId unscoped rows not selected).",
+      "visibleToTenant": true,
+      "notes": "Visible to tenant only for WORKSPACE rows; NULL-team (personal legacy) rows are LEGACY_UNSCOPED and invisible to tenants though auto-resolvable. Declared producers list only services/worker/src/processor.ts, but services/worker/src/report-generation-authority.ts:713 also writes this source (retry-budget exhaustion).",
+      "findingId": "OPS-004"
+    },
+    {
+      "id": "pipeline.signed_without_report_aged",
+      "producerIds": [
+        "P-agg-signed-without-report-aged"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "platform.operational_seed",
+      "producerIds": [
+        "P-operational-seed"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "platform.telemetry_stale",
+      "producerIds": [
+        "P-agg-telemetry-stale"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "Recovery depends on Home re-writing per-workspace QueueTelemetrySnapshot rows, not on the worker sampler (which writes teamId:null).",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-001"
+    },
+    {
+      "id": "platform.worker_heartbeat_stale",
+      "producerIds": [
+        "P-agg-worker-heartbeat-stale"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": false,
+      "autoResolverNote": "R-aggregate-source-recovery looks up via workspaceIncidentWhere, whose platformInternalExclusion drops sourceId platform.worker_heartbeat_stale, so findFirst returns null and the row stays OPEN forever (recordIncident still finds it by teamId_fingerprint and keeps incrementing). Only R-admin-platform-resolve can close it.",
+      "visibleToTenant": false,
+      "notes": "One global heartbeat fact written as one WORKSPACE row per reconciled workspace; hidden from tenants by audience; auto-resolver cannot find rows.",
+      "findingId": "OPS-009"
+    },
+    {
+      "id": "queue.retry_storm",
+      "producerIds": [
+        "P-agg-retry-storm"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "Recovers only when no other OPEN/ACKNOWLEDGED condition in the workspace has occurrenceCount >= 5, which persistent re-observed conditions defeat.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-002"
+    },
+    {
+      "id": "review.escalation",
+      "producerIds": [
+        "P-review-escalation"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "No sweep for this source; resolveEscalation does not touch the incident. Manual resolve only, gated on review.workflow_open probe.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-018"
+    },
+    {
+      "id": "review.escalation_storm",
+      "producerIds": [
+        "P-review-escalation-storm"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "review.stale_workflows",
+      "producerIds": [
+        "P-agg-stale-review-workflows"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-aggregate-source-recovery",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "search.indexing_failure",
+      "producerIds": [
+        "P-search-index"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve",
+        "R-source-truth-workspace-sweep"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "Swept only when readiness is HEALTHY (READY/EMPTY_WORKSPACE); INDETERMINATE states leave it open.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": "OPS-017"
+    },
+    {
+      "id": "security.unclassified_signal",
+      "producerIds": [
+        "P-secevent-unclassified"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy NO_RECOVERY_SIGNAL; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "NO_RECOVERY_SIGNAL + NO_DIRECT_RESOLUTION: no path closes it except admin resolve, which the contract refuses too; rows accumulate per (team, eventType). Routine product events (reviewer_escalation_created, automation_webhook_* WARNING events) land here.",
+      "findingId": null
+    },
+    {
+      "id": "storage.condition",
+      "producerIds": [],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy NO_RECOVERY_SIGNAL; no automatic resolver expected.",
+      "visibleToTenant": false,
+      "notes": "No production producer (discoveryState NOT_YET_DISCOVERED).",
+      "findingId": null
+    },
+    {
+      "id": "storage.immutable_drift",
+      "producerIds": [
+        "P-immutable-drift"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve",
+        "R-source-truth-workspace-sweep"
+      ],
+      "claimsAutoResolve": true,
+      "autoResolverWired": true,
+      "autoResolverCanFindRows": true,
+      "autoResolverNote": "Row found by sourceId/legacy prefix in the workspace. Recovery requires a newer ImmutableStorageCheck OK row, but the reconciler re-checks only the first 100 evidence ids (orderBy id asc, no cursor), so drift on records outside that window can never be re-verified.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    },
+    {
+      "id": "webhook.security_failure",
+      "producerIds": [
+        "P-secevent-webhook"
+      ],
+      "resolverIds": [
+        "R-admin-platform-resolve",
+        "R-manual-tenant-resolve"
+      ],
+      "claimsAutoResolve": false,
+      "autoResolverWired": false,
+      "autoResolverCanFindRows": null,
+      "autoResolverNote": "recoveryPolicy OPERATOR_CLOSES; no automatic resolver expected.",
+      "visibleToTenant": true,
+      "notes": "",
+      "findingId": null
+    }
+  ],
+  "lists": {
+    "producersWithoutResolvers": [
+      "billing.dependent_cancellation_failed",
+      "evidence_integrity.ots_budget_exhausted",
+      "identity.idp_outage",
+      "pipeline.package_generation_denied",
+      "platform.worker_heartbeat_stale",
+      "review.escalation"
+    ],
+    "resolversWithoutProducers": [],
+    "unreachableCategories": [
+      "ai.condition",
+      "database.condition",
+      "integration.configuration_failure",
+      "job.background_failure",
+      "storage.condition"
+    ],
+    "misleadingNames": [
+      "platform.telemetry_stale (OPS-001)",
+      "queue.retry_storm (OPS-002)",
+      "billing.dependent_cancellation_failed (OPS-023)",
+      "search.indexing_failure (OPS-017)"
+    ],
+    "rawMessageFingerprints": [
+      "P-package-generation-failed services/worker/src/processor.ts:6045",
+      "P-report-failure-dlq services/worker/src/processor.ts:5972"
+    ],
+    "rawMessageSummaries": [
+      "P-report-failure-dlq services/worker/src/processor.ts:5972"
+    ],
+    "leakingInternalData": [
+      "OPS-010 /v1/ops/health",
+      "OPS-016 raw worker summaries",
+      "OPS-025 /v1/investigation/diagnostics",
+      "OPS-026 /v1/runtime/secrets-health"
+    ],
+    "duplicatedAcrossApiAndWorker": [],
+    "wrongRecordVersionOrResource": [
+      "pipeline.report_generation_failed (OPS-004, OPS-028)",
+      "billing.dependent_cancellation_failed personal add-ons (OPS-003)",
+      "platform.worker_heartbeat_stale (OPS-009)",
+      "evidence_integrity.tsa_failed / ots_failed (OPS-019)"
+    ]
+  }
+}

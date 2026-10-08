@@ -1,0 +1,48 @@
+{
+  "proofId": "PR-B03-workspace-switch-inflight",
+  "title": "Workspace switch with a delayed old-workspace list and an open drawer",
+  "proofType": "BROWSER_PROVEN",
+  "findingIds": [
+    "OPS-007"
+  ],
+  "webBuild": "production (next build) via apps/web/scripts/dev-admin-fixture.mjs --mode=production, NEXT_PUBLIC_API_BASE=http://localhost:8191",
+  "sourceFingerprints": {
+    "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+    "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+    "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+    "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+    "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+    "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+    "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+    "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+  },
+  "command": "node audit-operations/harness/browser/run-browser.mjs",
+  "persona": "owner of personal + TEAM org workspace",
+  "observed": {
+    "switcherClickWithDrawerOpen": "blocked: locator.click: Timeout 5000ms exceeded.",
+    "switcherItems": [
+      "Personal Space\nPersonal",
+      "Audit Empty WS\nOrganization",
+      "Audit Team WS\nOrganization"
+    ],
+    "delayedOldListRequests": 0,
+    "headerAfterSwitch": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nAudit Team WS\nUpdated <datetime>\n\nRefresh\nQueue summary\n122\nUnresolved\nOpen or acknowledged.\n1\nCritical\nAffecting records now.\n40\nHigh\nNeeds an operator soon.\n81\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApp",
+    "showsOrgConditions": true,
+    "stillShowsPersonalConditions": false,
+    "drawerStillOpenAfterSwitch": null,
+    "requests": [
+      "GET /v1/ops/incidents?teamId=<ws>&sort=recent&limit=50",
+      "GET /v1/ops/saved-views?teamId=<ws>",
+      "GET /v1/ops/incidents/8755e49e-3628-4042-9ef4-b2fba8843c96?teamId=<ws>",
+      "POST /v1/platform/context/switch-workspace",
+      "GET /v1/me/inbox/summary?workspaceId=61cbfe2c-ba59-43c0-8bb2-d7ab8065c12d",
+      "GET /v1/ops/summary?teamId=<ws>",
+      "GET /v1/ops/incidents?teamId=<ws>&sort=recent&limit=50",
+      "GET /v1/ops/assignable-operators?teamId=<ws>",
+      "GET /v1/ops/saved-views?teamId=<ws>",
+      "GET /v1/runtime/status",
+      "GET /v1/ops/incidents?teamId=<ws>&status=OPEN&limit=50",
+      "GET /v1/reviewer-ops/escalations?teamId=<ws>&status=OPEN&limit=100"
+    ]
+  }
+}

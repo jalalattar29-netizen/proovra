@@ -1,0 +1,81 @@
+{
+  "proofId": "PR-A9-enterprise",
+  "title": "Enterprise organization with three workspaces: isolation, roles, assignment, roll-up",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "Each workspace sees only its incidents; no cross-workspace mutation; assignment excludes ineligible users; roll-up equals the union of authorized workspaces (if a roll-up exists).",
+  "observed": {
+    "ownerPerWorkspace": {
+      "w1": [
+        "Report generation failed"
+      ],
+      "w2": [
+        "Report generation failed"
+      ],
+      "w3": [
+        "Governance policy condition"
+      ]
+    },
+    "wsAdminW2": [
+      "Report generation failed"
+    ],
+    "wsAdminW1": 404,
+    "orgAdminW1": 404,
+    "memberW2": [
+      "Report generation failed"
+    ],
+    "viewerW2": [
+      "Report generation failed"
+    ],
+    "revokedW2": 403,
+    "suspendedW2": 403,
+    "crossWorkspaceMutation": {
+      "ackW1IncidentViaW2Context": 404,
+      "wsAdminAckW1Incident": 404
+    },
+    "assignableOperatorsW2": [
+      "ADMIN",
+      "OWNER",
+      "REVIEWER"
+    ],
+    "assignRevoked": 400,
+    "assignViewer": 400,
+    "assignMember": 200,
+    "platformRowVisibleAnywhere": false,
+    "envelopeOwnerW2": {
+      "switchBody": null,
+      "switchStatus": 200,
+      "activeTeamMatches": true,
+      "status": 200,
+      "OPERATIONS_VIEW": "true",
+      "OPERATIONS_ACKNOWLEDGE": "true",
+      "OPERATIONS_RESOLVE": "true",
+      "OPERATIONS_SUPPRESS": "true",
+      "OPERATIONS_ASSIGN": "true",
+      "plan": "ENTERPRISE"
+    },
+    "organizationRollupEndpoint": "none registered (no /v1/organizations/:id/... incident route; ops.routes is per-workspace teamId)",
+    "inboxOwner": {
+      "status": 200,
+      "hasW1": false,
+      "hasW2": false,
+      "hasPlatform": false
+    },
+    "inboxRevokedMember": {
+      "status": 200,
+      "leaksW2ReportFailure": false
+    }
+  },
+  "outcome": "INFORMATIONAL",
+  "sourceFingerprints": {
+    "services/api/src/routes/me-inbox.routes.ts": "62301ba67a3dd7ee9161306ff08628fc23eb36b85e2906056d08684fd92c6def",
+    "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+    "services/api/src/services/operations/assignable-operators.service.ts": "536a4798e8aed228d0c6caa99ce3598c6e90db5ef93a184cef94894b0c68be22",
+    "services/api/src/services/operations/operations-summary.service.ts": "fa1086015e212f488acb68aad62a7f249c984e39812a5bae94d521db44068846"
+  },
+  "harnessFile": "audit-operations/harness/a9-enterprise-exposure.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

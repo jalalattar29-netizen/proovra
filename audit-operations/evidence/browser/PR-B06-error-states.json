@@ -1,0 +1,58 @@
+{
+  "proofId": "PR-B06-error-states",
+  "title": "Rendered states for failed / slow reads",
+  "proofType": "BROWSER_PROVEN",
+  "findingIds": [
+    "OPS-020"
+  ],
+  "webBuild": "production (next build) via apps/web/scripts/dev-admin-fixture.mjs --mode=production, NEXT_PUBLIC_API_BASE=http://localhost:8191",
+  "sourceFingerprints": {
+    "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+    "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+    "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+    "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+    "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+    "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+    "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+    "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+  },
+  "command": "node audit-operations/harness/browser/run-browser.mjs",
+  "persona": "personal owner",
+  "observed": {
+    "incidents_403": {
+      "allClearShown": false,
+      "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nThis workspace or feature may require additional permissions. Ask a workspace admin for access, or return to the dashboard.\n\nTr"
+    },
+    "incidents_404": {
+      "allClearShown": false,
+      "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nThe item may have moved or is no longer available. Refresh and try again.\n\nTry again\nNeed help?"
+    },
+    "incidents_409": {
+      "allClearShown": false,
+      "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nPlease review your input and try again.\n\nTry again\nNeed help?"
+    },
+    "incidents_429": {
+      "allClearShown": false,
+      "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nPlease wait a moment and try again.\n\nTry again\nNeed help?"
+    },
+    "incidents_500": {
+      "allClearShown": false,
+      "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\n\nRefresh\nOperational conditions are temporarily unavailable\n\nPlease try again in a moment. Your evidence data has not been changed.\n\nTry again\nNeed help?"
+    },
+    "summary_500": {
+      "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nThe queue summary could not be loaded. Please try again in a moment. Your evidence data has not been changed. Anything shown below may be incomplete.\nRetry\nFilt"
+    },
+    "slowNetwork_at200ms": {
+      "text": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nQueue summary\n5\nUnresolved\nOpen or acknowledged.\n1\nCritical\n"
+    },
+    "detail_500": {
+      "drawer": "High\nOpen\nQueue retry storm\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nActive conditions in this workspace are recurring with occurrenceCount >= 5. Source: OperationalIncident.occurrenceCount.\n\nSo",
+      "listIntact": true
+    },
+    "groups_500": {
+      "saysNoMatch": true,
+      "saysCouldNotLoad": false,
+      "tail": "ondition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n0 groups · 0 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nNo operational conditions match these filters\n\nThis workspace may still have unresolved work. Widen the filters to see it.\n\nClear filters\nNeed help?"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "proofId": "PR-B01-reem-view",
+  "title": "Reem-shaped personal workspace rendered: grouped list, group drawer, condition drawers",
+  "proofType": "BROWSER_PROVEN",
+  "findingIds": [
+    "OPS-001",
+    "OPS-002",
+    "OPS-003",
+    "OPS-012",
+    "OPS-013"
+  ],
+  "webBuild": "production (next build) via apps/web/scripts/dev-admin-fixture.mjs --mode=production, NEXT_PUBLIC_API_BASE=http://localhost:8191",
+  "sourceFingerprints": {
+    "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+    "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+    "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+    "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+    "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+    "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+    "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+    "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+  },
+  "command": "node audit-operations/harness/browser/run-browser.mjs",
+  "persona": "personal owner",
+  "plan": "FREE + internal TEAM grant",
+  "workspaceType": "personal",
+  "observed": {
+    "groupedView": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nQueue summary\n5\nUnresolved\nOpen or acknowledged.\n1\nCritical\nAffecting records now.\n3\nHigh\nNeeds an operator soon.\n1\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApproaching the committed time.\n1\nResolved\nClosed operational conditions.\n\nA condition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n6 groups · 6 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nCritical\nReport generation failed\nOpen\nReport generation\n·\n1 affected records\n·\n·\nlast seen just now\nHigh\nTrusted timestamping failed\nResolved\nEvidence integrity\n·\n1 affected records\n·\n·\nlast seen just now\nHigh\nStorage add-on still billing after cancellation\nOpen\nStorage\n·\n1 affected records\n·\n·\nlast seen just now\nHigh\nQueue telemetry sampler delayed\nOpen\nBackground processing\n·\nLast telemetry sample 17h ago\n·\n·\nlast seen just now\nHigh\nQueue retry storm\nOpen\nBackground processing\n·\n3 repeatedly observed conditions\n·\nthreshold 1\n·\n·\nlast seen just now\nWarning\nSearch index reconciliation failing\nOpen\nReconciliation\n·\n1 condition\n·\n·\nlast seen just now\nNeed help?",
+    "groupDrawerStorage": {
+      "text": "High\nOpen\nStorage add-on still billing after cancellation\nWHAT THIS IS\nSource\nStorage\nConditions\n1\nAffected records\n1\nSource observations\nObserved in 6 checks\nFirst seen\n<datetime> (just now)\nLast seen\n<datetime> (just now)\nAFFECTED RECORDS\nStorage add-on still billing after cancellation\nHigh\n·\njust now",
+      "controls": [
+        "Close"
+      ]
+    },
+    "groupDrawerRetryStorm": {
+      "text": "High\nOpen\nQueue retry storm\nWHAT THIS IS\nSource\nBackground processing\nConditions\n1\nAffected conditions\n3\nThreshold\n1 (critical at 3)\nSource observations\nObserved in 3 checks\nFirst seen\n<datetime> (just now)\nLast seen\n<datetime> (just now)\nAFFECTED RECORDS\nQueue retry storm\nHigh\n·\njust now",
+      "controls": [
+        "Close"
+      ]
+    },
+    "flatView": "Operations\n\nMonitor, assign and resolve operational conditions in this workspace.\n\nConditions in\nPersonal Space\nUpdated <datetime>\n\nRefresh\nQueue summary\n5\nUnresolved\nOpen or acknowledged.\n1\nCritical\nAffecting records now.\n3\nHigh\nNeeds an operator soon.\n1\nWarning\nWorth attention; nothing is blocked yet.\n0\nOverdue\nPast the time this workspace committed to.\n0\nDue soon\nApproaching the committed time.\n1\nResolved\nClosed operational conditions.\n\nA condition can be counted by more than one card. These are filters, not a breakdown.\n\nFilter by lifecycle status\nAny status\nFilter by severity\nAny severity\nFilter by the part of the product that produced the condition\nAny source\nSort conditions\nMost recent activity\n6 conditions\nFilter by time commitment\nAny commitment\nGrouped\nAll conditions\nOperational conditions in this workspace\nSELECT\n\tSEVERITY\tCONDITION\tFIRST SEEN\tLATEST ACTIVITY\tSTATUS\t\nACTIONS\n\n\tWarning\t\nSearch index reconciliation failing\nReconciliation\n\t\njust now\n\t\njust now\nObserved in 7 checks\n\tOpen\t\nActions\n\n\tHigh\t\nQueue telemetry sampler delayed\nBackground processing\n·\nlast sample 17h ago\n·\nwindow 30m\n\t\njust now\n\t\njust now\nObserved in 7 checks\n\tOpen\t\nActions\n\n\tHigh\t\nQueue retry storm\nBackground processing\n·\n3 affected conditions\n·\nthreshold 1\n\t\njust now\n\t\njust now\nObserved in 3 checks\n\tOpen\t\nActions\n\n\tHigh\t\nStorage add-on still billing after cancellation\nStorage\n·\nPAYPAL\n\t\njust now\n\t\njust now\nObserved in 6 checks\n\tOpen\t\nActions\n\n\tCritical\t\nReport generation failed\nReport generat",
+    "storageDrawer": {
+      "text": "High\nOpen\nStorage add-on still billing after cancellation\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\n\nSource\nStorage\nSeverity\nHigh — Needs an operator before it becomes critical.\nAffected record\nPAYPAL\nWHAT YOU CAN DO\n\nStorage reported a fault. This is platform infrastructure — no workspace action will change it, and it is being handled by the platform.\n\nWHEN\nFirst seen\n<datetime> (just now)\nLatest occurrence\n<datetime> (just now)\nSource observations\nObserved in 6 checks\nTime commitment\nNo SLA applies\nNo time commitment applies to this condition.\nHISTORY\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nIncrement\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nOpened\nThis storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.\njust now\nTECHNICAL REFERENCES\n\nIdentifiers to quote if you contact support about this condition.\n\nProvider\nPAYPAL\nCopy\n\nThis condition closes itself when its source recovers. It cannot be marked resolved by hand.\n\nAcknowledge\nStop notifying",
+      "controls": [
+        "Close condition details",
+        "Copy",
+        "Acknowledge",
+        "Stop notifying"
+      ]
+    },
+    "reportDrawer": {
+      "text": "Critical\nOpen\nReport generation failed\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nReport run observed inconsistent proof state\n\nSource\nReport generation\nSeverity\nCritical — Records or delivery are affected now.\nAffected record\nEvidence record\nWHAT YOU CAN DO\nRecover report or package\n\nRebuilds exactly what is missing or failed for this record: only the verification package when the report exists (built from the stored report after its hash is verified), or the report and its package together when there is no report. Existing versions are never replaced. This runs in the background; this condition closes on its own once the record recovers.\n\nWHEN\nFirst seen\n<datetime> (just now)\nLatest occurrence\n<datetime> (just now)\nSource observations\nObserved in 1 checks\nTime commitment\nNo SLA recorded\nNo historical SLA was recorded for this incident, so no commitment can be reported for it.\nHISTORY\n\nNothing has happened to this condition since it opened.\n\nTECHNICAL REFERENCES\n\nIdentifiers to quote if you contact support about this condition.\n\nJob\nreport-job-123\nCopy\n\nThis condition closes itself when its source recovers. It cannot be marked resolved by hand.\n\nAcknowledge\nStop notifying",
+      "controls": [
+        "Close condition details",
+        "Evidence record -> /evidence/8e6a76da-374f-4d56-a559-8bbb793e67d0",
+        "Recover report or package",
+        "Copy",
+        "Acknowledge",
+        "Stop notifying"
+      ]
+    },
+    "telemetryDrawer": {
+      "text": "High\nOpen\nQueue telemetry sampler delayed\n\nNobody has taken this on yet.\n\nWHAT HAPPENED\n\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\n\nSource\nBackground processing\nSeverity\nHigh — Needs an operator before it becomes critical.\nWHAT YOU CAN DO\n\nBackground processing reported a fault. The platform owns the queue; the affected records recover when it does.\n\nHOW MUCH\nAffected now\n1,020 minutes\nThreshold\n30 (critical at 120)\nPrevious observation\n1,020 (+0)\nObserved\n<datetime> (just now)\nWHEN\nFirst seen\n<datetime> (just now)\nLatest occurrence\n<datetime> (just now)\nSource observations\nObserved in 7 checks\nTime commitment\nNo SLA applies\nNo time commitment applies to this condition.\nHISTORY\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nIncrement\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\nOpened\nThe most recent queue telemetry snapshot for this workspace is older than the 30-minute window. The worker remains operational; the sampler may be delayed or paused.\njust now\n\nThis condition closes itself when its source recovers. It cannot be marked resolved by hand.\n\nAcknowledge\nStop notifying",
+      "controls": [
+        "Close condition details",
+        "Acknowledge",
+        "Stop notifying"
+      ]
+    },
+    "apiRequests": 31
+  }
+}

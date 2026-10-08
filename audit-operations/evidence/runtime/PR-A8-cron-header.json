@@ -1,0 +1,32 @@
+{
+  "proofId": "PR-A8-cron-header",
+  "title": "Worker cron header vs API authority",
+  "proofType": "RUNTIME_PROVEN",
+  "findingIds": [
+    "OPS-006"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "The header the worker sends is the header the API authenticates.",
+  "observed": [
+    {
+      "path": "/v1/org-invite-deliveries/process",
+      "workerHeader_x_cron_secret": 401,
+      "apiHeader": 200
+    },
+    {
+      "path": "/v1/automation/runs/process",
+      "workerHeader_x_cron_secret": 401,
+      "apiHeader": 200
+    }
+  ],
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "services/api/src/middleware/cron-secret.ts": "b8e002f5664763dd59fc13e2c9b301691c134e3d64fce1d9d974c28d3d78d368",
+    "services/worker/src/automation-dispatch.ts": "57adccaaa2a46430c54d04819f0e6b749221ca8f2ebb74436318bd01316e8f2b",
+    "services/worker/src/org-invite-delivery.worker.ts": "6f9db161bf74b4a34c713be970967e528192d1e24e8b8063d6f0d6186d204d51"
+  },
+  "harnessFile": "audit-operations/harness/a8-actions-cron-health.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

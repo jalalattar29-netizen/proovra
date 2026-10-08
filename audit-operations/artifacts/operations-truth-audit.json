@@ -1,0 +1,533 @@
+{
+  "baseline": "85c8800778e4c09e7681f83c1ee8fed4661beff9",
+  "productionContacted": false,
+  "productFilesChanged": 0,
+  "verdict": "INCOMPLETE",
+  "verdictReason": "3 external blocker(s) remain: BLK-NATIVE-DEVICE, BLK-PRODUCTION-DATA, BLK-STEP-UP-FACTORS",
+  "totals": {
+    "findings": 36,
+    "bySeverity": {
+      "P0": 0,
+      "P1": 7,
+      "P2": 20,
+      "P3": 9
+    },
+    "byStatus": {
+      "CONFIRMED": 22,
+      "REFUTED": 0,
+      "PARTIALLY_CONFIRMED": 2,
+      "SUPERSEDED_BY_MORE_PRECISE_FINDING": 0,
+      "UNDECIDABLE_WITH_RECORDED_BLOCKER": 0,
+      "NEW": 12
+    },
+    "proofs": 38,
+    "cells": 54,
+    "cellStatus": {
+      "EXERCISED_ALLOWED": 42,
+      "EXERCISED_REFUSED": 8,
+      "NOT_APPLICABLE": 3,
+      "BLOCKED_EXTERNAL": 1
+    },
+    "endpoints": 81,
+    "webRoutes": 9,
+    "webControls": 82,
+    "nativeControls": 84,
+    "sources": 39,
+    "producers": 36,
+    "resolvers": 8,
+    "scheduledReconcilers": 15
+  },
+  "gates": [
+    {
+      "id": "G01",
+      "title": "Every proof's Product source fingerprints match the current tree",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "proofs": 38
+    },
+    {
+      "id": "G02",
+      "title": "Findings: contiguous unique ids, allowed vocabulary, grep-verified source symbols, existing proofs, all 24 prior findings reconciled",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "findings": 36
+    },
+    {
+      "id": "G03",
+      "title": "Every required persona/plan/workspace/commercial cell is exercised (evidence row found) or explicitly NOT_APPLICABLE / BLOCKED_EXTERNAL with a reason",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "cells": 54
+    },
+    {
+      "id": "G04",
+      "title": "Discovered Operations endpoints (route registrations in each inventoried route file) = dispositioned endpoints",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "discovered": 79,
+      "inventoried": 81
+    },
+    {
+      "id": "G05",
+      "title": "Discovered Operations web routes = classified routes",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "discovered": 9
+    },
+    {
+      "id": "G06",
+      "title": "Incident write call sites in Product source = registered producers; every producer sourceId registered",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "callSites": 22,
+      "registeredSites": 22
+    },
+    {
+      "id": "G07",
+      "title": "Incident codes in OPERATIONS_SOURCE_LIFECYCLES = registered codes = conservation rows",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "sources": 39
+    },
+    {
+      "id": "G08",
+      "title": "Every auto-resolve claim has a wired resolver or a finding",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0
+    },
+    {
+      "id": "G09",
+      "title": "Every discovered web/native control is classified; every action control maps to an API call",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0,
+      "web": 82,
+      "native": 84
+    },
+    {
+      "id": "G10",
+      "title": "Every BLOCKED_EXTERNAL cell is backed by an external-blocker record",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0
+    },
+    {
+      "id": "G11",
+      "title": "No UNKNOWN / NOT_REVIEWED disposition anywhere",
+      "pass": true,
+      "failures": [],
+      "failureCount": 0
+    }
+  ],
+  "findingIndex": [
+    {
+      "id": "OPS-001",
+      "severity": "P1",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Workspace 'Queue telemetry sampler delayed' is derived from Home page loads, not from the worker sampler",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-002",
+      "severity": "P1",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "'Queue retry storm' counts this workspace's re-observed conditions, not queue retries; its drill-down lists only itself; Home counts it twice",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-003",
+      "severity": "P1",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Personal storage add-on obligation: never auto-resolves, can be manually 'resolved' while live, drawer blames platform infrastructure",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-004",
+      "severity": "P1",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Report failure condition auto-resolves while a newer version is failed or still processing",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-005",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "/v1/ops/* enforces role only; plan/entitlement is enforced in the web alone",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-006",
+      "severity": "P1",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Worker scheduled sweeps send x-cron-secret; the API authenticates x-proovra-integration-cron-secret (deterministic 401)",
+      "proofTypes": [
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-007",
+      "severity": "P2",
+      "status": "PARTIALLY_CONFIRMED",
+      "priorStatus": "CONFIRMED (P1)",
+      "title": "Detail and list reads share one request counter: after any action with the drawer open the list never refreshes and Refresh stays disabled",
+      "proofTypes": [
+        "BROWSER_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-008",
+      "severity": "P1",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Scheduled Operations sweep only ranks the 500 oldest workspaces",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-009",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Per-workspace worker-heartbeat conditions never auto-resolve and open SLA cycles",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-010",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "GET /v1/ops/health gives any workspace member (VIEWER, FREE) process-global configuration and unscoped counts",
+      "proofTypes": [
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-011",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Web bulk outcome counts SUCCEEDED; the API returns COMPLETED — every successful bulk run is shown as failed",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-012",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Default Grouped view: group drawer has only 'Close'; no actions and no route to the condition drawer",
+      "proofTypes": [
+        "BROWSER_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-013",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "'Retry after exhausted failure' (supersede) is never offered; the offered action tells the user to use it",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-014",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Expected 403 refusals become a customer-visible 'Identity security condition'",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-015",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Failures for personal records stored with team_id NULL become LEGACY_UNSCOPED and are invisible to their owner",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-016",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Raw error text becomes the customer summary (verbatim to VIEWERs) and part of the fingerprint",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-017",
+      "severity": "P3",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "'Search index reconciliation failing' opens when no reconciliation has ever run (and when work is already scheduled)",
+      "proofTypes": [
+        "REAL_DB_PROVEN",
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-018",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Sources declared PROBE_AUTO_RESOLVE that nothing closes (one is permanently stuck)",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-019",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED (P3, TSA only)",
+      "title": "TSA and OTS failure conditions resolve on any non-FAILED status (NULL, PENDING, unvalidated STAMPED)",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-020",
+      "severity": "P3",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Drawer/page UX and accessibility: no focus move/trap, wrong focus restore, English-only in de/ar, no deep link, Load-more in grouped view",
+      "proofTypes": [
+        "BROWSER_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-021",
+      "severity": "P3",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Web capability envelope disagrees with API authority (revoked rows counted, expired access, suspended org)",
+      "proofTypes": [
+        "REAL_DB_PROVEN",
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-022",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Real BullMQ failures and retries never reach any Operations surface; persisted retryCount is hard-coded 0",
+      "proofTypes": [
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-023",
+      "severity": "P2",
+      "status": "CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Storage add-on condition wording/category: PENDING titled 'still billing', MANUAL title replaced, category STORAGE",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-024",
+      "severity": "P3",
+      "status": "PARTIALLY_CONFIRMED",
+      "priorStatus": "CONFIRMED",
+      "title": "Queue replay eligibility admits completed jobs; BullMQ then refuses and the API reports 404 'job_not_found'",
+      "proofTypes": [
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-025",
+      "severity": "P1",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "/v1/investigation/diagnostics returns another tenant's queue job failure text to any workspace member",
+      "proofTypes": [
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-026",
+      "severity": "P2",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "/v1/runtime/secrets-health gives any member (VIEWER) the secrets posture: secret names, presence, AWS secret/region, fallback mode",
+      "proofTypes": [
+        "RUNTIME_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-027",
+      "severity": "P2",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "No writer produces PLATFORM scope; provider-credential conditions are stored LEGACY_UNSCOPED with an hourly fingerprint and no resolver",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-028",
+      "severity": "P3",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "Report-failure recovery is proven by a DB row without verifying the stored object",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-029",
+      "severity": "P2",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "Resolve is a dead control for sources that require a resolution note: the web sends no note and has no field",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-030",
+      "severity": "P2",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "'Stop notifying' (suppress) hides a live source-truth condition with no confirmation and no recorded reason",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-031",
+      "severity": "P2",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "Remediation guidance and deep links are keyed by category, not source: wrong guidance and generic targets",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-032",
+      "severity": "P3",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "POST /v1/ops/workspace-reconcile reports started:false for the request that ran the reconciliation",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-033",
+      "severity": "P3",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "Projected titles replace stored titles with the source label: 120 distinct conditions all read 'Governance policy condition'",
+      "proofTypes": [
+        "BROWSER_PROVEN",
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-034",
+      "severity": "P3",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "Enterprise has no organization roll-up; Operations is strictly per workspace",
+      "proofTypes": [
+        "REAL_DB_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-035",
+      "severity": "P3",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "Native Operations: no reset on workspace switch, no refresh on foreground, English-only",
+      "proofTypes": [
+        "SOURCE_AND_TEST_PROVEN"
+      ]
+    },
+    {
+      "id": "OPS-036",
+      "severity": "P2",
+      "status": "NEW",
+      "priorStatus": null,
+      "title": "A failed grouped read renders '0 groups · 0 conditions … match these filters' in the default view",
+      "proofTypes": [
+        "BROWSER_PROVEN"
+      ]
+    }
+  ],
+  "externalBlockers": [
+    {
+      "id": "BLK-NATIVE-DEVICE",
+      "blocker": "No Android SDK / emulator and no Java runtime on this Windows host, and no iOS toolchain on Windows. Native Operations UI could not be executed on a device or simulator.",
+      "affects": [
+        "WS_NATIVE_DEVICE"
+      ],
+      "covered": "All 11 Operations-related mobile test files (156 tests) executed with the package runner; native source checks recorded in operations-native-matrix.json.",
+      "toUnblock": "Run the mobile app on an Android emulator / iOS simulator against the disposable stack and repeat the browser scenarios B01–B15 natively."
+    },
+    {
+      "id": "BLK-PRODUCTION-DATA",
+      "blocker": "Production must not be contacted. The exact Production rows behind the six observed conditions (Reem's add-on state, occurrence counts, reconciler interval/replicas, total team count for OPS-008 sizing) cannot be read.",
+      "affects": [
+        "OPS-003",
+        "OPS-008",
+        "OPS-025"
+      ],
+      "covered": "Every mechanism reproduced on a disposable stack with the same code.",
+      "toUnblock": "Owner reads the named rows / config in Production and applies the per-finding data reconciliation."
+    },
+    {
+      "id": "BLK-STEP-UP-FACTORS",
+      "blocker": "Bulk actions require SMS or TOTP step-up; no SMS provider is configured locally and no TOTP enrolment exists for fixture users.",
+      "affects": [
+        "PR-B07-bulk-outcome"
+      ],
+      "covered": "Server vocabulary proven via the bulk service and the GET run route; web rendering proven with the server's own response shape replayed through Playwright.",
+      "toUnblock": "Enrol TOTP for a fixture user and run the end-to-end bulk flow in the browser."
+    }
+  ]
+}

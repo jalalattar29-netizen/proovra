@@ -1,0 +1,129 @@
+{
+  "proofId": "PR-A7-queue-truth",
+  "title": "BullMQ failures/retries vs Operations; replay of completed work",
+  "proofType": "RUNTIME_PROVEN",
+  "findingIds": [
+    "OPS-022",
+    "OPS-024"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "A real repeated job failure is visible to the platform operator as a condition with stable identity; replay refuses completed work and duplicate replays.",
+  "observed": {
+    "jobs": {
+      "ok": "completed",
+      "bad": "failed",
+      "badAttemptsMade": 3,
+      "counts": {
+        "waiting": 0,
+        "active": 0,
+        "completed": 1,
+        "failed": 1,
+        "delayed": 0,
+        "paused": 0
+      }
+    },
+    "incidentsMentioningQueueFailure": 0,
+    "workerSampler": {
+      "teamId": null,
+      "failedCount": 1,
+      "retryCount": 0,
+      "stalledCount": 0,
+      "source": "BULLMQ"
+    },
+    "replay": {
+      "replayCompletedJob": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": "job_not_found",
+            "message": "Replay failed."
+          }
+        }
+      },
+      "completedJobStateAfterReplay": "completed",
+      "concurrentDuplicateReplay": [
+        400,
+        200
+      ],
+      "duplicateBodies": [
+        {
+          "error": {
+            "code": "job_not_failed",
+            "message": "Only failed (or completed) jobs are eligible for replay."
+          }
+        },
+        {
+          "result": {
+            "ok": true,
+            "action": "replay",
+            "queueName": "search-indexing",
+            "jobId": "opsaudit-bad-1",
+            "newAttemptsMade": 3,
+            "executedAtUtc": "<ts>"
+          }
+        }
+      ],
+      "customerOwnerReplay": 403,
+      "auditRows": [
+        {
+          "action": "operations.queue_job.replay_requested",
+          "previousState": null
+        }
+      ]
+    },
+    "redisOutage": {
+      "platformConsoleBefore": {
+        "status": 200,
+        "sample": [
+          {
+            "q": "report",
+            "health": "healthy"
+          },
+          {
+            "q": "report-dlq",
+            "health": "healthy"
+          },
+          {
+            "q": "evidence-purge",
+            "health": "healthy"
+          }
+        ]
+      },
+      "platformConsoleDuring": {
+        "status": 200,
+        "sample": [
+          {
+            "q": "report",
+            "health": "outage"
+          },
+          {
+            "q": "report-dlq",
+            "health": "outage"
+          },
+          {
+            "q": "evidence-purge",
+            "health": "unknown"
+          }
+        ]
+      },
+      "customerSummaryDuring": {
+        "status": 200,
+        "readiness": "NEVER_RUN"
+      }
+    }
+  },
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+    "services/api/src/routes/operations-queues.routes.ts": "b170ab0f4b45d25d58094539fb36183ad64636a7b9dc3a438fb4835e7c789adc",
+    "services/api/src/services/operations/queue-inventory.service.ts": "42f2c2b27bfb1fe817361c7b3bae8b646e32ce5e1ba5cb3ac9512663ddac004b",
+    "services/api/src/services/operations/queue-replay-action.service.ts": "5004a5b0605fa90e46c9bc9501e7fdf9fadd9a4aaa38250ed0acd6871bd7ed12",
+    "services/api/src/services/operations/queue-replay-safety.service.ts": "881649bec88d1590e03116828fda8090d272b99eb978ebfa93122bac4e7178bd",
+    "services/worker/src/index.ts": "9efde362473bc46f137da49dad56ec6384b8f78765a25dc6bae25a584ecb5f02",
+    "services/worker/src/telemetry.ts": "1dad7ea7f3b9b242f2a5d2f8522a37dd150cad6918b2356b1ac4c091aeeef5d4"
+  },
+  "harnessFile": "audit-operations/harness/a7-queue-truth.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

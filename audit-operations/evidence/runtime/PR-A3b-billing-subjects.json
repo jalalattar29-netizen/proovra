@@ -1,0 +1,50 @@
+{
+  "proofId": "PR-A3b-billing-subjects",
+  "title": "Storage add-on condition attribution across payer shapes",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-003",
+    "OPS-023"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "The condition follows the billing subject, stays visible to whoever now administers it, and is never closable by hand while live.",
+  "observed": [
+    {
+      "case": "OWNERSHIP_TRANSFER",
+      "conditionTeamIsWorkspace": true,
+      "newOwnerReads": 200,
+      "revokedOldOwnerReads": 403,
+      "newOwnerManualResolveWhileLive": 409
+    },
+    {
+      "case": "ENTERPRISE_PAYER",
+      "conditionInEnterpriseWorkspace": true,
+      "manualResolveWhileLive": 409
+    },
+    {
+      "case": "ACTIVE_ADDON_NO_OBLIGATION",
+      "conditionsForAddon": 0
+    },
+    {
+      "case": "LAPSED_PERSONAL_PAYER",
+      "conditionOpened": "OPEN",
+      "apiListStatus": 200,
+      "apiShowsIt": true,
+      "webOperationsView": "false",
+      "webPlan": "FREE",
+      "homeSurfaceDeclared": "billing.dependent_cancellation_failed surfaces.home=true (registry)"
+    }
+  ],
+  "outcome": "INFORMATIONAL",
+  "sourceFingerprints": {
+    "packages/shared-runtime/src/incident-transition-authority.ts": "d4600d2ac82c3f1a6eaa22810addaa0e97961f0f015f02831af098022853d355",
+    "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+    "services/api/src/services/billing/dependent-cancellation-conditions.service.ts": "07c2c803e72dce4abe40c093c91223499d1469df87e95bae4e932b6605974b6d",
+    "services/api/src/services/billing/dependent-cancellation.service.ts": "dc10f91ed1b839af2684ef1a4bec2f96b263cf746e5255d264bf94c4868c2208",
+    "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3"
+  },
+  "harnessFile": "audit-operations/harness/a3b-billing-subjects.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

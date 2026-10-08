@@ -1,0 +1,30 @@
+{
+  "proofId": "PR-A1-search-never-run",
+  "title": "Search condition opens as 'reconciliation failing' with zero reconciliation runs",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-017"
+  ],
+  "persona": "TEAM owner",
+  "plan": null,
+  "workspaceType": "organization",
+  "expected": "'Not yet measured' is distinct from 'failing'; no failing claim without a failed/stalled measurement.",
+  "observed": {
+    "searchIndexRunsEver": 0,
+    "condition": {
+      "title": "Search index reconciliation failing",
+      "status": "OPEN"
+    },
+    "recordedReadiness": "STALLED",
+    "teamB_conditions_note": "teamB fixture has one evidence row",
+    "teamB_conditions": 1
+  },
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+    "services/api/src/services/operations/search-index-conditions.service.ts": "2712e45fb70e079f024d7ec78d55fc5dd79653b45fd96536a495526c20f9cb18",
+    "services/api/src/services/search/search-health.service.ts": "2dca31b8c62bf6a005b5f15e50e5335edbef493cceb50cd2a9a9f6901a0786c5"
+  },
+  "harnessFile": "audit-operations/harness/a1-telemetry-storm.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

@@ -1,0 +1,772 @@
+{
+  "baseline": "85c8800778e4c09e7681f83c1ee8fed4661beff9",
+  "proofs": [
+    {
+      "proofId": "PR-A1-denial-incident",
+      "title": "Expected 403 refusals become a visible 'Security signal: permission_denied' condition",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-014"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A1-denial-incident.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd",
+        "services/api/src/services/security/security-event.service.ts": "1c71783ef41b2fb01b580b8fefda3b04be66015043ce95a23b03a31602f3f3d2"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A1-retry-storm-meta",
+      "title": "'Queue retry storm' is a count of this workspace's re-observed conditions",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-002"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A1-retry-storm-meta.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/services/dashboard/command-center.service.ts": "7b240db45991f54f705d0870293211020719c7df6f796898c9aa33e06830c374",
+        "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+        "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd",
+        "services/api/src/services/operations/operations-group-drilldown.service.ts": "253b407de518af9b8bf1631b16e2274d7ad240067ee937ee8f892eeb79dd52d3",
+        "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A1-search-never-run",
+      "title": "Search condition opens as 'reconciliation failing' with zero reconciliation runs",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-017"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A1-search-never-run.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+        "services/api/src/services/operations/search-index-conditions.service.ts": "2712e45fb70e079f024d7ec78d55fc5dd79653b45fd96536a495526c20f9cb18",
+        "services/api/src/services/search/search-health.service.ts": "2dca31b8c62bf6a005b5f15e50e5335edbef493cceb50cd2a9a9f6901a0786c5"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A1-telemetry-fabricated",
+      "title": "Workspace telemetry condition is derived from Home page loads, not the worker sampler",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-001"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A1-telemetry-fabricated.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/services/dashboard/command-center.service.ts": "7b240db45991f54f705d0870293211020719c7df6f796898c9aa33e06830c374",
+        "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+        "services/api/src/services/dashboard/queue-telemetry.service.ts": "bd56db261e72fa699b617436f4c63292934b3310710c3be1132e248113b2dfab",
+        "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3",
+        "services/worker/src/telemetry.ts": "1dad7ea7f3b9b242f2a5d2f8522a37dd150cad6918b2356b1ac4c091aeeef5d4"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A2-matrix",
+      "title": "Persona x plan x workspace access matrix (API executed; web decision from capability envelope)",
+      "proofType": "RUNTIME_PROVEN",
+      "findingIds": [
+        "OPS-005",
+        "OPS-010",
+        "OPS-021"
+      ],
+      "outcome": "INFORMATIONAL",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A2-matrix.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared-billing/src/plan-catalog.ts": "6519e28a99f70f6b328fafdbd357bc5904987f90a1e0ec845af0bc6d31bfbc38",
+        "packages/shared/src/permissions.ts": "3980bc67a18674190411ed22c735294192ae67527af77d5bd53e9fa8bc045001",
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/identity/access-policy.service.ts": "f2a54d67172a720a1e2155db40c512fc77fa8c3d44cd4c495422cb9ba16307da",
+        "services/api/src/services/observability/incident-scope.ts": "d5c2ed493589b3912483f0eae994b6d3c7ca060a4fdda04db43de63157933eb7",
+        "services/api/src/services/platform-context/capability-registry.ts": "f665f3ecef4b9677075a85d6e7a10a526c6f7ff1b6fec2371c61b5c01c789955",
+        "services/api/src/services/platform-context/platform-context.service.ts": "aca73b9f98af2a25e8e21cde759e705b46cd08abe98298976cd25ff8c2845981"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A3-storage-addon",
+      "title": "Storage add-on obligation incidents: wording, scope, auto-resolution and manual resolution",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-003",
+        "OPS-023"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A3-storage-addon.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared-runtime/src/incident-transition-authority.ts": "d4600d2ac82c3f1a6eaa22810addaa0e97961f0f015f02831af098022853d355",
+        "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+        "services/api/src/jobs/dependent-cancellation-retry.job.ts": "70b274dc9e2eddd788918eeccd9e42779e11f278cab72ba43380762a999e6c4c",
+        "services/api/src/routes/billing.routes.ts": "3fdd653454eca620ed576e72042664771fb252a767479def8eb05ab95716955f",
+        "services/api/src/services/billing/dependent-cancellation-conditions.service.ts": "07c2c803e72dce4abe40c093c91223499d1469df87e95bae4e932b6605974b6d",
+        "services/api/src/services/billing/dependent-cancellation.service.ts": "dc10f91ed1b839af2684ef1a4bec2f96b263cf746e5255d264bf94c4868c2208",
+        "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+        "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3",
+        "services/api/src/services/operations/remediation-registry.ts": "79fe0c164fa587effb53e98ca708d4c59deda3f7946023bcefdcc15e549d2373"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A3b-billing-subjects",
+      "title": "Storage add-on condition attribution across payer shapes",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-003",
+        "OPS-023"
+      ],
+      "outcome": "INFORMATIONAL",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A3b-billing-subjects.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared-runtime/src/incident-transition-authority.ts": "d4600d2ac82c3f1a6eaa22810addaa0e97961f0f015f02831af098022853d355",
+        "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+        "services/api/src/services/billing/dependent-cancellation-conditions.service.ts": "07c2c803e72dce4abe40c093c91223499d1469df87e95bae4e932b6605974b6d",
+        "services/api/src/services/billing/dependent-cancellation.service.ts": "dc10f91ed1b839af2684ef1a4bec2f96b263cf746e5255d264bf94c4868c2208",
+        "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A4-report-package",
+      "title": "Report/package failure conditions: version truth, recovery, supersede offer, raw text, personal scope",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-004",
+        "OPS-013",
+        "OPS-015",
+        "OPS-016"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A4-report-package.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/jobs/workspace-operations-reconciliation.job.ts": "0604924da4ee2ed161ee48ece7aea87c1e91b93e665cbeca33d3c48c21d99d0e",
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/observability/incident-scope.ts": "d5c2ed493589b3912483f0eae994b6d3c7ca060a4fdda04db43de63157933eb7",
+        "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3",
+        "services/api/src/services/operations/remediation-registry.ts": "79fe0c164fa587effb53e98ca708d4c59deda3f7946023bcefdcc15e549d2373",
+        "services/api/src/services/operations/source-truth-recovery.service.ts": "655b469d74beb6dbdf2373cc37ed2b75c68c3be527b674fcd7bce5a285860e0a",
+        "services/worker/src/governance/incident-emitter.ts": "371f150a79f68eb593fe4a73dd96fc8afc1f0020d7b43e0c0dc9040ea892bfbb",
+        "services/worker/src/processor.ts": "202f675a7532a49d83ddc401374d7d43e70a25a6383bef036587d953c8088d8e"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A4b-recovery-entitled",
+      "title": "Operations remediation routes into requestOutputRecovery; supersede gate on an entitled workspace",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-013"
+      ],
+      "outcome": "INFORMATIONAL",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A4b-recovery-entitled.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/operations/remediation-executor.ts": "4a4bfb261a92d941e42298057ddb7f884cc1e257ff25b71694f34235a52836b6",
+        "services/api/src/services/operations/remediation-registry.ts": "79fe0c164fa587effb53e98ca708d4c59deda3f7946023bcefdcc15e549d2373",
+        "services/api/src/services/reports/output-recovery.service.ts": "e326733c34c3861b05c1ff2cf6ede34d1e52d84b13ceb2114ec567f030bb40e2"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A5-search",
+      "title": "Search readiness states and the condition they open/close",
+      "proofType": "RUNTIME_PROVEN",
+      "findingIds": [
+        "OPS-017"
+      ],
+      "outcome": "INFORMATIONAL",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A5-search.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared/src/search-readiness.ts": "5a9c69b3f39dcbea5ec5e55d0abc806b78079874db158deaa0f09409b2e079c2",
+        "services/api/src/services/operations/search-index-conditions.service.ts": "2712e45fb70e079f024d7ec78d55fc5dd79653b45fd96536a495526c20f9cb18",
+        "services/api/src/services/search/search-health.service.ts": "2dca31b8c62bf6a005b5f15e50e5335edbef493cceb50cd2a9a9f6901a0786c5"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A5-trust",
+      "title": "TSA/OTS conditions resolve on any non-FAILED status",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-019"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A5-trust.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+        "services/api/src/services/operations/evidence-integrity-conditions.service.ts": "207f410ff1aea26eab1b741d2f9ca0100d6aeec57f1a1a7539cfbfdc206f8593",
+        "services/api/src/services/operations/operations-source-registry.ts": "09c0442d1acd977615be0fc5e93fb6a69109ea0d530c93394dc13978b440806b"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A6-detector-failure",
+      "title": "Unreadable source => PARTIAL run, all-clear refused; concurrent reconcile",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [],
+      "outcome": "BEHAVIOUR_CORRECT",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A6-detector-failure.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+        "services/api/src/services/operations/operations-reconciliation.service.ts": "28c42a56ebe07a8316db68e248ad6409ae8f26db9f32385fdbefe9f2e31bdd1d",
+        "services/api/src/services/operations/operations-summary.service.ts": "fa1086015e212f488acb68aad62a7f249c984e39812a5bae94d521db44068846"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A6-heartbeat",
+      "title": "Per-workspace heartbeat rows never auto-resolve and open SLA cycles",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-009"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A6-heartbeat.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+        "services/api/src/services/observability/incident-scope.ts": "d5c2ed493589b3912483f0eae994b6d3c7ca060a4fdda04db43de63157933eb7",
+        "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd",
+        "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A6-no-auto-resolver",
+      "title": "Sources declared PROBE_AUTO_RESOLVE that no sweep closes",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-018"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A6-no-auto-resolver.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+        "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+        "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd",
+        "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A6-scheduler-coverage",
+      "title": "Scheduler only ranks the 500 oldest workspaces",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-008"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A6-scheduler-coverage.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/jobs/workspace-operations-reconciliation.job.ts": "0604924da4ee2ed161ee48ece7aea87c1e91b93e665cbeca33d3c48c21d99d0e",
+        "services/api/src/services/operations/operations-reconciliation.service.ts": "28c42a56ebe07a8316db68e248ad6409ae8f26db9f32385fdbefe9f2e31bdd1d"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A7-queue-truth",
+      "title": "BullMQ failures/retries vs Operations; replay of completed work",
+      "proofType": "RUNTIME_PROVEN",
+      "findingIds": [
+        "OPS-022",
+        "OPS-024"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A7-queue-truth.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared-runtime/src/ops/source-lifecycle.ts": "c5a70fe09720fad105670180da2fbd97cfde3553d028a4a63c5aac35e2d45e98",
+        "services/api/src/routes/operations-queues.routes.ts": "b170ab0f4b45d25d58094539fb36183ad64636a7b9dc3a438fb4835e7c789adc",
+        "services/api/src/services/operations/queue-inventory.service.ts": "42f2c2b27bfb1fe817361c7b3bae8b646e32ce5e1ba5cb3ac9512663ddac004b",
+        "services/api/src/services/operations/queue-replay-action.service.ts": "5004a5b0605fa90e46c9bc9501e7fdf9fadd9a4aaa38250ed0acd6871bd7ed12",
+        "services/api/src/services/operations/queue-replay-safety.service.ts": "881649bec88d1590e03116828fda8090d272b99eb978ebfa93122bac4e7178bd",
+        "services/worker/src/index.ts": "9efde362473bc46f137da49dad56ec6384b8f78765a25dc6bae25a584ecb5f02",
+        "services/worker/src/telemetry.ts": "1dad7ea7f3b9b242f2a5d2f8522a37dd150cad6918b2356b1ac4c091aeeef5d4"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A8-action-semantics",
+      "title": "Acknowledge / resolve / suppress / assign semantics and concurrency",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [
+        "OPS-003"
+      ],
+      "outcome": "INFORMATIONAL",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A8-action-semantics.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "packages/shared-runtime/src/incident-transition-authority.ts": "d4600d2ac82c3f1a6eaa22810addaa0e97961f0f015f02831af098022853d355",
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A8-bulk-vocabulary",
+      "title": "Bulk item vocabulary returned by the API vs the value the web counts as success",
+      "proofType": "RUNTIME_PROVEN",
+      "findingIds": [
+        "OPS-011"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A8-bulk-vocabulary.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/dashboard/bulk-actions.service.ts": "e9145bfe667a585808c4662b396f62771b16076f26df31d37dbf97f0906f70c5"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A8-cron-header",
+      "title": "Worker cron header vs API authority",
+      "proofType": "RUNTIME_PROVEN",
+      "findingIds": [
+        "OPS-006"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A8-cron-header.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/middleware/cron-secret.ts": "b8e002f5664763dd59fc13e2c9b301691c134e3d64fce1d9d974c28d3d78d368",
+        "services/worker/src/automation-dispatch.ts": "57adccaaa2a46430c54d04819f0e6b749221ca8f2ebb74436318bd01316e8f2b",
+        "services/worker/src/org-invite-delivery.worker.ts": "6f9db161bf74b4a34c713be970967e528192d1e24e8b8063d6f0d6186d204d51"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A8-health-exposure",
+      "title": "GET /v1/ops/health content for a workspace VIEWER",
+      "proofType": "RUNTIME_PROVEN",
+      "findingIds": [
+        "OPS-010"
+      ],
+      "outcome": "DEFECT_OBSERVED",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A8-health-exposure.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A9-enterprise",
+      "title": "Enterprise organization with three workspaces: isolation, roles, assignment, roll-up",
+      "proofType": "REAL_DB_PROVEN",
+      "findingIds": [],
+      "outcome": "INFORMATIONAL",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A9-enterprise.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/routes/me-inbox.routes.ts": "62301ba67a3dd7ee9161306ff08628fc23eb36b85e2906056d08684fd92c6def",
+        "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+        "services/api/src/services/operations/assignable-operators.service.ts": "536a4798e8aed228d0c6caa99ce3598c6e90db5ef93a184cef94894b0c68be22",
+        "services/api/src/services/operations/operations-summary.service.ts": "fa1086015e212f488acb68aad62a7f249c984e39812a5bae94d521db44068846"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-A9-exposure",
+      "title": "Platform/infrastructure data reachable by workspace members outside /operations",
+      "proofType": "RUNTIME_PROVEN",
+      "findingIds": [
+        "OPS-010"
+      ],
+      "outcome": "INFORMATIONAL",
+      "evidenceFile": "audit-operations/evidence/runtime/PR-A9-exposure.json",
+      "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs",
+      "sourceFingerprints": {
+        "services/api/src/routes/investigation-diagnostics.routes.ts": "2cbeac16a6449f8e3d3d684c72239200459a5eee9c6867cc5e4d976ddfedd04c",
+        "services/api/src/routes/runtime-secrets-health.routes.ts": "bc076cf03d3bfe7ec482057e44747ef45f4cc5e1554112ca548ded54a3d4c65f",
+        "services/api/src/routes/workspace-operations.routes.ts": "589d0484a61a8595ac38b19fc54256ec22ce125b444f66328ea0c7bdcc54c563",
+        "services/api/src/services/investigation-diagnostics.service.ts": "2d9316692c0d5f51f0fbd5c9b18488ae17f3b32dbf30238dde8eb0909408b89e"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B01-reem-view",
+      "title": "Reem-shaped personal workspace rendered: grouped list, group drawer, condition drawers",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-001",
+        "OPS-002",
+        "OPS-003",
+        "OPS-012",
+        "OPS-013"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B01-reem-view.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B02-drawer-refresh-deadlock",
+      "title": "Acknowledge with the condition drawer open",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-007"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B02-drawer-refresh-deadlock.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B03-workspace-switch-inflight",
+      "title": "Workspace switch with a delayed old-workspace list and an open drawer",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-007"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B03-workspace-switch-inflight.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B04-viewer-controls",
+      "title": "TEAM viewer: rendered controls",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B04-viewer-controls.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B05-free-gate",
+      "title": "FREE personal owner opens /operations directly",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-005"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B05-free-gate.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B06-error-states",
+      "title": "Rendered states for failed / slow reads",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B06-error-states.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B07-bulk-outcome",
+      "title": "Web rendering of a fully successful bulk run (server vocabulary COMPLETED)",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-011"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B07-bulk-outcome.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B08-pagination",
+      "title": "Pagination with 121 conditions",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B08-pagination.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B09-responsive",
+      "title": "Responsive widths and 200% root text size",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B09-responsive.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B10-locales",
+      "title": "English / German / Arabic (RTL) rendering of /operations",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B10-locales.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B11-accessibility",
+      "title": "Keyboard, focus trap/restore, headings, names, live regions, reduced motion",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B11-accessibility.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B12-history-deeplink",
+      "title": "Back/forward over filters; deep link to an open condition",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B12-history-deeplink.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B13-drawer-churn-polling",
+      "title": "10x drawer open/close; idle 65s request cadence; measured API latency",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B13-drawer-churn-polling.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B14-empty-state",
+      "title": "Reconciled TEAM workspace with zero conditions",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-020"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B14-empty-state.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-B15-two-tabs",
+      "title": "Second tab acknowledges a condition already acknowledged in the first",
+      "proofType": "BROWSER_PROVEN",
+      "findingIds": [
+        "OPS-007"
+      ],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/browser/PR-B15-two-tabs.json",
+      "command": "node audit-operations/harness/browser/run-browser.mjs",
+      "sourceFingerprints": {
+        "apps/web/app/(app)/operations/page.tsx": "8872b0891f2ff631e8b5c6c8e93b4a08f0a8374ee54de7e22fc9f8a8d75e2c19",
+        "apps/web/app/(app)/operations/_components/IncidentInspector.tsx": "7b4ca57c03989eadc0b799a6cbae1da0a39f5f88e3163bbd4a379994618f5e5b",
+        "apps/web/app/(app)/operations/_components/GroupInspector.tsx": "b57b319d6d7c6f79a3e9384d1e9c2a145b5c00c480e9b51269a8c60ae73bb79c",
+        "apps/web/app/(app)/operations/_components/IncidentSurface.tsx": "76314a9ee891e25073501eadba759885f756aa633330a3b90e6c661e0d541f4b",
+        "apps/web/app/(app)/operations/_components/GroupSurface.tsx": "bb9be90dfe6f6baafd106b683492b0f222ae2ffaffba6bd8c4ddb102510bd1ba",
+        "apps/web/app/(app)/operations/_components/States.tsx": "1ce45d661e451050fa92b7487a77313560e0f1b7eb6602c2104e29549fd5f950",
+        "apps/web/app/(app)/operations/_components/BulkToolbar.tsx": "37b37cd1890047862def97ce278b56b35cbc432afd3727f95e8d881dafc91fc8",
+        "apps/web/app/(app)/operations/operations.css": "b0503d0468c0d83cf43c0f515b802758a4c6f87d5c0a0da01536bd21d7204c23"
+      },
+      "reproducedIndependently": true
+    },
+    {
+      "proofId": "PR-N01-mobile-ops-tests",
+      "title": "Native Operations logic: package test runner (node --test) over every Operations-related mobile test file",
+      "proofType": "SOURCE_AND_TEST_PROVEN",
+      "findingIds": [],
+      "outcome": null,
+      "evidenceFile": "audit-operations/evidence/native/PR-N01-mobile-ops-tests.json",
+      "command": "cd apps/mobile && node --test test/ops-console.test.mjs test/ops-parity.render.test.mjs test/ops-remediation-reason.test.mjs test/operations.test.mjs test/operations-batch-analysis.render.test.mjs test/operations-quotas.render.test.mjs test/navigation-model.test.mjs test/shell-gates.test.mjs test/shell-navigation.render.test.mjs test/product-manifest-coverage.test.mjs test/home-operations.test.mjs",
+      "sourceFingerprints": {
+        "apps/mobile/app/(stack)/operations/index.tsx": "4269d991f9b4a9f843f200202b4c0e1f2fcd60ed63599dfd38a467989d4629cc",
+        "apps/mobile/src/product/navigation.ts": "1c2e4ea42a570f274bd231fc3995b2b90dcccba5b119571976500032dd065e29",
+        "apps/mobile/src/product/ops-console.ts": "e3627e39ab9322c6eea94fda2c19b9281dd63c02bfdfb3a2794793927a9ffa36",
+        "apps/mobile/src/ui/ops-surfaces.tsx": "dec17433c319fccf1468f74abce5fff7139abac098eaf99a2f72de64cd71da67",
+        "apps/mobile/test/home-operations.test.mjs": "88273e18919a3efa99cff772f2ff1a1f6828de05e758136150cc5dfbc93ca4ef",
+        "apps/mobile/test/navigation-model.test.mjs": "1e0354b88bfef5e044c1a90208bf1ccfdee3d5fda5dcca29bc155fa304ddfcd7",
+        "apps/mobile/test/operations-batch-analysis.render.test.mjs": "031cb5e30d1a470e5d5848806436226f6c35ac70e1e8cc9519bfa9e2d077b388",
+        "apps/mobile/test/operations-quotas.render.test.mjs": "df6748db8a04f477188a101c6129a52bae3b3f6f7ef96303219878a537424994",
+        "apps/mobile/test/operations.test.mjs": "d10dd86d38e5b53a4cd1de40a417d6212da6eb83363b749cabdacb1e023193e4",
+        "apps/mobile/test/ops-console.test.mjs": "d90810f892db53e67ee73f15f7fa3cd0714db2de4f9fc908b5f2dd948b7391d0",
+        "apps/mobile/test/ops-parity.render.test.mjs": "9fa9fbb7ed08b64d8570830c830a469d2a279335e1cb9b14ae6d1c534480dbc8",
+        "apps/mobile/test/ops-remediation-reason.test.mjs": "e4cd8d600fbb5e798a3056bfafde221b72470802043af414cbbb8482d152969f",
+        "apps/mobile/test/product-manifest-coverage.test.mjs": "bd161cff053c2d155fb41b5dd11bb95114a8fbfe47157d8482e16948a450e10e",
+        "apps/mobile/test/shell-gates.test.mjs": "cf8b1930c63987f9b63a58251e9263d9eab8090b597b5a00e3fca6d97ba1cac0",
+        "apps/mobile/test/shell-navigation.render.test.mjs": "f50147d093a9a772606641661923b807ffbc819da3676f910c81396ab37fa4fd"
+      },
+      "reproducedIndependently": true
+    }
+  ]
+}

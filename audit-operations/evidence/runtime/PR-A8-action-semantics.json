@@ -1,0 +1,49 @@
+{
+  "proofId": "PR-A8-action-semantics",
+  "title": "Acknowledge / resolve / suppress / assign semantics and concurrency",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-003"
+  ],
+  "persona": null,
+  "plan": null,
+  "workspaceType": null,
+  "expected": "Metadata transitions are idempotent and safe under concurrent clicks; resolve never closes a live source-truth condition.",
+  "observed": {
+    "tripleConcurrentAck": [
+      409,
+      200,
+      409
+    ],
+    "ackEventRows": 1,
+    "concurrentResolveVsSuppress": {
+      "resolve": 200,
+      "suppress": 409,
+      "finalStatus": "RESOLVED"
+    },
+    "resolveWithoutNote_governancePolicy": {
+      "status": 409,
+      "code": "RESOLUTION_NOTE_REQUIRED"
+    },
+    "suppressReasonPersisted": {
+      "status": 200,
+      "row": {
+        "status": "SUPPRESSED",
+        "resolutionNote": null
+      }
+    },
+    "ackAfterTerminal": 409,
+    "latestIncidentAudit": {
+      "action": "observability.incident.suppressed",
+      "actorAuthority": null
+    }
+  },
+  "outcome": "INFORMATIONAL",
+  "sourceFingerprints": {
+    "packages/shared-runtime/src/incident-transition-authority.ts": "d4600d2ac82c3f1a6eaa22810addaa0e97961f0f015f02831af098022853d355",
+    "services/api/src/routes/ops.routes.ts": "7652a8a4a49b6e87e03ed63d417e54a6da843ab6d69d72e05415bf0c6aef7919",
+    "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd"
+  },
+  "harnessFile": "audit-operations/harness/a8-actions-cron-health.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}

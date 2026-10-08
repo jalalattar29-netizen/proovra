@@ -1,0 +1,33 @@
+{
+  "proofId": "PR-N01-mobile-ops-tests",
+  "title": "Native Operations logic: package test runner (node --test) over every Operations-related mobile test file",
+  "proofType": "SOURCE_AND_TEST_PROVEN",
+  "findingIds": [],
+  "command": "cd apps/mobile && node --test test/ops-console.test.mjs test/ops-parity.render.test.mjs test/ops-remediation-reason.test.mjs test/operations.test.mjs test/operations-batch-analysis.render.test.mjs test/operations-quotas.render.test.mjs test/navigation-model.test.mjs test/shell-gates.test.mjs test/shell-navigation.render.test.mjs test/product-manifest-coverage.test.mjs test/home-operations.test.mjs",
+  "exitCode": 0,
+  "observed": {
+    "tests": 156,
+    "pass": 156,
+    "fail": 0,
+    "skipped": 0,
+    "failures": []
+  },
+  "limits": "Pure TypeScript/React logic under node. No device, simulator or emulator executed. JVM (Kotlin) and Swift native-module tests not run on this host (no Java runtime / Android SDK; no iOS toolchain on Windows); those modules do not touch Operations.",
+  "sourceFingerprints": {
+    "apps/mobile/app/(stack)/operations/index.tsx": "4269d991f9b4a9f843f200202b4c0e1f2fcd60ed63599dfd38a467989d4629cc",
+    "apps/mobile/src/product/navigation.ts": "1c2e4ea42a570f274bd231fc3995b2b90dcccba5b119571976500032dd065e29",
+    "apps/mobile/src/product/ops-console.ts": "e3627e39ab9322c6eea94fda2c19b9281dd63c02bfdfb3a2794793927a9ffa36",
+    "apps/mobile/src/ui/ops-surfaces.tsx": "dec17433c319fccf1468f74abce5fff7139abac098eaf99a2f72de64cd71da67",
+    "apps/mobile/test/home-operations.test.mjs": "88273e18919a3efa99cff772f2ff1a1f6828de05e758136150cc5dfbc93ca4ef",
+    "apps/mobile/test/navigation-model.test.mjs": "1e0354b88bfef5e044c1a90208bf1ccfdee3d5fda5dcca29bc155fa304ddfcd7",
+    "apps/mobile/test/operations-batch-analysis.render.test.mjs": "031cb5e30d1a470e5d5848806436226f6c35ac70e1e8cc9519bfa9e2d077b388",
+    "apps/mobile/test/operations-quotas.render.test.mjs": "df6748db8a04f477188a101c6129a52bae3b3f6f7ef96303219878a537424994",
+    "apps/mobile/test/operations.test.mjs": "d10dd86d38e5b53a4cd1de40a417d6212da6eb83363b749cabdacb1e023193e4",
+    "apps/mobile/test/ops-console.test.mjs": "d90810f892db53e67ee73f15f7fa3cd0714db2de4f9fc908b5f2dd948b7391d0",
+    "apps/mobile/test/ops-parity.render.test.mjs": "9fa9fbb7ed08b64d8570830c830a469d2a279335e1cb9b14ae6d1c534480dbc8",
+    "apps/mobile/test/ops-remediation-reason.test.mjs": "e4cd8d600fbb5e798a3056bfafde221b72470802043af414cbbb8482d152969f",
+    "apps/mobile/test/product-manifest-coverage.test.mjs": "bd161cff053c2d155fb41b5dd11bb95114a8fbfe47157d8482e16948a450e10e",
+    "apps/mobile/test/shell-gates.test.mjs": "cf8b1930c63987f9b63a58251e9263d9eab8090b597b5a00e3fca6d97ba1cac0",
+    "apps/mobile/test/shell-navigation.render.test.mjs": "f50147d093a9a772606641661923b807ffbc819da3676f910c81396ab37fa4fd"
+  }
+}

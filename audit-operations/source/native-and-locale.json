@@ -1,0 +1,228 @@
+{
+  "mobileTestRuns": [
+    {
+      "command": "pnpm run build:deps  (prerequisite: packages/shared + shared-evidence-presentation dist are gitignored build outputs; the first test run without them failed every bundle with 'Could not resolve \"@proovra/shared\"')",
+      "cwd": "D:/pv-ops-audit/apps/mobile",
+      "exitCode": 0,
+      "passed": null,
+      "failed": null,
+      "skipped": null,
+      "files": [],
+      "failures": []
+    },
+    {
+      "command": "node --test test/ops-console.test.mjs test/ops-parity.render.test.mjs test/ops-remediation-reason.test.mjs test/navigation-model.test.mjs test/shell-gates.test.mjs test/shell-navigation.render.test.mjs test/product-manifest-coverage.test.mjs test/home-operations.test.mjs",
+      "cwd": "D:/pv-ops-audit/apps/mobile",
+      "exitCode": 0,
+      "passed": 98,
+      "failed": 0,
+      "skipped": 0,
+      "files": [
+        "test/ops-console.test.mjs (9 pass)",
+        "test/ops-parity.render.test.mjs (14 pass)",
+        "test/ops-remediation-reason.test.mjs (4 pass)",
+        "test/navigation-model.test.mjs (10 pass)",
+        "test/shell-gates.test.mjs (10 pass)",
+        "test/shell-navigation.render.test.mjs (9 pass)",
+        "test/product-manifest-coverage.test.mjs (14 pass)",
+        "test/home-operations.test.mjs (28 pass; Home ops tile, not the console)"
+      ],
+      "failures": [],
+      "runner": "package script `test` = `node --test` (node:test; tests bundle TS sources with esbuild via test/support). No jest/vitest in apps/mobile.",
+      "untestedBehaviours": [
+        "workspace switch while /operations is mounted (no test)",
+        "offline / transport failure on ops reads (no test)",
+        "AppState foreground refresh (no behaviour, no test)",
+        "late-response guards on operators/saved-views/loadMore/reconcile poll (no test)",
+        "localization/RTL of ops screen (no test)",
+        "group 'Open record' -> /evidence/:id navigation (no direct test)"
+      ]
+    }
+  ],
+  "nativeChecks": [
+    {
+      "id": "N-nav-gate",
+      "check": "Navigation gate",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/src/product/navigation.ts:146-150; navigation.ts:277-285; navigation.ts:374-382",
+      "detail": "workspace.operations requires OPERATIONS_VIEW, requiredActiveSpace PERSONAL_OR_ORG, HIDDEN_IF_NO_CAPABILITY (hidden, not chipped, when missing); excluded from provisional nav before the envelope arrives. Label 'Operations' has no labelKey (untranslated)."
+    },
+    {
+      "id": "N-route-gate",
+      "check": "In-screen access gate (deep link)",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/src/product/ops-console.ts:391-410; apps/mobile/app/(stack)/operations/index.tsx:147, 495-502",
+      "detail": "resolveOperationsAccess mirrors web resolveRuntimeReadAccess (no_envelope/no_workspace/workspace not active/context_mismatch/account_not_active/OPERATIONS_VIEW). Restricted renders copy and issues NO /v1/ops call (asserted in ops-parity test). Web equivalent apps/web/app/(app)/operations/page.tsx:399."
+    },
+    {
+      "id": "N-capability-gate",
+      "check": "Per-action capability gate",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/src/product/ops-console.ts:430-439, 905-913, 1142-1152; apps/mobile/app/(stack)/operations/index.tsx:289, 507, 891-893, 1417-1419",
+      "detail": "OPERATIONS_ACKNOWLEDGE/RESOLVE/SUPPRESS/ASSIGN/SAVED_VIEWS_MANAGE from envelope; rowEligibility adds status (ack only OPEN; resolve needs manualResolution && live; suppress/assign need OPEN|ACKNOWLEDGED). Selection checkboxes only if acknowledge||suppress. WORKSPACE_HEALTH_VIEW gates the health link (ops-console.ts:1163-1165, index.tsx:476)."
+    },
+    {
+      "id": "N-workspace-switch",
+      "check": "Workspace switch reset behaviour",
+      "result": "PARTIAL",
+      "evidence": "apps/mobile/src/product/platform-context.ts:147-183; apps/mobile/app/(stack)/operations/index.tsx:145, 152-191, 232; apps/mobile/app/(stack)/spaces.tsx:114-133",
+      "detail": "usePlatformContext is a per-instance fetch (no shared store/subscription); switching on the Spaces screen refreshes only that instance, so a mounted Operations screen keeps its old teamId until remount. If teamId does change in-instance, reads re-run (teamId in effect deps) but filters, marked (bulk selection), openId/openGroup, views and incidents are NOT reset; phase stays 'ready' so prior-workspace rows stay visible during the re-read and a bulk action could send prior-workspace ids with the new teamId. No test covers this."
+    },
+    {
+      "id": "N-list-loading",
+      "check": "List loading",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/app/(stack)/operations/index.tsx:205-258, 260-286, 313-328, 539-581, 609-622",
+      "detail": "summary, incidents (cursor, 50/page, 'Load 50 more' appends) and groups (default grouped view) read in parallel; 250ms debounced search; loading is not empty (groups loading shows a spinner); failed incidents read -> unavailable state with support reference + Try again; Refresh shows 'Refreshing…' and is disabled meanwhile."
+    },
+    {
+      "id": "N-incident-detail",
+      "check": "Incident detail",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/app/(stack)/operations/index.tsx:1104-1434",
+      "detail": "Bottom-sheet inspector reads /v1/ops/incidents/:id; renders the queue row immediately and keeps it if history fails; sections What happened, What you can do (server remediation actions w/ confirm + required reason), How much, When/SLA, Ownership (collaborative only), History, Technical references (copyable), lifecycle buttons."
+    },
+    {
+      "id": "N-affected-evidence-nav",
+      "check": "Affected evidence navigation target",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/src/product/ops-console.ts:887-892; apps/mobile/app/(stack)/operations/index.tsx:1226-1236, 1520-1529, 1281-1290",
+      "detail": "Incident: relatedEvidenceId -> /evidence/<id> ('Open record'); job/provider -> label only, no link. Group affected rows -> /evidence/<evidenceId>. Remediation deepLink href is pushed verbatim from the server (no allow-list). Same targets as web (_lib/rowModel.ts:160, _components/GroupInspector.tsx:301, _components/IncidentInspector.tsx:408)."
+    },
+    {
+      "id": "N-action-visibility",
+      "check": "Permitted/forbidden action visibility",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/src/product/ops-console.ts:905-913, 1142-1152; apps/mobile/app/(stack)/operations/index.tsx:750-766, 891-893, 1345-1369, 1417-1419",
+      "detail": "Forbidden actions are hidden (not disabled). Row menu absent when no action applies. Bulk assign only when collaborative && assign && operators. Saved-view manage only for the owner, or SAVED_VIEWS_MANAGE for TEAM views. Suppress has no confirmation on either native or web."
+    },
+    {
+      "id": "N-stale-guards",
+      "check": "Stale-data handling (live guards)",
+      "result": "PARTIAL",
+      "evidence": "apps/mobile/app/(stack)/operations/index.tsx:207-224, 229-257, 262-285, 1145-1159 (guarded); apps/mobile/app/(stack)/operations/index.tsx:288-297, 299-306, 313-328, 334-372, 1443-1462 (unguarded)",
+      "detail": "summary/incidents/groups/incident-detail effects use a `live` flag. NOT guarded: assignable-operators fetch, saved-views load, loadMore (appends a page read under old filters/team after await), reconcile poll loop (continues after unmount and writes summary), GroupInspector load. No AbortController anywhere."
+    },
+    {
+      "id": "N-api-errors",
+      "check": "API error handling",
+      "result": "PRESENT",
+      "evidence": "apps/mobile/app/(stack)/operations/index.tsx:136-139, 392-395, 438-441, 358-366, 1182-1184; apps/mobile/src/product/ops-console.ts:952-979",
+      "detail": "toSafeUserError -> safe message + requestId support reference. Lifecycle refusal codes CONDITION_STILL_ACTIVE / CONDITION_ACTIVITY_UNKNOWN / CONDITION_NOT_DIRECTLY_RESOLVABLE -> confirm sheet. Bulk uses step-up challenge and treats STEP_UP_CANCEL as an outcome. Remediation refusal shows server remediation.message (web shows generic copy, ops-console.ts:26-27). Failed grouped read is shown as a failure; web swallows it and sets groups [] (apps/web/app/(app)/operations/page.tsx:455-461)."
+    },
+    {
+      "id": "N-offline",
+      "check": "Offline behaviour",
+      "result": "PARTIAL",
+      "evidence": "apps/mobile/src/network/network-state.ts:1-37; apps/mobile/src/api.ts:62-64, 201-203; apps/mobile/src/ui/shell.tsx:528-535, 602, 647",
+      "detail": "No NetInfo dependency. Global offline banner derived from transport failures only ('showing the latest available data'). Ops screen has no offline-specific state, no cache, no auto-retry on reconnect; a failed read shows the generic unavailable state."
+    },
+    {
+      "id": "N-foreground-refresh",
+      "check": "Background/foreground refresh",
+      "result": "ABSENT",
+      "evidence": "apps/mobile/app/(stack)/operations/index.tsx (no AppState/useFocusEffect/interval); AppState hits only in apps/mobile/src/ui/presence-indicator.tsx:42 and apps/mobile/app/(stack)/continuous-capture.tsx:310",
+      "detail": "Ops queue never refreshes on app foreground or screen re-focus; only manual Refresh, after mutations, or the bounded reconcile poll (RECONCILE_MAX_POLLS=12, ops-console.ts:1085). Web /operations page also has no visibility/interval refresh (only the health and batch-analysis subpages do)."
+    },
+    {
+      "id": "N-localization",
+      "check": "Localization of ops strings / RTL",
+      "result": "ABSENT",
+      "evidence": "apps/mobile/src/product/ops-console.ts:412-420, 1030-1100 (English constants); apps/mobile/app/(stack)/operations/index.tsx:466, 600, 889 (literals); apps/mobile/src/product/navigation.ts:147 (no labelKey); apps/mobile/src/i18n.ts:1-50; apps/mobile/src/locale-context.tsx:125; apps/mobile/src/ui/index.tsx:202-203, 261",
+      "detail": "Mobile has i18n (shared dict, 7 locales; device locale via NativeModules.I18nManager.localeIdentifier / SettingsManager) but the ops screen uses NO t(); all copy is hard-coded English; numbers use toLocaleString('en-US'). No I18nManager.forceRTL/allowRTL; RTL is per-component (isRTL = locale 'ar' flips text alignment/writingDirection and section headers), so Arabic users get English ops copy right-aligned."
+    },
+    {
+      "id": "N-a11y",
+      "check": "Accessibility labels",
+      "result": "PARTIAL",
+      "evidence": "apps/mobile/src/ui/ops-surfaces.tsx:49, 132-134, 150, 182, 224, 272, 312; apps/mobile/app/(stack)/operations/index.tsx:1010, 1038, 1263",
+      "detail": "Severity capsule, selection checkbox (role + checked state), row/group buttons, actions menu, notices (role alert), copy buttons and inputs are labelled. Filter chips/KPI cards rely on shared primitives; no live announcement for bulk outcome or refresh completion; labels English-only."
+    },
+    {
+      "id": "N-action-parity",
+      "check": "Native vs web vs API action set",
+      "result": "DIFFERS_FROM_WEB",
+      "evidence": "apps/mobile/app/(stack)/operations/index.tsx:384-448, 948-988, 1165-1189; apps/web/app/(app)/operations/page.tsx:622-1340; services/api/src/routes/ops.routes.ts:581-3515",
+      "detail": "Native = web /operations page set: summary, incidents, incident-groups(+affected), incident detail, ack/resolve/suppress, assign, remediate, assignable-operators, saved-views CRUD, workspace-reconcile, bulk-actions (ACK/SUPPRESS/ASSIGN_INCIDENTS). Native exposes nothing the web page lacks. Native has no screen for web subpages /operations/analytics, /automation, /reliability (native-destinations.mjs:561-605 lists only /operations, /health, /batch-analysis, /quotas). API endpoints used by neither console page: /v1/ops/workflows* (assign/start/escalate/mitigation/resolve/suppress/reopen/schedule-retry), /causality/chains*, /alerts, /reconcile, /bulk-actions/:id, media-intelligence runs/retry/dismiss/dlq, upload-telemetry, and bulk types BULK_*_WORKFLOWS/SCHEDULE_RETRY/ADD_MITIGATION/DISMISS_RECOMMENDATIONS (ops.routes.ts:2929-2937). Refusal copy says 'suppress it with a recorded reason' but suppress body is TeamIdOnly (ops.routes.ts:1743) and neither client sends a reason."
+    },
+    {
+      "id": "N-bulk-vocabulary",
+      "check": "Bulk status vocabulary",
+      "result": "DIFFERS_FROM_WEB",
+      "evidence": "apps/mobile/src/product/ops-console.ts:934-947; apps/web/app/(app)/operations/page.tsx:1313-1323; services/api/src/services/dashboard/bulk-actions.service.ts:119, 130, 139, 148-153",
+      "detail": "Server item statuses PENDING/COMPLETED/SKIPPED/FAILED; run status COMPLETED/PARTIAL_FAILED/FAILED. Native counts COMPLETED as success, SKIPPED as 'needed no change', unreported ids stay selected. Web counts items !== 'SUCCEEDED' as failed, a value the server never emits, so every web bulk run reports '0 of N updated' and keeps all rows selected."
+    }
+  ],
+  "nativeModules": [
+    {
+      "path": "apps/mobile/modules/proovra-screen-capture",
+      "platforms": [
+        "android (Kotlin)",
+        "ios (Swift)"
+      ],
+      "files": [
+        "android/src/main/java/com/proovra/screencapture/{CaptureDecisions,ContinuousScreenCaptureService,ProovraScreenCaptureModule,ScreenCaptureService}.kt",
+        "ios/{ProovraScreenCaptureModule,ProovraBroadcastShared,ProovraDarwinNotify}.swift"
+      ],
+      "relevantToOperations": false
+    },
+    {
+      "path": "apps/mobile/plugins/broadcast-extension/SampleHandler.swift",
+      "platforms": [
+        "ios"
+      ],
+      "relevantToOperations": false
+    },
+    {
+      "testSuite": "JVM: apps/mobile/modules/proovra-screen-capture/android/src/test/java/com/proovra/screencapture/CaptureDecisionsTest.kt",
+      "touchesOperations": false,
+      "run": "not run (Gradle/JVM; capture only)"
+    },
+    {
+      "testSuite": "Swift: apps/mobile/modules/proovra-screen-capture/ios-tests (Package.swift, Tests/ProovraDarwinNotifyTests)",
+      "touchesOperations": false,
+      "run": "not run (Swift toolchain; capture only)"
+    },
+    {
+      "note": "No apps/mobile/android or apps/mobile/ios directories (Expo CNG). No native module or native test touches Operations."
+    }
+  ],
+  "webLocales": {
+    "library": "No next-intl/react-i18next. Custom dict from @proovra/shared/i18n (packages/shared/src/i18n.ts:3-4) via apps/web/lib/i18n.ts:8; useLocale in apps/web/app/providers.tsx:65",
+    "supportedLocales": [
+      "en",
+      "ar",
+      "de",
+      "fr",
+      "es",
+      "tr",
+      "ru"
+    ],
+    "defaultLocale": "en",
+    "rtl": "ar only: apps/web/lib/i18n.ts:120-126 (isRtlLocale/directionFor); server-rendered <html lang dir> from cookie apps/web/app/layout.tsx:105-107; client sync apps/web/app/providers.tsx:145-146",
+    "operationsTranslated": false,
+    "operationsEvidence": "0 useLocale/t() calls under apps/web/app/(app)/operations; shared dict has 0 'operations'/'incident' keys (packages/shared/src/i18n.ts); sidebar group titles are English literals (apps/web/lib/navigation/canonicalNavigationGroups.ts:78-117)",
+    "useLocaleConsumers": [
+      "app/(app)/settings/_sections/PreferencesSection.tsx",
+      "app/login/page.tsx",
+      "app/register/page.tsx",
+      "app/verify/[token]/page.tsx",
+      "components/language-switcher.tsx",
+      "components/marketing/MarketingLanguageSwitcher.tsx",
+      "app/providers.tsx"
+    ],
+    "switcher": "apps/web/components/language-switcher.tsx:16-34, 134-137 (Auto + 7 locales), mounted in the authenticated app-shell top bar apps/web/components/app-shell-v2/AppAccountToolbar.tsx:25, 402-403; also Settings > Preferences (PATCH /v1/users/me locale) apps/web/app/(app)/settings/_sections/PreferencesSection.tsx:67, 139-141, 180; marketing switcher apps/web/components/marketing/MarketingLanguageSwitcher.tsx",
+    "switcherEffectOnAppShell": "Changes document lang/dir globally (providers.tsx:145-146, layout.tsx:107), so app-shell pages including /operations flip to RTL for 'ar', but their text stays English (only login/register/verify/marketing and the settings preference consume translations).",
+    "arabicOrGermanInProductAuthority": "Yes as supported locales (packages/shared/src/i18n.ts:3; apps/web/lib/i18n.ts:22-23); not as translated Operations content.",
+    "mobile": "apps/mobile/src/i18n.ts uses the same shared dict/locales; ops screen untranslated (see N-localization)."
+  },
+  "darkTheme": {
+    "present": "PARTIAL (no global authority)",
+    "evidence": [
+      "apps/web/app/(app)/admin/platform/admin-platform.css:314-325 (prefers-color-scheme: dark + :root[data-theme=dark] for .apf-stat/.apf-table th)",
+      "apps/web/app/(app)/admin/platform/runbooks/runbooks.css:318-319"
+    ],
+    "detail": "Only two admin-platform stylesheets react to dark mode. No ThemeProvider/next-themes, nothing sets data-theme, no color-scheme in the app shell or operations.css. A test asserts a CSS file has neither (apps/web/__tests__/render/evidence-output-attention.render.test.tsx:470-471). Operations: no dark theme."
+  },
+  "notes": "Worktree D:/pv-ops-audit @ 85c88007. To run mobile tests, `pnpm run build:deps` (the package's own prebuild script) was run first, producing gitignored packages/shared/dist and packages/shared-evidence-presentation/dist; no tracked file changed. All 98 tests across the 8 ops/navigation-relevant files pass. home-operations.test.mjs covers the Home ops tile, not the console. Other ops-prefixed mobile tests (operations-quotas.render, operations-batch-analysis.render) cover non-console screens and were not run. Static claims cite source lines read at this commit."
+}

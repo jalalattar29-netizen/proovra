@@ -1,0 +1,384 @@
+[
+  {
+    "category": "REPORT_GENERATION",
+    "operationsSourceIds": ["pipeline.report_backlog", "pipeline.report_generation_failed"],
+    "canonicalSourceOfTruth": "Evidence.latestReportVersion (services/api/prisma/schema.prisma:115) + ReportGenerationRequest.state/stage (schema.prisma:14755, :14770); canonical state derivation deriveEvidenceOutputState (packages/shared/src/evidence-output-lifecycle.ts:524) and IN_FLIGHT_REPORT_REQUEST_STATES (evidence-output-lifecycle.ts:161)",
+    "canonicalDetector": "worker report generation authority writes pipeline.report_generation_failed: services/worker/src/report-generation-authority.ts:734 and services/worker/src/processor.ts:5973. pipeline.report_backlog has NO domain detector: it is an Operations-owned count in services/api/src/services/operations/operations-source-probes.ts:225-252",
+    "canonicalRemediation": "requestOutputRecovery services/api/src/services/reports/output-recovery.service.ts:528, exposed to customers as POST /v1/evidence/:id/reports/regenerate services/api/src/routes/evidence.routes.ts:11179",
+    "canonicalAuthorization": "resolveEvidenceOperationAccess(permission evidence.generate_report) services/api/src/services/evidence/evidence-record-access.service.ts:126, called at services/api/src/routes/evidence.routes.ts:11241-11245",
+    "canonicalOwnerPage": "/evidence/[id] apps/web/app/(app)/evidence/[id]/page.tsx (artifacts tab apps/web/app/(app)/evidence/[id]/_tabs/EvidenceArtifactsTab.tsx)",
+    "operationsStores": "OperationalIncident row (schema.prisma:7643) per condition: category REPORT, severity, title, safeSummary, metricSnapshot (current/threshold value), relatedEvidenceId, fingerprint REPORT:<id>:<class> or dashboard:pipeline:report_backlog:<team>; OperationalIncidentEvent history (schema.prisma:7985); OperationalIncidentSlaCycle; optional OperationalWorkflow (schema.prisma:10498) with its own status",
+    "operationsDuplicates": [
+      "Re-implemented in-flight predicate: services/api/src/services/operations/operations-source-probes.ts:869-870 hard-codes stage != REPORT_COMMITTED and state IN [QUEUED, PROCESSING, FAILED_RETRYABLE, FAILED_TERMINAL] instead of the canonical IN_FLIGHT_REPORT_REQUEST_STATES (packages/shared/src/evidence-output-lifecycle.ts:161, which excludes FAILED_TERMINAL) / deriveEvidenceOutputState (:524)",
+      "Backlog predicate owned by Operations: Evidence(status=SIGNED, latestReportVersion=null) operations-source-probes.ts:247 with Operations thresholds REPORT_BACKLOG_HIGH=20 / CRITICAL=100 (operations-source-probes.ts:77-78); no reports-domain equivalent",
+      "Fingerprint parser for the worker's REPORT:/PACKAGE: shapes re-implemented in Operations: parseArtifactFingerprint operations-source-probes.ts:912 and incidentRecordTarget :891",
+      "Second disposition vocabulary: remediation-registry.ts:52 (DIRECT_REMEDIATION/SAFE_DEEP_LINK/READ_ONLY_GUIDANCE/NO_SAFE_REMEDIATION_AUTHORITY) keyed by category (CATEGORY_ENTRIES remediation-registry.ts:365) vs lifecycle remediationDisposition per source (packages/shared-runtime/src/ops/source-lifecycle.ts:196)"
+    ],
+    "operationsShouldOnly": "LINK_AND_INVOKE",
+    "operationsCallsCanonical": {
+      "value": true,
+      "evidence": "remediation-executor.ts:295 recoverArtifacts -> requestOutputRecovery (output-recovery.service.ts:528) for report.regenerate_artifacts and report.supersede_failed_generation; executor permission evidence.generate_report (remediation-registry.ts:235, :258). Platform path executePlatformRecordRecovery remediation-executor.ts:358 uses the same writer."
+    },
+    "resolutionCondition": "pipeline.report_backlog: \"the backlog falls below the HIGH threshold\"; pipeline.report_generation_failed: \"the record gains a report\" (services/api/src/services/operations/operations-source-registry.ts:184, :432)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "Both sources SOURCE_TRUTH (source-lifecycle.ts:705, :787). transitionIncident (services/api/src/services/observability/incident.service.ts:1113) calls decideManualResolution (packages/shared-runtime/src/incident-transition-authority.ts:315) with a live probe (incident.service.ts:1203-1235); ACTIVE/UNKNOWN refuse. Caveat: the probe for report_generation_failed uses the Operations-local state list at operations-source-probes.ts:870, so truth depends on a duplicated predicate. Caveat 2: OperationalWorkflow resolve (services/api/src/services/observability/workflow.service.ts:186-224) sets RESOLVED with no probe."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "CATEGORY_ENTRIES.REPORT (services/api/src/services/operations/remediation-registry.ts:379-383) has no deepLink, so IncidentInspector.tsx:405-413 renders none. Only the generic affected-record link /evidence/<relatedEvidenceId> (apps/web/app/(app)/operations/_lib/rowModel.ts:160, rendered IncidentInspector.tsx:250-258) appears for per-record failures; the workspace-level backlog condition has no relatedEvidenceId and therefore no link at all."
+    }
+  },
+  {
+    "category": "VERIFICATION_PACKAGE",
+    "operationsSourceIds": ["pipeline.package_backlog", "pipeline.package_generation_failed", "pipeline.package_generation_denied"],
+    "canonicalSourceOfTruth": "VerificationPackage (services/api/prisma/schema.prisma:907) selected by primaryPublishedPackageWhere (@proovra/shared-runtime/reports), Evidence.verificationPackageVersion (schema.prisma:113), ReportGenerationRequest.artifactType (schema.prisma:14728)",
+    "canonicalDetector": "services/worker/src/report-generation-authority.ts:716 and services/worker/src/processor.ts:6046 (package_generation_failed); services/worker/src/governance/package-eligibility-gate.ts:259 (package_generation_denied); pipeline.package_backlog is an Operations-owned count operations-source-probes.ts:254-280",
+    "canonicalRemediation": "requestOutputRecovery services/api/src/services/reports/output-recovery.service.ts:528 via POST /v1/evidence/:id/reports/regenerate services/api/src/routes/evidence.routes.ts:11179",
+    "canonicalAuthorization": "resolveEvidenceOperationAccess(evidence.generate_report) services/api/src/services/evidence/evidence-record-access.service.ts:126",
+    "canonicalOwnerPage": "/evidence/[id] apps/web/app/(app)/evidence/[id]/page.tsx (EvidenceArtifactsTab.tsx)",
+    "operationsStores": "OperationalIncident (category PACKAGE or GOVERNANCE), metricSnapshot for backlog, relatedEvidenceId, fingerprint PACKAGE:<id>:v<N>:<class> / worker_package_gate:<team>:<id>:<outcome>; events, SLA cycles",
+    "operationsDuplicates": [
+      "Backlog predicate Evidence(status=REPORTED, verificationPackageVersion=null) operations-source-probes.ts:275 with Operations thresholds PACKAGE_BACKLOG_HIGH/CRITICAL operations-source-probes.ts:79-80",
+      "Category/lifecycle contradiction: pipeline.package_generation_denied is category GOVERNANCE with remediationDisposition SAFE_REMEDIATION/evidence.generate_report (packages/shared-runtime/src/ops/source-lifecycle.ts:806, :820-821) but the category-keyed registry entry GOVERNANCE (services/api/src/services/operations/remediation-registry.ts:429-437) offers only a /governance link, and executeRemediation refuses any action whose id the category entry does not carry (remediation-executor.ts:115-126)",
+      "Package-failure class classification re-derived from the REPORT error-class string (operations-source-probes.ts:938-939: VERIFICATION_PACKAGE_INCOMPLETE*/VERIFICATION_PACKAGE_STORAGE_REJECTED)"
+    ],
+    "operationsShouldOnly": "LINK_AND_INVOKE",
+    "operationsCallsCanonical": {
+      "value": true,
+      "evidence": "PACKAGE category -> REGENERATE_ARTIFACTS (remediation-registry.ts:384-388) -> requestOutputRecovery (remediation-executor.ts:295) with packageForReportVersion; probe uses canonical primaryPublishedPackageWhere (operations-source-probes.ts:851). Not true for package_generation_denied (GOVERNANCE category, no action)."
+    },
+    "resolutionCondition": "pipeline.package_backlog: \"the backlog falls below the HIGH threshold\"; package_generation_failed / package_generation_denied: \"the record gains a verification package\" (operations-source-registry.ts:194, :461, :471)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "SOURCE_TRUTH (source-lifecycle.ts:645, :732, :815) with probe evidence.package_present -> observeEvidenceArtifact (operations-source-probes.ts:824) bound to the version in the fingerprint; transitionIncident incident.service.ts:1203 refuses ACTIVE/UNKNOWN."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "PACKAGE entry remediation-registry.ts:384-388 has no deepLink; package_generation_denied (GOVERNANCE) links to /governance (remediation-registry.ts:429-436), not the record or its artifacts tab. Affected-record link only when relatedEvidenceId set (rowModel.ts:160)."
+    }
+  },
+  {
+    "category": "TSA_OTS_INTEGRITY",
+    "operationsSourceIds": [
+      "evidence_integrity.tsa_failed",
+      "evidence_integrity.ots_failed",
+      "evidence_integrity.ots_pending_aged",
+      "evidence_integrity.ots_initialization_stalled",
+      "evidence_integrity.ots_budget_exhausted"
+    ],
+    "canonicalSourceOfTruth": "Evidence.tsaStatus (services/api/prisma/schema.prisma:281), Evidence.otsStatus (schema.prisma:287), otsProofBase64; aged/stalled windows from @proovra/shared-runtime isOtsPendingAged / isOtsInitializationStalled; permanent-failure classification isPermanentOtsProofFailureReason packages/shared/src/ots.ts:195",
+    "canonicalDetector": "OPERATIONS IS THE DETECTOR for 4 of 5: syncEvidenceIntegrityConditions services/api/src/services/operations/evidence-integrity-conditions.service.ts:339 (scan of tsaStatus/otsStatus FAILED, stalled init at :1198). Worker writes ots_budget_exhausted: services/worker/src/ots-upgrade.processor.ts:746",
+    "canonicalRemediation": "requestEvidenceOtsAnchoring services/api/src/services/integrity/ots-anchoring-authority.service.ts:80 (OTS only; no domain HTTP route calls it — its only callers are evidence-complete.service.ts:1748 and the Operations executor). TSA: none by design (TSA_UNSAFE_REASON remediation-registry.ts:302)",
+    "canonicalAuthorization": "evidence.publish_verify (remediation-registry.ts:223 RESUME_OTS.permission) resolved via evaluateMemberAccess services/api/src/services/identity/access-policy.service.ts:572; read evidence.read",
+    "canonicalOwnerPage": "/evidence/[id] apps/web/app/(app)/evidence/[id]/_tabs/EvidenceIntegrityTab.tsx",
+    "operationsStores": "One OperationalIncident per (Evidence, class) with fingerprint tsa_failure:<id> / ots_failure:<id> / ots_pending_aged:<id> / ots_initialization_stalled:<id>, Operations-derived severity, safeSummary, relatedEvidenceId",
+    "operationsDuplicates": [
+      "Operations-local failure taxonomy: classifyIntegrityFailure substring matcher services/api/src/services/operations/evidence-integrity-severity.ts:128 (REASON_CLASSIFIERS) parallel to canonical isPermanentOtsProofFailureReason packages/shared/src/ots.ts:195",
+      "Operations-local age escalation thresholds AGE_ESCALATION_DAYS=7 / AGE_CRITICAL_DAYS=30 evidence-integrity-severity.ts:142-143 (deriveIntegritySeverity :198)",
+      "isCurrentlyFailing re-states 'status === FAILED' evidence-integrity-conditions.service.ts:248",
+      "Fingerprint class switch duplicated: integrityClassOf remediation-registry.ts:483 and parseIntegrityFingerprint evidence-integrity-conditions.service.ts:179"
+    ],
+    "operationsShouldOnly": "LINK_AND_INVOKE",
+    "operationsCallsCanonical": {
+      "value": true,
+      "evidence": "remediation-executor.ts:269 resumeOtsAnchoring -> requestEvidenceOtsAnchoring; permanent proof failures withheld via isPermanentOtsProofFailureReason (remediation-registry.ts:570-573); TSA has no action (NO_SAFE_REMEDIATION_AUTHORITY remediation-registry.ts:340-348)."
+    },
+    "resolutionCondition": "tsa_failed: \"the record's tsaStatus leaves FAILED\"; ots_failed/ots_pending_aged: \"otsStatus reaches ANCHORED or UPGRADED\"; ots_initialization_stalled: \"the record gains ANY OTS status\"; ots_budget_exhausted: \"otsStatus leaves FAILED\" (operations-source-registry.ts:151, :161, :174, :446, :422)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "All SOURCE_TRUTH (source-lifecycle.ts:484, :517, :550, :607, :673); probes observeIntegrity/observeOtsPendingAged/observeOtsInitializationStalled (operations-source-probes.ts:599, :699, :757) read the Evidence row; decideManualResolution incident-transition-authority.ts:344-371 refuses ACTIVE and UNKNOWN."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": true,
+      "evidence": "INTEGRITY_ENTRIES deepLink href '/evidence' (remediation-registry.ts:308-357) is only the library; the record-specific link comes from affectedHref /evidence/<relatedEvidenceId> (rowModel.ts:160) rendered at IncidentInspector.tsx:250-258. Neither targets the Integrity tab."
+    }
+  },
+  {
+    "category": "BILLING_SUBSCRIPTION_ADDON",
+    "operationsSourceIds": ["billing.dependent_cancellation_failed", "billing.provider_authorization"],
+    "canonicalSourceOfTruth": "WorkspaceStorageAddon.dependentCancellationState (services/api/prisma/schema.prisma:2029); UNRESOLVED_STATES services/api/src/services/billing/dependent-cancellation.service.ts:57; provider credential failure (no persisted state; hourly emitter)",
+    "canonicalDetector": "syncDependentCancellationConditions services/api/src/services/billing/dependent-cancellation-conditions.service.ts:65 (billing-owned, uses UNRESOLVED_STATES import :34); billing.provider_authorization emitted by services/api/src/services/billing/pending-payments.service.ts:221",
+    "canonicalRemediation": "POST /v1/billing/accounts/:type/:id/retry-storage-cancellation services/api/src/routes/billing.routes.ts:1739-1740 -> attemptDependentCancellations dependent-cancellation.service.ts:292",
+    "canonicalAuthorization": "assertBillingCapability(capability BILLING_CANCEL) services/api/src/services/billing/billing-accounts.service.ts:287, called billing.routes.ts:1758-1763",
+    "canonicalOwnerPage": "/billing apps/web/app/(app)/billing/page.tsx (StorageAndHistory section apps/web/app/(app)/billing/_sections/StorageAndHistory.tsx; client call apps/web/lib/api/billing-accounts.ts:621)",
+    "operationsStores": "OperationalIncident category STORAGE per add-on (fingerprint billing_dependent_cancellation:<addonId>); billing.provider_authorization as teamId=null PLATFORM incident category RECONCILIATION",
+    "operationsDuplicates": [
+      "Re-implemented resolved predicate: operations-source-probes.ts:1093-1095 treats CONFIRMED || NONE as recovered instead of !UNRESOLVED_STATES (dependent-cancellation.service.ts:57); any future non-listed state reads RECOVERED in the probe but is not counted by the detector",
+      "Wrong owner guidance: the condition is category STORAGE (source-lifecycle.ts:1449) so the drawer shows CATEGORY_ENTRIES.STORAGE 'Storage reported a fault. This is platform infrastructure — no workspace action will change it' (remediation-registry.ts:451-455) for a customer billing obligation",
+      "Authorization drift: lifecycle requiredCapability operations.view (source-lifecycle.ts:1482) instead of the billing capability BILLING_CANCEL / billing read; lifecycle says SAFE_REMEDIATION (source-lifecycle.ts:1481) but no Operations action or billing link exists"
+    ],
+    "operationsShouldOnly": "LINK",
+    "operationsCallsCanonical": {
+      "value": false,
+      "evidence": "No remediation action or deep link: STORAGE entry remediation-registry.ts:451-455 carries guidance only; REMEDIATION_ACTION_IDS (remediation-registry.ts:69-73) contain no billing action. Detection itself is canonical (billing service)."
+    },
+    "resolutionCondition": "dependent_cancellation_failed: \"the add-on's dependentCancellationState reaches CONFIRMED — which only a provider call or a provider observation writes\" (operations-source-registry.ts:566-567); provider_authorization: \"the condition stops recurring once a working credential is in place ...\" (operations-source-registry.ts:599-600)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "dependent_cancellation_failed SOURCE_TRUTH (source-lifecycle.ts:1470) probed via billing.dependent_cancellation_state; provider_authorization NO_DIRECT_RESOLUTION (source-lifecycle.ts:1420) -> REFUSE_NO_DIRECT_RESOLUTION (incident-transition-authority.ts:323-325). Caveat: probe predicate is the duplicated CONFIRMED||NONE check (operations-source-probes.ts:1093)."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "No deepLink to /billing in any registry entry (remediation-registry.ts:365-476); add-on conditions carry no relatedEvidenceId so rowModel.ts:155-165 yields no affected link."
+    }
+  },
+  {
+    "category": "SEARCH_INDEXING",
+    "operationsSourceIds": ["search.indexing_failure"],
+    "canonicalSourceOfTruth": "EvidenceSearchDocument (services/api/prisma/schema.prisma:8478) + GovernanceReconciliationRun(SEARCH_INDEX) (schema.prisma:9672), interpreted by resolveWorkspaceSearchReadiness services/api/src/services/search/search-health.service.ts:301 and classifySearchReadiness :421",
+    "canonicalDetector": "resolveWorkspaceSearchReadiness search-health.service.ts:301 (Operations wrapper syncSearchIndexConditions services/api/src/services/operations/search-index-conditions.service.ts:102 delegates to it at :110/:120)",
+    "canonicalRemediation": "POST /v1/search/reconcile services/api/src/routes/search.routes.ts:910-911 (and per-record POST /v1/search/reindex/evidence/:id search.routes.ts:613-614); diagnostics GET /v1/search/diagnostics search.routes.ts:1116",
+    "canonicalAuthorization": "requireSearchActor services/api/src/routes/search.routes.ts:168 (evaluateMemberAccess identity.member.read :185)",
+    "canonicalOwnerPage": "/search apps/web/app/(app)/search/page.tsx (calls search diagnostics/reconcile)",
+    "operationsStores": "One OperationalIncident per workspace index, category RECONCILIATION",
+    "operationsDuplicates": [
+      "Operations sweep file for a search-owned condition lives in services/api/src/services/operations/search-index-conditions.service.ts (writer), though the rule is delegated (no predicate copy found)",
+      "Category RECONCILIATION shows generic guidance 'A reconciliation sweep reported a discrepancy. It re-runs on its own schedule.' (remediation-registry.ts:471-475) while lifecycle declares SPECIALIZED_SURFACE (source-lifecycle.ts:1605)"
+    ],
+    "operationsShouldOnly": "LINK",
+    "operationsCallsCanonical": {
+      "value": true,
+      "evidence": "Probe observeSearchIndexHealth operations-source-probes.ts:1186-1209 calls resolveWorkspaceSearchReadiness + classifySearchReadiness; detector delegates (search-index-conditions.service.ts:110-120)."
+    },
+    "resolutionCondition": "\"a later SEARCH_INDEX run for the workspace SUCCEEDS\" (operations-source-registry.ts:322) — note: stale prose; probe actually requires classifySearchReadiness HEALTHY (operations-source-probes.ts:1199)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "SOURCE_TRUTH (source-lifecycle.ts:1600) with search.index_health probe; INITIALIZING/PARTIAL -> UNKNOWN -> refused (operations-source-probes.ts:1199-1204; incident-transition-authority.ts:362-369)."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "RECONCILIATION entry remediation-registry.ts:471-475 has no deepLink; no /search link exists anywhere in the registry."
+    }
+  },
+  {
+    "category": "EVIDENCE_PROCESSING",
+    "operationsSourceIds": ["pipeline.signed_without_report_aged", "intake.delivery_failed", "ai.condition"],
+    "canonicalSourceOfTruth": "Evidence.status (services/api/prisma/schema.prisma:35); UploadSession; intake delivery records; MediaIntelligenceRun (schema.prisma:14636)",
+    "canonicalDetector": "pipeline.signed_without_report_aged is detected ONLY by Operations: operations-source-probes.ts:283-313 (status=UPLOADED older than UNSIGNED_FINALIZED_AGED_DAYS=14, :86); intake.delivery_failed via security-event bridge services/api/src/services/security/security-event.service.ts:618; ai.condition has no writer found (registered, PLATFORM_INTERNAL source-lifecycle.ts:1764)",
+    "canonicalRemediation": "Upload sessions: services/api/src/services/uploads/upload-session.service.ts reapStaleUploadSessions (invoked by ops.routes.ts:418-426); customer reliability actions POST /v1/reliability/upload-sessions/:evidenceId/mark-abandoned services/api/src/routes/reliability.routes.ts:140; evidence finalize/sign: null (no Operations-reachable route)",
+    "canonicalAuthorization": "evidence.read / evidence domain via resolveEvidenceOperationAccess services/api/src/services/evidence/evidence-record-access.service.ts:126",
+    "canonicalOwnerPage": "/evidence apps/web/app/(app)/evidence/page.tsx and /evidence/[id]; intake: /intake-links apps/web/app/(app)/intake-links/page.tsx",
+    "operationsStores": "Aggregate OperationalIncident (category GOVERNANCE) with metricSnapshot for unsigned-aged; UPLOAD-category incidents for intake; Operations nav hosts /operations/reliability (apps/web/app/(app)/operations/reliability/page.tsx:150-242 calls /v1/reliability/* mutations)",
+    "operationsDuplicates": [
+      "Operations-only lifecycle predicate for stuck signing: Evidence(status=UPLOADED, createdAt < now-14d) operations-source-probes.ts:298-310 with Operations thresholds UNSIGNED_FINALIZED_AGED_DAYS / UNSIGNED_FINALIZED_HIGH_COUNT (:86-87); source id says 'signed_without_report' while the predicate counts unsigned uploads (operations-source-registry.ts:200-205)",
+      "Master reconcile counts stalled uploads and stuck intelligence jobs in the Operations route file with its own 1-hour window: services/api/src/routes/ops.routes.ts:356-374",
+      "Wrong owner link: category GOVERNANCE -> /governance (remediation-registry.ts:429-436) while lifecycle says SAFE_REMEDIATION/evidence.generate_report (source-lifecycle.ts:763-764) with no action"
+    ],
+    "operationsShouldOnly": "LINK",
+    "operationsCallsCanonical": {
+      "value": true,
+      "evidence": "Upload reaping delegates to upload-session.service (ops.routes.ts:418-426). For unsigned-aged nothing is invoked; link goes to /governance (incorrect owner)."
+    },
+    "resolutionCondition": "signed_without_report_aged: \"the aged set empties\"; intake.delivery_failed: \"the delivery succeeds or the link is closed\"; ai.condition: \"the provider recovers or the budget resets\" (operations-source-registry.ts:209, :288, :388)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "signed_without_report_aged SOURCE_TRUTH (source-lifecycle.ts:758) probed by count; intake.delivery_failed OPERATOR_DECISION with requiresResolutionNote (source-lifecycle.ts:1066, decideManualResolution incident-transition-authority.ts:335-340) — closes on a written human conclusion even though the recovery condition ('delivery succeeds') is observable; ai.condition NO_DIRECT_RESOLUTION (source-lifecycle.ts:1757)."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "UPLOAD -> '/evidence' library (remediation-registry.ts:392-399); unsigned-aged -> '/governance' (remediation-registry.ts:429-436); no /intake-links link exists."
+    }
+  },
+  {
+    "category": "QUEUE_WORKER_HEALTH",
+    "operationsSourceIds": ["queue.retry_storm", "platform.worker_heartbeat_stale", "platform.telemetry_stale", "job.background_failure"],
+    "canonicalSourceOfTruth": "WorkerTelemetrySnapshot (services/api/prisma/schema.prisma:10165) read by getWorkerFleetLiveness services/api/src/services/operations/worker-liveness.service.ts:164 with WORKER_HEARTBEAT_STALE_SECONDS=180 (:82); BullMQ via getQueueInventory services/api/src/services/operations/queue-inventory.service.ts:228; QueueTelemetrySnapshot (schema.prisma:10116)",
+    "canonicalDetector": "getWorkerFleetLiveness worker-liveness.service.ts:164; getQueueInventory/listFailedJobs/getWorkerHealth queue-inventory.service.ts:228/:372/:444",
+    "canonicalRemediation": "POST /v1/operations/queues/:queueName/jobs/:jobId/{retry,replay,cancel} services/api/src/routes/operations-queues.routes.ts:197/:261/:340",
+    "canonicalAuthorization": "requirePlatformOpsActor services/api/src/routes/require-platform-ops-actor.ts (resolvePlatformAdmin services/api/src/services/platform-admin.service.ts:98) + step-up for replay",
+    "canonicalOwnerPage": "/admin/platform/queues apps/web/app/(app)/admin/platform/queues/page.tsx; /admin/platform-health apps/web/app/(app)/admin/platform-health/page.tsx",
+    "operationsStores": "platform.worker_heartbeat_stale and platform.telemetry_stale persisted as OperationalIncident rows PER WORKSPACE (incident-generator.service.ts:283-315 iterates aggregateSpecs() and records with teamId: ctx.teamId) — N copies of one platform fact",
+    "operationsDuplicates": [
+      "Second heartbeat detector with a different threshold: operations-source-probes.ts:85 WORKER_HEARTBEAT_STALE_MINUTES=15 and raw workerTelemetrySnapshot.findFirst at :492 vs canonical 180s (worker-liveness.service.ts:82) and getWorkerFleetLiveness (:164)",
+      "Platform fact fanned out into every workspace: services/api/src/services/dashboard/incident-generator.service.ts:283 loop + recordIncident teamId: ctx.teamId (:315)",
+      "queue.retry_storm is not a queue signal: it counts OperationalIncident.occurrenceCount >= 5 (operations-source-probes.ts:399-433), yet titled 'Queue retry storm' with category WORKER",
+      "OperationalWorkflow 'schedule-retry' (POST /v1/ops/workflows/:id/schedule-retry ops.routes.ts:2443; scheduleRetry services/api/src/services/observability/workflow.service.ts:275-312) only stamps nextRetryAtUtc/retryCount; nothing consumes nextRetryAtUtc — a retry record with no retry"
+    ],
+    "operationsShouldOnly": "PLATFORM_ADMIN_ONLY",
+    "operationsCallsCanonical": {
+      "value": false,
+      "evidence": "Operations heartbeat probe reads the table directly (operations-source-probes.ts:492-496) instead of getWorkerFleetLiveness; job.background_failure has no writer and SPECIALIZED_SURFACE with no link (source-lifecycle.ts:1688)."
+    },
+    "resolutionCondition": "worker_heartbeat_stale: \"a heartbeat lands\"; telemetry_stale: \"a fresh snapshot lands\"; retry_storm: \"no unresolved condition remains above the threshold\"; job.background_failure: \"the queue drains or the job is replayed\" (operations-source-registry.ts:270, :256, :246, :338)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "Heartbeat/telemetry/retry_storm SOURCE_TRUTH (source-lifecycle.ts:953, :990, :1020); job.background_failure NO_DIRECT_RESOLUTION (:1683). Truth is relative to the Operations 15-min threshold, not the canonical 180s liveness rule."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "WORKER entry remediation-registry.ts:461-465 is guidance only ('The platform owns the queue'); no link to /admin/platform/queues (correctly not offered to tenants, but platform operators get none either from the workspace drawer)."
+    }
+  },
+  {
+    "category": "MEMBERSHIP_AUTHORIZATION",
+    "operationsSourceIds": [],
+    "canonicalSourceOfTruth": "TeamMember.status/role (services/api/prisma/schema.prisma:2074, :2068) evaluated by evaluateMemberAccess services/api/src/services/identity/access-policy.service.ts:572",
+    "canonicalDetector": "evaluateMemberAccess access-policy.service.ts:572; route primitive authorizeOrFail services/api/src/middleware/authorize.ts:268",
+    "canonicalRemediation": null,
+    "canonicalAuthorization": "authorizeOrFail services/api/src/middleware/authorize.ts:268",
+    "canonicalOwnerPage": "/people apps/web/app/(app)/people/page.tsx",
+    "operationsStores": "OperationalIncident.assignedOperatorUserId/assignedByUserId/assignedAtUtc (schema.prisma:7693-7695); OperationalWorkflow.assignedOwnerUserId",
+    "operationsDuplicates": [
+      "Local actor gates instead of authorizeOrFail: requireOpsCapability services/api/src/routes/ops.routes.ts:163, requireDomainActionOnOpsSurface ops.routes.ts:218, requireWorkspaceMember services/api/src/routes/workspace-operations.routes.ts:57, requireOpsReader services/api/src/routes/runtime-secrets-health.routes.ts:35 and runtime-otel-health.routes.ts:38, requireDiagnosticsOpsActor services/api/src/routes/investigation-diagnostics.routes.ts:78 — each re-does teamMember.findUnique + evaluateMemberAccess",
+      "Assignee eligibility re-implemented: listAssignableOperators services/api/src/services/operations/assignable-operators.service.ts:66-100 filters status ACTIVE + accessExpiresAtUtc + roleHasPermission(mapTeamRoleToCanonical(role)) rather than evaluateMemberAccess",
+      "Two different permissions answer the same 'workspace operations health' question: /v1/ops/summary uses operations.view (ops.routes.ts:249-255) while /v1/teams/:id/operations/health uses identity.member.read (workspace-operations.routes.ts:77)"
+    ],
+    "operationsShouldOnly": "INVOKE",
+    "operationsCallsCanonical": {
+      "value": true,
+      "evidence": "All local gates ultimately call evaluateMemberAccess (e.g. ops.routes.ts:185), but none use the canonical authorizeOrFail primitive; assignable-operators bypasses evaluateMemberAccess."
+    },
+    "resolutionCondition": "N/A — no Operations source; membership is a gate, not a condition",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "Not applicable (no source). Resolution permission operations.resolve is enforced at ops.routes.ts:1713-1722 before transitionIncident."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "No registry entry or drawer link targets /people; AssignmentControl.tsx renders an in-drawer picker fed by GET /v1/ops/assignable-operators (ops.routes.ts:1784)."
+    }
+  },
+  {
+    "category": "NOTIFICATIONS",
+    "operationsSourceIds": ["communications.provider_failure", "webhook.security_failure"],
+    "canonicalSourceOfTruth": "NotificationDelivery (services/api/prisma/schema.prisma:4732), CommunicationMessage (schema.prisma:6523), AutomationWebhookDelivery (schema.prisma:11291)",
+    "canonicalDetector": "security-event bridge services/api/src/services/security/security-event.service.ts:594 (communications.provider_failure) and :567 (webhook.security_failure)",
+    "canonicalRemediation": "POST /v1/communications/messages/:id/retry services/api/src/routes/communications.routes.ts:351 and /cancel-retry :311; webhooks: integrations surface",
+    "canonicalAuthorization": "requireCommunicationsActor(identity.org_policy.manage) communications.routes.ts:356; webhooks integration.webhook.manage",
+    "canonicalOwnerPage": "/communications apps/web/app/(app)/communications/page.tsx; /integrations apps/web/app/(app)/integrations/page.tsx",
+    "operationsStores": "OperationalIncident category COMMUNICATIONS / WEBHOOK",
+    "operationsDuplicates": [
+      "Operations route mutates communications state directly: runMasterReconcile (services/api/src/routes/ops.routes.ts:278) cancels QUEUED CommunicationMessage rows older than 5 min with errorCode 'stuck_queued_reconciled' (ops.routes.ts:328-351) outside communication.service.ts (canonical CANCELLED writer services/api/src/services/communications/communication.service.ts:211)",
+      "Retry-due counters for communications and notifications computed in the Operations route (ops.routes.ts:307-322) as gauges"
+    ],
+    "operationsShouldOnly": "LINK",
+    "operationsCallsCanonical": {
+      "value": false,
+      "evidence": "ops.routes.ts:340-347 writes prisma.communicationMessage.update directly; registry offers only a link (remediation-registry.ts:420-428)."
+    },
+    "resolutionCondition": "communications.provider_failure: \"an operator concludes the message has been handled\"; webhook.security_failure: \"an operator concludes the destination is healthy\" (operations-source-registry.ts:302, :312)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "OPERATOR_DECISION with requiresResolutionNote (source-lifecycle.ts:1092, :1116); decideManualResolution incident-transition-authority.ts:335-340 requires the note. It is a human conclusion by declaration, not a probe of NotificationDelivery."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": true,
+      "evidence": "COMMUNICATIONS -> /communications (remediation-registry.ts:420-428, requiredPermission null); WEBHOOK -> /integrations (:401-409); rendered IncidentInspector.tsx:405-413. Generic list pages, not the failed message."
+    }
+  },
+  {
+    "category": "PLATFORM_CONFIGURATION",
+    "operationsSourceIds": ["storage.condition", "database.condition", "integration.configuration_failure", "platform.operational_seed"],
+    "canonicalSourceOfTruth": "process configuration: getFeatureSnapshot services/api/src/config/index.ts:153, collectStartupViolations config/index.ts:227; runReadinessCheck services/api/src/runtime/runtime-readiness.ts:1759; ApiCredential / integration settings",
+    "canonicalDetector": "runReadinessCheck runtime-readiness.ts:1759 (checkDatabase :636, checkS3ObjectLock :803); storage.condition/database.condition have no writer found; integration.configuration_failure no writer found",
+    "canonicalRemediation": null,
+    "canonicalAuthorization": "requirePlatformAdmin services/api/src/middleware/require-platform-admin.ts:19",
+    "canonicalOwnerPage": "/admin/platform/readiness apps/web/app/(app)/admin/platform/readiness/page.tsx; /admin/platform/observability apps/web/app/(app)/admin/platform/observability/page.tsx",
+    "operationsStores": "OperationalIncident categories STORAGE/DATABASE/INTEGRATION/GOVERNANCE (seed rows tagged with seed run)",
+    "operationsDuplicates": [
+      "Platform configuration served from the workspace Operations namespace: GET /v1/ops/health (services/api/src/routes/ops.routes.ts:580, gate requireOpsActor=operations.view :615) returns getFeatureSnapshot(), collectStartupViolations(), buildObservabilityHealth(), buildAlertHealth() (ops.routes.ts:662-665) — env var names, provider configured flags, nodeEnv",
+      "Same endpoint computes its own incident counts with a strict teamId predicate (ops.routes.ts:623-652) instead of workspaceIncidentWhere/buildOperationsSummary (operations-summary.service.ts:226), so PLATFORM_INTERNAL per-workspace rows are counted",
+      "Seeder demo rows written into the customer incident table (ops-seed.routes.ts:120, gate governance.policy.manage)"
+    ],
+    "operationsShouldOnly": "PLATFORM_ADMIN_ONLY",
+    "operationsCallsCanonical": {
+      "value": false,
+      "evidence": "Workspace endpoint ops.routes.ts:659-669 projects platform config directly; there is no admin route exposing getFeatureSnapshot/collectStartupViolations (only ops.routes.ts:491 /readyz and :662-663)."
+    },
+    "resolutionCondition": "storage.condition: \"storage recovers\"; database.condition: \"the database recovers\"; integration.configuration_failure: \"the configuration is corrected\"; operational_seed: \"an operator dismisses the demo row\" (operations-source-registry.ts:378, :398, :348, :623)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "storage/database/integration NO_DIRECT_RESOLUTION (source-lifecycle.ts:1709, :1733, :1659) -> refused at incident-transition-authority.ts:323; seed OPERATOR_DECISION (:1559)."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "STORAGE/DATABASE entries guidance only (remediation-registry.ts:451-460); INTEGRATION -> /integrations (:411-419)."
+    }
+  },
+  {
+    "category": "IDENTITY_SECURITY",
+    "operationsSourceIds": ["identity.security_condition", "identity.idp_outage", "identity.runtime_block", "identity.high_risk_session_surge", "security.unclassified_signal"],
+    "canonicalSourceOfTruth": "SecurityEvent (services/api/prisma/schema.prisma:5320); SsoConnection.outageDetectedAtUtc (schema.prisma:9043); StepUpChallenge / TrustedDevice",
+    "canonicalDetector": "sso-hardening.service.ts:352 (idp_outage); adaptive-runtime-gate.service.ts:199 (runtime_block); runtime-risk.service.ts:169 (surge); security-event.service.ts:342 (unclassified) and :640 (security_condition) — all under services/api/src/services/",
+    "canonicalRemediation": "Identity runtime reconcile route services/api/src/routes/identity-security.routes.ts:844-869 (expires step-ups and trusted devices, workspace-scoped, in a transaction); step-up.service.ts:410/:641",
+    "canonicalAuthorization": "audit.read (source-lifecycle.ts:1148, :1250) via evaluateMemberAccess access-policy.service.ts:572",
+    "canonicalOwnerPage": "/security-center apps/web/app/(app)/security-center/page.tsx",
+    "operationsStores": "OperationalIncident category IDENTITY_SECURITY / WORKER",
+    "operationsDuplicates": [
+      "Second identity runtime reconciler in the Operations route file: runMasterReconcile ops.routes.ts:283-302 expires StepUpChallenge (PENDING->EXPIRED) and revokes TrustedDevice ('ttl_expired') GLOBALLY, duplicating identity-security.routes.ts:847-866 (scoped, transactional) and step-up.service.ts:410",
+      "Identity gauges (active trusted devices, open access reviews, revoked sessions) computed in ops.routes.ts:378-396"
+    ],
+    "operationsShouldOnly": "LINK",
+    "operationsCallsCanonical": {
+      "value": false,
+      "evidence": "ops.routes.ts:283-302 writes stepUpChallenge/trustedDevice directly rather than calling the identity-security authority; drawer link only (remediation-registry.ts:438-449)."
+    },
+    "resolutionCondition": "idp_outage: \"the first successful callback clears outageDetectedAtUtc\"; runtime_block / surge / unclassified: \"an operator records the investigation outcome\"; security_condition: \"an operator records the workspace's conclusion\" (operations-source-registry.ts:511, :521, :531, :501, :358)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "idp_outage SOURCE_TRUTH (source-lifecycle.ts:1244) probed by observeIdpOutage operations-source-probes.ts:954; others OPERATOR_DECISION with note (:1142, :1272, :1301); unclassified NO_DIRECT_RESOLUTION (:1204)."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": true,
+      "evidence": "IDENTITY_SECURITY -> /security-center requiredPermission audit.read (remediation-registry.ts:438-449). security.unclassified_signal is category WORKER (source-lifecycle.ts:1185) and gets WORKER guidance with no link."
+    }
+  },
+  {
+    "category": "GOVERNANCE_RETENTION",
+    "operationsSourceIds": ["governance.policy_condition", "governance.destruction_executed", "governance.notification_escalated", "storage.immutable_drift"],
+    "canonicalSourceOfTruth": "DestructionReview (schema.prisma:9515), GovernanceReconciliationRun (:9672), ImmutableStorageCheck (:9772, append-only), GovernanceNotification (:9836)",
+    "canonicalDetector": "destruction-review.service.ts:814 (services/api/src/services/governance-lifecycle/); services/worker/src/governance/notification-emitter.ts:229; services/worker/src/governance/immutable-storage-reconciliation.worker.ts:302; security-event.service.ts:687 (policy_condition)",
+    "canonicalRemediation": null,
+    "canonicalAuthorization": "governance.policy.read (source-lifecycle.ts:1172, :1339, :1365, :1537)",
+    "canonicalOwnerPage": "/governance apps/web/app/(app)/governance/page.tsx (destruction apps/web/app/(app)/governance/destruction/page.tsx, retention, notifications)",
+    "operationsStores": "OperationalIncident category GOVERNANCE; immutable drift per (outcome, Evidence)",
+    "operationsDuplicates": [
+      "Drift outcome enum copied into Operations: IMMUTABLE_DRIFT_OUTCOMES operations-source-probes.ts:1055-1060",
+      "GOVERNANCE category is a catch-all for 9 unrelated sources (pipeline.signed_without_report_aged, package_generation_denied, review.escalation, escalation_storm, coordination.backlog_stale, immutable_drift, destruction, notification_escalated, operational_seed) all routed to one /governance link (remediation-registry.ts:429-436)"
+    ],
+    "operationsShouldOnly": "LINK",
+    "operationsCallsCanonical": {
+      "value": true,
+      "evidence": "Immutable drift recovery reads the reconciler's verdict (operations-source-probes.ts:1104-1144) and sweepSourceTruthRecoveries (incident-generator.service.ts:431-437); no governance mutation from Operations."
+    },
+    "resolutionCondition": "immutable_drift: \"the newest ImmutableStorageCheck for the record reports OK, or a different drift class\"; destruction_executed: \"an operator acknowledges the record; the destruction is irreversible\"; notification_escalated: \"an operator records the follow-up\"; policy_condition: \"an operator records the workspace's conclusion\" (operations-source-registry.ts:613, :541, :551, :368)",
+    "manualResolutionTruthful": {
+      "value": true,
+      "evidence": "immutable_drift SOURCE_TRUTH (source-lifecycle.ts:1531); others OPERATOR_DECISION with note (:1166, :1333, :1359)."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": true,
+      "evidence": "GOVERNANCE -> /governance (remediation-registry.ts:429-436), the landing page not the destruction/retention sub-surface."
+    }
+  },
+  {
+    "category": "REVIEW_COORDINATION",
+    "operationsSourceIds": ["review.stale_workflows", "review.escalation", "review.escalation_storm", "coordination.backlog_stale"],
+    "canonicalSourceOfTruth": "EvidenceReviewWorkflow.status (services/api/prisma/schema.prisma:1669); canonical open set OPEN_REVIEW_STATUSES services/api/src/services/dashboard/command-center-counters.ts:61 (QUEUED, ASSIGNED, IN_REVIEW, NEEDS_INFO); workspace SLA policy resolveEffectiveSlaPolicy services/api/src/services/reviewer-ops/sla-policy.service.ts:128",
+    "canonicalDetector": "escalation-engine.service.ts:339 (review.escalation); reviewer-operations-engine.service.ts:1378 (escalation_storm) — services/api/src/services/reviewer-ops/; stale_workflows and coordination.backlog_stale detected only by Operations (operations-source-probes.ts:315-397)",
+    "canonicalRemediation": "Reviewer queue / escalations routes GET /v1/reviewer-ops/queue services/api/src/routes/reviewer-ops.routes.ts:554, /v1/reviewer-ops/escalations :1336",
+    "canonicalAuthorization": "requireReviewerActor services/api/src/routes/reviewer-ops.routes.ts:198 (evidence.read :207) — lifecycle declares review.queue.read (source-lifecycle.ts:850)",
+    "canonicalOwnerPage": "/reviewer-ops/queue apps/web/app/(app)/reviewer-ops/queue/page.tsx; /reviewer-ops/escalations apps/web/app/(app)/reviewer-ops/escalations/page.tsx",
+    "operationsStores": "Aggregate OperationalIncident (stale workflows category WORKER; coordination GOVERNANCE) with metricSnapshot; escalation per workflow",
+    "operationsDuplicates": [
+      "Open-review status set redefined WITHOUT QUEUED: operations-source-probes.ts:339 and OPEN_REVIEW_STATUSES operations-source-probes.ts:987 vs canonical command-center-counters.ts:61 (includes QUEUED)",
+      "Fixed staleness thresholds STALE_REVIEW_HOURS=72, STALE_REVIEW_HIGH_COUNT=5, COORDINATION_STALE_DAYS=21, COORDINATION_STALE_HIGH_COUNT=10 (operations-source-probes.ts:81-82, :88-89) ignore the workspace reviewer SLA policy (sla-policy.service.ts:128)",
+      "Wrong owner routing: review.stale_workflows is category WORKER (source-lifecycle.ts:837) so the drawer says 'Background processing reported a fault. The platform owns the queue' (remediation-registry.ts:461-465); review.escalation/coordination are GOVERNANCE -> /governance (:429-436) although lifecycle says SAFE_DEEP_LINK review.queue.read (source-lifecycle.ts:849-850, :876-877)"
+    ],
+    "operationsShouldOnly": "LINK",
+    "operationsCallsCanonical": {
+      "value": false,
+      "evidence": "No probe or link uses reviewer-ops services; counts are Prisma queries in operations-source-probes.ts:331-397."
+    },
+    "resolutionCondition": "stale_workflows: \"the stale set empties\"; escalation: \"the workflow leaves its open statuses\"; escalation_storm: \"an operator records a conclusion about workload\"; coordination: \"the unresolved set falls below threshold\" (operations-source-registry.ts:223, :481, :491, :236)",
+    "manualResolutionTruthful": {
+      "value": false,
+      "evidence": "Gated correctly by transitionIncident/decideManualResolution (SOURCE_TRUTH source-lifecycle.ts:844, :871, :927; storm OPERATOR_DECISION :901), BUT review.escalation's probe treats QUEUED as RECOVERED (operations-source-probes.ts:987/:1008) while the review domain treats QUEUED as open (command-center-counters.ts:61), so a re-queued escalated workflow is closable while still open work. OperationalWorkflow resolve (workflow.service.ts:186-224) has no probe at all."
+    },
+    "ownerPageDeepLinkFromDrawer": {
+      "value": false,
+      "evidence": "No registry entry links to /reviewer-ops; WORKER entry (remediation-registry.ts:461-465) has none, GOVERNANCE links /governance (:429-436)."
+    }
+  }
+]

@@ -1,0 +1,59 @@
+{
+  "proofId": "PR-A1-retry-storm-meta",
+  "title": "'Queue retry storm' is a count of this workspace's re-observed conditions",
+  "proofType": "REAL_DB_PROVEN",
+  "findingIds": [
+    "OPS-002"
+  ],
+  "persona": "personal owner",
+  "plan": null,
+  "workspaceType": "personal",
+  "expected": "A queue retry storm reflects BullMQ retries; its drill-down names the queues/jobs or counted conditions.",
+  "observed": {
+    "storm": {
+      "status": "OPEN",
+      "severity": "WARNING",
+      "metric": {
+        "unit": "conditions",
+        "delta": 0,
+        "stale": false,
+        "truncated": false,
+        "currentValue": 2,
+        "observedAtUtc": "<ts>",
+        "previousValue": 2,
+        "thresholdValue": 1,
+        "affectedEntityType": "operational_condition",
+        "criticalThresholdValue": 3
+      },
+      "summary": "Active conditions in this workspace are recurring with occurrenceCount >= 5. Source: OperationalIncident.occurrenceCount."
+    },
+    "conditionsActuallyCounted": [
+      {
+        "sourceId": "platform.telemetry_stale",
+        "occurrenceCount": 8
+      },
+      {
+        "sourceId": "search.indexing_failure",
+        "occurrenceCount": 9
+      }
+    ],
+    "drillDownStatus": 200,
+    "drillDownRecords": [
+      "Queue retry storm"
+    ],
+    "homeRetryStormIncidentsField": "3",
+    "stormOccurrencesWhenHomeRead": 8,
+    "otherConditionsAtThreshold": 2,
+    "queuesRead": "none (predicate reads operational_incidents only)"
+  },
+  "outcome": "DEFECT_OBSERVED",
+  "sourceFingerprints": {
+    "services/api/src/services/dashboard/command-center.service.ts": "7b240db45991f54f705d0870293211020719c7df6f796898c9aa33e06830c374",
+    "services/api/src/services/dashboard/incident-generator.service.ts": "faedff6c3307b071c70f3d8febe2e9efdc1e67cc989c8f8104be307972d9fbb7",
+    "services/api/src/services/observability/incident.service.ts": "6ed1410b1fa441ff8c512e81740d46798ee4d5bbebfaf9d0589e21973c214ebd",
+    "services/api/src/services/operations/operations-group-drilldown.service.ts": "253b407de518af9b8bf1631b16e2274d7ad240067ee937ee8f892eeb79dd52d3",
+    "services/api/src/services/operations/operations-source-probes.ts": "fa47ba4c359e8bd05db6c50a45f533c77a4d8019badb3ad872eedb3883a026c3"
+  },
+  "harnessFile": "audit-operations/harness/a1-telemetry-storm.opsaudit.test.ts",
+  "command": "cd services/api && TEST_DATABASE_URL=postgresql://pv:pv@127.0.0.1:55471/opsaudit_test RUN_LIVE_INTEGRATION_NO_TESTCONTAINERS=1 P7_TEST_REDIS_URL=redis://127.0.0.1:56471 npx vitest run --config ../../audit-operations/harness/vitest.opsaudit.config.mjs"
+}
