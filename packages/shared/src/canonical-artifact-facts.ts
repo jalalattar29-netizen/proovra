@@ -113,6 +113,66 @@ export function compareCanonicalFacts(record: CanonicalArtifactFacts, rendered: 
   return out;
 }
 
+/**
+ * THE LIFECYCLE ORDER of the two asynchronous layers (2026-10-08). OTS and TSA
+ * advance AFTER a record is finalized — OTS initialization writes PENDING, an
+ * upgrade attaches a Bitcoin attestation, a chain check may verify it; a kept
+ * TSA token may later validate or fail — so the facts an issuance stated and
+ * the record's facts read later may differ by FORWARD progress only.
+ *
+ *   OTS  stage 0  UNAVAILABLE / NOT_APPLICABLE   (not requested yet)
+ *        stage 1  PENDING / STALE / FAILED       (requested; a failed request
+ *                                                  may be requested again)
+ *        stage 2  PRESENT_NOT_INDEPENDENTLY_VERIFIED / NOT_CHECKED (proof present)
+ *        stage 3  PASSED                          (chain-verified)
+ *   TSA  UNAVAILABLE / PENDING → anything; a kept token (PRESENT / NOT_CHECKED)
+ *        → itself, PASSED or FAILED; PASSED and FAILED are final.
+ *
+ * A later fact at a LOWER stage is a contradiction (a verified anchor cannot
+ * become a bare proof; a proof cannot disappear; a validated token cannot
+ * become unvalidated) and stays a finding.
+ */
+const OTS_STAGE: Readonly<Record<TrustSignalState, number>> = {
+  UNAVAILABLE: 0,
+  NOT_APPLICABLE: 0,
+  PENDING: 1,
+  STALE: 1,
+  FAILED: 1,
+  PRESENT_NOT_INDEPENDENTLY_VERIFIED: 2,
+  NOT_CHECKED: 2,
+  PASSED: 3,
+};
+
+export function otsProgressionCompatible(stated: TrustSignalState, later: TrustSignalState): boolean {
+  return OTS_STAGE[later] >= OTS_STAGE[stated];
+}
+
+export function tsaProgressionCompatible(stated: TrustSignalState, later: TrustSignalState): boolean {
+  if (stated === later) return true;
+  if (stated === "UNAVAILABLE" || stated === "PENDING" || stated === "NOT_APPLICABLE") return true;
+  if (stated === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" || stated === "NOT_CHECKED") {
+    return later === "PASSED" || later === "FAILED" || later === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" || later === "NOT_CHECKED";
+  }
+  return false; // PASSED, FAILED and STALE are final for a timestamp
+}
+
+/**
+ * The facts an ISSUANCE stated (the snapshot a report and its packages were
+ * built from) against the record's facts read LATER: the digest and the
+ * capture-time identity must be identical (they never change), and the two
+ * asynchronous layers may only have moved forward.
+ */
+export function compareIssuanceFactsToRecord(issuance: CanonicalArtifactFacts, later: CanonicalArtifactFacts): CanonicalFactsFinding[] {
+  const out = compareCanonicalFacts(issuance, later).filter((f) => f.check !== "TSA_STATE" && f.check !== "OTS_STATE");
+  if (!tsaProgressionCompatible(issuance.tsaState, later.tsaState)) {
+    out.push({ check: "TSA_STATE", detail: `issuance ${issuance.tsaState} cannot precede record ${later.tsaState}` });
+  }
+  if (!otsProgressionCompatible(issuance.otsState, later.otsState)) {
+    out.push({ check: "OTS_STATE", detail: `issuance ${issuance.otsState} cannot precede record ${later.otsState}` });
+  }
+  return out;
+}
+
 /** Phrases that state a STRONGER fact than PRESENT / PENDING / FAILED. */
 const OTS_VERIFIED_PHRASES = ["Anchored in Bitcoin; verified against the Bitcoin chain", "Anchored, chain-verified"];
 const TSA_VALIDATED_PHRASES = ["RFC 3161 timestamp validated", TSA_VALIDATED_QUALIFICATION_STATEMENT];

@@ -30,7 +30,10 @@ import {
   checkRenderedReportText,
   checkSealedPackageFacts,
   compareCanonicalFacts,
+  compareIssuanceFactsToRecord,
   deriveCanonicalArtifactFacts,
+  presentedTsaStatus,
+  resolveOtsCustodyFacts,
   validatePackageConsistency,
   verifySealedPackageEntries,
   type CanonicalArtifactFacts,
@@ -38,6 +41,8 @@ import {
   type SealEntryDigest,
 } from "@proovra/shared";
 import { findRegisteredSigningKey } from "@proovra/shared-runtime";
+
+import { Prisma, type CustodyEventType } from "@prisma/client";
 
 import { prisma } from "./db.js";
 import type { ReportEvidence } from "./report-v2/types.js";
@@ -53,40 +58,110 @@ export class OutputVerificationError extends Error {
   }
 }
 
-/** THE record's facts, read fresh from the database. */
-export async function loadCanonicalFacts(evidenceId: string): Promise<CanonicalArtifactFacts> {
-  const [row, custody] = await Promise.all([
-    prisma.evidence.findUniqueOrThrow({
-      where: { id: evidenceId },
-      select: {
-        fileSha256: true,
-        tsaStatus: true,
-        tsaFailureCode: true,
-        tsaTokenBase64: true,
-        tsaValidatedAtUtc: true,
-        otsStatus: true,
-        otsAnchoredAtUtc: true,
-        otsAnchorCheck: true,
-        otsBitcoinTxid: true,
-        otsProofBase64: true,
-        otsUpgradedAtUtc: true,
-        acquisitionMode: true,
-        identityLevelSnapshot: true,
-        submittedByAuthProvider: true,
-        submittedByEmail: true,
-        submittedByUserId: true,
-        workspaceNameSnapshot: true,
-        organizationNameSnapshot: true,
-        organizationVerifiedSnapshot: true,
-      },
-    }),
-    prisma.custodyEvent.findMany({
-      where: { evidenceId },
-      orderBy: { sequence: "asc" },
-      select: { eventType: true, atUtc: true, payload: true },
-    }),
-  ]);
-  return deriveCanonicalArtifactFacts(
+/**
+ * THE timestamp/anchoring lifecycle columns a report states, and the custody
+ * chain they are read with. OTS initialization, OTS upgrades and TSA
+ * validation all write these AFTER a record is finalized, asynchronously to
+ * report generation.
+ */
+const LIFECYCLE_SELECT = {
+  tsaProvider: true,
+  tsaUrl: true,
+  tsaSerialNumber: true,
+  tsaGenTimeUtc: true,
+  tsaTokenBase64: true,
+  tsaMessageImprint: true,
+  tsaInputDigestHex: true,
+  tsaInputKind: true,
+  tsaHashAlgorithm: true,
+  tsaStatus: true,
+  tsaFailureReason: true,
+  tsaFailureCode: true,
+  tsaValidatedAtUtc: true,
+  otsProofBase64: true,
+  otsHash: true,
+  otsStatus: true,
+  otsCalendar: true,
+  otsBitcoinTxid: true,
+  otsAnchoredAtUtc: true,
+  otsUpgradedAtUtc: true,
+  otsFailureReason: true,
+  otsAnchorCheck: true,
+} as const;
+
+const FACTS_SELECT = {
+  ...LIFECYCLE_SELECT,
+  fileSha256: true,
+  acquisitionMode: true,
+  identityLevelSnapshot: true,
+  submittedByAuthProvider: true,
+  submittedByEmail: true,
+  submittedByUserId: true,
+  workspaceNameSnapshot: true,
+  organizationNameSnapshot: true,
+  organizationVerifiedSnapshot: true,
+} as const;
+
+type LifecycleRow = {
+  tsaProvider: string | null;
+  tsaUrl: string | null;
+  tsaSerialNumber: string | null;
+  tsaGenTimeUtc: Date | null;
+  tsaTokenBase64: string | null;
+  tsaMessageImprint: string | null;
+  tsaInputDigestHex: string | null;
+  tsaInputKind: string | null;
+  tsaHashAlgorithm: string | null;
+  tsaStatus: string | null;
+  tsaFailureReason: string | null;
+  tsaFailureCode: string | null;
+  tsaValidatedAtUtc: Date | null;
+  otsProofBase64: string | null;
+  otsHash: string | null;
+  otsStatus: string | null;
+  otsCalendar: string | null;
+  otsBitcoinTxid: string | null;
+  otsAnchoredAtUtc: Date | null;
+  otsUpgradedAtUtc: Date | null;
+  otsFailureReason: string | null;
+  otsAnchorCheck: string | null;
+};
+
+export type RecordCustodyEvent = {
+  sequence: number;
+  atUtc: Date;
+  eventType: CustodyEventType;
+  payload: Prisma.JsonValue;
+  prevEventHash: string | null;
+  eventHash: string | null;
+};
+
+/**
+ * ONE consistent read of the record (2026-10-08): the lifecycle columns, the
+ * identity columns and the custody chain in ONE repeatable-read transaction,
+ * so an OTS initialization or TSA validation committing in between can never
+ * split them. The report payload's lifecycle fields, the stored trust
+ * snapshot, both packages and the output gates of one run all come from it.
+ */
+export type RecordSnapshot = {
+  lifecycle: LifecycleRow;
+  custody: RecordCustodyEvent[];
+  facts: CanonicalArtifactFacts;
+};
+
+export async function loadRecordSnapshot(evidenceId: string): Promise<RecordSnapshot> {
+  const [row, custody] = await prisma.$transaction(
+    [
+      prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: FACTS_SELECT }),
+      prisma.custodyEvent.findMany({
+        where: { evidenceId },
+        orderBy: { sequence: "asc" },
+        select: { sequence: true, atUtc: true, eventType: true, payload: true, prevEventHash: true, eventHash: true },
+      }),
+    ],
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+  const facts = deriveCanonicalArtifactFacts(
     {
       ...row,
       tsaTokenPresent: Boolean(row.tsaTokenBase64),
@@ -97,6 +172,63 @@ export async function loadCanonicalFacts(evidenceId: string): Promise<CanonicalA
     },
     custody,
   );
+  return { lifecycle: row as unknown as LifecycleRow, custody, facts };
+}
+
+/** THE record's facts, read fresh from the database (one consistent read). */
+export async function loadCanonicalFacts(evidenceId: string): Promise<CanonicalArtifactFacts> {
+  return (await loadRecordSnapshot(evidenceId)).facts;
+}
+
+/**
+ * THE report payload's timestamp/anchoring fields from one lifecycle row and
+ * the custody chain read with it — the one mapping, used when a run prepares
+ * its payload and again when it takes its render snapshot. A STAMPED token
+ * without a validation time is RECORDED_NOT_VALIDATED (ET-TSA-01); the OTS
+ * status is the record's own (PENDING stays PENDING).
+ */
+export function reportLifecycleFields(
+  row: LifecycleRow,
+  custody: ReadonlyArray<{ eventType?: string | null; atUtc?: Date | string | null; payload?: unknown }>,
+) {
+  const otsCustodyFacts = resolveOtsCustodyFacts(custody, row.otsAnchorCheck ?? null);
+  return {
+    tsaProvider: row.tsaProvider ?? null,
+    tsaUrl: row.tsaUrl ?? null,
+    tsaSerialNumber: row.tsaSerialNumber ?? null,
+    tsaGenTimeUtc: row.tsaGenTimeUtc?.toISOString() ?? null,
+    tsaTokenBase64: row.tsaTokenBase64 ?? null,
+    tsaMessageImprint: row.tsaMessageImprint ?? null,
+    tsaInputDigestHex: row.tsaInputDigestHex ?? null,
+    tsaInputKind: row.tsaInputKind ?? null,
+    tsaHashAlgorithm: row.tsaHashAlgorithm ?? null,
+    tsaStatus: presentedTsaStatus(row),
+    tsaFailureReason: row.tsaFailureReason ?? null,
+    tsaFailureCode: row.tsaFailureCode ?? null,
+    tsaValidatedAtUtc: row.tsaValidatedAtUtc?.toISOString() ?? null,
+    otsProofBase64: row.otsProofBase64 ?? null,
+    otsHash: row.otsHash ?? null,
+    otsStatus: row.otsStatus ?? null,
+    otsCalendar: row.otsCalendar ?? null,
+    otsBitcoinTxid: row.otsBitcoinTxid ?? null,
+    otsAnchoredAtUtc: row.otsAnchoredAtUtc ? row.otsAnchoredAtUtc.toISOString() : null,
+    otsUpgradedAtUtc: row.otsUpgradedAtUtc ? row.otsUpgradedAtUtc.toISOString() : null,
+    otsFailureReason: row.otsFailureReason ?? null,
+    otsAnchorCheck: row.otsAnchorCheck ?? null,
+    otsAnchorCheckedAtUtc: otsCustodyFacts.anchorCheckedAtUtc,
+    otsSubmittedAtUtc: otsCustodyFacts.submittedAtUtc,
+  };
+}
+
+/**
+ * The facts an issuance stated, against the record read later (a package
+ * built for a committed report, a run whose snapshot was taken before an
+ * asynchronous layer advanced): forward progress is compatible, anything else
+ * is a contradiction (compareIssuanceFactsToRecord).
+ */
+export function assertIssuanceStillHolds(issuance: CanonicalArtifactFacts, later: CanonicalArtifactFacts): void {
+  const findings = compareIssuanceFactsToRecord(issuance, later);
+  if (findings.length) throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", findings);
 }
 
 /** BEFORE RENDERING — the payload yields the record's facts. */

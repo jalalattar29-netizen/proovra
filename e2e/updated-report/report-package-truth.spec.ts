@@ -616,3 +616,73 @@ test("J9 browser — Artifacts shows identity, profile and both downloads; the p
       .toBe(200);
   }
 });
+
+test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated and verified; OTS reads pending / NOT_CHECKED; the UI completes", async ({ page }) => {
+  // Production 2026-10-08 (evidence ce465a9e…): OTS initialization committed
+  // PENDING while report v1 was being produced, and the render gate failed the
+  // valid report into the DLQ. Here the worker is paused at finalize, the
+  // record is given exactly what OTS initialization writes on success
+  // (status PENDING, the fingerprint hash, the calendar), and the worker
+  // resumes: report v1 renders over a PENDING anchor. (The mid-run commit
+  // itself is proven against the real processor in the Point-5 suite.)
+  test.setTimeout(600_000);
+  await clearTestRateLimits();
+  const session = await createGuestSession({ plan: "TEAM" });
+  const team = await personalTeamId(session.api);
+  stackCtl("pause", "worker");
+  let id = "";
+  try {
+    id = (await createFinalizedEvidence(session.api, team, "ots-pending")).id;
+    const [row] = sql<{ fingerprint_hash: string }>("SELECT fingerprint_hash FROM evidence WHERE id = $1", [id]);
+    sql(
+      `UPDATE evidence SET ots_status = 'PENDING', ots_hash = $2, ots_calendar = 'rga-local-offline-calendar',
+         ots_proof_base64 = NULL, ots_anchored_at_utc = NULL, ots_anchor_check = NULL, ots_failure_reason = NULL WHERE id = $1`,
+      [id, row!.fingerprint_hash],
+    );
+  } finally {
+    stackCtl("unpause", "worker");
+  }
+  await waitForPair(session.api, id, 1);
+  const [ots] = sql<{ ots_status: string }>("SELECT ots_status FROM evidence WHERE id = $1", [id]);
+  expect(ots!.ots_status, "the record was still PENDING when v1 was issued").toBe("PENDING");
+
+  // Report v1: OTS pending, NOT_CHECKED, never chain-verified.
+  const text = pdfText(await downloadVersion(session.api, id, "report", 1), "ots-pending-v1.pdf");
+  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+NOT_CHECKED/);
+  expect(text.replace(/\s+/g, " ")).toContain("Bitcoin anchoring is pending: the OpenTimestamps request was accepted and its Bitcoin attestation has not completed. It has not been independently chain-verified.");
+  expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
+  expect(findForbiddenCustomerClaims(text)).toEqual([]);
+
+  // Both profiles: generated, consistent, sealed, and the same OTS row.
+  const full = extractPackage(await downloadVersion(session.api, id, "package", 1), join(PROOF_DIR, "ots-pending-full"));
+  const ext = await downloadExternal(session.api, id, 1);
+  expect(ext.status).toBe(200);
+  const extPkg = extractPackage(ext.zip!, join(PROOF_DIR, "ots-pending-external"));
+  for (const pkg of [full, extPkg]) {
+    expect(consistencyFindings(pkg), pkg.dir).toEqual([]);
+    expect(sealOk(pkg).ok, JSON.stringify(sealOk(pkg).failures)).toBe(true);
+    expectNoForbiddenClaims(pkg);
+    expect(matrixStatus(pkg, "ots_anchoring")).toBe("NOT_CHECKED");
+    expect(pkg.json("package-manifest.json").publicAnchoringVerified).toBe(false);
+  }
+  expect(matrixRows(extPkg)).toEqual(matrixRows(full));
+  for (const key of ["file_integrity", "custody_chain", "record_signature"]) expect(matrixStatus(full, key), key).toBe("VERIFIED");
+
+  // The request completed — never FAILED, never in the DLQ.
+  const requests = sql<{ state: string; terminal_reason_code: string | null }>(
+    "SELECT state, terminal_reason_code FROM report_generation_requests WHERE evidence_id = $1",
+    [id],
+  );
+  expect(requests.length).toBeGreaterThan(0);
+  for (const r of requests) {
+    expect(r.state).toBe("SUCCEEDED");
+    expect(r.terminal_reason_code, "a success records the generated reason, never a failure code").toBe("generated");
+  }
+
+  // The UI reaches Complete.
+  await signIn(page, session.email);
+  await openArtifacts(page, id);
+  await expect(page.getByTestId("pair-1-package-profile")).toContainText("Full forensic package");
+  await expect(page.getByTestId("truth-ots-status")).toHaveText(/NOT_CHECKED/);
+  await page.screenshot({ path: join(PROOF_DIR, "ots-pending-artifacts.png"), fullPage: true });
+});

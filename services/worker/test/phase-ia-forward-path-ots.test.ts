@@ -123,8 +123,13 @@ describe("OTS forward path — initial create belongs to the integrity lifecycle
     // `prepareReportArtifacts` took an `otsResult` the job had just produced
     // and preferred it over the row. With no stamp of its own to prefer, the
     // projection is the row — one source, and re-runnable.
-    expect(PROCESSOR).toMatch(/otsProofBase64:\s*evidence\.otsProofBase64\s*\?\?\s*null/);
-    expect(PROCESSOR).toMatch(/otsStatus:\s*evidence\.otsStatus\s*\?\?\s*null/);
+    // Since 2026-10-08 the row is mapped by ONE function (reportLifecycleFields)
+    // — when the payload is prepared AND again from the run's render snapshot.
+    const MAPPING = readSource("../src/output-verification.ts");
+    expect(MAPPING).toMatch(/otsProofBase64:\s*row\.otsProofBase64\s*\?\?\s*null/);
+    expect(MAPPING).toMatch(/otsStatus:\s*row\.otsStatus\s*\?\?\s*null/);
+    expect(PROCESSOR).toMatch(/\.\.\.reportLifecycleFields\(evidence as /);
+    expect(PROCESSOR).toMatch(/\.\.\.reportLifecycleFields\(renderSnapshot\.lifecycle, renderSnapshot\.custody\)/);
   });
 });
 

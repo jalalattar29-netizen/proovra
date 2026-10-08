@@ -63,6 +63,18 @@ const seam = vi.hoisted(() => ({
    * concurrent integrity rejection, trash or destruction lands.
    */
   reportPublishedHook: null as null | ((key: string) => Promise<void>),
+  /**
+   * Runs once just before a run takes its RENDER SNAPSHOT (after the payload
+   * was prepared) — the window production's OTS initialization committed in.
+   */
+  beforeRenderSnapshot: null as null | (() => Promise<void>),
+  /**
+   * Runs once just AFTER the run took its render snapshot — the window in
+   * which the record advances while the report renders and packages build.
+   */
+  afterRenderSnapshot: null as null | (() => Promise<void>),
+  /** Fail the render-input gate this many times, exactly as production did. */
+  renderInputFailures: 0,
 }));
 
 vi.mock("../../../worker/src/verification-package.js", async (importOriginal) => {
@@ -105,7 +117,29 @@ vi.mock("../../../worker/src/report-v2/build-report-pdf.js", () => {
  */
 vi.mock("../../../worker/src/output-verification.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../worker/src/output-verification.js")>();
-  return { ...actual, assertRenderedReport: async () => {} };
+  return {
+    ...actual,
+    assertRenderedReport: async () => {},
+    assertRenderInputs: (...args: Parameters<typeof actual.assertRenderInputs>) => {
+      if (seam.renderInputFailures > 0) {
+        seam.renderInputFailures -= 1;
+        throw new actual.OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", [
+          { check: "OTS_STATE", detail: "record PENDING, payload UNAVAILABLE" },
+        ]);
+      }
+      return actual.assertRenderInputs(...args);
+    },
+    loadRecordSnapshot: async (evidenceId: string) => {
+      const fn = seam.beforeRenderSnapshot;
+      seam.beforeRenderSnapshot = null;
+      if (fn) await fn();
+      const snapshot = await actual.loadRecordSnapshot(evidenceId);
+      const after = seam.afterRenderSnapshot;
+      seam.afterRenderSnapshot = null;
+      if (after) await after();
+      return snapshot;
+    },
+  };
 });
 
 const storage = vi.hoisted(() => {
@@ -318,6 +352,9 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     seam.evidenceReadGate = null;
     seam.packageVerifyHook = null;
     seam.reportPublishedHook = null;
+    seam.beforeRenderSnapshot = null;
+    seam.afterRenderSnapshot = null;
+    seam.renderInputFailures = 0;
   });
 
   /** A fresh SIGNED record in workspace A with its original in storage. */
@@ -1530,6 +1567,144 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       if (res !== null) expect(await run(i === 0 ? idOf(a) : second, 1)).toBeNull();
     }
     await expectPublishedPair(evidenceId, 1, ids);
+  });
+
+
+  // -------------------------------------------------------------------------
+  // OTS PENDING REPORT REGRESSION (production 2026-10-08, evidence
+  // ce465a9e…): the payload was prepared while otsStatus was still null, OTS
+  // initialization committed PENDING before the render gate re-read the
+  // record, and the gate failed a valid report terminally ("record PENDING,
+  // payload UNAVAILABLE") into the DLQ. One run now states ONE record snapshot.
+  // -------------------------------------------------------------------------
+  const anchoringOf = async (evidenceId: string, version: number) => {
+    const { readStoredTrustDecision } = await import("@proovra/shared");
+    const report = await prisma.report.findUniqueOrThrow({
+      where: { evidenceId_version: { evidenceId, version } },
+      select: { trustDecisionSnapshot: true },
+    });
+    return readStoredTrustDecision(report.trustDecisionSnapshot)!.signals.find((s) => s.key === "bitcoin_anchoring")!;
+  };
+  const otsPending = { otsStatus: "PENDING", otsHash: "7".repeat(64), otsCalendar: "https://calendar.example" } as const;
+
+  it("OTS PENDING: report v1 and both package profiles publish; OTS is stated PENDING (NOT_CHECKED), never UNAVAILABLE", async () => {
+    const ev = await signedEvidence();
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+    const credits = await creditEntries(ev.evidenceId);
+    const id = await request(ev);
+    expect(await run(id, 0)).toBeNull();
+    const pair = await rowsOf(ev.evidenceId, 1);
+    expect(pair.map((r) => r.state)).toEqual(["PUBLISHED", "PUBLISHED"]);
+    const anchoring = await anchoringOf(ev.evidenceId, 1);
+    expect(anchoring.state).toBe("PENDING");
+    const { toVerificationStatus } = await import("@proovra/shared");
+    expect(toVerificationStatus(anchoring.state)).toBe("NOT_CHECKED");
+    // Both sealed packages state the same OTS row: pending, not chain-verified.
+    for (const row of pair) {
+      const m = JSON.parse(readZipEntries(stored(row.storageBucket, row.storageKey)!).get("trust-decision.json")!.toString("utf8")) as {
+        rows: Array<{ key: string; status: string; statement: string }>;
+      };
+      const ots = m.rows.find((r) => r.key === "ots_anchoring")!;
+      expect(ots.status, row.disclosureProfile ?? "").toBe("NOT_CHECKED");
+      expect(ots.statement).toMatch(/pending/i);
+      expect(ots.statement).toMatch(/not been independently chain-verified/);
+    }
+    const request_ = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
+    expect(request_.state).not.toMatch(/FAILED|DLQ/);
+    expect(await creditEntries(ev.evidenceId), "no credit moved").toBe(credits);
+  });
+
+  it("RACE: OTS initialization commits AFTER the payload was prepared, BEFORE rendering — the run succeeds and states PENDING", async () => {
+    const ev = await signedEvidence(); // otsStatus null when the run prepares its payload
+    seam.beforeRenderSnapshot = async () => {
+      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+    };
+    const id = await request(ev);
+    expect(await run(id, 0), "no REPORT_RENDER_INPUT_INCONSISTENT for a valid report").toBeNull();
+    expect(seam.beforeRenderSnapshot, "the commit landed in the window").toBeNull();
+    expect((await anchoringOf(ev.evidenceId, 1)).state, "the report states the record's PENDING, not UNAVAILABLE").toBe("PENDING");
+    expect((await rowsOf(ev.evidenceId, 1)).map((r) => r.state)).toEqual(["PUBLISHED", "PUBLISHED"]);
+  });
+
+  it("RACE: OTS advances WHILE the report renders — the issuance keeps its snapshot; packages publish; no false inconsistency", async () => {
+    const ev = await signedEvidence();
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+    seam.afterRenderSnapshot = async () => {
+      await prisma.evidence.update({
+        where: { id: ev.evidenceId },
+        data: {
+          otsStatus: "ANCHORED",
+          otsProofBase64: Buffer.from("ots-proof").toString("base64"),
+          otsBitcoinTxid: "c".repeat(64),
+          otsAnchoredAtUtc: new Date(),
+          otsUpgradedAtUtc: new Date(),
+          otsAnchorCheck: "PROOF_STRUCTURE",
+        } as never,
+      });
+    };
+    const id = await request(ev);
+    expect(await run(id, 0)).toBeNull();
+    expect(seam.afterRenderSnapshot, "the upgrade landed after the snapshot, while rendering").toBeNull();
+    expect((await anchoringOf(ev.evidenceId, 1)).state, "the issuance states its own snapshot").toBe("PENDING");
+    expect((await rowsOf(ev.evidenceId, 1)).map((r) => r.state)).toEqual(["PUBLISHED", "PUBLISHED"]);
+  });
+
+
+  it("RECOVERY of the production DLQ shape: a v1 request failed non-retriably at the render gate is superseded ONCE by the operator path — one report, one pair, no credit, no duplicate on replay", async () => {
+    const ev = await signedEvidence();
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+    const credits = await creditEntries(ev.evidenceId);
+    // The completion path's own request (production: REPORT:<id>:v0).
+    const { requestReportGeneration } = await import("../../src/services/reports/report-generation-authority.service.js");
+    const completion = await requestReportGeneration({
+      evidenceId: ev.evidenceId,
+      purpose: "evidence_completed",
+      requestedByMachineId: "api.evidence-complete",
+    } as never);
+    const failedId = (completion as { requestId: string }).requestId;
+    expect(failedId).toBeTruthy();
+    // The production failure, through the real processor: terminal, DLQ, no report.
+    seam.renderInputFailures = 1;
+    const err = await run(failedId, 0);
+    expect(String((err as Error)?.message)).toMatch(/REPORT_RENDER_INPUT_INCONSISTENT/);
+    const failedRow = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: failedId },
+      select: { state: true, terminalReasonCode: true, idempotencyKey: true },
+    });
+    expect(failedRow.state).toBe("FAILED_TERMINAL");
+    expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } })).toBe(0);
+
+    // The canonical operator path (POST /v1/admin/incidents/:id/remediate
+    // { supersede: true, reason } → requestOutputRecovery operatorSupersede).
+    const recovered = await operatorRecover(ev.evidenceId, { operatorSupersede: true });
+    expect(recovered.kind).toBe("accepted");
+    const newId = idOf(recovered);
+    expect(newId).not.toBe(failedId);
+    const newRow = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: newId }, select: { idempotencyKey: true } });
+    expect(failedRow.idempotencyKey).toBe(`REPORT:${ev.evidenceId}:v0`);
+    expect(newRow.idempotencyKey).toBe(`${failedRow.idempotencyKey}:s1`);
+
+    // Replays before the run collapse onto the live request — never a second one.
+    const replay = await operatorRecover(ev.evidenceId, { operatorSupersede: true });
+    expect(replay.kind === "accepted" ? idOf(replay) : newId).toBe(newId);
+
+    expect(await run(newId, 0)).toBeNull();
+    expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } }), "exactly one report").toBe(1);
+    const pair = await rowsOf(ev.evidenceId, 1);
+    expect(pair.map((r) => r.state)).toEqual(["PUBLISHED", "PUBLISHED"]);
+    expect((await anchoringOf(ev.evidenceId, 1)).state).toBe("PENDING");
+
+    // After success a further operator attempt finds nothing to recover.
+    const after = await operatorRecover(ev.evidenceId, { operatorSupersede: true });
+    expect(after.kind).toBe("declined");
+    expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } })).toBe(1);
+    expect(await prisma.verificationPackage.count({ where: { evidenceId: ev.evidenceId } }), "one row per profile").toBe(2);
+    expect(await prisma.reportGenerationRequest.count({ where: { evidenceId: ev.evidenceId } }), "the dead row and ONE successor").toBe(2);
+    // The failed row is kept, unchanged, as the record of the failure.
+    expect(
+      await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: failedId }, select: { state: true, terminalReasonCode: true, idempotencyKey: true } }),
+    ).toEqual(failedRow);
+    expect(await creditEntries(ev.evidenceId), "recovery consumes no credit").toBe(credits);
   });
 
 });

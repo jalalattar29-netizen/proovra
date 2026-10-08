@@ -259,3 +259,29 @@ test("the BASIC tier withholds who submitted: identity rows are not disclosed, n
   assert.doesNotMatch(JSON.stringify(w), /Authenticated email account|personal workspace/i);
   assert.ok(w.summary.endsWith(VERIFICATION_LIMITATION));
 });
+
+test("OTS projection per state: pending, present, verified, failed and not requested each say exactly what is true", () => {
+  const ots = (evidence) => rowOf(matrix({ evidence }), "ots_anchoring");
+  const pending = ots({ otsStatus: "PENDING", otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null, otsProofPresent: false, otsSubmittedAtUtc: new Date().toISOString() });
+  assert.equal(pending.status, "NOT_CHECKED");
+  assert.match(pending.statement, /Bitcoin anchoring is pending/);
+  assert.match(pending.statement, /has not been independently chain-verified/);
+  assert.doesNotMatch(pending.statement, /verified against the Bitcoin chain|anchored in Bitcoin/i);
+
+  const present = ots({});
+  assert.equal(present.status, "NOT_CHECKED");
+  assert.match(present.statement, /not independently chain-verified/);
+
+  assert.equal(ots({ otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z" }).status, "VERIFIED");
+
+  const failedMatrix = matrix({ evidence: { otsStatus: "FAILED", otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null, otsFailureReason: "calendar unreachable" } });
+  const failed = rowOf(failedMatrix, "ots_anchoring");
+  assert.equal(failed.status, "FAILED");
+  assert.match(failed.statement, /Bitcoin anchoring only/);
+  // An OTS failure never falsely fails integrity, signature or custody.
+  for (const key of ["file_integrity", "record_signature", "custody_chain"]) assert.equal(statusOf(failedMatrix, key), "VERIFIED", key);
+
+  const none = ots({ otsStatus: null, otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null });
+  assert.equal(none.status, "UNAVAILABLE");
+  assert.equal(none.statement, "Bitcoin anchoring was not requested or is not available for this record.");
+});

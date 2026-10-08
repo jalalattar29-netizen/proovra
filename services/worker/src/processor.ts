@@ -94,6 +94,7 @@ import {
   resolveOtsTrustState,
   type AcquisitionIdentitySnapshot,
   custodyLabelHints,
+  readStoredTrustDecision,
 } from "@proovra/shared";
 import { appendCustodyEventTx, evaluateCustodyChain } from "./custody-events.js";
 import { custodyThroughIssuance } from "./custody-issuance-cutoff.js";
@@ -153,10 +154,13 @@ import {
 import { captureException } from "./sentry.js";
 import { createVerificationPackage, PackageGateDeniedError } from "./verification-package.js";
 import {
+  assertIssuanceStillHolds,
   assertRenderInputs,
   assertRenderedReport,
   assertStagedPackage,
   loadCanonicalFacts,
+  loadRecordSnapshot,
+  reportLifecycleFields,
   OutputVerificationError,
 } from "./output-verification.js";
 import {
@@ -2997,7 +3001,6 @@ captureMethod: deriveReportCaptureMethod({
 
   const verificationPackageIncluded =
     evidenceOutputs.verificationPackageIncluded;
-  const otsCustodyFacts = resolveOtsCustodyFacts(custodyEvents, evidence.otsAnchorCheck ?? null);
   const reportCryptoChecks = evaluateReportCryptoChecks({
     evidenceId: evidence.id,
     fingerprintCanonicalJson,
@@ -3130,42 +3133,13 @@ evidenceStructure:
     signingKeyVersion,
     publicKeyPem: signingKey.publicKeyPem,
 
-    tsaProvider: evidence.tsaProvider ?? null,
-    tsaUrl: evidence.tsaUrl ?? null,
-    tsaSerialNumber: evidence.tsaSerialNumber ?? null,
-    tsaGenTimeUtc: evidence.tsaGenTimeUtc?.toISOString() ?? null,
-    tsaTokenBase64: evidence.tsaTokenBase64 ?? null,
-    tsaMessageImprint: evidence.tsaMessageImprint ?? null,
-    tsaInputDigestHex: evidence.tsaInputDigestHex ?? null,
-    tsaInputKind: evidence.tsaInputKind ?? null,
-    tsaHashAlgorithm: evidence.tsaHashAlgorithm ?? null,
-    // ET-TSA-01: an unvalidated STAMPED token is RECORDED_NOT_VALIDATED here,
-    // so the report and the package never call it a trusted timestamp.
-    tsaStatus: presentedTsaStatus(evidence),
-    tsaFailureReason: evidence.tsaFailureReason ?? null,
-    tsaFailureCode: evidence.tsaFailureCode ?? null,
-    tsaValidatedAtUtc: evidence.tsaValidatedAtUtc?.toISOString() ?? null,
-
-    // The record's own OTS state, as stored by the one lifecycle that writes
-    // it. A report says what is true when it is built; if the anchor is still
-    // pending, the report says pending.
-    otsProofBase64: evidence.otsProofBase64 ?? null,
-    otsHash: evidence.otsHash ?? null,
-    otsStatus: evidence.otsStatus ?? null,
-    otsCalendar: evidence.otsCalendar ?? null,
-    otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
-    otsAnchoredAtUtc: evidence.otsAnchoredAtUtc
-      ? evidence.otsAnchoredAtUtc.toISOString()
-      : null,
-    otsUpgradedAtUtc: evidence.otsUpgradedAtUtc
-      ? evidence.otsUpgradedAtUtc.toISOString()
-      : null,
-    otsFailureReason: evidence.otsFailureReason ?? null,
-    // How the anchor was established — only BITCOIN_VERIFIED may read verified.
-    otsAnchorCheck: evidence.otsAnchorCheck ?? null,
-    // When that check (and the proof request) happened, from custody.
-    otsAnchorCheckedAtUtc: otsCustodyFacts.anchorCheckedAtUtc,
-    otsSubmittedAtUtc: otsCustodyFacts.submittedAtUtc,
+    // The timestamp/anchoring lifecycle fields — THE one mapping
+    // (reportLifecycleFields). An unvalidated STAMPED token is
+    // RECORDED_NOT_VALIDATED (ET-TSA-01); the OTS status is the record's own.
+    // These are re-taken from ONE consistent record snapshot when rendering
+    // starts (phase B): OTS initialization and TSA validation commit
+    // asynchronously after finalize.
+    ...reportLifecycleFields(evidence as Parameters<typeof reportLifecycleFields>[0], custodyEvents),
     // The cryptographic checks THIS run performed; the trust decision says
     // "Verified" for the signature and the custody chain only on these.
     signatureVerified: reportCryptoChecks.signatureVerified,
@@ -3602,7 +3576,7 @@ async function loadCommittedReportForPackage(params: {
 
   // The decision the report itself carries; rebuilt only for rows written
   // before the snapshot existed.
-  let finalizedTrustDecision = report.trustDecisionSnapshot as unknown as ReturnType<
+  let finalizedTrustDecision = readStoredTrustDecision(report.trustDecisionSnapshot) as ReturnType<
     typeof buildTrustDecision
   > | null;
   if (!finalizedTrustDecision) {
@@ -3644,6 +3618,9 @@ async function loadCommittedReportForPackage(params: {
     effectiveRecordedIntegrityVerifiedAtUtc,
     finalizedReportPdf: verified.bytes,
     finalizedTrustDecision,
+    // A package for a committed report is checked against the record read
+    // when it is assembled.
+    issuanceFacts: null,
     reportIssuedAtUtc: report.generatedAtUtc,
     custodyThroughSequence: custodyEvents.at(-1)?.sequence ?? null,
     finalizedCustodyEvents: custodyEvents.map((ev) => ({
@@ -4114,18 +4091,20 @@ async function runReportGeneration(
           throw createWorkerError("EVIDENCE_NOT_FOUND", false);
         }
 
-        const custodyAtIssue = await prisma.custodyEvent.findMany({
-          where: { evidenceId: prepared.evidenceId },
-          orderBy: { sequence: "asc" },
-          select: {
-            sequence: true,
-            atUtc: true,
-            eventType: true,
-            payload: true,
-            prevEventHash: true,
-            eventHash: true,
-          },
-        });
+        // THE RENDER SNAPSHOT (2026-10-08). The payload was prepared from an
+        // earlier read; OTS initialization (null -> PENDING), an OTS upgrade or
+        // a TSA validation may have committed since. One repeatable-read
+        // snapshot of the lifecycle columns and the custody chain is taken
+        // here, the payload's lifecycle fields are re-taken from it, and the
+        // stored trust snapshot, the PDF, both packages and every output gate
+        // of this run state THAT snapshot — a mixed read can no longer fail a
+        // valid report (production: "record PENDING, payload UNAVAILABLE").
+        const renderSnapshot = await loadRecordSnapshot(prepared.evidenceId);
+        prepared.reportEvidencePayload = {
+          ...prepared.reportEvidencePayload,
+          ...reportLifecycleFields(renderSnapshot.lifecycle, renderSnapshot.custody),
+        };
+        const custodyAtIssue = renderSnapshot.custody;
         const custodyThroughSequence = custodyAtIssue.at(-1)?.sequence ?? null;
 
         const promotionDecision = resolveRecordedIntegrityPromotionDecision({
@@ -4287,8 +4266,9 @@ async function runReportGeneration(
               })
             : null;
         // BEFORE RENDERING (output-verification): the payload yields the
-        // RECORD's timestamp, anchoring and identity states, read fresh.
-        const reportCanonicalFacts = await loadCanonicalFacts(prepared.evidenceId);
+        // timestamp, anchoring and identity states of the SAME record
+        // snapshot (equality — no lifecycle skew is possible).
+        const reportCanonicalFacts = renderSnapshot.facts;
         assertRenderInputs(reportCanonicalFacts, effectiveReportEvidencePayload, custodyAtIssue);
         const finalizedReportPdf = await buildReportPdfV2({
           supersession,
@@ -4729,6 +4709,7 @@ async function runReportGeneration(
               reportVersion: prepared.version,
               finalizedReportSha256,
               finalizedReportEvidencePayload: effectiveReportEvidencePayload,
+              issuanceFacts: renderSnapshot.facts,
               effectiveVerificationStatus,
               effectiveRecordedIntegrityVerifiedAtUtc,
               finalizedReportPdf,
@@ -5190,8 +5171,13 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
         // anything is published, and nothing builds a package by a path the
         // governance tests do not see.
         const reservedFull = packageRows.reserved.find((r) => r.profile === "FULL_FORENSIC") ?? null;
-        // The RECORD's facts, read fresh, that every sealed package must state.
-        const packageCanonicalFacts = await loadCanonicalFacts(prepared.evidenceId);
+        // The facts every sealed package must state: this run's render
+        // snapshot (the report it certifies states the same), else — a package
+        // for a committed report — the record read now. A later read may only
+        // show forward progress of the asynchronous layers.
+        const recordNow = await loadCanonicalFacts(prepared.evidenceId);
+        const packageCanonicalFacts = finalized.issuanceFacts ?? recordNow;
+        assertIssuanceStillHolds(packageCanonicalFacts, recordNow);
         for (const profile of packageRows.toBuild) {
           const supersedes = await previousPublishedPackage({
             evidenceId: prepared.evidenceId,

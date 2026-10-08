@@ -166,13 +166,42 @@ function row(
 function signalRow(
   key: VerificationMatrixKey,
   signal: VerificationSignalInput | undefined,
-  statementFor?: (status: VerificationStatus, summary: string) => string,
+  statementFor?: (status: VerificationStatus, summary: string, state: TrustSignalState) => string,
 ): VerificationMatrixRow {
   if (!signal) return row(key, "UNAVAILABLE", "Not recorded for this record.");
   const state = resolveSnapshotSignalState(signal);
   const status = toVerificationStatus(state);
   const summary = (signal.summary ?? "").trim() || "Not recorded for this record.";
-  return row(key, status, statementFor ? statementFor(status, summary) : summary, signal.measuredAtUtc ?? null);
+  return row(key, status, statementFor ? statementFor(status, summary, state) : summary, signal.measuredAtUtc ?? null);
+}
+
+/**
+ * THE OTS statement, one per canonical state (2026-10-08). The internal
+ * lifecycle state stays as recorded (PENDING stays PENDING); only the
+ * customer-facing status and words are projected here:
+ *
+ *   UNAVAILABLE         not requested / not available            UNAVAILABLE
+ *   PENDING, STALE      request accepted, upgrade pending         NOT_CHECKED
+ *   PRESENT / NOT_CHECKED  proof present, chain not checked       NOT_CHECKED
+ *   PASSED              independently chain-verified              VERIFIED
+ *   FAILED              the OTS operation failed                  FAILED
+ */
+export function otsMatrixStatement(state: TrustSignalState, summary: string): string {
+  switch (state) {
+    case "PENDING":
+      return "Bitcoin anchoring is pending: the OpenTimestamps request was accepted and its Bitcoin attestation has not completed. It has not been independently chain-verified.";
+    case "STALE":
+      return "Bitcoin anchoring has been pending longer than expected; its current state is not known. It has not been independently chain-verified.";
+    case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
+    case "NOT_CHECKED":
+      return `${summary.replace(/\.$/, "")}. PROOVRA has not checked the proof against the Bitcoin chain; no trusted Bitcoin verifier result is recorded.`;
+    case "FAILED":
+      return `${summary.replace(/\.$/, "")}. This concerns Bitcoin anchoring only; it does not change the file-integrity, signature or custody checks.`;
+    case "UNAVAILABLE":
+      return "Bitcoin anchoring was not requested or is not available for this record.";
+    default:
+      return summary;
+  }
 }
 
 function identityRows(identity: VerificationIdentityInput | null): VerificationMatrixRow[] {
@@ -366,11 +395,7 @@ export function buildVerificationMatrix(input: BuildVerificationMatrixInput): Ve
     signalRow("tsa_token", signal("trusted_timestamp"), (status, summary) =>
       status === "VERIFIED" ? `RFC 3161 timestamp validated. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : summary,
     ),
-    signalRow("ots_anchoring", signal("bitcoin_anchoring"), (status, summary) =>
-      status === "NOT_CHECKED"
-        ? `${summary}. PROOVRA has not checked the proof against the Bitcoin chain; no trusted Bitcoin verifier result is recorded.`.replace("..", ".")
-        : summary,
-    ),
+    signalRow("ots_anchoring", signal("bitcoin_anchoring"), (_status, summary, state) => otsMatrixStatement(state, summary)),
     signalRow("storage_protection", signal("immutable_storage")),
     ...identityRows(input.identity),
     ...acquisitionRows(input.acquisitionMode, input.acquisitionModeSource),
