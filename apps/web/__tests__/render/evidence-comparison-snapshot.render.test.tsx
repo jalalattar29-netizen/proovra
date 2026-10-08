@@ -171,10 +171,35 @@ describe("Comparison mode — structured snapshot rendering", () => {
     expect(text).not.toMatch(/\{"/);
 
     // Readable labels, not raw camelCase field names.
-    expect(text).toMatch(/Passed signals/);
-    expect(text).toMatch(/Reliance level/);
-    expect(text).not.toMatch(/passedSignals/);
-    expect(text).not.toMatch(/relianceLevel/);
+    expect(text).toMatch(/Generated at UTC/);
+    expect(text).toMatch(/Reviewer action required/);
+    expect(text).not.toMatch(/generatedAtUtc/);
+    expect(text).not.toMatch(/reviewerActionRequired/);
+
+    // 2026-10-08 — a stored snapshot's retired claims are never restated:
+    // no score, weighted points, verdict, reliance, confidence or tallies.
+    expect(text).not.toMatch(/Passed signals|Degraded signals|Reliance level|Confidence label/);
+    expect(text).not.toMatch(/82\s*\/\s*100|Score|Technically verified|Max points/);
+  });
+
+  it("restates an old snapshot's summary as the bounded, score-free sentence", async () => {
+    const old = trustDecision({
+      summary: "STRONGLY_VERIFIED — 96/100. Reviewer reliance: high.",
+      signals: [
+        { key: "core_integrity", label: "Core integrity", status: "passed", points: 30, maxPoints: 30 },
+        { key: "bitcoin_anchoring", label: "Bitcoin anchoring", status: "passed", points: 10, maxPoints: 10 },
+      ],
+    });
+    comparison = payload(null, old);
+    await mountOpen();
+    const snapshot = packageCard().querySelector(
+      '[data-structured-snapshot="Verification package"]',
+    ) as HTMLElement;
+    const text = snapshot.textContent ?? "";
+    expect(text).not.toMatch(/STRONGLY|96\s*\/\s*100|Reviewer reliance|Max points/i);
+    expect(text).toMatch(/This record does not by itself establish authorship/);
+    // A legacy anchoring "passed" is never read as checked.
+    expect(text).toMatch(/NOT_CHECKED was not independently verified/);
   });
 
   it("gives nested objects bounded sections and arrays structured lists", async () => {
@@ -192,7 +217,8 @@ describe("Comparison mode — structured snapshot rendering", () => {
     const listItems = snapshot.querySelectorAll(".snap-list__item");
     expect(listItems.length).toBe(4);
     expect(snapshot.textContent).toMatch(/Hash integrity/);
-    expect(snapshot.textContent).toMatch(/Max points/);
+    // Weighted points are a retired claim: never rendered (2026-10-08).
+    expect(snapshot.textContent).not.toMatch(/Max points|Points/);
   });
 
   it("states booleans as Yes/No and missing values as Not recorded", async () => {
@@ -227,23 +253,25 @@ describe("Comparison mode — structured snapshot rendering", () => {
     expect(raw.querySelector("[data-snapshot-copy]")!.textContent).toMatch(/Copy JSON/);
 
     const pre = raw.querySelector("pre")!;
-    // Formatted, not minified, and complete.
-    expect(pre.textContent).toMatch(/\n\s+"verdictLabel": "Technically verified"/);
+    // Formatted, not minified, and complete — except the retired trust claims
+    // (score, points, verdict, reliance, tallies), which no surface restates.
+    expect(pre.textContent).toMatch(/\n\s+"generatedAtUtc": "2026-08-11T09:14:22\.000Z"/);
     expect(pre.textContent).toMatch(/"generator": "trust-decision@2\.4\.1"/);
+    expect(pre.textContent).not.toMatch(/verdictLabel|scoreLabel|"score"|maxPoints|relianceLevel|passedSignals/);
     expect(pre.getAttribute("dir")).toBe("ltr");
   });
 });
 
 describe("Comparison mode — structural difference marking", () => {
   it("marks a changed value, an added field and a removed field", async () => {
-    const report = trustDecision({ score: 74, scoreLabel: "74 / 100" });
+    const report = trustDecision({ generatedAtUtc: "2026-08-10T08:00:00.000Z" });
     // The package recorded a field the report did not, and dropped one the
     // report had.
     const pkg = trustDecision({ reviewerNote: "Anchor confirmed after generation." }) as Record<
       string,
       unknown
     >;
-    delete (pkg as { confidenceLabel?: unknown }).confidenceLabel;
+    delete (pkg as { reviewerActionRequired?: unknown }).reviewerActionRequired;
     comparison = payload(report, pkg);
 
     await mountOpen();
@@ -254,9 +282,9 @@ describe("Comparison mode — structural difference marking", () => {
       row: node.closest(".snap-fact")?.textContent ?? node.textContent ?? "",
     }));
 
-    expect(marks.some((m) => m.kind === "changed" && /Score/.test(m.row))).toBe(true);
+    expect(marks.some((m) => m.kind === "changed" && /Generated at UTC/.test(m.row))).toBe(true);
     expect(marks.some((m) => m.kind === "added" && /Reviewer note/.test(m.row))).toBe(true);
-    expect(marks.some((m) => m.kind === "removed" && /Confidence label/.test(m.row))).toBe(true);
+    expect(marks.some((m) => m.kind === "removed" && /Reviewer action required/.test(m.row))).toBe(true);
 
     // The mark is named in words, never colour alone.
     for (const node of Array.from(card.querySelectorAll("[data-snap-mark]"))) {

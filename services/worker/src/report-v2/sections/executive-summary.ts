@@ -4,8 +4,6 @@ import {
   ACQUISITION_GLOBAL_QUALIFIER,
   ACQUISITION_LIMITATION_TEXT,
   formatTimestampForReportUtc,
-  getTrustDecisionConfidenceLabel,
-  getTrustDecisionLabel,
   resolveEvidenceAcquisition,
 } from "@proovra/shared";
 import {
@@ -14,7 +12,7 @@ import {
 } from "@proovra/shared-runtime/technical-metadata";
 import {
   renderPageSection,
-  renderTrustSignalGrid,
+  renderVerificationMatrix,
   renderKeyValueGrid,
   renderFieldGrid,
 } from "../ui.js";
@@ -344,21 +342,21 @@ function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
       <div class="trust-signal-analysis-page">
         ${renderSupersession(vm)}
         <section class="trust-signal-analysis-hero">
-          <div class="executive-confirmation-kicker">Verification layer review</div>
+          <div class="executive-confirmation-kicker">Verification matrix</div>
           <div class="executive-confirmation-title">
-            Signal-level basis for the Trust Decision
+            What was checked, signal by signal
           </div>
           <div class="executive-confirmation-body">
-            This page explains how the recorded integrity, signature, timestamping, anchoring, storage, custody, identity, and package layers support reviewer interpretation. It is a supporting analysis layer, not a separate legal conclusion.
+            Each signal is stated as VERIFIED, FAILED, NOT_CHECKED, NOT_APPLICABLE or UNAVAILABLE. NOT_CHECKED means the material was not independently verified. There is no overall score and no overall verdict.
           </div>
         </section>
 
-        ${renderTrustSignalGrid(vm.trustDecision.signals)}
+        ${renderVerificationMatrix(vm.verificationMatrix)}
 
         <section class="trust-signal-analysis-footer">
-          <div class="executive-outcome-title">Reviewer interpretation</div>
+          <div class="executive-outcome-title">Summary</div>
           <div class="executive-outcome-body">
-            ${escapeHtml(vm.trustDecision.primaryReason)}
+            ${escapeHtml(vm.verificationMatrix.summary)}
           </div>
           <div class="executive-reviewer-action">
             ${escapeHtml(vm.trustDecision.reviewerAction)}
@@ -461,14 +459,11 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
       label: "Lead Item",
       value: leadItemValue,
     },
-    {
-      label: "Trust Decision",
-      value: getTrustDecisionLabel(vm.trustDecision),
-    },
-    {
-      label: "Technical Confidence",
-      value: getTrustDecisionConfidenceLabel(vm.trustDecision),
-    },
+    // Per-signal statuses only: no overall verdict, no confidence.
+    ...(["file_integrity", "custody_chain"] as const).map((key) => {
+      const row = vm.verificationMatrix.rows.find((r) => r.key === key);
+      return { label: row?.label ?? key, value: row?.status ?? "UNAVAILABLE" };
+    }),
   ];
 
   // Phase D Blocker 4 — render the executiveConclusion callout from the

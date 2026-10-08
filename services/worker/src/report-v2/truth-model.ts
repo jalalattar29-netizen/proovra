@@ -2,10 +2,10 @@ import { boundedOtsFailureCode, OTS_FAILURE_CODE_LABELS, resolveOtsAnchorClaim }
 import {
   buildEvidenceTrustDecision,
   buildCanonicalEvidenceMaterials,
-  getTrustDecisionConfidenceLabel,
   hasCoreCryptoMaterials as hasSharedCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
   type CanonicalEvidenceMaterials,
+  type VerificationMatrix,
   OTS_ANCHOR_CLAIM_LABELS,
 } from "@proovra/shared";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
@@ -117,28 +117,18 @@ export function normalizeStorageTone(
 }
 
 export function buildExecutiveConclusion(
-  decision: ReportTrustDecision
+  decision: ReportTrustDecision,
+  matrix: VerificationMatrix
 ): CalloutModel {
-  // ET-RPT-09: VERIFIED_FINALIZED now REQUIRES a chain-verified anchor and a
-  // validated timestamp (buildEvidenceTrustDecision), so a finalized
-  // conclusion can no longer sit over an unchecked anchor.
+  // The conclusion is the matrix's bounded summary and the reviewer action —
+  // never an overall verdict, a confidence or a score. FAILED reads as danger,
+  // anything not checked as a limitation.
+  const anyFailed = matrix.rows.some((row) => row.status === "FAILED");
+  const anyNotChecked = matrix.rows.some((row) => row.status === "NOT_CHECKED");
   return {
-    title:
-      decision.presentationState === "VERIFIED_FINALIZED"
-        ? "Executive conclusion"
-        : "Conditional integrity conclusion",
-    body:
-      decision.presentationState === "VERIFIED_FINALIZED"
-        ? "The preserved evidence record reached a verified recorded-integrity state with finalized supporting publication materials at report generation time. Reviewers can use this report to orient themselves to the package, then proceed to the later technical and legal sections for deeper validation and interpretation."
-        : decision.anchoringState === "present_not_verified" && decision.verdict === "VERIFIED"
-          ? "The preserved evidence record reached a verified recorded-integrity state at report generation time. Its OpenTimestamps proof carries a Bitcoin attestation, but that attestation has not been independently checked against the Bitcoin chain, so this report does not claim verified Bitcoin anchoring. Verify the proof against the Bitcoin chain if independent anchoring is required."
-        : decision.presentationState === "VERIFIED_PENDING_ANCHORING"
-          ? `The preserved evidence record reached a verified recorded-integrity state at report generation time, but Bitcoin anchoring has not finalized yet. An OpenTimestamps proof is recorded. Technical confidence remains ${getTrustDecisionConfidenceLabel(
-              decision
-            ).toLowerCase()}, and anchoring recheck is recommended if independent Bitcoin anchoring is required.`
-          : "The preserved evidence record is present and reviewable, but one or more supporting technical confirmation signals were not finalized at report generation time. Reviewers should use this report as an evidence-orientation and technical-review aid.",
-    tone:
-      decision.presentationState === "VERIFIED_FINALIZED" ? "success" : "warning",
+    title: "Verification summary",
+    body: `${matrix.summary} ${decision.reviewerAction}`,
+    tone: anyFailed ? "danger" : anyNotChecked ? "warning" : "success",
   };
 }
 

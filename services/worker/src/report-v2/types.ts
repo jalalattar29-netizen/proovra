@@ -4,8 +4,8 @@ import type {
   TrustDecisionTone,
   TrustSignal,
   TrustSignalStatus,
-  TrustDecisionVerdict,
   ReviewerArtifactRoleSource,
+  VerificationMatrix,
 } from "@proovra/shared";
 import type { IntelligenceSummarySection } from "./sections/intelligence-summary.js";
 import type { DerivedReviewSection } from "./sections/derived-review.js";
@@ -561,8 +561,6 @@ export type MediaIntelligenceReportOcrTranscript = {
 };
 
 export type Tone = TrustDecisionTone;
-export type ReportTrustVerdict = TrustDecisionVerdict;
-export type ReportTrustLevel = TrustDecision["level"];
 export type ReportTrustSignal = TrustSignal;
 export type ReportTrustSignalStatus = TrustSignalStatus;
 export type ReportTrustDecision = TrustDecision;
@@ -654,6 +652,13 @@ export type ReportViewModel = {
   verificationStatusLabel: string;
   integrityVerified: boolean;
   trustDecision: ReportTrustDecision;
+  /**
+   * THE per-signal statement of this report (no score, no overall verdict),
+   * built from the same signals, the capture-time identity and the
+   * acquisition channel. The report is a document: it states its package
+   * seal and publication as not attestable by itself.
+   */
+  verificationMatrix: VerificationMatrix;
   /**
    * Phase 2/3 — canonical evidence materials bundle sealed at report
    * generation time. Sections consume this for reviewer evidence

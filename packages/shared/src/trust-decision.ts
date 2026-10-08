@@ -10,8 +10,14 @@ import {
   resolveOtsTrustState,
   resolveSnapshotSignalState,
   resolveTsaTrustState,
+  toVerificationStatus,
   type TrustSignalState,
 } from "./trust-signal-state.js";
+import {
+  VERIFICATION_MATRIX_LABELS,
+  verificationMatrixSummary,
+  type VerificationMatrixKey,
+} from "./verification-matrix.js";
 
 export type TrustDecisionTone = "success" | "warning" | "danger" | "neutral";
 
@@ -27,12 +33,11 @@ export type TrustSignalStatus =
   | "failed"
   | "not_applicable";
 
-export type TrustDecisionVerdict =
-  | "STRONGLY_VERIFIED"
-  | "VERIFIED"
-  | "PARTIALLY_VERIFIED"
-  | "REVIEW_REQUIRED";
-
+/**
+ * Internal presentation buckets (tones, which wording a surface shows). Never
+ * displayed as words and never an overall conclusion: what a record shows is
+ * its per-signal verification matrix (verification-matrix.ts).
+ */
 export type TrustPresentationState =
   | "VERIFIED_FINALIZED"
   | "VERIFIED_PENDING_ANCHORING"
@@ -60,6 +65,11 @@ export type TrustSignalKey =
   | "identity"
   | "verification_package";
 
+/**
+ * One verification layer. It carries a STATE and the words for it — never a
+ * point, a weight or a score (2026-10-08: PROOVRA reports what was checked,
+ * not a confidence).
+ */
 export type TrustSignal = {
   key: TrustSignalKey;
   label: string;
@@ -69,96 +79,34 @@ export type TrustSignal = {
   measuredAtUtc: string | null;
   status: TrustSignalStatus;
   tone: TrustDecisionTone;
-  points: number;
-  maxPoints: number;
   summary: string;
   detail: string;
 };
 
+/**
+ * The record's signals and the bounded summary of them. There is no verdict,
+ * score, reliance level or confidence label: a surface states each signal
+ * (through the verification matrix) and this summary, nothing more.
+ */
 export type TrustDecision = {
-  verdict: TrustDecisionVerdict;
-  level: "strong" | "standard" | "partial" | "review";
   tone: TrustDecisionTone;
   presentationState: TrustPresentationState;
   presentationTone: TrustDecisionTone;
   anchoringState: TrustAnchoringState;
-  score: number;
-  maxScore: 100;
-  scoreLabel: string;
-  verdictLabel: string;
-  shortLabel: string;
-  title: string;
-  confidenceLabel: string;
   anchoringStatusLabel: string;
+  /** THE bounded summary (verificationMatrixSummary over these signals). */
   summary: string;
-  primaryReason: string;
+  /** What a reviewer must check themselves before relying on a signal. */
   reviewerAction: string;
-  degradedButUsable: boolean;
-  relianceLevel: "high" | "medium" | "limited" | "low";
+  /** A file-integrity, record-signature or custody check FAILED. */
+  integrityReviewRequired: boolean;
   signals: TrustSignal[];
-  passedSignals: number;
-  degradedSignals: number;
-  failedSignals: number;
 };
-
-export type ReviewerPackageTrustSignal = Pick<
-  TrustSignal,
-  "key" | "label" | "state" | "status" | "tone" | "summary" | "measuredAtUtc"
->;
-
-export type ReviewerPackageTrustDecision = {
-  verdict: TrustDecisionVerdict;
-  verdictLabel: string;
-  relianceLevel: TrustDecision["relianceLevel"];
-  relianceLabel: string;
-  narrative: string;
-  reviewerAction: string;
-  legalBoundary: string;
-  signals: ReviewerPackageTrustSignal[];
-  internalDebug?: {
-    score: number;
-    maxScore: number;
-    scoreLabel: string;
-    passedSignals: number;
-    degradedSignals: number;
-    failedSignals: number;
-    signals: Array<
-      ReviewerPackageTrustSignal & {
-        points: number;
-        maxPoints: number;
-      }
-    >;
-  };
-};
-
-export function getTrustDecisionLabel(
-  decision: Pick<TrustDecision, "verdictLabel">
-): string {
-  return decision.verdictLabel;
-}
-
-export function getReviewerRelianceLabel(
-  relianceLevel: TrustDecision["relianceLevel"]
-): string {
-  switch (relianceLevel) {
-    case "high":
-      return "High";
-    case "medium":
-      return "Medium";
-    case "limited":
-      return "Limited";
-    case "low":
-    default:
-      return "Low";
-  }
-}
 
 function hasAnchoringPendingSignal(
-  decision:
-    | Pick<TrustDecision, "signals">
-    | {
-        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
-      }
+  decision: {
+    signals?: Array<Pick<TrustSignal, "key" | "status"> & { state?: TrustSignalState | null; summary?: string | null }> | null;
+  }
 ): boolean {
   const anchoringSignal = decision.signals?.find(
     (signal) => signal.key === "bitcoin_anchoring"
@@ -166,42 +114,23 @@ function hasAnchoringPendingSignal(
   return anchoringSignal ? resolveSnapshotSignalState(anchoringSignal) === "PENDING" : false;
 }
 
-function hasAnchoringPresentNotVerifiedSignal(
-  decision: { signals?: Array<Pick<TrustSignal, "key" | "status"> & { state?: TrustSignalState | null; summary?: string | null }> | null }
-): boolean {
-  const anchoringSignal = decision.signals?.find(
-    (signal) => signal.key === "bitcoin_anchoring"
-  );
-  return anchoringSignal
-    ? resolveSnapshotSignalState(anchoringSignal) === "PRESENT_NOT_INDEPENDENTLY_VERIFIED"
-    : false;
-}
-
 function hasAnchoringFailedSignal(
-  decision:
-    | Pick<TrustDecision, "signals">
-    | {
-        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
-      }
+  decision: {
+    signals?: Array<Pick<TrustSignal, "key" | "status"> & { state?: TrustSignalState | null; summary?: string | null }> | null;
+  }
 ): boolean {
   const anchoringSignal = decision.signals?.find(
     (signal) => signal.key === "bitcoin_anchoring"
   );
-
-  return anchoringSignal?.status === "failed";
+  return anchoringSignal ? resolveSnapshotSignalState(anchoringSignal) === "FAILED" : false;
 }
 
 export function getTrustDecisionPresentationTone(
-  decision:
-    | Pick<
-        TrustDecision,
-        "presentationTone" | "tone" | "signals"
-      >
-    | {
-        presentationTone?: TrustDecisionTone | null;
-        tone?: TrustDecisionTone | null;
-        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
-      }
+  decision: {
+    presentationTone?: TrustDecisionTone | null;
+    tone?: TrustDecisionTone | null;
+    signals?: Array<Pick<TrustSignal, "key" | "status"> & { state?: TrustSignalState | null; summary?: string | null }> | null;
+  }
 ): TrustDecisionTone {
   if (decision.presentationTone) {
     return decision.presentationTone;
@@ -216,49 +145,6 @@ export function getTrustDecisionPresentationTone(
   }
 
   return decision.tone ?? "neutral";
-}
-
-export function getTrustDecisionConfidenceLabel(
-  decision:
-    | Pick<
-        TrustDecision,
-        | "confidenceLabel"
-        | "relianceLevel"
-        | "presentationState"
-        | "signals"
-        | "failedSignals"
-      >
-    | {
-        confidenceLabel?: string | null;
-        relianceLevel?: TrustDecision["relianceLevel"] | null;
-        presentationState?: TrustPresentationState | null;
-        signals?: Array<Pick<TrustSignal, "key" | "status">> | null;
-        failedSignals?: number | null;
-      }
-): string {
-  if (decision.confidenceLabel) {
-    return decision.confidenceLabel;
-  }
-
-  if (
-    decision.presentationState === "VERIFIED_PENDING_ANCHORING" ||
-    hasAnchoringPendingSignal(decision)
-  ) {
-    return "High (Bitcoin anchoring pending)";
-  }
-
-  if (decision.presentationState === "VERIFIED_WITH_DEGRADED_SIGNALS") {
-    return "Conditional";
-  }
-
-  if (
-    decision.presentationState === "FAILED_VERIFICATION" ||
-    (typeof decision.failedSignals === "number" && decision.failedSignals > 0)
-  ) {
-    return "Low";
-  }
-
-  return getReviewerRelianceLabel(decision.relianceLevel ?? "limited");
 }
 
 /**
@@ -296,107 +182,30 @@ function getAnchoringStateLabel(state: TrustAnchoringState): string {
   }
 }
 
-export function getTrustNarrative(
-  decision: Pick<
-    TrustDecision,
-    | "verdictLabel"
-    | "presentationState"
-    | "relianceLevel"
-    | "degradedButUsable"
-    | "failedSignals"
-    | "signals"
-  >
+/**
+ * The bounded summary of a decision's own signals (no identity, capture or
+ * package rows — those come from the full matrix). Old stored snapshots are
+ * read through the same function, so a historical score or verdict is never
+ * restated.
+ */
+export function summarizeTrustSignals(
+  signals: ReadonlyArray<Pick<TrustSignal, "key" | "status"> & { state?: TrustSignalState | null; summary?: string | null }>
 ): string {
-  if (
-    decision.presentationState === "VERIFIED_FINALIZED" ||
-    decision.verdictLabel === "Verified" ||
-    decision.verdictLabel === "Recorded integrity verified"
-  ) {
-    return "Recorded integrity is verified across the returned cryptographic, custody, storage, timestamp, and anchoring materials. This remains a technical integrity conclusion, not proof of factual truth, authorship, legal admissibility, or original device capture authenticity.";
-  }
-
-  if (
-    (decision.presentationState === "VERIFIED_WITH_DEGRADED_SIGNALS" ||
-      decision.presentationState === "VERIFIED_PENDING_ANCHORING") &&
-    hasAnchoringPresentNotVerifiedSignal(decision)
-  ) {
-    return "Recorded integrity is verified. An OpenTimestamps proof with a Bitcoin attestation is present, but it has not been independently checked against the Bitcoin chain, so Bitcoin anchoring is not claimed as verified. Verify the proof against the Bitcoin chain if independent anchoring is required.";
-  }
-
-  if (
-    decision.presentationState === "VERIFIED_PENDING_ANCHORING" ||
-    hasAnchoringPendingSignal(decision)
-  ) {
-    return "Recorded integrity is verified, but Bitcoin anchoring has not finalized yet. An OpenTimestamps proof is recorded. Reviewers should treat the record as conditionally reliable for integrity review and recheck anchoring later if independent Bitcoin anchoring is required.";
-  }
-
-  if (decision.presentationState === "VERIFIED_WITH_DEGRADED_SIGNALS") {
-    return "Recorded integrity is verified, but one or more supporting verification signals remain pending, partial, unavailable, or otherwise degraded. Review the affected technical layers before higher-reliance use.";
-  }
-
-  if (
-    decision.verdictLabel === "Verified with limitations" ||
-    decision.verdictLabel === "Recorded integrity verified with limitations"
-  ) {
-    return "Recorded integrity is verified with limitations. Core integrity materials are recorded, but one or more supporting verification layers still require follow-up.";
-  }
-
-  if (decision.verdictLabel === "Insufficient verification") {
-    return "Integrity concerns were detected across one or more critical verification layers.";
-  }
-
-  return "Recorded verification materials require reviewer follow-up before higher-reliance use.";
-}
-
-export const TRUST_DECISION_LEGAL_BOUNDARY =
-  "This trust decision summarizes the recorded integrity state of the evidence record. It does not independently prove factual truth, authorship, legal admissibility, intent, or completed Bitcoin anchoring unless those anchoring materials are separately verified.";
-
-export function serializeTrustDecisionForReviewerPackage(
-  decision: TrustDecision,
-  options?: { includeInternalDebug?: boolean }
-): ReviewerPackageTrustDecision {
-  const base: ReviewerPackageTrustDecision = {
-    verdict: decision.verdict,
-    verdictLabel: decision.verdictLabel,
-    relianceLevel: decision.relianceLevel,
-    relianceLabel: getTrustDecisionConfidenceLabel(decision),
-    narrative: getTrustNarrative(decision),
-    reviewerAction: decision.reviewerAction,
-    legalBoundary: TRUST_DECISION_LEGAL_BOUNDARY,
-    signals: decision.signals.map((signal) => ({
-      key: signal.key,
-      label: signal.label,
-      state: signal.state,
-      status: signal.status,
-      tone: signal.tone,
-      summary: signal.summary,
-      measuredAtUtc: signal.measuredAtUtc,
-    })),
+  const rowKey: Partial<Record<string, VerificationMatrixKey>> = {
+    core_integrity: "file_integrity",
+    signature: "record_signature",
+    custody_chain: "custody_chain",
+    trusted_timestamp: "tsa_token",
+    bitcoin_anchoring: "ots_anchoring",
+    immutable_storage: "storage_protection",
   };
-
-  if (options?.includeInternalDebug) {
-    base.internalDebug = {
-      score: decision.score,
-      maxScore: decision.maxScore,
-      scoreLabel: decision.scoreLabel,
-      passedSignals: decision.passedSignals,
-      degradedSignals: decision.degradedSignals,
-      failedSignals: decision.failedSignals,
-      signals: decision.signals.map((signal) => ({
-        key: signal.key,
-        label: signal.label,
-        state: signal.state,
-        status: signal.status,
-        tone: signal.tone,
-        summary: signal.summary,
-        measuredAtUtc: signal.measuredAtUtc,
-        points: signal.points,
-        maxPoints: signal.maxPoints,
-      })),
-    };
-  }
-
-  return base;
+  const rows = signals.flatMap((signal) => {
+    const key = rowKey[signal.key];
+    return key
+      ? [{ key, label: VERIFICATION_MATRIX_LABELS[key], status: toVerificationStatus(resolveSnapshotSignalState(signal)) }]
+      : [];
+  });
+  return verificationMatrixSummary(rows);
 }
 
 export type TrustDecisionEvidenceInput = {
@@ -523,31 +332,19 @@ function toneForState(state: TrustSignalState): TrustDecisionTone {
   return tone === "info" ? "neutral" : tone;
 }
 
-function clampScore(value: number, maxPoints: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(maxPoints, Math.round(value)));
-}
 
 function makeSignal(params: {
   key: TrustSignalKey;
   label: string;
   state: TrustSignalState;
   measuredAtUtc?: string | null;
-  points: number;
-  maxPoints: number;
   summary: string;
   detail: string;
   // Optional presentation tone override. Used for the identity signal so
   // recorded (but not independently verified) contributor identity renders
-  // as "Recorded" rather than "Verified", without changing scoring.
+  // as "Recorded" rather than "Verified".
   tone?: TrustDecisionTone;
 }): TrustSignal {
-  // Full credit is reserved for PASSED: any other state is capped below max.
-  const max = params.maxPoints;
-  const points =
-    params.state === "PASSED" || max === 0
-      ? clampScore(params.points, max)
-      : Math.min(clampScore(params.points, max), Math.max(0, max - 1));
   return {
     key: params.key,
     label: params.label,
@@ -555,8 +352,6 @@ function makeSignal(params: {
     measuredAtUtc: params.measuredAtUtc ?? null,
     status: TRUST_SIGNAL_STATE_PRESENTATION[params.state].legacyStatus,
     tone: params.tone ?? toneForState(params.state),
-    points,
-    maxPoints: params.maxPoints,
     summary: params.summary,
     detail: params.detail,
   };
@@ -673,8 +468,6 @@ function buildCoreIntegritySignal(
       label: "Core integrity",
       state: "PASSED",
       measuredAtUtc: safe(evidence.recordedIntegrityVerifiedAtUtc) || null,
-      points: 25,
-      maxPoints: 25,
       summary: "Core integrity verified",
       detail:
         "Recorded digest, canonical fingerprint, signature material, and custody references are available and consistent for this evidence record.",
@@ -686,8 +479,6 @@ function buildCoreIntegritySignal(
       key: "core_integrity",
       label: "Core integrity",
       state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-      points: 18,
-      maxPoints: 25,
       summary: "Integrity materials recorded",
       detail:
         "Recorded digest, canonical fingerprint, and signature material are present, but the recorded-integrity state has not yet been finalized as explicitly verified.",
@@ -699,8 +490,6 @@ function buildCoreIntegritySignal(
       key: "core_integrity",
       label: "Core integrity",
       state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-      points: 10,
-      maxPoints: 25,
       summary: "Partial integrity material",
       detail:
         "Some integrity material is present, but the core digest/fingerprint record is incomplete.",
@@ -711,8 +500,6 @@ function buildCoreIntegritySignal(
     key: "core_integrity",
     label: "Core integrity",
     state: "UNAVAILABLE",
-    points: 0,
-    maxPoints: 25,
     summary: "Integrity material missing",
     detail:
       "The record does not contain enough core digest or fingerprint material to support reliable integrity review.",
@@ -731,8 +518,6 @@ function buildSignatureSignal(
       key: "signature",
       label: "Digital signature",
       state: "FAILED",
-      points: 0,
-      maxPoints: 15,
       summary: "Signature did not verify",
       detail:
         "The recorded Ed25519 signature did not verify against the recomputed canonical fingerprint with the recorded public key.",
@@ -744,8 +529,6 @@ function buildSignatureSignal(
       key: "signature",
       label: "Digital signature",
       state: "PASSED",
-      points: 15,
-      maxPoints: 15,
       summary: "Signature verified",
       detail:
         "The Ed25519 signature verified against the recomputed canonical fingerprint with the recorded public key, which is available for independent verification.",
@@ -757,8 +540,6 @@ function buildSignatureSignal(
       key: "signature",
       label: "Digital signature",
       state: "NOT_CHECKED",
-      points: hasPublicKey ? 13 : 11,
-      maxPoints: 15,
       summary: "Signature material recorded; not checked in this evaluation",
       detail: hasPublicKey
         ? "Signature material, signing-key reference, and public-key material are recorded for independent verification; this evaluation did not verify the signature."
@@ -771,8 +552,6 @@ function buildSignatureSignal(
       key: "signature",
       label: "Digital signature",
       state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-      points: 7,
-      maxPoints: 15,
       summary: "Partial signature material",
       detail:
         "Some signature-related material is recorded, but the signing package is incomplete.",
@@ -783,24 +562,12 @@ function buildSignatureSignal(
     key: "signature",
     label: "Digital signature",
     state: "FAILED",
-    points: 0,
-    maxPoints: 15,
     summary: "Signature missing",
     detail:
       "No complete digital-signature material was recorded for this evidence state.",
   });
 }
 
-const TIMESTAMP_SIGNAL_POINTS: Readonly<Record<TrustSignalState, number>> = {
-  PASSED: 15,
-  PRESENT_NOT_INDEPENDENTLY_VERIFIED: 6,
-  NOT_CHECKED: 6,
-  PENDING: 8,
-  STALE: 4,
-  UNAVAILABLE: 3,
-  FAILED: 0,
-  NOT_APPLICABLE: 0,
-};
 
 function buildTimestampSignal(
   evidence: TrustDecisionEvidenceInput
@@ -843,23 +610,11 @@ function buildTimestampSignal(
     label: "Trusted timestamp",
     state: tsa.state,
     measuredAtUtc: tsa.measuredAtUtc,
-    points: TIMESTAMP_SIGNAL_POINTS[tsa.state],
-    maxPoints: 15,
     summary: tsa.label,
     detail: detail[tsa.state],
   });
 }
 
-const ANCHORING_SIGNAL_POINTS: Readonly<Record<TrustSignalState, number>> = {
-  PASSED: 10,
-  PRESENT_NOT_INDEPENDENTLY_VERIFIED: 6,
-  NOT_CHECKED: 6,
-  PENDING: 4,
-  STALE: 2,
-  UNAVAILABLE: 3,
-  FAILED: 2,
-  NOT_APPLICABLE: 0,
-};
 
 function buildAnchoringSignal(
   evidence: TrustDecisionEvidenceInput
@@ -878,8 +633,6 @@ function buildAnchoringSignal(
       key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       state: "FAILED",
-      points: 2,
-      maxPoints: 10,
       summary: "Bitcoin anchoring review required",
       detail:
         "Recorded OpenTimestamps hash material does not match the canonical fingerprint hash, so Bitcoin anchoring cannot be treated as verified.",
@@ -891,8 +644,6 @@ function buildAnchoringSignal(
       key: "bitcoin_anchoring",
       label: "Bitcoin anchoring",
       state: "FAILED",
-      points: 2,
-      maxPoints: 10,
       summary: "Bitcoin anchoring review required",
       detail:
         "A malformed Bitcoin transaction identifier was recorded without any other defensible Bitcoin transaction id or anchored timestamp.",
@@ -935,8 +686,6 @@ function buildAnchoringSignal(
     label: "Bitcoin anchoring",
     state: ots.state,
     measuredAtUtc: ots.measuredAtUtc,
-    points: ANCHORING_SIGNAL_POINTS[ots.state],
-    maxPoints: 10,
     summary: ots.label,
     detail: detail[ots.state],
   });
@@ -955,8 +704,6 @@ function buildStorageSignal(
       key: "immutable_storage",
       label: "Immutable storage",
       state: "PASSED",
-      points: 15,
-      maxPoints: 15,
       summary: "Immutable retention verified",
       detail:
         "Storage metadata indicates immutable-style preservation using Object Lock COMPLIANCE mode with a recorded retention-until timestamp.",
@@ -968,8 +715,6 @@ function buildStorageSignal(
       key: "immutable_storage",
       label: "Immutable storage",
       state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-      points: 9,
-      maxPoints: 15,
       summary: "Storage protection recorded",
       detail:
         "Some storage-protection indicators are recorded, but the record does not fully confirm compliance-grade immutable retention.",
@@ -981,8 +726,6 @@ function buildStorageSignal(
       key: "immutable_storage",
       label: "Immutable storage",
       state: "FAILED",
-      points: 2,
-      maxPoints: 15,
       summary: "Storage requires review",
       detail:
         "Storage metadata indicates a protection state that should be reviewed before relying on immutability conclusions.",
@@ -993,8 +736,6 @@ function buildStorageSignal(
     key: "immutable_storage",
     label: "Immutable storage",
     state: "UNAVAILABLE",
-    points: 0,
-    maxPoints: 15,
     summary: "Storage not reported",
     detail:
       "No verifiable immutable-storage protection was included in the record payload.",
@@ -1020,8 +761,6 @@ function buildCustodySignal(
       key: "custody_chain",
       label: "Custody chain",
       state: "FAILED",
-      points: 0,
-      maxPoints: 10,
       summary: "Custody chain did not verify",
       detail:
         "Recomputing the custody hash chain did not reproduce the recorded event hashes.",
@@ -1034,8 +773,6 @@ function buildCustodySignal(
       key: "custody_chain",
       label: "Custody chain",
       state: checked ? "PASSED" : "NOT_CHECKED",
-      points: checked ? 10 : 8,
-      maxPoints: 10,
       summary: checked
         ? `${forensicEvents.length} forensic events recorded; hash chain verified`
         : `${forensicEvents.length} forensic events recorded; hash chain not checked in this evaluation`,
@@ -1050,8 +787,6 @@ function buildCustodySignal(
       key: "custody_chain",
       label: "Custody chain",
       state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
-      points: 6,
-      maxPoints: 10,
       summary: `${forensicEvents.length} forensic events recorded`,
       detail:
         "Forensic custody events are recorded, but the custody-chain material is limited or incomplete.",
@@ -1062,8 +797,6 @@ function buildCustodySignal(
     key: "custody_chain",
     label: "Custody chain",
     state: "UNAVAILABLE",
-    points: 0,
-    maxPoints: 10,
     summary: "No forensic custody events",
     detail:
       "No forensic custody chronology was included in the record payload.",
@@ -1122,8 +855,6 @@ function buildIdentitySignal(
       label: "Workspace identity",
       state: "PASSED",
       tone: "neutral",
-      points: 5,
-      maxPoints: 5,
       summary: "Organization verification recorded at capture",
       detail:
         `The workspace was associated with a verified organization when the record was captured.${tail}`,
@@ -1136,8 +867,6 @@ function buildIdentitySignal(
       label: "Workspace identity",
       state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
       tone: "neutral",
-      points: 4,
-      maxPoints: 5,
       summary: recordedSummary,
       detail: `${recordedParty} identity was recorded for reviewer context.${tail}`,
     });
@@ -1149,8 +878,6 @@ function buildIdentitySignal(
       label: "Workspace identity",
       state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
       tone: "neutral",
-      points: level === "VERIFIED_EMAIL" ? 3 : 2,
-      maxPoints: 5,
       summary: recordedSummary,
       detail: `${recordedParty} identity information is recorded.${tail}`,
     });
@@ -1160,8 +887,6 @@ function buildIdentitySignal(
     key: "identity",
     label: "Workspace identity",
     state: "UNAVAILABLE",
-    points: 0,
-    maxPoints: 5,
     summary: "Identity not recorded",
     detail: isIntake
       ? "No meaningful workspace or link creator identity context was recorded."
@@ -1170,54 +895,14 @@ function buildIdentitySignal(
 }
 
 /**
- * =============================================================================
- * THE VERIFICATION-PACKAGE SIGNAL — INFORMATIONAL, AND DELIBERATELY UNSCORED.
- * =============================================================================
- * P3-4 CLOSURE (2026-09-10).
+ * THE VERIFICATION-PACKAGE SIGNAL — INFORMATIONAL (P3-4, 2026-09-10).
  *
- * ----------------------------------------------------------------------------
- * THE PROBLEM: A COMMERCIAL INPUT INTO A PUBLIC INTEGRITY SCORE
- * ----------------------------------------------------------------------------
- * This signal carried 5 of the 40 available points, awarded 5 when a package
- * existed and 3 when it did not. Whether a package exists is a COMMERCIAL fact:
- * the plan and the record's funding decide it (`resolveEvidenceOutputEntitlements`
- * is the authority), and a Free record never has one. So a Free customer's
- * public verification page scored 95 where an otherwise identical paid record
- * scored 100, and the two points of difference measured the price plan rather
- * than the evidence.
- *
- * It reached further than the number. `degradedSignals` counts any signal whose
- * status is partial/pending/missing/failed, and it drives `degradedButUsable`
- * and the `VERIFIED_WITH_DEGRADED_SIGNALS` presentation state — so a record's
- * headline could read "verified with supporting limitations" because of an
- * artifact its owner had not bought.
- *
- * ----------------------------------------------------------------------------
- * WHY REMOVING IT IS CORRECT, NOT A CONCESSION
- * ----------------------------------------------------------------------------
- * The exemption in the product decision is for a package that "contains a
- * forensic proof element not otherwise represented". It contains none. Every
- * proof inside a verification package — the canonical fingerprint, the Ed25519
- * signature and public key, the RFC 3161 token, the OpenTimestamps proof, the
- * custody chain, the storage protection state — is a SIGNAL OF ITS OWN in this
- * very list. The package is a convenient offline BUNDLE of things already
- * scored here, so scoring it again both double-counted the same assurance and
- * charged for the convenience.
- *
- * ----------------------------------------------------------------------------
- * WHAT IT STILL DOES
- * ----------------------------------------------------------------------------
- * It remains in the signal list and it still says truthfully whether a package
- * exists — that is real, useful information for someone deciding how to verify
- * the record offline. `maxPoints: 0` is what makes it informational: it adds
- * nothing to the numerator and nothing to the denominator, in every branch, so
- * a record's score is identical with and without a package.
- *
- * Its STATE is NOT_APPLICABLE in both the present and absent-with-materials
- * cases: it is neither a passed check nor a degradation of the evidence. The genuinely bare case — no package AND no core
- * cryptographic material — keeps `missing`, and it is not a commercial
- * statement: a record with no fingerprint and no signature has a real problem,
- * which the core and signature signals score directly.
+ * Whether a package exists is a commercial fact (the plan and the record's
+ * funding decide it), and every proof inside a package is a signal of its own
+ * in this list. So the signal says truthfully whether a package exists and is
+ * NOT_APPLICABLE in both the present and absent-with-materials cases: neither
+ * a passed check nor a degradation of the evidence. The genuinely bare case —
+ * no package AND no core cryptographic material — is UNAVAILABLE.
  */
 function buildVerificationPackageSignal(
   evidence: TrustDecisionEvidenceInput
@@ -1230,8 +915,6 @@ function buildVerificationPackageSignal(
       key: "verification_package",
       label: "Verification package",
       state: "NOT_APPLICABLE",
-      points: 0,
-      maxPoints: 0,
       summary: "Verification package recorded",
       detail:
         "A verification package is recorded, bundling this record's integrity materials for offline review. It does not add to the integrity assessment above — the proofs it contains are each assessed on their own.",
@@ -1243,8 +926,6 @@ function buildVerificationPackageSignal(
       key: "verification_package",
       label: "Verification package",
       state: "NOT_APPLICABLE",
-      points: 0,
-      maxPoints: 0,
       summary: "Not included for this record",
       detail:
         "No downloadable verification package is included for this record. This does not affect its integrity: the fingerprint, signature, timestamp, anchoring and custody materials are recorded and are assessed individually above, and they can be checked from this page.",
@@ -1255,8 +936,6 @@ function buildVerificationPackageSignal(
     key: "verification_package",
     label: "Verification package",
     state: "UNAVAILABLE",
-    points: 0,
-    maxPoints: 0,
     summary: "No integrity materials recorded",
     detail:
       "Neither a verification package nor core cryptographic materials were recorded for this record.",
@@ -1286,34 +965,37 @@ export function buildEvidenceTrustDecision(
     verificationPackage,
   ];
 
-  const rawScore = signals.reduce((sum, signal) => sum + signal.points, 0);
-  const computedMaxScore = signals.reduce(
-    (sum, signal) => sum + signal.maxPoints,
-    0
-  );
-  const score =
-    computedMaxScore > 0
-      ? Math.max(0, Math.min(100, Math.round((rawScore / computedMaxScore) * 100)))
-      : 0;
+  return { ...deriveTrustPresentation(signals), signals };
+}
 
-  const passedSignals = signals.filter((signal) => signal.state === "PASSED").length;
-  const failedSignals = signals.filter((signal) => signal.state === "FAILED").length;
-  const degradedSignals = signals.filter(
-    (signal) => TRUST_SIGNAL_STATE_PRESENTATION[signal.state].countsAsDegraded
-  ).length;
+/**
+ * Everything a decision derives from its signals — the internal presentation
+ * bucket, the anchoring wording, the reviewer action and the bounded summary.
+ * ONE derivation for a freshly built decision and for a stored snapshot read
+ * back (readStoredTrustDecision), so a surface never shows an old score,
+ * verdict or reliance level, and never says more than the signals.
+ */
+export function deriveTrustPresentation(
+  signals: ReadonlyArray<Pick<TrustSignal, "key" | "state" | "summary">>
+): Omit<TrustDecision, "signals"> {
+  const stateOf = (key: TrustSignalKey): TrustSignalState =>
+    signals.find((signal) => signal.key === key)?.state ?? "UNAVAILABLE";
+  const core = { state: stateOf("core_integrity") };
+  const signature = { state: stateOf("signature") };
+  const custody = { state: stateOf("custody_chain") };
+  const timestamp = { state: stateOf("trusted_timestamp") };
+  const anchoringSignal = signals.find((signal) => signal.key === "bitcoin_anchoring");
+  const anchoring = { state: anchoringSignal?.state ?? "UNAVAILABLE", summary: anchoringSignal?.summary ?? "" };
 
   const criticalFailed =
-    core.status === "failed" ||
-    signature.status === "failed" ||
-    custody.status === "failed";
-
-  const degradedButUsable = !criticalFailed && score >= 62 && degradedSignals > 0;
+    core.state === "FAILED" ||
+    signature.state === "FAILED" ||
+    custody.state === "FAILED";
 
   const corePassed = core.state === "PASSED";
   const publicAnchoringPending = anchoring.state === "PENDING";
   const anchoringPresentNotVerified =
     anchoring.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" || anchoring.state === "NOT_CHECKED";
-  const publicAnchoringPartial = anchoringPresentNotVerified || anchoring.state === "STALE";
   const anchoringState: TrustAnchoringState =
     anchoring.state === "PASSED"
       ? "finalized"
@@ -1326,169 +1008,94 @@ export function buildEvidenceTrustDecision(
             : anchoring.state === "FAILED"
               ? "failed"
               : "unavailable";
-  // A finalized presentation requires every time-and-anchoring layer to have
-  // PASSED its own check: an attested proof or an unvalidated token never
-  // makes a record "Recorded integrity verified" on its own.
+  // Every time-and-anchoring layer PASSED its own check: an attested proof or
+  // an unvalidated token never puts a record in the finalized bucket.
   const finalizable = anchoringState === "finalized" && timestamp.state === "PASSED";
 
-  let verdict: TrustDecisionVerdict;
-  let level: TrustDecision["level"];
-  let tone: TrustDecisionTone;
+  // Internal presentation bucket — decided by the states themselves, never by
+  // a weighted total. It picks a tone; it is not a conclusion and not shown.
   let presentationState: TrustPresentationState;
-  let presentationTone: TrustDecisionTone;
-  let verdictLabel: string;
-  let shortLabel: string;
-  let title: string;
-  let relianceLevel: TrustDecision["relianceLevel"];
-  let confidenceLabel: string;
-
-  if (criticalFailed || score < 45) {
-    verdict = "REVIEW_REQUIRED";
-    level = "review";
-    tone = "danger";
+  let tone: TrustDecisionTone;
+  if (criticalFailed) {
     presentationState = "FAILED_VERIFICATION";
-    presentationTone = "danger";
-    verdictLabel = "Insufficient verification";
-    shortLabel = "Insufficient";
-    title = "Insufficient verification materials";
-    relianceLevel = "low";
-    confidenceLabel = "Low";
-  } else if (score >= 90 && failedSignals === 0 && corePassed && finalizable) {
-    verdict = "STRONGLY_VERIFIED";
-    level = "strong";
-    tone = "success";
+    tone = "danger";
+  } else if (!corePassed) {
+    presentationState = core.state === "UNAVAILABLE" ? "REVIEW_REQUIRED" : "PARTIALLY_VERIFIED";
+    tone = "warning";
+  } else if (finalizable) {
     presentationState = "VERIFIED_FINALIZED";
-    presentationTone = "success";
-    verdictLabel = "Recorded integrity verified";
-    shortLabel = "Verified";
-    title = "Recorded integrity verified";
-    relianceLevel = "high";
-    confidenceLabel = "High";
-  } else if (score >= 78 && corePassed) {
-    // Core integrity verified; at least one time or anchoring layer has not
-    // passed its own check. Each limitation is named for what it is.
-    verdict = "VERIFIED";
-    level = "standard";
+    tone = "success";
+  } else if (anchoringState === "pending") {
+    presentationState = "VERIFIED_PENDING_ANCHORING";
     tone = "warning";
-    presentationTone = "warning";
-    relianceLevel = "medium";
-    if (anchoringState === "pending") {
-      presentationState = "VERIFIED_PENDING_ANCHORING";
-      verdictLabel = "Recorded integrity verified; Bitcoin anchoring pending";
-      shortLabel = "Anchoring pending";
-      title = verdictLabel;
-      confidenceLabel = "High (Bitcoin anchoring pending)";
-    } else if (anchoringState === "present_not_verified") {
-      presentationState = "VERIFIED_WITH_DEGRADED_SIGNALS";
-      verdictLabel = "Recorded integrity verified; anchoring proof not independently chain-verified";
-      shortLabel = "Anchor not chain-verified";
-      title = verdictLabel;
-      confidenceLabel = "Conditional";
-    } else {
-      presentationState = "VERIFIED_WITH_DEGRADED_SIGNALS";
-      verdictLabel = "Recorded integrity verified with supporting limitations";
-      shortLabel = "Conditional";
-      title = "Conditional trust state";
-      confidenceLabel = "Conditional";
-    }
-  } else if (score >= 78 && !corePassed) {
-    verdict = "PARTIALLY_VERIFIED";
-    level = "partial";
-    tone = "warning";
-    presentationState = "PARTIALLY_VERIFIED";
-    presentationTone = "warning";
-    verdictLabel = "Conditional trust state";
-    shortLabel = "Conditional";
-    title = "Conditional trust state";
-    relianceLevel = "medium";
-    confidenceLabel = "Conditional";
-  } else if (score >= 62) {
-    verdict = "PARTIALLY_VERIFIED";
-    level = "partial";
-    tone = "warning";
-    presentationState = "PARTIALLY_VERIFIED";
-    presentationTone = "warning";
-    verdictLabel = "Conditional trust state";
-    shortLabel = "Conditional";
-    title = "Conditional trust state";
-    relianceLevel = "medium";
-    confidenceLabel = "Conditional";
   } else {
-    verdict = "REVIEW_REQUIRED";
-    level = "review";
+    presentationState = "VERIFIED_WITH_DEGRADED_SIGNALS";
     tone = "warning";
-    presentationState = "REVIEW_REQUIRED";
-    presentationTone = "warning";
-    verdictLabel = "Review required";
-    shortLabel = "Review";
-    title = "Reviewer validation required";
-    relianceLevel = "limited";
-    confidenceLabel = "Limited";
   }
 
-  const passedText =
-    signals
-      .filter((signal) => signal.state === "PASSED")
-      .map((signal) => signal.label)
-      .join(", ") || "No major verification signals passed";
-
-  const degradedText =
-    signals
-      .filter((signal) => TRUST_SIGNAL_STATE_PRESENTATION[signal.state].countsAsDegraded)
-      .map((signal) => signal.summary)
-      .join("; ") || "No degraded signals were recorded";
-
-  const summary = getTrustNarrative({
-    verdictLabel,
-    presentationState,
-    relianceLevel,
-    degradedButUsable,
-    failedSignals,
-    signals,
-  });
-
-  const primaryReason = `Passed signals: ${passedText}. Degraded signals: ${degradedText}.`;
-
   const reviewerAction = criticalFailed
-    ? "Do not rely on this record as verified until failed core integrity, signature, or custody signals are reviewed."
-    : anchoringPresentNotVerified && corePassed
-      ? "Recorded integrity is verified. An OpenTimestamps proof with a Bitcoin attestation is present but has not been independently checked against the Bitcoin chain; verify it against the chain if independent Bitcoin anchoring is required."
-    : (publicAnchoringPending || publicAnchoringPartial) && corePassed
-      ? "Recorded integrity is verified, but Bitcoin anchoring is not finalized yet. An OpenTimestamps proof is recorded. Use the technical integrity result and recheck anchoring later if independent Bitcoin anchoring is required."
-    : degradedButUsable
-      ? "Review the degraded signals before high-reliance use, especially timestamping, Bitcoin anchoring, storage, or custody items marked as pending, partial, missing, or failed."
-      : score >= 78
-        ? "Proceed with normal review. For formal reliance, validate the technical appendix and verification package."
-        : "Perform manual reviewer validation before relying on this evidence record.";
+    ? "Do not rely on the preserved bytes until the failed file-integrity, record-signature or custody check is reviewed."
+    : anchoringPresentNotVerified
+      ? "To rely on Bitcoin anchoring, verify the OpenTimestamps proof against the Bitcoin chain yourself; PROOVRA has not checked it against the chain."
+      : publicAnchoringPending || anchoring.state === "STALE"
+        ? "Bitcoin anchoring has not completed; recheck it later if independent Bitcoin anchoring is required."
+        : timestamp.state !== "PASSED"
+          ? "The RFC 3161 timestamp is not validated; do not rely on it as a trusted timestamp."
+          : "Check each signal's status and the technical appendix before relying on this record for a specific purpose.";
 
   return {
-    verdict,
-    level,
     tone,
     presentationState,
-    presentationTone,
+    presentationTone: tone,
     anchoringState,
-    score,
-    maxScore: 100,
-    scoreLabel: `${score}/100`,
-    verdictLabel,
-    shortLabel,
-    title,
-    confidenceLabel,
     // A finalized anchor says exactly what was checked (see buildAnchoringSignal).
     anchoringStatusLabel:
       anchoringState === "finalized" ? anchoring.summary : getAnchoringStateLabel(anchoringState),
-    summary,
-    primaryReason,
+    summary: summarizeTrustSignals(signals as TrustSignal[]),
     reviewerAction,
-    degradedButUsable,
-    relianceLevel,
-    signals,
-    passedSignals,
-    degradedSignals,
-    failedSignals,
+    integrityReviewRequired: criticalFailed,
   };
 }
+
+/**
+ * A decision read back from a stored report or package snapshot, in today's
+ * shape. Snapshots written before 2026-10-08 carry a score, weighted points, a
+ * verdict, a reliance level and "Passed signals" tallies: none of it survives.
+ * Each signal keeps its words and is given its canonical state, re-read
+ * conservatively (a legacy anchoring pass is never verified), and everything
+ * else is derived again from those states.
+ */
+export function readStoredTrustDecision(value: unknown): TrustDecision | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as { signals?: unknown };
+  if (!Array.isArray(raw.signals)) return null;
+  const signals: TrustSignal[] = [];
+  for (const item of raw.signals) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    if (typeof o.key !== "string") continue;
+    const state = resolveSnapshotSignalState({
+      key: o.key,
+      state: o.state,
+      status: typeof o.status === "string" ? o.status : null,
+      summary: typeof o.summary === "string" ? o.summary : null,
+    });
+    signals.push({
+      key: o.key as TrustSignalKey,
+      label: typeof o.label === "string" ? o.label : o.key,
+      state,
+      measuredAtUtc: typeof o.measuredAtUtc === "string" ? o.measuredAtUtc : null,
+      status: TRUST_SIGNAL_STATE_PRESENTATION[state].legacyStatus,
+      tone: toneForState(state),
+      summary: typeof o.summary === "string" ? o.summary : "",
+      detail: typeof o.detail === "string" ? o.detail : "",
+    });
+  }
+  if (signals.length === 0) return null;
+  return { ...deriveTrustPresentation(signals), signals };
+}
+
+
 
 /**
  * THE compact wording of one layer in one state (report cover, web and native

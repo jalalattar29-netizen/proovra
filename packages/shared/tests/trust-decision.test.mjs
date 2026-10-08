@@ -3,9 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildEvidenceTrustDecision,
   evaluateRecordedIntegrityPromotion,
-  getTrustDecisionConfidenceLabel,
   getTrustDecisionPresentationTone,
-  serializeTrustDecisionForReviewerPackage,
+  toVerificationStatus,
 } from "../dist/index.js";
 
 function buildForensicEvent(index) {
@@ -167,7 +166,7 @@ test("custody-chain scoring counts forensic events only", () => {
 
   assert.ok(custodySignal);
   assert.equal(custodySignal.status, "partial");
-  assert.equal(custodySignal.points, 6);
+  assert.equal(toVerificationStatus(custodySignal.state), "NOT_CHECKED");
   assert.equal(custodySignal.summary, "3 forensic events recorded");
 });
 
@@ -186,11 +185,11 @@ test("an attested proof with a txid is present, not passed, until the chain chec
   const unchecked = decide("PROOF_STRUCTURE");
   assert.equal(unchecked.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   assert.equal(unchecked.status, "partial");
-  assert.equal(unchecked.points, 6);
+  assert.equal(toVerificationStatus(unchecked.state), "NOT_CHECKED");
   const verified = decide("BITCOIN_VERIFIED");
   assert.equal(verified.state, "PASSED");
   assert.equal(verified.status, "passed");
-  assert.equal(verified.points, 10);
+  assert.equal(toVerificationStatus(verified.state), "VERIFIED");
 });
 
 test("anchored without an anchor time is pending (the shared effective status)", () => {
@@ -208,7 +207,7 @@ test("anchored without an anchor time is pending (the shared effective status)",
   );
 
   assert.equal(anchoring?.state, "PENDING");
-  assert.equal(anchoring?.points, 4);
+  assert.equal(toVerificationStatus(anchoring.state), "NOT_CHECKED");
 });
 
 test("pending ots yields pending anchoring signal", () => {
@@ -224,10 +223,10 @@ test("pending ots yields pending anchoring signal", () => {
   );
 
   assert.equal(anchoring?.status, "pending");
-  assert.equal(anchoring?.points, 4);
+  assert.equal(toVerificationStatus(anchoring.state), "NOT_CHECKED");
 });
 
-test("pending Bitcoin anchoring degrades presentation tone and confidence label", () => {
+test("pending Bitcoin anchoring degrades presentation tone; the summary names it NOT_CHECKED", () => {
   const trustDecision = buildEvidenceTrustDecision({
     evidence: buildBaseEvidence({
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
@@ -245,8 +244,8 @@ test("pending Bitcoin anchoring degrades presentation tone and confidence label"
 
   assert.equal(trustDecision.presentationState, "VERIFIED_PENDING_ANCHORING");
   assert.equal(getTrustDecisionPresentationTone(trustDecision), "warning");
-  assert.equal(getTrustDecisionConfidenceLabel(trustDecision), "High (Bitcoin anchoring pending)");
-  assert.match(trustDecision.verdictLabel, /Bitcoin anchoring pending/i);
+  assert.match(trustDecision.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
+  assert.match(trustDecision.reviewerAction, /Bitcoin anchoring has not completed/);
 });
 
 test("finalized publication requires a validated timestamp and a chain-verified anchor", () => {
@@ -273,17 +272,22 @@ test("finalized publication requires a validated timestamp and a chain-verified 
 
   const finalized = decide("BITCOIN_VERIFIED");
   assert.equal(finalized.presentationState, "VERIFIED_FINALIZED");
-  assert.equal(finalized.verdict, "STRONGLY_VERIFIED");
   assert.equal(getTrustDecisionPresentationTone(finalized), "success");
-  assert.equal(getTrustDecisionConfidenceLabel(finalized), "High");
-  assert.equal(finalized.verdictLabel, "Recorded integrity verified");
+  // No overall verdict, no score, no reliance level — the bounded summary only.
+  for (const field of ["verdict", "verdictLabel", "score", "scoreLabel", "relianceLevel", "confidenceLabel", "primaryReason"]) {
+    assert.equal(field in finalized, false, field);
+  }
+  assert.equal(
+    finalized.summary,
+    "Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes. This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.",
+  );
 
   // The same record with a structure-only anchor is NOT finalized.
   const unchecked = decide("PROOF_STRUCTURE");
   assert.notEqual(unchecked.presentationState, "VERIFIED_FINALIZED");
-  assert.notEqual(unchecked.verdict, "STRONGLY_VERIFIED");
-  assert.match(unchecked.verdictLabel, /not independently chain-verified/);
-  assert.doesNotMatch(unchecked.primaryReason, /No degraded signals/);
+  assert.match(unchecked.anchoringStatusLabel, /not independently chain-verified/);
+  assert.match(unchecked.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
+  assert.match(unchecked.reviewerAction, /verify the OpenTimestamps proof against the Bitcoin chain yourself/);
 });
 
 test("failed ots yields failed anchoring signal", () => {
@@ -300,7 +304,7 @@ test("failed ots yields failed anchoring signal", () => {
   );
 
   assert.equal(anchoring?.status, "failed");
-  assert.equal(anchoring?.points, 2);
+  assert.equal(toVerificationStatus(anchoring.state), "FAILED");
 });
 
 test("ots hash mismatch blocks anchoring from passing even with a txid", () => {
@@ -318,7 +322,7 @@ test("ots hash mismatch blocks anchoring from passing even with a txid", () => {
   );
 
   assert.equal(anchoring?.status, "failed");
-  assert.equal(anchoring?.points, 2);
+  assert.equal(toVerificationStatus(anchoring.state), "FAILED");
 });
 
 test("malformed txid alone does not pass anchoring", () => {
@@ -335,7 +339,7 @@ test("malformed txid alone does not pass anchoring", () => {
   );
 
   assert.equal(anchoring?.status, "failed");
-  assert.equal(anchoring?.points, 2);
+  assert.equal(toVerificationStatus(anchoring.state), "FAILED");
 });
 
 test("valid txid with matching ots hash passes anchoring only with a recorded chain check", () => {
@@ -351,52 +355,21 @@ test("valid txid with matching ots hash passes anchoring only with a recorded ch
       custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
     }).signals.find((signal) => signal.key === "bitcoin_anchoring");
     assert.equal(anchoring?.state, "PASSED");
-    assert.equal(anchoring?.points, 10);
+    assert.equal(toVerificationStatus(anchoring.state), "VERIFIED");
   }
 });
 
-test("reviewer package trust serialization omits numeric score fields by default", () => {
+test("no signal and no decision carries a point, a weight or a score", () => {
   const trustDecision = buildEvidenceTrustDecision({
     evidence: buildBaseEvidence({
       verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
       recordedIntegrityVerifiedAtUtc: "2026-05-02T10:00:00.000Z",
     }),
-    custodyEvents: [
-      buildForensicEvent(1),
-      buildForensicEvent(2),
-      buildForensicEvent(3),
-      buildForensicEvent(4),
-      buildForensicEvent(5),
-    ],
+    custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3), buildForensicEvent(4), buildForensicEvent(5)],
   });
-
-  const serialized = serializeTrustDecisionForReviewerPackage(trustDecision);
-
-  assert.equal("score" in serialized, false);
-  assert.equal("scoreLabel" in serialized, false);
-  assert.equal("maxScore" in serialized, false);
-  assert.equal("internalDebug" in serialized, false);
-  assert.ok(Array.isArray(serialized.signals));
-  assert.equal("points" in serialized.signals[0], false);
-  assert.equal("maxPoints" in serialized.signals[0], false);
-});
-
-test("reviewer package trust serialization includes internal debug only when enabled", () => {
-  const trustDecision = buildEvidenceTrustDecision({
-    evidence: buildBaseEvidence(),
-    custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
-  });
-
-  const serialized = serializeTrustDecisionForReviewerPackage(trustDecision, {
-    includeInternalDebug: true,
-  });
-
-  assert.ok(serialized.internalDebug);
-  assert.equal(serialized.internalDebug.scoreLabel, trustDecision.scoreLabel);
-  assert.equal(
-    serialized.internalDebug.signals[0].points,
-    trustDecision.signals[0].points
-  );
+  const json = JSON.stringify(trustDecision);
+  assert.doesNotMatch(json, /"(score|maxScore|scoreLabel|points|maxPoints|verdict|relianceLevel|confidenceLabel|passedSignals|degradedSignals)"/);
+  assert.doesNotMatch(json, /STRONGLY_VERIFIED|Passed signals|No degraded signals/);
 });
 
 // ---------------------------------------------------------------------------

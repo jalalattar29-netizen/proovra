@@ -1,10 +1,6 @@
 
 import { escapeHtml } from "./formatters.js";
-import {
-  getReviewerRelianceLabel,
-  getTrustDecisionLabel,
-  getTrustSignalPresentationLabel,
-} from "@proovra/shared";
+import type { VerificationMatrix, VerificationStatus } from "@proovra/shared";
 import {
   CalloutModel,
   CustodyHashRow,
@@ -13,8 +9,6 @@ import {
   KeyValueRow,
   TimelineRow,
   Tone,
-  ReportTrustDecision,
-  ReportTrustSignal,
 } from "./types.js";
 function toneClass(tone?: Tone): string {
   return tone ? ` tone-${tone}` : " tone-neutral";
@@ -332,87 +326,47 @@ export function renderInlineQrBlock(
   `;
 }
 
-function trustSignalMark(signal: ReportTrustSignal): string {
-  switch (signal.status) {
-    case "passed":
-      return "✓";
-    case "partial":
-    case "pending":
-      return "!";
-    case "failed":
-      return "!";
-    case "missing":
+/** The tone of one verification status: only VERIFIED is a success. */
+export function verificationStatusTone(status: VerificationStatus): "success" | "danger" | "warning" | "neutral" {
+  switch (status) {
+    case "VERIFIED":
+      return "success";
+    case "FAILED":
+      return "danger";
+    case "NOT_CHECKED":
+      return "warning";
     default:
-      return "i";
+      return "neutral";
   }
 }
 
-export function renderTrustDecisionHero(decision: ReportTrustDecision): string {
-  return `
-    <section class="trust-decision-hero trust-decision-${escapeHtml(decision.level)} tone-${decision.tone}">
-      <div class="trust-decision-main">
-        <div class="trust-decision-kicker">Overall trust decision</div>
-        <div class="trust-decision-title">${escapeHtml(
-          getTrustDecisionLabel(decision)
-        )}</div>
-        <div class="trust-decision-summary">${renderMultilineText(decision.summary)}</div>
-      </div>
-
-      <div class="trust-score-card">
-        <div class="trust-score-value">${escapeHtml(
-          getTrustDecisionLabel(decision)
-        )}</div>
-        <div class="trust-score-label">Trust classification</div>
-        <div class="trust-score-reliance">Reviewer reliance: ${escapeHtml(
-          getReviewerRelianceLabel(decision.relianceLevel)
-        )}</div>
-      </div>
-    </section>
-  `;
+function verificationStatusMark(status: VerificationStatus): string {
+  return status === "VERIFIED" ? "✓" : status === "FAILED" || status === "NOT_CHECKED" ? "!" : "i";
 }
 
-export function renderTrustSignalGrid(signals: ReportTrustSignal[]): string {
-  if (signals.length === 0) return "";
-
+/**
+ * THE verification matrix: one card per signal, its status word and its
+ * factual statement. No score, no weight, no overall verdict.
+ */
+export function renderVerificationMatrix(matrix: VerificationMatrix): string {
   return `
-    <div class="trust-signal-grid">
-      ${signals
+    <div class="trust-signal-grid" data-verification-matrix>
+      ${matrix.rows
         .map(
-          (signal) => `
-            <article class="trust-signal-card tone-${signal.tone}">
-              <div class="trust-signal-mark">${escapeHtml(trustSignalMark(signal))}</div>
+          (row) => `
+            <article class="trust-signal-card tone-${verificationStatusTone(row.status)}" data-matrix-row="${escapeHtml(row.key)}" data-matrix-status="${row.status}">
+              <div class="trust-signal-mark">${escapeHtml(verificationStatusMark(row.status))}</div>
               <div class="trust-signal-content">
                 <div class="trust-signal-top">
-                  <div class="trust-signal-label">${escapeHtml(signal.label)}</div>
-                  <div class="trust-signal-score">${escapeHtml(
-                    getTrustSignalPresentationLabel(signal)
-                  )}</div>
+                  <div class="trust-signal-label">${escapeHtml(row.label)}</div>
+                  <div class="trust-signal-score">${escapeHtml(row.status)}</div>
                 </div>
-                <div class="trust-signal-summary">${escapeHtml(signal.summary)}</div>
-                <div class="trust-signal-detail">${escapeHtml(signal.detail)}</div>
+                <div class="trust-signal-detail">${escapeHtml(row.statement)}</div>
               </div>
             </article>
           `
         )
         .join("")}
     </div>
-  `;
-}
-
-export function renderTrustDecisionCompact(decision: ReportTrustDecision): string {
-  return `
-    <section class="trust-decision-compact tone-${decision.tone}">
-      <div>
-        <div class="trust-decision-compact-kicker">Trust decision</div>
-        <div class="trust-decision-compact-title">${escapeHtml(
-          getTrustDecisionLabel(decision)
-        )} <span>${escapeHtml(
-          `Reviewer reliance: ${getReviewerRelianceLabel(decision.relianceLevel)}`
-        )}</span></div>
-        <div class="trust-decision-compact-body">${escapeHtml(
-          decision.primaryReason
-        )}</div>
-      </div>
-    </section>
   `;
 }

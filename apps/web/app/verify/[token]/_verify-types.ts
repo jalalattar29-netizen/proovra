@@ -1,4 +1,4 @@
-import type { TrustSignalState } from "@proovra/shared";
+import type { TrustDecision, TrustSignal } from "@proovra/shared";
 // Pure type declarations extracted from page.tsx (P7 R5.1 decomposition).
 // No runtime code — import-only.
 
@@ -348,71 +348,15 @@ export type TrustSignalStatus =
 
 export type TrustDecisionTone = "success" | "warning" | "danger" | "neutral";
 
-export type VerifyTrustSignal = {
-  key:
-    | "core_integrity"
-    | "signature"
-    | "trusted_timestamp"
-    | "bitcoin_anchoring"
-    | "immutable_storage"
-    | "custody_chain"
-    | "identity"
-    | "verification_package";
-  label: string;
-  /**
-   * THE canonical state (@proovra/shared TrustSignalState). Optional on the
-   * wire: an older API omits it, and the page derives it with
-   * resolveSnapshotSignalState (normalizeVerifyTrustDecision).
-   */
-  state?: TrustSignalState;
-  measuredAtUtc?: string | null;
-  status: TrustSignalStatus;
-  tone: TrustDecisionTone;
-  points: number;
-  maxPoints: number;
-  summary: string;
-  detail: string;
-};
-
-export type VerifyTrustDecision = {
-  verdict:
-    | "STRONGLY_VERIFIED"
-    | "VERIFIED"
-    | "PARTIALLY_VERIFIED"
-    | "REVIEW_REQUIRED";
-  verdictLabel: string;
-  shortLabel: string;
-  score: number;
-  scoreLabel: string;
-  tone: TrustDecisionTone;
-  presentationState?:
-    | "VERIFIED_FINALIZED"
-    | "VERIFIED_PENDING_ANCHORING"
-    | "VERIFIED_WITH_DEGRADED_SIGNALS"
-    | "PARTIALLY_VERIFIED"
-    | "FAILED_VERIFICATION"
-    | "REVIEW_REQUIRED";
-  presentationTone?: TrustDecisionTone;
-  anchoringState?:
-    | "finalized"
-    | "present_not_verified"
-    | "stale"
-    | "pending"
-    | "degraded"
-    | "unavailable"
-    | "failed";
-  confidenceLabel?: string;
-  anchoringStatusLabel?: string;
-  relianceLevel: "high" | "medium" | "limited" | "low";
-  degradedButUsable: boolean;
-  summary: string;
-  primaryReason: string;
-  reviewerAction: string;
-  passedSignals: number;
-  degradedSignals: number;
-  failedSignals: number;
-  signals: VerifyTrustSignal[];
-};
+/**
+ * A trust signal and the record's signal summary, in the 2026-10-08
+ * score-free shape (@proovra/shared TrustSignal / TrustDecision). There is no
+ * score, weighted point, verdict, reliance level or confidence label: any such
+ * field an older API still sends is dropped by readStoredTrustDecision before
+ * the page sees the object.
+ */
+export type VerifyTrustSignal = TrustSignal;
+export type VerifyTrustDecision = TrustDecision;
 
 export type VerificationVerdict = {
   status:
@@ -420,13 +364,8 @@ export type VerificationVerdict = {
     | "review_required"
     | "partial"
     | "unavailable";
-  title: string;
-  label: string;
-  riskLevel: "Low" | "Medium" | "High" | "Unknown";
   actionRequired: string;
   legalStatement: string;
-  reviewerSummary: string;
-  confidenceScore: number;
   tone: "success" | "warning" | "danger" | "neutral";
 };
 
@@ -479,7 +418,8 @@ export type VerifySnapshotSection = {
   generatedAtUtc?: string | null;
   reportVersion?: number | null;
   packageVersion?: number | null;
-  trustDecisionSnapshot?: VerifyTrustDecision | null;
+  /** Read ONLY through readStoredTrustDecision: an old snapshot may carry a score. */
+  trustDecisionSnapshot?: unknown;
   otsStatusAtGeneration?: string | null;
   reportSignature?: {
     status?: string | null;
@@ -515,7 +455,17 @@ export type VerifyResponse = {
   id?: string | null;
   title?: string | null;
   status?: string | null;
-  trustDecision?: VerifyTrustDecision | null;
+  /**
+   * The raw wire value. Read ONLY through readStoredTrustDecision: an API
+   * deployed before 2026-10-08 still sends score/verdict/reliance fields.
+   */
+  trustDecision?: unknown;
+  /**
+   * THE per-signal verification matrix (2026-10-08), read through
+   * parseVerificationMatrix. Absent from an API deployed before it; the page
+   * then derives the signal rows from the trust decision's own signals.
+   */
+  verificationMatrix?: unknown;
   trustDecisionConsistency?: {
     source?: string | null;
     consistentWithSnapshot?: boolean | null;

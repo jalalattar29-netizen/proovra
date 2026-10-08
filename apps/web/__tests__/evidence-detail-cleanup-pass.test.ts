@@ -197,15 +197,15 @@ test("Fix 3 — Technical Appendix mounts a structured TrustDecisionSummary", ()
   assert.match(DECISION, /data-trust-summary/);
 });
 
-test("Fix 3 — TrustDecisionSummary renders verdict + score + signal counts + signals", () => {
-  assert.match(DECISION, /label: "Verdict", value: trust\.verdictLabel/);
-  assert.match(DECISION, /label: "Score", value: trust\.scoreLabel/);
-  assert.match(DECISION, /label: "Passed signals"/);
-  assert.match(DECISION, /label: "Degraded signals"/);
-  assert.match(DECISION, /label: "Failed signals"/);
+test("Fix 3 — TrustDecisionSummary renders the bounded summary + per-signal statuses (no verdict, score or tally)", () => {
+  // 2026-10-08 — PROOVRA states each signal, never a score, verdict or tally.
+  assert.doesNotMatch(DECISION, /label: "Verdict"/);
+  assert.doesNotMatch(DECISION, /label: "Score"/);
+  assert.doesNotMatch(DECISION, /label: "Passed signals"/);
+  assert.match(DECISION, /\{decision\.summary\}/);
   assert.match(DECISION, /data-trust-summary-signals/);
   assert.match(DECISION, /data-trust-signal-key=\{signal\.key\}/);
-  assert.match(DECISION, /data-trust-signal-status=\{signal\.status\}/);
+  assert.match(DECISION, /data-trust-signal-status=\{described\.status\}/);
 });
 
 test("Fix 3 — per-signal detail is collapsed by default (`<details>` without `open`)", () => {

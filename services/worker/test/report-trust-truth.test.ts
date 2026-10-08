@@ -139,3 +139,41 @@ describe("UC-TRUST-008 — the report states which stored bytes it certifies", (
     expect(html).toContain("2026-10-01T09:00:00.000Z");
   });
 });
+
+import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims } from "@proovra/shared";
+
+describe("evidence claims (2026-10-08) — the rendered report states a verification matrix, never a score", () => {
+  async function render(evidence: Record<string, unknown>) {
+    const input = reportInputFixture();
+    input.evidence = { ...input.evidence, ...evidence } as typeof input.evidence;
+    const vm = await buildReportViewModel(input);
+    const html = renderReportHtml(vm);
+    return { vm, html, text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") };
+  }
+
+  it("an unchecked OTS proof reads NOT_CHECKED; no score, verdict, reliance or tally anywhere", async () => {
+    const { vm, html, text } = await render({
+      otsStatus: "ANCHORED",
+      otsAnchoredAtUtc: "2026-01-01T02:00:00.000Z",
+      otsBitcoinTxid: "c".repeat(64),
+      otsAnchorCheck: "PROOF_STRUCTURE",
+      acquisitionMode: "PROOVRA_WEB_UPLOAD",
+    });
+    expect(vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!.status).toBe("NOT_CHECKED");
+    expect(html).toContain('data-matrix-row="ots_anchoring" data-matrix-status="NOT_CHECKED"');
+    expect(findForbiddenCustomerClaims(text)).toEqual([]);
+    expect(text).not.toMatch(/Technical Confidence|Trust Decision|Overall trust decision|STRONGLY/);
+    expect(text).toContain(VERIFICATION_LIMITATION);
+    expect(text).toContain("Any signal marked NOT_CHECKED was not independently verified.");
+    // Upload is not capture.
+    expect(text).toContain("PROOVRA did not observe creation or editing before submission.");
+  });
+
+  it("a validated timestamp is stated with the bounded TSA sentence, never as qualified", async () => {
+    const { vm, text } = await render({ tsaStatus: "STAMPED", tsaValidatedAtUtc: "2026-01-01T00:02:30.000Z" });
+    const tsa = vm.verificationMatrix.rows.find((r) => r.key === "tsa_token")!;
+    expect(tsa.status).toBe("VERIFIED");
+    expect(text).toContain("Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.");
+    expect(text).not.toMatch(/qualified (?:trust service|timestamp) (?:verified|confirmed)/i);
+  });
+});

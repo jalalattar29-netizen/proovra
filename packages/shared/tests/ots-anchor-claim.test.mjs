@@ -121,11 +121,12 @@ test("trust decision: a txid or anchor time reads anchored-not-checked; only a c
   for (const check of [null, "PROOF_STRUCTURE"]) {
     const d = decide(check);
     const anchoring = d.signals.find((s) => s.key === "bitcoin_anchoring");
-    // An attested proof is PRESENT, never passed, never full points.
+    // An attested proof is PRESENT, never passed, and carries no score at all.
     assert.equal(d.anchoringStatusLabel, "Anchoring proof present; not independently chain-verified");
     assert.equal(anchoring.state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
     assert.notEqual(anchoring.status, "passed");
-    assert.ok(anchoring.points < anchoring.maxPoints);
+    assert.equal("points" in anchoring, false);
+    assert.equal("score" in d, false);
     assert.notEqual(d.anchoringState, "finalized");
   }
 });

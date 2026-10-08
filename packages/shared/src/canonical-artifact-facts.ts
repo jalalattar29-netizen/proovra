@@ -23,8 +23,10 @@ import {
   resolveOtsCustodyFacts,
   resolveOtsTrustState,
   resolveTsaTrustState,
+  toVerificationStatus,
   type TrustSignalState,
 } from "./trust-signal-state.js";
+import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims, parseVerificationMatrix } from "./verification-matrix.js";
 
 /** The record's own columns that decide the trust and identity states. */
 export type CanonicalFactsSource = {
@@ -151,6 +153,9 @@ export function checkRenderedReportText(
   const raw = text.match(RAW_CODES);
   if (raw) out.push({ check: "RAW_CODE", detail: `raw code "${raw[0]}"` });
   if (STORAGE_KEY.test(text)) out.push({ check: "INFRASTRUCTURE", detail: "a storage key is printed" });
+  // No score, weighted point or overall verdict; the bounded limitation is stated.
+  for (const claim of findForbiddenCustomerClaims(text)) out.push({ check: "FORBIDDEN_CLAIM", detail: `states ${claim}` });
+  if (!text.includes(norm(VERIFICATION_LIMITATION))) out.push({ check: "LIMITATION", detail: "the verification limitation is not stated" });
   return out;
 }
 
@@ -177,13 +182,17 @@ export function checkSealedPackageFacts(
   } else {
     out.push({ check: "MANIFEST_PRESENT", detail: "package-manifest.json is missing" });
   }
-  const trust = docs.get("trust-decision.json");
-  const signals = isObj(trust) && Array.isArray(trust.signals) ? (trust.signals as Json[]) : [];
-  const sig = (key: string) => signals.find((s) => s.key === key);
-  const ots = sig("bitcoin_anchoring");
-  if (ots && ots.state !== facts.otsState) out.push({ check: "OTS_STATE", detail: `trust-decision anchoring ${String(ots.state)}, record ${facts.otsState}` });
-  const tsa = sig("trusted_timestamp");
-  if (tsa && tsa.state !== facts.tsaState) out.push({ check: "TSA_STATE", detail: `trust-decision timestamp ${String(tsa.state)}, record ${facts.tsaState}` });
+  const matrix = parseVerificationMatrix(docs.get("trust-decision.json"));
+  if (!matrix) out.push({ check: "VERIFICATION_MATRIX", detail: "trust-decision.json is not a verification matrix" });
+  const row = (key: string) => matrix?.rows.find((r) => r.key === key);
+  const ots = row("ots_anchoring");
+  if (ots && ots.status !== toVerificationStatus(facts.otsState)) {
+    out.push({ check: "OTS_STATE", detail: `matrix anchoring ${ots.status}, record ${facts.otsState}` });
+  }
+  const tsa = row("tsa_token");
+  if (tsa && tsa.status !== toVerificationStatus(facts.tsaState)) {
+    out.push({ check: "TSA_STATE", detail: `matrix timestamp ${tsa.status}, record ${facts.tsaState}` });
+  }
   const tsaRecord = docs.get("timestamp-validation.json");
   if (isObj(tsaRecord) && tsaRecord.trustState !== facts.tsaState) {
     out.push({ check: "TSA_STATE", detail: `timestamp-validation.json ${String(tsaRecord.trustState)}, record ${facts.tsaState}` });

@@ -20,7 +20,11 @@ test("ET-PKG-06: expired retention and a recorded lock are presented as such, be
 });
 
 test("ET-PKG-06: only an observed lock is a passed storage signal", () => {
-  assert.match(page, /\/\/ signal; a recorded snapshot is not\.\s*input\.storageVerified === true,\s*\]\.filter\(Boolean\)\.length;/);
+  // 2026-10-08 — the page no longer tallies passed signals into a confidence
+  // number at all; storage reads its matrix row. A recorded lock is still
+  // never conflated with an observed one.
+  assert.doesNotMatch(page, /const passedSignals = \[/);
+  assert.doesNotMatch(page, /confidenceScore/);
   assert.doesNotMatch(page, /input\.storageVerified === true \|\| input\.immutableStorage === true/);
 });
 

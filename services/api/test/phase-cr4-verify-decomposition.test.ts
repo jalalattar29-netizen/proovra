@@ -354,9 +354,12 @@ describe("CR4 Group 3 — recorded-integrity-verified phrase preserved", () => {
     expect(/submittedByEmail/.test(TOKEN_PAGE)).toBe(true);
   });
 
-  it("the canonical phrase MUST appear at least twice (verdict label + body context)", () => {
-    const matches = TOKEN_PAGE.match(/recorded integrity verified/gi) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+  it("the page states the per-signal verification matrix and its bounded summary — no overall verdict label (2026-10-08)", () => {
+    // The overall "Recorded integrity verified" verdict label is retired: a
+    // record is stated signal by signal (VERIFIED / FAILED / NOT_CHECKED /
+    // NOT_APPLICABLE / UNAVAILABLE) with the bounded summary.
+    expect(TOKEN_PAGE).toContain("verificationMatrix");
+    expect(TOKEN_PAGE).not.toMatch(/verdictLabel|STRONGLY_VERIFIED|getTrustDecisionConfidenceLabel/);
   });
 });
 

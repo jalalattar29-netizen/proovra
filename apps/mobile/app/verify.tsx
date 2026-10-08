@@ -33,12 +33,14 @@ import {
   parseVerifyCustody,
   parseVerifyDivergence,
   parseVerifyIntegritySignals,
+  parseVerifyMatrix,
   parseVerifyOutputContext,
   parseVerifyPackage,
   parseVerifyRedaction,
   parseVerifyTrustDecision,
   verifyBadgeTone,
   verifyExecutiveBadges,
+  verifyIntegrityReviewRequired,
   verifyIntegrityTab,
   verifyMismatchMessages,
   verifyPublicationPending,
@@ -47,6 +49,7 @@ import {
   verifyStatusPillLabel,
   type VerifyContentItem,
   type VerifyMaterialField,
+  type VerifyMatrixView,
   type VerifyTimelineEvent,
   type VerifyTrustSignalView,
 } from "../src/product/public-verify";
@@ -145,7 +148,7 @@ export default function VerifyScreen() {
     return (
       <ProovraScreen>
         <AuthBrandHeader />
-        <BasicVerificationView data={data.basicVerification as BasicVerification} />
+        <BasicVerificationView data={data.basicVerification as BasicVerification} matrix={parseVerifyMatrix(data)} />
       </ProovraScreen>
     );
   }
@@ -265,9 +268,10 @@ export default function VerifyScreen() {
   // GET /public/verify/:id actually sends, and renders nothing without it.
   const fmt = (iso: string) => formatUserDateTime(iso);
   const trust = parseVerifyTrustDecision(data);
+  const matrix = parseVerifyMatrix(data);
   const outputContext = parseVerifyOutputContext(data);
   const signals = parseVerifyIntegritySignals(data);
-  const verdict = buildVerifyVerdict(trust, signals);
+  const verdict = buildVerifyVerdict(trust, signals, matrix);
   const reviewerActions = buildVerifyReviewerActions(verdict, signals);
   const mismatchExplanations = buildVerifyMismatchExplanations(signals);
   const mismatchMessages = verifyMismatchMessages(signals);
@@ -277,7 +281,7 @@ export default function VerifyScreen() {
   const content = parseVerifyContentReview(data, fmt);
   const custody = parseVerifyCustody(data);
   const recordFields = verifyRecordFields(data, trust, fmt);
-  const integrityTab = verifyIntegrityTab(data, signals, fmt, trust?.verdict === "REVIEW_REQUIRED");
+  const integrityTab = verifyIntegrityTab(data, signals, fmt, verifyIntegrityReviewRequired(trust, matrix));
   const pkg = parseVerifyPackage(data);
   const recordStatus = (data?.["overview"] as Record<string, unknown> | undefined)?.["recordStatus"];
   const selected: VerifyContentItem | null = content
@@ -293,33 +297,39 @@ export default function VerifyScreen() {
         <ProovraText variant="label" mono selectable color={theme.color.ink.muted} style={styles.gap}>{`Token: ${id}`}</ProovraText>
         <ProovraCard style={styles.card}>
           {/* The server's state, or nothing — never an invented "Verified record". */}
-          {v.statusLabel ? <ProovraBadge tone={verifyStatusTone(v.statusLabel)} label={v.statusLabel} /> : null}
+          {/* The server's state, never an overall verdict: with a matrix, its bounded summary is the headline. */}
+          {v.statusLabel && !matrix ? <ProovraBadge tone={verifyStatusTone(v.statusLabel)} label={v.statusLabel} /> : null}
           {v.title ? <ProovraText variant="h2" weight="bold" style={styles.gap}>{v.title}</ProovraText> : null}
           {v.evidenceType ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{v.evidenceType}</ProovraText> : null}
           {v.capturedAt ? <ProovraText variant="bodySm" color={theme.color.ink.secondary}>{formatUserDateTime(v.capturedAt)}</ProovraText> : null}
-          {v.integrityHeadline ? <ProovraText variant="bodySm">{v.integrityHeadline}</ProovraText> : null}
+          {matrix ? (
+            <ProovraText variant="bodySm" testID="verify-headline">{matrix.summary}</ProovraText>
+          ) : v.integrityHeadline ? (
+            <ProovraText variant="bodySm">{v.integrityHeadline}</ProovraText>
+          ) : null}
           {v.summary ? <ProovraText variant="label" color={theme.color.ink.secondary}>{v.summary}</ProovraText> : null}
         </ProovraCard>
 
-        {/* ---- Evidence Trust Decision (web TrustDecisionCard) — `trustDecision`. ---- */}
-        {trust ? (
+        {/* ---- Verification matrix — `verificationMatrix` (or, from an older API, the trust signals). ---- */}
+        {matrix ? (
           <ProovraCard style={styles.card} testID="verify-trust-decision">
             <Kicker>{VERIFY_TRUST_COPY.overallKicker}</Kicker>
-            <ProovraBadge tone={verifyBadgeTone(trust.tone)} label={trust.verdictLabel} />
-            <ProovraText variant="h3" weight="bold">{trust.verdictLabel}</ProovraText>
-            <ProovraText variant="bodySm">{trust.narrative}</ProovraText>
-            <View style={styles.inset}>
-              <Kicker>{VERIFY_TRUST_COPY.confidenceKicker}</Kicker>
-              <ProovraText variant="bodySm" weight="bold">{trust.confidenceLabel}</ProovraText>
-              <Kicker>{VERIFY_TRUST_COPY.classificationKicker}</Kicker>
-              <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>{trust.verdictLabel.toUpperCase()}</ProovraText>
-            </View>
-            <View style={styles.inset}>
-              <Kicker>{VERIFY_TRUST_COPY.basisKicker}</Kicker>
-              {trust.primaryReason ? <ProovraText variant="label">{trust.primaryReason}</ProovraText> : null}
-              <ProovraText variant="label">{trust.publicationPostureLine}</ProovraText>
-              {trust.reviewerAction ? <ProovraText variant="label" weight="semibold">{trust.reviewerAction}</ProovraText> : null}
-            </View>
+            <ProovraText variant="bodySm" weight="semibold">{matrix.summary}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>{VERIFY_TRUST_COPY.matrixBoundary}</ProovraText>
+            <MatrixRows matrix={matrix} />
+            {matrix.summary.includes(matrix.limitation) ? null : (
+              <View style={styles.inset}>
+                <Kicker>{VERIFY_TRUST_COPY.limitationKicker}</Kicker>
+                <ProovraText variant="label">{matrix.limitation}</ProovraText>
+              </View>
+            )}
+            {trust ? (
+              <View style={styles.inset}>
+                <Kicker>{VERIFY_TRUST_COPY.basisKicker}</Kicker>
+                <ProovraText variant="label">{trust.publicationPostureLine}</ProovraText>
+                {trust.reviewerAction ? <ProovraText variant="label" weight="semibold">{trust.reviewerAction}</ProovraText> : null}
+              </View>
+            ) : null}
           </ProovraCard>
         ) : null}
 
@@ -892,7 +902,22 @@ function Kicker({ children, color }: { children: string; color?: string }) {
   );
 }
 
-/** Web TrustSignalGrid: label, presentation label, summary, detail per signal. */
+/** One row per matrix signal: its label, its status word and its statement. */
+function MatrixRows({ matrix }: { matrix: VerifyMatrixView }) {
+  return (
+    <View style={{ gap: theme.space.s2 }} testID="verify-matrix">
+      {matrix.rows.map((r) => (
+        <View key={r.key} style={styles.hashRow} testID={`verify-matrix-${r.key}`}>
+          <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>{r.label}</ProovraText>
+          <ProovraBadge tone={verifyBadgeTone(r.tone)} label={r.status} />
+          {r.statement ? <ProovraText variant="label">{r.statement}</ProovraText> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Web TrustSignalGrid: label, status word, summary, detail per signal. */
 function SignalList({ signals }: { signals: VerifyTrustSignalView[] }) {
   return (
     <View style={{ gap: theme.space.s2 }}>

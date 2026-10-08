@@ -1,10 +1,10 @@
 /**
  * THE CANONICAL TRUST-SIGNAL STATE CONTRACT.
  *
- * Every state, every projection: only PASSED is passed, gets full points or
- * reads "Verified"; a stored snapshot re-read through
- * `resolveSnapshotSignalState` keeps the meaning it was written with; and the
- * TSA/OTS combinations score and present exactly what was checked.
+ * Every state, every projection: only PASSED is passed or reads VERIFIED; a
+ * stored snapshot re-read through `resolveSnapshotSignalState` never claims
+ * more than it was written with; and the TSA/OTS combinations present exactly
+ * what was checked — with no score anywhere.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ import {
   resolveOtsTrustState,
   resolveSnapshotSignalState,
   resolveTsaTrustState,
-  serializeTrustDecisionForReviewerPackage,
+  toVerificationStatus,
   trustSignalStateIsPassed,
 } from "../dist/index.js";
 
@@ -44,7 +44,12 @@ test("every state has one presentation, and only PASSED is a passed signal", () 
     // An explicit state survives a snapshot round trip unchanged.
     assert.equal(resolveSnapshotSignalState({ key: "trusted_timestamp", state, status: p.legacyStatus }), state);
     assert.equal(getTrustSignalPresentationLabel({ state, status: p.legacyStatus, tone: "neutral" }), p.label);
+    // The customer-facing status: VERIFIED for PASSED, and only PASSED.
+    assert.equal(toVerificationStatus(state) === "VERIFIED", state === "PASSED", state);
   }
+  assert.equal(toVerificationStatus("PRESENT_NOT_INDEPENDENTLY_VERIFIED"), "NOT_CHECKED");
+  assert.equal(toVerificationStatus("PENDING"), "NOT_CHECKED");
+  assert.equal(toVerificationStatus("STALE"), "NOT_CHECKED");
 });
 
 test("legacy snapshots without a state are re-read conservatively", () => {
@@ -54,6 +59,12 @@ test("legacy snapshots without a state are re-read conservatively", () => {
       status: "passed",
       summary: "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
     }),
+    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+  );
+  // A legacy anchoring pass was awarded for a proof's presence, whatever its
+  // summary says: it is never re-read as verified.
+  assert.equal(
+    resolveSnapshotSignalState({ key: "bitcoin_anchoring", status: "passed", summary: "Anchored in Bitcoin" }),
     "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
   );
   assert.equal(resolveSnapshotSignalState({ key: "verification_package", status: "passed" }), "NOT_APPLICABLE");
@@ -139,42 +150,37 @@ function assertNoOverclaim(d) {
     if (s.state !== "PASSED") {
       assert.notEqual(s.status, "passed", s.key);
       assert.notEqual(getTrustSignalPresentationLabel(s), "Verified", s.key);
-      if (s.maxPoints > 0) assert.ok(s.points < s.maxPoints, `${s.key} ${s.state} ${s.points}/${s.maxPoints}`);
+      assert.notEqual(toVerificationStatus(s.state), "VERIFIED", s.key);
     }
+    assert.equal("points" in s, false, s.key);
   }
-  const passed = d.signals.filter((s) => s.state === "PASSED").map((s) => s.label);
-  for (const s of d.signals.filter((x) => x.state !== "PASSED" && x.state !== "NOT_APPLICABLE")) {
-    assert.ok(!d.primaryReason.split("Degraded signals:")[0].includes(s.label), `${s.label} listed as passed`);
+  for (const field of ["verdict", "score", "relianceLevel", "primaryReason", "passedSignals"]) {
+    assert.equal(field in d, false, field);
   }
-  assert.equal(d.passedSignals, passed.length);
-  if (d.signals.some((s) => TRUST_SIGNAL_STATE_PRESENTATION[s.state].countsAsDegraded)) {
-    assert.doesNotMatch(d.primaryReason, /No degraded signals/);
-  }
-  // The reviewer package carries the same states.
-  const pkg = serializeTrustDecisionForReviewerPackage(d);
-  assert.deepEqual(pkg.signals.map((s) => s.state), d.signals.map((s) => s.state));
+  assert.doesNotMatch(d.summary, /STRONGLY|score|Passed signals|No degraded signals/i);
 }
 
-test("TSA valid + OTS pending → VERIFIED, anchoring pending, never finalized", () => {
+test("TSA valid + OTS pending → anchoring NOT_CHECKED, never finalized", () => {
   const d = decide({ otsStatus: "PENDING", otsProofPresent: true, otsUpgradedAtUtc: "2026-10-01T01:00:00Z", otsSubmittedAtUtc: new Date().toISOString() });
   assert.equal(anchoring(d).state, "PENDING");
   assert.equal(d.presentationState, "VERIFIED_PENDING_ANCHORING");
-  assert.equal(d.verdict, "VERIFIED");
+  assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
   assertNoOverclaim(d);
 });
 
-test("TSA valid + OTS proof present, not checked → no verified claim, no full points", () => {
+test("TSA valid + OTS proof present, not checked → NOT_CHECKED, no verified claim", () => {
   const d = decide({ otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-10-01T02:00:00Z", otsBitcoinTxid: "c".repeat(64), otsAnchorCheck: "PROOF_STRUCTURE" });
   assert.equal(anchoring(d).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   assert.equal(d.anchoringState, "present_not_verified");
-  assert.notEqual(d.verdict, "STRONGLY_VERIFIED");
+  assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
   assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
   assert.equal(d.anchoringStatusLabel, "Anchoring proof present; not independently chain-verified");
-  assert.match(d.summary, /not been independently checked against the Bitcoin chain/);
+  assert.match(d.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
+  assert.match(d.reviewerAction, /PROOVRA has not checked it against the chain/);
   assertNoOverclaim(d);
 });
 
-test("TSA valid + OTS independently verified → STRONGLY_VERIFIED and finalized", () => {
+test("TSA valid + OTS independently verified → every time layer VERIFIED and finalized", () => {
   const d = decide({
     otsStatus: "ANCHORED",
     otsAnchoredAtUtc: "2026-10-01T02:00:00Z",
@@ -184,9 +190,8 @@ test("TSA valid + OTS independently verified → STRONGLY_VERIFIED and finalized
   });
   assert.equal(anchoring(d).state, "PASSED");
   assert.equal(anchoring(d).measuredAtUtc, "2026-10-01T03:00:00.000Z");
-  assert.equal(d.verdict, "STRONGLY_VERIFIED");
+  assert.equal(toVerificationStatus(anchoring(d).state), "VERIFIED");
   assert.equal(d.presentationState, "VERIFIED_FINALIZED");
-  assert.ok(d.score >= 90 && d.score < 100, String(d.score)); // identity is present, not passed
   assertNoOverclaim(d);
 });
 
@@ -199,7 +204,6 @@ test("a chain check recorded with NO txid is never verified (the package's seale
     otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z",
   });
   assert.equal(anchoring(d).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-  assert.notEqual(d.verdict, "STRONGLY_VERIFIED");
   assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
   assertNoOverclaim(d);
 });
@@ -235,7 +239,8 @@ test("signature and custody are PASSED only when checked in the evaluation", () 
   assertNoOverclaim(unchecked);
   const bad = decide({ signatureVerified: false });
   assert.equal(bad.signals.find((s) => s.key === "signature").state, "FAILED");
-  assert.equal(bad.verdict, "REVIEW_REQUIRED");
+  assert.equal(bad.integrityReviewRequired, true);
+  assert.match(bad.summary, /^Record signature FAILED\./);
 });
 
 test("identity wording names the real sign-in method, never OAuth for an email account", () => {

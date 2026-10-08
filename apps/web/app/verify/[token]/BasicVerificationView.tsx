@@ -15,6 +15,9 @@ import {
   storedBytesVerificationRow,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   type BasicVerification,
+  type ComponentVerificationState,
+  type VerificationMatrix,
+  type VerificationStatus,
 } from "@proovra/shared";
 
 import { Row, fmt } from "../_shared/verify-ui";
@@ -36,6 +39,51 @@ function packageCheck(p: {
   return p.sealKeyFingerprint
     ? `${digest} It is sealed: every file, including the report, is bound by one signature, made by the key whose fingerprint is ${p.sealKeyFingerprint} — compare it with signingKeyFingerprint in the package's package-seal.sig.`
     : `${digest} It is sealed by a key carried inside the package; PROOVRA did not record that key for this package, so the seal alone does not show the package came from PROOVRA.`;
+}
+
+/** The row tone for a matrix status; the badge always states the status word. */
+const MATRIX_ROW_STATE: Record<VerificationStatus, ComponentVerificationState> = {
+  VERIFIED: "verified",
+  FAILED: "failed",
+  NOT_CHECKED: "not_checked",
+  NOT_APPLICABLE: "not_issued",
+  UNAVAILABLE: "not_issued",
+};
+
+/**
+ * THE verification matrix (2026-10-08): the bounded summary, one row per
+ * signal with its one status word, and the fixed limitation. Rendered only
+ * when the API sent a matrix (an API deployed before it did not).
+ */
+export function VerificationMatrixSection({ matrix }: { matrix: VerificationMatrix }) {
+  const limitation = matrix.limitation.trim();
+  const summary = matrix.summary.trim();
+  const sentence = limitation && summary.endsWith(limitation) ? summary.slice(0, summary.length - limitation.length).trim() : summary;
+  return (
+    <section
+      aria-labelledby="verify-matrix"
+      data-testid="verify-matrix"
+      style={{ marginBottom: 16, background: "#fff", borderRadius: 16, padding: "8px 20px 16px", border: "1px solid rgba(15,23,42,0.08)" }}
+    >
+      <h2 id="verify-matrix" style={{ fontSize: 17, margin: "14px 0 4px" }}>Verification matrix</h2>
+      <p data-testid="verify-matrix-summary" style={{ margin: "6px 0 10px", fontWeight: 600, color: "#0f172a" }}>
+        {sentence}
+      </p>
+      {matrix.rows.map((row) => (
+        <Row
+          key={row.key}
+          testId={`verify-matrix-row-${row.key}`}
+          label={row.label}
+          state={MATRIX_ROW_STATE[row.status]}
+          badge={row.status}
+          detail={row.statement}
+        />
+      ))}
+      <p data-testid="verify-matrix-limitation" style={{ fontSize: 13, color: "#64748b", margin: "12px 0 0" }}>
+        {matrix.limitation}
+      </p>
+    </section>
+  );
 }
 
 /**
@@ -92,9 +140,12 @@ export function VerifyLinkNotice({ link }: { link: VerifyLinkInfo | null | undef
 export default function BasicVerificationView({
   data,
   link,
+  matrix,
 }: {
   data: BasicVerification;
   link?: VerifyLinkInfo | null;
+  /** THE verification matrix from the API; null/absent from an older API. */
+  matrix?: VerificationMatrix | null;
 }) {
   const o = data.original;
   const originalDetail =
@@ -149,6 +200,8 @@ export default function BasicVerificationView({
       </p>
 
       <VerifyLinkNotice link={link} />
+
+      {matrix ? <VerificationMatrixSection matrix={matrix} /> : null}
 
       <section aria-labelledby="verify-original" style={{ background: "#fff", borderRadius: 16, padding: "8px 20px 16px", border: "1px solid rgba(15,23,42,0.08)" }}>
         <h2 id="verify-original" style={{ fontSize: 17, margin: "14px 0 4px" }}>Original evidence</h2>

@@ -59,19 +59,28 @@ const ALL_TA_FILES = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// A) The decision is read, never re-derived
+// A) The decision is read through the score-free contract, never re-derived
 // ---------------------------------------------------------------------------
 
-test("verdict, score, confidence, reliance and anchoring come from the response", () => {
+test("the stored decision is read through readStoredTrustDecision (no score, verdict or reliance survives)", () => {
+  assert.match(DECISION, /const decision = readStoredTrustDecision\(trust\)/);
+  assert.match(DECISION, /decision\.anchoringStatusLabel/);
+  // 2026-10-08 — none of the retired claims is read or rendered.
   for (const field of [
-    "trust.verdictLabel",
-    "trust.scoreLabel",
-    "trust.confidenceLabel",
-    "trust.relianceLevel",
-    "trust.anchoringStatusLabel",
+    "verdictLabel",
+    "scoreLabel",
+    "maxScore",
+    "confidenceLabel",
+    "relianceLevel",
+    "passedSignals",
+    "degradedSignals",
+    "maxPoints",
+    "primaryReason",
   ]) {
-    assert.match(DECISION, new RegExp(field.replace(/\./g, "\\.")));
+    assert.doesNotMatch(DECISION_CODE, new RegExp(`\\b${field}\\b`), `retired field read: ${field}`);
   }
+  assert.doesNotMatch(DECISION_CODE, /"Verdict"|"Score"|"Reliance level"|"Confidence"/);
+  assert.doesNotMatch(DECISION_CODE, /Weighting:|points<|\/ \{signal\./);
 });
 
 test("no verdict, score or confidence is hardcoded", () => {
@@ -87,41 +96,34 @@ test("presentation never re-thresholds a technical result", () => {
   assert.doesNotMatch(DECISION_CODE, /score\s*[><]=?\s*\d/);
   assert.doesNotMatch(DECISION_CODE, /Math\.(round|floor|ceil)\(/);
   assert.doesNotMatch(DECISION_CODE, /verdict\s*=\s*(score|points)/i);
-  // The only arithmetic is summing declared maxPoints for the weighting line.
-  const sums = DECISION_CODE.match(/\.reduce\(/g) ?? [];
-  assert.equal(sums.length, 1, "only the weighting total may be computed");
+  // Nothing is totalled: there is no weighting and no tally.
+  assert.doesNotMatch(DECISION_CODE, /\.reduce\(/);
 });
 
 test("a fact the response omits is not rendered as a placeholder", () => {
-  assert.match(DECISION, /if \(trust\.verdictLabel\) facts\.push/);
-  assert.match(DECISION, /if \(trust\.confidenceLabel\) \{/);
+  assert.match(DECISION, /if \(decision\.anchoringStatusLabel\) \{/);
   assert.doesNotMatch(DECISION_CODE, /"Unknown"/);
-  assert.doesNotMatch(DECISION_CODE, /verdictLabel \?\? "/);
 });
 
 // ---------------------------------------------------------------------------
-// B) Signal totals and states are truthful
+// B) Signal statuses are truthful
 // ---------------------------------------------------------------------------
 
-test("counts come from the response and an absent count is not zero", () => {
-  assert.match(DECISION, /value: trust\.passedSignals/);
-  assert.match(DECISION, /value: trust\.degradedSignals/);
-  assert.match(DECISION, /value: trust\.failedSignals/);
-  assert.match(DECISION, /total\.value == null \? "Not reported" : String\(total\.value\)/);
-  // The old `?? 0` defaulted an absent count into a claim of zero.
-  assert.doesNotMatch(DECISION_CODE, /passedSignals \?\? 0/);
-  assert.doesNotMatch(DECISION_CODE, /failedSignals \?\? 0/);
+test("no signal tally is rendered — each signal states its own status", () => {
+  assert.doesNotMatch(DECISION_CODE, /"Passed signals"|"Degraded signals"|"Failed signals"/);
+  assert.doesNotMatch(DECISION_CODE, /data-trust-summary-totals/);
+  // The status word is the ONE customer verification status.
+  assert.match(DECISION, /const status = toVerificationStatus\(signal\.state\)/);
+  assert.match(DECISION, /\{described\.status\}/);
+  assert.match(DECISION, /data-trust-signal-status=\{described\.status\}/);
 });
 
-test("each total keeps its own semantic tone — nothing is painted green", () => {
-  assert.match(DECISION, /tone: "success"/);
-  assert.match(DECISION, /tone: "warning"/);
-  assert.match(DECISION, /tone: "danger"/);
-  assert.match(CSS, /\.ta-decision-total\[data-tone="warning"\]/);
-  assert.match(CSS, /\.ta-decision-total\[data-tone="danger"\]/);
-  // The degraded and failed regions must not use the passed ground.
-  const warn = CSS.slice(CSS.indexOf('.ta-decision-total[data-tone="warning"]'));
-  assert.doesNotMatch(warn.slice(0, 160), /#E7F6EF/i);
+test("each status keeps its own semantic tone — nothing unchecked is painted green", () => {
+  assert.match(DECISION, /VERIFIED: "success"/);
+  assert.match(DECISION, /FAILED: "danger"/);
+  assert.match(DECISION, /NOT_CHECKED: "warning"/);
+  assert.match(DECISION, /NOT_APPLICABLE: "neutral"/);
+  assert.match(DECISION, /UNAVAILABLE: "neutral"/);
 });
 
 test("the full canonical signal-state vocabulary is supported and never colour-only", () => {
@@ -138,22 +140,20 @@ test("the full canonical signal-state vocabulary is supported and never colour-o
   ]) {
     assert.match(DECISION, new RegExp(`\\b${state}:`), `missing state: ${state}`);
   }
-  // Labels and tones come from the one shared presentation table.
-  assert.match(DECISION, /TRUST_SIGNAL_STATE_PRESENTATION\[state\]/);
-  // Every state carries an icon AND a text label alongside its tone.
+  // Every state carries an icon AND a text status alongside its tone.
   assert.match(DECISION, /CircleCheck/);
   assert.match(DECISION, /TriangleAlert/);
   assert.match(DECISION, /CircleAlert/);
   assert.match(DECISION, /<StateIcon/);
-  assert.match(DECISION, /\{state\.label\}/);
 });
 
 test("a signal without a state (older API) is read conservatively, not coerced upward", () => {
-  assert.match(DECISION, /resolveSnapshotSignalState\(signal\)/);
+  // readStoredTrustDecision resolves each signal through resolveSnapshotSignalState.
+  assert.match(DECISION, /readStoredTrustDecision\(trust\)/);
 });
 
 test("only the returned signals render — none are fabricated", () => {
-  assert.match(DECISION, /const signals = trust\.signals \?\? \[\]/);
+  assert.match(DECISION, /const signals = decision\.signals;/);
   assert.match(DECISION, /signals\.map\(\(signal\)/);
   // No canonical list of expected categories that could fill gaps.
   assert.doesNotMatch(DECISION_CODE, /"Core integrity"/);
@@ -166,12 +166,12 @@ test("the decision empty state is honest", () => {
 });
 
 // ---------------------------------------------------------------------------
-// C) The boundary of the conclusion is preserved
+// C) The bounded summary is preserved
 // ---------------------------------------------------------------------------
 
-test("the boundary note is the product's copy, rendered not rewritten", () => {
-  assert.match(DECISION, /\{trust\.summary\}/);
-  assert.match(DECISION, /data-trust-summary-narrative/);
+test("the bounded summary is the product's copy, rendered not rewritten", () => {
+  assert.match(DECISION, /\{decision\.summary\}/);
+  assert.match(DECISION, /data-trust-summary-bounded/);
   assert.match(DECISION, /className="ta-decision-boundary"/);
   // The component must not author a claim of its own.
   // Literal split by a character class so this line does not itself trip the

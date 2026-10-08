@@ -7,11 +7,13 @@
  * publication materials" while the OTS callout in the same PDF said
  * "Anchored — chain not checked". Since 2026-10-07 the decision itself can no
  * longer be finalized over an unchecked anchor, so the conclusion is driven
- * through the real builder here, not a hand-made finalized stub.
+ * through the real builder here, not a hand-made finalized stub. Since
+ * 2026-10-08 the conclusion IS the verification matrix's bounded summary and
+ * the reviewer action: no overall verdict, confidence or score.
  */
 import { describe, expect, it } from "vitest";
 
-import { buildEvidenceTrustDecision } from "@proovra/shared";
+import { buildEvidenceTrustDecision, buildVerificationMatrix, findForbiddenCustomerClaims } from "@proovra/shared";
 
 import { buildExecutiveConclusion } from "../src/report-v2/truth-model.js";
 
@@ -49,18 +51,35 @@ function decide(otsAnchorCheck: "PROOF_STRUCTURE" | "BITCOIN_VERIFIED") {
   });
 }
 
+function conclude(otsAnchorCheck: "PROOF_STRUCTURE" | "BITCOIN_VERIFIED", acquisitionMode = "DIRECT_SCREEN_CAPTURE_IOS") {
+  const decision = decide(otsAnchorCheck);
+  const matrix = buildVerificationMatrix({
+    signals: decision.signals,
+    identity: null,
+    acquisitionMode,
+    packageSeal: { kind: "SELF" },
+    publication: { kind: "DOCUMENT" },
+  });
+  return buildExecutiveConclusion(decision, matrix);
+}
+
 describe("executive conclusion vs the OTS chain check (ET-RPT-09)", () => {
-  it("anchored but not chain-checked: no 'finalized' claim and no success tone", () => {
-    const c = buildExecutiveConclusion(decide("PROOF_STRUCTURE"));
+  it("anchored but not chain-checked: no 'finalized' claim, NOT_CHECKED named, no success tone", () => {
+    const c = conclude("PROOF_STRUCTURE");
     expect(c.body).not.toMatch(/finalized supporting/i);
-    expect(c.body).toContain("not been independently checked against the Bitcoin chain");
-    expect(c.body).toContain("does not claim verified Bitcoin anchoring");
+    expect(c.body).toContain("Any signal marked NOT_CHECKED was not independently verified.");
+    expect(c.body).toContain("verify the OpenTimestamps proof against the Bitcoin chain yourself");
+    expect(c.body).toContain("This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.");
+    expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
     expect(c.tone).not.toBe("success");
   });
 
-  it("chain-verified keeps the finalized conclusion", () => {
-    const c = buildExecutiveConclusion(decide("BITCOIN_VERIFIED"));
-    expect(c.body).toContain("finalized supporting publication materials");
-    expect(c.tone).toBe("success");
+  it("chain-verified: integrity and custody passed; pre-PROOVRA provenance is still not checked", () => {
+    const c = conclude("BITCOIN_VERIFIED");
+    expect(c.body).toContain("Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes.");
+    // Provenance before PROOVRA is never verified, so the limitation stays.
+    expect(c.body).toContain("Any signal marked NOT_CHECKED was not independently verified.");
+    expect(c.body).not.toMatch(/finalized supporting/i);
+    expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
   });
 });

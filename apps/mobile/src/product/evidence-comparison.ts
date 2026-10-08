@@ -11,8 +11,16 @@
  * decision. Only keys the counterpart carries are compared, so a field with
  * no equivalent is never reported as a difference.
  *
+ * A recorded trust-decision snapshot is shown only in its score-free shape
+ * (2026-10-08): each signal with its verification status and the bounded
+ * summary, read through the shared `readStoredTrustDecision`. A score, a
+ * weighted point, a verdict or a reliance level in an older snapshot never
+ * reaches the screen.
+ *
  * Pure: no React, no fetch.
  */
+
+import { readStoredTrustDecision, toVerificationStatus } from "@proovra/shared";
 
 export type Obj = Record<string, unknown>;
 export type ChangeKind = "added" | "removed" | "changed" | "unchanged";
@@ -150,10 +158,28 @@ function hasAnyMismatchFlag(group: unknown): boolean {
   return isPlainObject(group) && Object.values(group).some((v) => v !== null && v !== undefined);
 }
 
+/** A stored trust-decision snapshot, reduced to its signals' statuses and the bounded summary; null when unreadable. */
+export function scoreFreeTrustSnapshot(value: unknown): Obj | null {
+  const decision = readStoredTrustDecision(value);
+  if (!decision) return null;
+  return {
+    summary: decision.summary,
+    signals: decision.signals.map((s) => ({ key: s.key, label: s.label, status: toVerificationStatus(s.state), summary: s.summary })),
+  };
+}
+
+/** The artifact with its trust-decision snapshot in the score-free shape (dropped when unreadable). */
+function withScoreFreeSnapshot(artifact: Obj | null): Obj | null {
+  if (!artifact || !("trustDecisionSnapshot" in artifact)) return artifact;
+  const { trustDecisionSnapshot, ...rest } = artifact;
+  const snapshot = scoreFreeTrustSnapshot(trustDecisionSnapshot);
+  return snapshot ? { ...rest, trustDecisionSnapshot: snapshot } : rest;
+}
+
 export function projectComparison(raw: unknown): ComparisonGroup[] {
   const d = isPlainObject(raw) ? raw : {};
   const g = (v: unknown): Obj | null => (isPlainObject(v) ? v : null);
-  const report = g(d.reportArtifact);
+  const report = withScoreFreeSnapshot(g(d.reportArtifact));
   const snapshot = report?.trustDecisionSnapshot;
   const groups: ComparisonGroup[] = [
     { title: "Original record", data: g(d.original), compare: null },
@@ -161,7 +187,7 @@ export function projectComparison(raw: unknown): ComparisonGroup[] {
     { title: "Report artifact", data: report, compare: null },
     {
       title: "Verification package",
-      data: g(d.verificationPackage),
+      data: withScoreFreeSnapshot(g(d.verificationPackage)),
       compare: snapshot === null || snapshot === undefined ? null : { fields: { trustDecisionSnapshot: snapshot }, label: "the report artifact" },
     },
   ];

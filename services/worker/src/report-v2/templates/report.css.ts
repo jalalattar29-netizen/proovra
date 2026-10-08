@@ -3725,42 +3725,6 @@ body {
   overflow-wrap: anywhere !important;
 }
 
-.trust-score-card {
-  border: 1px solid rgba(12, 28, 25, 0.22) !important;
-  border-radius: 9px !important;
-  background-color: rgba(255, 255, 255, 0.16) !important;
-  padding: 2.5mm !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  text-align: center !important;
-}
-
-.trust-score-value {
-  color: ${c.accent} !important;
-  font-size: 19px !important;
-  line-height: 1 !important;
-  font-weight: 950 !important;
-  margin-bottom: 1.4mm !important;
-}
-
-.trust-score-label {
-  color: rgba(11, 46, 39, 0.78) !important;
-  font-size: 7.4px !important;
-  font-weight: 950 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
-}
-
-.trust-score-reliance {
-  margin-top: 1.6mm !important;
-  color: ${c.muted} !important;
-  font-size: 7.8px !important;
-  line-height: 1.25 !important;
-  font-weight: 800 !important;
-  text-transform: uppercase !important;
-}
-
 .trust-signal-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -3918,36 +3882,6 @@ body {
   font-size: 8.8px !important;
   line-height: 1.4 !important;
   font-weight: 850 !important;
-}
-
-.cover-trust-score-line {
-  margin: 2.4mm auto 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 2.6mm !important;
-  border: 1px solid rgba(12, 28, 25, 0.18) !important;
-  border-radius: 999px !important;
-  background: rgba(255, 255, 255, 0.14) !important;
-  padding: 1.6mm 3mm !important;
-  color: ${c.ink} !important;
-  font-size: 8.6px !important;
-  line-height: 1.2 !important;
-  font-weight: 850 !important;
-}
-
-.cover-trust-score-line span {
-  color: rgba(11, 46, 39, 0.74) !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.045em !important;
-  font-size: 7.4px !important;
-  font-weight: 950 !important;
-}
-
-.cover-trust-score-line strong {
-  color: ${c.accent} !important;
-  font-size: 9.4px !important;
-  font-weight: 950 !important;
 }
 
 .technical-verification-strip {
@@ -4131,12 +4065,6 @@ body {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 3.2mm !important;
-}
-
-/* COVER — trust score balanced spacing without pushing footer down */
-.cover-trust-score-line {
-  margin-top: 3mm !important;
-  margin-bottom: 3.4mm !important;
 }
 
 .cover-status-subtitle {

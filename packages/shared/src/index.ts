@@ -456,13 +456,10 @@ export {
 
 export type {
   TrustDecision,
-  ReviewerPackageTrustDecision,
-  ReviewerPackageTrustSignal,
   TrustDecisionTone,
   TrustSignal,
   TrustSignalKey,
   TrustSignalStatus,
-  TrustDecisionVerdict,
   TrustPresentationState,
   TrustAnchoringState,
   TrustDecisionEvidenceInput,
@@ -478,17 +475,16 @@ export {
   getTrustLayerStateLabel,
   getTrustSignalStateTone,
   evaluateRecordedIntegrityPromotion,
-  getReviewerRelianceLabel,
-  getTrustDecisionConfidenceLabel,
-  getTrustDecisionLabel,
   getTrustDecisionPresentationTone,
-  getTrustNarrative,
   getTrustSignalPresentationLabel,
   hasCoreCryptoMaterials,
   isExplicitRecordedIntegrityVerified,
-  serializeTrustDecisionForReviewerPackage,
-  TRUST_DECISION_LEGAL_BOUNDARY,
+  summarizeTrustSignals,
+  deriveTrustPresentation,
+  readStoredTrustDecision,
 } from "./trust-decision.js";
+
+export * from "./verification-matrix.js";
 
 export type {
   AnchorSemantics,

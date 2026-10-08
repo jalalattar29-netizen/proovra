@@ -10,7 +10,8 @@
  *              recheck is requested, and that recheck — reading the real
  *              object — records MISMATCH.
  *   TRUST-005  a missing original makes overallIntegrity false and the trust
- *              decision REVIEW_REQUIRED; the Basic verdict is failed.
+ *              decision requires integrity review (file integrity FAILED in
+ *              the verification matrix); the Basic verdict is failed.
  *   TRUST-001  bytes AND digest columns rewritten consistently: the columns
  *              disagree with the signed fingerprint, so Verify is not
  *              verified and the recheck (bound to the fingerprint) fails.
@@ -206,7 +207,10 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     expect(stored.checkStatus).toBe("STALE");
     expect(stored.lastVerifiedAtUtc).toBe(at.toISOString());
     expect(body.basicVerification.verdict.state).toBe("recorded_only");
-    expect(body.trustDecision.relianceLevel).not.toBe("high");
+    // No reliance level exists any more; file integrity says when the stored
+    // file was last re-verified.
+    expect("relianceLevel" in body.trustDecision).toBe(false);
+    expect(body.trustDecision.signals.find((s: { key: string }) => s.key === "core_integrity").summary).toMatch(/re-verified/);
     expect(body.integrityProof.storedBytesCheck).toBe("STALE");
     // Verify asked for a pinned-version recheck…
     expect((await row(ev.id)).integrityRecheckRequestedAtUtc).not.toBeNull();
@@ -220,7 +224,7 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     expect(again.statusCode).toBe(404);
   });
 
-  it("TRUST-005: the original deleted from MinIO -> overallIntegrity false, trust decision REVIEW_REQUIRED, Basic verdict failed", async () => {
+  it("TRUST-005: the original deleted from MinIO -> overallIntegrity false, file integrity FAILED, Basic verdict failed", async () => {
     const ev = await signedRecordInStore();
     await storage.deleteObject({ bucket: BUCKET, key: ev.key });
     const result = await recheck.recheckEvidenceIntegrity({ evidenceId: ev.id, trigger: "SCHEDULED", force: true });
@@ -232,7 +236,8 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     const body = res.json();
     expect(body.tier).toBe("RICH");
     expect(body.integrityProof.overallIntegrity).toBe(false);
-    expect(body.trustDecision.verdict).toBe("REVIEW_REQUIRED");
+    expect(body.trustDecision.integrityReviewRequired).toBe(true);
+    expect(body.verificationMatrix.rows.find((r: { key: string }) => r.key === "file_integrity").status).toBe("FAILED");
     expect(body.basicVerification.original.state).toBe("failed");
     expect(body.basicVerification.verdict.state).toBe("failed");
     expect(body.basicVerification.storedBytes.checkStatus).toBe("UNAVAILABLE");
@@ -251,7 +256,8 @@ describe("Public Verify — stored-bytes truth against a real object store (live
     expect(body.integrityProof.digestColumnsMatchSignedFingerprint).toBe(false);
     expect(body.integrityProof.overallIntegrity).toBe(false);
     expect(body.basicVerification.original.state).toBe("failed");
-    expect(body.trustDecision.verdict).toBe("REVIEW_REQUIRED");
+    expect(body.trustDecision.integrityReviewRequired).toBe(true);
+    expect(body.verificationMatrix.rows.find((r: { key: string }) => r.key === "file_integrity").status).toBe("FAILED");
 
     const result = await recheck.recheckEvidenceIntegrity({ evidenceId: ev.id, trigger: "PUBLIC_VERIFY", force: true });
     expect(result).toMatchObject({ checked: true, outcome: "FAILED", failureCode: "DIGEST_MISMATCH" });

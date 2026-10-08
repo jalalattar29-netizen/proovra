@@ -6,6 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  VERIFICATION_LIMITATION,
+  VERIFICATION_MATRIX_SCHEMA,
   checkRenderedReportText,
   checkSealedPackageFacts,
   compareCanonicalFacts,
@@ -70,6 +72,7 @@ const goodText = (facts) =>
     `SHA-256 ${SHA}`,
     facts.tsaState === "PASSED" ? `RFC 3161 timestamp validated. ${TSA_VALIDATED_QUALIFICATION_STATEMENT}` : "Timestamp token obtained; not validated",
     "Anchoring proof present; not independently chain-verified",
+    VERIFICATION_LIMITATION,
   ].join("\n");
 
 test("AFTER RENDERING: the PDF text states the facts and nothing stronger", () => {
@@ -90,13 +93,19 @@ test("AFTER RENDERING: the PDF text states the facts and nothing stronger", () =
   assert.ok(raw.some((x) => x.check === "RAW_CODE"));
   assert.ok(raw.some((x) => x.check === "INFRASTRUCTURE"));
   assert.ok(checkRenderedReportText("nothing", f, { reportVersion: 3 }).some((x) => x.check === "REPORT_VERSION"));
+  // A score, a weighted point or an overall verdict is a finding; so is a
+  // report without the verification limitation.
+  for (const claim of ["Score 96/100", "STRONGLY_VERIFIED", "Reviewer reliance: High", "Passed signals: Core integrity"]) {
+    assert.ok(checkRenderedReportText(`${goodText(f)}\n${claim}`, f, { reportVersion: 1 }).some((x) => x.check === "FORBIDDEN_CLAIM"), claim);
+  }
+  assert.ok(checkRenderedReportText(goodText(f).replace(VERIFICATION_LIMITATION, ""), f, { reportVersion: 1 }).some((x) => x.check === "LIMITATION"));
 });
 
 test("AFTER SEALING: sealed documents that disagree with the record are findings", () => {
   const f = record();
   const docs = new Map([
     ["package-manifest.json", { publicAnchoringVerified: false, evidenceFileSha256: SHA }],
-    ["trust-decision.json", { signals: [{ key: "bitcoin_anchoring", state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED" }, { key: "trusted_timestamp", state: "PASSED" }] }],
+    ["trust-decision.json", { schema: VERIFICATION_MATRIX_SCHEMA, rows: [{ key: "ots_anchoring", label: "OTS", status: "NOT_CHECKED", statement: "", measuredAtUtc: null }, { key: "tsa_token", label: "TSA", status: "VERIFIED", statement: "", measuredAtUtc: null }], summary: "", limitation: "" }],
     ["timestamp-validation.json", { trustState: "PASSED" }],
     ["case-metadata.json", { submitter: { acquisitionIdentity: { basis: "OBSERVED_AT_CAPTURE", actorKind: "ACCOUNT_USER", accountRole: "SUBMITTER", workspaceKind: "PERSONAL", emailVerified: true, organizationVerified: null } } }],
   ]);
@@ -104,7 +113,7 @@ test("AFTER SEALING: sealed documents that disagree with the record are findings
   // The documents agree with each other but not with the record: caught.
   const wrong = new Map(docs);
   wrong.set("package-manifest.json", { publicAnchoringVerified: true, evidenceFileSha256: SHA });
-  wrong.set("trust-decision.json", { signals: [{ key: "bitcoin_anchoring", state: "PASSED" }, { key: "trusted_timestamp", state: "PASSED" }] });
+  wrong.set("trust-decision.json", { schema: VERIFICATION_MATRIX_SCHEMA, rows: [{ key: "ots_anchoring", label: "OTS", status: "VERIFIED", statement: "", measuredAtUtc: null }, { key: "tsa_token", label: "TSA", status: "VERIFIED", statement: "", measuredAtUtc: null }], summary: "", limitation: "" });
   const findings = checkSealedPackageFacts(wrong, f);
   assert.ok(findings.filter((x) => x.check === "OTS_STATE").length >= 2);
   const identity = new Map(docs);

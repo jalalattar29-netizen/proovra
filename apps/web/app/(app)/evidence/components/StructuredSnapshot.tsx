@@ -19,11 +19,12 @@
  */
 
 import { useMemo, useState } from "react";
+import { findForbiddenCustomerClaims, readStoredTrustDecision } from "@proovra/shared";
 
 /** Which side of a comparison a value fell on. */
 export type ChangeKind = "added" | "removed" | "changed" | "unchanged";
 
-/** `passedSignals` -> `Passed signals`; `maxScore` -> `Max score`. */
+/** `fileSha256` -> `File SHA256`; `generatedAtUtc` -> `Generated at UTC`. */
 export function humaniseKey(key: string): string {
   const spaced = key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -47,10 +48,58 @@ export function humaniseKey(key: string): string {
  * A hash, an identifier or an ISO timestamp is not prose and is unreadable
  * once the bidi algorithm reorders it.
  */
-const LTR_KEY = /(hash|sha|digest|id$|ids$|utc|time|date|version|score|token|key|uuid|url|uri)/i;
+const LTR_KEY = /(hash|sha|digest|id$|ids$|utc|time|date|version|token|key|uuid|url|uri)/i;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Keys a stored trust-decision snapshot written before 2026-10-08 may still
+ * carry: a numeric score, weighted points, an overall verdict, a reliance or
+ * confidence level and the old signal tallies. PROOVRA no longer states any
+ * of them, so they are never rendered — not as a fact, a diff or raw JSON.
+ */
+const RETIRED_TRUST_CLAIM_KEYS = new Set([
+  "score",
+  "scoreLabel",
+  "maxScore",
+  "points",
+  "maxPoints",
+  "verdict",
+  "verdictLabel",
+  "shortLabel",
+  "relianceLevel",
+  "confidenceLabel",
+  "degradedButUsable",
+  "passedSignals",
+  "degradedSignals",
+  "failedSignals",
+  "primaryReason",
+  "narrative",
+]);
+
+/**
+ * The payload with every retired trust claim removed. A trust-decision
+ * snapshot (an object with a `signals` list) has its summary restated through
+ * readStoredTrustDecision — the bounded, score-free sentence — and any string
+ * that still carries a forbidden claim ("96/100", "Strongly verified", …) is
+ * dropped rather than shown.
+ */
+export function withoutRetiredTrustClaims(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutRetiredTrustClaims);
+  if (!isPlainObject(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (RETIRED_TRUST_CLAIM_KEYS.has(key)) continue;
+    if (typeof item === "string" && findForbiddenCustomerClaims(item).length > 0) continue;
+    out[key] = withoutRetiredTrustClaims(item);
+  }
+  if (Array.isArray(value.signals) && typeof value.summary === "string") {
+    const decision = readStoredTrustDecision(value);
+    if (decision) out.summary = decision.summary;
+  }
+  return out;
 }
 
 /**
@@ -323,7 +372,7 @@ function RawSnapshot({ data }: { data: unknown }) {
 
 export function StructuredSnapshot({
   name,
-  data,
+  data: rawData,
   compareWith,
   compareLabel,
 }: {
@@ -338,6 +387,12 @@ export function StructuredSnapshot({
   /** Names the artifact `compareWith` came from, for the legend. */
   compareLabel?: string;
 }) {
+  const shown = useMemo(() => withoutRetiredTrustClaims(rawData), [rawData]);
+  const counterpart = useMemo(
+    () => (compareWith ? (withoutRetiredTrustClaims(compareWith) as Record<string, unknown>) : undefined),
+    [compareWith],
+  );
+  const data = shown;
   if (data === null || data === undefined) {
     return <p className="snap-empty">Not recorded</p>;
   }
@@ -350,13 +405,13 @@ export function StructuredSnapshot({
   }
   return (
     <div className="snap" data-structured-snapshot={name}>
-      {compareWith && compareLabel ? (
+      {counterpart && compareLabel ? (
         <p className="snap-legend" data-snapshot-legend>
           Marked fields differ from {compareLabel}. Unmarked fields match, or have no
           equivalent to compare.
         </p>
       ) : null}
-      <SnapshotBody data={data} other={compareWith} strict={false} depth={0} />
+      <SnapshotBody data={data} other={counterpart} strict={false} depth={0} />
       <RawSnapshot data={data} />
     </div>
   );

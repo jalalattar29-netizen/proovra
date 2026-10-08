@@ -437,7 +437,7 @@ export function HeroSection() {
 <span className="block text-[36px] leading-[1.06] sm:text-[44px] lg:text-[46px] min-[1440px]:text-[54px] min-[1920px]:text-[64px]">
   Evidence integrity.
   <br />
-  Verification confidence.
+  Verifiable facts.
   <br />
   Operational trust.
 </span>

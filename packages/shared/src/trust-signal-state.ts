@@ -24,9 +24,10 @@
  *   NOT_APPLICABLE                      informational; this layer does not
  *                                       bear on the integrity assessment
  *
- * Only PASSED counts as a passed signal, earns full points, or may be shown
- * as "Verified". Every other state is either a degradation (counted, and
- * named) or NOT_APPLICABLE (neither passed nor degraded).
+ * Only PASSED counts as a passed signal or may be shown as VERIFIED. Every
+ * other state is either a degradation (named) or NOT_APPLICABLE (neither
+ * passed nor degraded). No state carries points: PROOVRA reports what was
+ * checked, never a confidence score.
  */
 import { resolveOtsProofStatus, type OtsProofStatus, type OtsProofStatusInput } from "./ots-status.js";
 
@@ -87,6 +88,43 @@ export const TRUST_SIGNAL_STATE_PRESENTATION: Readonly<
   },
 };
 
+/**
+ * THE CUSTOMER-FACING VERIFICATION STATUS (2026-10-08). Every report, package,
+ * Public Verify page and app surface states each signal in exactly one of
+ * these five words, projected from the canonical state:
+ *
+ *   VERIFIED        the check ran and succeeded (PASSED, and only PASSED)
+ *   FAILED          the check ran and the material is established invalid
+ *   NOT_CHECKED     material may exist, but no independent check of it
+ *                   succeeded (present-not-verified, not checked, pending,
+ *                   stale)
+ *   NOT_APPLICABLE  this check does not apply to the record or document
+ *   UNAVAILABLE     the material or the checking service was not available
+ */
+export const VERIFICATION_STATUSES = ["VERIFIED", "FAILED", "NOT_CHECKED", "NOT_APPLICABLE", "UNAVAILABLE"] as const;
+export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
+
+export const VERIFICATION_STATUS_BY_STATE: Readonly<Record<TrustSignalState, VerificationStatus>> = {
+  PASSED: "VERIFIED",
+  FAILED: "FAILED",
+  PENDING: "NOT_CHECKED",
+  PRESENT_NOT_INDEPENDENTLY_VERIFIED: "NOT_CHECKED",
+  NOT_CHECKED: "NOT_CHECKED",
+  STALE: "NOT_CHECKED",
+  UNAVAILABLE: "UNAVAILABLE",
+  NOT_APPLICABLE: "NOT_APPLICABLE",
+};
+
+export function toVerificationStatus(state: TrustSignalState): VerificationStatus {
+  return VERIFICATION_STATUS_BY_STATE[state];
+}
+
+export function parseVerificationStatus(value: unknown): VerificationStatus | null {
+  return typeof value === "string" && (VERIFICATION_STATUSES as readonly string[]).includes(value)
+    ? (value as VerificationStatus)
+    : null;
+}
+
 export function parseTrustSignalState(value: unknown): TrustSignalState | null {
   return typeof value === "string" && (TRUST_SIGNAL_STATES as readonly string[]).includes(value)
     ? (value as TrustSignalState)
@@ -120,11 +158,16 @@ export function resolveSnapshotSignalState(signal: {
   if (signal.key === "verification_package") {
     return status === "missing" ? "UNAVAILABLE" : "NOT_APPLICABLE";
   }
-  if (
-    signal.key === "bitcoin_anchoring" &&
-    status === "passed" &&
-    /not checked|not independently/i.test(String(signal.summary ?? ""))
-  ) {
+  // A legacy anchoring `passed` predates any recorded chain check: it was
+  // awarded for a proof's presence. Only an explicit PASSED state (written
+  // from a recorded BITCOIN_VERIFIED check) may ever read as verified.
+  if (signal.key === "bitcoin_anchoring" && status === "passed") {
+    return "PRESENT_NOT_INDEPENDENTLY_VERIFIED";
+  }
+  // Likewise a legacy timestamp `passed` predates "only a validated token
+  // passes" (a STAMPED token could pass unvalidated): it says only that a
+  // token was recorded.
+  if (signal.key === "trusted_timestamp" && status === "passed") {
     return "PRESENT_NOT_INDEPENDENTLY_VERIFIED";
   }
   switch (status) {

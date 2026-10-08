@@ -80,22 +80,19 @@ async function openArtifacts(page: Page, evidenceId: string) {
 }
 
 /**
- * The worker's own statements about the timestamp and the anchor, as rendered
- * in the PDF (the headline signal and the detail sentence).
+ * The report's own statements about the timestamp and the anchor: the status
+ * word and statement of each verification-matrix row, as rendered in the PDF.
  */
+const MATRIX_STATUS = "(VERIFIED|FAILED|NOT_CHECKED|NOT_APPLICABLE|UNAVAILABLE)";
 function trustStatements(text: string) {
-  const grab = (re: RegExp) => text.match(re)?.[0]?.trim() ?? null;
-  return {
-    tsaHeadline: grab(/TRUSTED TIMESTAMP\s+[A-Za-z ,]{3,40}?(?=\s+[!✓i]\s|\s+BITCOIN)/),
-    tsaDetail: grab(/Trusted timestamp\s+\S+\s+[^.]{0,220}\./),
-    // The CURRENT timestamp signal's own sentence (trust-decision detail). The
-    // custody history keeps its historical "received; not validated" event in
-    // every later version, so that wording cannot say what is true now.
-    tsaNotValidatedSentence: /token was obtained and kept, but it has not\s+been\s+validated/i.test(text),
-    // Canonical state labels may hyphenate ("Proof present, not chain-verified").
-    otsHeadline: grab(/BITCOIN ANCHORING\s+[A-Za-z ,-]{3,48}?(?=\s+[!✓i]\s|\s+IMMUTABLE)/),
-    otsDetail: grab(/Bitcoin anchoring\s+\S+\s+[^.]{0,220}\./),
+  const row = (label: string) => {
+    // A statement runs to the next row's mark (or the matrix summary).
+    const m = text.match(new RegExp(`${label}\\s+${MATRIX_STATUS}\\s+([^]{1,260}?)(?=\\s+[!✓i]\\s+[A-Z]|\\s+Summary\\b)`));
+    return { status: m?.[1] ?? null, statement: m?.[2]?.replace(/\s+/g, " ").trim() ?? null };
   };
+  const tsa = row("Trusted timestamp \\(RFC 3161\\)");
+  const ots = row("OpenTimestamps / Bitcoin anchoring");
+  return { tsaStatus: tsa.status, tsaStatement: tsa.statement, otsStatus: ots.status, otsStatement: ots.statement };
 }
 
 const proof: Record<string, unknown> = {};
@@ -149,7 +146,8 @@ test.describe("updated report — the real stack, end to end", () => {
     record("workspaceId", teamId);
     const v1Claims = trustStatements(v1Text);
     // v1 states the truth at its issuance: a token that could not be validated.
-    expect(v1Claims.tsaNotValidatedSentence).toBe(true);
+    expect(v1Claims.tsaStatus).toBe("NOT_CHECKED");
+    expect(v1Claims.tsaStatement ?? "").toMatch(/not validated/i);
     record("v1", {
       reportSha256: sha256Hex(v1.pdf),
       packageSha256: sha256Hex(v1.zip),
@@ -389,16 +387,13 @@ test.describe("updated report — the real stack, end to end", () => {
     const text2 = pdfText(pdf2, "report-v2.pdf");
     const claims2 = trustStatements(text2);
     record("v2TrustStatements", claims2);
-    // v2 no longer says the token could not be validated, and states the anchor.
-    expect(claims2.tsaNotValidatedSentence).toBe(false);
-    expect(claims2.tsaHeadline).toBeTruthy();
-    expect(claims2.tsaHeadline!).not.toMatch(/pending|unavailable|not|fail/i);
-    expect(claims2.tsaDetail ?? "").toMatch(/^Trusted timestamp Verified /);
-    // A POSITIVE anchor statement — never failed, pending, absent or mismatched.
-    expect(claims2.otsHeadline).toBeTruthy();
-    expect(claims2.otsHeadline!).not.toMatch(/pending|not recorded|not configured|fail/i);
-    expect(claims2.otsDetail ?? "").not.toMatch(/does not match|concern|review required|pending|not recorded/i);
-    expect(claims2.otsDetail ?? "").toMatch(/anchor/i);
+    // v2 states the validated token — with the bounded sentence, never as
+    // qualified — and states the anchor proof as present but NOT_CHECKED.
+    expect(claims2.tsaStatus).toBe("VERIFIED");
+    expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp validated\./);
+    expect(claims2.otsStatus).toBe("NOT_CHECKED");
+    expect(claims2.otsStatement ?? "").toMatch(/anchor/i);
+    expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|pending|not recorded/i);
 
     // v1 is untouched: same bytes, same hashes, still downloadable.
     const pdf1Again = await downloadVersion(owner.api, evidenceId, "report", 1);

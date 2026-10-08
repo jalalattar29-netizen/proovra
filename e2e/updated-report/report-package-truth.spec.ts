@@ -12,7 +12,7 @@
  *       package record bind the package and its seal key.
  *   J2  TSA validated + attested OTS proof → v2 through the canonical
  *       NEW_VERSION path (idempotent): "proof present, not chain-verified",
- *       no verified claim or full points; v2 supersedes v1 and says what
+ *       no verified claim and no score; v2 supersedes v1 and says what
  *       changed; v1 bytes unchanged; the README's openssl ts -verify runs.
  *   J3  NO trusted Bitcoin verifier exists in the stack, so no chain check is
  *       recorded: v3 (re-issued) keeps "proof present, not chain-verified"
@@ -41,7 +41,7 @@ import { join, resolve } from "node:path";
 import { createPublicKey, generateKeyPairSync, verify as cryptoVerify } from "node:crypto";
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { verifySealedPackageEntries } from "@proovra/shared";
+import { VERIFICATION_LIMITATION, findForbiddenCustomerClaims, verifySealedPackageEntries } from "@proovra/shared";
 
 import { clearTestRateLimits, createGuestSession, type GuestSession } from "../helpers/api-client";
 import { openArtifacts, signIn } from "./_browser";
@@ -117,10 +117,32 @@ function sealOk(pkg: ExtractedPackage) {
 }
 
 function signal(pkg: ExtractedPackage, key: string): Record<string, unknown> {
-  const signals = (pkg.json("trust-decision.json").signals ?? []) as Array<Record<string, unknown>>;
-  const s = signals.find((x) => x.key === key);
+  const record = pkg.json("canonical-record.json") as { materials: { trustDecision: { decision: { signals: Array<Record<string, unknown>> } } } };
+  const s = record.materials.trustDecision.decision.signals.find((x) => x.key === key);
   expect(s, key).toBeTruthy();
   return s!;
+}
+
+type MatrixRow = { key: string; status: string; statement: string };
+function matrixRows(pkg: ExtractedPackage): MatrixRow[] {
+  const m = pkg.json("trust-decision.json") as { schema?: string; rows?: MatrixRow[] };
+  expect(m.schema).toBe("PROOVRA_VERIFICATION_MATRIX_V1");
+  return m.rows ?? [];
+}
+function matrixStatus(pkg: ExtractedPackage, key: string): string {
+  const row = matrixRows(pkg).find((r) => r.key === key);
+  expect(row, key).toBeTruthy();
+  return row!.status;
+}
+const statuses = (rows: MatrixRow[], except: string[] = []) =>
+  Object.fromEntries(rows.filter((r) => !except.includes(r.key)).map((r) => [r.key, r.status]));
+
+/** No document in a package and no PDF page carries a score, points or an overall verdict. */
+function expectNoForbiddenClaims(pkg: ExtractedPackage) {
+  for (const [path, text] of pkg.texts) {
+    expect(findForbiddenCustomerClaims(text), `${pkg.dir} ${path}`).toEqual([]);
+    expect(text, path).not.toMatch(/"(?:points|maxPoints|score|maxScore|scoreLabel|relianceLevel|confidenceLabel|verdictLabel)"\s*:/);
+  }
 }
 
 const IDENTITY_OVERCLAIM = /OAuth-backed|Organization account|ORGANIZATION_ACCOUNT|VERIFIED_EMAIL/;
@@ -171,7 +193,20 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
   for (const pkg of [full, extPkg]) {
     expect(consistencyFindings(pkg), pkg.dir).toEqual([]);
     expect(sealOk(pkg).ok, JSON.stringify(sealOk(pkg).failures)).toBe(true);
+    expectNoForbiddenClaims(pkg);
   }
+  // Full Forensic and External Disclosure differ in disclosure, never in truth.
+  expect(matrixRows(extPkg)).toEqual(matrixRows(full));
+  expect(full.json("trust-decision.json").summary).toBe(extPkg.json("trust-decision.json").summary);
+  expect(matrixStatus(full, "account_identity")).toBe("VERIFIED");
+  expect(matrixStatus(full, "organization_verification")).toBe("NOT_APPLICABLE");
+  expect(matrixStatus(full, "capture_method")).toBe("NOT_APPLICABLE");
+  expect(matrixStatus(full, "pre_proovra_provenance")).toBe("NOT_CHECKED");
+  expect(matrixStatus(full, "tsa_token")).toBe("NOT_CHECKED");
+  // The PDF states the matrix, its bounded summary and the limitation.
+  expect(findForbiddenCustomerClaims(text)).toEqual([]);
+  expect(text.replace(/\s+/g, " ")).toContain(VERIFICATION_LIMITATION);
+  expect(text).not.toMatch(/Technical Confidence|Trust Decision|Reviewer reliance/);
   const manifest = full.json("package-manifest.json");
   v1.packageId = String(manifest.packageId);
   v1.extPackageId = String(extPkg.json("package-manifest.json").packageId);
@@ -302,7 +337,7 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(text).toMatch(/supersedes report v1/);
   expect(text).toMatch(/trusted timestamp was validated after report v1/i);
   expect(text).toContain("Anchoring proof present; not independently chain-verified");
-  expect(text).toContain("Proof present, not chain-verified");
+  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+NOT_CHECKED/);
   expect(text).not.toMatch(/Bitcoin anchoring\s+Verified/);
   // A validated token is a certificate-chain fact, never a qualification.
   expect(text).toContain("Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.");
@@ -313,8 +348,11 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(signal(full2, "bitcoin_anchoring").status).not.toBe("passed");
   expect(signal(full2, "trusted_timestamp").state).toBe("PASSED");
   expect(full2.json("package-manifest.json").publicAnchoringVerified).toBe(false);
-  const trust = full2.json("trust-decision.json");
-  expect(trust.verdict).not.toBe("STRONGLY_VERIFIED");
+  expect(matrixStatus(full2, "ots_anchoring")).toBe("NOT_CHECKED");
+  expect(matrixStatus(full2, "tsa_token")).toBe("VERIFIED");
+  expect(full2.json("trust-decision.json")).not.toHaveProperty("verdict");
+  expectNoForbiddenClaims(full2);
+  expect(findForbiddenCustomerClaims(text)).toEqual([]);
 
   // Supersession is explicit and v1 keeps its bytes.
   expect(full2.json("package-manifest.json").supersedesPackage).toEqual({ packageId: v1.packageId, reportVersion: 1 });
@@ -359,17 +397,16 @@ test("J3 v3 — with NO trusted Bitcoin verifier, anchoring stays present-not-ve
   const anchoring = signal(v3Full, "bitcoin_anchoring");
   expect(anchoring.state).toBe("PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   expect(anchoring.status).not.toBe("passed");
-  // Credit is carried by the scored decision in the canonical record (the
-  // public trust-decision.json projection states no points).
-  const scored = (
-    v3Full.json("canonical-record.json") as {
-      materials: { trustDecision: { decision: { signals: Array<{ key: string; points: number; maxPoints: number }> } } };
-    }
-  ).materials.trustDecision.decision.signals.find((s) => s.key === "bitcoin_anchoring");
-  expect(Number.isFinite(scored?.points) && Number.isFinite(scored?.maxPoints), "credit is recorded").toBe(true);
-  expect(scored!.points, "never full credit").toBeLessThan(scored!.maxPoints);
+  // An unchecked anchor is NOT_CHECKED and contributes no score anywhere —
+  // no document in the package carries points, a score or a verdict.
+  expect(matrixStatus(v3Full, "ots_anchoring")).toBe("NOT_CHECKED");
+  expectNoForbiddenClaims(v3Full);
+  expect(v3Full.json("anchor.json").verificationStatus).toBe("NOT_CHECKED");
   expect(v3Full.json("package-manifest.json").publicAnchoringVerified).toBe(false);
-  expect(v3Full.json("trust-decision.json").verdict).not.toBe("STRONGLY_VERIFIED");
+  // Genuinely verified layers stay VERIFIED.
+  for (const key of ["file_integrity", "custody_chain", "record_signature", "tsa_token"]) {
+    expect(matrixStatus(v3Full, key), key).toBe("VERIFIED");
+  }
   // EXTERNAL-PROOF ITEM, recorded with the proof artifacts: verifying the
   // proof against the real Bitcoin chain needs a trusted verifier this
   // disposable stack does not have. It is NOT claimed as passed here.
@@ -385,9 +422,23 @@ test("J4 Public Verify, the review workspace and the package carry the same cano
   const pv = await publicRecord(`/public/verify/${encodeURIComponent(token)}`);
   expect(pv.status).toBe(200);
   const pvSignals = ((pv.body.trustDecision as Record<string, unknown>).signals ?? []) as Array<Record<string, unknown>>;
-  const pkgSignals = (v3Full!.json("trust-decision.json").signals ?? []) as Array<Record<string, unknown>>;
+  const pkgSignals = (v3Full!.json("canonical-record.json") as { materials: { trustDecision: { decision: { signals: Array<Record<string, unknown>> } } } })
+    .materials.trustDecision.decision.signals;
   const states = (s: Array<Record<string, unknown>>) => Object.fromEntries(s.map((x) => [String(x.key), String(x.state)]));
   expect(states(pvSignals)).toEqual(states(pkgSignals));
+  const pvMatrix = pv.body.verificationMatrix as { rows: MatrixRow[]; summary: string };
+  const surfaceRows = ["package_signature", "package_completeness", "public_verify_publication"];
+  expect(statuses(pvMatrix.rows, surfaceRows)).toEqual(statuses(matrixRows(v3Full!), surfaceRows));
+  expect(statuses(pvMatrix.rows).package_signature).toBe("VERIFIED");
+  expect(statuses(pvMatrix.rows).public_verify_publication).toBe("VERIFIED");
+  expect(pvMatrix.summary).toContain(VERIFICATION_LIMITATION);
+  expect(findForbiddenCustomerClaims(JSON.stringify(pv.body))).toEqual([]);
+  // No score, point or reliance anywhere, and no overall verdict on the trust
+  // decision. (basicVerification.verdict is the original-bytes integrity state
+  // and the device-attestation verdicts are attestation results — neither is a
+  // score or an overall conclusion.)
+  expect(JSON.stringify(pv.body)).not.toMatch(/"(?:points|maxPoints|score|maxScore|scoreLabel|verdictLabel|relianceLevel|confidenceLabel)"\s*:/);
+  expect(pv.body.trustDecision).not.toHaveProperty("verdict");
   const overview = JSON.stringify(pv.body);
   expect(overview).toContain("Authenticated email account");
   expect(overview).toContain("Personal workspace");

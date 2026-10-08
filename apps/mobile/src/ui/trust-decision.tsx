@@ -1,13 +1,13 @@
 /**
- * TRUST DECISION (T-14) — the touch port of the web TrustDecisionSummary on
- * the Technical tab: the verdict facts, signal totals, primary reason,
- * reviewer next step, the product's boundary summary, and each signal with its
- * outcome and its weighted "x / y" points.
+ * TRUST SIGNALS (T-14) — the touch port of the web TrustDecisionSummary on the
+ * Technical tab: each signal with its verification status and recorded words,
+ * the bounded summary, the reviewer next step and the fixed limitation. No
+ * score, no weighted points, no verdict, no reliance level (2026-10-08).
  */
 import React from "react";
 import { View } from "react-native";
 
-import { TRUST_POINTS_BOUNDARY, trustSignalState, type TrustDecision } from "../product/trust-decision";
+import { TRUST_STATUS_BOUNDARY, verificationStatusBadge, type TrustDecision } from "../product/trust-decision";
 import { theme } from "../theme/theme";
 import { ProovraBadge, ProovraCard, ProovraText } from "./index";
 
@@ -15,27 +15,19 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
   if (!trust) {
     return (
       <ProovraText variant="bodySm" color={theme.color.ink.muted}>
-        Trust decision is not yet available for this record.
+        Verification signals are not yet available for this record.
       </ProovraText>
     );
   }
   return (
     <ProovraCard testID="trust-decision">
       <View style={{ gap: theme.space.s2 }}>
-        <ProovraText variant="h3" weight="semibold">Trust decision summary</ProovraText>
-        {trust.facts.map((f) => (
-          <View key={f.label} style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s2 }}>
-            <ProovraText variant="label" color={theme.color.ink.secondary}>{f.label}</ProovraText>
-            <ProovraText variant="label" weight="semibold">{f.value}</ProovraText>
-          </View>
-        ))}
-        <ProovraText variant="label" color={theme.color.ink.secondary}>
-          {trust.totals.map((t) => `${t.label} ${t.value == null ? "Not reported" : t.value}`).join(" · ")}
-        </ProovraText>
-        {trust.primaryReason ? (
-          <View>
-            <ProovraText variant="label" weight="semibold">Primary reason</ProovraText>
-            <ProovraText variant="bodySm">{trust.primaryReason}</ProovraText>
+        <ProovraText variant="h3" weight="semibold">Verification signals</ProovraText>
+        <ProovraText variant="bodySm" testID="trust-summary">{trust.summary}</ProovraText>
+        {trust.anchoring ? (
+          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: theme.space.s2 }}>
+            <ProovraText variant="label" color={theme.color.ink.secondary}>Anchoring</ProovraText>
+            <ProovraText variant="label" weight="semibold">{trust.anchoring}</ProovraText>
           </View>
         ) : null}
         {trust.reviewerAction ? (
@@ -44,25 +36,18 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
             <ProovraText variant="bodySm">{trust.reviewerAction}</ProovraText>
           </View>
         ) : null}
-        {trust.summary ? <ProovraText variant="label" color={theme.color.ink.muted}>{trust.summary}</ProovraText> : null}
 
         {trust.signals.length > 0 ? (
           <View style={{ gap: theme.space.s2 }} testID="trust-signals">
             <ProovraText variant="bodySm" weight="semibold">Per-signal detail</ProovraText>
-            {trust.totalPoints > 0 ? (
-              <ProovraText variant="label" weight="semibold">{`Weighting: ${trust.totalPoints} points`}</ProovraText>
-            ) : null}
-            <ProovraText variant="label" color={theme.color.ink.muted}>{TRUST_POINTS_BOUNDARY}</ProovraText>
+            <ProovraText variant="label" color={theme.color.ink.muted}>{TRUST_STATUS_BOUNDARY}</ProovraText>
             {trust.signals.map((s) => {
-              const state = trustSignalState(s.state);
+              const badge = verificationStatusBadge(s.status);
               return (
-                <View key={s.key} style={{ gap: 2 }}>
+                <View key={s.key} style={{ gap: 2 }} testID={`trust-signal-${s.key}`}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.space.s2 }}>
                     <ProovraText variant="bodySm" weight="semibold">{s.label}</ProovraText>
-                    <View style={{ flexDirection: "row", gap: theme.space.s1, alignItems: "center" }}>
-                      <ProovraBadge label={state.label} tone={state.tone} />
-                      <ProovraText variant="label">{`${s.points} / ${s.maxPoints}`}</ProovraText>
-                    </View>
+                    <ProovraBadge label={badge.label} tone={badge.tone} />
                   </View>
                   {s.summary ? <ProovraText variant="label" color={theme.color.ink.secondary}>{s.summary}</ProovraText> : null}
                   {s.detail ? <ProovraText variant="label" color={theme.color.ink.muted}>{s.detail}</ProovraText> : null}
@@ -74,6 +59,9 @@ export function TrustDecisionCard({ trust }: { trust: TrustDecision | null }) {
             })}
           </View>
         ) : null}
+        {trust.summary.includes(trust.limitation) ? null : (
+          <ProovraText variant="label" color={theme.color.ink.muted}>{trust.limitation}</ProovraText>
+        )}
       </View>
     </ProovraCard>
   );

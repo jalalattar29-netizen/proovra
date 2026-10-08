@@ -1115,10 +1115,10 @@ describe("P3-4 — the public trust score carries no commercial input", () => {
       src.indexOf("export function buildEvidenceTrustDecision"),
     );
     expect(fn.length).toBeGreaterThan(200);
-    // Three branches, and none of them scores.
-    expect([...fn.matchAll(/maxPoints:\s*0/g)].length).toBe(3);
-    expect(fn).not.toMatch(/maxPoints:\s*5/);
-    expect(fn).not.toMatch(/points:\s*[1-9]/);
+    // Since 2026-10-08 no signal carries a point at all: there is no score for
+    // a commercial input to move (PROOVRA reports what was checked).
+    expect(fn).not.toMatch(/\b(?:maxPoints|points)\s*:/);
+    expect(src).not.toMatch(/\b(?:maxPoints|points|score|maxScore)\s*:/);
     // …and the absent-but-materials-present case must not read as a
     // degradation, because `degradedSignals` drives the headline state.
     // Since the canonical state (2026-10-07) that is NOT_APPLICABLE: neither a

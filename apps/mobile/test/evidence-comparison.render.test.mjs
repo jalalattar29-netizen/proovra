@@ -19,8 +19,9 @@ const COMPARISON = () => ({
   evidenceId: "ev-1",
   original: { mimeType: "image/jpeg", sizeBytes: "2048", originalFileName: "site.jpg", displayFileName: null, fileSha256: "abcdef0123456789", fingerprintHash: null },
   previewRepresentation: { mimeType: "image/jpeg", primaryKind: "image", previewable: true },
-  reportArtifact: { version: 2, generatedAtUtc: "2026-09-20T10:00:00.000Z", verificationPackageVersion: 1, trustDecisionSnapshot: { verdict: "CONSISTENT", score: 82 } },
-  verificationPackage: { version: 1, generatedAtUtc: "2026-09-19T10:00:00.000Z", packageType: "ZIP", manifestDigest: null, trustDecisionSnapshot: { verdict: "CONSISTENT", score: 70 } },
+  // Older stored snapshots: a score and a verdict ride along with the signals; only the signals' statuses may be shown.
+  reportArtifact: { version: 2, generatedAtUtc: "2026-09-20T10:00:00.000Z", verificationPackageVersion: 1, trustDecisionSnapshot: { verdict: "STRONGLY_VERIFIED", score: 82, scoreLabel: "82/100", relianceLevel: "high", signals: [{ key: "core_integrity", label: "Core integrity", status: "passed", points: 30, maxPoints: 30, summary: "Matches." }] } },
+  verificationPackage: { version: 1, generatedAtUtc: "2026-09-19T10:00:00.000Z", packageType: "ZIP", manifestDigest: null, trustDecisionSnapshot: { verdict: "STRONGLY_VERIFIED", score: 70, scoreLabel: "70/100", relianceLevel: "high", signals: [{ key: "core_integrity", label: "Core integrity", status: "failed", points: 0, maxPoints: 30, summary: "Mismatch." }] } },
   contentItems: [],
   mismatchFlags: { originalVsRecordedHash: null, originalVsVerificationPackageManifest: null, previewVsOriginal: null },
 });
@@ -77,9 +78,13 @@ test("the package's technical details mark the trust-decision fields that differ
   await r.press("Technical details: Verification package");
   assert.ok(r.hasText("Marked fields differ from the report artifact. Unmarked fields match, or have no equivalent to compare."));
   assert.ok(r.hasText("Trust decision snapshot"));
-  assert.ok(r.hasText("Changed"), "the differing score was not marked");
+  assert.ok(r.hasText("Changed"), "the differing signal status was not marked");
   await r.press("View raw snapshot");
   assert.ok(r.texts().some((t) => t.includes("\"packageType\": \"ZIP\"")));
+  // The raw snapshot too: statuses and the bounded summary, never a score, points, verdict or reliance level.
+  const all = r.texts().join("\n");
+  assert.ok(all.includes("\"status\": \"FAILED\""), "the package signal status is shown");
+  for (const gone of ["\"score\"", "82/100", "70/100", "maxPoints", "relianceLevel", "STRONGLY_VERIFIED"]) assert.ok(!all.includes(gone), gone);
 });
 
 test("a failed read says the comparison is unavailable", async () => {

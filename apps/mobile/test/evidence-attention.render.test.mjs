@@ -8,6 +8,7 @@ import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
 import { authenticatedRoutes, platformContextEnvelope, signIn } from "./support/authenticated.mjs";
+import { findForbiddenCustomerClaims, VERIFICATION_LIMITATION } from "@proovra/shared";
 
 const h = React.createElement;
 let M;
@@ -96,21 +97,22 @@ test("Links states the case, the related count and whether the record is a multi
   assert.ok(r.hasText("Leaking roof") && r.hasText("3 items") && r.hasText("Multipart package"));
 });
 
-/* ---- T-14 (TrustDecisionSummary.tsx:231 weighting, :272 per-signal points) ---- */
+/* ---- T-14 TrustDecisionSummary — per-signal statuses, never a score (evidence-claims correction 2026-10-08) ---- */
 
-test("the Technical tab shows the trust decision with each signal's weighted points", async () => {
+test("the Technical tab states each signal's verification status and the bounded summary — no score, points, verdict or reliance", async () => {
   routes["/v1/evidence/ev-1/review-workspace"] = () =>
     RW({
-      // review-workspace artifactVersions.trustDecision (the worker's snapshot).
+      // review-workspace artifactVersions.trustDecision, as an older worker snapshot wrote it.
       artifactVersions: {
         trustDecision: {
-          verdictLabel: "Technically consistent", scoreLabel: "82 / 100", relianceLevel: "moderate",
+          verdict: "STRONGLY_VERIFIED", verdictLabel: "Technically consistent", score: 82, maxScore: 100, scoreLabel: "82 / 100",
+          relianceLevel: "moderate", confidenceLabel: "High",
           passedSignals: 5, degradedSignals: 1, failedSignals: 0,
           primaryReason: "Hash and timestamp verified.", reviewerAction: "Confirm the source.",
-          summary: "A technical assessment, not a finding of fact.",
           signals: [
-            { key: "hash", label: "Content hash", status: "passed", tone: "success", points: 30, maxPoints: 30, summary: "Matches.", detail: "" },
-            { key: "tsa", label: "Trusted timestamp", status: "degraded", tone: "warning", points: 10, maxPoints: 20, summary: "", detail: "" },
+            { key: "core_integrity", label: "Content hash", status: "passed", tone: "success", points: 30, maxPoints: 30, summary: "Matches.", detail: "" },
+            { key: "trusted_timestamp", label: "Trusted timestamp", status: "partial", tone: "warning", points: 10, maxPoints: 20, summary: "", detail: "" },
+            { key: "bitcoin_anchoring", label: "Bitcoin anchoring", status: "passed", tone: "success", points: 10, maxPoints: 10, summary: "Anchored.", detail: "" },
           ],
         },
       },
@@ -119,10 +121,19 @@ test("the Technical tab shows the trust decision with each signal's weighted poi
   await r.press("Technical");
   await settle();
   assert.equal(r.byTestId("trust-decision").length, 1);
-  assert.ok(r.hasText("Technically consistent") && r.hasText("Moderate"));
-  assert.ok(r.hasText("Weighting: 50 points"));
-  assert.ok(r.hasText("30 / 30") && r.hasText("10 / 20"));
-  assert.ok(r.byLabel("Present, not independently verified").length >= 1);
+  const text = r.texts().join("\n");
+  assert.deepEqual(findForbiddenCustomerClaims(text), []);
+  for (const gone of ["Technically consistent", "Moderate", "Reliance level", "Score", "82 / 100", "Weighting: 50 points", "30 / 30", "10 / 20", "Passed signals", "Hash and timestamp verified.", "High"]) {
+    assert.ok(!r.hasText(gone), `unexpected: ${gone}`);
+  }
+  assert.ok(!/STRONGLY/.test(text));
+  const badge = (key) => [...new Set(r.byTestId(`trust-signal-${key}`)[0].findAll((n) => typeof n.props?.label === "string").map((n) => n.props.label))];
+  assert.deepEqual(badge("core_integrity"), ["VERIFIED"]);
+  // A legacy "passed" OpenTimestamps signal was never chain-checked.
+  assert.deepEqual(badge("bitcoin_anchoring"), ["NOT_CHECKED"]);
+  const summary = r.byTestId("trust-summary")[0].findAll((n) => n.type === "Text").map((n) => [].concat(n.props.children).join(""))[0];
+  assert.ok(summary.includes("Any signal marked NOT_CHECKED was not independently verified."), summary);
+  assert.ok(summary.endsWith(VERIFICATION_LIMITATION), summary);
   assert.ok(r.hasText("No further detail was recorded for this signal."));
 });
 
@@ -248,8 +259,7 @@ test("Artifacts and the trust decision carry the web's headings", async () => {
       artifactVersions: {
         history: { reports: [], verificationPackages: [] },
         trustDecision: {
-          verdictLabel: "Technically consistent", passedSignals: 1, degradedSignals: 0, failedSignals: 0,
-          signals: [{ key: "hash", label: "Content hash", status: "passed", tone: "success", points: 30, maxPoints: 30, summary: "Matches.", detail: "" }],
+          signals: [{ key: "core_integrity", label: "Content hash", status: "passed", tone: "success", summary: "Matches.", detail: "" }],
         },
       },
     });
@@ -259,7 +269,7 @@ test("Artifacts and the trust decision carry the web's headings", async () => {
   assert.ok(r.hasText("Artifacts & Versions") && r.hasText("Latest and prior generated materials"));
   await r.press("Technical");
   await settle();
-  assert.ok(r.hasText("Trust decision summary") && r.hasText("Per-signal detail"));
+  assert.ok(r.hasText("Verification signals") && r.hasText("Per-signal detail"));
 });
 
 /* ---- T-14 ReviewerAuditTrailSection (:43 boundary, workspace review activity) ---- */

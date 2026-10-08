@@ -503,18 +503,19 @@ test("18. the Technical Appendix states every signal and role as text", () => {
   }
   // `Passed` (and every other signal outcome) is text.
   assert.match(TA_TRUST, /className="app-status-text ta-signal-state"/);
-  assert.match(TA_TRUST, /data-tone=\{appendixAppTone\(state\.tone\)\}/);
+  assert.match(TA_TRUST, /data-tone=\{appendixAppTone\(described\.tone\)\}/);
   assert.doesNotMatch(TA_TRUST, /ta-badge/);
   // `Supporting` (and every other part role) is text, through ONE component.
   assert.match(TA_ROW, /className="app-status-text"\s*\n\s*data-size="xs"\s*\n\s*data-tone=\{appendixAppTone\(tone\)\}/);
   assert.doesNotMatch(TA_ROW, /ta-badge ta-badge-/);
   // The appendix keeps its own tone WORDS and translates once.
   assert.match(TA_ROW, /success: "green",[\s\S]{0,120}?neutral: "slate",/);
-  // Scores, weighting and the signal vocabulary are untouched.
-  assert.match(TA_TRUST, /\{signal\.points\} \/ \{signal\.maxPoints\}/);
+  // 2026-10-08 — no score or weighting is stated; each signal reads its ONE
+  // verification status (toVerificationStatus).
+  assert.doesNotMatch(TA_TRUST, /signal\.points|signal\.maxPoints/);
+  assert.match(TA_TRUST, /toVerificationStatus\(signal\.state\)/);
   // The canonical state vocabulary (@proovra/shared TrustSignalState), one icon each.
   assert.match(TA_TRUST, /PASSED: CircleCheck,/);
-  assert.match(TA_TRUST, /TRUST_SIGNAL_STATE_PRESENTATION\[state\]/);
   // The per-signal state still starts on one axis, without the pill geometry
   // that used to make every capsule the same height.
   const placement = rule(EV_DETAIL_CSS, ".ta-signals .ta-signal-state");

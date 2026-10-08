@@ -56,7 +56,9 @@ import {
   getReviewerEvidenceTypeLabel,
   hasCaptureLocationMetadata,
   isAccessCustodyEventType,
-  serializeTrustDecisionForReviewerPackage,
+  buildVerificationMatrix,
+  toVerificationStatus,
+  type VerificationStatus,
   type CanonicalEvidenceMaterials,
   // UC-0 — acquisition authority + artifact classes.
   ACQUISITION_GLOBAL_QUALIFIER,
@@ -915,6 +917,11 @@ export type OtsPackageArtifactCompanion = {
   anchorCheck: string | null;
   anchorClaim: string;
   publicAnchoringVerified: boolean;
+  /**
+   * The customer-facing status beside the raw process status: an ANCHORED
+   * proof that was not checked against the Bitcoin chain is NOT_CHECKED.
+   */
+  verificationStatus: VerificationStatus;
   verificationHint: string;
 };
 
@@ -985,6 +992,14 @@ export function decideOtsPackageArtifact(
     anchorCheck: canonicalStatus === "ANCHORED" ? normalizeOtsAnchorCheck(input.anchorCheck) : null,
     anchorClaim,
     publicAnchoringVerified: anchorClaim === "VERIFIED",
+    verificationStatus:
+      anchorClaim === "VERIFIED"
+        ? "VERIFIED"
+        : canonicalStatus === "FAILED"
+          ? "FAILED"
+          : canonicalStatus === "ANCHORED" || canonicalStatus === "PENDING"
+            ? "NOT_CHECKED"
+            : "UNAVAILABLE",
     verificationHint: proofBytes
       ? "Verify with: ots verify -d <hash in this file> opentimestamps-proof.ots (the proof commits to that digest, not to a file in this package)"
       : "OTS proof bytes are not present on this record; status above is the canonical OTS state at package generation time.",
@@ -2380,7 +2395,7 @@ integrity-summary.json
 High-level package integrity profile.
 
 trust-decision.json
-Enterprise trust decision summary aligned with the PDF report decision model.
+The verification matrix: every signal stated as VERIFIED, FAILED, NOT_CHECKED, NOT_APPLICABLE or UNAVAILABLE with one factual statement each, the bounded summary and the fixed limitation. There is no score and no overall verdict. NOT_CHECKED means the material was not independently verified.
 
 canonical-record.json
 Single self-describing snapshot of every canonical lifecycle material (evidence record, fingerprint, part index, custody snapshot, identity snapshot, timestamp state, storage state, OTS state with the honesty rule applied, trust decision, media intelligence snapshot, legal boundary). Schema: proovra.canonical-record/v1. Every material inside carries snapshotSemantics = "package-snapshot-only". Reviewers may read this single file to inspect the package-snapshot truth without re-aggregating per-artifact files.
@@ -3323,6 +3338,11 @@ export async function createVerificationPackage(data: {
           publicAnchoringVerified:
             anchorSemantics?.publicAnchoringVerified ?? false,
           anchoringClaim: anchorSemantics?.anchoringStatus ?? "not_included",
+          // The same status the verification matrix states for this anchor.
+          verificationStatus: (() => {
+            const signal = data.trustDecision.signals.find((x) => x.key === "bitcoin_anchoring");
+            return signal ? toVerificationStatus(signal.state) : "UNAVAILABLE";
+          })(),
           transactionId: data.anchor.transactionId ?? null,
           anchoredAtUtc: data.anchor.anchoredAtUtc ?? null,
         }),
@@ -3483,12 +3503,20 @@ The result must match the expected SHA-256 above and the manifestSha256 field in
     appendEntry(
         "trust-decision.json",
       jsonBuffer(
-        serializeTrustDecisionForReviewerPackage(data.trustDecision, {
-          includeInternalDebug:
-            String(process.env.PROOVRA_INCLUDE_INTERNAL_TRUST_DEBUG ?? "")
-              .trim()
-              .toLowerCase() === "true",
-        })
+        // THE per-signal verification matrix — the same rows for both
+        // disclosure profiles (one call site builds both), no score, no
+        // overall verdict. A package cannot attest to its own seal, and its
+        // publication state can change after it was built.
+        {
+          ...buildVerificationMatrix({
+            signals: data.trustDecision.signals,
+            identity: metadata.acquisitionIdentity ?? null,
+            acquisitionMode: metadata.acquisitionMode ?? null,
+            packageSeal: { kind: "SELF" },
+            publication: { kind: "DOCUMENT" },
+          }),
+          reviewerAction: data.trustDecision.reviewerAction,
+        }
       ),
       "application/json"
     );

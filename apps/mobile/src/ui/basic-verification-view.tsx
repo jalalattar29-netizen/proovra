@@ -5,12 +5,45 @@
  * answers `tier: "BASIC"`: what the checks established about the original
  * evidence, the real chronology, and whether a report / package has been
  * ISSUED. No title, file name, case, person, preview or download.
+ *
+ * 2026-10-08: when the reply carries `verificationMatrix`, it leads — one row
+ * per signal with its status, the bounded summary as the headline and the
+ * fixed limitation. No score, no weighted point, no overall verdict.
  */
 import React from "react";
 import { View } from "react-native";
 import { storedBytesVerificationRow, TSA_VALIDATED_QUALIFICATION_STATEMENT, type BasicVerification, type ComponentVerificationState } from "@proovra/shared";
 
+import type { VerifyMatrixView, VerifyWebTone } from "../product/public-verify";
 import { ProovraBadge, ProovraCard, ProovraSection, ProovraText } from "./index";
+
+const MATRIX_TONE: Record<VerifyWebTone, "verified" | "pending" | "risk" | "info" | "neutral"> = {
+  success: "verified",
+  warning: "pending",
+  danger: "risk",
+  info: "info",
+  neutral: "neutral",
+};
+
+function MatrixSection({ matrix }: { matrix: VerifyMatrixView }) {
+  return (
+    <ProovraSection title="Verification matrix">
+      <ProovraCard testID="basic-verification-matrix">
+        <ProovraText variant="bodySm" weight="semibold" testID="basic-verification-headline">{matrix.summary}</ProovraText>
+        {matrix.rows.map((r) => (
+          <View key={r.key} style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${r.label}: ${r.status}. ${r.statement}`}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <ProovraText weight="semibold">{r.label}</ProovraText>
+              <ProovraBadge label={r.status} tone={MATRIX_TONE[r.tone]} />
+            </View>
+            {r.statement ? <ProovraText variant="bodySm">{r.statement}</ProovraText> : null}
+          </View>
+        ))}
+        {matrix.summary.includes(matrix.limitation) ? null : <ProovraText variant="label">{matrix.limitation}</ProovraText>}
+      </ProovraCard>
+    </ProovraSection>
+  );
+}
 
 const LABEL: Record<ComponentVerificationState, string> = {
   verified: "Verified",
@@ -64,10 +97,11 @@ function packageCheck(p: {
     : `${digest} It is sealed by a key carried inside the package; PROOVRA did not record that key for this package, so the seal alone does not show the package came from PROOVRA.`;
 }
 
-export function BasicVerificationView({ data }: { data: BasicVerification }) {
+export function BasicVerificationView({ data, matrix = null }: { data: BasicVerification; matrix?: VerifyMatrixView | null }) {
   const o = data.original;
   return (
     <View style={{ gap: 12 }}>
+      {matrix ? <MatrixSection matrix={matrix} /> : null}
       <ProovraSection title="Original evidence">
         <ProovraCard>
           {/* UC-TRUST-005 — the headline incorporates the stored bytes. */}

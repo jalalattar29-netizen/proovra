@@ -10,15 +10,6 @@ function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecis
   const pending = status === "partial";
 
   return {
-    verdict: "VERIFIED",
-    level: finalized ? "standard" : pending ? "partial" : "review",
-    verdictLabel: "Verified",
-    shortLabel: "Verified",
-    title: "Verification snapshot",
-    confidenceLabel: "Moderate confidence",
-    score: 82,
-    maxScore: 100,
-    scoreLabel: "82/100",
     tone: "success",
     presentationState: finalized
       ? "VERIFIED_FINALIZED"
@@ -28,22 +19,15 @@ function buildTrustDecision(status: "passed" | "partial" | "failed"): TrustDecis
     presentationTone: finalized ? "success" : pending ? "warning" : "danger",
     anchoringState: finalized ? "finalized" : pending ? "pending" : "failed",
     anchoringStatusLabel: finalized ? "Finalized" : pending ? "Pending" : "Failed",
-    relianceLevel: "medium",
-    degradedButUsable: false,
     summary: "Snapshot trust decision",
-    primaryReason: "Snapshot integrity recorded",
     reviewerAction: "Review the fixed snapshot.",
-    passedSignals: status === "passed" ? 1 : 0,
-    degradedSignals: status === "partial" ? 1 : 0,
-    failedSignals: status === "failed" ? 1 : 0,
+    integrityReviewRequired: status === "failed",
     signals: [
       {
         key: "bitcoin_anchoring",
         label: "Bitcoin anchoring",
         status,
         tone: status === "failed" ? "danger" : status === "passed" ? "success" : "warning",
-        points: status === "passed" ? 10 : status === "partial" ? 5 : 0,
-        maxPoints: 10,
         summary: "Anchoring snapshot",
         state: status === "passed" ? "PASSED" : status === "failed" ? "FAILED" : "PENDING",
         measuredAtUtc: null,

@@ -194,8 +194,10 @@ describe("public verify semantics (Governance Item 1)", () => {
     expect(verifyPageSource).toContain('label: "Last public verify page view"');
     expect(verifyPageSource).toContain('label: "Current public verify page view"');
     expect(verifyPageSource).not.toContain('label: "Last Verified At"');
-    expect(verifyPageSource).toContain("getTrustDecisionConfidenceLabel");
-    expect(verifyPageSource).toContain("Recorded integrity verified; Bitcoin anchoring pending");
+    // The page states the per-signal verification matrix — never a
+    // confidence label or an overall verdict (2026-10-08).
+    expect(verifyPageSource).not.toContain("getTrustDecisionConfidenceLabel");
+    expect(verifyPageSource).toContain("verificationMatrix");
   });
 
   it("classifies access-only divergence as informational and non-integrity-critical", () => {

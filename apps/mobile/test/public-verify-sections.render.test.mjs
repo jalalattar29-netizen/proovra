@@ -26,6 +26,7 @@
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { loadModule, renderComponent, React, act } from "./support/render.mjs";
+import { buildVerificationMatrix, findForbiddenCustomerClaims, VERIFICATION_LIMITATION } from "@proovra/shared";
 
 const h = React.createElement;
 let M;
@@ -56,7 +57,11 @@ const TXID = "c3".repeat(32);
 
 const signal = (key, label, status, tone, summary, detail) => ({ key, label, status, tone, points: 10, maxPoints: 10, summary, detail });
 
-/** TrustDecision exactly as packages/shared/src/trust-decision.ts types it. */
+/**
+ * A trust decision as an API OLDER than the 2026-10-08 evidence-claims
+ * correction (or an old stored snapshot) sends it: a score, weighted points, a
+ * verdict, a confidence and a reliance level. None of it may reach the screen.
+ */
 function trustDecision(over = {}) {
   return {
     verdict: "VERIFIED",
@@ -259,6 +264,12 @@ function reply(over = {}) {
 
 const has = (r, s) => assert.ok(r.hasText(s), `missing: ${s}`);
 const lacks = (r, s) => assert.ok(!r.hasText(s), `unexpected: ${s}`);
+/** The badge words inside one testID'd row. */
+const badges = (r, id) => {
+  const [node] = r.byTestId(id);
+  assert.ok(node, `no ${id}`);
+  return [...new Set(node.findAll((n) => typeof n.props?.label === "string" && !n.props?.children).map((n) => n.props.label))];
+};
 /** Text nodes inside one testID'd section (the legacy Integrity card repeats some raw values). */
 function textsIn(r, id) {
   const [node] = r.byTestId(id);
@@ -270,46 +281,111 @@ function textsIn(r, id) {
 
 /* ------------------------------------------------ trust decision batch */
 
-test("trustDecision renders the web Evidence Trust Decision card, verbatim, through the shared getters", async () => {
+test("a legacy trustDecision (score, verdict, confidence, reliance) renders only per-signal statuses, the bounded summary and the limitation", async () => {
   answer = () => ({ status: 200, body: reply() });
   const r = await render();
   assert.equal(r.byTestId("verify-trust-decision").length, 1);
-  for (const s of [
-    "Evidence Trust Decision",
-    "Overall Trust Decision",
-    "Recorded integrity verified",
-    "Technical Confidence",
-    "High",
-    "Verification Classification",
-    "RECORDED INTEGRITY VERIFIED",
-    "Decision Basis",
-    "Core hashes, signature and custody chain are consistent.",
-    "Publication posture: OpenTimestamps Bitcoin anchoring verified.",
-    "Rely on the recorded integrity state; assess context separately.",
-  ]) has(r, s);
-  // getTrustNarrative(VERIFIED_FINALIZED), packages/shared/src/trust-decision.ts.
-  has(r, "Recorded integrity is verified across the returned cryptographic, custody, storage, timestamp, and anchoring materials.");
+  for (const s of ["Evidence Verification", "Verification Matrix", "Anchoring and Reviewer Action"]) has(r, s);
+  // No score, verdict, confidence, reliance or primary reason survives.
+  for (const s of ["94/100", "Technical Confidence", "High", "Verification Classification", "RECORDED INTEGRITY VERIFIED", "Decision Basis",
+    "Core hashes, signature and custody chain are consistent.", "Rely on the recorded integrity state; assess context separately.", "Overall Trust Decision"]) lacks(r, s);
+  assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
+  // The headline is the bounded summary, and it carries the fixed limitation.
+  const [headline] = textsIn(r, "verify-headline");
+  assert.ok(headline.startsWith("Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes."), headline);
+  assert.ok(headline.includes("Any signal marked NOT_CHECKED was not independently verified."), headline);
+  assert.ok(headline.endsWith(VERIFICATION_LIMITATION), headline);
+  // A legacy "passed" OpenTimestamps signal was never chain-checked: NOT_CHECKED, never VERIFIED.
+  assert.deepEqual(badges(r, "verify-matrix-bitcoin_anchoring"), ["NOT_CHECKED"]);
+  has(r, "Publication posture: Anchoring proof present; not independently chain-verified.");
+  has(r, "To rely on Bitcoin anchoring, verify the OpenTimestamps proof against the Bitcoin chain yourself; PROOVRA has not checked it against the chain.");
 });
 
-test("outputContext renders verdict source, snapshot/live times, deltas and its legal boundary", async () => {
+test("BASIC tier: the verificationMatrix leads, with its summary as the headline and an unchecked OTS proof NOT_CHECKED", async () => {
+  const AT = "2026-09-01T00:00:00.000Z";
+  const matrix = buildVerificationMatrix({
+    signals: [
+      { key: "core_integrity", state: "PASSED", summary: "Fingerprint and file hash agree." },
+      { key: "signature", state: "PASSED", summary: "Ed25519 signature verifies." },
+      { key: "custody_chain", state: "PASSED", summary: "Every event links." },
+      { key: "bitcoin_anchoring", state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED", summary: "OpenTimestamps proof present" },
+    ],
+    identity: null,
+    acquisitionMode: null,
+    packageSeal: { kind: "NONE" },
+    publication: { kind: "THIS_PAGE" },
+  });
+  const basicVerification = {
+    schema: "PROOVRA_BASIC_VERIFICATION", version: 1, checkedAtUtc: AT,
+    original: { state: "verified", basis: "SIGNATURE_AND_FINGERPRINT_AND_CUSTODY_CHAIN", checks: {}, fileSha256: SHA, fingerprintHash: FP, serverReceivedAtUtc: AT, deviceDeclaredCaptureAtUtc: null, capturedAtUtcDeclared: AT, finalizedAtUtc: AT },
+    timestamp: { state: "not_issued", basis: null, tokenTimeUtc: null },
+    anchoring: { state: "not_checked", basis: null, anchoredAtUtc: AT, bitcoinTxid: null },
+    report: { issued: false, latestVersion: null, issuedAtUtc: null, digestRecorded: false, sha256: null },
+    package: { issued: false, certifiesReportVersion: null, assembledAtUtc: null, sealed: false, packageSha256: null, sealKeyFingerprint: null, latestReportLacksPackage: false },
+  };
+  // An older field set must not leak through either.
+  answer = () => ({ status: 200, body: { tier: "BASIC", evidenceId: "ev-1", basicVerification, verificationMatrix: matrix, score: 96, verdictLabel: "Strongly verified", relianceLevel: "high" } });
+  const r = await render();
+  assert.equal(r.byTestId("basic-verification-matrix").length, 1);
+  const [headline] = textsIn(r, "basic-verification-headline");
+  assert.equal(headline, matrix.summary);
+  assert.ok(headline.endsWith(VERIFICATION_LIMITATION));
+  has(r, "OpenTimestamps / Bitcoin anchoring");
+  assert.ok(r.byLabel("NOT_CHECKED").length >= 1);
+  const ots = r.byTestId("basic-verification-matrix")[0].findAll((n) => typeof n.props?.accessibilityLabel === "string" && n.props.accessibilityLabel.startsWith("OpenTimestamps / Bitcoin anchoring:"));
+  assert.ok(ots.length >= 1 && ots[0].props.accessibilityLabel.startsWith("OpenTimestamps / Bitcoin anchoring: NOT_CHECKED."), "an unchecked OTS proof reads NOT_CHECKED");
+  for (const gone of ["96", "Strongly verified", "High"]) lacks(r, gone);
+  assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
+});
+
+test("verificationMatrix, when the reply carries it, is the matrix and the headline", async () => {
+  const matrix = buildVerificationMatrix({
+    signals: [
+      { key: "core_integrity", state: "PASSED", summary: "Fingerprint and file hash agree." },
+      { key: "signature", state: "PASSED", summary: "Ed25519 signature verifies." },
+      { key: "custody_chain", state: "PASSED", summary: "Every event links." },
+      { key: "trusted_timestamp", state: "NOT_CHECKED", summary: "RFC 3161 token recorded; not validated" },
+      { key: "bitcoin_anchoring", state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED", summary: "OpenTimestamps proof present" },
+      { key: "immutable_storage", state: "PASSED", summary: "Object Lock COMPLIANCE" },
+    ],
+    identity: null,
+    acquisitionMode: null,
+    packageSeal: { kind: "NONE" },
+    publication: { kind: "THIS_PAGE" },
+  });
+  answer = () => ({ status: 200, body: reply({ verificationMatrix: matrix }) });
+  const r = await render();
+  const [headline] = textsIn(r, "verify-headline");
+  assert.equal(headline, matrix.summary);
+  assert.equal(r.byTestId("verify-matrix").length, 1);
+  assert.deepEqual(badges(r, "verify-matrix-file_integrity"), ["VERIFIED"]);
+  has(r, "OpenTimestamps / Bitcoin anchoring");
+  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["NOT_CHECKED"], "an unchecked OTS proof is NOT_CHECKED");
+  assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("PROOVRA has not checked the proof against the Bitcoin chain")));
+  has(r, "Public Verify publication");
+  assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
+});
+
+test("outputContext renders the signals source, snapshot/live times, deltas and its legal boundary", async () => {
   answer = () => ({ status: 200, body: reply() });
   const r = await render();
   assert.equal(r.byTestId("verify-output-context").length, 1);
-  has(r, "Verdict source: Live (recomputed at request time)");
+  has(r, "Signals source: Live (recomputed at request time)");
   assert.ok(r.texts().some((t) => t.startsWith("Snapshot generated: ")));
   assert.ok(r.texts().some((t) => t.startsWith("Live observed: ")));
   has(r, "May have advanced since snapshot: custodyChain, otsAnchoring");
   has(r, "Public verification reflects the recorded technical state only.");
 });
 
-test("Trust Signal Breakdown lists each server signal with the web presentation label", async () => {
+test("Signal Detail lists each server signal with its verification status word", async () => {
   answer = () => ({ status: 200, body: reply() });
   const r = await render();
-  has(r, "Trust Signal Breakdown");
-  has(r, "Why this decision was reached");
+  has(r, "Signal Detail");
+  has(r, "What each signal records");
   assert.equal(r.byTestId("verify-signal-core_integrity").length, 1);
   has(r, "Fingerprint and file hash agree.");
-  assert.ok(r.byLabel("Verified").length >= 6, "passed+success signals read 'Verified' (getTrustSignalPresentationLabel)");
+  assert.deepEqual(badges(r, "verify-signal-core_integrity"), ["VERIFIED"]);
+  assert.deepEqual(badges(r, "verify-signal-bitcoin_anchoring"), ["NOT_CHECKED"], "a legacy OTS pass is NOT_CHECKED");
 });
 
 test("a clean integrityProof yields the web's verified legal boundary and the default reviewer action — no issue block", async () => {
@@ -327,7 +403,10 @@ test("a failed signature is never presented as verified: Review Required boundar
   answer = () => ({
     status: 200,
     body: reply({
-      trustDecision: trustDecision({ verdict: "REVIEW_REQUIRED", verdictLabel: "Insufficient verification", presentationState: "REVIEW_REQUIRED", presentationTone: "danger", tone: "danger", confidenceLabel: "Low" }),
+      trustDecision: trustDecision({
+        verdict: "REVIEW_REQUIRED", verdictLabel: "Insufficient verification", presentationState: "REVIEW_REQUIRED", presentationTone: "danger", tone: "danger", confidenceLabel: "Low",
+        signals: trustDecision().signals.map((s) => (s.key === "signature" ? { ...s, status: "failed", tone: "danger", summary: "Signature invalid" } : s)),
+      }),
       integrityProof: { overallIntegrity: false, canonicalHashMatches: true, signatureValid: false, custodyChainValid: false, custodyChainMode: "v2", custodyChainFailureReason: "Event 2 prevEventHash does not match event 1", timestampDigestMatches: true, otsHashMatches: true },
     }),
   });
@@ -342,7 +421,11 @@ test("a failed signature is never presented as verified: Review Required boundar
   has(r, "Review the digital signature, signing key identifier, key version, and public key material before accepting the signature layer.");
   has(r, "Verification Warning");
   has(r, "Custody chain check reported: Event 2 prevEventHash does not match event 1");
-  has(r, "Low");
+  // The failure is stated per signal, never as a verdict or a confidence.
+  assert.deepEqual(badges(r, "verify-matrix-signature"), ["FAILED"]);
+  assert.ok(textsIn(r, "verify-headline")[0].includes("FAILED"));
+  lacks(r, "Low");
+  lacks(r, "Insufficient verification");
 });
 
 test("a response without trustDecision / outputContext / integrityProof renders none of those sections", async () => {
@@ -364,8 +447,9 @@ test("Supporting Technical Signals: status pill, executive badges, reviewer acti
   has(r, "Verification Signal Summary");
   has(r, "Supporting Technical Signals");
   assert.ok(r.byLabel("REPORTED").length === 1, "the web statusTone pill of overview.recordStatus");
-  assert.ok(r.byLabel("Core Integrity: Recorded integrity verified").length === 1);
-  has(r, "This decision is limited to the recorded technical state. It does not prove factual truth, authorship, intent, context, or court admissibility.");
+  assert.ok(r.byLabel("Core Integrity: VERIFIED").length === 1);
+  assert.ok(r.byLabel("Bitcoin Anchoring: NOT_CHECKED").length === 1);
+  has(r, `Each status is limited to the recorded technical state. ${VERIFICATION_LIMITATION}`);
   has(r, "Legal review outcome");
   has(r, "Forensic custody posture");
   has(r, "Forensic custody at report/package generation: 2. Current forensic custody events: 2. Current access activity events: 1. Total displayed now: 3.");
@@ -396,7 +480,10 @@ test("OTS pending: the live pending note and the Publication Posture panel appea
   answer = () => ({
     status: 200,
     body: reply({
-      trustDecision: trustDecision({ presentationState: "VERIFIED_PENDING_ANCHORING", presentationTone: "warning", anchoringState: "pending", verdictLabel: "Recorded integrity verified; Bitcoin anchoring pending", anchoringStatusLabel: "Bitcoin anchoring pending", confidenceLabel: "High (Bitcoin anchoring pending)" }),
+      trustDecision: trustDecision({
+        presentationState: "VERIFIED_PENDING_ANCHORING", presentationTone: "warning", anchoringState: "pending", verdictLabel: "Recorded integrity verified; Bitcoin anchoring pending", anchoringStatusLabel: "Bitcoin anchoring pending", confidenceLabel: "High (Bitcoin anchoring pending)",
+        signals: trustDecision().signals.map((s) => (s.key === "bitcoin_anchoring" ? { ...s, status: "pending", tone: "warning", summary: "Bitcoin anchoring pending" } : s)),
+      }),
       liveAnchoring: { currentOtsStatus: "PENDING", otsAnchoredAtUtc: null, otsBitcoinTxid: null, lastUpdatedAtUtc: null, hasAdvancedSinceSnapshot: false, newerReportAvailable: false, newerPackageAvailable: false, autoRefreshRecommended: false },
     }),
   });
@@ -616,7 +703,7 @@ test("Package Integrity credits exports only when the server does — never from
   await r.press("Package Integrity");
   assert.equal(r.byTestId("verify-tab-package").length, 1);
   for (const s of ["Verification Package Integrity", "Package Integrity Partial", "A verification package version exists, but this public response has not confirmed every package artifact.",
-    "Partial Package", "Package Decision", "Version v1", "Impact on Trust Decision", "Package Manifest", "Ed25519 signature present", "Checksum Index", "Package verification scope"]) has(r, s);
+    "Partial Package", "Package Decision", "Version v1", "Impact on Verification Signals", "Package Manifest", "Ed25519 signature present", "Checksum Index", "Package verification scope"]) has(r, s);
   // The record HAS custody and access events; the package does not include their exports.
   const custodyRow = r.byLabel("Not available");
   assert.ok(custodyRow.length >= 2, "Custody Export and Access / Audit Export read 'Not available'");

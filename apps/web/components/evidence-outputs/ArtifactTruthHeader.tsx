@@ -19,13 +19,29 @@ import {
   reportFreshnessChangeCopy,
   resolveOtsTrustState,
   resolveTsaTrustState,
+  toVerificationStatus,
   type ReportFreshness,
   type TrustSignalState,
+  type VerificationStatus,
 } from "@proovra/shared";
 
 import type { ArtifactActiveRequest, ArtifactTrust, MatchedVersion } from "./artifact-status-types";
 
 type TruthTone = "ok" | "warn" | "neutral";
+
+/**
+ * One trust fact: its wording, tone and canonical state, plus THE customer
+ * verification status (VERIFIED | FAILED | NOT_CHECKED | NOT_APPLICABLE |
+ * UNAVAILABLE) stated beside it — so a present-but-unchecked proof reads
+ * NOT_CHECKED, never verified.
+ */
+export type TruthFact = {
+  label: string;
+  tone: TruthTone;
+  state: TrustSignalState | null;
+  status: VerificationStatus;
+  measuredAtUtc: string | null;
+};
 
 /** THE canonical state's tone, in this header's three tones ("ok" only for PASSED). */
 function toneOf(state: TrustSignalState): TruthTone {
@@ -33,8 +49,8 @@ function toneOf(state: TrustSignalState): TruthTone {
   return tone === "success" ? "ok" : tone === "danger" || tone === "warning" ? "warn" : "neutral";
 }
 
-export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: string; tone: TruthTone; state: TrustSignalState | null; measuredAtUtc: string | null } {
-  if (!t) return { label: "Not available", tone: "neutral", state: null, measuredAtUtc: null };
+export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact {
+  if (!t) return { label: "Not available", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
   const presented = presentedTsaStatus({ tsaStatus: t.status, tsaValidatedAtUtc: t.validatedAtUtc });
   const s = resolveTsaTrustState({
     presentedStatus: presented,
@@ -49,18 +65,20 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): { label: s
   // says no token came back.
   const providerCode = /^tsa_provider_|^tsa_unknown_error$|^tsa_token_missing$/.test(String(t.failureCode ?? ""));
   if (s.state === "UNAVAILABLE" && String(presented ?? "").toUpperCase() === "FAILED" && !providerCode) {
-    return { label: "Not validated", tone: "warn", state: s.state, measuredAtUtc: null };
+    // A token may exist; no validation of it succeeded.
+    return { label: "Not validated", tone: "warn", state: s.state, status: "NOT_CHECKED", measuredAtUtc: null };
   }
   return {
     label: getTrustLayerStateLabel({ key: "trusted_timestamp", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
     tone: toneOf(s.state),
     state: s.state,
+    status: toVerificationStatus(s.state),
     measuredAtUtc: s.measuredAtUtc,
   };
 }
 
-export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: string; tone: TruthTone; state: TrustSignalState | null; measuredAtUtc: string | null } {
-  if (!o) return { label: "Not available", tone: "neutral", state: null, measuredAtUtc: null };
+export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): TruthFact {
+  if (!o) return { label: "Not available", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
   // An attested proof is "present, not chain-verified"; only a recorded chain
   // check is verified (resolveOtsTrustState).
   const s = resolveOtsTrustState({
@@ -73,6 +91,7 @@ export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): { label: s
     label: getTrustLayerStateLabel({ key: "bitcoin_anchoring", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
     tone: toneOf(s.state),
     state: s.state,
+    status: toVerificationStatus(s.state),
     measuredAtUtc: s.measuredAtUtc,
   };
 }
@@ -101,11 +120,14 @@ function Fact({
   tone,
   testId,
   note,
+  status,
 }: {
   label: string;
   value: ReactNode;
   tone?: "ok" | "warn" | "neutral";
   testId?: string;
+  /** THE canonical verification status, stated beside the wording. */
+  status?: VerificationStatus | null;
   /** When the state was measured (shown beside it, never mixed into it). */
   note?: string | null;
 }) {
@@ -113,6 +135,15 @@ function Fact({
     <div className="rga-truth__fact" data-tone={tone ?? "neutral"}>
       <dt>{label}</dt>
       <dd data-testid={testId}>{value}</dd>
+      {status ? (
+        <dd
+          className="rga-truth__note"
+          data-testid={testId ? `${testId}-status` : undefined}
+          data-verification-status={status}
+        >
+          {status}
+        </dd>
+      ) : null}
       {note ? (
         <dd className="rga-truth__note" data-testid={testId ? `${testId}-measured` : undefined}>
           {note}
@@ -207,6 +238,7 @@ export function ArtifactTruthHeader({
           value={tsa.label}
           tone={tsa.tone}
           testId="truth-tsa"
+          status={tsa.status}
           note={tsaNote(tsa, formatDateTime)}
         />
         <Fact
@@ -214,6 +246,7 @@ export function ArtifactTruthHeader({
           value={ots.label}
           tone={ots.tone}
           testId="truth-ots"
+          status={ots.status}
           note={otsNote(ots, formatDateTime)}
         />
         <Fact

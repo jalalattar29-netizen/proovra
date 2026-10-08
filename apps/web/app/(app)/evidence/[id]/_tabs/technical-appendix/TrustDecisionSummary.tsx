@@ -3,16 +3,16 @@
  * `trustDecisionSnapshot` JSON dump.
  *
  * Reads the same `trustDecision` object the worker generates (and the report
- * renderer consumes) and surfaces it as a decision card + per-signal rows.
- * Presentation ONLY: every verdict, score, confidence, reliance level,
- * anchoring label, count, reason and per-signal status below is read
- * straight from that object. Nothing here re-derives, re-thresholds or
- * re-interprets a technical result, and nothing is defaulted into existence —
- * a value the response does not carry is not rendered.
+ * renderer consumes) and states it signal by signal (2026-10-08): each
+ * signal's ONE verification status (VERIFIED | FAILED | NOT_CHECKED |
+ * NOT_APPLICABLE | UNAVAILABLE), the bounded summary, the anchoring posture
+ * and the reviewer action. There is no score, weighted point, verdict,
+ * reliance level or confidence label — the object is read through
+ * readStoredTrustDecision, so an old snapshot that still carries one never
+ * restates it. Nothing here re-derives or re-thresholds a technical result.
  *
  * Moved out of the tab file so the tab orchestrates and this owns the
- * decision presentation; it was ~250 lines of inline-styled markup inside the
- * orchestrator.
+ * decision presentation.
  */
 
 "use client";
@@ -29,51 +29,23 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  TRUST_SIGNAL_STATE_PRESENTATION,
-  resolveSnapshotSignalState,
+  readStoredTrustDecision,
+  toVerificationStatus,
+  type TrustSignal,
   type TrustSignalState,
+  type VerificationStatus,
 } from "@proovra/shared";
 import { appendixAppTone } from "./MetadataRow";
 import { TechnicalDisclosure } from "./TechnicalDisclosure";
 
-export type TrustSignalForRender = {
-  key: string;
-  label: string;
-  /** THE canonical state; derived from `status` when an older API omits it. */
-  state?: string | null;
-  status: string;
-  tone: string;
-  points: number;
-  maxPoints: number;
-  summary: string;
-  detail: string;
-};
-
-export type TrustDecisionForRender = {
-  verdictLabel?: string;
-  shortLabel?: string;
-  scoreLabel?: string;
-  score?: number;
-  maxScore?: number;
-  confidenceLabel?: string;
-  relianceLevel?: string;
-  anchoringStatusLabel?: string;
-  summary?: string;
-  primaryReason?: string;
-  reviewerAction?: string;
-  passedSignals?: number;
-  degradedSignals?: number;
-  failedSignals?: number;
-  signals?: TrustSignalForRender[];
-};
-
 /**
- * The signal-state vocabulary this surface may render: THE canonical state
- * (@proovra/shared TrustSignalState), its one label and tone, and an icon —
- * text AND colour, never colour alone. A signal from an older API is read
- * through resolveSnapshotSignalState, so an unchecked anchor is never shown
- * as "Verified".
+ * The trust decision as the API returns it — read ONLY through
+ * readStoredTrustDecision (an older snapshot may still carry a score, points,
+ * a verdict or a reliance level; none of it is rendered).
  */
+export type TrustDecisionForRender = Record<string, unknown>;
+
+/** One icon per canonical state — text AND icon, never colour alone. */
 const STATE_ICONS: Record<TrustSignalState, LucideIcon> = {
   PASSED: CircleCheck,
   FAILED: CircleAlert,
@@ -85,14 +57,22 @@ const STATE_ICONS: Record<TrustSignalState, LucideIcon> = {
   NOT_APPLICABLE: CircleMinus,
 };
 
-function describeSignalState(signal: TrustSignalForRender) {
-  const state = resolveSnapshotSignalState(signal);
-  const p = TRUST_SIGNAL_STATE_PRESENTATION[state];
-  return { state, label: p.label, tone: p.tone, icon: STATE_ICONS[state] ?? CircleSlash };
-}
+const STATUS_TONE: Record<VerificationStatus, "success" | "danger" | "warning" | "neutral"> = {
+  VERIFIED: "success",
+  FAILED: "danger",
+  NOT_CHECKED: "warning",
+  NOT_APPLICABLE: "neutral",
+  UNAVAILABLE: "neutral",
+};
 
-function capitalise(s: string): string {
-  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
+function describeSignalStatus(signal: TrustSignal) {
+  const status = toVerificationStatus(signal.state);
+  return {
+    state: signal.state,
+    status,
+    tone: STATUS_TONE[status],
+    icon: STATE_ICONS[signal.state] ?? CircleSlash,
+  };
 }
 
 export function TrustDecisionSummary({
@@ -100,7 +80,8 @@ export function TrustDecisionSummary({
 }: {
   trust: TrustDecisionForRender | null;
 }) {
-  if (!trust || (!trust.verdictLabel && (trust.signals ?? []).length === 0)) {
+  const decision = readStoredTrustDecision(trust);
+  if (!decision) {
     return (
       <p className="ta-empty" data-trust-summary-empty>
         Trust decision is not yet available for this record.
@@ -108,39 +89,13 @@ export function TrustDecisionSummary({
     );
   }
 
-  // Only facts the response actually carries are rendered. A missing
-  // confidence or reliance level is absent from the grid, never "Unknown"
-  // and never a placeholder that reads like a result.
+  // Only facts the response actually carries are rendered.
   const facts: Array<{ label: string; value: string }> = [];
-  if (trust.verdictLabel) facts.push({ label: "Verdict", value: trust.verdictLabel });
-  if (trust.scoreLabel) facts.push({ label: "Score", value: trust.scoreLabel });
-  if (trust.confidenceLabel) {
-    facts.push({ label: "Confidence", value: trust.confidenceLabel });
-  }
-  if (trust.relianceLevel) {
-    facts.push({ label: "Reliance level", value: capitalise(trust.relianceLevel) });
-  }
-  if (trust.anchoringStatusLabel) {
-    facts.push({ label: "Anchoring", value: trust.anchoringStatusLabel });
+  if (decision.anchoringStatusLabel) {
+    facts.push({ label: "Anchoring", value: decision.anchoringStatusLabel });
   }
 
-  const signals = trust.signals ?? [];
-
-  // Counts come from the response. When the response omits a count we say so
-  // rather than printing 0 — "no failed signals" and "we were not told how
-  // many failed" are different facts.
-  const totals: Array<{
-    key: string;
-    label: string;
-    value: number | undefined;
-    tone: "success" | "warning" | "danger";
-  }> = [
-    { key: "passed", label: "Passed signals", value: trust.passedSignals, tone: "success" },
-    { key: "degraded", label: "Degraded signals", value: trust.degradedSignals, tone: "warning" },
-    { key: "failed", label: "Failed signals", value: trust.failedSignals, tone: "danger" },
-  ];
-
-  const totalPoints = signals.reduce((sum, s) => sum + (s.maxPoints ?? 0), 0);
+  const signals = decision.signals;
 
   return (
     <div data-trust-summary className="ta-decision">
@@ -149,8 +104,14 @@ export function TrustDecisionSummary({
           <span className="ta-decision-card__icon" aria-hidden="true">
             <ShieldCheck size={20} strokeWidth={2} />
           </span>
-          <h3 className="ta-decision-card__title">Trust decision summary</h3>
+          <h3 className="ta-decision-card__title">Verification summary</h3>
         </div>
+
+        {/* THE bounded summary: what passed, that NOT_CHECKED was not
+            independently verified, and the fixed limitation. */}
+        <p className="ta-decision-boundary" data-trust-summary-bounded>
+          {decision.summary}
+        </p>
 
         {facts.length > 0 ? (
           <div className="ta-decision-facts" data-trust-summary-facts>
@@ -168,58 +129,19 @@ export function TrustDecisionSummary({
           </div>
         ) : null}
 
-        <div className="ta-decision-totals" data-trust-summary-totals>
-          {totals.map((total) => (
-            <div
-              key={total.key}
-              className="ta-decision-total"
-              data-tone={total.tone}
-              data-trust-total={total.key}
-            >
-              <span className="ta-decision-total__label">{total.label}</span>
-              <span className="ta-decision-total__value">
-                {total.value == null ? "Not reported" : String(total.value)}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {trust.primaryReason || trust.reviewerAction ? (
+        {decision.reviewerAction ? (
           <div className="ta-decision-explanations">
-            {trust.primaryReason ? (
-              <div
-                className="ta-decision-explanation"
-                data-trust-summary-primary-reason
-              >
-                <span className="ta-decision-explanation__title">
-                  <CircleHelp size={15} strokeWidth={2} aria-hidden="true" />
-                  Primary reason
-                </span>
-                <p className="ta-decision-explanation__body">{trust.primaryReason}</p>
-              </div>
-            ) : null}
-            {trust.reviewerAction ? (
-              <div
-                className="ta-decision-explanation"
-                data-trust-summary-reviewer-action
-              >
-                <span className="ta-decision-explanation__title">
-                  <CircleCheck size={15} strokeWidth={2} aria-hidden="true" />
-                  Reviewer next step
-                </span>
-                <p className="ta-decision-explanation__body">{trust.reviewerAction}</p>
-              </div>
-            ) : null}
+            <div
+              className="ta-decision-explanation"
+              data-trust-summary-reviewer-action
+            >
+              <span className="ta-decision-explanation__title">
+                <CircleCheck size={15} strokeWidth={2} aria-hidden="true" />
+                Reviewer next step
+              </span>
+              <p className="ta-decision-explanation__body">{decision.reviewerAction}</p>
+            </div>
           </div>
-        ) : null}
-
-        {/* The boundary of the conclusion, stated where the conclusion is
-            shown. This wording is the product's, not this component's — it is
-            not broadened or softened here. */}
-        {trust.summary ? (
-          <p className="ta-decision-boundary" data-trust-summary-narrative>
-            {trust.summary}
-          </p>
         ) : null}
       </section>
 
@@ -227,51 +149,37 @@ export function TrustDecisionSummary({
         <section className="ta-signals" data-trust-summary-signals>
           <div className="ta-signals__head">
             <h3 className="ta-signals__title">Per-signal detail</h3>
-            {totalPoints > 0 ? (
-              <span className="ta-signals__weighting">
-                Weighting: {totalPoints} points
-              </span>
-            ) : null}
           </div>
 
           <p className="ta-signals__lede">
-            Scores show each signal’s contribution to the 100-point technical
-            assessment; they are not counts of separate checks.
+            Each signal is stated in exactly one status: VERIFIED, FAILED,
+            NOT_CHECKED, NOT_APPLICABLE or UNAVAILABLE. A signal marked
+            NOT_CHECKED was not independently verified.
           </p>
 
           <div className="ta-signals__list">
             {signals.map((signal) => {
-              const state = describeSignalState(signal);
-              const StateIcon = state.icon;
+              const described = describeSignalStatus(signal);
+              const StateIcon = described.icon;
               return (
                 <TechnicalDisclosure
                   key={signal.key}
                   title={signal.label}
                   data-trust-signal-key={signal.key}
-                  data-trust-signal-status={signal.status}
-                  data-trust-signal-state={state.state}
-                  data-trust-signal-tone={state.tone}
+                  data-trust-signal-status={described.status}
+                  data-trust-signal-state={described.state}
+                  data-trust-signal-tone={described.tone}
                   leading={<StateIcon size={15} strokeWidth={2.4} aria-hidden="true" />}
                   trailing={
                     <span className="ta-signal-trailing">
-                      {/* The signal's OUTCOME, as text. Eight signal rows each
-                          carried a tinted pill next to a score, which made the
-                          column of outcomes compete with the scores that
-                          quantify them. The state vocabulary, the icon and the
-                          tone are all unchanged — only the surface is gone. */}
+                      {/* The signal's ONE verification status, as text. */}
                       <span
                         className="app-status-text ta-signal-state"
                         data-size="xs"
-                        data-tone={appendixAppTone(state.tone)}
+                        data-tone={appendixAppTone(described.tone)}
                         data-trust-signal-pill
                       >
-                        {state.label}
-                      </span>
-                      {/* A weighted CONTRIBUTION to the 100-point assessment,
-                          labelled so it cannot read as a count of checks. */}
-                      <span className="ta-signal-score">
-                        {signal.points} / {signal.maxPoints}
-                        <span className="ta-signal-score__unit">points</span>
+                        {described.status}
                       </span>
                     </span>
                   }
@@ -291,7 +199,6 @@ export function TrustDecisionSummary({
               );
             })}
           </div>
-
         </section>
       ) : null}
     </div>

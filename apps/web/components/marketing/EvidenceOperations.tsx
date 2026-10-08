@@ -58,7 +58,7 @@ const CARDS: CardSpec[] = [
     bullets: [
       "Missing Context Detection",
       "Smart Suggestions",
-      "Review Readiness Score",
+      "Per-signal verification status",
     ],
     preview: <AIPreview />,
   },
@@ -334,18 +334,22 @@ function AIPreview() {
         </div>
       </div>
 
-      {/* Review Readiness Score */}
+      {/* Verification status — per signal, never a score */}
       <div className="rounded-[10px] border border-[#E5E7EB] bg-white p-2.5">
-        <div className="flex items-center justify-between text-[9px]">
-          <span className="font-bold text-[#0F172A]">Review Readiness</span>
-        </div>
-        <div className="mt-1.5 flex items-center gap-2">
-          <span className="text-[14px] font-extrabold text-[#0F172A]">85%</span>
-          <span className="text-[9px] font-semibold text-[#15803D]">Good</span>
-          <span className="ml-auto text-[9px] font-bold text-[#7C3AED]">Goal</span>
-        </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#E2E8F0]">
-          <span className="block h-full w-[85%] rounded-full bg-gradient-to-r from-[#7C3AED] to-[#4F46E5]" />
+        <div className="text-[9px] font-bold text-[#0F172A]">Verification status</div>
+        <div className="mt-1.5 space-y-1">
+          {[
+            { label: "File integrity", status: "VERIFIED", color: "#15803D" },
+            { label: "Trusted timestamp", status: "VERIFIED", color: "#15803D" },
+            { label: "Bitcoin anchoring", status: "NOT_CHECKED", color: "#B45309" },
+          ].map((row) => (
+            <div key={row.label} className="flex items-center justify-between gap-1.5 text-[9.5px]">
+              <span className="truncate text-[#0F172A]">{row.label}</span>
+              <span className="font-bold" style={{ color: row.color }}>
+                {row.status}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

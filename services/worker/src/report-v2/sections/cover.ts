@@ -2,16 +2,8 @@
 import { reportAssetDataUrl } from "../asset-data-url.js";
 import type { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
-import { renderInlineQrBlock } from "../ui.js";
-import {
-  getTrustDecisionConfidenceLabel,
-  getTrustDecisionLabel,
-  getTrustNarrative,
-  getTrustDecisionPresentationTone,
-  getTrustLayerStateLabel,
-  getTrustSignalStateTone,
-  formatTimestampForReportUtc,
-} from "@proovra/shared";
+import { renderInlineQrBlock, verificationStatusTone } from "../ui.js";
+import { formatTimestampForReportUtc } from "@proovra/shared";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 const coverHeaderLockupUrl = reportAssetDataUrl("report-header.png");
 // `coverBrandIconUrl` is retained for any legacy section that may still reference
@@ -141,8 +133,18 @@ function renderCoverEvidenceVisual(vm: ReportViewModel): string {
 }
 
 export function renderCoverSection(vm: ReportViewModel): string {
-  const decision = vm.trustDecision;
-  const presentationTone = getTrustDecisionPresentationTone(decision);
+  // The cover states the per-signal matrix and its bounded summary — never an
+  // overall verdict, a confidence or a score. Its tone follows file integrity:
+  // FAILED is danger, VERIFIED with nothing unchecked is success.
+  const matrix = vm.verificationMatrix;
+  const statusOf = (key: string) => matrix.rows.find((row) => row.key === key)?.status ?? "UNAVAILABLE";
+  const fileIntegrity = statusOf("file_integrity");
+  const anyFailed = matrix.rows.some((row) => row.status === "FAILED");
+  const presentationTone = anyFailed
+    ? "danger"
+    : fileIntegrity === "VERIFIED" && !matrix.rows.some((row) => row.status === "NOT_CHECKED")
+      ? "success"
+      : "warning";
 
   const integrityBadgeClass =
     presentationTone === "success"
@@ -151,16 +153,10 @@ export function renderCoverSection(vm: ReportViewModel): string {
         ? "badge-danger"
         : "badge-warning";
 
-const integrityBadgeText = decision.shortLabel;
-  const reviewerReliance = getTrustDecisionConfidenceLabel(decision);
-  const trustNarrative = getTrustNarrative(decision);
+  const integrityBadgeText = `File integrity ${fileIntegrity}`;
   const primaryItemCount = vm.contentItems.filter(
     (item) => item.artifactRole === "primary_evidence"
   ).length;
-  const compactNarrative =
-    primaryItemCount > 1
-      ? `${decision.shortLabel}. ${primaryItemCount} items are explicitly marked primary.`
-      : `${decision.shortLabel}. Review later sections for signal detail and legal boundary.`;
 
   const primaryHash =
     vm.primaryContentItem?.sha256 ||
@@ -266,37 +262,28 @@ const integrityBadgeText = decision.shortLabel;
             </div>
 
             <div class="cover-status-stamp ${integrityBadgeClass}">
-              <span>${presentationTone === "success" ? "✓" : presentationTone === "danger" ? "!" : "!"}</span>
-<strong>${escapeHtml(decision.verdictLabel)}</strong>
+              <span>${presentationTone === "success" ? "✓" : "!"}</span>
+              <strong>File integrity ${escapeHtml(fileIntegrity)} · PROOVRA custody chain ${escapeHtml(statusOf("custody_chain"))}</strong>
             </div>
 
-            <div class="cover-status-subtitle">
-              ${escapeHtml(compactNarrative || trustNarrative)}
+            <div class="cover-status-subtitle" data-verification-summary>
+              ${escapeHtml(matrix.summary)}
             </div>
-
-            <div class="cover-trust-score-line">
-              <strong>Technical Confidence: ${escapeHtml(reviewerReliance)}</strong>
-            </div>
-                      </div>
+          </div>
 
           <div class="cover-decision-grid cover-trust-signal-grid">
-            ${vm.trustDecision.signals
-              .filter((signal) =>
-                [
-                  "core_integrity",
-                  "signature",
-                  "trusted_timestamp",
-                  "bitcoin_anchoring",
-                  "immutable_storage",
-                ].includes(signal.key)
+            ${matrix.rows
+              .filter((row) =>
+                ["file_integrity", "record_signature", "tsa_token", "ots_anchoring", "storage_protection"].includes(row.key)
               )
-              .map((signal) =>
-                renderDecisionIndicator({
-                  label: signal.label,
-                  value: getTrustLayerStateLabel(signal),
-                  tone: getTrustSignalStateTone(signal),
-                })
-              )
+              .map((row) => {
+                const tone = verificationStatusTone(row.status);
+                return renderDecisionIndicator({
+                  label: row.label,
+                  value: row.status,
+                  tone: tone === "neutral" ? "warning" : tone,
+                });
+              })
               .join("")}
           </div>
                     <div class="cover-main-grid">
@@ -356,13 +343,6 @@ const integrityBadgeText = decision.shortLabel;
               <div class="cover-meta-label">Verification Status</div>
               <div class="cover-meta-value">${escapeHtml(vm.verificationStatusLabel)}</div>
             </div>
-            <div class="cover-meta-card">
-              <div class="cover-meta-label">Trust Decision</div>
-              <div class="cover-meta-value">${escapeHtml(
-getTrustDecisionLabel(vm.trustDecision)
-              )}</div>
-            </div>
-
             ${
               hasMeaningfulValue(anchoringLabel)
                 ? `

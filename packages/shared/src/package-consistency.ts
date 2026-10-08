@@ -11,7 +11,8 @@
  * disagree and the field.
  */
 import { DISCLOSURE_MANIFEST_FILE } from "./disclosure-profile.js";
-import { resolveSnapshotSignalState } from "./trust-signal-state.js";
+import { parseTrustSignalState, toVerificationStatus } from "./trust-signal-state.js";
+import { findForbiddenCustomerClaims, parseVerificationMatrix } from "./verification-matrix.js";
 
 export type PackageConsistencyFinding = { check: string; detail: string };
 
@@ -87,34 +88,33 @@ export function validatePackageConsistency(input: {
     }
   }
 
-  // 3. The anchoring claim in the manifest is the trust decision's state.
-  const trust = parsed.get("trust-decision.json");
-  const signals = isObj(trust) && Array.isArray(trust.signals) ? (trust.signals as Json[]) : [];
-  const anchoring = signals.find((s) => s.key === "bitcoin_anchoring");
-  const anchoringPassed = anchoring ? resolveSnapshotSignalState(anchoring as never) === "PASSED" : false;
-  if (isObj(manifest) && Boolean(manifest.publicAnchoringVerified) !== anchoringPassed) {
-    f("OTS_STATE", `manifest publicAnchoringVerified=${String(manifest.publicAnchoringVerified)} but trust-decision anchoring is ${anchoring ? String(anchoring.state ?? anchoring.status) : "absent"}`);
-  }
-  if (anchoring && anchoring.state !== "PASSED" && (anchoring.status === "passed")) {
-    f("OTS_STATE", "trust-decision anchoring status is passed without a PASSED state");
+  // 3. trust-decision.json is the verification matrix, and the manifest's
+  //    anchoring claim is its OTS row: VERIFIED only for a chain check.
+  const matrix = parseVerificationMatrix(parsed.get("trust-decision.json"));
+  if (!matrix) f("VERIFICATION_MATRIX", "trust-decision.json is not a verification matrix");
+  const row = (key: string) => matrix?.rows.find((r) => r.key === key);
+  const ots = row("ots_anchoring");
+  if (isObj(manifest) && Boolean(manifest.publicAnchoringVerified) !== (ots?.status === "VERIFIED")) {
+    f("OTS_STATE", `manifest publicAnchoringVerified=${String(manifest.publicAnchoringVerified)} but the matrix states anchoring ${ots ? ots.status : "absent"}`);
   }
 
-  // 4. The timestamp validation record and the trust decision state the same timestamp.
+  // 4. The timestamp validation record and the matrix state the same timestamp.
   const tsaRecord = parsed.get("timestamp-validation.json");
-  const tsaSignal = signals.find((s) => s.key === "trusted_timestamp");
-  if (isObj(tsaRecord) && tsaSignal) {
-    const state = resolveSnapshotSignalState(tsaSignal as never);
-    if (tsaRecord.trustState !== state) f("TSA_STATE", `timestamp-validation.json ${String(tsaRecord.trustState)} vs trust-decision ${state}`);
+  const tsaRow = row("tsa_token");
+  if (isObj(tsaRecord) && tsaRow) {
+    const state = parseTrustSignalState(tsaRecord.trustState);
+    if (!state || toVerificationStatus(state) !== tsaRow.status) {
+      f("TSA_STATE", `timestamp-validation.json ${String(tsaRecord.trustState)} vs matrix ${tsaRow.status}`);
+    }
     if (Boolean(tsaRecord.tokenFile) !== input.paths.includes("timestamp.tsr")) {
       f("TSA_TOKEN", "timestamp-validation.json tokenFile disagrees with the presence of timestamp.tsr");
     }
   }
 
-  // 5. Every signal's status is its state's projection; no unchecked layer reads passed.
-  for (const s of signals) {
-    if (s.status === "passed" && s.state !== undefined && s.state !== "PASSED") {
-      f("SIGNAL_STATE", `${String(s.key)} status passed with state ${String(s.state)}`);
-    }
+  // 5. No document in the package carries a score, a weighted point or an
+  //    overall verdict (STRONGLY_VERIFIED, "Passed signals", a reliance level).
+  for (const [path, text] of input.texts) {
+    for (const claim of findForbiddenCustomerClaims(text)) f("FORBIDDEN_CLAIM", `${path} carries ${claim}`);
   }
 
   // 6. The disclosure profile is what the package contains.

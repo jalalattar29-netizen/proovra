@@ -15,13 +15,13 @@
  */
 import {
   getReviewerEvidenceTypeLabel,
-  getTrustDecisionConfidenceLabel,
-  getTrustDecisionLabel,
-  getTrustDecisionPresentationTone,
-  getTrustNarrative,
-  getTrustSignalPresentationLabel,
   maskPublicEmailsInText,
-  type TrustDecision,
+  parseVerificationMatrix,
+  readStoredTrustDecision,
+  toVerificationStatus,
+  VERIFICATION_LIMITATION,
+  type TrustSignalState,
+  type VerificationStatus,
   CAPTURE_LOCATION_CONTEXT_DESCRIPTION,
   CAPTURE_LOCATION_LEGAL_BOUNDARY,
   CAPTURE_LOCATION_SOURCE_LABEL,
@@ -533,74 +533,139 @@ export function parseVerifyIntegritySignals(payload: unknown): VerifyIntegritySi
 export interface VerifyTrustSignalView {
   key: string;
   label: string;
-  status: string;
+  /** THE canonical state, re-read conservatively from older payloads. */
+  state: TrustSignalState;
+  /** The verification status shown: VERIFIED | FAILED | NOT_CHECKED | NOT_APPLICABLE | UNAVAILABLE. */
+  status: VerificationStatus;
   tone: VerifyWebTone;
   summary: string;
   detail: string;
-  presentationLabel: string;
+  /** The word the badge shows: the status itself, never a score or a verdict. */
+  presentationLabel: VerificationStatus;
 }
 export interface VerifyTrustDecisionView {
-  verdict: string | null;
-  verdictLabel: string;
-  narrative: string;
-  confidenceLabel: string;
-  primaryReason: string | null;
+  /** The bounded summary of the signals (ends with the fixed limitation). */
+  summary: string;
   publicationPostureLine: string;
   reviewerAction: string | null;
+  /** A file-integrity, record-signature or custody check FAILED. */
+  integrityReviewRequired: boolean;
   tone: VerifyWebTone;
   presentationState: string | null;
   anchoringState: string | null;
   signals: VerifyTrustSignalView[];
 }
 
+/** The tone of one verification status. VERIFIED alone is a success. */
+export function verificationStatusTone(status: VerificationStatus): VerifyWebTone {
+  return status === "VERIFIED" ? "success" : status === "FAILED" ? "danger" : status === "NOT_CHECKED" ? "warning" : "neutral";
+}
+
 /**
- * `trustDecision` (evidence.routes.ts:13815) — the report/package snapshot
- * when one exists, else the live shared decision. Rendered through the SAME
- * @proovra/shared getters the web TrustDecisionCard uses. A reply without a
- * decision renders no trust section: the web's client-side fallback decision
- * is not rebuilt here.
+ * `trustDecision` (evidence.routes.ts) — the report/package snapshot when one
+ * exists, else the live shared decision. Read through the shared
+ * `readStoredTrustDecision`, so a score, weighted points, a verdict, a
+ * reliance level or a confidence in the reply (an older API, an old stored
+ * snapshot) never reaches this view (evidence-claims correction 2026-10-08).
  */
 export function parseVerifyTrustDecision(payload: unknown): VerifyTrustDecisionView | null {
-  const t = obj(obj(payload)["trustDecision"]);
-  const verdictLabel = str(t["verdictLabel"]);
-  if (!verdictLabel || !Array.isArray(t["signals"])) return null;
-  const verdict = str(t["verdict"]);
-  const presentationState =
-    str(t["presentationState"]) ??
-    (verdict === "PARTIALLY_VERIFIED" ? "PARTIALLY_VERIFIED" : verdict === "REVIEW_REQUIRED" ? "REVIEW_REQUIRED" : "VERIFIED_WITH_DEGRADED_SIGNALS");
-  const signals: VerifyTrustSignalView[] = (t["signals"] as unknown[])
-    .map((s) => obj(s))
-    .filter((s) => str(s["key"]) && str(s["label"]))
-    .map((s) => {
-      const status = str(s["status"]) ?? "missing";
-      const tone = (str(s["tone"]) ?? "neutral") as VerifyWebTone;
-      return {
-        key: str(s["key"]) as string,
-        label: str(s["label"]) as string,
-        status,
-        tone,
-        summary: str(s["summary"]) ?? "",
-        detail: str(s["detail"]) ?? "",
-        presentationLabel: getTrustSignalPresentationLabel({
-          status: status as TrustDecision["signals"][number]["status"],
-          tone: tone as TrustDecision["tone"],
-        }),
-      };
-    });
-  const normalized = { ...t, presentationState, signals } as unknown as TrustDecision;
+  const decision = readStoredTrustDecision(obj(payload)["trustDecision"]);
+  if (!decision) return null;
+  const signals: VerifyTrustSignalView[] = decision.signals.map((s) => {
+    const status = toVerificationStatus(s.state);
+    return {
+      key: s.key,
+      label: s.label,
+      state: s.state,
+      status,
+      tone: verificationStatusTone(status),
+      summary: s.summary,
+      detail: s.detail,
+      presentationLabel: status,
+    };
+  });
   return {
-    verdict,
-    verdictLabel: getTrustDecisionLabel({ verdictLabel }),
-    narrative: getTrustNarrative(normalized),
-    confidenceLabel: getTrustDecisionConfidenceLabel({ ...t, signals } as unknown as TrustDecision),
-    primaryReason: str(t["primaryReason"]),
-    publicationPostureLine: `Publication posture: ${str(t["anchoringStatusLabel"]) ?? "Bitcoin anchoring status requires review"}.`,
-    reviewerAction: str(t["reviewerAction"]),
-    tone: getTrustDecisionPresentationTone(normalized) as VerifyWebTone,
-    presentationState: str(t["presentationState"]),
-    anchoringState: str(t["anchoringState"]),
+    summary: decision.summary,
+    publicationPostureLine: `Publication posture: ${str(decision.anchoringStatusLabel) ?? "Bitcoin anchoring status requires review"}.`,
+    reviewerAction: str(decision.reviewerAction),
+    integrityReviewRequired: decision.integrityReviewRequired,
+    tone: decision.presentationTone as VerifyWebTone,
+    presentationState: decision.presentationState,
+    anchoringState: decision.anchoringState,
     signals,
   };
+}
+
+// ------------------------------------------------------ verification matrix
+
+export interface VerifyMatrixRowView {
+  key: string;
+  label: string;
+  status: VerificationStatus;
+  statement: string;
+  measuredAtUtc: string | null;
+  tone: VerifyWebTone;
+}
+export interface VerifyMatrixView {
+  rows: VerifyMatrixRowView[];
+  /** THE headline: the bounded summary. */
+  summary: string;
+  /** The fixed limitation. */
+  limitation: string;
+  /** SERVER: `verificationMatrix` from the reply. SIGNALS: derived from the trust signals (an older API). */
+  source: "SERVER" | "SIGNALS";
+}
+
+/** Matrix rows (and their trust-signal keys) whose FAILED status puts the preserved bytes under review. */
+const INTEGRITY_REVIEW_KEYS: ReadonlySet<string> = new Set([
+  "file_integrity",
+  "record_signature",
+  "custody_chain",
+  "core_integrity",
+  "signature",
+]);
+
+/**
+ * `verificationMatrix` (GET /v1/public/verify/:id, BASIC and RICH tiers): the
+ * per-signal statement of the record. A reply without one (an API older than
+ * this build) is read from its trust signals instead — one row per signal,
+ * its status and its recorded words — never from a score or a verdict.
+ */
+export function parseVerifyMatrix(payload: unknown): VerifyMatrixView | null {
+  const d = obj(payload);
+  const matrix = parseVerificationMatrix(d["verificationMatrix"]);
+  if (matrix && matrix.rows.length > 0) {
+    return {
+      rows: matrix.rows.map((r) => ({ ...r, tone: verificationStatusTone(r.status) })),
+      summary: matrix.summary,
+      limitation: matrix.limitation || VERIFICATION_LIMITATION,
+      source: "SERVER",
+    };
+  }
+  const decision = readStoredTrustDecision(d["trustDecision"]);
+  if (!decision) return null;
+  return {
+    rows: decision.signals.map((s) => {
+      const status = toVerificationStatus(s.state);
+      return {
+        key: s.key,
+        label: s.label,
+        status,
+        statement: s.summary || "Not recorded for this record.",
+        measuredAtUtc: s.measuredAtUtc,
+        tone: verificationStatusTone(status),
+      };
+    }),
+    summary: decision.summary,
+    limitation: VERIFICATION_LIMITATION,
+    source: "SIGNALS",
+  };
+}
+
+/** A FAILED file-integrity, record-signature or custody check, from the decision or the matrix. */
+export function verifyIntegrityReviewRequired(trust: VerifyTrustDecisionView | null, matrix: VerifyMatrixView | null): boolean {
+  if (trust?.integrityReviewRequired) return true;
+  return Boolean(matrix?.rows.some((r) => r.status === "FAILED" && INTEGRITY_REVIEW_KEYS.has(r.key)));
 }
 
 /** Web `publicationPendingPosture` (page.tsx:3760). */
@@ -608,36 +673,34 @@ export function verifyPublicationPending(d: VerifyTrustDecisionView): boolean {
   return d.presentationState === "VERIFIED_PENDING_ANCHORING" || d.anchoringState === "pending" || d.anchoringState === "degraded";
 }
 
-/** Web `executiveBadges` (page.tsx:3765). */
+/** Web `executiveBadges` (page.tsx:3765): each signal with its status word. */
 export function verifyExecutiveBadges(d: VerifyTrustDecisionView): Array<{ label: string; tone: VerifyWebTone }> {
-  return d.signals.map((s) => ({
-    label: `${s.label}: ${s.summary}`,
-    tone: s.tone === "success" ? "success" : s.tone === "warning" || s.tone === "danger" ? "warning" : "neutral",
-  }));
+  return d.signals.map((s) => ({ label: `${s.label}: ${s.status}`, tone: s.tone }));
 }
 
 export const VERIFY_TRUST_COPY = {
-  pageTitle: "Evidence Trust Decision",
+  pageTitle: "Evidence Verification",
   pageSubtitle:
-    "Review the final verification verdict, legal reliance boundary, recommended reviewer actions, cryptographic materials, custody chain, timestamping state, storage protection, and access activity associated with this evidence record.",
-  overallKicker: "Overall Trust Decision",
-  confidenceKicker: "Technical Confidence",
-  classificationKicker: "Verification Classification",
-  basisKicker: "Decision Basis",
-  breakdownKicker: "Trust Signal Breakdown",
-  breakdownTitle: "Why this decision was reached",
+    "Review each verification signal, recommended reviewer actions, cryptographic materials, custody chain, timestamping state, storage protection, and access activity associated with this evidence record.",
+  overallKicker: "Verification Matrix",
+  summaryKicker: "Summary",
+  limitationKicker: "Limitation",
+  matrixBoundary:
+    "Each signal is reported on its own. NOT_CHECKED means PROOVRA did not independently verify that signal. There is no overall score or verdict.",
+  basisKicker: "Anchoring and Reviewer Action",
+  breakdownKicker: "Signal Detail",
+  breakdownTitle: "What each signal records",
   breakdownBody:
     "These signals align the verification page with the PDF report and verification package. A failed or pending timestamp/anchoring layer does not automatically invalidate core hashes, signatures, custody records, or preserved originals.",
   supportingKicker: "Verification Signal Summary",
   supportingTitle: "Supporting Technical Signals",
   supportingBody:
-    "The signals below show the recorded verification layers behind the Trust Decision above. They support forensic review, but the overall decision should be read from the classification, reviewer reliance, legal boundary, and reviewer action.",
+    "The signals below show the recorded verification layers. Each is reported on its own; read each signal's status together with the limitation above.",
   reviewerActionKicker: "Reviewer Action",
-  reviewerActionBoundary:
-    "This decision is limited to the recorded technical state. It does not prove factual truth, authorship, intent, context, or court admissibility.",
+  reviewerActionBoundary: `Each status is limited to the recorded technical state. ${VERIFICATION_LIMITATION}`,
   publicationPostureKicker: "Publication Posture",
   publicationPostureBody:
-    "Recorded integrity is verified, but independent public anchoring is not finalized yet. Reviewers should treat this as a conditional anchoring state and recheck anchoring later if independent public anchoring matters to the review.",
+    "Independent public anchoring is not finalized yet. OpenTimestamps anchoring is not verified; recheck it later if independent public anchoring matters to the review.",
   verificationWarningKicker: "Verification Warning",
 } as const;
 
@@ -665,7 +728,7 @@ export function parseVerifyOutputContext(payload: unknown): VerifyOutputContextV
   const outputType = str(c["outputType"]);
   if (!outputType) return null;
   return {
-    sourceLine: `Verdict source: ${OUTPUT_SOURCE_LABEL[outputType] ?? outputType}`,
+    sourceLine: `Signals source: ${OUTPUT_SOURCE_LABEL[outputType] ?? outputType}`,
     snapshotGeneratedAtUtc: str(c["snapshotGeneratedAtUtc"]),
     liveObservedAtUtc: c["isLiveOutput"] === true ? str(c["liveObservedAtUtc"]) : null,
     deltas: arr(c["liveDeltaMaterials"]).filter((x): x is string => typeof x === "string"),
@@ -683,14 +746,24 @@ export interface VerifyVerdictView {
   tone: "danger" | "warning" | "success" | "neutral";
 }
 
-/** buildVerificationVerdict (page.tsx:1490), verbatim. */
-export function buildVerifyVerdict(trust: VerifyTrustDecisionView | null, s: VerifyIntegritySignals): VerifyVerdictView {
+/**
+ * buildVerificationVerdict (page.tsx:1490). Internal: it picks the reviewer
+ * statements and the tone; its label is never an overall verdict on screen.
+ * Review is required when a file-integrity, record-signature or custody check
+ * FAILED (the decision's integrityReviewRequired or a FAILED matrix row).
+ */
+export function buildVerifyVerdict(
+  trust: VerifyTrustDecisionView | null,
+  s: VerifyIntegritySignals,
+  matrix: VerifyMatrixView | null = null,
+): VerifyVerdictView {
   const core = trust?.signals.find((x) => x.key === "core_integrity");
   const anchoring = trust?.signals.find((x) => x.key === "bitcoin_anchoring");
-  const verdictCode = trust?.verdict ?? null;
+  const integrityReviewRequired = verifyIntegrityReviewRequired(trust, matrix);
   const presentationState = trust?.presentationState ?? null;
-  const coreExplicitlyVerified = core?.status === "passed";
-  const publicAnchoringPending = anchoring?.status === "pending" || anchoring?.status === "partial" || presentationState === "VERIFIED_PENDING_ANCHORING";
+  const coreExplicitlyVerified = core?.state === "PASSED";
+  const publicAnchoringPending =
+    anchoring?.state === "PENDING" || anchoring?.state === "STALE" || presentationState === "VERIFIED_PENDING_ANCHORING";
   const timestampMismatch = isPositiveTsa(s.tsaStatus) && s.timestampDigestMatches === false;
   const timestampUnavailable = (isFailedTsa(s.tsaStatus) || !String(s.tsaStatus ?? "").trim()) && s.timestampDigestMatches !== true;
   const failedSignals = [s.canonicalHashMatches === false, s.signatureValid === false, s.custodyChainValid === false, timestampMismatch, s.otsHashMatches === false].filter(Boolean).length;
@@ -711,7 +784,7 @@ export function buildVerifyVerdict(trust: VerifyTrustDecisionView | null, s: Ver
     s.storage.verified !== null || s.storage.immutable !== null,
   ].filter(Boolean).length;
 
-  if (verdictCode === "REVIEW_REQUIRED" || s.overallIntegrity === false || failedSignals > 0) {
+  if (integrityReviewRequired || s.overallIntegrity === false || failedSignals > 0) {
     return {
       status: "review_required",
       label: "Review Required",
@@ -725,7 +798,7 @@ export function buildVerifyVerdict(trust: VerifyTrustDecisionView | null, s: Ver
   if (coreExplicitlyVerified && failedSignals === 0 && !timestampUnavailable) {
     return {
       status: "verified",
-      label: trust ? trust.verdictLabel : publicAnchoringPending ? "Recorded integrity verified; Bitcoin anchoring pending" : "Recorded integrity verified",
+      label: publicAnchoringPending ? "Integrity checks passed; Bitcoin anchoring pending" : "Integrity checks passed",
       actionRequired: publicAnchoringPending
         ? "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility. Independent public anchoring is not finalized yet and should be rechecked later if public anchoring matters to the review."
         : "Reviewers may rely on the recorded integrity state, while still separately assessing authorship, factual context, relevance, and legal admissibility.",
@@ -735,7 +808,7 @@ export function buildVerifyVerdict(trust: VerifyTrustDecisionView | null, s: Ver
       tone: publicAnchoringPending ? "warning" : "success",
     };
   }
-  if (verdictCode === "PARTIALLY_VERIFIED" || passedSignals > 0 || knownSignals > 0) {
+  if (presentationState === "PARTIALLY_VERIFIED" || passedSignals > 0 || knownSignals > 0) {
     return {
       status: "partial",
       label: !coreExplicitlyVerified ? "Conditional trust state" : timestampUnavailable ? "Integrity verified; trusted timestamp unavailable" : "Conditional trust state",
@@ -960,7 +1033,7 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
         value:
           pkgSig["manifestSigned"] === true ? "Signed" : pkgSig["manifestPresent"] === true ? "Manifest present; signature not confirmed" : "Not recorded",
       },
-      { label: "Snapshot Trust Decision", value: str(obj(snap["trustDecisionSnapshot"])["verdictLabel"]) ?? "No fixed trust-decision snapshot" },
+      { label: "Snapshot Signal Summary", value: readStoredTrustDecision(snap["trustDecisionSnapshot"])?.summary ?? "No fixed signal snapshot" },
     ],
     liveRows: [
       { label: "Current OTS Status", value: currentOts ?? "Not recorded" },
@@ -1379,7 +1452,7 @@ export const VERIFY_PANEL_COPY = {
 
 export const VERIFY_TECHNICAL_COPY = {
   title: "Technical Review Materials",
-  body: "These materials support the Trust Decision shown above. The Trust Decision is the reviewer-facing summary; this technical layer exposes the raw hashes, signatures, custody-chain hashes, timestamp materials, anchoring state, and access activity for deeper forensic review.",
+  body: "These materials support the verification signals shown above. The signals are the reviewer-facing statement; this technical layer exposes the raw hashes, signatures, custody-chain hashes, timestamp materials, anchoring state, and access activity for deeper forensic review.",
   forensicKicker: "Forensic Review Mode",
   forensicOn: "Raw technical materials are expanded for forensic review.",
   forensicOff: "Enable to expand raw hashes, signatures, public key material, custody hashes, and timestamp proof fields.",
@@ -1440,10 +1513,9 @@ function verificationStatusDisplayLabel(status?: string | null): string {
 }
 function integrityStatusDisplayLabel(trust: VerifyTrustDecisionView): string {
   const core = trust.signals.find((s) => s.key === "core_integrity");
-  if (core?.status === "passed") return "Recorded Integrity Verified";
-  if (core?.status === "partial") return "Integrity materials recorded";
-  if (core?.status === "failed") return "Integrity review required";
-  if (core?.status === "missing") return "Integrity materials missing";
+  if (core?.state === "PASSED") return "Recorded Integrity Verified";
+  if (core?.state === "FAILED") return "Integrity review required";
+  if (core?.state === "UNAVAILABLE") return "Integrity materials missing";
   return "Integrity materials recorded";
 }
 
@@ -1480,10 +1552,10 @@ export function verifyRecordFields(
     ["Evidence Status At Report Generation", str(ov["recordStatus"]) ?? str(hs["recordStatus"])],
     [
       "Verification Status",
-      core?.status === "partial" ? "Technical materials available" : verificationStatusDisplayLabel(str(ov["verificationStatusCode"]) ?? str(ov["verificationStatus"])),
+      core?.status === "NOT_CHECKED" ? "Technical materials available" : verificationStatusDisplayLabel(str(ov["verificationStatusCode"]) ?? str(ov["verificationStatus"])),
     ],
     ["Integrity Status", trust ? integrityStatusDisplayLabel(trust) : null],
-    ["Trust Decision", trust ? trust.verdictLabel : null],
+    ["Verification Summary", trust ? trust.summary : null],
     ["Evidence Title", pick("evidenceTitle") ?? "Digital Evidence Record"],
     ["Evidence ID", pick("evidenceId") ?? str(d["evidenceId"])],
     [
@@ -1585,7 +1657,7 @@ export function verifyIntegrityTab(
   payload: unknown,
   s: VerifyIntegritySignals,
   fmt: (iso: string) => string,
-  verdictRequiresReview: boolean,
+  integrityReviewRequired: boolean,
 ): VerifyIntegrityTabView {
   const d = obj(payload);
   const tm = obj(d["technicalMaterials"]);
@@ -1631,7 +1703,7 @@ export function verifyIntegrityTab(
   if (sig) otherFields.push({ label: "Digital Signature", subtitle: "Recorded signature material associated with this evidence.", value: sig });
   if (pem) otherFields.push({ label: "Public Key", subtitle: "Public key material available for advanced technical review.", value: pem });
 
-  const strong: VerifyWebTone = verdictRequiresReview ? "info" : "success";
+  const strong: VerifyWebTone = integrityReviewRequired ? "info" : "success";
   const tri = (v: boolean | null, yes: string, no: string, unknown: string, yesTone: VerifyWebTone = strong): Omit<VerifyStatusCard, "label"> =>
     v === true ? { value: yes, tone: yesTone } : v === false ? { value: no, tone: "warning" } : { value: unknown, tone: "neutral" };
   const storage = buildStoragePresentation(s.storage);
@@ -1756,7 +1828,7 @@ export function parseVerifyPackage(payload: unknown): VerifyPackageView | null {
 export const VERIFY_PACKAGE_COPY = {
   kicker: "Verification Package Integrity",
   decisionKicker: "Package Decision",
-  impactKicker: "Impact on Trust Decision",
+  impactKicker: "Impact on Verification Signals",
   generatedAtPrefix: "Package generated at: ",
 } as const;
 

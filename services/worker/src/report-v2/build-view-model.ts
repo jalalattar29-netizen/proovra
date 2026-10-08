@@ -21,6 +21,7 @@ import {
   isCompleteOtsAnchor,
   formatTimestampForReportUtc,
   absoluteInternalUrl,
+  buildVerificationMatrix,
 } from "@proovra/shared";
 import type { CanonicalEvidenceMaterials } from "@proovra/shared";
 import type {
@@ -1451,7 +1452,14 @@ const primaryContentItem = resolvePrimaryContentItem(
     ),
   });
 
-  const executiveConclusion = buildExecutiveConclusion(trustDecision);
+  const verificationMatrix = buildVerificationMatrix({
+    signals: trustDecision.signals,
+    identity: input.evidence.acquisitionIdentity ?? null,
+    acquisitionMode: input.evidence.acquisitionMode ?? null,
+    packageSeal: { kind: "SELF" },
+    publication: { kind: "DOCUMENT" },
+  });
+  const executiveConclusion = buildExecutiveConclusion(trustDecision, verificationMatrix);
   const legalLimitationShort = buildLegalLimitationShort();
   const reviewSequence = buildReviewSequence(
     primaryContentItem?.originalFileName ?? primaryContentItem?.label
@@ -1745,6 +1753,7 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
     ),
     integrityVerified,
     trustDecision,
+    verificationMatrix,
     // Phase 2/3 — canonical materials snapshot. Renderers consume this
     // for reviewer-evidence-type, OTS effective status, workspace
     // scope, legal boundary copy. Sealed at report-snapshot time.

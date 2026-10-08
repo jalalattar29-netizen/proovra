@@ -279,12 +279,12 @@ describe("C-1 — cover PDF compactValue is derived from the canonical state", (
   const SHARED = "packages/shared/src/trust-decision.ts";
 
   it("the cover reads THE canonical layer/state label and tone (no local word table)", () => {
-    // Since 2026-10-07 the compact value is getTrustLayerStateLabel(signal)
-    // and the tone getTrustSignalStateTone(signal): a layer reads
-    // "Verified"/"Anchored"/"Storage protected" only in the PASSED state.
+    // Since 2026-10-08 the compact value is the verification-matrix row's
+    // canonical status (VERIFIED only for PASSED) and its tone comes from the
+    // one status->tone mapping: no local word table.
     const src = read(COVER);
-    expect(src).toMatch(/value:\s*getTrustLayerStateLabel\(signal\)/);
-    expect(src).toMatch(/tone:\s*getTrustSignalStateTone\(signal\)/);
+    expect(src).toMatch(/value:\s*row\.status/);
+    expect(src).toMatch(/verificationStatusTone\(row\.status\)/);
     expect(src).not.toMatch(/compactValue\s*=\s*"Verified"/);
     expect(src).not.toMatch(/"Anchored"/);
   });

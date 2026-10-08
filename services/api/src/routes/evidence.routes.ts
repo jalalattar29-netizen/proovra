@@ -87,7 +87,8 @@ import {
   // ET-TSA-01 — the one reading of a stored timestamp status.
   presentedTsaStatus,
   resolveOtsCustodyFacts,
-  resolveSnapshotSignalState,
+  readStoredTrustDecision,
+  buildVerificationMatrix,
   resolveAcquisitionIdentitySnapshot,
   identityLevelLabel,
   acquisitionIdentityLevelLabel,
@@ -1985,36 +1986,15 @@ function liveTrustFactsFor(
     custodyChainValid,
   };
 }
+/**
+ * A stored report/package trust snapshot, in today's shape: no score, points,
+ * verdict or reliance level survives, and every signal is re-read through its
+ * canonical state (readStoredTrustDecision is the one authority).
+ */
 function normalizeTrustDecisionSnapshot(
   value: Prisma.JsonValue | null | undefined
 ): TrustDecision | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  const candidate = value as Partial<TrustDecision>;
-
-  if (
-    !(
-      typeof candidate.verdict === "string" &&
-      typeof candidate.verdictLabel === "string" &&
-      typeof candidate.score === "number" &&
-      Array.isArray(candidate.signals)
-    )
-  ) {
-    return null;
-  }
-  // A snapshot written before the canonical state (2026-10-07) carries only
-  // the legacy status; every signal is given its state here, read
-  // conservatively (an unchecked anchor is never PASSED).
-  return {
-    ...(candidate as TrustDecision),
-    signals: (candidate.signals as TrustDecision["signals"]).map((signal) => ({
-      ...signal,
-      state: resolveSnapshotSignalState(signal),
-      measuredAtUtc: signal.measuredAtUtc ?? null,
-    })),
-  };
+  return readStoredTrustDecision(value);
 }
 
 function mapIntegrityHeadline(params: {
@@ -8358,7 +8338,7 @@ return {
             version: latestReport.version,
             generatedAtUtc: latestReport.generatedAtUtc.toISOString(),
             verificationPackageVersion: latestReport.verificationPackageVersion ?? null,
-            trustDecisionSnapshot: toJsonSafe(latestReport.trustDecisionSnapshot),
+            trustDecisionSnapshot: toJsonSafe(normalizeTrustDecisionSnapshot(latestReport.trustDecisionSnapshot)),
           }
         : null,
       verificationPackage: latestPackage
@@ -8367,7 +8347,7 @@ return {
             generatedAtUtc: latestPackage.generatedAtUtc.toISOString(),
             packageType: latestPackage.packageType ?? null,
             manifestDigest: null,
-            trustDecisionSnapshot: toJsonSafe(latestPackage.trustDecisionSnapshot),
+            trustDecisionSnapshot: toJsonSafe(normalizeTrustDecisionSnapshot(latestPackage.trustDecisionSnapshot)),
           }
         : null,
       contentItems: parts.map((part) => ({
@@ -11749,7 +11729,7 @@ limitationsSnapshot: true,
         generatedAtUtc: latest.generatedAtUtc.toISOString(),
         reviewerSnapshot: {
           displayTitle: latest.displayTitleSnapshot ?? null,
-          trustDecision: toJsonSafe(latest.trustDecisionSnapshot ?? null),
+          trustDecision: toJsonSafe(normalizeTrustDecisionSnapshot(latest.trustDecisionSnapshot)),
           displayDescription: latest.displayDescriptionSnapshot ?? null,
           contentStructure: latest.contentStructureSnapshot ?? null,
           itemCount: latest.itemCountSnapshot ?? null,
@@ -12770,7 +12750,7 @@ return reply.code(200).send({
   url,
   generatedAtUtc: latest.generatedAtUtc.toISOString(),
   storage,
-  trustDecision: toJsonSafe(latest.trustDecisionSnapshot ?? null),
+  trustDecision: toJsonSafe(normalizeTrustDecisionSnapshot(latest.trustDecisionSnapshot)),
 });
     }
   );
@@ -13515,6 +13495,8 @@ const latestVerificationPackage = await prisma.verificationPackage.findFirst({
     packageFormatVersion: true,
     sealSha256: true,
     sealSigningKeySha256: true,
+    sealSigningKeyId: true,
+    sealSigningKeyVersion: true,
   },
 }).then((row) => (row ? asPublishedPackage(row) : null));
 
@@ -14200,6 +14182,25 @@ const overallIntegrity =
       row: evidence,
       acquisitionMode: evidence.acquisitionMode ?? null,
     });
+    // THE per-signal statement of this record (no score, no overall verdict):
+    // the live/snapshot signals, the capture-time identity, the acquisition
+    // channel, the latest published package's seal and this page itself.
+    const verificationMatrix = buildVerificationMatrix({
+      signals: trustDecision?.signals ?? [],
+      identity: acquisitionIdentity,
+      acquisitionMode: evidence.acquisitionMode ?? null,
+      acquisitionModeSource: evidence.acquisitionModeSource ?? null,
+      packageSeal: !latestVerificationPackage
+        ? { kind: "NONE" }
+        : latestVerificationPackage.sealSigningKeyId && latestVerificationPackage.sealSigningKeyVersion != null
+          ? {
+              kind: "PUBLISHED",
+              sealKeyId: latestVerificationPackage.sealSigningKeyId,
+              sealKeyVersion: latestVerificationPackage.sealSigningKeyVersion,
+            }
+          : { kind: "LEGACY" },
+      publication: { kind: "THIS_PAGE" },
+    });
     const overview = buildPublicVerifyOverview({
       acquisitionIdentity,
       evidence: {
@@ -14665,6 +14666,7 @@ if (!richVerifyEntitled || shareLink?.projection === "BASIC") {
     tier: "BASIC",
     evidenceId: evidence.id,
     basicVerification,
+    verificationMatrix,
     link,
   });
 }
@@ -14683,6 +14685,7 @@ return reply.code(200).send({
   redaction,
   technicalMetadata,
   trustDecision,
+  verificationMatrix,
 trustDecisionConsistency,
   verificationSnapshot,
   liveAnchoring,

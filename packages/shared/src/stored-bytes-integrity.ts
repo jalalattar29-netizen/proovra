@@ -24,6 +24,8 @@
  *   unknown           never checked (or storage was unavailable and nothing
  *                     earlier is on record)
  */
+import { summarizeTrustSignals } from "./trust-decision.js";
+import type { TrustSignalState } from "./trust-signal-state.js";
 export const STORED_BYTES_INTEGRITY_STATES = [
   "verified_current",
   "verified_stale",
@@ -416,37 +418,34 @@ export function digestColumnsMatchSignedFingerprint(
 }
 
 // ---------------------------------------------------------------------------
-// UC-TRUST-005 — THE STORED BYTES ARE AN INPUT TO THE VERDICT
+// UC-TRUST-005 — THE STORED BYTES ARE AN INPUT TO FILE INTEGRITY
 // ---------------------------------------------------------------------------
 
 /**
  * The trust decision is computed over PROOVRA's signed records. This applies
- * the stored-bytes statement to it, so a headline can never stay positive
- * while the stored original is gone or does not match its signed digest:
+ * the stored-bytes statement to its FILE-INTEGRITY signal, so the record can
+ * never read as intact while the stored original is gone or does not match
+ * its signed digest:
  *
  *   contradicts (MISMATCH, missing version) or the digest columns disagree
- *   with the signed fingerprint  ->  REVIEW_REQUIRED, low reliance
+ *   with the signed fingerprint  ->  file integrity FAILED (the matrix and the
+ *   bounded summary follow from the signal)
  *   not re-verified inside the freshness window (STALE / PENDING / UNKNOWN /
- *   unreadable)  ->  a "high reliance" verdict is capped at conditional
+ *   unreadable)  ->  the signal says when the stored file was last verified
  *   VERIFIED  ->  unchanged
  *
  * Generic over the decision shape so it serves the shared TrustDecision and
- * the snapshot copies of it; only the named presentation fields are touched.
+ * the snapshot copies of it; only file integrity and the derived fields move.
  */
 export function applyStoredBytesToTrustDecision<
   D extends {
-    verdict: string;
-    level: string;
     tone: string;
     presentationState: string;
     presentationTone: string;
-    verdictLabel: string;
-    shortLabel: string;
-    title: string;
-    confidenceLabel: string;
-    primaryReason: string;
     reviewerAction: string;
-    relianceLevel: string;
+    summary: string;
+    integrityReviewRequired: boolean;
+    signals: Array<{ key: string; state: TrustSignalState; status: string; tone: string; summary: string; detail: string }>;
   },
 >(
   decision: D,
@@ -456,46 +455,44 @@ export function applyStoredBytesToTrustDecision<
   const columnsDisagree = opts.digestColumnsMatchSignedFingerprint === false;
   if (storedBytesIntegrityContradicts(storedBytes) || columnsDisagree) {
     const missing = storedBytes?.failureCode === "OBJECT_VERSION_MISSING";
+    const summary = columnsDisagree
+      ? "Recorded digests disagree with the signed fingerprint"
+      : missing
+        ? "Stored original unavailable at its recorded version"
+        : "Stored file does not match its signed digest";
+    const detail = columnsDisagree
+      ? "The digest recorded for the file does not match the digest in the signed fingerprint."
+      : storedBytes
+        ? storedBytesIntegrityCopy(storedBytes).detail
+        : "The stored file could not be matched to its signed digest.";
+    const signals = decision.signals.map((signal) =>
+      signal.key === "core_integrity"
+        ? { ...signal, state: "FAILED" as TrustSignalState, status: "failed", tone: "danger", summary, detail }
+        : signal,
+    );
     return {
       ...decision,
-      verdict: "REVIEW_REQUIRED",
-      level: "review",
       tone: "danger",
       presentationState: "FAILED_VERIFICATION",
       presentationTone: "danger",
-      verdictLabel: "Integrity review required",
-      shortLabel: "Review",
-      title: columnsDisagree
-        ? "Recorded digests disagree with the signed fingerprint"
-        : missing
-          ? "Stored original unavailable at its recorded version"
-          : "Stored file does not match its signed digest",
-      confidenceLabel: "Low",
-      primaryReason: columnsDisagree
-        ? "The digest recorded for the file does not match the digest in the signed fingerprint."
-        : storedBytes
-          ? storedBytesIntegrityCopy(storedBytes).detail
-          : "The stored file could not be matched to its signed digest.",
+      integrityReviewRequired: true,
       reviewerAction: "Do not rely on this record until the stored original has been investigated.",
-      relianceLevel: "low",
+      summary: summarizeTrustSignals(signals as never),
+      signals,
     };
   }
   const status = storedBytes ? storedBytesCheckStatusOf(storedBytes) : null;
-  if (status !== "VERIFIED" && decision.relianceLevel === "high") {
-    return {
-      ...decision,
-      level: "standard",
-      tone: "warning",
-      presentationState: "VERIFIED_WITH_DEGRADED_SIGNALS",
-      presentationTone: "warning",
-      verdictLabel:
-        status === "STALE" && storedBytes?.lastVerifiedAtUtc
-          ? `Recorded integrity verified; stored file last verified ${storedBytes.lastVerifiedAtUtc.slice(0, 10)}`
-          : "Recorded integrity verified; stored file not re-verified recently",
-      shortLabel: "Conditional",
-      confidenceLabel: "Conditional",
-      relianceLevel: "medium",
-    };
+  if (storedBytes && status !== "VERIFIED") {
+    const note =
+      status === "STALE" && storedBytes.lastVerifiedAtUtc
+        ? `stored file last re-verified ${storedBytes.lastVerifiedAtUtc.slice(0, 10)}`
+        : "stored file not re-verified recently";
+    const signals = decision.signals.map((signal) =>
+      signal.key === "core_integrity" && !signal.summary.includes(note)
+        ? { ...signal, summary: `${signal.summary}; ${note}` }
+        : signal,
+    );
+    return { ...decision, signals };
   }
   return decision;
 }
