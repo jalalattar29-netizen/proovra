@@ -74,6 +74,16 @@ jobs:
             exit "$status"
           fi
 
+      # The rendered-report gate INSIDE the production worker image, in the
+      # order production hit (another PDF parsed first): real Chromium render,
+      # real extractPdfText and assertRenderedReport, one PDF.js build.
+      - name: Smoke — PDF verification in the production worker image
+        run: |
+          docker run --rm \
+            -e PDF_ARTIFACT_SIGNATURE_OPT_OUT_ACK=true \
+            -e SMOKE_EXPECT_RELEASE_SHA="${GITHUB_SHA}" \
+            pv-rga-worker:local node scripts/smoke-pdf-verification.mjs
+
       - name: Start the stack
         run: |
           docker compose -f e2e/updated-report/stack/docker-compose.yml up -d

@@ -315,24 +315,9 @@ async function renderRedactedPdf(source: Buffer, rects: NormalizedRect[]): Promi
   if (canvasModule.ImageData && !globalThis.ImageData) globalThis.ImageData = canvasModule.ImageData;
   if (canvasModule.Path2D && !globalThis.Path2D) globalThis.Path2D = canvasModule.Path2D;
 
-  const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as {
-    getDocument: (o: Record<string, unknown>) => {
-      promise: Promise<{
-        numPages: number;
-        getPage: (n: number) => Promise<{
-          getViewport: (o: { scale: number }) => { width: number; height: number };
-          render: (o: Record<string, unknown>) => { promise: Promise<void> };
-        }>;
-        destroy?: () => Promise<void> | void;
-      }>;
-    };
-  };
-  const pdf = await pdfjs.getDocument({
-    data: new Uint8Array(source),
-    useWorkerFetch: false,
-    isEvalSupported: false,
-    disableFontFace: true,
-  }).promise;
+  // The worker's one PDF.js build (see pdf/pdfjs-runtime.ts).
+  const { openPdf } = await import("../pdf/pdfjs-runtime.js");
+  const pdf = await openPdf(source, { disableFontFace: true });
 
   const { default: PDFDocument } = (await import("pdfkit")) as unknown as {
     default: new (o: Record<string, unknown>) => {

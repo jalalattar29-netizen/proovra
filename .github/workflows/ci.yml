@@ -465,6 +465,12 @@ jobs:
           '
           exit $rc
 
+      # 2026-10-09 — production paired PDF.js API 5.4.296 with worker 5.6.205
+      # (pdf-parse bundled a second PDF.js). One exact pdfjs-dist, no bundler,
+      # one import path; fails before any test if that can happen again.
+      - name: Gate — PDF.js API/worker integrity
+        run: node services/worker/scripts/check-pdfjs-integrity.mjs
+
       - name: Test — worker
         run: |
           set +e

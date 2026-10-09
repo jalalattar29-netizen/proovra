@@ -79,7 +79,7 @@ const API_BASE = process.env.API_BASE ?? "http://127.0.0.1:58081";
 function pdfText(bytes: Buffer, name: string): string {
   const file = join(PROOF_DIR, name);
   writeFileSync(file, bytes);
-  const run = spawnSync(process.execPath, [resolve(__dirname, "pdf-text.mjs"), file], { cwd: WORKER_DIR, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const run = spawnSync(process.execPath, ["--import", "tsx", resolve(__dirname, "pdf-text.mjs"), file], { cwd: WORKER_DIR, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (run.status !== 0) throw new Error(`pdf-text failed: ${run.stderr}`);
   return run.stdout.replace(/\s+/g, " ");
 }
@@ -779,4 +779,141 @@ test("J11 RECOVERY UX — Report v1 failed terminally (technical): the Overview 
   await expect(page.getByTestId("pair-1-package-profile")).toContainText("Full forensic package");
   await expect(page.getByTestId("pair-1-external")).toBeVisible();
   await page.screenshot({ path: join(PROOF_DIR, "terminal-retry-complete.png"), fullPage: true });
+});
+
+/** A progress card describing live work (running or retrying). */
+const LIVE_PROGRESS =
+  "[data-testid='output-progress'][data-output-progress-outcome='ACTIVE'], [data-testid='output-progress'][data-output-progress-outcome='RETRYING']";
+
+/** A small, real PDF original — the report job previews it with PDF.js before it verifies the report. */
+async function samplePdfOriginal(label: string): Promise<Buffer> {
+  const { createRequire } = await import("node:module");
+  const req = createRequire(join(WORKER_DIR, "package.json"));
+  const mod = req("pdfkit") as { default?: unknown };
+  const PDFDocument = (mod.default ?? mod) as new () => {
+    on(e: string, cb: (c?: Buffer) => void): void;
+    text(t: string): void;
+    end(): void;
+  };
+  return new Promise((done) => {
+    const doc = new PDFDocument();
+    const chunks: Buffer[] = [];
+    doc.on("data", (c) => chunks.push(c!));
+    doc.on("end", () => done(Buffer.concat(chunks)));
+    doc.text(`PROOVRA journey original ${label} ${Date.now()}`);
+    doc.end();
+  });
+}
+
+test("J12 PDF.js REGRESSION — a PDF original (previewed with PDF.js in the report job) whose v1 failed PDF verification: Retry → production worker renders, reads back, verifies, stores both packages; history kept; UI complete", async ({ page }) => {
+  // Production 2026-10-09 (evidence ce465a9e…): "The API version 5.4.296 does
+  // not match the Worker version 5.6.205". For a PDF original the report job
+  // itself previews the PDF with the worker's PDF.js and then reads its own
+  // report back — the exact order that failed. The failed attempt is the stable
+  // terminal the fixed worker now writes for it (REPORT_PDF_VERIFICATION_FAILED);
+  // the retry runs in the PRODUCTION worker image.
+  test.setTimeout(600_000);
+  await clearTestRateLimits();
+  const session = await createGuestSession({ plan: "TEAM" });
+  const team = await personalTeamId(session.api);
+  const original = await samplePdfOriginal("pdfjs-regression");
+  stackCtl("pause", "worker");
+  let id = "";
+  try {
+    id = (await createFinalizedEvidence(session.api, team, "pdfjs-regression", {
+      bytes: original,
+      mimeType: "application/pdf",
+      extension: "pdf",
+    })).id;
+    await expect
+      .poll(() => sql("SELECT id FROM report_generation_requests WHERE evidence_id = $1", [id]).length, { timeout: 60_000 })
+      .toBe(1);
+    sql(
+      `UPDATE report_generation_requests
+          SET state = 'FAILED_TERMINAL', terminal_reason_code = 'REPORT_PDF_VERIFICATION_FAILED',
+              attempt_count = 1, completed_at_utc = now()
+        WHERE evidence_id = $1`,
+      [id],
+    );
+  } finally {
+    stackCtl("unpause", "worker");
+  }
+  const [failed] = sql<{ id: string; state: string; terminal_reason_code: string; idempotency_key: string; completed_at_utc: string }>(
+    "SELECT id, state, terminal_reason_code, idempotency_key, completed_at_utc::text FROM report_generation_requests WHERE evidence_id = $1",
+    [id],
+  );
+  await new Promise((r) => setTimeout(r, 3_000));
+  expect(sql("SELECT 1 FROM reports WHERE evidence_id = $1", [id]).length, "no report exists").toBe(0);
+  const before = await status(session.api, id);
+  expect(before.outputs.report).toMatchObject({ state: "TERMINAL_FAILURE", action: "RETRY" });
+
+  // ---- Browser: the record says what failed and offers the one retry.
+  await signIn(page, session.email);
+  await page.goto(`/evidence/${id}`);
+  await page.waitForSelector(".evidence-detail-hero", { timeout: 60_000 });
+  const banner = page.getByTestId("output-attention-banner");
+  await expect(banner).toContainText("Output action required");
+  await expect(banner).toContainText("The report could not be verified");
+  await expect(banner).not.toContainText(/evidence (record )?failed/i);
+  // A terminal failure is not shown as live work: no running/retrying progress, no stall alert.
+  await expect(page.locator(LIVE_PROGRESS)).toHaveCount(0);
+  await expect(page.locator("[data-evidence-section='artifact-stale-pending']")).toHaveCount(0);
+  await banner.getByRole("button", { name: "Retry report generation" }).click();
+
+  await waitForPair(session.api, id, 1);
+
+  // ---- Server truth: one v1, one package version (both profiles), history kept.
+  const requests = sql<{ id: string; state: string; terminal_reason_code: string | null; idempotency_key: string; completed_at_utc: string }>(
+    "SELECT id, state, terminal_reason_code, idempotency_key, completed_at_utc::text FROM report_generation_requests WHERE evidence_id = $1 ORDER BY created_at_utc",
+    [id],
+  );
+  expect(requests.map((r) => r.idempotency_key)).toEqual([`REPORT:${id}:v0`, `REPORT:${id}:v0:s1`]);
+  expect(requests[0], "the failed request stays in history, unchanged").toEqual(failed);
+  expect(requests[1]!.state, "the current request succeeded").toBe("SUCCEEDED");
+  const reports = sql<{ version: number; pdf_sha256: string }>("SELECT version, pdf_sha256 FROM reports WHERE evidence_id = $1", [id]);
+  expect(reports.map((r) => r.version), "exactly one new report version").toEqual([1]);
+  const packages = sql<{ version: number; state: string; disclosure_profile: string; package_sha256: string; report_sha256: string }>(
+    "SELECT version, state, disclosure_profile, package_sha256, report_sha256 FROM verification_packages WHERE evidence_id = $1 ORDER BY disclosure_profile",
+    [id],
+  );
+  expect(packages.map((p) => [p.version, p.state]), "one package version, both profiles published").toEqual([
+    [1, "PUBLISHED"],
+    [1, "PUBLISHED"],
+  ]);
+
+  // ---- Storage objects exist and their bytes are the recorded hashes.
+  const reportPdf = await downloadVersion(session.api, id, "report", 1);
+  expect(sha256(reportPdf), "stored report = recorded report digest").toBe(reports[0]!.pdf_sha256);
+  const fullZip = await downloadVersion(session.api, id, "package", 1);
+  const ext = await downloadExternal(session.api, id, 1);
+  expect(ext.status).toBe(200);
+  const recorded = new Set(packages.map((p) => p.package_sha256));
+  expect(recorded.has(sha256(fullZip)), "full package bytes = a recorded package digest").toBe(true);
+  expect(recorded.has(sha256(ext.zip!)), "external package bytes = a recorded package digest").toBe(true);
+  for (const p of packages) expect(p.report_sha256, "each package binds the stored report").toBe(reports[0]!.pdf_sha256);
+
+  // ---- The report states the record (read back with the worker's own extractor).
+  const text = pdfText(reportPdf, "pdfjs-regression-v1.pdf");
+  expect(text).toMatch(/\bv1\b/);
+  expect(findForbiddenCustomerClaims(text)).toEqual([]);
+
+  // ---- The production worker never paired two PDF.js builds.
+  const logs = spawnSync("docker", ["logs", "pv-rga-worker-1"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  expect(`${logs.stdout}${logs.stderr}`).not.toMatch(/does not match the Worker version|PDFJS_RUNTIME_MISMATCH/);
+
+  // ---- The page converges: no generating, no banner, Complete.
+  await page.reload();
+  await page.waitForSelector(".evidence-detail-hero", { timeout: 60_000 });
+  await expect(page.getByTestId("evidence-outputs-card")).toHaveAttribute("data-output-attention", "CURRENT", { timeout: 60_000 });
+  await expect(page.getByTestId("output-attention-banner")).toHaveCount(0);
+  await openArtifacts(page, id);
+  await expect(page.getByTestId("pair-1-package-profile")).toContainText("Full forensic package");
+  await expect(page.getByTestId("pair-1-external")).toBeVisible();
+  // No longer generating: any progress shown is the completed request; no stall alert.
+  await expect(page.locator(LIVE_PROGRESS)).toHaveCount(0);
+  for (const outcome of await page.getByTestId("output-progress").evaluateAll((els) => els.map((e) => e.getAttribute("data-output-progress-outcome")))) {
+    expect(outcome).toBe("SUCCEEDED");
+  }
+  await expect(page.locator("[data-evidence-section='artifact-stale-pending']")).toHaveCount(0);
+  await page.screenshot({ path: join(PROOF_DIR, "pdfjs-regression-complete.png"), fullPage: true });
 });

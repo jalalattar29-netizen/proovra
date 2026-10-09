@@ -57,7 +57,7 @@ function pdfText(bytes: Buffer, name: string): string {
   mkdirSync(PROOF_DIR, { recursive: true });
   const file = join(PROOF_DIR, name);
   writeFileSync(file, bytes);
-  const run = spawnSync(process.execPath, [resolve(__dirname, "pdf-text.mjs"), file], { cwd: WORKER_DIR, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const run = spawnSync(process.execPath, ["--import", "tsx", resolve(__dirname, "pdf-text.mjs"), file], { cwd: WORKER_DIR, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (run.status !== 0) throw new Error(`pdf-text failed: ${run.stderr}`);
   return run.stdout.replace(/\s+/g, " ");
 }

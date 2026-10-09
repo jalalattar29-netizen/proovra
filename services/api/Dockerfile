@@ -152,6 +152,13 @@ COPY --from=build /app/packages/shared-evidence-presentation /app/packages/share
 COPY --from=build /app/packages/shared-runtime /app/packages/shared-runtime
 COPY --from=build /app/tsconfig.json /app/tsconfig.json
 
+# BUILD IDENTITY — the same revision authority the worker image carries
+# (otel.ts and sentry.ts resolve their release from it). Unset by default: an
+# unset value reads as "unknown", never as a made-up release.
+ARG APP_RELEASE_SHA=""
+ENV APP_RELEASE_SHA=$APP_RELEASE_SHA
+LABEL org.opencontainers.image.revision=$APP_RELEASE_SHA
+
 WORKDIR /app/services/api
 
 USER app

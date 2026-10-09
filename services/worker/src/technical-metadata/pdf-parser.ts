@@ -42,30 +42,14 @@ export async function parsePdfMetadata(
   mimeType: string | null,
 ): Promise<TechnicalMetadata> {
   try {
-    const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as {
-      getDocument: (options: Record<string, unknown>) => {
-        promise: Promise<{
-          numPages: number;
-          getMetadata: () => Promise<{
-            info?: Record<string, unknown>;
-          }>;
-          destroy?: () => Promise<void> | void;
-        }>;
-      };
-    };
-
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(bytes),
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      disableFontFace: true,
-    });
-    const pdf = await loadingTask.promise;
+    // The worker's one PDF.js build (see pdf/pdfjs-runtime.ts).
+    const { openPdf } = await import("../pdf/pdfjs-runtime.js");
+    const pdf = await openPdf(bytes, { disableFontFace: true });
     const pageCount = pdf.numPages;
     let info: Record<string, unknown> = {};
     try {
       const meta = await pdf.getMetadata();
-      info = meta.info ?? {};
+      info = (meta.info ?? {}) as Record<string, unknown>;
     } catch {
       /* info dict optional */
     }

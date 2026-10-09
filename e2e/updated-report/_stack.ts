@@ -92,22 +92,30 @@ export function addWorkspaceMember(teamId: string, userId: string, role: "ADMIN"
 }
 
 /** Create, upload (presigned, to the stack's MinIO) and complete one record. */
-export async function createFinalizedEvidence(api: APIRequestContext, teamId: string, label: string): Promise<{ id: string; bytes: string }> {
-  const bytes = `updated-report journey ${label} ${Date.now()}\n`;
+export async function createFinalizedEvidence(
+  api: APIRequestContext,
+  teamId: string,
+  label: string,
+  /** A non-text original (e.g. a PDF, which the report job previews with PDF.js). */
+  file?: { bytes: Buffer; mimeType: string; extension: string },
+): Promise<{ id: string; bytes: string | Buffer }> {
+  const bytes: string | Buffer = file?.bytes ?? `updated-report journey ${label} ${Date.now()}\n`;
+  const mimeType = file?.mimeType ?? "text/plain";
+  const fileName = `${label}.${file?.extension ?? "txt"}`;
   const sha = createHash("sha256").update(bytes).digest("base64");
   const md5 = createHash("md5").update(bytes).digest("base64");
   const created = await api.post("/v1/evidence", {
-    data: { teamId, type: "DOCUMENT", mimeType: "text/plain", originalFileName: `${label}.txt`, checksumSha256Base64: sha, contentMd5Base64: md5 },
+    data: { teamId, type: "DOCUMENT", mimeType, originalFileName: fileName, checksumSha256Base64: sha, contentMd5Base64: md5 },
   });
   expect(created.ok(), await created.text()).toBe(true);
   const id = ((await created.json()) as { id: string }).id;
   const partRes = await api.post(`/v1/evidence/${id}/parts`, {
-    data: { partIndex: 0, mimeType: "text/plain", originalFileName: `${label}.txt`, checksumSha256Base64: sha, contentMd5Base64: md5 },
+    data: { partIndex: 0, mimeType, originalFileName: fileName, checksumSha256Base64: sha, contentMd5Base64: md5 },
   });
   expect(partRes.ok(), await partRes.text()).toBe(true);
   const part = (await partRes.json()) as { upload: { putUrl: string } };
   const put = await signedRequest("PUT", part.upload.putUrl, Buffer.from(bytes), {
-    "Content-Type": "text/plain",
+    "Content-Type": mimeType,
     "x-amz-checksum-sha256": sha,
     "Content-MD5": md5,
   });

@@ -188,7 +188,7 @@ const OUTPUT_REASON_MESSAGE: Partial<Record<OutputActionUnavailableReason, strin
   EVIDENCE_DESTROYED: "This record has been destroyed.",
   BLOCKED_BY_POLICY: "A workspace policy blocks generating this output.",
   ESCALATED_TO_OPERATOR:
-    "Automatic retries for this output were exhausted. The issue has been reported to your workspace operators, A member who can resolve workspace operations can retry it from this record or from Operations.",
+    "Automatic retries for this output were exhausted. The issue has been reported to your workspace operators. A member who can resolve workspace operations can retry it from this record or from Operations.",
   REPORT_INTEGRITY_REVIEW:
     "The stored report could not be verified, so it will not be used or replaced automatically. The issue has been reported for review.",
   CONSISTENCY_REVIEW_REQUIRED:
