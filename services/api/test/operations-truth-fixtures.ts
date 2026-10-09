@@ -8,12 +8,31 @@
  * fixture that skipped any of those would be exercising a state the product
  * cannot reach.
  */
+import type {
+  IncidentCategory,
+  IncidentScope,
+  IncidentSeverity,
+  IncidentStatus,
+  PlanType,
+  PrismaClient,
+  TeamBillingStatus,
+  TeamMemberStatus,
+  TeamRole,
+} from "@prisma/client";
+import type { LightMyRequestResponse } from "fastify";
+
 import type { IntegrationHarness } from "./integration-harness.js";
 
 export type Ctx = {
   h: IntegrationHarness;
-  prisma: any;
-  inj: (method: string, url: string, token?: string, body?: unknown, headers?: Record<string, string>) => Promise<any>;
+  prisma: PrismaClient;
+  inj: (
+    method: string,
+    url: string,
+    token?: string,
+    body?: unknown,
+    headers?: Record<string, string>,
+  ) => Promise<LightMyRequestResponse>;
 };
 
 export async function bootOps(): Promise<Ctx> {
@@ -30,7 +49,7 @@ export async function bootOps(): Promise<Ctx> {
 }
 
 let seq = 0;
-export async function makeUser(c: Ctx, tag: string, opts: { platformRole?: string; plan?: string } = {}) {
+export async function makeUser(c: Ctx, tag: string, opts: { platformRole?: string; plan?: PlanType } = {}) {
   const email = `${tag}-${Date.now()}-${seq++}@ops-truth.test`;
   const { REQUIRED_LEGAL_VERSIONS } = await import("../src/legal/legal-versioning.js");
   const { signJwt } = await import("../src/services/jwt.js");
@@ -56,7 +75,13 @@ export async function personalSpace(_c: Ctx, userId: string): Promise<string> {
 export async function makeWorkspace(
   c: Ctx,
   ownerId: string,
-  opts: { name: string; kind?: "ORGANIZATION" | "OWNED"; orgId?: string; billingPlan?: string; billingStatus?: string },
+  opts: {
+    name: string;
+    kind?: "ORGANIZATION" | "OWNED";
+    orgId?: string;
+    billingPlan?: PlanType;
+    billingStatus?: TeamBillingStatus;
+  },
 ) {
   let orgId = opts.orgId;
   if (!orgId) {
@@ -73,12 +98,32 @@ export async function makeWorkspace(
   return { teamId: t.id as string, orgId: orgId as string };
 }
 
-export async function addMember(c: Ctx, teamId: string, userId: string, role: string, status = "ACTIVE") {
+export async function addMember(
+  c: Ctx,
+  teamId: string,
+  userId: string,
+  role: TeamRole,
+  status: TeamMemberStatus = "ACTIVE",
+) {
   await c.prisma.teamMember.create({ data: { teamId, userId, role, status } });
 }
 
 let fp = 0;
-export async function seedIncident(c: Ctx, teamId: string | null, o: Record<string, any> = {}) {
+/** Overrides for a seeded condition; every field is optional. */
+type IncidentSeed = {
+  scope?: IncidentScope;
+  sourceId?: string | null;
+  category?: IncidentCategory;
+  severity?: IncidentSeverity;
+  status?: IncidentStatus;
+  fingerprint?: string;
+  title?: string;
+  safeSummary?: string;
+  relatedEvidenceId?: string | null;
+  occurrenceCount?: number;
+};
+
+export async function seedIncident(c: Ctx, teamId: string | null, o: IncidentSeed = {}) {
   return c.prisma.operationalIncident.create({
     data: {
       teamId,
@@ -112,6 +157,7 @@ export async function envelopeFor(c: Ctx, token: string, teamId: string) {
   await c.inj("POST", "/v1/platform/context/switch-workspace", token, { workspaceId: teamId });
   const r = await c.inj("GET", "/v1/platform/context", token);
   const body = r.json() as { capabilities?: Record<string, boolean> };
-  const caps = (body as any)?.capabilities ?? (body as any)?.envelope?.capabilities ?? {};
+  const wrapped = body as { capabilities?: Record<string, boolean>; envelope?: { capabilities?: Record<string, boolean> } };
+  const caps = wrapped?.capabilities ?? wrapped?.envelope?.capabilities ?? {};
   return { status: r.statusCode, caps: caps as Record<string, boolean> };
 }

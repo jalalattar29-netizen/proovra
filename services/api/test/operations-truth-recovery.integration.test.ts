@@ -41,7 +41,12 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
     await c?.h.cleanup();
   });
 
-  async function addon(ownerUserId: string, teamId: string | null, state: string, reasonCode: string | null = null) {
+  async function addon(
+    ownerUserId: string,
+    teamId: string | null,
+    state: "PENDING" | "RETRY_SCHEDULED" | "ACTION_REQUIRED" | "MANUAL_INTERVENTION" | "CONFIRMED" | "NONE",
+    reasonCode: string | null = null,
+  ) {
     return c.prisma.workspaceStorageAddon.create({
       data: {
         ownerUserId,
@@ -175,7 +180,7 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
 
     await sweep(a.teamId);
     for (const row of [ots, esc, idp]) {
-      expect((await c.prisma.operationalIncident.findUnique({ where: { id: row.id } }))?.status, row.sourceId).toBe("RESOLVED");
+      expect((await c.prisma.operationalIncident.findUnique({ where: { id: row.id } }))?.status, row.sourceId ?? undefined).toBe("RESOLVED");
     }
     // The escalation still OPEN keeps its condition open, even though the
     // workflow is not in one of the three statuses the old probe called open.

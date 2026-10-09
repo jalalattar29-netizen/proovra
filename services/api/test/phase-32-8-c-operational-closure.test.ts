@@ -78,7 +78,7 @@ describe("Phase 32.8C closure — per-kind operational copy", () => {
     // failed — a liveness claim made from no liveness data. The copy now
     // names only what failed (this workspace's counts) and who watches the
     // platform. Hyphenated keys must be quoted in JS object literals.
-    const entry = CC.match(/"queue-worker-telemetry":\s*\{[\s\S]*?\n  \},/);
+    const entry = CC.match(/"queue-worker-telemetry":\s*\{[\s\S]*?\n {2}\},/);
     expect(entry).not.toBeNull();
     expect(entry![0]).not.toMatch(/worker remains operational/i);
     expect(entry![0]).not.toMatch(/sampler/i);

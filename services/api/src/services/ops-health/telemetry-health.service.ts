@@ -30,9 +30,11 @@ import { severityForStatus } from "./types.js";
  * `teamId` is accepted for contract compatibility and is deliberately not
  * read, because background-processing health has no workspace.
  */
-export async function evaluateTelemetryHealth(_input: {
+export async function evaluateTelemetryHealth(input: {
   teamId: string;
 }): Promise<OpsHealthState> {
+  // Accepted for the contract, deliberately unread (see above).
+  void input;
   let fleet: Awaited<ReturnType<typeof getWorkerFleetHealth>>;
   try {
     fleet = await getWorkerFleetHealth();
