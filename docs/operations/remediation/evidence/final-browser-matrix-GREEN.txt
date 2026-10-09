@@ -1,0 +1,141 @@
+Browser matrix — operations-layout project against a production next build (API intercepted), 2026-10-09:
+operations-truth-a11y (widths 320/375/768/1024/1440 x en/de/ar, 200% zoom, live region, light theme, OPS-011/030/036),
+operations-a11y and operations-responsive (keyboard, focus, nested controls, RTL, reflow).
+
+  ok   1 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:30:5 › exactly one h1, and the landmark structure is not duplicated
+  ok   2 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:42:5 › severity and status are TEXT, never colour alone
+  ok   3 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:71:5 › every filter listbox has an accessible name and is keyboard operable
+  ok   4 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:105:5 › the row menu opens from the keyboard, roves, and returns focus
+  ok   5 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:143:5 › the row menu PANEL is a real surface, not bare text over the table
+  ok   6 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:171:5 › the row menu stays inside the viewport at the right edge
+  ok   7 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:195:5 › focus is VISIBLE, not merely present
+  ok   8 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:219:5 › every interactive control meets the minimum target size
+  ok   9 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:264:5 › no interactive element is nested inside another
+  ok  10 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:283:5 › the inspector is a labelled modal, and returns focus on close
+  ok  11 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:312:5 › the inspector's history is a real list, in order
+  ok  12 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:326:5 › a failed mutation is ANNOUNCED, not merely drawn
+  ok  13 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:353:5 › a pending mutation cannot be fired twice
+  ok  14 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:385:5 › a degraded source is announced as an alert, not a status
+  ok  15 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:398:5 › RTL mirrors the reading order rather than only the boxes
+  ok  16 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:421:5 › RTL keeps the header and the summary inside the viewport
+  ok  17 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:436:5 › the row menu flips UP rather than off the bottom of the viewport
+  ok  18 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:472:5 › the remediation action is reachable and named by what it starts
+  ok  19 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:491:5 › the answer to a remediation request is ANNOUNCED, not merely drawn
+  ok  20 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:512:5 › the SLA verdict carries its explanation as text, not as colour alone
+  ok  21 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:526:5 › the saved-view strip is operable from the keyboard
+  ok  22 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:537:5 › the saved-view name field is labelled, and Escape abandons it
+  ok  23 [operations-layout] › e2e\operations-layout\operations-a11y.spec.ts:555:5 › the bulk sweep's per-target answer is announced
+  ok  24 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › desktop-1440 · default: the page does not scroll sideways (mixed severities)
+  ok  25 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › desktop-1440 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  26 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › desktop-1440 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  27 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › desktop-1440 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  28 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › desktop-1440: no route element overflows its own box
+  ok  29 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › desktop-1440: exactly ONE renderer is in the layout
+  ok  30 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › laptop-1280 · default: the page does not scroll sideways (mixed severities)
+  ok  31 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › laptop-1280 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  32 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › laptop-1280 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  33 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › laptop-1280 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  34 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › laptop-1280: no route element overflows its own box
+  ok  35 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › laptop-1280: exactly ONE renderer is in the layout
+  ok  36 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-landscape-1024 · default: the page does not scroll sideways (mixed severities)
+  ok  37 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-landscape-1024 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  38 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-landscape-1024 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  39 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-landscape-1024 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  40 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › tablet-landscape-1024: no route element overflows its own box
+  ok  41 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › tablet-landscape-1024: exactly ONE renderer is in the layout
+  ok  42 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-768 · default: the page does not scroll sideways (mixed severities)
+  ok  43 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-768 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  44 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-768 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  45 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › tablet-768 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  46 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › tablet-768: no route element overflows its own box
+  ok  47 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › tablet-768: exactly ONE renderer is in the layout
+  ok  48 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-430 · default: the page does not scroll sideways (mixed severities)
+  ok  49 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-430 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  50 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-430 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  51 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-430 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  52 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › mobile-430: no route element overflows its own box
+  ok  53 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › mobile-430: exactly ONE renderer is in the layout
+  ok  54 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-390 · default: the page does not scroll sideways (mixed severities)
+  ok  55 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-390 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  56 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-390 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  57 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-390 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  58 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › mobile-390: no route element overflows its own box
+  ok  59 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › mobile-390: exactly ONE renderer is in the layout
+  ok  60 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-375 · default: the page does not scroll sideways (mixed severities)
+  ok  61 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-375 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  62 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-375 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  63 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › mobile-375 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  64 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › mobile-375: no route element overflows its own box
+  ok  65 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › mobile-375: exactly ONE renderer is in the layout
+  ok  66 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › reflow-200 · default: the page does not scroll sideways (mixed severities)
+  ok  67 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › reflow-200 · long-title: the page does not scroll sideways (a filename nobody would shorten)
+  ok  68 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › reflow-200 · long-identifiers: the page does not scroll sideways (a request id longer than the panel)
+  ok  69 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:83:9 › reflow-200 · hundred-plus: the page does not scroll sideways (fifty rows and a next page)
+  ok  70 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:92:7 › reflow-200: no route element overflows its own box
+  ok  71 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:103:7 › reflow-200: exactly ONE renderer is in the layout
+  ok  72 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:118:5 › the cutover happens at the declared width, from both sides
+  ok  73 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:136:5 › every summary card carries a NUMBER, never an empty caption
+  ok  74 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:153:5 › the summary cards share one geometry
+  ok  75 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:171:5 › a zero-value card keeps its full surface
+  ok  76 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:183:5 › an open listbox is not clipped by the toolbar it opens from
+  ok  77 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:214:5 › the LAST row's action menu is not truncated by the table surface
+  ok  78 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › desktop-1440: the inspector stays inside the viewport
+  ok  79 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › laptop-1280: the inspector stays inside the viewport
+  ok  80 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › tablet-landscape-1024: the inspector stays inside the viewport
+  ok  81 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › tablet-768: the inspector stays inside the viewport
+  ok  82 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › mobile-430: the inspector stays inside the viewport
+  ok  83 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › mobile-390: the inspector stays inside the viewport
+  ok  84 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › mobile-375: the inspector stays inside the viewport
+  ok  85 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:230:7 › reflow-200: the inspector stays inside the viewport
+  ok  86 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:243:5 › a long identifier is bounded and LTR-isolated, not a horizontal scroll
+  ok  87 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:270:5 › opening the inspector does not move the queue
+  ok  88 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › desktop-1440: mirrors in Arabic without overflowing
+  ok  89 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › laptop-1280: mirrors in Arabic without overflowing
+  ok  90 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › tablet-landscape-1024: mirrors in Arabic without overflowing
+  ok  91 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › tablet-768: mirrors in Arabic without overflowing
+  ok  92 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › mobile-430: mirrors in Arabic without overflowing
+  ok  93 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › mobile-390: mirrors in Arabic without overflowing
+  ok  94 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › mobile-375: mirrors in Arabic without overflowing
+  ok  95 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:302:7 › reflow-200: mirrors in Arabic without overflowing
+  ok  96 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:313:5 › RTL puts the summary tone rail on the logical inline-start edge
+  ok  97 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:350:5 › German-length titles do not break the row
+  ok  98 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:362:5 › a long title is clamped rather than pushing the columns off the surface
+  ok  99 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:382:5 › clear: an empty COMPLETE unfiltered read says so, and offers tenant destinations
+  ok 100 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:394:5 › filtered empty is NOT clear
+  ok 101 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:416:5 › truncated is NOT clear, and offers the rest of the collection
+  ok 102 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:426:5 › a failed incident read is unavailable, never clear
+  ok 103 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:433:5 › a failed summary degrades the strip and leaves the queue standing
+  ok 104 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:443:5 › no failure leaks a provider or database string
+  ok 105 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:457:5 › one incident renders one row, with the same anatomy as fifty
+  ok 106 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:469:5 › a large page offers a bounded next page rather than an unbounded DOM
+  ok 107 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:478:5 › overdue posture is a WORD as well as a colour
+  ok 108 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:518:7 › false-clear sweep — unavailable-incidents: cannot say "clear" because the incident source failed
+  ok 109 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:518:7 › false-clear sweep — degraded-summary: cannot say "clear" because the summary source failed
+  ok 110 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:518:7 › false-clear sweep — truncated: cannot say "clear" because the population was truncated
+  ok 111 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:518:7 › false-clear sweep — filtered-empty: cannot say "clear" because a filter excluded everything
+  ok 112 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:532:5 › freshness is stamped only after a source actually succeeded
+  ok 113 [operations-layout] › e2e\operations-layout\operations-responsive.spec.ts:546:5 › a timeout is a failure, not an empty collection
+  ok 114 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 320px in en: no horizontal scroll, sections in the reader's language
+  ok 115 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 375px in en: no horizontal scroll, sections in the reader's language
+  ok 116 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 768px in en: no horizontal scroll, sections in the reader's language
+  ok 117 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 1024px in en: no horizontal scroll, sections in the reader's language
+  ok 118 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 1440px in en: no horizontal scroll, sections in the reader's language
+  ok 119 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 320px in de: no horizontal scroll, sections in the reader's language
+  ok 120 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 375px in de: no horizontal scroll, sections in the reader's language
+  ok 121 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 768px in de: no horizontal scroll, sections in the reader's language
+  ok 122 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 1024px in de: no horizontal scroll, sections in the reader's language
+  ok 123 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 1440px in de: no horizontal scroll, sections in the reader's language
+  ok 124 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 320px in ar: no horizontal scroll, sections in the reader's language
+  ok 125 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 375px in ar: no horizontal scroll, sections in the reader's language
+  ok 126 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 768px in ar: no horizontal scroll, sections in the reader's language
+  ok 127 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 1024px in ar: no horizontal scroll, sections in the reader's language
+  ok 128 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:49:9 › simple page at 1440px in ar: no horizontal scroll, sections in the reader's language
+  ok 129 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:65:5 › 200% zoom: the page reflows, the drawer fits, Escape closes it and focus returns
+  ok 130 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:89:7 › acknowledging is announced in the live region, in en
+  ok 131 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:89:7 › acknowledging is announced in the live region, in de
+  ok 132 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:89:7 › acknowledging is announced in the live region, in ar
+  ok 133 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:104:5 › a dark colour-scheme preference does not switch the workbench to a dark theme
+  ok 134 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:118:5 › OPS-030 Stop notifying asks why, confirms, and sends the reason
+  ok 135 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:138:5 › OPS-011 a bulk run the server reports COMPLETED is counted as done
+  ok 136 [operations-layout] › e2e\operations-layout\operations-truth-a11y.spec.ts:158:5 › OPS-036 a failed grouped read is unavailable, never '0 groups' and never clear
+  136 passed (3.1m)

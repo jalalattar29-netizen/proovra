@@ -1,0 +1,17 @@
+Batch 11 — GREEN on the fix branch
+
+  services/api  test/operations-remediation-registry.test.ts                      48 passed
+                  ✓ an exhausted technical terminal offers only the supersession
+                  ✓ a recoverable failure offers only the recovery
+                  ✓ a record whose own decision runs nothing is offered neither action
+                  ✓ an unread record keeps both, rather than guessing
+  services/api  test/operations-truth-recovery.integration.test.ts
+                  ✓ OPS-013 an exhausted report failure offers 'Retry after exhausted failure' to an operator with operations.resolve only
+  apps/web      __tests__/render/operations-workbench.render.test.tsx               144 passed
+                  ✓ OPS-011 a fully successful bulk run reads 'N of N updated' (the runner writes COMPLETED)
+  browser       e2e/operations-layout/operations-truth-a11y.spec.ts (production build)
+                  ok OPS-011 a bulk run the server reports COMPLETED is counted as done
+                  ok OPS-030 Stop notifying asks why, confirms, and sends the reason
+                  ok OPS-036 a failed grouped read is unavailable, never '0 groups' and never clear
+
+Full logs: final-api-integration-GREEN.txt (88/88), final-browser-matrix-GREEN.txt (136/136).

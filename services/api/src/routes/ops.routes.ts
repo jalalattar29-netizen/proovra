@@ -1789,7 +1789,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const remediationRecord: {
         otsStatus: string | null;
         otsFailureReason: string | null;
-        outputExhausted?: boolean | null;
+        outputRecovery?: "SUPERSEDE" | "RECOVER" | "NONE" | null;
       } | null = detail.relatedEvidenceId
         ? await prisma.evidence
             .findFirst({
@@ -1815,9 +1815,12 @@ export async function opsRoutes(app: FastifyInstance) {
             callerMayGenerate: true,
             callerMaySupersede: true,
           });
-          remediationRecord.outputExhausted =
-            decided.report.supersedesTechnicalTerminal === true ||
-            decided.verificationPackage.supersedesTechnicalTerminal === true;
+          const outputs = [decided.report, decided.verificationPackage];
+          remediationRecord.outputRecovery = outputs.some((d) => d.supersedesTechnicalTerminal === true)
+            ? "SUPERSEDE"
+            : outputs.some((d) => d.action !== "NONE")
+              ? "RECOVER"
+              : "NONE";
         }
       }
       const remediation = resolveRemediations(

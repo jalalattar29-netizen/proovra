@@ -837,6 +837,16 @@ test.describe("Journey E — Enterprise roll-up, drilldown and action on the ori
     await expect
       .poll(() => sql("SELECT status FROM operational_incidents WHERE id = $1", [own[2]])[0]!.status, { timeout: 30_000 })
       .toBe("ACKNOWLEDGED");
+    // OPS-029 — a source whose closure is a human decision asks for that
+    // decision in writing: Resolve waits for the note, and the note is kept.
+    const resolveButton = drawer.locator('[data-ops-action="resolve"]');
+    await expect(resolveButton).toBeDisabled();
+    await drawer.locator("[data-ops-resolution-note-input]").fill("Accepted as policy for this workspace.");
+    await expect(resolveButton).toBeEnabled();
+    await resolveButton.click();
+    await expect
+      .poll(() => sql("SELECT status, resolution_note FROM operational_incidents WHERE id = $1", [own[2]])[0], { timeout: 30_000 })
+      .toEqual({ status: "RESOLVED", resolution_note: "Accepted as policy for this workspace." });
     const fingerprint = String(sql("SELECT fingerprint FROM operational_incidents WHERE id = $1", [own[2]])[0]!.fingerprint);
     expect(sql("SELECT count(*)::int AS n FROM operational_incidents WHERE fingerprint = $1", [fingerprint])[0]!.n).toBe(1);
 

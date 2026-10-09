@@ -3719,11 +3719,13 @@ describe("Operations truth closure — web", () => {
       fireEvent.click(q('[data-ops-bulk-action="acknowledge"]') as HTMLElement);
     });
     await settle();
-    // Every target moved, so the selection clears and the toolbar goes with
-    // it; the outcome is announced. Before OPS-011 the row stayed selected
-    // under "0 of 1 updated. 1 could not be changed".
+    // Every target moved, so the selection clears and the action toolbar goes
+    // with it; the outcome is announced AND stays on screen. Before OPS-011
+    // the row stayed selected under "0 of 1 updated. 1 could not be changed";
+    // after the first fix the answer vanished with the toolbar.
     expect(q("[data-ops-live]")?.textContent).toBe("1 of 1 updated.");
     expect(q("[data-ops-bulk-toolbar]")).toBeNull();
+    expect(q("[data-ops-bulk-outcome]")?.textContent).toBe("1 of 1 updated.");
   });
 
   it("OPS-032 Refresh asks for a NEW check of the sources, explicitly, then re-reads", async () => {

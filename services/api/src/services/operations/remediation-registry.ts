@@ -688,13 +688,16 @@ export type RemediationContext = {
     otsStatus: string | null;
     otsFailureReason: string | null;
     /**
-     * The record's OWN output decision (`resolveEvidenceOutputActions`): is
-     * its failed report/package an exhausted TECHNICAL terminal? Then only the
-     * supersession can move it, and a plain recovery would collapse onto the
-     * terminal and do nothing — so exactly one of the two is offered. Null or
-     * absent when the record's outputs were not read; both stay offered.
+     * What the record's OWN output decision (`resolveEvidenceOutputActions`)
+     * allows for its report/package:
+     *   SUPERSEDE — an exhausted TECHNICAL terminal: only the supersession can
+     *               move it (a plain recovery would collapse onto the terminal);
+     *   RECOVER   — the plain recovery would run;
+     *   NONE      — nothing would run (not entitled, restricted, in progress,
+     *               or nothing missing): neither action is offered.
+     * Null or absent when the record's outputs were not read; both stay offered.
      */
-    outputExhausted?: boolean | null;
+    outputRecovery?: "SUPERSEDE" | "RECOVER" | "NONE" | null;
   } | null;
   /** Server-resolved permissions for THIS caller in THIS workspace. */
   can: (permission: RemediationPermission) => boolean;
@@ -801,11 +804,12 @@ export function resolveRemediations(
   // ONE primary action. Where the entry pairs a recovery with the supersession
   // of an exhausted failure, the record's own output decision picks the one
   // that can actually move it.
-  const exhausted = ctx.record?.outputExhausted;
+  const decided = ctx.record?.outputRecovery ?? null;
   const pairedWithSupersede = entry.secondaryAction?.actionId === SUPERSEDE_FAILED_GENERATION.actionId;
+  const decides = pairedWithSupersede && decided !== null;
   const actions = [
-    ...(pairedWithSupersede && exhausted === true ? [] : offered(entry.action)),
-    ...(pairedWithSupersede && exhausted === false ? [] : offered(entry.secondaryAction)),
+    ...(decides && decided !== "RECOVER" ? [] : offered(entry.action)),
+    ...(decides && decided !== "SUPERSEDE" ? [] : offered(entry.secondaryAction)),
   ];
 
   // A destination the reader cannot open is withheld, not rendered and

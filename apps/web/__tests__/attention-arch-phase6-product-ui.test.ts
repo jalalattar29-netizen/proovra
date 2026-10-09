@@ -221,9 +221,16 @@ test("a read-only operator gets NO mutation controls and no empty action column"
   // surface is not the caller's to remember cannot repeat that.
   const MENU = read("components/app-primitives/AppRowMenu.tsx");
   assert.match(MENU, /if \(actions\.length === 0\) return null;/);
-  // And the bulk toolbar never mounts without a selection.
+  // And the bulk toolbar offers no control without a selection. With nothing
+  // selected it renders at most the answer to the run that just emptied the
+  // selection (OPS-011) — text, never a button.
   const BULK = read("app/(app)/operations/_components/BulkToolbar.tsx");
-  assert.match(BULK, /if \(count === 0\) return null;/);
+  const empty = /if \(count === 0\) \{([\s\S]*?)\n  \}/.exec(BULK);
+  assert.ok(empty, "the empty-selection branch exists");
+  assert.match(empty![1], /return outcome \? \(/);
+  assert.match(empty![1], /data-ops-bulk-outcome/);
+  assert.match(empty![1], /\) : null;/);
+  assert.doesNotMatch(empty![1], /<button|<Button|onClick/);
 });
 
 test("the single-operator shape falls out of capabilities, not a fork", () => {

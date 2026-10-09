@@ -438,8 +438,8 @@ describe("remediation authorization is the domain's, not Operations'", () => {
 });
 
 describe("one primary recovery action, chosen by the record's own output decision", () => {
-  const ctx = (outputExhausted: boolean | null | undefined) => ({
-    record: { otsStatus: null, otsFailureReason: null, outputExhausted },
+  const ctx = (outputRecovery: "SUPERSEDE" | "RECOVER" | "NONE" | null | undefined) => ({
+    record: { otsStatus: null, otsFailureReason: null, outputRecovery },
     can: () => true,
     hasPermission: () => true,
     workspaceCanMutate: true,
@@ -451,14 +451,20 @@ describe("one primary recovery action, chosen by the record's own output decisio
     fingerprint: "REPORT:11111111-1111-4111-8111-111111111111:v1:RETRY_BUDGET_EXHAUSTED",
     relatedEvidenceId: "11111111-1111-4111-8111-111111111111",
   };
-  const ids = (o: boolean | null | undefined) =>
+  const ids = (o: "SUPERSEDE" | "RECOVER" | "NONE" | null | undefined) =>
     resolveRemediations(incident, ctx(o)).actions.map((a) => a.actionId);
 
   it("an exhausted technical terminal offers only the supersession", () => {
-    expect(ids(true)).toEqual(["report.supersede_failed_generation"]);
+    expect(ids("SUPERSEDE")).toEqual(["report.supersede_failed_generation"]);
   });
   it("a recoverable failure offers only the recovery", () => {
-    expect(ids(false)).toEqual(["report.regenerate_artifacts"]);
+    expect(ids("RECOVER")).toEqual(["report.regenerate_artifacts"]);
+  });
+  it("a record whose own decision runs nothing is offered neither action", () => {
+    const projected = resolveRemediations(incident, ctx("NONE"));
+    expect(projected.actions).toEqual([]);
+    // The record is still one click away.
+    expect(projected.deepLink?.href).toBe("/evidence/11111111-1111-4111-8111-111111111111?tab=artifacts");
   });
   it("an unread record keeps both, rather than guessing", () => {
     expect(ids(null)).toEqual(["report.regenerate_artifacts", "report.supersede_failed_generation"]);

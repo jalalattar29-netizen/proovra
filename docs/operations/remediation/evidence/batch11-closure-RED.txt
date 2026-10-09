@@ -1,0 +1,21 @@
+Batch 11 — closure defects found by the browser matrix and the final integration run
+
+1. OPS-011 — a fully successful bulk run showed no result on screen
+   Observed (browser matrix, production build): after "Acknowledge" on two selected conditions the
+   selection cleared and BulkToolbar unmounted (`if (count === 0) return null`), taking
+   [data-ops-bulk-outcome] with it — "2 of 2 updated." was announced but never drawn.
+   apps/web render "OPS-011 a fully successful bulk run reads 'N of N updated'" with the old early
+   return restored:
+     × Operations truth closure — web > OPS-011 a fully successful bulk run reads 'N of N updated' (the runner writes COMPLETED)
+     Tests  1 failed | 143 skipped (144)
+
+2. OPS-013 / OPS-028 — a record whose own output decision runs nothing was still offered a recovery
+   Observed (final integration run): a report condition over a record that is not entitled to reports
+   (decision NONE / NOT_INCLUDED) was offered "Recover report or package", which the server refuses.
+   services/api test/operations-remediation-registry.test.ts with the NONE case disabled:
+     × one primary recovery action, chosen by the record's own output decision > a record whose own decision runs nothing is offered neither action
+       → expected [ { …(6) }, { …(6) } ] to deeply equal []
+     Tests  1 failed | 47 passed (48)
+   services/api test/operations-truth-recovery.integration.test.ts "OPS-013 ..." against the batch-10
+   projection (fixture without an exhausted request, not entitled):
+     → expected [ 'report.regenerate_artifacts' ] to include 'report.supersede_failed_generation'

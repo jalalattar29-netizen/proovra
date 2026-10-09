@@ -92,7 +92,17 @@ export function BulkToolbar({
 
   const canAssign = showOwnership && capabilities.canAssign && operators.length > 0;
 
-  if (count === 0) return null;
+  // A run that moved every selected condition leaves nothing selected — which
+  // is exactly when its answer matters. Unmounting here took the outcome with
+  // it, so a sighted operator saw no result at all. The line stays; it is not
+  // a live region, because the page's own live region already announced it.
+  if (count === 0) {
+    return outcome ? (
+      <p className="opsw-bulk__outcome" data-ops-bulk-outcome>
+        {outcome}
+      </p>
+    ) : null;
+  }
   return (
     <div
       className="opsw-bulk"

@@ -1,14 +1,15 @@
 Executed full-stack journeys A–F — one serial run, chromium project, local disposable stack
 (PostgreSQL 16 + pgvector, Redis 7, versioned MinIO, API, worker with the production report renderer,
  web next dev, PayPal played by the journey's local stub). Captured 2026-10-09 on the fix branch.
+Journey E includes the OPS-029 drawer resolve with a required note.
 
-  ok 1 [chromium] › e2e\operations-truth-journeys.spec.ts:162:7 › Journey A — report failure to recovery, through Operations › a real report job fails in the worker and raises one exact condition (1.2m)
-  ok 2 [chromium] › e2e\operations-truth-journeys.spec.ts:217:7 › Journey A — report failure to recovery, through Operations › Operations offers the canonical recovery; the worker builds the report; the condition resolves in the page (13.9s)
-  ok 3 [chromium] › e2e\operations-truth-journeys.spec.ts:380:7 › Journey B — billing/storage mismatch, through Operations and Billing › the provider and local state disagree; the payer's workspace shows it; Resolve is refused (7.9s)
-  ok 4 [chromium] › e2e\operations-truth-journeys.spec.ts:437:7 › Journey B — billing/storage mismatch, through Operations and Billing › a failed retry keeps it owed and open; the provider confirms; the condition closes from source truth (15.9s)
-  ok 5 [chromium] › e2e\operations-truth-journeys.spec.ts:519:7 › Journey C — TSA/OTS truth, through Operations › a failed timestamp opens; an unvalidated token does not close it; a validated one does (17.2s)
-  ok 6 [chromium] › e2e\operations-truth-journeys.spec.ts:557:7 › Journey C — TSA/OTS truth, through Operations › a failed OTS anchor opens; pending stays open; only an anchored proof closes it (15.7s)
-  ok 7 [chromium] › e2e\operations-truth-journeys.spec.ts:638:7 › Journey D — queue failures belong to the platform, not the customer › a real final failure is ONE platform condition the Platform Admin sees and the customer does not; replay refuses what it must (1.7m)
-  ok 8 [chromium] › e2e\operations-truth-journeys.spec.ts:773:7 › Journey E — Enterprise roll-up, drilldown and action on the original › totals equal the authorized union; filters and pages; the drilldown opens and acts on the original (18.9s)
-  ok 9 [chromium] › e2e\operations-truth-journeys.spec.ts:930:7 › Journey F — the permission matrix, by direct API call › every actor's reads and actions match the canonical capability decision (20.8s)
-  9 passed (4.7m)
+  ok 1 [chromium] › e2e\operations-truth-journeys.spec.ts:162:7 › Journey A — report failure to recovery, through Operations › a real report job fails in the worker and raises one exact condition (2.1m)
+  ok 2 [chromium] › e2e\operations-truth-journeys.spec.ts:217:7 › Journey A — report failure to recovery, through Operations › Operations offers the canonical recovery; the worker builds the report; the condition resolves in the page
+  ok 3 [chromium] › e2e\operations-truth-journeys.spec.ts:380:7 › Journey B — billing/storage mismatch, through Operations and Billing › the provider and local state disagree; the payer's workspace shows it; Resolve is refused
+  ok 4 [chromium] › e2e\operations-truth-journeys.spec.ts:437:7 › Journey B — billing/storage mismatch, through Operations and Billing › a failed retry keeps it owed and open; the provider confirms; the condition closes from source truth
+  ok 5 [chromium] › e2e\operations-truth-journeys.spec.ts:519:7 › Journey C — TSA/OTS truth, through Operations › a failed timestamp opens; an unvalidated token does not close it; a validated one does
+  ok 6 [chromium] › e2e\operations-truth-journeys.spec.ts:557:7 › Journey C — TSA/OTS truth, through Operations › a failed OTS anchor opens; pending stays open; only an anchored proof closes it
+  ok 7 [chromium] › e2e\operations-truth-journeys.spec.ts:638:7 › Journey D — queue failures belong to the platform, not the customer › a real final failure is ONE platform condition the Platform Admin sees and the customer does not; replay refuses what it must (1.3m)
+  ok 8 [chromium] › e2e\operations-truth-journeys.spec.ts:773:7 › Journey E — Enterprise roll-up, drilldown and action on the original › totals equal the authorized union; filters and pages; the drilldown opens and acts on the original
+  ok 9 [chromium] › e2e\operations-truth-journeys.spec.ts:940:7 › Journey F — the permission matrix, by direct API call › every actor's reads and actions match the canonical capability decision
+  9 passed (5.7m)

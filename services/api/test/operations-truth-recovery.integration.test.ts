@@ -247,19 +247,41 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
   });
 
   it("OPS-013 an exhausted report failure offers 'Retry after exhausted failure' to an operator with operations.resolve only", async () => {
-    const a = c.h.fixtures.teamA;
+    // A workspace whose records are entitled to reports — otherwise the
+    // record's own decision is "nothing runs" and neither action is offered.
+    const owner = await makeUser(c, "ops013-owner", { plan: "TEAM" });
+    const viewerUser = await makeUser(c, "ops013-viewer");
+    const w = await makeWorkspace(c, owner.id, { name: "ops013", billingPlan: "TEAM", billingStatus: "ACTIVE" });
+    await addMember(c, w.teamId, viewerUser.id, "VIEWER");
+    const a = { teamId: w.teamId, ownerUserId: owner.id, ownerToken: owner.token, viewerToken: viewerUser.token };
     const ev = await seedEvidence(c, a.teamId, a.ownerUserId);
+    // EXHAUSTED for real: the record's durable request spent its budget. The
+    // offer is read from the record's own output decision, so a condition
+    // that merely says "exhausted" over a record that is not is offered the
+    // plain recovery instead (see operations-remediation-registry.test.ts).
+    await c.prisma.reportGenerationRequest.create({
+      data: {
+        teamId: a.teamId,
+        evidenceId: ev.id,
+        artifactType: "REPORT",
+        idempotencyKey: `REPORT:${ev.id}:v0`,
+        state: "FAILED_TERMINAL",
+        terminalReasonCode: "retry_budget_exhausted",
+        attemptCount: 12,
+      } as never,
+    });
     const row = await seedIncident(c, a.teamId, {
       sourceId: "pipeline.report_generation_failed",
       category: "REPORT",
-      fingerprint: `REPORT:${ev.id}:RENDER_FAILED`,
+      fingerprint: `REPORT:${ev.id}:v1:RETRY_BUDGET_EXHAUSTED`,
       relatedEvidenceId: ev.id,
     });
     const actionsFor = async (token: string) =>
       ((await c.inj("GET", `/v1/ops/incidents/${row.id}?teamId=${a.teamId}`, token)).json().remediation?.actions ?? []).map(
         (x: { actionId: string }) => x.actionId,
       );
-    expect(await actionsFor(a.ownerToken)).toContain("report.supersede_failed_generation");
+    // ONE primary action: the supersession, not the recovery beside it.
+    expect(await actionsFor(a.ownerToken)).toEqual(["report.supersede_failed_generation"]);
     expect(await actionsFor(a.viewerToken)).not.toContain("report.supersede_failed_generation");
     const link = (await c.inj("GET", `/v1/ops/incidents/${row.id}?teamId=${a.teamId}`, a.ownerToken)).json().remediation.deepLink;
     expect(link.href).toBe(`/evidence/${ev.id}?tab=artifacts`);
