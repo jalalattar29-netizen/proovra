@@ -216,6 +216,8 @@ describe("Fail-closed identity and audience (live PostgreSQL 16)", () => {
       incidentId: id,
       teamId: team.teamId,
       actorUserId: team.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
       resolutionNote: "silenced pending investigation",
     });
     expect(suppressed.status).toBe("SUPPRESSED");
@@ -372,12 +374,13 @@ describe("Fail-closed identity and audience (live PostgreSQL 16)", () => {
 
   it("a TENANT_ADVISORY condition IS visible, and offers no Resolve", async () => {
     // The distinction the audience field exists to make: the tenant cannot
-    // repair their queue telemetry sampler, and they are still entitled to
-    // know their own telemetry is dark.
+    // rebuild their search index by hand, and they are still entitled to know
+    // it is behind. (This used the queue-telemetry sampler, which was retired
+    // as a fake signal in OPS-001 and is now platform-internal.)
     const id = await rawCondition({
-      sourceId: "platform.telemetry_stale",
-      fingerprint: `dashboard:telemetry:queue_stale:${team.teamId}`,
-      category: "WORKER",
+      sourceId: "search.indexing_failure",
+      fingerprint: `search:index_reconciliation:${team.teamId}`,
+      category: "RECONCILIATION",
     });
     const page = await incidents.listIncidents({
       teamId: team.teamId,

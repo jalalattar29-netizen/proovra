@@ -596,6 +596,8 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
       incidentId: opened.id,
       teamId: team.teamId,
       actorUserId: team.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
     });
     await reconcile(team.teamId);
     await reconcile(team.teamId);
@@ -615,6 +617,8 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
       incidentId: opened.id,
       teamId: team.teamId,
       actorUserId: team.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
     });
 
     // Domain truth outranks a suppression: leaving it suppressed-but-fixed
@@ -793,38 +797,37 @@ describe("Aggregate Operations conditions (live PostgreSQL 16)", () => {
   }, 300_000);
 
   it("a TENANT_ADVISORY platform condition is never manually resolvable", async () => {
-    // Telemetry staleness is SOURCE_TRUTH and TENANT_ADVISORY: the workspace
-    // cannot restart the sampler, and the condition closes when a snapshot
-    // lands. Written directly because the sweep only produces it under a real
-    // stale sampler, which a test must not fabricate by moving the clock.
-    const spec = probes
-      .aggregateSpecs()
-      .find((s) => s.sourceId === "platform.telemetry_stale")!;
-    const fp = probes.aggregateFingerprint(spec, team.teamId);
+    // Search-index readiness is SOURCE_TRUTH and TENANT_ADVISORY: the
+    // workspace cannot rebuild the index by hand, and the condition closes
+    // when the index is proven complete. (This case used the queue-telemetry
+    // sampler, retired as a fake signal in OPS-001.)
+    const { searchIndexFingerprint, SEARCH_INDEX_SOURCE_ID } = await import(
+      "../src/services/operations/search-index-conditions.service.js"
+    );
+    const fp = searchIndexFingerprint(team.teamId);
+    const category = "RECONCILIATION" as const;
     created.teamIds.add(team.teamId);
     const { incident } = await incidents.recordIncident({
-      // The SPEC's own source. Declared, not inferred — which is the whole
-      // reason this case can assert what it asserts below.
-      sourceId: spec.sourceId,
+      // The source, declared — which is the whole reason this case can assert
+      // what it asserts below.
+      sourceId: SEARCH_INDEX_SOURCE_ID,
       teamId: team.teamId,
-      category: spec.category,
+      category,
       severity: "WARNING",
       fingerprint: fp,
-      title: spec.stableTitle,
-      safeSummary: spec.describe({ value: 45 }),
+      title: "Search index reconciliation failing",
+      safeSummary: "The search index is behind its records.",
     });
 
     const projected = incidents.projectIncident(incident);
-    expect(projected.lifecycle.sourceId).toBe("platform.telemetry_stale");
+    expect(projected.lifecycle.sourceId).toBe(SEARCH_INDEX_SOURCE_ID);
     expect(projected.lifecycle.audience).toBe("TENANT_ADVISORY");
     // No Resolve control is offered…
     expect(projected.lifecycle.manualResolution).toBe(false);
-    // …and a request that arrives anyway is refused server-side. There is no
-    // stale snapshot in a freshly-booted harness, so the probe answers
-    // RECOVERED or UNKNOWN — never a silent success on a platform condition
-    // the tenant cannot observe.
+    // …and its state comes from the source, never from a person: the probe
+    // answers what the index says, never a silent success.
     const activity = await incidents.probeConditionActivity(
-      { category: spec.category, fingerprint: fp, teamId: team.teamId },
+      { category, fingerprint: fp, teamId: team.teamId },
       prisma,
     );
     expect(["ACTIVE", "RECOVERED", "UNKNOWN"]).toContain(activity);

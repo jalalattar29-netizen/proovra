@@ -490,7 +490,7 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
       const asViewer = await post(
         `/v1/ops/incidents/${row.id}/suppress`,
         harness.fixtures.teamA.viewerToken,
-        { teamId: A.teamId },
+        { teamId: A.teamId, reason: "Known and accepted for now" },
       );
       expect(asViewer.statusCode).not.toBe(200);
       expect(
@@ -502,7 +502,7 @@ describe("Operations — correlation and lifecycle (live PostgreSQL 16)", () => 
     it("SUPPRESSED leaves the unresolved population and stays readable", async () => {
       const row = await seedOne();
       await post(`/v1/ops/incidents/${row.id}/suppress`, A.ownerToken, {
-        teamId: A.teamId,
+        teamId: A.teamId, reason: "Known and accepted for now"
       });
 
       // Asserted about THIS CONDITION, not about a workspace-wide count.

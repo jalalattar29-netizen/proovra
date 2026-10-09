@@ -295,6 +295,8 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
       incidentId: id,
       teamId: team.teamId,
       actorUserId: team.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
     });
     expect(suppressed.status).toBe("SUPPRESSED");
   }, 300_000);
@@ -347,6 +349,8 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
       incidentId: id,
       teamId: team.teamId,
       actorUserId: team.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
     });
     await recordCheck(evidenceId, "OK");
 
@@ -551,12 +555,31 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
     expect(await searchCondition()).toBeNull();
   }, 300_000);
 
+  it("AN INDEX NOBODY HAS BUILT YET IS AN ADVISORY, NOT A FAILURE (OPS-017)", async () => {
+    await converge();
+    await evidenceRecord();
+    await evidenceRecord();
+    // No index documents and no reconciliation run recorded at all.
+    const outcome = await searchConditions.syncSearchIndexConditions({
+      teamId: team.teamId,
+    });
+    expect(outcome.active).toBe(true);
+    const condition = await searchCondition();
+    expect(condition).not.toBeNull();
+    expect(condition!.status).toBe("OPEN");
+    // Nothing has FAILED: nothing has run. It says so, and ranks as advice.
+    expect(condition!.severity).toBe("INFO");
+    expect(condition!.title).toBe("Search index not built yet");
+    expect(condition!.title).not.toMatch(/fail|[0-9]/i);
+  }, 300_000);
+
   it("PROVEN DRIFT OPENS A CONDITION — records outstanding, nothing working", async () => {
     await converge();
     await evidenceRecord();
     await evidenceRecord();
-    // No index documents and no run: the strongest evidence available that
-    // nothing is coming.
+    // No index documents, and the reconciliation that should have built them
+    // has already run and finished: nothing is coming.
+    await searchRun("SUCCEEDED");
     const outcome = await searchConditions.syncSearchIndexConditions({
       teamId: team.teamId,
     });
@@ -830,22 +853,18 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
   }, 300_000);
 
   // =========================================================================
-  // 5. THE FIVE REMAINING NON-PRODUCING SOURCES
+  // 5. THE REMAINING NON-PRODUCING SOURCES
   // =========================================================================
 
   it("the non-producing sources are not advertised as active coverage", () => {
     const notDiscovered = authority.OPERATIONS_SOURCE_LIFECYCLES.filter(
       (s) => s.discoveryState === "NOT_YET_DISCOVERED",
     );
-    // Five, not six: `search.indexing_failure` has a producer now.
+    // Four: `search.indexing_failure` has a producer, and so does
+    // `job.background_failure` — the platform writer records real BullMQ
+    // final failures once per scheduler tick (OPS-022).
     expect(notDiscovered.map((s) => s.sourceId).sort()).toEqual(
-      [
-        "ai.condition",
-        "database.condition",
-        "integration.configuration_failure",
-        "job.background_failure",
-        "storage.condition",
-      ].sort(),
+      ["ai.condition", "database.condition", "integration.configuration_failure", "storage.condition"].sort(),
     );
     for (const s of notDiscovered) {
       // No producer, no probe, and no way to declare one over. A source with

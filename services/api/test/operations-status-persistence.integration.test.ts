@@ -305,7 +305,8 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
 
     await prisma.evidence.update({
       where: { id: evidenceId },
-      data: { tsaStatus: "CONFIRMED" },
+      // OPS-019 — recovery is a VALIDATED token, not any non-FAILED label.
+      data: { tsaStatus: "STAMPED", tsaValidatedAtUtc: new Date() },
     });
     await reconcile(ctx.teamId);
 
@@ -339,7 +340,8 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
 
     await prisma.evidence.update({
       where: { id: evidenceId },
-      data: { tsaStatus: "CONFIRMED" },
+      // OPS-019 — recovery is a VALIDATED token, not any non-FAILED label.
+      data: { tsaStatus: "STAMPED", tsaValidatedAtUtc: new Date() },
     });
     await reconcile(ctx.teamId);
     expect((await conditionFor(evidenceId)).status).toBe("RESOLVED");
@@ -431,7 +433,8 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
 
     await prisma.evidence.update({
       where: { id: evidenceId },
-      data: { tsaStatus: "CONFIRMED" },
+      // OPS-019 — recovery is a VALIDATED token, not any non-FAILED label.
+      data: { tsaStatus: "STAMPED", tsaValidatedAtUtc: new Date() },
     });
     // Resolved by hand BEFORE any sweep observes the recovery, so this is the
     // operator's own transition and not the resolver's.
@@ -461,6 +464,8 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
       incidentId: opened.id,
       teamId: ctx.teamId,
       actorUserId: ctx.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
     });
 
     await reconcile(ctx.teamId);
@@ -492,6 +497,8 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
       incidentId: first.incident.id,
       teamId: ctx.teamId,
       actorUserId: ctx.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
     });
 
     // The very observation that used to erase it. This source never had the
@@ -713,6 +720,8 @@ describe("Operator state survives reconciliation (live PostgreSQL 16)", () => {
       incidentId: s.id,
       teamId: ctx.teamId,
       actorUserId: ctx.ownerUserId,
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
     });
 
     // The EXACT trigger the API schedules on boot. A restart used to be one of

@@ -674,10 +674,19 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     expect(after.req!.state).toBe("FAILED_TERMINAL");
     expect(after.req!.terminalReasonCode).toBe("retry_budget_exhausted");
     const incidents = await prisma.operationalIncident.findMany({
-      where: { teamId, fingerprint: `REPORT:${evidenceId}:RETRY_BUDGET_EXHAUSTED` },
-      select: { status: true, category: true, relatedEvidenceId: true },
+      // OPS-004 — the identity names the report VERSION the request was for.
+      where: { teamId, fingerprint: `REPORT:${evidenceId}:v1:RETRY_BUDGET_EXHAUSTED` },
+      select: { status: true, category: true, relatedEvidenceId: true, title: true },
     });
-    expect(incidents).toEqual([{ status: "OPEN", category: "REPORT", relatedEvidenceId: evidenceId }]);
+    expect(incidents).toEqual([
+      {
+        status: "OPEN",
+        category: "REPORT",
+        relatedEvidenceId: evidenceId,
+        // OPS-033 — the condition names its record.
+        title: `Report v1 stopped after its retry budget was exhausted — record ${evidenceId.slice(0, 8)}`,
+      },
+    ]);
   });
 
   // -------------------------------------------------------------------------

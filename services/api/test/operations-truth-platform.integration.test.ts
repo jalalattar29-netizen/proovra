@@ -47,6 +47,10 @@ describe("Operations truth closure — platform conditions (live PostgreSQL 16 +
     await c.prisma.workerLease.deleteMany({});
   }, 900_000);
   afterAll(async () => {
+    // The worker leases written below would go stale minutes later and let any
+    // LATER suite's sweep re-open the platform heartbeat condition in the
+    // shared database. Leave the fleet as this file found it: empty.
+    await c?.prisma.workerLease.deleteMany({ where: { workerId: { startsWith: "ops-truth-" } } });
     await c?.h.cleanup();
   });
 

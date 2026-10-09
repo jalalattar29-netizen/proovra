@@ -226,7 +226,8 @@ describe("Operations convergence (live PostgreSQL 16)", () => {
     // The record's own status leaves FAILED — the ONLY thing that resolves it.
     await prisma.evidence.update({
       where: { id },
-      data: { tsaStatus: "ANCHORED" },
+      // OPS-019 — recovery is a VALIDATED token, not any non-FAILED label.
+      data: { tsaStatus: "STAMPED", tsaValidatedAtUtc: new Date() },
     });
     const result = await sync(personal.teamId);
     expect(result.resolved).toBe(1);
@@ -241,7 +242,7 @@ describe("Operations convergence (live PostgreSQL 16)", () => {
   it("8. a resolved personal record that fails again reopens", async () => {
     const id = await personalFailing("tsa");
     await sync(personal.teamId);
-    await prisma.evidence.update({ where: { id }, data: { tsaStatus: "ANCHORED" } });
+    await prisma.evidence.update({ where: { id }, data: { tsaStatus: "STAMPED", tsaValidatedAtUtc: new Date() } });
     await sync(personal.teamId);
     expect(
       (

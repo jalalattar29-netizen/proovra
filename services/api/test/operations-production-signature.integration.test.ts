@@ -110,7 +110,9 @@ const EXPECTED_FAILED = [
   "evidence_integrity.tsa_failed",
   "pipeline.package_backlog",
   "pipeline.report_backlog",
-  "platform.telemetry_stale",
+  // `platform.telemetry_stale` was the sixth. It is RETIRED (OPS-001): the
+  // "sampler delayed" condition measured Home page loads, not the worker, so
+  // discovery no longer attempts it and it can no longer fail here.
   // -------------------------------------------------------------------------
   // IT WRITES NOW, SO IT FAILS WITH THE OTHER WRITERS.
   // -------------------------------------------------------------------------
@@ -141,6 +143,16 @@ const EXPECTED_SUCCEEDED = [
   //                             writes.
   "billing.dependent_cancellation_failed",
   "coordination.backlog_stale",
+  //   evidence_integrity.ots_budget_exhausted / ots_initialization_stalled,
+  //   identity.idp_outage, pipeline.package_generation_denied,
+  //   review.escalation
+  //                             (OPS-018) per-record sources that promise
+  //                             probe recovery are now SWEPT for it. The fixture
+  //                             has none open, so each reads and writes nothing.
+  "evidence_integrity.ots_budget_exhausted",
+  "evidence_integrity.ots_initialization_stalled",
+  "identity.idp_outage",
+  "pipeline.package_generation_denied",
   //   pipeline.package_generation_failed / pipeline.report_generation_failed
   //                             (2026-09-29) the same shape: the WORKER opens
   //                             these; the sweep only closes the ones whose
@@ -149,8 +161,11 @@ const EXPECTED_SUCCEEDED = [
   "pipeline.package_generation_failed",
   "pipeline.report_generation_failed",
   "pipeline.signed_without_report_aged",
-  "platform.worker_heartbeat_stale",
-  "queue.retry_storm",
+  // `platform.worker_heartbeat_stale` and `queue.retry_storm` were here. Both
+  // left workspace discovery (OPS-009: worker liveness is ONE platform
+  // condition, written by the platform writer; OPS-002: the "storm" counted
+  // re-observed conditions, not retries).
+  "review.escalation",
   "review.stale_workflows",
   // -------------------------------------------------------------------------
   // TWO SOURCES THE SWEEP DID NOT VISIT WHEN THIS SIGNATURE WAS CAPTURED.

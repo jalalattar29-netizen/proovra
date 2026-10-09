@@ -412,7 +412,12 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
         method: "POST",
         url: `/v1/ops/incidents/${id}/${verb}`,
         headers: { authorization: `Bearer ${A.ownerToken}` },
-        payload: { teamId: A.teamId, ...payload } as never,
+        // OPS-030 — a suppression states its reason, or does not happen.
+        payload: {
+          teamId: A.teamId,
+          ...(verb === "suppress" ? { reason: "Planned maintenance window" } : {}),
+          ...payload,
+        } as never,
       });
     }
 
@@ -712,7 +717,7 @@ describe("Incident SLA history (live PostgreSQL 16)", () => {
         method: "POST",
         url: `/v1/ops/incidents/${id}/suppress`,
         headers: { authorization: `Bearer ${B.ownerToken}` },
-        payload: { teamId: B.teamId } as never,
+        payload: { teamId: B.teamId, reason: "Known and accepted for now" } as never,
       });
       expect(res.statusCode).toBe(404);
       const after = await prisma.operationalIncident.findUniqueOrThrow({

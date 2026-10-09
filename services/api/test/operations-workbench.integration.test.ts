@@ -812,7 +812,7 @@ describe("Operations workbench — server contract (live PostgreSQL 16)", () => 
       expect(before.critical).toBe(1);
 
       await post(`/v1/ops/incidents/${row.id}/suppress`, A.ownerToken, {
-        teamId: A.teamId,
+        teamId: A.teamId, reason: "Known and accepted for now"
       });
 
       const after = JSON.parse(

@@ -82,6 +82,12 @@ const PAGES = [
      assertions apply to them exactly as before. */
   "/security-center/identity",
   "/admin/operations",
+  /* The WARNING role, measured where the fixture holds a TRUE warning: its
+     acknowledged WARNING-severity condition. After the Operations truth
+     closure none of the other pages here renders a warning-toned status on
+     this fixture (no worker runs in it, and the page-load "telemetry" that
+     invented one was retired with OPS-001/OPS-022). */
+  "/admin/operations?status=ACKNOWLEDGED",
   "/admin/platform/queues",
   /* The one page with a tablist. §B10 owns its behaviour; this is here so the
      SELECTED-TAB colour is measured rather than assumed. */
