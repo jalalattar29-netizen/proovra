@@ -43,7 +43,10 @@ import {
 import { syncEvidenceIntegrityConditions } from "../operations/evidence-integrity-conditions.service.js";
 import { syncDependentCancellationConditions } from "../billing/dependent-cancellation-conditions.service.js";
 import { syncSearchIndexConditions } from "../operations/search-index-conditions.service.js";
-import { sweepSourceTruthRecoveries } from "../operations/source-truth-recovery.service.js";
+import {
+  probeRecoverablePerRecordSourceIds,
+  sweepSourceTruthRecoveries,
+} from "../operations/source-truth-recovery.service.js";
 // COMMERCIAL CLOSURE (2026-09-08) — keeps a commercial product decision out of
 // the artifact-backlog conditions this sweep opens.
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
@@ -414,52 +417,31 @@ export async function generateIncidentsForWorkspace(
   }
 
   // -------------------------------------------------------------------------
-  // IMMUTABLE STORAGE DRIFT — recovery only.
+  // SOURCE-TRUTH RECOVERY FOR EVERY PER-RECORD SOURCE THAT PROMISES IT.
   //
-  // The Worker's reconciler OPENS these and never closed them, which was
-  // survivable only because the source used to be operator-closable. It is
-  // source truth now, so something has to read the reconciler's newest verdict
-  // and close the conditions it has cleared — otherwise a source with no
-  // Resolve control and no recovery sweep would be a permanently stuck row,
-  // which is the failure this reclassification is accused of causing and must
-  // not actually cause.
+  // OPS-003 / OPS-018 — the list of sources swept here used to be written by
+  // hand (immutable drift, then the two pipeline bridges), and every source
+  // left off it was a promise with nothing behind it: a personal storage
+  // add-on, an OTS budget exhaustion, a package denial, a review escalation
+  // and an identity-provider outage all declared PROBE_AUTO_RESOLVE and none
+  // was ever probed, so each stayed open after its source recovered.
   //
-  // DISCOVERY IS NOT THE PRODUCER HERE. This opens nothing; the reconciler
-  // remains the only writer that raises an immutable-drift condition.
-  // -------------------------------------------------------------------------
-  {
-    const sourceId = "storage.immutable_drift";
-    attempted.push(sourceId);
-    try {
-      await sweepSourceTruthRecoveries({
-        teamId: ctx.teamId,
-        sourceId,
-      });
-      successful.push(sourceId);
-    } catch (err) {
-      failSource([sourceId], "SCAN", err);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // EVIDENCE OUTPUT LIFECYCLE (2026-09-29) — THE PIPELINE BRIDGES RESOLVE FROM
-  // SOURCE TRUTH TOO.
+  // The set is now DERIVED from the lifecycle registry — every PER_RECORD
+  // source whose contract is SOURCE_TRUTH + PROBE_AUTO_RESOLVE with a probe —
+  // so declaring the promise is what makes it kept. AGGREGATE sources are
+  // resolved by the aggregate loop above; platform sources by the platform
+  // writer. Sweeping a source discovery already reconciled is harmless: the
+  // probe is the one predicate, and RECOVERED closes once.
   //
-  // Both sources were declared PROBE_AUTO_RESOLVE and no scheduler ever swept
-  // them, so a condition stayed open until a person closed it — and the
-  // manual close was allowed while the package was still missing (see the
-  // probe). The worker opens these conditions; this reads the now
-  // version-aware probes and closes exactly the ones whose artifact exists at
-  // the version the condition names. DISCOVERY IS NOT THE PRODUCER HERE.
+  // DISCOVERY IS NOT THE PRODUCER HERE. This opens nothing.
   // -------------------------------------------------------------------------
-  for (const sourceId of [
-    "pipeline.report_generation_failed",
-    "pipeline.package_generation_failed",
-  ] as const) {
-    attempted.push(sourceId);
+  const alreadyAttempted = new Set(attempted);
+  for (const sourceId of probeRecoverablePerRecordSourceIds()) {
+    const counted = !alreadyAttempted.has(sourceId);
+    if (counted) attempted.push(sourceId);
     try {
       await sweepSourceTruthRecoveries({ teamId: ctx.teamId, sourceId });
-      successful.push(sourceId);
+      if (counted) successful.push(sourceId);
     } catch (err) {
       failSource([sourceId], "SCAN", err);
     }

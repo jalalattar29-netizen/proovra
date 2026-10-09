@@ -338,6 +338,8 @@ export const ACTIVITY_PROBE_KEYS = [
   "evidence.ots_initialization_stalled",
   "evidence.report_present",
   "evidence.package_present",
+  // OPS-018 — the canonical package-eligibility decision for one record.
+  "evidence.package_eligibility",
   "identity.idp_outage_state",
   "review.workflow_open",
   "pipeline.report_backlog_count",
@@ -824,12 +826,17 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       producers: ["services/worker/src/governance/package-eligibility-gate.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "worker_package_gate" }],
-      // The gate refused to build a package for one record. Whether that
-      // record now HAS a package is a column read, and it is the only honest
-      // recovery signal — the governance state that caused the denial is the
-      // Worker's to evaluate, not the resolve path's.
+      // The gate refused to build a package for one record. OPS-018 — the
+      // condition is over when the record HAS a package at its current
+      // version, OR when the SAME canonical eligibility decision the gate runs
+      // (`canonicalEvaluatePackageEligibility`, through the governance
+      // snapshot) no longer denies it. Reading only "is there a package"
+      // left a denial whose cause had been lifted open forever — nothing
+      // rebuilds a package for a condition, and the manual close was refused
+      // because the package was still absent. A record that becomes eligible
+      // and still has no package is the package backlog's to report.
       resolutionAuthority: "SOURCE_TRUTH",
-      activityProbeKey: "evidence.package_present",
+      activityProbeKey: "evidence.package_eligibility",
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
@@ -843,7 +850,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
       requiresResolutionNote: false,
       rationale:
-        "Evidence.verificationPackageVersion answers whether the package the gate denied now exists.",
+        "A published package at the record's current version, or the canonical package-eligibility decision no longer denying the record, answers whether the denial is over.",
     },
     // =======================================================================
     // COORDINATION — human work, counted, and still a countable fact.
@@ -2104,6 +2111,36 @@ export function conditionDisplayLabel(
 ): string {
   if (resolved.match === "UNREGISTERED") return storedTitle;
   return resolved.lifecycle.displayLabel;
+}
+
+/**
+ * OPS-033 — THE TITLE ONE CONDITION RENDERS.
+ *
+ * `conditionDisplayLabel` is the GROUP's title, and it was also every
+ * condition's: a workspace with 120 distinct governance conditions saw 120
+ * rows reading "Governance policy condition", and a storage add-on whose
+ * writer said "support needed" read the generic label instead.
+ *
+ *   * AGGREGATE sources keep the source label. There is one condition per
+ *     workspace, and their stored titles are the ones that froze a value.
+ *   * PER_RECORD and EVENT sources render their OWN stored title — it names the
+ *     record, rule or state the writer observed — with a trailing frozen value such
+ *     as "(26)" or "(902m)" removed, falling back to the label when nothing
+ *     is left. The value, if any, lives in the metric.
+ *   * RETIRED sources render their label, which says they are retired.
+ *   * An unregistered row keeps its stored title, as before.
+ */
+export function conditionTitle(
+  resolved: ResolvedConditionSource,
+  storedTitle: string,
+): string {
+  if (resolved.match === "UNREGISTERED") return storedTitle;
+  const lifecycle = resolved.lifecycle;
+  if (lifecycle.cardinality === "AGGREGATE" || lifecycle.discoveryState === "RETIRED") {
+    return lifecycle.displayLabel;
+  }
+  const own = storedTitle.replace(/\s*\(\s*[\d.,]+\s*[a-z%]*\s*\)\s*$/i, "").trim();
+  return own.length > 0 ? own : lifecycle.displayLabel;
 }
 
 /**

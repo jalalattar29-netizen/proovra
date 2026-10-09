@@ -44,6 +44,55 @@ export function dependentCancellationFingerprint(addonId: string): string {
   return `billing_dependent_cancellation:${addonId}`;
 }
 
+/**
+ * OPS-023 — WHAT THE OBLIGATION ACTUALLY SAYS, STATE BY STATE.
+ *
+ * One title served every state, so an obligation recorded seconds ago read
+ * "still billing after cancellation", a provider that merely could not be
+ * reached was indistinguishable from one that refused, and the writer's own
+ * "support needed" was then replaced by the generic source label on read. The
+ * words come from the billing authority's state and reason code, and they say
+ * WHO can act: the account holder who pays for the add-on — the owner, for a
+ * personal add-on; the workspace's billing owner, for a shared one. No name or
+ * provider identifier is carried, only the role.
+ */
+export function dependentCancellationWording(input: {
+  state: string;
+  reasonCode: string | null;
+  personal: boolean;
+}): { title: string; safeSummary: string } {
+  const payer = input.personal
+    ? "You pay for this add-on on your personal account"
+    : "This workspace's billing owner pays for this add-on";
+  const providerUnreachable = input.reasonCode === "PROVIDER_UNAVAILABLE";
+  switch (input.state) {
+    case S.PENDING:
+      return {
+        title: "Storage add-on cancellation in progress",
+        safeSummary: `This storage add-on's plan was cancelled and stopping the add-on itself has been requested from the payment provider. It closes when the provider confirms. ${payer}.`,
+      };
+    case S.RETRY_SCHEDULED:
+      return {
+        title: providerUnreachable
+          ? "Storage add-on cancellation waiting for the payment provider"
+          : "Storage add-on cancellation retrying",
+        safeSummary: providerUnreachable
+          ? `The payment provider could not be reached to stop this storage add-on. PROOVRA retries automatically; it may still be charging until the provider confirms. ${payer}.`
+          : `The payment provider has not confirmed this storage add-on is stopped. PROOVRA retries automatically; it may still be charging until the provider confirms. ${payer}.`,
+      };
+    case S.MANUAL_INTERVENTION:
+      return {
+        title: "Storage add-on still billing — support needed",
+        safeSummary: `Automatic retries to stop this storage add-on are exhausted and the payment provider has not confirmed it is stopped, so it may still be charging. Retry from Billing or contact support. ${payer}.`,
+      };
+    default:
+      return {
+        title: "Storage add-on may still be billing",
+        safeSummary: `This storage add-on's plan was cancelled but the payment provider has not confirmed the add-on itself is stopped, so it may still be charging. Retry from Billing. ${payer}.`,
+      };
+  }
+}
+
 function humanBytes(bytes: bigint): string {
   const gb = Number(bytes / (BigInt(1024) ** BigInt(2))) / 1024;
   return gb >= 1 ? `${Math.round(gb)} GB` : `${Number(bytes / BigInt(1024))} KB`;
@@ -154,6 +203,11 @@ export async function syncDependentCancellationConditions(input?: {
 
     const manual =
       addon.dependentCancellationState === S.MANUAL_INTERVENTION;
+    const wording = dependentCancellationWording({
+      state: addon.dependentCancellationState,
+      reasonCode: addon.dependentCancellationReasonCode ?? null,
+      personal: addon.teamId === null,
+    });
 
     await recordIncident({
       teamId: scopeTeamId,
@@ -168,12 +222,8 @@ export async function syncDependentCancellationConditions(input?: {
       // not by pretending the earlier attempts mattered less.
       severity: "HIGH",
       fingerprint: dependentCancellationFingerprint(addon.id),
-      title: manual
-        ? "Storage add-on still billing — support needed"
-        : "Storage add-on still billing after cancellation",
-      safeSummary: manual
-        ? "This storage add-on's plan was cancelled but the payment provider has not confirmed the add-on itself is stopped, and automatic retries are exhausted. It may still be charging."
-        : "This storage add-on's plan was cancelled but the payment provider has not yet confirmed the add-on itself is stopped. It may still be charging while we retry.",
+      title: wording.title,
+      safeSummary: wording.safeSummary,
       // The provider NAME is safe and useful for triage; no identifier is.
       relatedProvider: addon.paymentProvider ?? null,
       metadata: {
@@ -190,6 +240,9 @@ export async function syncDependentCancellationConditions(input?: {
         nextRetryAtUtc:
           addon.dependentCancellationNextRetryAtUtc?.toISOString() ?? null,
         supportRequired: manual,
+        // Who can act, as a ROLE: the personal account holder or the
+        // workspace's billing owner. Never a name or provider identifier.
+        payer: addon.teamId === null ? "PERSONAL_ACCOUNT_HOLDER" : "WORKSPACE_BILLING_OWNER",
       },
     });
     opened += 1;

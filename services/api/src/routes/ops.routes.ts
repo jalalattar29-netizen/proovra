@@ -1556,6 +1556,17 @@ export async function opsRoutes(app: FastifyInstance) {
         "integration.webhook.manage",
         "governance.policy.read",
         "audit.read",
+        // OPS-031 — the destinations the SOURCE-keyed entries link to.
+        "billing.manage",
+        "review.decide",
+        "identity.sso.read",
+        // OPS-013 — the ONE Operations permission the registry asks about:
+        // "Retry after exhausted failure" overrides a pipeline decision and
+        // declares `operatorPermission: "operations.resolve"`. It was never
+        // resolved here, so the resolver always read it as refused and the
+        // action was never offered — while the offered action told the reader
+        // to use it. Resolving it confers nothing: the executor re-checks.
+        "operations.resolve",
       ]) {
         await allows(permission);
       }
@@ -1572,7 +1583,12 @@ export async function opsRoutes(app: FastifyInstance) {
             .catch(() => null)
         : null;
       const remediation = resolveRemediations(
-        { category: detail.category, fingerprint: detail.fingerprint },
+        {
+          category: detail.category,
+          fingerprint: detail.fingerprint,
+          sourceId: detail.lifecycle.sourceId,
+          relatedEvidenceId: detail.relatedEvidenceId,
+        },
         {
           record: remediationRecord,
           can: (permission: RemediationPermission) =>

@@ -37,6 +37,7 @@
 
 import { isPermanentOtsProofFailureReason, parseOtsBudgetExhaustedFingerprint } from "@proovra/shared";
 import type { IncidentCategory } from "@proovra/shared";
+import { resolveConditionSource } from "@proovra/shared-runtime";
 
 // ===========================================================================
 // VOCABULARY
@@ -185,6 +186,12 @@ export type RemediationDeepLink = {
   href: string;
   label: string;
   /**
+   * OPS-031 — the link names the condition's OWN record. When the condition
+   * carries a related evidence id, the projection appends it (`/evidence/<id>`)
+   * so the reader lands on the record, not on a library to search through.
+   */
+  recordScoped?: boolean;
+  /**
    * The CANONICAL PERMISSION the destination requires, in the vocabulary
    * `evaluateMemberAccess` already evaluates. A capability-key gate here would
    * need a second mapping maintained beside the permission model, and the two
@@ -314,6 +321,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         href: "/evidence",
         label: "Open evidence record",
         requiredPermission: "evidence.read",
+        recordScoped: true,
       },
     },
     ots_initialization_stalled: {
@@ -324,6 +332,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         href: "/evidence",
         label: "Open evidence record",
         requiredPermission: "evidence.read",
+        recordScoped: true,
       },
     },
     ots_pending_aged: {
@@ -334,6 +343,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         href: "/evidence",
         label: "Open evidence record",
         requiredPermission: "evidence.read",
+        recordScoped: true,
       },
     },
     tsa_failure: {
@@ -351,6 +361,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         href: "/evidence",
         label: "Open evidence record",
         requiredPermission: "evidence.read",
+        recordScoped: true,
       },
     },
   });
@@ -374,6 +385,7 @@ const CATEGORY_ENTRIES: Readonly<Record<IncidentCategory, RemediationEntry>> =
         href: "/evidence",
         label: "Open evidence record",
         requiredPermission: "evidence.read",
+        recordScoped: true,
       },
     },
     REPORT: {
@@ -476,6 +488,126 @@ const CATEGORY_ENTRIES: Readonly<Record<IncidentCategory, RemediationEntry>> =
   });
 
 // ===========================================================================
+// SOURCE-KEYED ENTRIES (OPS-031)
+// ===========================================================================
+
+const EVIDENCE_RECORD_LINK: RemediationDeepLink = {
+  href: "/evidence",
+  label: "Open evidence record",
+  requiredPermission: "evidence.read",
+  recordScoped: true,
+};
+
+/**
+ * OPS-031 — GUIDANCE BELONGS TO THE SOURCE, NOT TO ITS CATEGORY.
+ *
+ * Twenty-odd sources write fourteen categories, and the category table above
+ * told each of them its NEIGHBOUR's story: a personal storage add-on that is
+ * still billing was "platform infrastructure — no workspace action will change
+ * it" (category STORAGE); a review backlog was "background processing reported
+ * a fault" (category WORKER); a report backlog with no record offered a
+ * per-record Recover button the executor then refused; an intake link that
+ * never reached its recipient told the operator to "re-capture from the
+ * record". Each entry here names the surface that OWNS the source and what
+ * closes the condition. The category table remains only as the fallback for a
+ * source with no entry, and the coverage test pins which sources fall back.
+ */
+const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze({
+  "billing.dependent_cancellation_failed": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: { href: "/billing", label: "Open Billing", requiredPermission: "billing.manage" },
+    guidance:
+      "Billing owns this. The payment provider has not yet confirmed that this storage add-on is stopped. PROOVRA retries automatically; from Billing, the account holder who pays for the add-on can retry now or contact support. This closes on its own when the provider confirms the add-on is stopped — it cannot be closed by hand while the add-on may still be charging.",
+  },
+  "pipeline.report_generation_failed": {
+    disposition: "DIRECT_REMEDIATION",
+    action: REGENERATE_ARTIFACTS,
+    secondaryAction: SUPERSEDE_FAILED_GENERATION,
+    deepLink: EVIDENCE_RECORD_LINK,
+  },
+  "pipeline.package_generation_failed": {
+    disposition: "DIRECT_REMEDIATION",
+    action: REGENERATE_ARTIFACTS,
+    secondaryAction: SUPERSEDE_FAILED_GENERATION,
+    deepLink: EVIDENCE_RECORD_LINK,
+  },
+  "pipeline.package_generation_denied": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: EVIDENCE_RECORD_LINK,
+    guidance:
+      "This record's governance (for example a legal hold, a destruction review or unresolved storage drift) does not allow a verification package to be built. The record's governance panel shows which. This closes when the record becomes eligible or a package exists.",
+  },
+  "pipeline.report_backlog": {
+    disposition: "READ_ONLY_GUIDANCE",
+    deepLink: { href: "/evidence", label: "Open evidence library", requiredPermission: "evidence.read" },
+    guidance:
+      "More reports are waiting to be generated than the backlog threshold. They are processed in order; this closes when the waiting count falls below the threshold.",
+  },
+  "pipeline.package_backlog": {
+    disposition: "READ_ONLY_GUIDANCE",
+    deepLink: { href: "/evidence", label: "Open evidence library", requiredPermission: "evidence.read" },
+    guidance:
+      "More verification packages are waiting to be built than the backlog threshold. They are processed in order; this closes when the waiting count falls below the threshold.",
+  },
+  "pipeline.signed_without_report_aged": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: { href: "/evidence", label: "Open evidence library", requiredPermission: "evidence.read" },
+    guidance:
+      "Signed records have gone longer than expected without a report. Generate their reports from the records; this closes when the count falls below the threshold.",
+  },
+  "review.stale_workflows": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: { href: "/review", label: "Open Review", requiredPermission: "review.decide" },
+    guidance:
+      "Reviews have been waiting longer than the review window. Assign or complete them in Review; this closes when the waiting count falls below the threshold.",
+  },
+  "review.escalation": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: { href: "/review", label: "Open Review", requiredPermission: "review.decide" },
+    guidance: "A review was escalated. This closes when the escalated review is completed.",
+  },
+  "coordination.backlog_stale": {
+    disposition: "READ_ONLY_GUIDANCE",
+    guidance:
+      "Comments and annotations have stayed unresolved longer than the coordination window. Resolve them on their records and cases; this closes when the unresolved count falls below the threshold.",
+  },
+  "storage.immutable_drift": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: EVIDENCE_RECORD_LINK,
+    guidance:
+      "The immutable-storage protection on this record's stored object did not match its retention or legal-hold state at the last reconciliation. The platform reconciler re-checks it; this closes when a reconciliation finds the protection in place. Packages for the record are withheld until then.",
+  },
+  "identity.idp_outage": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: { href: "/security-center/sso/health", label: "Open SSO health", requiredPermission: "identity.sso.read" },
+    guidance:
+      "Sign-ins through this identity provider have been failing. This closes on the first successful sign-in through it.",
+  },
+  "intake.delivery_failed": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: { href: "/intake-links", label: "Open intake links", requiredPermission: null },
+    guidance:
+      "An intake link could not be delivered to its recipient. Resend it or copy the link from Intake links.",
+  },
+  "security.unclassified_signal": {
+    disposition: "SAFE_DEEP_LINK",
+    deepLink: { href: "/security-center", label: "Open Security Center", requiredPermission: "audit.read" },
+    guidance:
+      "A security signal that matched no known pattern was kept for a person to review. Security Center owns it.",
+  },
+  "search.indexing_failure": {
+    disposition: "READ_ONLY_GUIDANCE",
+    guidance:
+      "Search indexing for this workspace is failing or behind. Records are unaffected; search results may be incomplete until indexing catches up, which the platform retries automatically.",
+  },
+});
+
+/** Every source with its own entry — for the coverage gate. */
+export function sourceKeyedRemediationIds(): ReadonlyArray<string> {
+  return Object.keys(SOURCE_ENTRIES);
+}
+
+// ===========================================================================
 // RESOLUTION
 // ===========================================================================
 
@@ -494,6 +626,8 @@ export function integrityClassOf(fingerprint: string): IntegrityClass | null {
 
 /** The registry entry governing one incident. Never throws; never guesses. */
 export function entryForIncident(input: {
+  /** OPS-031 — the declared source; resolved from the fingerprint when absent. */
+  sourceId?: string | null;
   category: string;
   fingerprint: string;
 }): RemediationEntry | null {
@@ -505,6 +639,17 @@ export function entryForIncident(input: {
   // whose generic guidance says records "recover when it does" — false for a
   // terminal state. It is an OTS failure of one record, and gets that entry.
   if (parseOtsBudgetExhaustedFingerprint(input.fingerprint)) return INTEGRITY_ENTRIES.ots_failure;
+  // The SOURCE, by its declared id or — for a row written before the column
+  // existed — by the same fingerprint resolution the lifecycle uses.
+  const resolved = resolveConditionSource({
+    sourceId: input.sourceId ?? null,
+    category: input.category,
+    fingerprint: input.fingerprint,
+  });
+  if (resolved.match !== "UNREGISTERED") {
+    const bySource = SOURCE_ENTRIES[resolved.lifecycle.sourceId];
+    if (bySource) return bySource;
+  }
   const entry = (
     CATEGORY_ENTRIES as Record<string, RemediationEntry | undefined>
   )[input.category];
@@ -553,10 +698,26 @@ export type ProjectedRemediation = {
  * browser is never handed a disabled control and asked not to press it.
  */
 export function resolveRemediations(
-  incident: { category: string; fingerprint: string },
+  incident: {
+    category: string;
+    fingerprint: string;
+    sourceId?: string | null;
+    /** OPS-031 — a record-scoped link names this record. */
+    relatedEvidenceId?: string | null;
+  },
   ctx: RemediationContext,
 ): ProjectedRemediation {
   const entry = entryForIncident(incident);
+  // The destination, made specific to this condition and withheld when the
+  // reader cannot open it — a link that resolves to a refusal is not offered.
+  const linkFor = (link: RemediationDeepLink | undefined): RemediationDeepLink | null => {
+    if (!link) return null;
+    if (link.requiredPermission !== null && !ctx.hasPermission(link.requiredPermission)) return null;
+    const recordId = incident.relatedEvidenceId ?? null;
+    return link.recordScoped && recordId && /^[0-9a-f-]{36}$/i.test(recordId)
+      ? { ...link, href: `${link.href}/${recordId}` }
+      : link;
+  };
   if (!entry) {
     return {
       disposition: "READ_ONLY_GUIDANCE",
@@ -575,11 +736,7 @@ export function resolveRemediations(
     return {
       disposition: "READ_ONLY_GUIDANCE",
       actions: [],
-      deepLink:
-        entry.deepLink &&
-        (entry.deepLink.requiredPermission === null || ctx.hasPermission(entry.deepLink.requiredPermission))
-          ? entry.deepLink
-          : null,
+      deepLink: linkFor(entry.deepLink),
       guidance: OTS_PROOF_INVALID_GUIDANCE,
       unsafeReason: null,
     };
@@ -611,12 +768,7 @@ export function resolveRemediations(
 
   // A destination the reader cannot open is withheld, not rendered and
   // refused.
-  const deepLink =
-    entry.deepLink &&
-    (entry.deepLink.requiredPermission === null ||
-      ctx.hasPermission(entry.deepLink.requiredPermission))
-      ? entry.deepLink
-      : null;
+  const deepLink = linkFor(entry.deepLink);
 
   return {
     disposition: entry.disposition,

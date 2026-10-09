@@ -1,0 +1,6 @@
+ ✓ test/operations-truth-recovery.integration.test.ts (8 tests)
+   ✓ Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-003 / OPS-023 a personal add-on: own title per state, no manual close while live, Billing link, closes on CONFIRMED 
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+
+MUTATION (OPS-018): probeRecoverablePerRecordSourceIds() emptied -> conservation gate FAILED (killed); source restored.

@@ -48,7 +48,7 @@ import {
   observeWorkerFleetHeartbeat,
   queueNameFromPlatformFingerprint,
 } from "./platform-conditions.service.js";
-import { parseOtsBudgetExhaustedFingerprint } from "@proovra/shared";
+import { parseOtsBudgetExhaustedFingerprint, REVIEW_ESCALATION_TERMINAL } from "@proovra/shared";
 import type { PrismaClient, Prisma } from "@prisma/client";
 
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
@@ -842,6 +842,51 @@ export function parseArtifactFingerprint(fingerprint: string): {
 }
 
 /**
+ * IS THE PACKAGE DENIAL STILL IN FORCE? (OPS-018)
+ *
+ * `worker_package_gate:<teamId>:<evidenceId>:<outcome>` names one record. The
+ * denial is over when the record has a published package at its current
+ * report version, or when the canonical eligibility decision — the same
+ * `canonicalEvaluatePackageEligibility` the worker's gate runs, read through
+ * the governance snapshot — no longer denies it. A read; it builds nothing.
+ */
+async function observePackageEligibility(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const parsed = parseArtifactFingerprint(ctx.fingerprint);
+    const evidenceId = identifiableSubject(parsed?.evidenceId ?? null);
+    if (!evidenceId) return { ...base, activity: "NOT_APPLICABLE" };
+    const record = await ctx.client.evidence.findFirst({
+      where: { AND: [{ id: evidenceId }, ctx.evidenceWhere] },
+      select: { id: true, teamId: true, latestReportVersion: true },
+    });
+    if (!record) return { ...base, activity: "NOT_APPLICABLE" };
+    if (record.latestReportVersion != null) {
+      const pkg = await ctx.client.verificationPackage.findFirst({
+        where: primaryPublishedPackageWhere({ evidenceId, version: record.latestReportVersion }),
+        select: { id: true },
+      });
+      if (pkg) return { ...base, activity: "RECOVERED" };
+    }
+    if (!record.teamId) return { ...base, activity: "ACTIVE" };
+    const { buildGovernanceSnapshot } = await import(
+      "../governance-lifecycle/governance-snapshot.service.js"
+    );
+    const snapshot = await buildGovernanceSnapshot(
+      { teamId: record.teamId, evidenceId },
+      ctx.client as never,
+    );
+    return { ...base, activity: snapshot.package.eligible ? "RECOVERED" : "ACTIVE" };
+  } catch {
+    // UNKNOWN, never RECOVERED: an unreadable governance state is exactly the
+    // case the gate fails closed on.
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
  * IS THIS IDENTITY PROVIDER STILL IN OUTAGE?
  *
  * `SsoConnection.outageDetectedAtUtc` is stamped when consecutive callback
@@ -876,24 +921,28 @@ async function observeIdpOutage(
 }
 
 /**
- * IS THE ESCALATED REVIEW WORKFLOW STILL OPEN?
+ * IS THE REVIEW ESCALATION STILL OPEN? (OPS-018)
  *
- * `review-escalation:<reason>:<workflowId>` names one workflow, and its own
- * status column says whether the review it escalated is still outstanding. An
- * escalation on a workflow that has since completed is over, and the workflow
- * is what says so.
+ * `review-escalation:<reason>:<workflowId>` names one escalation reason on one
+ * workflow. The escalation's OWN row is the authority: the condition is over
+ * when no escalation for that (workflow, reason) remains in a non-terminal
+ * status (`REVIEW_ESCALATION_TERMINAL`: RESOLVED, SUPPRESSED), or when the
+ * workflow itself has closed. The old probe read only the workflow and called
+ * three statuses "open" — so a workflow still ESCALATED, QUEUED or REOPENED
+ * read as recovered and its escalation closed while it was still escalated.
  */
-const OPEN_REVIEW_STATUSES = ["ASSIGNED", "IN_REVIEW", "NEEDS_INFO"] as const;
+const TERMINAL_REVIEW_WORKFLOW_STATUSES = ["CLOSED", "APPROVED_INTERNAL"] as const;
 
 async function observeReviewWorkflowOpen(
   ctx: ProbeContext,
 ): Promise<SourceObservation> {
   const base = { observedAtUtc: ctx.now } as const;
   try {
+    const reason = fingerprintSegment(ctx.fingerprint, 1);
     const workflowId = identifiableSubject(
       fingerprintSegment(ctx.fingerprint, 2),
     );
-    if (!workflowId) return { ...base, activity: "NOT_APPLICABLE" };
+    if (!workflowId || !reason) return { ...base, activity: "NOT_APPLICABLE" };
     const row = await ctx.client.evidenceReviewWorkflow.findFirst({
       // Scoped through the Evidence the workflow belongs to, NOT the
       // workflow's own nullable `team_id` — the same authority the stale-review
@@ -902,12 +951,18 @@ async function observeReviewWorkflowOpen(
       select: { status: true },
     });
     if (!row) return { ...base, activity: "NOT_APPLICABLE" };
-    return {
-      ...base,
-      activity: (OPEN_REVIEW_STATUSES as readonly string[]).includes(row.status)
-        ? "ACTIVE"
-        : "RECOVERED",
-    };
+    if ((TERMINAL_REVIEW_WORKFLOW_STATUSES as readonly string[]).includes(row.status)) {
+      return { ...base, activity: "RECOVERED" };
+    }
+    const openEscalation = await ctx.client.reviewEscalation.findFirst({
+      where: {
+        workflowId,
+        reason,
+        status: { notIn: [...REVIEW_ESCALATION_TERMINAL] },
+      },
+      select: { id: true },
+    });
+    return { ...base, activity: openEscalation ? "ACTIVE" : "RECOVERED" };
   } catch {
     return { ...base, activity: "UNKNOWN" };
   }
@@ -981,10 +1036,24 @@ async function observeDependentCancellation(
     if (!addonId) return { ...base, activity: "NOT_APPLICABLE" };
 
     // Workspace-bound: the add-on must belong to the workspace whose operator
-    // is asking. A personal add-on carries the owner's personal team id, a
-    // shared one carries the workspace's, so a strict equality is complete.
+    // is asking. OPS-003 — a PERSONAL add-on carries `teamId: null` (that is
+    // what makes it personal) and is attributed to its owner's Personal Space,
+    // exactly as the writer attributes it. The old strict `teamId` equality
+    // never matched one, so every personal condition read NOT_APPLICABLE —
+    // which turned "may still be charging" into a permitted manual close and
+    // meant provider truth could never close it either.
+    const personalOwner = await ctx.client.team.findFirst({
+      where: { id: ctx.teamId, isPersonal: true },
+      select: { ownerUserId: true },
+    });
     const row = await ctx.client.workspaceStorageAddon.findFirst({
-      where: { id: addonId, teamId: ctx.teamId },
+      where: {
+        id: addonId,
+        OR: [
+          { teamId: ctx.teamId },
+          ...(personalOwner ? [{ teamId: null, ownerUserId: personalOwner.ownerUserId }] : []),
+        ],
+      },
       select: { dependentCancellationState: true },
     });
     if (!row) return { ...base, activity: "NOT_APPLICABLE" };
@@ -1150,6 +1219,9 @@ const PROBE_HANDLERS: Readonly<
   // does not. See `parseArtifactFingerprint`.
   "evidence.report_present": (ctx) => observeEvidenceArtifact(ctx, "report"),
   "evidence.package_present": (ctx) => observeEvidenceArtifact(ctx, "package"),
+  // `worker_package_gate:<team>:<evidenceId>:<outcome>` — a package now, or
+  // the canonical eligibility decision no longer denying the record.
+  "evidence.package_eligibility": (ctx) => observePackageEligibility(ctx),
 
   // `idp-outage:<connectionId>` — cleared to NULL by the first success.
   "identity.idp_outage_state": (ctx) => observeIdpOutage(ctx),

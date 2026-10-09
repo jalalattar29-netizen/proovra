@@ -244,10 +244,15 @@ describe("§6 — the other reclassified writers", () => {
     );
   });
 
-  it("the two pipeline bridges are SOURCE_TRUTH on the artifact's presence", () => {
+  it("the pipeline bridges are SOURCE_TRUTH on the artifact's presence — and a denial on the eligibility decision too", () => {
+    // OPS-018 — the package DENIAL is over when a package exists OR when the
+    // canonical eligibility decision no longer denies the record. Reading
+    // presence alone left a lifted denial open forever (nothing rebuilds a
+    // package for a condition). Still SOURCE_TRUTH, still a read.
     for (const [id, probe] of [
       ["pipeline.report_generation_failed", "evidence.report_present"],
-      ["pipeline.package_generation_denied", "evidence.package_present"],
+      ["pipeline.package_generation_failed", "evidence.package_present"],
+      ["pipeline.package_generation_denied", "evidence.package_eligibility"],
     ] as const) {
       const s = lifecycleForSourceId(id)!;
       // The condition is "this record has no report/package". The record

@@ -113,6 +113,7 @@ export async function executeRemediation(
 
   // ---- 2. The registry must actually offer this action here --------------
   const entry = entryForIncident({
+    sourceId: incident.sourceId,
     category: incident.category,
     fingerprint: incident.fingerprint,
   });

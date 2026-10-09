@@ -39,6 +39,7 @@ import * as prismaPkg from "@prisma/client";
 import {
   decideObservationTransition,
   lifecycleForSourceId,
+  OPERATIONS_SOURCE_LIFECYCLES,
   type IncidentTransitionStatus,
 } from "@proovra/shared-runtime";
 
@@ -71,6 +72,26 @@ export type SourceTruthRecoverySweep = {
   /** True when the bound was reached, so this pass did not see everything. */
   readonly truncated: boolean;
 };
+
+/**
+ * OPS-018 — every PER_RECORD source that PROMISES probe recovery.
+ *
+ * Derived from the lifecycle registry, never listed by hand: a source is in
+ * this set because its contract says SOURCE_TRUTH + PROBE_AUTO_RESOLVE with a
+ * probe, and the workspace sweep runs exactly this set. Platform-internal
+ * sources are excluded (their rows carry no workspace and their own writer
+ * closes them); aggregates are excluded (the aggregate loop closes them).
+ */
+export function probeRecoverablePerRecordSourceIds(): string[] {
+  return OPERATIONS_SOURCE_LIFECYCLES.filter(
+    (s) =>
+      s.cardinality === "PER_RECORD" &&
+      s.resolutionAuthority === "SOURCE_TRUTH" &&
+      s.recoveryPolicy === "PROBE_AUTO_RESOLVE" &&
+      s.activityProbeKey !== "NONE" &&
+      s.audience !== "PLATFORM_INTERNAL",
+  ).map((s) => s.sourceId);
+}
 
 /**
  * Sweep the OPEN, ACKNOWLEDGED and SUPPRESSED conditions of one source.

@@ -1,0 +1,19 @@
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-003 / OPS-023 a personal add-on: own title per state, no manual close while live, Billing link, closes on CONFIRMED
+     → expected 'Storage add-on still billing after ca…' to be 'Storage add-on cancellation in progre…' // Object.is equality
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-003 a withdrawn obligation (NONE) closes the personal condition too
+     → expected 'OPEN' to be 'RESOLVED' // Object.is equality
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-003 the team payer's condition says so and auto-closes on CONFIRMED
+     → expected 'Storage add-on still billing after ca…' to be 'Storage add-on may still be billing' // Object.is equality
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-018 OTS budget exhaustion, review escalation and an identity-provider outage close when their source recovers
+     → evidence_integrity.ots_budget_exhausted: expected 'OPEN' to be 'RESOLVED' // Object.is equality
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-018 a package denial closes when the record becomes eligible, and stays open while governance still denies
+     → expected 'OPEN' to be 'RESOLVED' // Object.is equality
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-031 a review backlog points at Review, not at 'background processing'
+     → expected null to match object { href: '/review' }
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-033 distinct per-record conditions keep distinct titles; an aggregate keeps its count-free label
+     → expected [ 'Governance policy condition', …(2) ] to deeply equal [ …(3) ]
+   × Operations truth closure — recovery, remediation, titles (live PostgreSQL 16) > OPS-013 an exhausted report failure offers 'Retry after exhausted failure' to an operator with operations.resolve only
+     → expected [ 'report.regenerate_artifacts' ] to include 'report.supersede_failed_generation'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  8 failed (8)

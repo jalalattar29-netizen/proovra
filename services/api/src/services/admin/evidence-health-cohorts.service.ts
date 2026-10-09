@@ -176,6 +176,7 @@ export function retryabilityContract(
     fingerprint: "tsa_failure:x",
   });
   const report = entryForIncident({
+    sourceId: "pipeline.report_generation_failed",
     category: "REPORT",
     fingerprint: "report_generation_failed:x",
   });

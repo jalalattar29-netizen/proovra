@@ -37,7 +37,7 @@ import {
   buildConditionMetric,
   CONDITION_ACTIVITY_UNKNOWN,
   CONDITION_NOT_DIRECTLY_RESOLVABLE,
-  conditionDisplayLabel,
+  conditionTitle,
   CONDITION_STILL_ACTIVE,
   RESOLUTION_NOTE_REQUIRED,
   decideManualResolution,
@@ -1806,12 +1806,15 @@ export function projectIncident(
     // strings, so the numbers were true for one instant and then simply sat
     // there, and no reader could tell they were numbers at all.
     //
-    // Every row whose source is KNOWN now renders that source's count-free
-    // label. The rows already in production are repaired by this read: no
-    // migration, no rewrite of a stored title, no regex picking digits out of
-    // old text. A condition no source claims keeps its stored title, because
-    // that sentence is the only description of it that exists.
-    title: conditionDisplayLabel({ lifecycle, match, diagnostic: null }, i.title),
+    // An AGGREGATE source renders its count-free label: one condition per
+    // workspace, and its stored title is the one that froze a value. OPS-033 —
+    // a PER_RECORD or EVENT condition renders its OWN stored title (it names the
+    // record, rule or state its writer observed) without a trailing frozen
+    // value, so 120 distinct conditions no longer read as one sentence (the
+    // same holds for EVENT sources). A
+    // condition no source claims keeps its stored title. The rows already in
+    // production are repaired by this read: no migration, no stored rewrite.
+    title: conditionTitle({ lifecycle, match, diagnostic: null }, i.title),
     safeSummary: i.safeSummary,
     fingerprint: i.fingerprint,
     occurrenceCount: i.occurrenceCount,
