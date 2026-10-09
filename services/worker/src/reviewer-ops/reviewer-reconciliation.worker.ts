@@ -28,7 +28,7 @@
  *     per run, dedupes by fingerprint). Re-running is safe.
  */
 
-import { newCorrelationId } from "@proovra/shared";
+import { REVIEWER_OPS_CRON_HEADER, newCorrelationId } from "@proovra/shared";
 import { logger } from "../logger.js";
 import { captureException } from "../sentry.js";
 
@@ -128,7 +128,7 @@ export async function runReviewerReconciliation(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-cron-secret": secret,
+        [REVIEWER_OPS_CRON_HEADER]: secret,
         "x-correlation-id": correlationId,
         "x-trigger": trigger,
       },

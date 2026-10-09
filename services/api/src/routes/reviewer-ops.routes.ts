@@ -51,6 +51,7 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   cronSecretMatches,
   readCronSecretFromEnvs,
+  REVIEWER_OPS_CRON_HEADER,
 } from "../middleware/cron-secret.js";
 // PHASE 12 REMEDIATION — AUTH-005 (2026-08-06). The ONE authorization
 // authority for this surface; see `requireReviewerActor` below.
@@ -1848,7 +1849,7 @@ export async function reviewerOpsRoutes(app: FastifyInstance) {
           error: { code: "REVIEWER_OPS_CRON_SECRET_NOT_CONFIGURED" },
         });
       }
-      if (!cronSecretMatches(expected, req.headers["x-cron-secret"])) {
+      if (!cronSecretMatches(expected, req.headers[REVIEWER_OPS_CRON_HEADER])) {
         return reply.code(401).send({ error: { code: "unauthorized" } });
       }
       // Either single-team (legacy: { teamId }) or all-teams sweep

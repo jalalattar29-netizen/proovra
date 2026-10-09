@@ -24,8 +24,10 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../db.js";
 import { getAuthUserId } from "../auth.js";
 
-export const NOTIFICATION_CRON_HEADER = "x-proovra-cron-secret";
-export const INTEGRATION_CRON_HEADER = "x-proovra-integration-cron-secret";
+// OPS-006 — header names come from the ONE shared definition the worker
+// callers import too. Re-exported so existing API importers keep working.
+import { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER, REVIEWER_OPS_CRON_HEADER } from "@proovra/shared";
+export { INTEGRATION_CRON_HEADER, NOTIFICATION_CRON_HEADER, REVIEWER_OPS_CRON_HEADER };
 // Search-reindex production-safe internal endpoint
 // (`POST /v1/internal/search/reindex`). Header + env-var pair follows
 // the existing cron-secret pattern: same constant-time compare via

@@ -82,7 +82,13 @@ export type InvestigationDiagnosticsWorkspace = {
 };
 
 export type InvestigationDiagnosticsQueueRow = {
-  depth: number;
+  /**
+   * NULL when the caller is not a platform operator. Queue depth and the
+   * newest failure are PLATFORM-WIDE facts (one BullMQ queue serves every
+   * tenant), so a workspace caller receives no value at all rather than a
+   * zero that would read as "empty". OPS-025.
+   */
+  depth: number | null;
   lastError: string | null;
   lastRunAt: string | null;
 };
@@ -187,6 +193,13 @@ export const INVESTIGATION_DIAGNOSTICS_RESPONSE_KEYS = Object.freeze([
 export type BuildInvestigationDiagnosticsInput = {
   teamId: string;
   prisma: PrismaClient;
+  /**
+   * Whether the caller holds the PLATFORM authority (resolvePlatformAdmin).
+   * Only then are the global queue rows read. A workspace member — of any
+   * role — never receives another tenant's job failure text, ids or the
+   * global backlog through this workspace-scoped route.
+   */
+  includePlatformQueues: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -227,7 +240,9 @@ export async function buildInvestigationDiagnostics(
   const warnings: string[] = [];
 
   const workspace = await buildWorkspaceCounts(teamId, prisma, warnings);
-  const queues = await buildQueueDiagnostics(warnings);
+  const queues = opts.includePlatformQueues
+    ? await buildQueueDiagnostics(warnings)
+    : withheldQueueDiagnostics(warnings);
   const producerModes = await buildProducerModes(teamId, prisma, warnings);
   const lastErrors = await buildLastErrors(teamId, prisma, warnings);
 
@@ -611,6 +626,28 @@ async function buildWorkspaceCounts(
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Queue diagnostics withheld from a workspace caller (OPS-025).
+// ---------------------------------------------------------------------------
+
+const WITHHELD_QUEUE_ROW: InvestigationDiagnosticsQueueRow = {
+  depth: null,
+  lastError: null,
+  lastRunAt: null,
+};
+
+function withheldQueueDiagnostics(warnings: string[]): InvestigationDiagnosticsQueues {
+  warnings.push("queues_platform_restricted");
+  return {
+    graphReconcile: { ...WITHHELD_QUEUE_ROW },
+    graphSearchProjection: { ...WITHHELD_QUEUE_ROW },
+    mediaIntelligence: { ...WITHHELD_QUEUE_ROW },
+    miEmbed: { ...WITHHELD_QUEUE_ROW },
+    searchIndexing: { ...WITHHELD_QUEUE_ROW },
+    report: { ...WITHHELD_QUEUE_ROW },
+  };
 }
 
 // ---------------------------------------------------------------------------

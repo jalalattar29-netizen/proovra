@@ -237,7 +237,9 @@ describe("Phase 25 — route layer auth posture", () => {
     expect(reconcileBlock).toBeTruthy();
     // Must present the scheduler's shared-secret header to the canonical
     // constant-time comparison — never a raw `!==` on the header value.
-    expect(reconcileBlock?.[0]).toMatch(/x-cron-secret/);
+    // OPS-006 — the header name is the ONE shared constant the worker caller
+    // also imports; its value is pinned in the shared module itself.
+    expect(reconcileBlock?.[0]).toContain("req.headers[REVIEWER_OPS_CRON_HEADER]");
     expect(reconcileBlock?.[0]).toMatch(/cronSecretMatches/);
     expect(reconcileBlock?.[0]).toMatch(/REVIEWER_OPS_CRON_SECRET/);
     // Must NOT preHandler: requireAuth.

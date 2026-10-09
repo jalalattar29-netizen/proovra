@@ -48,6 +48,8 @@ import {
   listAssignableOperators,
 } from "../services/operations/assignable-operators.service.js";
 import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
+import { resolvePlatformAdmin } from "../services/platform-admin.service.js";
+import { workspaceIncidentWhere } from "../services/observability/incident-scope.js";
 import {
   platformAlertsHandler,
   platformMetricsHandler,
@@ -62,6 +64,8 @@ import {
   requireIntegrationCronSecret,
 } from "../middleware/cron-secret.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
+import { resolveMemberWorkspaceCapabilities } from "../services/platform-context/workspace-capability.service.js";
+import type { CapabilityKey } from "../services/platform-context/types.js";
 import { enforceRateLimit } from "../services/rate-limit.js";
 import {
   bump,
@@ -193,6 +197,75 @@ async function requireOpsCapability(
         // acknowledge an incident should not have to guess which permission
         // they need, and "access_review" was actively misleading.
         requiredPermission: permission,
+      },
+    });
+    return null;
+  }
+  // OPS-005 / OPS-021 — THE WORKBENCH CAPABILITY, decided by the same
+  // authority as the web envelope. The role permission above answers "may
+  // this member act in this workspace at all"; the capability answers "does
+  // this workspace HAVE an Operations workbench, and does this role hold this
+  // action in it" — plan (effective, grant-aware), workspace kind and ACTIVE
+  // sharing included. UI hiding was never authorization.
+  const resolved = await resolveMemberWorkspaceCapabilities({ userId, teamId });
+  const capability = OPERATIONS_PERMISSION_CAPABILITY[permission];
+  if (!resolved || !resolved.capabilities[capability]) {
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: resolved?.capabilities.OPERATIONS_VIEW
+          ? "capability_not_granted"
+          : "operations_not_included",
+        detail: null,
+        requiredPermission: permission,
+        requiredCapability: capability,
+      },
+    });
+    return null;
+  }
+  return { userId };
+}
+
+/** Each Operations permission and the capability that must accompany it. */
+const OPERATIONS_PERMISSION_CAPABILITY = {
+  "operations.view": "OPERATIONS_VIEW",
+  "operations.acknowledge": "OPERATIONS_ACKNOWLEDGE",
+  "operations.assign": "OPERATIONS_ASSIGN",
+  "operations.resolve": "OPERATIONS_RESOLVE",
+  "operations.suppress": "OPERATIONS_SUPPRESS",
+} as const satisfies Record<string, CapabilityKey>;
+
+/**
+ * READ a workspace's OWN health, without the workbench capability.
+ *
+ * Only `GET /v1/ops/summary` (Home's count of the member's own records) and
+ * `GET /v1/ops/health` (database reachability + tenant-scoped counts) use
+ * this. A Personal FREE owner may see the integrity state of their own
+ * records; they do not get the workbench (see the summary route's note).
+ * Membership lifecycle still applies in full.
+ */
+async function requireOpsMemberRead(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  teamId: string,
+): Promise<{ userId: string } | null> {
+  const userId = getAuthUserId(req);
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { id: true },
+  });
+  if (!member) {
+    reply.code(404).send({ error: { code: "not_found" } });
+    return null;
+  }
+  const decision = await evaluateMemberAccess({ teamId, userId, permission: "operations.view" });
+  if (!decision.allowed) {
+    reply.code(403).send({
+      error: {
+        code: "permission_denied",
+        reason: decision.reason,
+        detail: decision.detail ?? null,
+        requiredPermission: "operations.view",
       },
     });
     return null;
@@ -612,7 +685,7 @@ export async function opsRoutes(app: FastifyInstance) {
         });
       }
       const q = parsed.data;
-      const actor = await requireOpsActor(req, reply, q.teamId);
+      const actor = await requireOpsMemberRead(req, reply, q.teamId);
       if (!actor) return;
       let dbOk = true;
       try {
@@ -623,11 +696,15 @@ export async function opsRoutes(app: FastifyInstance) {
       // Phase 21 — extend health with observability + alert provider
       // status + open-incident counts. Operator UI consumes this to
       // render the "system at a glance" panel.
+      // OPS-010 — the counts use THE tenant predicate (scope, team, and the
+      // platform-internal exclusion), so this route can never count a row the
+      // workspace's own queue does not show.
+      const tenantWhere = workspaceIncidentWhere(q.teamId);
       const [openTotal, openHigh, openCritical] = await Promise.all([
         prisma.operationalIncident
           .count({
             where: {
-              teamId: q.teamId,
+              ...tenantWhere,
               status: {
                 in: [
                   prismaPkg.IncidentStatus.OPEN,
@@ -640,7 +717,7 @@ export async function opsRoutes(app: FastifyInstance) {
         prisma.operationalIncident
           .count({
             where: {
-              teamId: q.teamId,
+              ...tenantWhere,
               status: prismaPkg.IncidentStatus.OPEN,
               severity: prismaPkg.IncidentSeverity.HIGH,
             },
@@ -649,26 +726,36 @@ export async function opsRoutes(app: FastifyInstance) {
         prisma.operationalIncident
           .count({
             where: {
-              teamId: q.teamId,
+              ...tenantWhere,
               status: prismaPkg.IncidentStatus.OPEN,
               severity: prismaPkg.IncidentSeverity.CRITICAL,
             },
           })
           .catch(() => 0),
       ]);
-      return reply.code(200).send({
+      const body: Record<string, unknown> = {
         ok: dbOk,
         database: dbOk ? "up" : "down",
-        snapshot: getFeatureSnapshot(),
-        violations: collectStartupViolations(),
-        observability: buildObservabilityHealth(),
-        alerts: buildAlertHealth(),
         incidents: {
           openTotal,
           openHigh,
           openCritical,
         },
-      });
+      };
+      // OPS-010 — the feature snapshot, startup violations (env-var names),
+      // observability and alert routing are PROCESS-WIDE facts. They are
+      // attached only for the platform authority; a workspace member of any
+      // role receives the workspace-scoped fields above and nothing else.
+      const platform = await resolvePlatformAdmin(actor.userId);
+      if (platform.allowed) {
+        body.platform = {
+          snapshot: getFeatureSnapshot(),
+          violations: collectStartupViolations(),
+          observability: buildObservabilityHealth(),
+          alerts: buildAlertHealth(),
+        };
+      }
+      return reply.code(200).send(body);
     },
   );
 
@@ -915,7 +1002,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const q = z
         .object({ teamId: z.string().uuid() })
         .parse(req.query ?? {});
-      const actor = await requireOpsActor(req, reply, q.teamId);
+      const actor = await requireOpsMemberRead(req, reply, q.teamId);
       if (!actor) return;
 
       // THIS GET IS SIDE-EFFECT FREE, AND THAT IS A CORRECTION.

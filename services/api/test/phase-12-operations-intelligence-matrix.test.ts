@@ -167,6 +167,25 @@ vi.mock("../src/services/identity/access-policy.service.js", () => ({
   },
 }));
 
+// OPS-005 — the workbench gate also consults the canonical capability
+// authority. This suite isolates the workflow-board route logic, exactly as it
+// isolates `evaluateMemberAccess` above, so the capability follows the same
+// `memberAccessAllowed` switch. The capability decision itself is proven
+// against live PostgreSQL in operations-truth-security.integration.test.ts.
+vi.mock("../src/services/platform-context/workspace-capability.service.js", () => ({
+  resolveMemberWorkspaceCapabilities: async () =>
+    H.memberAccessAllowed
+      ? {
+          capabilities: new Proxy({}, { get: (_t, k) => String(k).startsWith("OPERATIONS_") }),
+          plan: "TEAM",
+          workspaceKind: "ORGANIZATION",
+          activeMemberCount: 2,
+        }
+      : null,
+  planProducesOperationalConditions: () => true,
+  ACTIVE_MEMBER_COUNT_SELECT: { _count: { select: { members: true } } },
+}));
+
 vi.mock("../src/services/identity-security/step-up-middleware.js", () => ({
   requireStepUpForSensitiveAction: async (input: {
     purpose: string;

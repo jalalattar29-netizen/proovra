@@ -98,14 +98,17 @@ describe("Closure — Personal Free can SEE its health without a workbench", () 
   });
 
   it("the summary endpoint is gated on the PERMISSION, not on the capability", () => {
-    // `requireOpsActor` resolves `operations.view` through
-    // `evaluateMemberAccess`, which reads the canonical ROLE floor. It does
-    // not consult `OPERATIONS_VIEW`, and it must not: that is the route gate.
-    expect(OPS_ROUTES).toMatch(
-      /async function requireOpsActor\([\s\S]{0,400}"operations\.view"/,
-    );
+    // OPS-005 — the WORKBENCH gate (`requireOpsCapability`) now also enforces
+    // the capability, so the summary moved to `requireOpsMemberRead`: it
+    // resolves `operations.view` through `evaluateMemberAccess` (the ROLE
+    // floor and member lifecycle) and must never consult the capability —
+    // Home's own-records summary stays readable for a Personal FREE owner.
+    const memberRead =
+      OPS_ROUTES.match(/async function requireOpsMemberRead\([\s\S]*?\n}\n/)?.[0] ?? "";
+    expect(memberRead).toMatch(/evaluateMemberAccess\(\{[^}]*permission: "operations\.view"/);
+    expect(memberRead).not.toMatch(/resolveMemberWorkspaceCapabilities|OPERATIONS_VIEW/);
     const block = routeSource(OPS_ROUTES, "GET", "/v1/ops/summary");
-    expect(block).toContain("requireOpsActor(req, reply, q.teamId)");
+    expect(block).toContain("requireOpsMemberRead(req, reply, q.teamId)");
     expect(block).not.toContain("OPERATIONS_VIEW");
   });
 

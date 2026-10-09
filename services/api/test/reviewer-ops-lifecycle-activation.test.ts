@@ -209,7 +209,9 @@ describe("Reviewer Ops activation [worker tick]", () => {
     expect(src).toMatch(/ok:\s*false,\s*[\s\S]*?error/);
     // Must HTTP-call the api reconcile endpoint with the cron secret.
     expect(src).toMatch(/\/v1\/reviewer-ops\/reconcile/);
-    expect(src).toMatch(/x-cron-secret/);
+    // OPS-006 — the same shared constant the API verifier reads.
+    expect(src).toContain("[REVIEWER_OPS_CRON_HEADER]: secret");
+    expect(src).toMatch(/import \{[^}]*REVIEWER_OPS_CRON_HEADER[^}]*\} from "@proovra\/shared"/);
     expect(src).toMatch(/allTeams:\s*true/);
   });
 

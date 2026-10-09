@@ -74,6 +74,7 @@ import { authorizeOrFail } from "../middleware/authorize.js";
 import {
   cronSecretMatches,
   readCronSecretFromEnvs,
+  REVIEWER_OPS_CRON_HEADER,
 } from "../middleware/cron-secret.js";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
@@ -240,7 +241,7 @@ function hasValidReconcileCronSecret(req: FastifyRequest): boolean {
     "IDENTITY_RECONCILE_CRON_SECRET",
     "INTEGRATION_CRON_SECRET",
   ]);
-  return cronSecretMatches(expected, req.headers["x-cron-secret"]);
+  return cronSecretMatches(expected, req.headers[REVIEWER_OPS_CRON_HEADER]);
 }
 
 /**

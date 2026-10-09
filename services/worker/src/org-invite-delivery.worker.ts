@@ -21,7 +21,7 @@
  *     duplicate/overlapping sweep sends ZERO duplicate emails).
  */
 
-import { newCorrelationId } from "@proovra/shared";
+import { INTEGRATION_CRON_HEADER, newCorrelationId } from "@proovra/shared";
 import { logger } from "./logger.js";
 import { captureException } from "./sentry.js";
 
@@ -108,7 +108,7 @@ export async function runOrgInviteDeliverySweep(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-cron-secret": secret,
+        [INTEGRATION_CRON_HEADER]: secret,
         "x-correlation-id": correlationId,
         "x-trigger": trigger,
       },

@@ -23,9 +23,10 @@
  *
  * ENDPOINTS CONSUMED (all REAL, all org/workspace-scoped, all gated)
  *   GET /v1/orgs/:id/workspaces        — this org's workspaces (identity)
- *   GET /v1/ops/health?teamId=         — db up/down, open incidents by
- *                                        severity, config-violation count,
- *                                        feature snapshot (ops.routes.ts)
+ *   GET /v1/ops/health?teamId=         — db up/down and open incidents by
+ *                                        severity (ops.routes.ts). Process-wide
+ *                                        configuration facts are platform-only
+ *                                        (OPS-010) and are not read here.
  *   GET /v1/sso/health?teamId=         — per-SSO-connection status, cert
  *                                        expiry band, recommended action
  *   GET /v1/integrations/health?teamId= — webhook/API-key health, delivery
@@ -103,7 +104,6 @@ interface WorkspacesResponse {
 interface OpsHealth {
   ok: boolean;
   database: string; // "up" | "down"
-  violations: Array<{ envName?: string; reason?: string }>;
   incidents: { openTotal: number; openHigh: number; openCritical: number };
 }
 
@@ -429,13 +429,6 @@ function OperationalStatusSection({ panel }: { panel: PanelState<OpsHealth> }) {
               badge={{
                 tone: panel.data.incidents.openCritical > 0 ? "risk" : "verified",
                 text: String(panel.data.incidents.openCritical),
-              }}
-            />
-            <StatCell
-              label="Configuration issues"
-              badge={{
-                tone: (panel.data.violations?.length ?? 0) > 0 ? "pending" : "verified",
-                text: String(panel.data.violations?.length ?? 0),
               }}
             />
           </div>

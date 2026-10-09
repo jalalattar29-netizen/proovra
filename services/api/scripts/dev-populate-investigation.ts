@@ -554,7 +554,7 @@ async function main(): Promise<void> {
   }
 
   // ---- Diagnostics snapshot ----------------------------------------------
-  const diag = await buildInvestigationDiagnostics({ teamId, prisma });
+  const diag = await buildInvestigationDiagnostics({ teamId, prisma, includePlatformQueues: true });
   const counts = {
     teamId,
     caseId: caseRow.id,

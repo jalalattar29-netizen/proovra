@@ -24,7 +24,7 @@
  *     no retry rule in this file; all of it lives with the durable rows.
  */
 
-import { newCorrelationId } from "@proovra/shared";
+import { INTEGRATION_CRON_HEADER, newCorrelationId } from "@proovra/shared";
 import { logger } from "./logger.js";
 import { captureException } from "./sentry.js";
 
@@ -124,7 +124,7 @@ export async function runAutomationDispatchSweepTick(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-cron-secret": secret,
+        [INTEGRATION_CRON_HEADER]: secret,
         "x-correlation-id": correlationId,
       },
       body: JSON.stringify({

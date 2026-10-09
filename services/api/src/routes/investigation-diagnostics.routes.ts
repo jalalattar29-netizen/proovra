@@ -40,6 +40,7 @@ import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { evaluateMemberAccess } from "../services/identity/access-policy.service.js";
 import { buildInvestigationDiagnostics } from "../services/investigation-diagnostics.service.js";
+import { resolvePlatformAdmin } from "../services/platform-admin.service.js";
 
 const TeamQuery = z.object({
   teamId: z.string().uuid(),
@@ -54,9 +55,14 @@ export async function investigationDiagnosticsRoutes(app: FastifyInstance) {
       const actor = await requireDiagnosticsOpsActor(req, reply, teamId);
       if (!actor) return;
 
+      // Global queue rows are platform facts: only the platform authority
+      // receives them. Every other caller gets the workspace-scoped sections
+      // and withheld queue rows (OPS-025).
+      const platform = await resolvePlatformAdmin(actor.userId);
       const diagnostics = await buildInvestigationDiagnostics({
         teamId,
         prisma,
+        includePlatformQueues: platform.allowed,
       });
 
       return reply.code(200).send(diagnostics);

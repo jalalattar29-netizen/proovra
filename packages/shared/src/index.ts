@@ -2599,3 +2599,6 @@ export * from "./tsa-validation-record.js";
 
 // THE cross-artifact consistency validator (worker pre-seal and the e2e proof).
 export * from "./package-consistency.js";
+
+// OPS-006 — the one header name per machine-to-machine cron contract.
+export * from "./cron-headers.js";

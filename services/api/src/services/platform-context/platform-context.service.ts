@@ -30,6 +30,8 @@
 import { prisma } from "../../db.js";
 import { isPlatformAdmin as resolveIsPlatformAdmin } from "../platform-admin.service.js";
 import { resolveCapabilities, resolvePersona } from "./capability-registry.js";
+import { ACTIVE_MEMBER_COUNT_SELECT, planProducesOperationalConditions } from "./workspace-capability.service.js";
+import { evaluateMemberAccess } from "../identity/access-policy.service.js";
 import { getPlanCapabilities } from "../plan-catalog.service.js";
 import { workspaceIncludesExternalReview } from "../billing-enforcement.service.js";
 import { deriveOperationalEligibility } from "./operational-eligibility.js";
@@ -320,7 +322,9 @@ export async function buildPlatformContext(
           // SYSTEM containers are internal bootstrap objects and must never
           // surface as customer Organizations in product UI.
           organization: { select: { kind: true } },
-          _count: { select: { members: true } },
+          // OPS-021 — ACTIVE memberships only: a revoked or suspended row is
+          // not an operator and must not make a workspace "shared".
+          ...ACTIVE_MEMBER_COUNT_SELECT,
         },
       });
 
@@ -651,13 +655,27 @@ export async function buildPlatformContext(
       // The commercial derivation happens HERE, against the canonical
       // catalog, so the capability resolver stays a pure role/kind
       // function with no feature vocabulary in its input.
-      packageProducesOperationalConditions:
-        planCaps.reportsIncluded ||
-        planCaps.verificationPackageIncluded ||
-        planCaps.intakeIncluded ||
-        planCaps.reviewerOperationsIncluded,
+      packageProducesOperationalConditions: planProducesOperationalConditions(workspace.plan),
       memberCount: workspace.membership.memberCount,
     });
+    // OPS-021 — the Operations capabilities follow the SAME member-lifecycle
+    // authority the API applies (evaluateMemberAccess): an expired access
+    // window or a suspended parent organization withdraws them here too, so
+    // the envelope never offers a surface the API will refuse.
+    if (workspace.status === "active" && workspace.id) {
+      const access = await evaluateMemberAccess({
+        teamId: workspace.id,
+        userId: userRow.id,
+        permission: "operations.view",
+      }).catch(() => ({ allowed: false }));
+      if (!access.allowed) {
+        for (const key of Object.keys(capabilities) as Array<keyof typeof capabilities>) {
+          if (String(key).startsWith("OPERATIONS_") || key === "WORKSPACE_HEALTH_VIEW") {
+            capabilities[key] = false;
+          }
+        }
+      }
+    }
   } catch {
     capabilityStatus = "degraded";
     capabilities = resolveCapabilities({
@@ -910,7 +928,9 @@ export async function buildPlatformContext(
             organization: {
               select: { status: true, kind: true, name: true },
             },
-            _count: { select: { members: true } },
+            // OPS-021 — ACTIVE memberships only: a revoked or suspended row is
+          // not an operator and must not make a workspace "shared".
+          ...ACTIVE_MEMBER_COUNT_SELECT,
           },
         },
       },
