@@ -104,7 +104,8 @@ describe("Operations truth closure — P1 security (live PostgreSQL 16 + Redis)"
     await addMember(c, a.teamId, admin.id, "VIEWER");
     const p = await c.inj("GET", `/v1/ops/health?teamId=${a.teamId}`, admin.token);
     expect(p.statusCode).toBe(200);
-    expect(Object.keys(p.json().platform).sort()).toEqual(["alerts", "observability", "snapshot", "violations"]);
+    // operationsSweep: OPS-008 coverage across every tenant — platform-only by the same rule.
+    expect(Object.keys(p.json().platform).sort()).toEqual(["alerts", "observability", "operationsSweep", "snapshot", "violations"]);
   });
 
   it("OPS-005 the workbench API follows the envelope's capability decision for every plan and grant state", async () => {

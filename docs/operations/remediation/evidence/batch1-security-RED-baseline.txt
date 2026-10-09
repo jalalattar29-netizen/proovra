@@ -1,0 +1,22 @@
+Batch 1 (3a52f5d39) — P1 security: RED on baseline 85c88007 (opsbase_test), captured 2026-10-09
+
+   × OPS-006 cron header contract (live API over loopback HTTP) > the real worker sweeps succeed against the real routes 85ms
+     → {"ok":false,"correlationId":"d18905ec8fe6f60b94fa43f8366a5660","pickedUp":0,"sent":0,"retried":0,"failed":0,"cancelled":0,"durationMs":26,"error":"http_401"}: expected false to be true // Object.is equality
+   × OPS-006 cron header contract (live API over loopback HTTP) > missing, wrong and legacy-named headers are refused; the canonical one is accepted 13ms
+     → expected 401 to be 200 // Object.is equality
+   × Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-025 a workspace member never receives another tenant's queue failure text, ids or backlog; the platform authority does 176ms
+     → expected '{"workspace":{"evidenceCount":1,"fina…' not to contain 'TENANT-B-1791536754468'
+   × Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-026 secrets and OTEL health refuse every workspace role and serve the platform authority 15ms
+     → expected 200 to be 403 // Object.is equality
+   × Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-010 /v1/ops/health gives a member tenant-scoped fields only; platform facts only to the platform authority 21ms
+     → expected [ 'alerts', 'database', …(5) ] to deeply equal [ 'database', 'incidents', 'ok' ]
+   × Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-005 the workbench API follows the envelope's capability decision for every plan and grant state 387ms
+     → FREE personal owner list: expected 200 to be 403 // Object.is equality
+   × Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-005 role actions follow the capability map: viewer reads, member acknowledges, admin suppresses, assign needs a shared workspace 265ms
+     → expected true to be false // Object.is equality
+   × Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-021 the envelope counts ACTIVE members only and withdraws Operations for an expired member or a suspended organization 143ms
+     → expected true to be false // Object.is equality
+   ✓ Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > cross-tenant: another tenant's incident is indistinguishable from a missing one and cannot be mutated 54ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  2 failed (2)
+      Tests  8 failed | 1 passed (9)

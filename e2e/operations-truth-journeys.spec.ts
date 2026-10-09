@@ -33,6 +33,7 @@ import {
   clearTestRateLimits,
   createGuestSession,
   makeApi,
+  provisionEnterpriseOrg,
   type GuestSession,
 } from "./helpers/api-client";
 
@@ -126,11 +127,25 @@ function storage(verb: "kill" | "start") {
   if (run.status !== 0) throw new Error(`docker ${verb} ${MINIO_CONTAINER}: ${run.error?.message ?? run.stderr}`);
 }
 async function storageBack() {
-  storage("start");
   const endpoint = process.env.S3_ENDPOINT ?? "http://localhost:9000";
-  await expect
-    .poll(async () => (await fetch(`${endpoint}/minio/health/live`).catch(() => null))?.ok ?? false, { timeout: 60_000 })
-    .toBe(true);
+  const live = async () => (await fetch(`${endpoint}/minio/health/live`).catch(() => null))?.ok ?? false;
+  const waitLive = async (ms: number) => {
+    const until = Date.now() + ms;
+    while (Date.now() < until) {
+      if (await live()) return true;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    return false;
+  };
+  storage("start");
+  // Docker Desktop occasionally leaves a killed-then-started container with
+  // its port published and nothing answering. A restart is the remedy; the
+  // assertion below is unchanged.
+  if (!(await waitLive(30_000))) {
+    const run = spawnSync("docker", ["restart", MINIO_CONTAINER], { encoding: "utf8", timeout: 120_000 });
+    if (run.status !== 0) throw new Error(`docker restart ${MINIO_CONTAINER}: ${run.error?.message ?? run.stderr}`);
+  }
+  await expect.poll(live, { timeout: 60_000 }).toBe(true);
 }
 
 test.describe("Journey A — report failure to recovery, through Operations", () => {
@@ -569,5 +584,450 @@ test.describe("Journey C — TSA/OTS truth, through Operations", () => {
     await expect.poll(() => ots()[0]!.status, { timeout: 30_000 }).toBe("RESOLVED");
     // One condition per proof, throughout.
     expect(sql("SELECT count(*)::int AS n FROM operational_incidents WHERE related_evidence_id = $1 AND fingerprint LIKE '%_failure:%'", [evidenceId])[0]!.n).toBe(2);
+  });
+});
+
+// ===========================================================================
+// Journey D — a queue failure is the platform's condition, not a customer's.
+//
+// A real storage outage makes a real report job spend its BullMQ attempts and
+// land in the failed set. The Operations scheduler's own tick (run once, from
+// `services/api/scripts/e2e-operations-sweep.ts`) records ONE PLATFORM
+// condition for the queue. The Platform Admin sees it in the platform incident
+// console and in the queue inventory; the customer whose record it was sees no
+// platform row, no invented storm, and is refused the queue console. Replay
+// refuses what it must: a COMPLETED job (409 job_completed), and a failed
+// signing-bearing job without step-up (401 STEP_UP_REQUIRED) — neither starts
+// work. A second tick does not duplicate the condition.
+//
+// Eligible replay-once and the queue condition's recovery (no final failure in
+// the last hour) are proven against real BullMQ workers in
+// services/api/test/operations-truth-platform.integration.test.ts (OPS-022,
+// OPS-024); an hour-long window is not something a browser journey can wait out.
+// ===========================================================================
+
+/** One tick of the Operations scheduler, in its own process, against this stack. */
+function runSchedulerTick(): { ok: boolean } {
+  const run = spawnSync(process.execPath, ["--import", "tsx", "scripts/e2e-operations-sweep.ts"], {
+    cwd: API_DIR,
+    encoding: "utf8",
+    timeout: 120_000,
+  });
+  if (run.status !== 0) throw new Error(`scheduler tick failed: ${run.stderr || run.stdout}`);
+  const line = run.stdout.trim().split("\n").filter((l) => l.startsWith("{")).pop() ?? "{}";
+  return JSON.parse(line) as { ok: boolean };
+}
+
+/** The ids in one BullMQ state set of the stack's Redis. */
+function bullIds(queue: string, state: "completed" | "failed"): string[] {
+  const script = `
+    const Redis = require("ioredis");
+    (async () => {
+      const r = new Redis(process.env.REDIS_URL);
+      const ids = await r.zrange(${JSON.stringify(`bull:${queue}:${state}`)}, 0, -1);
+      process.stdout.write(JSON.stringify(ids));
+      r.disconnect();
+    })().catch((e) => { process.stderr.write(String(e)); process.exit(1); });
+  `;
+  const run = spawnSync(process.execPath, ["-e", script], { cwd: API_DIR, encoding: "utf8" });
+  if (run.status !== 0) throw new Error(`redis read failed: ${run.stderr}`);
+  return JSON.parse(run.stdout || "[]") as string[];
+}
+
+test.describe("Journey D — queue failures belong to the platform, not the customer", () => {
+  test("a real final failure is ONE platform condition the Platform Admin sees and the customer does not; replay refuses what it must", async ({
+    page,
+  }) => {
+    test.setTimeout(600_000);
+    await clearTestRateLimits();
+    const customer = await createGuestSession({ plan: "PRO" });
+    const admin = await createGuestSession({ plan: "PRO" });
+    sql("UPDATE users SET platform_role = 'admin' WHERE id = $1", [admin.userId]);
+    const customerSpace = personalSpaceOf(customer.userId);
+    const adminSpace = personalSpaceOf(admin.userId);
+
+    // A real outage: the record completes, then storage goes away while its
+    // report job runs, and BullMQ spends every attempt. Storage stays down
+    // while the failure is observed: the durable reconciler re-drives a
+    // FAILED_RETRYABLE request, which takes its job back out of the failed
+    // set, so the observation is made while the cause is still true.
+    const evidenceId = await createRecord(customer, "operations journey D");
+    storage("kill");
+    let failedJobId = "";
+    const platformRows = () =>
+      sql("SELECT id, scope, team_id, status, title FROM operational_incidents WHERE fingerprint = 'platform:job_failure:report'");
+    let condition: Record<string, unknown> = {};
+    try {
+      await expect
+        .poll(
+          async () => {
+            const req = sql("SELECT id FROM report_generation_requests WHERE evidence_id = $1 ORDER BY created_at_utc LIMIT 1", [evidenceId])[0];
+            if (!req) return false;
+            failedJobId = `report-${req.id}`;
+            // The Platform Admin's own failed-job listing, not a side channel.
+            const listed = (await (await admin.api.get(`/v1/operations/queues/report/failed?teamId=${adminSpace}&limit=50`)).json()) as {
+              jobs: Array<{ jobId: string }>;
+            };
+            return listed.jobs.some((j) => j.jobId === failedJobId);
+          },
+          { timeout: 240_000, intervals: [2000] },
+        )
+        .toBe(true);
+
+      // The scheduler's tick — the only writer of platform conditions.
+      expect(runSchedulerTick().ok).toBe(true);
+      expect(platformRows()).toHaveLength(1);
+      condition = platformRows()[0]!;
+      expect(condition).toMatchObject({ scope: "PLATFORM", team_id: null });
+      expect(["OPEN", "ACKNOWLEDGED"]).toContain(String(condition.status));
+
+      // The Platform Admin sees it: in the platform incident console ...
+      const adminList = await admin.api.get("/v1/admin/incidents?category=WORKER&limit=100");
+      expect(adminList.status(), await adminList.text()).toBe(200);
+      expect(JSON.stringify(await adminList.json())).toContain(String(condition.id));
+      // ... in the browser — the platform console names the source and the
+      // queue, and the row is platform-wide, never a customer's workspace ...
+      await signIn(page, admin.email);
+      await page.goto("/admin/operations");
+      const row = page.getByRole("row").filter({ hasText: "Background jobs failing" }).filter({ hasText: "Job report" });
+      await expect(row).toHaveCount(1, { timeout: 30_000 });
+      await expect(row).toContainText("Platform-wide");
+      // ... and in the queue inventory.
+      const inventory = (await (await admin.api.get(`/v1/operations/queues?teamId=${adminSpace}`)).json()) as {
+        queues: Array<{ queueName: string; counts: { failed: number } }>;
+      };
+      expect(inventory.queues.find((q) => q.queueName === "report")!.counts.failed).toBeGreaterThan(0);
+    } finally {
+      await storageBack();
+    }
+
+    // The customer whose record it was sees no platform row and no storm ...
+    const customerList = (await (await customer.api.get(`/v1/ops/incidents?teamId=${customerSpace}`)).json()) as {
+      incidents: Array<{ id: string; title: string; category: string }>;
+    };
+    expect(customerList.incidents.map((i) => i.id)).not.toContain(String(condition.id));
+    expect(customerList.incidents.filter((i) => /storm|background jobs failing/i.test(i.title))).toEqual([]);
+    // ... and is refused the platform's consoles.
+    expect((await customer.api.get(`/v1/operations/queues?teamId=${customerSpace}`)).status()).toBe(403);
+    expect((await customer.api.get("/v1/admin/incidents")).status()).toBe(403);
+
+    // Replay refuses a COMPLETED job, and starts nothing.
+    const completed = bullIds("search-indexing", "completed");
+    expect(completed.length).toBeGreaterThan(0);
+    const done = completed[0]!;
+    const replayDone = await admin.api.post(`/v1/operations/queues/search-indexing/jobs/${encodeURIComponent(done)}/replay`, {
+      data: { teamId: adminSpace, reason: "journey D: completed jobs are not replayed" },
+    });
+    expect(replayDone.status(), await replayDone.text()).toBe(409);
+    expect(((await replayDone.json()) as { error: { code: string } }).error.code).toBe("job_completed");
+    expect(bullIds("search-indexing", "completed")).toContain(done);
+
+    // A failed report job carries signing: replay demands step-up first.
+    const replaySigned = await admin.api.post(`/v1/operations/queues/report/jobs/${encodeURIComponent(failedJobId)}/replay`, {
+      data: { teamId: adminSpace, reason: "journey D: signing-bearing replay" },
+    });
+    expect(replaySigned.status(), await replaySigned.text()).toBe(401);
+    expect(((await replaySigned.json()) as { error: { code: string } }).error.code).toBe("STEP_UP_REQUIRED");
+
+    // A second tick re-observes the same condition; it never duplicates it.
+    expect(runSchedulerTick().ok).toBe(true);
+    expect(platformRows()).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// Journey E — the Enterprise roll-up is the authorized union of ORIGINAL
+// conditions, and every action lands on the original.
+//
+// The organization is provisioned through the product's own sales-led
+// authority (`provisionEnterpriseOrg` → `provisionEnterpriseCustomer`). There
+// is no self-service way to add workspaces to it, so two more are fixture rows
+// in the shape provisioning writes: one the owner belongs to, and one owned by
+// someone else that the owner may not read. Conditions are seeded in all three.
+// ===========================================================================
+
+function orgWorkspace(orgId: string, ownerUserId: string, name: string): string {
+  const id = String(
+    sql(
+      `INSERT INTO teams (name, owner_user_id, organization_id, workspace_kind, is_personal, billing_plan, billing_status, updated_at)
+       VALUES ($1, $2, $3, 'ORGANIZATION', false, 'ENTERPRISE', 'ACTIVE', now()) RETURNING id`,
+      [name, ownerUserId, orgId],
+    )[0]!.id,
+  );
+  sql(`INSERT INTO team_members (team_id, user_id, role, status) VALUES ($1, $2, 'OWNER', 'ACTIVE')`, [id, ownerUserId]);
+  return id;
+}
+
+function seedCondition(teamId: string, severity: "CRITICAL" | "HIGH", label: string): string {
+  return String(
+    sql(
+      `INSERT INTO operational_incidents (team_id, scope, source_id, category, severity, status, fingerprint, title, safe_summary, updated_at)
+       VALUES ($1, 'WORKSPACE', 'governance.policy_condition', 'GOVERNANCE', $2::"IncidentSeverity", 'OPEN', $3, $4, 'A governance policy condition that needs a decision.', now())
+       RETURNING id`,
+      [teamId, severity, `journey-e:${label}:${Date.now()}`, `Policy decision needed — ${label}`],
+    )[0]!.id,
+  );
+}
+
+test.describe("Journey E — Enterprise roll-up, drilldown and action on the original", () => {
+  test("totals equal the authorized union; filters and pages; the drilldown opens and acts on the original", async ({ page }) => {
+    test.setTimeout(300_000);
+    await clearTestRateLimits();
+    const owner = await createGuestSession({ plan: "PRO" });
+    const other = await createGuestSession({ plan: "PRO" });
+    const org = provisionEnterpriseOrg(owner, `Ops Journey E ${Date.now()}`);
+    const w1 = org.workspaceId;
+    const w2 = orgWorkspace(org.organizationId, owner.userId, "journey-e-w2");
+    const w3 = orgWorkspace(org.organizationId, other.userId, "journey-e-w3");
+
+    const own = [seedCondition(w1, "CRITICAL", "w1-a"), seedCondition(w1, "HIGH", "w1-b"), seedCondition(w2, "HIGH", "w2-a")];
+    const hidden = [seedCondition(w3, "CRITICAL", "w3-a"), seedCondition(w3, "HIGH", "w3-b")];
+
+    // The roll-up counts the workspaces this person may read — never w3.
+    const rollup = await owner.api.get(`/v1/orgs/${org.organizationId}/operations/rollup`);
+    expect(rollup.status(), await rollup.text()).toBe(200);
+    const r = (await rollup.json()) as {
+      totals: { open: number; critical: number; high: number };
+      workspaces: Array<{ workspaceId: string }>;
+    };
+    expect(r.totals).toMatchObject({ open: 3, critical: 1, high: 2 });
+    expect(r.workspaces.map((w) => w.workspaceId).sort()).toEqual([w1, w2].sort());
+
+    // The list is the original conditions, filterable and paged.
+    const list = async (qs: string) => {
+      const res = await owner.api.get(`/v1/orgs/${org.organizationId}/operations/incidents?${qs}`);
+      expect(res.status(), await res.text()).toBe(200);
+      return (await res.json()) as {
+        incidents: Array<{ id: string; workspaceId: string }>;
+        pagination: { nextCursor: string | null };
+      };
+    };
+    const first = await list("limit=2");
+    expect(first.incidents).toHaveLength(2);
+    expect(first.pagination.nextCursor).toBeTruthy();
+    const second = await list(`limit=2&cursor=${encodeURIComponent(first.pagination.nextCursor!)}`);
+    const all = [...first.incidents, ...second.incidents].map((i) => i.id);
+    expect(all.sort()).toEqual([...own].sort());
+    for (const id of hidden) expect(all).not.toContain(id);
+    expect((await list("severity=CRITICAL")).incidents.map((i) => i.id)).toEqual([own[0]]);
+    expect((await list(`workspaceId=${w2}`)).incidents.map((i) => i.id)).toEqual([own[2]]);
+    expect((await list(`workspaceId=${w3}`)).incidents).toEqual([]);
+    expect((await list("status=OPEN")).incidents).toHaveLength(3);
+    expect((await list("sourceId=governance.policy_condition")).incidents).toHaveLength(3);
+
+    // In the browser: the readiness page shows the union and drills into the
+    // ORIGINAL condition in its own workspace.
+    // The organization surfaces belong to the Enterprise workspace experience:
+    // the owner works from the organization's workspace, as a person would.
+    const switched = await owner.api.post("/v1/platform/context/switch-workspace", { data: { workspaceId: w1 } });
+    expect(switched.ok(), await switched.text()).toBe(true);
+    await signIn(page, owner.email);
+    await page.goto(`/organizations/${org.organizationId}/admin/readiness`);
+    await expect(page.locator("[data-rollup-totals]")).toContainText("3 unresolved conditions", { timeout: 30_000 });
+    await expect(page.locator("[data-rollup-incident]")).toHaveCount(3);
+    for (const id of hidden) await expect(page.locator(`[data-rollup-incident="${id}"]`)).toHaveCount(0);
+    await page.locator(`[data-rollup-open="${own[2]}"]`).click();
+    await page.waitForURL(new RegExp(`/operations\\?incident=${own[2]}`), { timeout: 30_000 });
+    const drawer = page.locator(`[data-ops-inspector="${own[2]}"]`);
+    await expect(drawer).toBeVisible({ timeout: 30_000 });
+    await expect(drawer).toContainText("Policy decision needed — w2-a");
+
+    // The action runs on the original row; no copy exists anywhere.
+    await drawer.locator('[data-ops-action="acknowledge"]').click();
+    await expect
+      .poll(() => sql("SELECT status FROM operational_incidents WHERE id = $1", [own[2]])[0]!.status, { timeout: 30_000 })
+      .toBe("ACKNOWLEDGED");
+    const fingerprint = String(sql("SELECT fingerprint FROM operational_incidents WHERE id = $1", [own[2]])[0]!.fingerprint);
+    expect(sql("SELECT count(*)::int AS n FROM operational_incidents WHERE fingerprint = $1", [fingerprint])[0]!.n).toBe(1);
+
+    // Someone outside the organization learns nothing.
+    for (const path of [`/v1/orgs/${org.organizationId}/operations/rollup`, `/v1/orgs/${org.organizationId}/operations/incidents`]) {
+      expect([403, 404]).toContain((await other.api.get(path)).status());
+    }
+  });
+});
+
+// ===========================================================================
+// Journey F — every Operations read and action, called directly, answers what
+// the canonical capability decision says.
+//
+// For each actor the server's own capability envelope for the workspace
+// (`GET /v1/platform/context` after switching to it) is read first; then the
+// Operations API is called directly — read, acknowledge, resolve, suppress,
+// assign — each on its own fresh condition. An action is accepted exactly when
+// the envelope grants its capability. A member who is refused gets 403; anyone
+// who is not an ACTIVE member learns nothing (404). Some outcomes are also
+// fixed independently of the envelope, so the matrix cannot pass by both
+// sides agreeing on something wrong: the owner may do everything, a viewer may
+// only read, and a revoked, expired or outside actor may do nothing.
+// ===========================================================================
+
+type OpsCaps = {
+  OPERATIONS_VIEW: boolean;
+  OPERATIONS_ACKNOWLEDGE: boolean;
+  OPERATIONS_RESOLVE: boolean;
+  OPERATIONS_SUPPRESS: boolean;
+  OPERATIONS_ASSIGN: boolean;
+};
+const NO_CAPS: OpsCaps = {
+  OPERATIONS_VIEW: false,
+  OPERATIONS_ACKNOWLEDGE: false,
+  OPERATIONS_RESOLVE: false,
+  OPERATIONS_SUPPRESS: false,
+  OPERATIONS_ASSIGN: false,
+};
+
+/** The capability envelope this actor gets for this workspace — or none. */
+async function envelopeCaps(s: GuestSession, workspaceId: string): Promise<OpsCaps> {
+  const switched = await s.api.post("/v1/platform/context/switch-workspace", { data: { workspaceId } });
+  if (!switched.ok()) return NO_CAPS;
+  const res = await s.api.get("/v1/platform/context");
+  if (!res.ok()) return NO_CAPS;
+  const body = (await res.json()) as { capabilities?: Record<string, boolean> };
+  expect(JSON.stringify(body), "the envelope is for the workspace switched to").toContain(workspaceId);
+  const c = body.capabilities ?? {};
+  return {
+    OPERATIONS_VIEW: c.OPERATIONS_VIEW === true,
+    OPERATIONS_ACKNOWLEDGE: c.OPERATIONS_ACKNOWLEDGE === true,
+    OPERATIONS_RESOLVE: c.OPERATIONS_RESOLVE === true,
+    OPERATIONS_SUPPRESS: c.OPERATIONS_SUPPRESS === true,
+    OPERATIONS_ASSIGN: c.OPERATIONS_ASSIGN === true,
+  };
+}
+
+/** Call every Operations read and action directly; return what was accepted. */
+async function exercise(s: GuestSession, workspaceId: string): Promise<{ accepted: OpsCaps; statuses: number[] }> {
+  const statuses: number[] = [];
+  const ok = (status: number) => {
+    statuses.push(status);
+    return status === 200;
+  };
+  const fresh = () => seedCondition(workspaceId, "HIGH", `journey-f-${Math.random().toString(36).slice(2, 8)}`);
+  const read = await s.api.get(`/v1/ops/incidents?teamId=${workspaceId}`);
+  const ack = await s.api.post(`/v1/ops/incidents/${fresh()}/ack`, { data: { teamId: workspaceId } });
+  const resolve = await s.api.post(`/v1/ops/incidents/${fresh()}/resolve`, {
+    data: { teamId: workspaceId, resolutionNote: "Decided by the workspace: accepted as policy." },
+  });
+  const suppress = await s.api.post(`/v1/ops/incidents/${fresh()}/suppress`, {
+    data: { teamId: workspaceId, reason: "Planned maintenance window" },
+  });
+  const assign = await s.api.post(`/v1/ops/incidents/${fresh()}/assign`, {
+    data: { teamId: workspaceId, assigneeUserId: s.userId },
+  });
+  return {
+    accepted: {
+      OPERATIONS_VIEW: ok(read.status()),
+      OPERATIONS_ACKNOWLEDGE: ok(ack.status()),
+      OPERATIONS_RESOLVE: ok(resolve.status()),
+      OPERATIONS_SUPPRESS: ok(suppress.status()),
+      OPERATIONS_ASSIGN: ok(assign.status()),
+    },
+    statuses,
+  };
+}
+
+test.describe("Journey F — the permission matrix, by direct API call", () => {
+  test("every actor's reads and actions match the canonical capability decision", async () => {
+    test.setTimeout(600_000);
+    await clearTestRateLimits();
+    const owner = await createGuestSession({ plan: "PRO" });
+    const org = provisionEnterpriseOrg(owner, `Ops Journey F ${Date.now()}`);
+    const w = org.workspaceId;
+
+    const member = async (role: "ADMIN" | "MEMBER" | "VIEWER", extra: { status?: string; expired?: boolean } = {}) => {
+      await clearTestRateLimits();
+      const s = await createGuestSession({ plan: "PRO" });
+      sql(
+        `INSERT INTO team_members (team_id, user_id, role, status, access_expires_at_utc)
+         VALUES ($1, $2, $3::"TeamRole", $4::"TeamMemberStatus", $5)`,
+        [w, s.userId, role, extra.status ?? "ACTIVE", extra.expired ? new Date(Date.now() - 86_400_000).toISOString() : null],
+      );
+      return s;
+    };
+    const admin = await member("ADMIN");
+    const plain = await member("MEMBER");
+    const viewer = await member("VIEWER");
+    const revoked = await member("MEMBER", { status: "REVOKED" });
+    const expired = await member("MEMBER", { expired: true });
+    await clearTestRateLimits();
+    const platformAdmin = await createGuestSession({ plan: "PRO" });
+    sql("UPDATE users SET platform_role = 'admin' WHERE id = $1", [platformAdmin.userId]);
+    const otherTenant = await createGuestSession({ plan: "PRO" });
+
+    const ALL: OpsCaps = {
+      OPERATIONS_VIEW: true,
+      OPERATIONS_ACKNOWLEDGE: true,
+      OPERATIONS_RESOLVE: true,
+      OPERATIONS_SUPPRESS: true,
+      OPERATIONS_ASSIGN: true,
+    };
+    const matrix: Array<{ who: string; s: GuestSession; fixed?: OpsCaps; outsider?: boolean }> = [
+      { who: "owner", s: owner, fixed: ALL },
+      { who: "admin", s: admin },
+      { who: "member", s: plain },
+      { who: "viewer", s: viewer, fixed: { ...NO_CAPS, OPERATIONS_VIEW: true } },
+      // A revoked member is refused explicitly (403): they were a member and
+      // already know the workspace exists. Only strangers get 404.
+      { who: "revoked member", s: revoked, fixed: NO_CAPS },
+      { who: "expired member", s: expired, fixed: NO_CAPS },
+      { who: "platform admin (not a member)", s: platformAdmin, fixed: NO_CAPS, outsider: true },
+      { who: "another tenant", s: otherTenant, fixed: NO_CAPS, outsider: true },
+    ];
+    const results: Record<string, unknown> = {};
+    for (const row of matrix) {
+      const caps = await envelopeCaps(row.s, w);
+      const { accepted, statuses } = await exercise(row.s, w);
+      results[row.who] = { caps, accepted, statuses };
+      expect(accepted, `${row.who}: enforcement equals the capability decision`).toEqual(caps);
+      if (row.fixed) expect(caps, `${row.who}: the decision itself`).toEqual(row.fixed);
+      // Refusals: 404 for anyone who is not an ACTIVE member, 403 for a member.
+      for (const status of statuses.filter((x) => x !== 200)) {
+        expect(row.outsider ? [404] : [403, 404], `${row.who}: refusal status`).toContain(status);
+      }
+    }
+    // The member roles between owner and viewer are decided by the role
+    // policy, not by this test; they are still never MORE than the owner.
+    for (const who of ["admin", "member"]) {
+      const caps = (results[who] as { caps: OpsCaps }).caps;
+      expect(caps.OPERATIONS_VIEW, `${who} may read`).toBe(true);
+    }
+
+    // FREE: a Personal Space with no workbench.
+    await clearTestRateLimits();
+    const free = await createGuestSession({ plan: "FREE" });
+    const freeSpace = personalSpaceOf(free.userId);
+    const freeCaps = await envelopeCaps(free, freeSpace);
+    expect(freeCaps).toEqual(NO_CAPS);
+    const freeRun = await exercise(free, freeSpace);
+    expect(freeRun.accepted).toEqual(NO_CAPS);
+
+    // A plan grant: in force, the grant decides; expired, it decides nothing.
+    await clearTestRateLimits();
+    const granted = await createGuestSession({ plan: "FREE" });
+    const grantedSpace = personalSpaceOf(granted.userId);
+    const grantId = String(
+      sql(
+        `INSERT INTO plan_grants (user_id, plan, source, reason, granted_by_user_id, expires_at_utc, idempotency_key, updated_at)
+         VALUES ($1, 'TEAM', 'INTERNAL_TEST', 'journey F', $2, now() + interval '1 day', $3, now()) RETURNING id`,
+        [granted.userId, platformAdmin.userId, `journey-f-${granted.userId}`],
+      )[0]!.id,
+    );
+    const inForce = await envelopeCaps(granted, grantedSpace);
+    expect((await exercise(granted, grantedSpace)).accepted, "grant in force: enforcement equals the decision").toEqual(inForce);
+    sql("UPDATE plan_grants SET granted_at_utc = now() - interval '2 days', expires_at_utc = now() - interval '1 minute' WHERE id = $1", [grantId]);
+    const lapsed = await envelopeCaps(granted, grantedSpace);
+    expect(lapsed, "an expired grant grants nothing").toEqual(freeCaps);
+    expect((await exercise(granted, grantedSpace)).accepted).toEqual(lapsed);
+
+    // A suspended organization: its members, owner included, may do nothing.
+    sql("UPDATE organizations SET status = 'SUSPENDED' WHERE id = $1", [org.organizationId]);
+    try {
+      const suspended = await envelopeCaps(owner, w);
+      const run = await exercise(owner, w);
+      expect(run.accepted, "suspended: enforcement equals the decision").toEqual(suspended);
+      expect(run.accepted.OPERATIONS_ACKNOWLEDGE || run.accepted.OPERATIONS_RESOLVE || run.accepted.OPERATIONS_SUPPRESS || run.accepted.OPERATIONS_ASSIGN).toBe(false);
+    } finally {
+      sql("UPDATE organizations SET status = 'ACTIVE' WHERE id = $1", [org.organizationId]);
+    }
   });
 });

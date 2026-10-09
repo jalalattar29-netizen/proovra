@@ -1,0 +1,9 @@
+Batch 1 (3a52f5d39) — P1 security: GREEN on the fix branch (fresh PostgreSQL 16), captured 2026-10-09
+
+ ✓ test/operations-truth-security.integration.test.ts (7 tests) 12773ms
+   ✓ Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-025 a workspace member never receives another tenant's queue failure text, ids or backlog; the platform authority does  321ms
+   ✓ Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-005 the workbench API follows the envelope's capability decision for every plan and grant state  1636ms
+   ✓ Operations truth closure — P1 security (live PostgreSQL 16 + Redis) > OPS-021 the envelope counts ACTIVE members only and withdraws Operations for an expired member or a suspended organization  660ms
+ ✓ test/operations-truth-cron-header.integration.test.ts (2 tests) 4097ms
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
