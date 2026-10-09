@@ -142,6 +142,18 @@ jobs:
       # tests and which returned 404 here for the same reason.
       E2E_AUTH_BYPASS_SECRET: e2e-bypass-do-not-use-in-prod-7f2c3a91b4d9e8f10c2b3a4d5e6f70819
 
+      # THE PAYMENT PROVIDER IS A LOCAL STUB, never PayPal.
+      #
+      # `operations-truth-journeys.spec.ts` (Journey B) starts an HTTP stub on
+      # 127.0.0.1:8399 that answers the three PayPal calls a storage add-on
+      # cancellation makes (token, cancel, read). These are not credentials:
+      # nothing here can reach a real provider, and with the stub down every
+      # PayPal call fails as unreachable (a checkout still answers
+      # PAYMENTS_UNAVAILABLE, as it did with the variables unset).
+      PAYPAL_API_BASE: http://127.0.0.1:8399
+      PAYPAL_CLIENT_ID: e2e-paypal-stub
+      PAYPAL_SECRET: e2e-paypal-stub
+
     steps:
       - uses: actions/checkout@v4
 
@@ -267,6 +279,12 @@ jobs:
         env:
           INTERNAL_API_BASE_URL: http://localhost:8081
           LOG_LEVEL: info
+          # The durable report retry budget (12 claims) is spent across
+          # lifecycle-recovery ticks. Production ticks every 5 minutes, which
+          # puts exhaustion an hour away; `operations-truth-journeys.spec.ts`
+          # drives a real storage outage through that budget, so this stack
+          # ticks every 20s. The tick's work is idempotent.
+          LIFECYCLE_RECOVERY_INTERVAL_MS: "20000"
           # The key paths above are relative to services/api (see the note
           # there). The worker starts in services/worker, where `keys/` does
           # not exist: report signing fell back, but the verification package

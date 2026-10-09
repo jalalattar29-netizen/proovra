@@ -436,3 +436,31 @@ describe("remediation authorization is the domain's, not Operations'", () => {
     }
   });
 });
+
+describe("one primary recovery action, chosen by the record's own output decision", () => {
+  const ctx = (outputExhausted: boolean | null | undefined) => ({
+    record: { otsStatus: null, otsFailureReason: null, outputExhausted },
+    can: () => true,
+    hasPermission: () => true,
+    workspaceCanMutate: true,
+    incidentStatus: "OPEN",
+  });
+  const incident = {
+    category: "REPORT",
+    sourceId: "pipeline.report_generation_failed",
+    fingerprint: "REPORT:11111111-1111-4111-8111-111111111111:v1:RETRY_BUDGET_EXHAUSTED",
+    relatedEvidenceId: "11111111-1111-4111-8111-111111111111",
+  };
+  const ids = (o: boolean | null | undefined) =>
+    resolveRemediations(incident, ctx(o)).actions.map((a) => a.actionId);
+
+  it("an exhausted technical terminal offers only the supersession", () => {
+    expect(ids(true)).toEqual(["report.supersede_failed_generation"]);
+  });
+  it("a recoverable failure offers only the recovery", () => {
+    expect(ids(false)).toEqual(["report.regenerate_artifacts"]);
+  });
+  it("an unread record keeps both, rather than guessing", () => {
+    expect(ids(null)).toEqual(["report.regenerate_artifacts", "report.supersede_failed_generation"]);
+  });
+});

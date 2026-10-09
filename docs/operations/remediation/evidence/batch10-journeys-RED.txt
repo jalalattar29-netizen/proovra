@@ -1,0 +1,46 @@
+Batch 10 — defects found by the executed full-stack journeys (e2e/operations-truth-journeys.spec.ts)
+
+Each defect was first observed in the running stack (API + worker + MinIO + PostgreSQL + Redis + web),
+then pinned by a focused test. RED below is that focused test against the code without the fix
+(baseline 85c88007 where the code path existed there; otherwise the fix branch with ONLY the fix reverted).
+
+1. OPS-028 / OPS-012 — both recovery actions offered for an exhausted technical terminal
+   Observed: drawer showed "Recover report or package" AND "Retry after exhausted failure" for
+   REPORT:<id>:v1:RETRY_BUDGET_EXHAUSTED; the plain recovery collapses onto the terminal and does nothing.
+   test/operations-remediation-registry.test.ts against baseline 85c88007:
+     × one primary recovery action ... > an exhausted technical terminal offers only the supersession
+     × one primary recovery action ... > a recoverable failure offers only the recovery
+     Tests  2 failed | 45 passed (47)
+
+2. OPS-029 / OPS-033 — the condition did not name its record
+   Observed: title "Report v1 stopped after its retry budget was exhausted" and "Affected record: Evidence record"
+   for every record. Pinned by the journey (drawer title + [data-ops-affected-link] text and href).
+
+3. OPS-032 — "Check again" did not re-examine inside the 45-minute freshness window
+   Observed: report v1 committed and downloadable; Refresh answered 202 in 23 ms, no run row, condition OPEN.
+   test/operations-truth-gaps.integration.test.ts "OPS-032 an explicit Check again ..." with the explicit
+   re-check branch disabled (fix branch, only that line reverted):
+     → expected false to be true
+     Tests  1 failed | 5 skipped (6)
+
+4. OPS-032 (web + native) — the header Refresh only re-read the last run
+   Observed: no POST /v1/ops/workspace-reconcile from [data-ops-refresh]; api.log count 0.
+   web  __tests__/render/operations-workbench.render.test.tsx "OPS-032 Refresh asks for a NEW check ..."
+        with onClick={refresh} restored:  → expected [] to have a length of 1 but got +0
+   mobile test/ops-truth-closure.render.test.mjs "OPS-032 Refresh asks for a NEW check ..."
+        with onPress={refresh} restored:  AssertionError: Refresh did not ask for a new check
+
+5. OPS-007 / OPS-011 — a fully resolved group filed under "Monitoring"
+   Observed: default view ("Any status") listed the resolved "Report generation failed" group under
+   Monitoring AND Recently resolved, beside "0 Unresolved".
+   web render "a group whose members are all resolved is never shown as being monitored" with the old
+   filter (statusPosture !== "OPEN") restored:  × ... Tests 1 failed | 143 skipped (144)
+
+6. OPS-003 — a failed cancellation attempt rewrote why the stop was owed
+   Observed (Journey B, first run): an add-on PayPal activated and PROOVRA refused (UNGRANTABLE_PROVIDER_ACTIVE)
+   moved to NONE / OBLIGATION_WITHDRAWN_NOT_DEPENDENT after one failed retry, which would close the
+   Operations condition while the provider still charged.
+   test/operations-truth-gaps.integration.test.ts "OPS-003 an ungrantable add-on keeps its obligation ..."
+   with the reason-code preservation reverted:
+     → expected 'NONE' to be 'RETRY_SCHEDULED'
+     Tests  1 failed | 6 skipped (7)

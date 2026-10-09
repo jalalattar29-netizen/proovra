@@ -327,6 +327,7 @@ export async function attemptDependentCancellations(input: {
       paymentProvider: true,
       externalSubscriptionId: true,
       dependentCancellationAttemptCount: true,
+      dependentCancellationReasonCode: true,
       status: true,
     },
   });
@@ -408,9 +409,20 @@ export async function attemptDependentCancellations(input: {
         dependentCancellationFailedAtUtc: now,
         dependentCancellationAttemptCount: attemptCount,
         dependentCancellationNextRetryAtUtc: nextRetryAt(attemptCount, now),
-        dependentCancellationReasonCode: escalate
-          ? ("RETRY_EXHAUSTED" satisfies AddonCancellationReasonCode)
-          : outcome.reasonCode,
+        // THE BASIS OF AN UNGRANTABLE OBLIGATION IS KEPT. For a subscription
+        // the provider activated and PROOVRA refused to grant, this code is
+        // the reason the cancellation is OWED, not the outcome of an attempt.
+        // Overwriting it with the attempt's failure (PROVIDER_UNAVAILABLE)
+        // made the next pass read a FAILED add-on with an ordinary reason,
+        // withdraw the obligation as "not dependent", and close the Operations
+        // condition from that — while the provider was still charging.
+        // Escalation is carried by the state (MANUAL_INTERVENTION) either way.
+        dependentCancellationReasonCode:
+          addon.dependentCancellationReasonCode === UNGRANTABLE_PROVIDER_ACTIVE
+            ? UNGRANTABLE_PROVIDER_ACTIVE
+            : escalate
+              ? ("RETRY_EXHAUSTED" satisfies AddonCancellationReasonCode)
+              : outcome.reasonCode,
         dependentCancellationLeaseUntilUtc: null,
       },
     });

@@ -383,9 +383,13 @@ function OperationsWorkspaceScreen() {
     setChecking(true);
     setNotice(null);
     try {
-      const res = (await apiFetch(OPS_RECONCILE_PATH, { method: "POST", body: JSON.stringify({ teamId }) })) as {
+      // `explicit` (OPS-032): a person asked, so the sources are examined
+      // even inside the freshness window.
+      const res = (await apiFetch(OPS_RECONCILE_PATH, { method: "POST", body: JSON.stringify({ teamId, explicit: true }) })) as {
         refusedReason?: string | null;
         retryable?: boolean;
+        alreadyRunning?: boolean;
+        readiness?: string;
       };
       if (res?.refusedReason) {
         setNotice(
@@ -394,7 +398,9 @@ function OperationsWorkspaceScreen() {
             : { title: STATE_COPY.checkNotStartedTitle, message: STATE_COPY.checkNotStartedBody },
         );
       } else {
-        for (let n = 0; n < RECONCILE_MAX_POLLS; n += 1) {
+        // The check runs inline: poll only a run the server says is still going.
+        const stillRunning = res?.alreadyRunning === true || res?.readiness === "RUNNING";
+        for (let n = 0; stillRunning && n < RECONCILE_MAX_POLLS; n += 1) {
           await new Promise((r) => setTimeout(r, reconcilePollDelay(n)));
           const parsed = parseSummary(await apiFetch(buildOpsSummaryPath(teamId)));
           setSummary(parsed.summary);
@@ -539,7 +545,7 @@ function OperationsWorkspaceScreen() {
             variant="secondary"
             fullWidth={false}
             disabled={busyHeader}
-            onPress={refresh}
+            onPress={() => void checkAgain()}
             testID="ops-refresh"
           />
         )

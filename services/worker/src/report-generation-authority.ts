@@ -727,7 +727,7 @@ export async function reconcileStrandedReportRequests(input: {
               category: "PACKAGE",
               severity: "HIGH",
               fingerprint: `PACKAGE:${row.evidenceId}:v${row.reportVersion}:RETRY_BUDGET_EXHAUSTED`,
-              title: `Verification package v${row.reportVersion} stopped after its retry budget was exhausted`,
+              title: `Verification package v${row.reportVersion} stopped after its retry budget was exhausted — record ${row.evidenceId.slice(0, 8)}`,
               safeSummary: `Automatic retries for the verification package of report version ${row.reportVersion} were exhausted. The report is stored. An operator can review and retry it from Operations; the condition clears only when the package for version ${row.reportVersion} exists.`,
               relatedEvidenceId: row.evidenceId,
               metadata: {
@@ -745,7 +745,7 @@ export async function reconcileStrandedReportRequests(input: {
               category: "REPORT",
               severity: "HIGH",
               fingerprint: `REPORT:${row.evidenceId}:v${targetReportVersion}:RETRY_BUDGET_EXHAUSTED`,
-              title: `Report v${targetReportVersion} stopped after its retry budget was exhausted`,
+              title: `Report v${targetReportVersion} stopped after its retry budget was exhausted — record ${row.evidenceId.slice(0, 8)}`,
               safeSummary: `Automatic retries for report version ${targetReportVersion} of this record were exhausted. An operator can review and retry it from Operations; the condition clears only when report version ${targetReportVersion} exists.`,
               relatedEvidenceId: row.evidenceId,
               metadata: {

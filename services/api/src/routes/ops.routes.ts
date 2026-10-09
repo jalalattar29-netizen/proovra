@@ -121,7 +121,9 @@ import {
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
   OperationsSavedViewFilterSchema,
+  resolveEvidenceOutputActions,
 } from "@proovra/shared";
+import { loadEvidenceOutputFacts } from "../services/reports/output-recovery.service.js";
 import { runSchemaValidation } from "../runtime/schema-validation.js";
 // PHASE 12 — VERTICAL B. Server authority for Command Center workflow
 // actions: availability projection, persisted-record workspace binding,
@@ -1297,7 +1299,7 @@ export async function opsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const body = z
-        .object({ teamId: z.string().uuid() })
+        .object({ teamId: z.string().uuid(), explicit: z.boolean().optional() })
         .parse((req.body ?? req.query ?? {}) as unknown);
       const actor = await requireOpsActor(req, reply, body.teamId);
       if (!actor) return;
@@ -1325,6 +1327,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const outcome = await ensureWorkspaceOperationsFresh({
         workspaceId: body.teamId,
         triggeredByUserId: actor.userId,
+        explicit: body.explicit === true,
       });
       return reply.code(202).send({
         // OPS-032 — the request that RAN the reconciliation says so. It is
@@ -1783,7 +1786,11 @@ export async function opsRoutes(app: FastifyInstance) {
 
       // ET-REC-06 — the affected record's OTS facts, so a permanently invalid
       // proof is not offered a Resume the worker would ignore.
-      const remediationRecord = detail.relatedEvidenceId
+      const remediationRecord: {
+        otsStatus: string | null;
+        otsFailureReason: string | null;
+        outputExhausted?: boolean | null;
+      } | null = detail.relatedEvidenceId
         ? await prisma.evidence
             .findFirst({
               where: { id: detail.relatedEvidenceId, teamId: q.teamId },
@@ -1792,6 +1799,27 @@ export async function opsRoutes(app: FastifyInstance) {
             .then((r) => (r ? { otsStatus: r.otsStatus ? String(r.otsStatus) : null, otsFailureReason: r.otsFailureReason ?? null } : null))
             .catch(() => null)
         : null;
+      // The record's own output decision — the SAME one the Evidence page
+      // offers from — read as if the supersession right were held, so it says
+      // whether the failure is an exhausted technical terminal. Unreadable
+      // leaves the question open (null), never a guess.
+      if (remediationRecord && detail.relatedEvidenceId && (detail.category === "REPORT" || detail.category === "PACKAGE")) {
+        const loadedOutputs = await loadEvidenceOutputFacts({ evidenceIds: [detail.relatedEvidenceId] })
+          .then((m) => m.get(detail.relatedEvidenceId!) ?? null)
+          .catch(() => null);
+        if (loadedOutputs) {
+          // The CALLER's rights are not the question here (the executor
+          // re-checks them); the record's state is.
+          const decided = resolveEvidenceOutputActions({
+            ...loadedOutputs.facts,
+            callerMayGenerate: true,
+            callerMaySupersede: true,
+          });
+          remediationRecord.outputExhausted =
+            decided.report.supersedesTechnicalTerminal === true ||
+            decided.verificationPackage.supersedesTechnicalTerminal === true;
+        }
+      }
       const remediation = resolveRemediations(
         {
           category: detail.category,

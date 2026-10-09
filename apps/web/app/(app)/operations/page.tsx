@@ -1071,11 +1071,19 @@ function OperationsWorkbench() {
     setRefreshing(true);
     setMutationError(null);
     try {
+      // `explicit`: a person asked, so the sources are examined even inside
+      // the freshness window — a repair made since the last run shows now,
+      // not when the window lapses.
       const started = (await apiFetch(`/v1/ops/workspace-reconcile`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ teamId }),
-      })) as { refusedReason?: string | null; retryable?: boolean } | null;
+        body: JSON.stringify({ teamId, explicit: true }),
+      })) as {
+        refusedReason?: string | null;
+        retryable?: boolean;
+        alreadyRunning?: boolean;
+        readiness?: string;
+      } | null;
 
       // A refusal the server can name is shown as itself. It is bounded
       // server-side vocabulary, never a message from a driver.
@@ -1098,7 +1106,10 @@ function OperationsWorkbench() {
         return;
       }
 
-      for (let attempt = 0; attempt < RECONCILE_POLL_ATTEMPTS; attempt += 1) {
+      // The server runs the check inline: when it answers with the run
+      // finished there is nothing to wait for. Poll only a run still going.
+      const stillRunning = started?.alreadyRunning === true || started?.readiness === "RUNNING";
+      for (let attempt = 0; stillRunning && attempt < RECONCILE_POLL_ATTEMPTS; attempt += 1) {
         const wait = Math.min(
           RECONCILE_POLL_BASE_MS * 2 ** Math.floor(attempt / 3),
           RECONCILE_POLL_MAX_MS,
@@ -1653,10 +1664,16 @@ function OperationsWorkbench() {
       </div>
       {!gate ? (
         <div className="app-page-header__actions">
+          {/* OPS-032 — REFRESH RE-EXAMINES THE SOURCES. It used to re-read the
+              last run only, and the re-check lived solely inside the
+              stale/failed notices — so on a current picture nothing could make
+              Operations look again, and a record repaired a minute after a run
+              stayed open for the rest of the 45-minute window while the drawer
+              said it "closes on its own once the record recovers". */}
           <button
             type="button"
             className="app-secondary-action"
-            onClick={refresh}
+            onClick={() => void checkAgain()}
             disabled={refreshing}
             data-ops-refresh
           >
@@ -2020,12 +2037,18 @@ function OperationsWorkbench() {
           ) : grouped && !anyFilterActive(filters) ? (
             // THE SIMPLE PAGE. The default view answers what needs action and
             // what is being watched, each as its own section of groups. A group
-            // is "action required" while any member is OPEN; otherwise its
-            // members are acknowledged or silenced and it is being monitored.
+            // is "action required" while any member is OPEN; it is monitored
+            // while its members are acknowledged or silenced. A group whose
+            // members are ALL resolved is neither — it belongs to Recently
+            // resolved only. "Any status" returns it here too, and filing it
+            // under Monitoring showed a closed condition as being watched
+            // beside an Unresolved count of 0.
             <>
               {(() => {
                 const actionGroups = groups.filter((g) => g.statusPosture === "OPEN");
-                const monitoringGroups = groups.filter((g) => g.statusPosture !== "OPEN");
+                const monitoringGroups = groups.filter(
+                  (g) => g.statusPosture === "ACKNOWLEDGED" || g.statusPosture === "SUPPRESSED",
+                );
                 return (
                   <>
                     <section className="opsw-section" aria-labelledby="opsw-section-action" data-ops-section="action-required">

@@ -2679,6 +2679,9 @@ describe("Operations — the grouped queue is the default", () => {
           group({
             groupKey: "evidence_integrity.tsa_failed",
             statusPosture: posture,
+            // Recent, so a RESOLVED group is rendered — in Recently resolved,
+            // its only section — rather than aged out of the page.
+            latestActivityAtUtc: new Date().toISOString(),
           }),
         ],
         totals: { groups: 1, conditions: 5000 },
@@ -3723,6 +3726,21 @@ describe("Operations truth closure — web", () => {
     expect(q("[data-ops-bulk-toolbar]")).toBeNull();
   });
 
+  it("OPS-032 Refresh asks for a NEW check of the sources, explicitly, then re-reads", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    requestLog = [];
+    const listsBefore = gets("/v1/ops/incidents?");
+    await act(async () => {
+      fireEvent.click(q("[data-ops-refresh]") as HTMLElement);
+    });
+    await settle();
+    await settle();
+    const reconcile = postsTo("/v1/ops/workspace-reconcile");
+    expect(reconcile).toHaveLength(1);
+    expect(JSON.parse(reconcile[0].body ?? "{}")).toMatchObject({ teamId: WS, explicit: true });
+    expect(gets("/v1/ops/incidents?")).toBeGreaterThan(listsBefore);
+  });
+
   it("OPS-007 an action with the drawer open re-reads the list and leaves Refresh usable", async () => {
     await mount(envelope(TEAM_ADMIN));
     await act(async () => {
@@ -3906,5 +3924,20 @@ describe("Operations truth closure — web", () => {
     expect(action.querySelector('[data-ops-group="evidence_integrity.tsa_failed"]')).not.toBeNull();
     expect(monitoring.querySelector('[data-ops-group="pipeline.report_backlog"]')).not.toBeNull();
     expect(q('[data-ops-section="recently-resolved"]')).not.toBeNull();
+  });
+
+  it("a group whose members are all resolved is never shown as being monitored", async () => {
+    groupsReply = () => ({
+      groups: [group({ groupKey: "pipeline.report_generation_failed", sourceId: "pipeline.report_generation_failed", statusPosture: "RESOLVED" })],
+      totals: { groups: 1, conditions: 1 },
+      conservation: { conditions: 1, grouped: 1 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const action = q('[data-ops-section="action-required"]') as HTMLElement;
+    const monitoring = q('[data-ops-section="monitoring"]') as HTMLElement;
+    expect(action.querySelector("[data-ops-group]")).toBeNull();
+    expect(monitoring.querySelector("[data-ops-group]")).toBeNull();
+    expect(monitoring.querySelector("[data-ops-section-empty]")).not.toBeNull();
   });
 });

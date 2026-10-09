@@ -164,7 +164,9 @@ function affectedFor(i: Incident): {
 } {
   if (i.relatedEvidenceId) {
     return {
-      label: "Evidence record",
+      // The EXACT record: its reference, the same eight characters the
+      // condition's own title and the record page show.
+      label: `Evidence record ${i.relatedEvidenceId.slice(0, 8)}`,
       href: `/evidence/${encodeURIComponent(i.relatedEvidenceId)}`,
     };
   }

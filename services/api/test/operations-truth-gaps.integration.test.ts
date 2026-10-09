@@ -8,8 +8,16 @@
  *   OPS-031  record links land on the exact Evidence tab that owns the fix.
  *   OPS-003  a storage add-on whose payer changes does not orphan the old
  *            payer's condition: it closes there and is raised for the new one.
+ *   OPS-003  an add-on the provider activated and PROOVRA refused keeps its
+ *            obligation through failed cancellation attempts: the condition
+ *            stays open until the provider confirms, never closed because a
+ *            failed attempt rewrote why the stop is owed.
  *   OPS-008  with more than 500 workspaces, every due workspace is reached,
  *            each exactly once per pass; Platform Admin sees the coverage.
+ *   OPS-032  "Check again" re-examines the sources inside the freshness
+ *            window: a record repaired after the last run closes on the
+ *            click, not 45 minutes later. A repeated click seconds apart does
+ *            not start a second run.
  *   OPS-034  the organisation list returns ORIGINAL conditions of readable
  *            workspaces only, filterable and paged; an action on a listed row
  *            runs against the original condition.
@@ -152,6 +160,12 @@ describe("Operations truth closure — remaining contract points (live PostgreSQ
     expect(asAdmin.platform.operationsSweep.workspaces).toBeGreaterThanOrEqual(521);
     const asOwner = (await c.inj("GET", `/v1/ops/health?teamId=${base.teamId}`, owner.token)).json();
     expect(asOwner.platform).toBeUndefined();
+
+    // The 520 workspaces exist for this proof only. Left behind, they fall due
+    // again 45 minutes later and every later sweep test in a shared database
+    // has to work through them first.
+    await c.prisma.governanceReconciliationRun.deleteMany({ where: { teamId: { in: fresh.map((t: { id: string }) => t.id) } } });
+    await c.prisma.team.deleteMany({ where: { id: { in: fresh.map((t: { id: string }) => t.id) } } });
   });
 
   it("OPS-034 the organisation list is the original conditions of readable workspaces, filtered and paged; actions hit the original", async () => {
@@ -193,5 +207,94 @@ describe("Operations truth closure — remaining contract points (live PostgreSQ
     const stranger = await makeUser(c, "orglist-stranger");
     const refused = await c.inj("GET", `/v1/orgs/${w1.orgId}/operations/incidents`, stranger.token);
     expect([403, 404]).toContain(refused.statusCode);
+  });
+
+  it("OPS-032 an explicit Check again re-examines the sources inside the freshness window", async () => {
+    const owner = await makeUser(c, "recheck-owner", { plan: "PRO" });
+    const w = await makeWorkspace(c, owner.id, { name: "recheck", billingPlan: "TEAM", billingStatus: "ACTIVE" });
+    const ev = await seedEvidence(c, w.teamId, owner.id, { tsaStatus: "FAILED" });
+    const row = await seedIncident(c, w.teamId, {
+      sourceId: "evidence_integrity.tsa_failed",
+      category: "EVIDENCE_INTEGRITY",
+      fingerprint: `tsa_failure:${ev.id}`,
+      relatedEvidenceId: ev.id,
+    });
+    const { ensureWorkspaceOperationsFresh } = await import("../src/services/operations/operations-reconciliation.service.js");
+    const first = await ensureWorkspaceOperationsFresh({ workspaceId: w.teamId });
+    expect(first.ran).toBe(true);
+    expect((await c.prisma.operationalIncident.findUnique({ where: { id: row.id } }))?.status).toBe("OPEN");
+
+    // The record is repaired after the run: a validated timestamp.
+    await c.prisma.evidence.update({ where: { id: ev.id }, data: { tsaStatus: "STAMPED", tsaValidatedAtUtc: new Date() } });
+    const later = new Date(Date.now() + 11_000);
+
+    // A page load inside the window does not churn ...
+    expect((await ensureWorkspaceOperationsFresh({ workspaceId: w.teamId, now: later })).ran).toBe(false);
+    expect((await c.prisma.operationalIncident.findUnique({ where: { id: row.id } }))?.status).toBe("OPEN");
+    // ... a click seconds after a run does not start another ...
+    expect((await ensureWorkspaceOperationsFresh({ workspaceId: w.teamId, explicit: true })).ran).toBe(false);
+    // ... and a person asking again re-examines the source, which closes it.
+    const asked = await ensureWorkspaceOperationsFresh({ workspaceId: w.teamId, explicit: true, now: later });
+    expect(asked.ran).toBe(true);
+    expect((await c.prisma.operationalIncident.findUnique({ where: { id: row.id } }))?.status).toBe("RESOLVED");
+
+    // The route carries the flag.
+    const viaRoute = await c.inj("POST", "/v1/ops/workspace-reconcile", owner.token, { teamId: w.teamId, explicit: true });
+    expect(viaRoute.statusCode).toBe(202);
+  });
+
+  it("OPS-003 an ungrantable add-on keeps its obligation through failed attempts, and closes only on provider confirmation", async () => {
+    const payer = await makeUser(c, "ungrantable-payer", { plan: "PRO" });
+    const space = await personalSpace(c, payer.id);
+    const addon = await c.prisma.workspaceStorageAddon.create({
+      data: {
+        ownerUserId: payer.id,
+        teamId: null,
+        addonKey: "PERSONAL_50_GB",
+        extraStorageBytes: BigInt(50) * BigInt(1024) ** BigInt(3),
+        billingCycle: "MONTHLY",
+        // As storage-activation writes it: the provider activated it, PROOVRA
+        // refused the grant, and stopping the charge is owed.
+        status: "FAILED",
+        paymentProvider: "PAYPAL",
+        externalSubscriptionId: `I-UNGRANTABLE-${Date.now()}`,
+        dependentCancellationState: "PENDING",
+        dependentCancellationReasonCode: "UNGRANTABLE_PROVIDER_ACTIVE",
+        dependentCancellationRequestedAtUtc: new Date(),
+        dependentCancellationNextRetryAtUtc: new Date(),
+      },
+    });
+    const { attemptDependentCancellations } = await import("../src/services/billing/dependent-cancellation.service.js");
+    const fp = `billing_dependent_cancellation:${addon.id}`;
+    const condition = async () => (await c.prisma.operationalIncident.findFirst({ where: { teamId: space, fingerprint: fp } }))?.status;
+
+    await sweep(space);
+    expect(await condition()).toBe("OPEN");
+
+    // The provider is unreachable, twice.
+    for (let i = 0; i < 2; i++) {
+      await c.prisma.workspaceStorageAddon.update({ where: { id: addon.id }, data: { dependentCancellationLeaseUntilUtc: null } });
+      await attemptDependentCancellations({
+        ownerUserId: payer.id,
+        teamId: null,
+        cancelAtProvider: async ({ mode }) => ({ ok: false, mode, reasonCode: "PROVIDER_UNAVAILABLE" }),
+      });
+    }
+    const after = await c.prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } });
+    expect(after.dependentCancellationState).toBe("RETRY_SCHEDULED");
+    expect(after.dependentCancellationReasonCode).toBe("UNGRANTABLE_PROVIDER_ACTIVE");
+    await sweep(space);
+    expect(await condition()).toBe("OPEN");
+
+    // The provider confirms the stop.
+    await c.prisma.workspaceStorageAddon.update({ where: { id: addon.id }, data: { dependentCancellationLeaseUntilUtc: null } });
+    await attemptDependentCancellations({
+      ownerUserId: payer.id,
+      teamId: null,
+      cancelAtProvider: async ({ mode }) => ({ ok: true, mode, terminal: true }),
+    });
+    expect((await c.prisma.workspaceStorageAddon.findUniqueOrThrow({ where: { id: addon.id } })).dependentCancellationState).toBe("CONFIRMED");
+    await sweep(space);
+    expect(await condition()).toBe("RESOLVED");
   });
 });

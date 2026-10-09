@@ -1,0 +1,33 @@
+Batch 10 — GREEN on the fix branch
+
+Executed full-stack journeys (local disposable stack: PostgreSQL 16 + pgvector, Redis 7, MinIO with a
+versioned bucket, API, worker with the production report renderer, web `next dev`), chromium project:
+
+  ok 1 Journey A — a real report job fails in the worker and raises one exact condition (1.4m)
+  ok 2 Journey A — Operations offers the canonical recovery; the worker builds the report; the condition resolves in the page (15.3s)
+  ok 1 Journey B — the provider and local state disagree; the payer's workspace shows it; Resolve is refused (7.4s)
+  ok 2 Journey B — a failed retry keeps it owed and open; the provider confirms; the condition closes from source truth (15.6s)
+  ok 3 Journey C — a failed timestamp opens; an unvalidated token does not close it; a validated one does (21.3s)
+  ok 4 Journey C — a failed OTS anchor opens; pending stays open; only an anchored proof closes it (15.3s)
+
+Focused tests:
+  services/api  test/operations-remediation-registry.test.ts                    47 passed
+  services/api  test/operations-truth-gaps.integration.test.ts (fresh PG 16)    7 passed
+  services/api  test/workspace-operations-reconciliation.integration.test.ts     16 passed (fresh PG 16)
+  services/api  test/operations-ots-remediation-truth.integration.test.ts        re-pinned ET-REC-02 passed
+  services/api  test/operations-truth-reconciliation.integration.test.ts         1 passed
+  apps/web      __tests__/render/operations-workbench.render.test.tsx             144 passed
+  apps/mobile   test/ops-truth-closure.render.test.mjs                            6 passed
+  apps/mobile   test/ops-parity.render.test.mjs + ops-console.test.mjs            23 passed
+  tsc --noEmit: api, worker, web, mobile — 0 errors
+
+Re-pinned stale tests (to stronger contracts, not weaker):
+  * operations-ots-remediation-truth ET-REC-02: "ANCHORED" with no anchor time or transaction is no
+    longer recovery (OPS-019); the fixture now records an anchored proof.
+  * workspace-operations-reconciliation suppression: a suppression now states its reason (OPS-030).
+  * operations-workbench "every status posture renders as text": a RESOLVED group renders in Recently
+    resolved, so the fixture's activity is recent.
+
+Note: workspace-operations-reconciliation's two sweep tests time out (60 s) in a long-lived shared
+test database that has accumulated hundreds of due workspaces; on a freshly migrated database they
+pass (16/16). The OPS-008 proof now deletes its 520 workspaces when it finishes.

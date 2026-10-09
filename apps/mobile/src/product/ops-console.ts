@@ -889,7 +889,7 @@ export function formatMetricValue(value: number): string {
 }
 
 export function affectedFor(i: Incident): { label: string | null; href: string | null } {
-  if (i.relatedEvidenceId) return { label: "Evidence record", href: `/evidence/${encodeURIComponent(i.relatedEvidenceId)}` };
+  if (i.relatedEvidenceId) return { label: `Evidence record ${i.relatedEvidenceId.slice(0, 8)}`, href: `/evidence/${encodeURIComponent(i.relatedEvidenceId)}` };
   if (i.relatedJobId) return { label: "Background job", href: null };
   if (i.relatedProvider) return { label: i.relatedProvider, href: null };
   return { label: null, href: null };

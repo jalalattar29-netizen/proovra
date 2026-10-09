@@ -85,7 +85,8 @@ describe("Operations truth reconciliation (live PostgreSQL 16)", () => {
     });
 
     const ids = [retired, telemetry, heartbeat, providerHourly, denied, stranded, raw, premature, orphanBilling].map((r) => r.id);
-    const snapshot = async () =>
+    type Row = { id: string; status: string; teamId: string | null; scope: string; safeSummary: string | null; title: string };
+    const snapshot = async (): Promise<Row[]> =>
       c.prisma.operationalIncident.findMany({
         where: { id: { in: ids } },
         select: { id: true, status: true, teamId: true, scope: true, safeSummary: true, title: true },

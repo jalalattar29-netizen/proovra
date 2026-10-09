@@ -684,7 +684,18 @@ export type RemediationContext = {
    * know. A permanently invalid OTS proof (PROOF_HASH_MISMATCH /
    * MALFORMED_PROOF) is never offered "Resume OTS anchoring".
    */
-  record?: { otsStatus: string | null; otsFailureReason: string | null } | null;
+  record?: {
+    otsStatus: string | null;
+    otsFailureReason: string | null;
+    /**
+     * The record's OWN output decision (`resolveEvidenceOutputActions`): is
+     * its failed report/package an exhausted TECHNICAL terminal? Then only the
+     * supersession can move it, and a plain recovery would collapse onto the
+     * terminal and do nothing — so exactly one of the two is offered. Null or
+     * absent when the record's outputs were not read; both stay offered.
+     */
+    outputExhausted?: boolean | null;
+  } | null;
   /** Server-resolved permissions for THIS caller in THIS workspace. */
   can: (permission: RemediationPermission) => boolean;
 /** Server-resolved permission check for deep-link destinations. */
@@ -787,7 +798,15 @@ export function resolveRemediations(
           },
         ]
       : [];
-  const actions = [...offered(entry.action), ...offered(entry.secondaryAction)];
+  // ONE primary action. Where the entry pairs a recovery with the supersession
+  // of an exhausted failure, the record's own output decision picks the one
+  // that can actually move it.
+  const exhausted = ctx.record?.outputExhausted;
+  const pairedWithSupersede = entry.secondaryAction?.actionId === SUPERSEDE_FAILED_GENERATION.actionId;
+  const actions = [
+    ...(pairedWithSupersede && exhausted === true ? [] : offered(entry.action)),
+    ...(pairedWithSupersede && exhausted === false ? [] : offered(entry.secondaryAction)),
+  ];
 
   // A destination the reader cannot open is withheld, not rendered and
   // refused.

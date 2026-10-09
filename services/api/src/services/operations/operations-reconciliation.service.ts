@@ -217,9 +217,27 @@ export type EnsureFreshOutcome = {
  * The discovery is still bounded and still under the same lock, so a hundred
  * simultaneous page loads produce ONE run.
  */
+/**
+ * The shortest gap between two runs a person can ask for. An explicit "Check
+ * again" re-examines the sources even inside the freshness window; this bound
+ * only collapses a double click — the per-workspace run lock already keeps
+ * concurrent requests to ONE run. It was 10s, and a journey that repaired a
+ * record and pressed Refresh seven seconds after the page-load run got
+ * nothing re-examined.
+ */
+export const OPERATIONS_EXPLICIT_RECHECK_MIN_MS = 2_000;
+
 export async function ensureWorkspaceOperationsFresh(input: {
   workspaceId: string;
   now?: Date;
+  /**
+   * A person pressed "Check again". The freshness window answers "is the
+   * picture recent enough to show?", not "has anything changed?" — so an
+   * explicit request runs inside it (bounded by OPERATIONS_EXPLICIT_RECHECK_MIN_MS).
+   * Without this, a record repaired a minute after a run stayed open on screen
+   * for the rest of the 45-minute window while the button reported success.
+   */
+  explicit?: boolean;
   /** OPS-032 — the person who asked, recorded on the run they started. */
   triggeredByUserId?: string | null;
 }): Promise<EnsureFreshOutcome> {
@@ -244,8 +262,13 @@ export async function ensureWorkspaceOperationsFresh(input: {
     return { run, refreshing: true, ran: false, alreadyRunning: true, refreshBlockedReason: null };
   }
 
-  // READY and inside its window: the picture is current, do not churn.
-  if (run && run.readiness === "READY") {
+  // READY and inside its window: the picture is current, do not churn —
+  // unless a person asked, and the last run is not seconds old.
+  const explicitRecheck =
+    input.explicit === true &&
+    run != null &&
+    now.getTime() - new Date(run.startedAtUtc).getTime() >= OPERATIONS_EXPLICIT_RECHECK_MIN_MS;
+  if (run && run.readiness === "READY" && !explicitRecheck) {
     return { run, refreshing: false, ran: false, alreadyRunning: false, refreshBlockedReason: null };
   }
 

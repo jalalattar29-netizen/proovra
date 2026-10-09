@@ -231,3 +231,16 @@ test("OPS-011 a native bulk sweep carries an idempotency key", async () => {
   assert.equal(outcome.failed, 0);
   assert.deepEqual(outcome.stillSelected, []);
 });
+
+test("OPS-032 Refresh asks for a NEW check of the sources, explicitly, then re-reads", async () => {
+  handlers["POST /v1/ops/workspace-reconcile"] = () => ({ status: 202, body: { started: true, ran: true, alreadyRunning: false, readiness: "READY" } });
+  const r = await renderOps();
+  const before = gets("/v1/ops/incidents?").length;
+  await pressTestId(r, "ops-refresh");
+  await settleN();
+  const sent = requests.filter((q) => q.method === "POST" && q.path.startsWith("/v1/ops/workspace-reconcile"));
+  assert.equal(sent.length, 1, "Refresh did not ask for a new check");
+  assert.equal(sent[0].body.explicit, true);
+  assert.ok(gets("/v1/ops/incidents?").length > before, "no re-read after the check");
+  r.unmount();
+});

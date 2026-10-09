@@ -95,7 +95,12 @@ describe("OTS remediation truth (live PostgreSQL 16)", () => {
     await sweepSourceTruthRecoveries({ teamId: A.teamId, sourceId: "evidence_integrity.ots_budget_exhausted" });
     expect((await detail(incidentId)).incident.status).toBe("OPEN");
     // The proof recovers: the same sweep closes it.
-    await prisma.evidence.update({ where: { id: evidenceId }, data: { otsStatus: "ANCHORED", otsFailureReason: null } as never });
+    // OPS-019 — "ANCHORED" alone is a label; recovery is an anchored proof
+    // (its anchor time and Bitcoin transaction recorded).
+    await prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { otsStatus: "ANCHORED", otsFailureReason: null, otsAnchoredAtUtc: new Date(), otsBitcoinTxid: "d".repeat(64) } as never,
+    });
     const swept = await sweepSourceTruthRecoveries({ teamId: A.teamId, sourceId: "evidence_integrity.ots_budget_exhausted" });
     expect(swept.resolved).toBeGreaterThanOrEqual(1);
     expect((await detail(incidentId)).incident.status).toBe("RESOLVED");

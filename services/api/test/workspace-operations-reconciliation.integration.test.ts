@@ -469,8 +469,9 @@ describe("Workspace Operations reconciliation (live PostgreSQL 16)", () => {
       incidentId: created.incident.id,
       teamId: teamA.teamId,
       actorUserId: harness.fixtures.teamA.ownerUserId,
-      note: "Known and accepted for now",
-    } as never);
+      // OPS-030 — a suppression states its reason, or does not happen.
+      suppressionReason: "Known and accepted for now",
+    });
 
     const after = await prisma.operationalIncident.findUniqueOrThrow({
       where: { id: created.incident.id },
