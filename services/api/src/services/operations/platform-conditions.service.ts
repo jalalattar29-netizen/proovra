@@ -137,7 +137,7 @@ export async function reconcilePlatformConditions(
         title: "Worker heartbeat stale",
         safeSummary:
           "No live background worker has reported a heartbeat inside its liveness window. Report, package, anchoring and search work is not being processed.",
-        runbookSlug: "worker-heartbeat",
+        runbookSlug: "worker-heartbeat-stale",
         metric: hb.currentValue === undefined
           ? undefined
           : buildConditionMetric({
@@ -193,7 +193,7 @@ export async function reconcilePlatformConditions(
           title: `Background jobs failing: ${q.label}`.slice(0, 180),
           safeSummary: `Jobs on the ${q.label} queue failed after exhausting their retries within the last hour. Inspect and replay eligible jobs in the platform queue console.`,
           relatedJobId: q.name,
-          runbookSlug: "queue-job-failures",
+          runbookSlug: "queue-failed-jobs",
           metric: buildConditionMetric({
             currentValue: obs.currentValue ?? 0,
             thresholdValue: 1,

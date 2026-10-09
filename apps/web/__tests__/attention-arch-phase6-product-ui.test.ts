@@ -257,7 +257,12 @@ test("an all-clear is impossible over a partial or failed read", () => {
 });
 
 test("the workbench explains read-only access instead of failing silently", () => {
-  assert.match(OPERATIONS, /Acting on one needs an operator role/i);
+  // OPS-020 — the sentence moved into the ONE shared Operations dictionary
+  // (en/de/ar), and the page renders it for a reader who can act on nothing.
+  assert.match(OPERATIONS, /capabilities\.canActOnAnything \? copy\.subtitleOperator : copy\.subtitleViewer/);
+  const SHARED_I18N = read("../../packages/shared/src/i18n.ts");
+  assert.match(SHARED_I18N, /subtitleViewer: "Monitor operational conditions in this workspace\. Acting on one needs an operator role\."/);
+  assert.match(SHARED_I18N, /subtitleViewer:\s*\n?\s*"Betriebliche Zustände[^"]*Operator-Rolle erforderlich\."/);
 });
 
 // ============================================================================

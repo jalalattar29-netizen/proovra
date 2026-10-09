@@ -20,6 +20,12 @@
  * ---------------------------------------------------------------------------
  * WHAT IT DOES NOT OFFER
  * ---------------------------------------------------------------------------
+ * OPS-012 — EVERY MEMBER OPENS ITS CONDITION. The drawer used to offer only
+ * "Close": in the default Grouped view a report failure's group showed counts
+ * and no route to the condition that carries the recovery action. Each member
+ * now opens the condition drawer, where the source's canonical action lives,
+ * and a group of one offers that directly in its header.
+ *
  * There is no bulk Resolve. Source-truth conditions close themselves when the
  * source recovers, so a control that closed thirty of them by hand would be
  * both unsafe and unnecessary; the existing bulk Acknowledge, Suppress and
@@ -42,6 +48,8 @@ import type {
 } from "../_lib/types";
 import { SEVERITY_VOCABULARY, STATUS_VOCABULARY, categoryLabel } from "../_lib/vocabulary";
 import { IconClose, IconExternal, IconSpinner } from "./icons";
+import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
+import { useOpsCopy } from "../_lib/copy";
 
 export function GroupInspector({
   group,
@@ -52,6 +60,7 @@ export function GroupInspector({
   onLoadMore,
   onClose,
   canOpenRecords,
+  onOpenCondition,
 }: {
   group: IncidentGroup;
   /** The pages loaded so far, concatenated. */
@@ -70,31 +79,22 @@ export function GroupInspector({
    * already follow.
    */
   canOpenRecords: boolean;
+  /** OPS-012 — open one member's condition drawer (where its action is). */
+  onOpenCondition: (conditionId: string) => void;
 }) {
   const panelRef = React.useRef<HTMLElement | null>(null);
-  const restoreRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
+  const copy = useOpsCopy();
 
-  React.useEffect(() => {
-    restoreRef.current =
-      typeof document !== "undefined"
-        ? (document.activeElement as HTMLElement | null)
-        : null;
-    panelRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      // Focus returns to whatever opened this, so a keyboard user is not
-      // stranded at the top of a five-thousand-row page.
-      restoreRef.current?.focus?.();
-    };
-  }, [onClose]);
+  // OPS-020 — the shared focus contract: into the drawer, trapped, Escape
+  // closes, back to the group row that opened it.
+  useDialogFocusTrap(panelRef, onClose);
+
+  // A group of ONE is that condition: its header offers it directly.
+  const soleConditionId =
+    group.conditionCount === 1
+      ? (records[0]?.conditionId ?? group.affectedSample[0]?.conditionId ?? null)
+      : null;
 
   const severity =
     SEVERITY_VOCABULARY[group.severity as IncidentSeverity] ?? SEVERITY_VOCABULARY.INFO;
@@ -133,11 +133,24 @@ export function GroupInspector({
             type="button"
             className="app-ghost-action opsw-drawer__close"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={copy.closeGroup}
+            data-dialog-initial-focus
           >
             <IconClose />
           </button>
         </header>
+        {soleConditionId ? (
+          <div className="opsw-drawer__lead-action">
+            <button
+              type="button"
+              className="app-primary-action"
+              onClick={() => onOpenCondition(soleConditionId)}
+              data-ops-group-open-condition={soleConditionId}
+            >
+              {copy.openCondition}
+            </button>
+          </div>
+        ) : null}
 
         <div className="opsw-drawer__body">
           <section className="opsw-drawer__section">
@@ -288,6 +301,15 @@ export function GroupInspector({
                         <span>owned</span>
                       </>
                     ) : null}
+                    <span aria-hidden="true">·</span>
+                    <button
+                      type="button"
+                      className="app-ghost-action opsw-affected__open"
+                      onClick={() => onOpenCondition(r.conditionId)}
+                      data-ops-affected-open={r.conditionId}
+                    >
+                      {copy.openCondition}
+                    </button>
                     {/*
                       A link only where there IS a record and the reader may
                       open it. A per-record integrity condition names its

@@ -99,6 +99,10 @@ export const ERROR_CODE_DISPOSITIONS: Readonly<
     disposition: "internal",
     why: "A pagination cursor the UI produced itself; a person never types one.",
   },
+  SUPPRESSION_REASON_REQUIRED: {
+    disposition: "internal",
+    why: "OPS-030 — the Operations drawer and bulk toolbar ask for the reason and keep the control disabled until one is given, so a person never sends a suppression without it.",
+  },
 
   // -- Authorization / anti-enumeration ------------------------------------
   FORBIDDEN: { disposition: "customer", where: "global" },

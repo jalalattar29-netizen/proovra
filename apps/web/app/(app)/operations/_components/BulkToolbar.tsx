@@ -40,6 +40,8 @@
 
 import * as React from "react";
 
+import { useOpsCopy } from "../_lib/copy";
+
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import type { AssignableOperator, OperationsCapabilities } from "../_lib/types";
 
@@ -60,7 +62,8 @@ export function BulkToolbar({
   capabilities: OperationsCapabilities;
   busy: boolean;
   onAcknowledge: () => void;
-  onSuppress: () => void;
+  /** OPS-030 — a bulk "Stop notifying" carries the operator's reason. */
+  onSuppress: (reason: string) => void;
   onClear: () => void;
   /**
    * Whether ownership is a real axis in this workspace, server-projected from
@@ -75,6 +78,14 @@ export function BulkToolbar({
   outcome: string | null;
 }) {
   const [assignee, setAssignee] = React.useState("");
+  const copy = useOpsCopy();
+  // OPS-030 — the reason a bulk suppression needs, asked before it is sent.
+  const [suppressOpen, setSuppressOpen] = React.useState(false);
+  const [suppressReason, setSuppressReason] = React.useState("");
+  React.useEffect(() => {
+    setSuppressOpen(false);
+    setSuppressReason("");
+  }, [count]);
   // A selection change invalidates the previous sweep's answer: leaving it on
   // screen would attach a count to a set of conditions it never described.
   React.useEffect(() => setAssignee(""), [count]);
@@ -110,10 +121,11 @@ export function BulkToolbar({
             type="button"
             className="app-secondary-action app-secondary-action--danger"
             disabled={busy}
-            onClick={onSuppress}
+            aria-expanded={suppressOpen}
+            onClick={() => setSuppressOpen((v) => !v)}
             data-ops-bulk-action="suppress"
           >
-            Stop notifying
+            {copy.stopNotifying}
           </button>
         ) : null}
         {canAssign ? (
@@ -159,6 +171,30 @@ export function BulkToolbar({
           Clear selection
         </button>
       </div>
+      {capabilities.canSuppress && suppressOpen ? (
+        <div className="opsw-bulk__reason" data-ops-bulk-suppress-reason-field>
+          <label className="opsw-remediation__reason">
+            <span className="opsw-muted">{copy.bulkSuppressReasonLabel}</span>
+            <textarea
+              className="app-form-input"
+              rows={2}
+              maxLength={400}
+              value={suppressReason}
+              onChange={(e) => setSuppressReason(e.target.value)}
+              data-ops-bulk-suppress-reason
+            />
+          </label>
+          <button
+            type="button"
+            className="app-secondary-action app-secondary-action--danger"
+            disabled={busy || suppressReason.trim().length < 3}
+            onClick={() => onSuppress(suppressReason.trim())}
+            data-ops-bulk-action="suppress-confirm"
+          >
+            {copy.stopNotifying}
+          </button>
+        </div>
+      ) : null}
       {outcome ? (
         <p
           className="opsw-bulk__outcome"

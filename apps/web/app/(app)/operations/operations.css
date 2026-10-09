@@ -1248,3 +1248,62 @@
   /* No hex fallback: this stylesheet names tokens only. */
   background: var(--orange-500);
 }
+
+/* ---------------------------------------------------------------------------
+   THE SIMPLE PAGE (default grouped view): Action required / Monitoring /
+   Recently resolved. Each section is a heading, one quiet sentence and its
+   groups — the same group rows the filtered view uses.
+   ------------------------------------------------------------------------- */
+.opsw-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block-start: 18px;
+}
+.opsw-section__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink-primary);
+}
+.opsw-section__hint {
+  margin: 0 0 4px;
+}
+
+/* OPS-029 / OPS-030 — the note a Resolve needs and the reason a suppression
+   needs, directly above the actions they gate. */
+.opsw-drawer__form {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 22px 0;
+}
+.opsw-drawer__form textarea {
+  inline-size: 100%;
+}
+
+/* OPS-012 — a group of one offers its condition directly. */
+.opsw-drawer__lead-action {
+  flex: 0 0 auto;
+  padding: 0 22px 12px;
+}
+.opsw-affected__open {
+  min-block-size: 24px;
+}
+
+/* OPS-030 — the bulk reason, under the toolbar it belongs to. */
+.opsw-bulk__reason {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-block-start: 8px;
+}
+.opsw-bulk__reason .opsw-remediation__reason {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

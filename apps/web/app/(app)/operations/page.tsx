@@ -134,6 +134,8 @@ import {
   type FilterState,
 } from "./_lib/filters";
 import { buildRowModel } from "./_lib/rowModel";
+import { fillOperationsCopy, useOpsCopy } from "./_lib/copy";
+import { bulkActionItemSucceeded, makeClientRequestKey } from "@proovra/shared";
 import type {
   AssignableOperator,
   Incident,
@@ -194,6 +196,14 @@ function OperationsWorkbench() {
   const teamId = useActiveWorkspaceId();
   const { envelope } = usePlatformContext();
   const { workspaceName } = useOwningContextLabel();
+  // OPS-020 — the page chrome in the reader's language (shared dictionary).
+  const copy = useOpsCopy();
+  /**
+   * OPS-020 — ONE live region for the outcome of an action, so a screen-reader
+   * user hears that Acknowledge or Stop notifying worked without hunting for
+   * the row that changed.
+   */
+  const [announcement, setAnnouncement] = React.useState("");
 
   // -------------------------------------------------------------------------
   // CAPABILITIES — resolved once, server-projected, never re-derived.
@@ -244,9 +254,16 @@ function OperationsWorkbench() {
    * the QUERY changes.
    */
   const searchKey = searchParams?.toString() ?? "";
+  // The filters are the query WITHOUT `?incident=`: opening or closing a
+  // condition's drawer changes the URL, and must not re-read the queue.
+  const filterKey = React.useMemo(() => {
+    const p = new URLSearchParams(searchKey);
+    p.delete("incident");
+    return p.toString();
+  }, [searchKey]);
   const filters = React.useMemo(
-    () => filtersFromParams(new URLSearchParams(searchKey)),
-    [searchKey],
+    () => filtersFromParams(new URLSearchParams(filterKey)),
+    [filterKey],
   );
 
   const applyFilters = React.useCallback(
@@ -337,6 +354,39 @@ function OperationsWorkbench() {
 
   const [openId, setOpenId] = React.useState<string | null>(null);
 
+  /**
+   * OPS-020 — A CONDITION IS URL-ADDRESSABLE. `?incident=<id>` opens its
+   * drawer, so a link to one condition can be shared, bookmarked and reopened.
+   * The id is read by the drawer's own detail request, which the server
+   * authorizes; an id from another workspace is simply not found.
+   */
+  React.useEffect(() => {
+    const id = new URLSearchParams(searchKey).get("incident");
+    if (id && /^[0-9a-f-]{36}$/i.test(id)) setOpenId(id);
+  }, [searchKey]);
+  const setIncidentInUrl = React.useCallback(
+    (id: string | null) => {
+      const params = new URLSearchParams(searchKey);
+      if (id) params.set("incident", id);
+      else params.delete("incident");
+      const qs = params.toString();
+      router.replace(qs ? `/operations?${qs}` : "/operations", { scroll: false });
+    },
+    [router, searchKey],
+  );
+  const openIncident = React.useCallback(
+    (id: string) => {
+      setOpenGroupKey(null);
+      setOpenId(id);
+      setIncidentInUrl(id);
+    },
+    [setIncidentInUrl],
+  );
+  const closeIncident = React.useCallback(() => {
+    setOpenId(null);
+    setIncidentInUrl(null);
+  }, [setIncidentInUrl]);
+
   // ==========================================================================
   // THE GROUPED QUEUE
   // ==========================================================================
@@ -364,6 +414,16 @@ function OperationsWorkbench() {
     null,
   );
   const [groupsLoading, setGroupsLoading] = React.useState(false);
+  /**
+   * OPS-036 — A FAILED GROUPED READ IS UNAVAILABLE, NOT EMPTY.
+   *
+   * The catch set the groups to [] and the default view rendered "0 groups ·
+   * 0 conditions" and the no-match state over a workspace with real
+   * conditions — the summary cards above it still counting them.
+   */
+  const [groupsError, setGroupsError] = React.useState<SafeUserError | null>(null);
+  /** The "Recently resolved" section's own read: resolved in the last 7 days. */
+  const [resolvedGroups, setResolvedGroups] = React.useState<IncidentGroup[]>([]);
   const [openGroupKey, setOpenGroupKey] = React.useState<string | null>(null);
   /**
    * THE GROUPED READ'S OWN SEQUENCE.
@@ -441,6 +501,7 @@ function OperationsWorkbench() {
           totals?: IncidentGroupTotals;
         };
         const next = (payload.groups ?? []).slice();
+        setGroupsError(null);
         setGroups(next);
         // An older server sends no totals. Derived from the payload rather
         // than left null, because a header with a group count and no condition
@@ -452,17 +513,63 @@ function OperationsWorkbench() {
           },
         );
       })
-      .catch(() => {
+      .catch((err) => {
         if (seq !== groupsSeq.current) return;
-        // A failed grouped read leaves the groups EMPTY rather than stale.
-        // The flat list is still there, and an empty grouped view with a
-        // visible toggle is honest; a previous workspace's groups would not be.
+        // A failed grouped read leaves no groups — a previous workspace's would
+        // be worse — AND says it failed (OPS-036), so the surface renders the
+        // unavailable state instead of "no conditions match".
         setGroups([]);
         setGroupTotals(null);
+        setGroupsError(
+          toSafeUserError(err, { message: "Grouped conditions could not be loaded." }),
+        );
       })
       .finally(() => {
         if (seq === groupsSeq.current) setGroupsLoading(false);
       });
+  }, [
+    teamId,
+    grouped,
+    filters,
+    reloadToken,
+    canView,
+    readAccess.refusedReason,
+    readAccess.incidents,
+  ]);
+
+  /**
+   * THE SIMPLE PAGE — "Recently resolved".
+   *
+   * The default view answers three questions in order: what needs action, what
+   * is being watched, and what was closed lately. The third is its own read of
+   * RESOLVED groups, kept to the last seven days, and only on the default view:
+   * a filtered queue shows what the filters asked for and nothing else.
+   */
+  React.useEffect(() => {
+    const refused =
+      readAccess.refusedReason !== null || !canView || !readAccess.incidents;
+    if (refused || !teamId || !grouped || anyFilterActive(filters)) {
+      setResolvedGroups([]);
+      return;
+    }
+    let cancelled = false;
+    const params = new URLSearchParams({ teamId, status: "RESOLVED" });
+    void apiFetch(`/v1/ops/incident-groups?${params.toString()}`, { method: "GET" })
+      .then((res) => {
+        if (cancelled) return;
+        const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const recent = ((res as { groups?: IncidentGroup[] }).groups ?? []).filter(
+          (g) => Date.parse(g.latestActivityAtUtc) >= since,
+        );
+        setResolvedGroups(recent);
+      })
+      .catch(() => {
+        // Optional context, not the queue: a failed read simply shows none.
+        if (!cancelled) setResolvedGroups([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [
     teamId,
     grouped,
@@ -528,7 +635,7 @@ function OperationsWorkbench() {
   }, [openGroupKey, loadAffected]);
 
   const openGroup = openGroupKey
-    ? (groups.find((g) => g.groupKey === openGroupKey) ?? null)
+    ? ([...groups, ...resolvedGroups].find((g) => g.groupKey === openGroupKey) ?? null)
     : null;
 
   const [detail, setDetail] =
@@ -577,6 +684,16 @@ function OperationsWorkbench() {
    * both questions correctly.
    */
   const requestSeq = React.useRef(0);
+  /**
+   * OPS-007 — THE DETAIL READ'S OWN SEQUENCE.
+   *
+   * It shared `requestSeq` with the list. Opening (or re-reading) a condition
+   * bumped the counter while a list read was in flight, the list response was
+   * then discarded as stale, and `setRefreshing(false)` — which only that
+   * response could reach — never ran: after any action with the drawer open
+   * the list never refreshed and Refresh stayed disabled for good.
+   */
+  const detailSeq = React.useRef(0);
 
   /**
    * The CANONICAL step-up control, shared with every other surface that runs
@@ -708,20 +825,20 @@ function OperationsWorkbench() {
   // the condition the operator opened.
   React.useEffect(() => {
     if (!openId || !teamId) return;
-    const seq = ++requestSeq.current;
+    const seq = ++detailSeq.current;
     setDetail(LOADING);
     void apiFetch(
       `/v1/ops/incidents/${encodeURIComponent(openId)}?teamId=${encodeURIComponent(teamId)}`,
       { method: "GET" },
     )
       .then((res) => {
-        if (seq !== requestSeq.current) return;
+        if (seq !== detailSeq.current) return;
         const v = res as IncidentDetailResponse;
         setDetail({ kind: "ready", data: v.incident });
         setRemediation(v.remediation ?? null);
       })
       .catch((err) => {
-        if (seq !== requestSeq.current) return;
+        if (seq !== detailSeq.current) return;
         setDetail({ kind: "error", ...sourceErrorFor("detail", err) });
         setRemediation(null);
       });
@@ -1037,7 +1154,11 @@ function OperationsWorkbench() {
   // exists to prevent.
   // -------------------------------------------------------------------------
   const runTransition = React.useCallback(
-    async (incidentId: string, action: "ack" | "resolve" | "suppress") => {
+    async (
+      incidentId: string,
+      action: "ack" | "resolve" | "suppress",
+      extra?: { resolutionNote?: string; reason?: string },
+    ) => {
       if (!teamId || busy) return;
       // The control the operator actually pressed, captured BEFORE anything
       // disables it. The transition sets `busy`, which disables the row and
@@ -1057,8 +1178,21 @@ function OperationsWorkbench() {
           {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ teamId }),
+            // OPS-029 — the note a Resolve needs; OPS-030 — the reason a
+            // suppression needs. Both are recorded in the condition's history.
+            body: JSON.stringify({
+              teamId,
+              ...(extra?.resolutionNote ? { resolutionNote: extra.resolutionNote } : {}),
+              ...(extra?.reason ? { reason: extra.reason } : {}),
+            }),
           },
+        );
+        setAnnouncement(
+          action === "ack"
+            ? copy.announceAcknowledged
+            : action === "resolve"
+              ? copy.announceResolved
+              : copy.announceSuppressed,
         );
         refresh();
       } catch (err) {
@@ -1173,7 +1307,7 @@ function OperationsWorkbench() {
         setPendingId(null);
       }
     },
-    [teamId, busy, refresh, confirm],
+    [teamId, busy, refresh, confirm, copy],
   );
 
   const assign = React.useCallback(
@@ -1288,10 +1422,14 @@ function OperationsWorkbench() {
         | "BULK_ACKNOWLEDGE_INCIDENTS"
         | "BULK_SUPPRESS_INCIDENTS"
         | "BULK_ASSIGN_INCIDENTS",
-      extra?: { assigneeUserId?: string },
+      extra?: { assigneeUserId?: string; note?: string },
     ) => {
       if (!teamId || busy || markedIds.size === 0) return;
       const targetIds = Array.from(markedIds);
+      // OPS-011 — ONE key per sweep. The step-up retry re-issues this same
+      // request, so a replay after a dropped connection reads back the first
+      // run instead of fanning out twice.
+      const idempotencyKey = makeClientRequestKey();
       setBusy(true);
       setMutationError(null);
       setBulkOutcome(null);
@@ -1305,23 +1443,31 @@ function OperationsWorkbench() {
           apiFetch(`/v1/ops/bulk-actions`, {
             method: "POST",
             headers: { "content-type": "application/json", ...(headers ?? {}) },
-            body: JSON.stringify({ teamId, actionType, targetIds, ...extra }),
+            body: JSON.stringify({ teamId, actionType, targetIds, idempotencyKey, ...extra }),
           }),
         );
         const run = res as BulkActionResponse;
         const items = run.items ?? [];
+        // OPS-011 — the runner writes COMPLETED, never "SUCCEEDED"; the web
+        // read every fully successful sweep as "0 of N updated". The status
+        // contract is shared with the API and native now.
         const failedIds = new Set(
           items
-            .filter((i) => i.status !== "SUCCEEDED")
+            .filter((i) => !bulkActionItemSucceeded(i.status))
             .map((i) => i.targetId),
         );
         const succeeded = targetIds.length - failedIds.size;
 
-        setBulkOutcome(
+        const outcomeText =
           failedIds.size === 0
-            ? `${succeeded} of ${targetIds.length} updated.`
-            : `${succeeded} of ${targetIds.length} updated. ${failedIds.size} could not be changed and ${failedIds.size === 1 ? "remains" : "remain"} selected.`,
-        );
+            ? fillOperationsCopy(copy.bulkUpdated, { done: succeeded, total: targetIds.length })
+            : fillOperationsCopy(copy.bulkPartial, {
+                done: succeeded,
+                total: targetIds.length,
+                failed: failedIds.size,
+              });
+        setBulkOutcome(outcomeText);
+        setAnnouncement(outcomeText);
         // Only the ones that did NOT move stay marked.
         setMarkedIds(failedIds);
         refresh();
@@ -1339,7 +1485,7 @@ function OperationsWorkbench() {
         setBusy(false);
       }
     },
-    [teamId, busy, markedIds, refresh, stepUp],
+    [teamId, busy, markedIds, refresh, stepUp, copy],
   );
 
   // -------------------------------------------------------------------------
@@ -1392,7 +1538,21 @@ function OperationsWorkbench() {
    */
   const collaborative = (operatorCount ?? 0) > 1;
 
-  const openRow = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
+  // A condition opened from a group member or from `?incident=` may not be
+  // on the loaded page of the flat list. Its own detail read carries the same
+  // projection, so the drawer is built from that rather than not opening.
+  const openRow = openId
+    ? (rows.find((r) => r.id === openId) ??
+      (detail.kind === "ready" && detail.data.id === openId
+        ? buildRowModel(detail.data as unknown as Incident, {
+            capabilities,
+            viewerUserId,
+            operatorLabels,
+            now,
+            slaAttentionPostures: sla?.attentionPostures,
+          })
+        : null))
+    : null;
 
   // The selected summary card, derived from the filters rather than stored
   // separately — otherwise a browser Back that changes the URL leaves the
@@ -1460,22 +1620,20 @@ function OperationsWorkbench() {
         </span>
         <div className="app-page-header__text">
           {/* THE ONLY <h1> ON THIS PAGE. */}
-          <h1 className="app-page-header__title">Operations</h1>
+          <h1 className="app-page-header__title">{copy.pageTitle}</h1>
           <p className="app-page-header__subtitle">
-            {capabilities.canActOnAnything
-              ? "Monitor, assign and resolve operational conditions in this workspace."
-              : "Monitor operational conditions in this workspace. Acting on one needs an operator role."}
+            {capabilities.canActOnAnything ? copy.subtitleOperator : copy.subtitleViewer}
           </p>
           <p className="opsw-context" data-ops-context>
             {workspaceName ? (
               <>
-                <span>Conditions in</span>{" "}
+                <span>{copy.conditionsIn}</span>{" "}
                 <strong data-context-workspace>{workspaceName}</strong>
               </>
             ) : null}
             {lastLoadedAtUtc ? (
               <span className="opsw-context__stamp" data-ops-last-loaded>
-                Updated {formatUserDateTime(lastLoadedAtUtc)}
+                {copy.updated} {formatUserDateTime(lastLoadedAtUtc)}
               </span>
             ) : null}
           </p>
@@ -1491,7 +1649,7 @@ function OperationsWorkbench() {
             data-ops-refresh
           >
             <IconRefresh size={16} />
-            <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
+            <span>{refreshing ? copy.refreshing : copy.refresh}</span>
           </button>
         </div>
       ) : null}
@@ -1566,6 +1724,9 @@ function OperationsWorkbench() {
 
   return (
     <PageShell className="opsw-page" header={header} data-testid="operations-page">
+      <p className="app-visually-hidden" role="status" aria-live="polite" data-ops-live>
+        {announcement}
+      </p>
       {mutationError ? (
         <InlineMutationError
           error={mutationError}
@@ -1728,7 +1889,11 @@ function OperationsWorkbench() {
               conditions those rows account for.
             */
             resultSummary={
-              grouped
+              // OPS-036 — a failed grouped read has no count to state; "0
+              // groups · 0 conditions" over real conditions was the defect.
+              grouped && groupsError
+                ? ""
+                : grouped
                 ? `${(groupTotals?.groups ?? groups.length).toLocaleString("en-US")} ${
                     (groupTotals?.groups ?? groups.length) === 1
                       ? "group"
@@ -1760,11 +1925,11 @@ function OperationsWorkbench() {
               aria-pressed={grouped}
               onClick={() => {
                 setGrouped(true);
-                setOpenId(null);
+                closeIncident();
               }}
               data-ops-view="grouped"
             >
-              Grouped
+              {copy.viewGrouped}
             </button>
             <button
               type="button"
@@ -1776,7 +1941,7 @@ function OperationsWorkbench() {
               }}
               data-ops-view="flat"
             >
-              All conditions
+              {copy.viewAll}
             </button>
           </div>
 
@@ -1785,7 +1950,7 @@ function OperationsWorkbench() {
             capabilities={capabilities}
             busy={busy}
             onAcknowledge={() => void runBulk("BULK_ACKNOWLEDGE_INCIDENTS")}
-            onSuppress={() => void runBulk("BULK_SUPPRESS_INCIDENTS")}
+            onSuppress={(reason) => void runBulk("BULK_SUPPRESS_INCIDENTS", { note: reason })}
             onClear={() => {
               setMarkedIds(new Set());
               setBulkOutcome(null);
@@ -1810,7 +1975,17 @@ function OperationsWorkbench() {
             which is the exact class of false all-clear this programme exists
             to remove.
           */}
-          {grouped && groupsLoading && groups.length === 0 ? (
+          {grouped && groupsError ? (
+            // OPS-036 — the grouped read FAILED. Unavailable, with a retry —
+            // never "0 groups" and the no-match state over real conditions.
+            <div data-ops-groups-unavailable>
+              <UnavailableState
+                message={copy.groupsUnavailableBody}
+                requestId={groupsError.supportReference}
+                onRetry={refresh}
+              />
+            </div>
+          ) : grouped && groupsLoading && groups.length === 0 ? (
             // LOADING IS NOT EMPTY.
             //
             // Without this the first paint of a grouped queue renders the
@@ -1830,12 +2005,45 @@ function OperationsWorkbench() {
             ) : (
               <NoMatchState onClear={clearFilters} />
             )
+          ) : grouped && !anyFilterActive(filters) ? (
+            // THE SIMPLE PAGE. The default view answers what needs action and
+            // what is being watched, each as its own section of groups. A group
+            // is "action required" while any member is OPEN; otherwise its
+            // members are acknowledged or silenced and it is being monitored.
+            <>
+              {(() => {
+                const actionGroups = groups.filter((g) => g.statusPosture === "OPEN");
+                const monitoringGroups = groups.filter((g) => g.statusPosture !== "OPEN");
+                return (
+                  <>
+                    <section className="opsw-section" aria-labelledby="opsw-section-action" data-ops-section="action-required">
+                      <h2 className="opsw-section__title" id="opsw-section-action">
+                        {copy.sectionActionRequired}
+                      </h2>
+                      <p className="opsw-muted opsw-section__hint">{copy.sectionActionRequiredHint}</p>
+                      {actionGroups.length > 0 ? (
+                        <GroupSurface groups={actionGroups} openGroupKey={openGroupKey} onOpen={setOpenGroupKey} />
+                      ) : (
+                        <p className="opsw-muted" data-ops-section-empty>{copy.sectionEmptyAction}</p>
+                      )}
+                    </section>
+                    <section className="opsw-section" aria-labelledby="opsw-section-monitoring" data-ops-section="monitoring">
+                      <h2 className="opsw-section__title" id="opsw-section-monitoring">
+                        {copy.sectionMonitoring}
+                      </h2>
+                      <p className="opsw-muted opsw-section__hint">{copy.sectionMonitoringHint}</p>
+                      {monitoringGroups.length > 0 ? (
+                        <GroupSurface groups={monitoringGroups} openGroupKey={openGroupKey} onOpen={setOpenGroupKey} />
+                      ) : (
+                        <p className="opsw-muted" data-ops-section-empty>{copy.sectionEmptyMonitoring}</p>
+                      )}
+                    </section>
+                  </>
+                );
+              })()}
+            </>
           ) : grouped ? (
-            // THE DEFAULT. One row per source rather than one per record: a
-            // workspace with five thousand failed timestamps had five thousand
-            // identical rows and nowhere to look. Every workspace kind renders
-            // this — a group of one shows its own condition's title and reads
-            // exactly like the row it replaces.
+            // A FILTERED grouped view: exactly what the filters asked for.
             <GroupSurface
               groups={groups}
               openGroupKey={openGroupKey}
@@ -1851,18 +2059,41 @@ function OperationsWorkbench() {
                 capabilities.canAcknowledge || capabilities.canSuppress
               }
               handlers={{
-                onOpen: setOpenId,
+                onOpen: openIncident,
                 onAcknowledge: (id) => void runTransition(id, "ack"),
-                onResolve: (id) => void runTransition(id, "resolve"),
-                onSuppress: (id) => void runTransition(id, "suppress"),
-                onAssign: setOpenId,
+                // OPS-029 — a source that needs a written conclusion is
+                // resolved from its drawer, where the note is asked for.
+                onResolve: (id) =>
+                  rows.find((r) => r.id === id)?.requiresResolutionNote
+                    ? openIncident(id)
+                    : void runTransition(id, "resolve"),
+                // OPS-030 — stopping notifications needs a reason, which the
+                // drawer asks for and confirms.
+                onSuppress: openIncident,
+                onAssign: openIncident,
                 onToggleMark: toggleMark,
                 pendingId,
               }}
             />
           )}
 
-          {nextCursor ? (
+          {grouped && !groupsError && !anyFilterActive(filters) ? (
+            <section className="opsw-section" aria-labelledby="opsw-section-resolved" data-ops-section="recently-resolved">
+              <h2 className="opsw-section__title" id="opsw-section-resolved">
+                {copy.sectionRecentlyResolved}
+              </h2>
+              <p className="opsw-muted opsw-section__hint">{copy.sectionRecentlyResolvedHint}</p>
+              {resolvedGroups.length > 0 ? (
+                <GroupSurface groups={resolvedGroups} openGroupKey={openGroupKey} onOpen={setOpenGroupKey} />
+              ) : (
+                <p className="opsw-muted" data-ops-section-empty>{copy.sectionEmptyResolved}</p>
+              )}
+            </section>
+          ) : null}
+
+          {/* OPS-020 — the flat list's pager only. In the grouped view it
+              appended rows to a list that is not on screen. */}
+          {!grouped && nextCursor ? (
             <div className="opsw-more">
               <button
                 type="button"
@@ -1871,7 +2102,7 @@ function OperationsWorkbench() {
                 disabled={loadingMore}
                 data-ops-load-more
               >
-                {loadingMore ? "Loading…" : `Load ${PAGE_SIZE} more`}
+                {loadingMore ? copy.loading : fillOperationsCopy(copy.loadMore, { n: PAGE_SIZE })}
               </button>
               {/*
                 COMPACT, AND NEXT TO THE CONTROL THAT FAILED.
@@ -1909,6 +2140,8 @@ function OperationsWorkbench() {
             openGroupKey ? loadAffected(openGroupKey, affectedCursor) : undefined
           }
           onClose={() => setOpenGroupKey(null)}
+          // OPS-012 — every member opens its condition, where its action is.
+          onOpenCondition={openIncident}
           // Server-projected capability: a link the reader cannot follow is
           // withheld rather than rendered and refused.
           // Reaching this page already required `operations.view`, which is
@@ -1929,10 +2162,12 @@ function OperationsWorkbench() {
           operators={operators}
           selfUserId={selfUserId}
           pending={busy}
-          onClose={() => setOpenId(null)}
+          onClose={closeIncident}
           onAcknowledge={() => void runTransition(openRow.id, "ack")}
-          onResolve={() => void runTransition(openRow.id, "resolve")}
-          onSuppress={() => void runTransition(openRow.id, "suppress")}
+          onResolve={(resolutionNote) =>
+            void runTransition(openRow.id, "resolve", { resolutionNote })
+          }
+          onSuppress={(reason) => void runTransition(openRow.id, "suppress", { reason })}
           onAssign={(userId) => void assign(openRow.id, userId)}
           remediation={remediation}
           remediationBusy={remediationBusy}

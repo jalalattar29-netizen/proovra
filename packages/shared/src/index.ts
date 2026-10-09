@@ -2602,3 +2602,10 @@ export * from "./package-consistency.js";
 
 // OPS-006 — the one header name per machine-to-machine cron contract.
 export * from "./cron-headers.js";
+
+// OPS-011 — bulk-action item status contract (web + native + API).
+export {
+  BULK_ACTION_ITEM_STATUSES,
+  bulkActionItemSucceeded,
+  type BulkActionItemStatus,
+} from "./operations-bulk.js";

@@ -68,6 +68,15 @@ export function useLocale() {
   return ctx;
 }
 
+/**
+ * The active locale, or English where no provider is mounted (an isolated
+ * render, a test). For surfaces that only need to READ the locale; the
+ * settings surface that changes it keeps using `useLocale`.
+ */
+export function useOptionalLocale(): Locale {
+  return useContext(LocaleContext)?.locale ?? "en";
+}
+
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("AuthContext missing");

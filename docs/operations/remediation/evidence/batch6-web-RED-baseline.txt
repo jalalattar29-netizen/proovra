@@ -1,0 +1,24 @@
+   × Operations truth closure — web > OPS-036 a failed grouped read renders UNAVAILABLE with a retry — never '0 groups' and no-match
+     → expected null not to be null
+   × Operations truth closure — web > OPS-011 a fully successful bulk run reads 'N of N updated' (the runner writes COMPLETED)
+     → expected undefined to be '1 of 1 updated.' // Object.is equality
+   × Operations truth closure — web > OPS-007 an action with the drawer open re-reads the list and leaves Refresh usable
+     → expected true to be false // Object.is equality
+   × Operations truth closure — web > OPS-012 a group member opens its condition drawer, where its action lives
+     → Unable to fire a "click" event - please provide a DOM element.
+   × Operations truth closure — web > OPS-029 a source that needs a written conclusion asks for it; Resolve sends it
+     → expected false to be true // Object.is equality
+   × Operations truth closure — web > OPS-030 'Stop notifying' asks why, confirms, and sends the reason
+     → Cannot read properties of null (reading 'disabled')
+   × Operations truth closure — web > OPS-020 focus moves into the drawer and Escape returns it to the opener
+     → expected <button type="button" …(2)></button> to be <button type="button" …(2)>…(1)</button> // Object.is equality
+   × Operations truth closure — web > OPS-020 a condition is URL-addressable: ?incident=<id> opens its drawer
+     → expected false to be true // Object.is equality
+   × Operations truth closure — web > OPS-020 the grouped view offers no 'Load more' for a list it does not show
+     → expected <button type="button" …(2)></button> to be null
+   × Operations truth closure — web > OPS-020 German and Arabic render the page chrome in the reader's language
+     → expected 'Operations' to be 'Betrieb' // Object.is equality
+   × Operations truth closure — web > the default view is the simple page: Action required, Monitoring, Recently resolved
+     → Cannot read properties of null (reading 'querySelector')
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  11 failed | 131 skipped (142)

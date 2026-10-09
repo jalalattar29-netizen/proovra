@@ -40,6 +40,8 @@ import Link from "next/link";
 
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
+import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
+import { useOpsCopy } from "../_lib/copy";
 import { formatUserDateTime } from "../../../../lib/date";
 import { describeRelativeTime } from "../../../../lib/relative-time";
 import type {
@@ -138,8 +140,10 @@ export function IncidentInspector({
   selfUserId: string | null;
   onClose: () => void;
   onAcknowledge: () => void;
-  onResolve: () => void;
-  onSuppress: () => void;
+  /** OPS-029 — carries the note when the source requires one. */
+  onResolve: (resolutionNote?: string) => void;
+  /** OPS-030 — always carries the operator's reason. */
+  onSuppress: (reason: string) => void;
   onAssign: (assigneeUserId: string | null) => void;
   pending: boolean;
   /**
@@ -159,34 +163,23 @@ export function IncidentInspector({
   onRemediate: (actionId: string, reason?: string) => void;
 }) {
   const { confirm: confirmAction } = useConfirmAction();
+  const copy = useOpsCopy();
   // The operator's stated reason, per action that requires one. It is
   // recorded in the audit trail and on the condition's timeline.
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
+  // OPS-029 / OPS-030 — the note a Resolve needs, and the reason a
+  // suppression needs. Both are recorded in the condition's history.
+  const [resolutionNote, setResolutionNote] = React.useState("");
+  const [suppressOpen, setSuppressOpen] = React.useState(false);
+  const [suppressReason, setSuppressReason] = React.useState("");
   const panelRef = React.useRef<HTMLElement | null>(null);
-  const restoreRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
 
-  React.useEffect(() => {
-    restoreRef.current =
-      typeof document !== "undefined"
-        ? (document.activeElement as HTMLElement | null)
-        : null;
-    panelRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      // Focus returns to whatever opened this. A drawer that drops focus back
-      // onto <body> strands a keyboard user at the top of the page, several
-      // dozen tab stops from the row they were reading.
-      restoreRef.current?.focus?.();
-    };
-  }, [onClose]);
+  // OPS-020 — focus moves INTO the drawer, Tab stays inside it, Escape closes
+  // it, and focus returns to the control that opened it. The opener is
+  // captured once: this used to re-capture whenever `onClose` changed
+  // identity (every render), so Escape returned focus to a row checkbox.
+  useDialogFocusTrap(panelRef, onClose);
 
   return (
     <div
@@ -227,7 +220,8 @@ export function IncidentInspector({
             type="button"
             className="app-ghost-action"
             onClick={onClose}
-            aria-label="Close condition details"
+            aria-label={copy.closeCondition}
+            data-dialog-initial-focus
           >
             <IconClose size={16} />
           </button>
@@ -238,7 +232,7 @@ export function IncidentInspector({
           {/* What happened                                               */}
           {/* ---------------------------------------------------------- */}
           <section className="opsw-drawer__section">
-            <h3 className="opsw-drawer__section-title">What happened</h3>
+            <h3 className="opsw-drawer__section-title">{copy.whatHappened}</h3>
             <p className="opsw-summary-text">{row.summary}</p>
             <dl className="opsw-facts">
               <Fact term="Source">{row.categoryLabel}</Fact>
@@ -281,7 +275,7 @@ export function IncidentInspector({
               className="opsw-drawer__section"
               data-ops-remediation={remediation.disposition}
             >
-              <h3 className="opsw-drawer__section-title">What you can do</h3>
+              <h3 className="opsw-drawer__section-title">{copy.whatYouCanDo}</h3>
 
               {remediation.guidance ? (
                 <p className="opsw-summary-text">{remediation.guidance}</p>
@@ -433,7 +427,7 @@ export function IncidentInspector({
           {/* ---------------------------------------------------------- */}
           {row.metric ? (
             <section className="opsw-drawer__section" data-ops-metric-section>
-              <h3 className="opsw-drawer__section-title">How much</h3>
+              <h3 className="opsw-drawer__section-title">{copy.howMuch}</h3>
               <dl className="opsw-facts">
                 <Fact term="Affected now">
                   <span data-ops-metric-exact={row.metric.currentValue}>
@@ -493,7 +487,7 @@ export function IncidentInspector({
           ) : null}
 
           <section className="opsw-drawer__section">
-            <h3 className="opsw-drawer__section-title">When</h3>
+            <h3 className="opsw-drawer__section-title">{copy.when}</h3>
             <dl className="opsw-facts">
               <Fact term="First seen">
                 {formatUserDateTime(row.firstSeenAtUtc)}{" "}
@@ -555,7 +549,7 @@ export function IncidentInspector({
           {/* ---------------------------------------------------------- */}
           {showOwnership ? (
             <section className="opsw-drawer__section">
-              <h3 className="opsw-drawer__section-title">Ownership</h3>
+              <h3 className="opsw-drawer__section-title">{copy.ownership}</h3>
               <AssignmentControl
                 incidentId={row.id}
                 assignedOperatorUserId={row.assignedOperatorUserId}
@@ -573,7 +567,7 @@ export function IncidentInspector({
           {/* History                                                     */}
           {/* ---------------------------------------------------------- */}
           <section className="opsw-drawer__section">
-            <h3 className="opsw-drawer__section-title">History</h3>
+            <h3 className="opsw-drawer__section-title">{copy.history}</h3>
             {detail.kind === "loading" ? (
               <p className="opsw-muted" role="status">
                 <IconSpinner size={14} /> Loading history…
@@ -629,7 +623,7 @@ export function IncidentInspector({
             detail.data.relatedProvider) ? (
             <section className="opsw-drawer__section">
               <h3 className="opsw-drawer__section-title">
-                Technical references
+                {copy.technicalReferences}
               </h3>
               <p className="opsw-muted">
                 Identifiers to quote if you contact support about this
@@ -665,6 +659,38 @@ export function IncidentInspector({
           </p>
         ) : null}
 
+        {/* OPS-029 — the note a Resolve needs, asked for before the
+            control is offered rather than refused after it is pressed. */}
+        {row.canResolve && row.requiresResolutionNote ? (
+          <label className="opsw-remediation__reason opsw-drawer__form" data-ops-resolution-note-field>
+            <span className="opsw-muted">{copy.resolutionNoteLabel}</span>
+            <textarea
+              className="app-form-input"
+              rows={2}
+              maxLength={400}
+              value={resolutionNote}
+              onChange={(e) => setResolutionNote(e.target.value)}
+              data-ops-resolution-note-input
+            />
+          </label>
+        ) : null}
+
+        {/* OPS-030 — "Stop notifying" silences a live condition. It asks
+            why, records the answer in the history, and confirms. */}
+        {row.canSuppress && suppressOpen ? (
+          <label className="opsw-remediation__reason opsw-drawer__form" data-ops-suppress-reason-field>
+            <span className="opsw-muted">{copy.suppressReasonLabel}</span>
+            <textarea
+              className="app-form-input"
+              rows={2}
+              maxLength={400}
+              value={suppressReason}
+              onChange={(e) => setSuppressReason(e.target.value)}
+              data-ops-suppress-reason-input
+            />
+          </label>
+        ) : null}
+
         {/* ------------------------------------------------------------ */}
         {/* Actions                                                       */}
         {/* ------------------------------------------------------------ */}
@@ -678,30 +704,70 @@ export function IncidentInspector({
                 onClick={onAcknowledge}
                 data-ops-action="acknowledge"
               >
-                Acknowledge
+                {copy.acknowledge}
               </button>
             ) : null}
             {row.canResolve ? (
               <button
                 type="button"
                 className="app-primary-action"
-                disabled={pending}
-                onClick={onResolve}
+                disabled={pending || (row.requiresResolutionNote && resolutionNote.trim().length === 0)}
+                onClick={() =>
+                  onResolve(row.requiresResolutionNote ? resolutionNote.trim() : undefined)
+                }
                 data-ops-action="resolve"
               >
-                Resolve
+                {copy.resolve}
               </button>
             ) : null}
             {row.canSuppress ? (
-              <button
-                type="button"
-                className="app-secondary-action app-secondary-action--danger"
-                disabled={pending}
-                onClick={onSuppress}
-                data-ops-action="suppress"
-              >
-                Stop notifying
-              </button>
+              suppressOpen ? (
+                <>
+                  <button
+                    type="button"
+                    className="app-secondary-action app-secondary-action--danger"
+                    disabled={pending || suppressReason.trim().length < 3}
+                    onClick={() => {
+                      const reason = suppressReason.trim();
+                      void confirmAction({
+                        title: copy.suppressConfirmTitle,
+                        description: copy.suppressConfirmBody,
+                        confirmLabel: copy.stopNotifying,
+                        cancelLabel: copy.cancel,
+                        tone: "warning",
+                        testId: "ops-suppress-confirm",
+                      }).then((ok) => {
+                        if (ok) onSuppress(reason);
+                      });
+                    }}
+                    data-ops-action="suppress-confirm"
+                  >
+                    {copy.stopNotifying}
+                  </button>
+                  <button
+                    type="button"
+                    className="app-ghost-action"
+                    disabled={pending}
+                    onClick={() => {
+                      setSuppressOpen(false);
+                      setSuppressReason("");
+                    }}
+                    data-ops-action="suppress-cancel"
+                  >
+                    {copy.cancel}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="app-secondary-action app-secondary-action--danger"
+                  disabled={pending}
+                  onClick={() => setSuppressOpen(true)}
+                  data-ops-action="suppress"
+                >
+                  {copy.stopNotifying}
+                </button>
+              )
             ) : null}
           </footer>
         ) : null}

@@ -106,6 +106,12 @@ export type OperationsRowModel = {
    * Null when Resolve IS offered.
    */
   resolutionNote: string | null;
+  /**
+   * OPS-029 — this source's Resolve must carry a written conclusion. The
+   * server refuses one without it (RESOLUTION_NOTE_REQUIRED); the surface asks
+   * for the note instead of offering a control that can only be refused.
+   */
+  requiresResolutionNote: boolean;
 
   owner: OwnerDisplay;
   /**
@@ -313,6 +319,7 @@ export function buildRowModel(
     occurrenceCount: i.occurrenceCount,
     metric: metricFor(i),
     resolutionNote: resolutionNoteFor(i),
+    requiresResolutionNote: i.lifecycle?.requiresResolutionNote === true,
 
     owner: ownerFor(i, ctx.viewerUserId, ctx.operatorLabels),
     assignedOperatorUserId: i.assignedOperatorUserId,

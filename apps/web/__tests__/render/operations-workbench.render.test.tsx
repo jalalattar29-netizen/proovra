@@ -134,6 +134,16 @@ vi.mock("../../lib/api", () => ({
 
 vi.mock("../../lib/sentry", () => ({ captureException: () => {} }));
 
+/**
+ * OPS-020 — the reader's locale, for the cases that render German or Arabic.
+ * Everything else reads English, exactly as an unconfigured app does.
+ */
+const localeState = vi.hoisted(() => ({ locale: "en" as string }));
+vi.mock("../../app/providers", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useOptionalLocale: () => localeState.locale,
+}));
+
 let currentSearch = "";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -1403,7 +1413,13 @@ describe("Operations — acting on a condition", () => {
     await settle();
     const bulk = posts().filter((p) => p.path === "/v1/ops/bulk-actions");
     expect(bulk).toHaveLength(1);
-    expect(JSON.parse(bulk[0].body as string)).toEqual({
+    const sent = JSON.parse(bulk[0].body as string) as Record<string, unknown>;
+    // OPS-011 — one idempotency key per sweep, so a replay after a dropped
+    // connection reads back the first run instead of fanning out twice.
+    expect(typeof sent.idempotencyKey).toBe("string");
+    expect((sent.idempotencyKey as string).length).toBeGreaterThanOrEqual(8);
+    const { idempotencyKey: _key, ...rest } = sent;
+    expect(rest).toEqual({
       teamId: WS,
       actionType: "BULK_ACKNOWLEDGE_INCIDENTS",
       targetIds: ["i-crit"],
@@ -2576,7 +2592,9 @@ describe("Operations — the grouped queue is the default", () => {
     });
     await mount(envelope(TEAM_ADMIN), "grouped");
     const row = q('[data-ops-group="platform.telemetry_stale"]') as HTMLElement;
-    expect(row.textContent).toContain("Last telemetry sample 15h 2m ago");
+    // OPS-001 — the "telemetry sampler" source is retired and has no wording
+    // of its own any more; an age still reads as a span, never "902m".
+    expect(row.textContent).toContain("Last observed 15h 2m ago");
     expect(row.textContent).not.toContain("902");
     // An age is NOT a population: nothing on this row claims affected records.
     expect(row.querySelector("[data-ops-group-affected]")).toBeNull();
@@ -3645,5 +3663,248 @@ describe("Operations — paging through a truncated queue", () => {
     expect(q("[data-ops-load-more]")).not.toBeNull();
     // And the provider's own words never reach the reader.
     expect(document.body.textContent).not.toMatch(/request failed|503/i);
+  });
+});
+
+// ===========================================================================
+// OPERATIONS TRUTH CLOSURE — the web half (OPS-007 / 011 / 012 / 020 / 029 /
+// 030 / 036 and the simple page shape).
+// ===========================================================================
+
+describe("Operations truth closure — web", () => {
+  const NOTE_REQUIRED = incident({
+    id: "i-note",
+    title: "Retention policy conflicts with an active legal hold",
+    severity: "HIGH",
+    category: "GOVERNANCE",
+    lifecycle: {
+      sourceId: "governance.policy_condition",
+      resolutionAuthority: "OPERATOR_DECISION",
+      manualResolution: true,
+      requiresResolutionNote: true,
+    } as never,
+  });
+
+  beforeEach(() => {
+    localeState.locale = "en";
+  });
+
+  const gets = (prefix: string) =>
+    requestLog.filter((r) => r.method === "GET" && r.path.startsWith(prefix)).length;
+  const postsTo = (suffix: string) =>
+    requestLog.filter((r) => r.method === "POST" && r.path.endsWith(suffix));
+
+  it("OPS-036 a failed grouped read renders UNAVAILABLE with a retry — never '0 groups' and no-match", async () => {
+    groupsReply = () => apiFailure(500);
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(q("[data-ops-groups-unavailable]")).not.toBeNull();
+    expect(document.body.textContent).not.toMatch(/0 groups/);
+    expect(document.body.textContent).not.toMatch(/Workspace operations are clear/);
+  });
+
+  it("OPS-011 a fully successful bulk run reads 'N of N updated' (the runner writes COMPLETED)", async () => {
+    mutationReply = (path) =>
+      path === "/v1/ops/bulk-actions"
+        ? { runId: "r1", status: "COMPLETED", items: [{ targetId: "i-crit", status: "COMPLETED" }] }
+        : { ok: true };
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-row-mark="i-crit"]') as HTMLElement);
+    });
+    await settle();
+    await act(async () => {
+      fireEvent.click(q('[data-ops-bulk-action="acknowledge"]') as HTMLElement);
+    });
+    await settle();
+    // Every target moved, so the selection clears and the toolbar goes with
+    // it; the outcome is announced. Before OPS-011 the row stayed selected
+    // under "0 of 1 updated. 1 could not be changed".
+    expect(q("[data-ops-live]")?.textContent).toBe("1 of 1 updated.");
+    expect(q("[data-ops-bulk-toolbar]")).toBeNull();
+  });
+
+  it("OPS-007 an action with the drawer open re-reads the list and leaves Refresh usable", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-open="i-high"]') as HTMLElement);
+    });
+    await settle();
+    const before = gets("/v1/ops/incidents?");
+    await act(async () => {
+      fireEvent.click(q('[data-ops-inspector] [data-ops-action="acknowledge"]') as HTMLElement);
+    });
+    await settle();
+    await settle();
+    expect(gets("/v1/ops/incidents?")).toBeGreaterThan(before);
+    const refresh = q("[data-ops-refresh]") as HTMLButtonElement;
+    expect(refresh.disabled).toBe(false);
+    expect(refresh.textContent).not.toMatch(/Refreshing/);
+  });
+
+  it("OPS-012 a group member opens its condition drawer, where its action lives", async () => {
+    groupsReply = () => ({
+      groups: [group({ groupKey: "evidence_integrity.tsa_failed", conditionCount: 2 })],
+      totals: { groups: 1, conditions: 2 },
+      conservation: { conditions: 2, grouped: 2 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    affectedReply = () => ({
+      records: [affectedRecord("i-high"), affectedRecord("i-old")],
+      pagination: { nextCursor: null, returned: 2 },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    await act(async () => {
+      fireEvent.click(q('[data-ops-group-open-button="evidence_integrity.tsa_failed"]') as HTMLElement);
+    });
+    await settle();
+    await act(async () => {
+      fireEvent.click(q('[data-ops-affected-open="i-high"]') as HTMLElement);
+    });
+    await settle();
+    expect(requestLog.some((r) => r.method === "GET" && r.path.startsWith("/v1/ops/incidents/i-high?"))).toBe(true);
+    expect(q('[data-ops-inspector="i-high"]')).not.toBeNull();
+    expect(q("[data-ops-group-inspector]")).toBeNull();
+  });
+
+  it("OPS-029 a source that needs a written conclusion asks for it; Resolve sends it", async () => {
+    incidentsReply = () => list([NOTE_REQUIRED]);
+    detailReply = () => ({ incident: { ...NOTE_REQUIRED, timeline: [], timelineComplete: true } });
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-open="i-note"]') as HTMLElement);
+    });
+    await settle();
+    const resolve = q('[data-ops-inspector] [data-ops-action="resolve"]') as HTMLButtonElement;
+    expect(resolve.disabled).toBe(true);
+    await act(async () => {
+      fireEvent.change(q("[data-ops-resolution-note-input]") as HTMLElement, {
+        target: { value: "Hold released by counsel on 2026-08-22" },
+      });
+    });
+    expect(resolve.disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(resolve);
+    });
+    await settle();
+    const sent = postsTo("/resolve");
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(sent[0]!.body as string)).toMatchObject({
+      teamId: WS,
+      resolutionNote: "Hold released by counsel on 2026-08-22",
+    });
+  });
+
+  it("OPS-030 'Stop notifying' asks why, confirms, and sends the reason", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-open="i-high"]') as HTMLElement);
+    });
+    await settle();
+    await act(async () => {
+      fireEvent.click(q('[data-ops-inspector] [data-ops-action="suppress"]') as HTMLElement);
+    });
+    const confirmBtn = q('[data-ops-action="suppress-confirm"]') as HTMLButtonElement;
+    expect(confirmBtn.disabled).toBe(true);
+    await act(async () => {
+      fireEvent.change(q("[data-ops-suppress-reason-input]") as HTMLElement, {
+        target: { value: "Known provider maintenance window" },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+    await settle();
+    expect(postsTo("/suppress")).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(q('[data-confirm-action-submit="true"]') as HTMLElement);
+    });
+    await settle();
+    const sent = postsTo("/suppress");
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(sent[0]!.body as string)).toMatchObject({
+      teamId: WS,
+      reason: "Known provider maintenance window",
+    });
+  });
+
+  it("OPS-020 focus moves into the drawer and Escape returns it to the opener", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    const opener = q('[data-ops-open="i-high"]') as HTMLElement;
+    opener.focus();
+    await act(async () => {
+      fireEvent.click(opener);
+    });
+    await settleTimers();
+    const drawer = q('[data-ops-inspector="i-high"]') as HTMLElement;
+    expect(drawer.contains(document.activeElement)).toBe(true);
+    // Tab from the last control wraps to the first: focus never leaves the
+    // drawer for the page underneath it.
+    const focusables = Array.from(
+      drawer.querySelectorAll<HTMLElement>("a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled])"),
+    );
+    const last = focusables[focusables.length - 1]!;
+    last.focus();
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Tab" });
+    });
+    expect(document.activeElement).toBe(focusables[0]);
+    await act(async () => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+    await settleTimers();
+    expect(q("[data-ops-inspector]")).toBeNull();
+    expect(document.activeElement).toBe(q('[data-ops-open="i-high"]'));
+  });
+
+  it("OPS-020 a condition is URL-addressable: ?incident=<id> opens its drawer", async () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    currentSearch = `incident=${id}`;
+    detailReply = () => ({
+      incident: { ...THREE[0], id, timeline: [], timelineComplete: true },
+    });
+    await mount(envelope(TEAM_ADMIN));
+    await settle();
+    expect(requestLog.some((r) => r.method === "GET" && r.path.startsWith(`/v1/ops/incidents/${id}?`))).toBe(true);
+    expect(q(`[data-ops-inspector="${id}"]`)).not.toBeNull();
+  });
+
+  it("OPS-020 the grouped view offers no 'Load more' for a list it does not show", async () => {
+    incidentsReply = () => list(THREE, { nextCursor: "c2", complete: false });
+    groupsReply = () => ({
+      groups: [group({ groupKey: "evidence_integrity.tsa_failed" })],
+      totals: { groups: 1, conditions: 5000 },
+      conservation: { conditions: 5000, grouped: 5000 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(q("[data-ops-load-more]")).toBeNull();
+  });
+
+  it("OPS-020 German and Arabic render the page chrome in the reader's language", async () => {
+    localeState.locale = "de";
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(q("h1")?.textContent).toBe("Betrieb");
+    expect(q('[data-ops-section="action-required"] h2')?.textContent).toBe("Handlungsbedarf");
+    localeState.locale = "ar";
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(q("h1")?.textContent).toBe("العمليات");
+  });
+
+  it("the default view is the simple page: Action required, Monitoring, Recently resolved", async () => {
+    groupsReply = () => ({
+      groups: [
+        group({ groupKey: "evidence_integrity.tsa_failed", statusPosture: "OPEN" }),
+        group({ groupKey: "pipeline.report_backlog", sourceId: "pipeline.report_backlog", statusPosture: "ACKNOWLEDGED" }),
+      ],
+      totals: { groups: 2, conditions: 10000 },
+      conservation: { conditions: 10000, grouped: 10000 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const action = q('[data-ops-section="action-required"]') as HTMLElement;
+    const monitoring = q('[data-ops-section="monitoring"]') as HTMLElement;
+    expect(action.querySelector('[data-ops-group="evidence_integrity.tsa_failed"]')).not.toBeNull();
+    expect(monitoring.querySelector('[data-ops-group="pipeline.report_backlog"]')).not.toBeNull();
+    expect(q('[data-ops-section="recently-resolved"]')).not.toBeNull();
   });
 });
