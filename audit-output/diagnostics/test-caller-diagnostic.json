@@ -5,9 +5,9 @@
   "supersedes": "audit-output/phase12-final-remediation/route-consumers/route-consumers.json",
   "schemaVersion": "test-caller-diagnostic@1",
   "analyzerHash": "20982627ed761fe269f015163b836b3b9fe3fbf295d59b936be52fcf3494ab2c",
-  "capabilityRouteInventoryHash": "0012bd94b65b49835427c4194ea589da788ea51297995b668cd1fcf0e98bc556",
+  "capabilityRouteInventoryHash": "a0d5149173f12314f55e4aff9aae1844527f5322ec4536f80f93ff662977201b",
   "totals": {
-    "routes": 1184,
+    "routes": 1187,
     "routesWithAnyTestCaller": 43,
     "testOnlyRoutes": 4,
     "testCallSites": 82,
@@ -2530,6 +2530,18 @@
     },
     {
       "routeId": "GET /v1/orgs/:id/members",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/operations/incidents",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
+      "routeId": "GET /v1/orgs/:id/operations/rollup",
       "testCallerCount": 0,
       "testOnly": false,
       "testCallerFiles": []
@@ -6090,6 +6102,12 @@
       "testCallerFiles": []
     },
     {
+      "routeId": "POST /v1/ops/incidents/:id/unsuppress",
+      "testCallerCount": 0,
+      "testOnly": false,
+      "testCallerFiles": []
+    },
+    {
       "routeId": "POST /v1/ops/media-intelligence/dlq/replay",
       "testCallerCount": 0,
       "testOnly": false,
@@ -7210,5 +7228,5 @@
       "testCallerFiles": []
     }
   ],
-  "contentHash": "7e4eeca4ced56b5314309e84e6c12314c2b1dad93ac14be4f6c56ab422da1a1d"
+  "contentHash": "7f7fa6806a34d6c31f7bc940c193c4d15fb52177839fdec3e3bb578c7af850cf"
 }
