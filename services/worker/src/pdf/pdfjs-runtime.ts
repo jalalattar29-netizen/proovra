@@ -1,4 +1,3 @@
-/// <reference path="./pdfjs-worker.d.ts" />
 /**
  * THE ONE PDF.js RUNTIME OF THE WORKER (2026-10-09).
  *
@@ -80,6 +79,11 @@ export function resolvedPdfjsPackageVersion(): string {
 }
 
 type WorkerModule = { WorkerMessageHandler: unknown };
+/**
+ * pdfjs-dist ships no types for its worker module; held in a constant so the
+ * import is checked at runtime (the identity assertion below), not by tsc.
+ */
+const PDFJS_WORKER_MODULE = "pdfjs-dist/legacy/build/pdf.worker.mjs";
 let loaded: Promise<PdfjsModule> | null = null;
 let ownWorker: WorkerModule | null = null;
 
@@ -93,7 +97,7 @@ let ownWorker: WorkerModule | null = null;
 export function loadPdfjs(): Promise<PdfjsModule> {
   loaded ??= (async () => {
     const mod = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as PdfjsModule;
-    const worker = (await import("pdfjs-dist/legacy/build/pdf.worker.mjs")) as unknown as WorkerModule;
+    const worker = (await import(PDFJS_WORKER_MODULE)) as WorkerModule;
     const expected = resolvedPdfjsPackageVersion();
     if (mod.version !== expected) {
       throw new PdfjsRuntimeError(`API ${mod.version} loaded, package resolves ${expected}`);
