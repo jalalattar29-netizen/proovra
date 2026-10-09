@@ -18,6 +18,7 @@
  *     token-shaped material (it physically has none to leak).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INTEGRATION_CRON_HEADER } from "@proovra/shared";
 
 vi.mock("../src/logger.js", () => ({
   logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
@@ -79,7 +80,12 @@ describe("Macro-Wave A2 — worker sweep tick (machine-auth + parsing)", () => {
     // Trailing slash on the base is normalized away.
     expect(url).toBe("http://api.internal:4000/v1/org-invite-deliveries/process");
     const headers = init.headers as Record<string, string>;
-    expect(headers["x-cron-secret"]).toBe("cron-secret-1");
+    // OPS-006 — the route verifies the INTEGRATION cron header; the worker
+    // used to send the reviewer-ops header and every sweep was refused 401.
+    // Both sides now read the one shared constant.
+    expect(headers[INTEGRATION_CRON_HEADER]).toBe("cron-secret-1");
+    expect(INTEGRATION_CRON_HEADER).toBe("x-proovra-integration-cron-secret");
+    expect(headers["x-cron-secret"]).toBeUndefined();
     expect(headers["x-trigger"]).toBe("test");
     expect(JSON.parse(String(init.body))).toEqual({ batchSize: 25 });
 

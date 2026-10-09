@@ -448,13 +448,16 @@ describe("Phase IA-reliability — worker DLQ failures bridge into OperationalIn
     expect(PROCESSOR).toMatch(
       /recordWorkerIncident\([\s\S]{0,800}category:\s*"REPORT"/,
     );
-    // Fingerprint scopes by evidenceId + errorClass for dedup.
-    expect(PROCESSOR).toMatch(/REPORT:\$\{input\.evidenceId\}:\$\{errorClass\}/);
+    // Fingerprint scopes by evidenceId + the report VERSION the attempt was for
+    // + a CLOSED error class, for dedup (OPS-004 / OPS-016).
+    expect(PROCESSOR).toMatch(/REPORT:\$\{input\.evidenceId\}:v\$\{targetVersion\}:\$\{errorClass\}/);
+    expect(PROCESSOR).toMatch(/const errorClass = incidentErrorClass\(input\.error\);/);
   });
 
-  it("the report bridge truncates stack traces / messages and excludes raw stack from incident metadata", () => {
-    // safeSummary is bounded to 380 chars.
-    expect(PROCESSOR).toMatch(/rawMessage\.slice\(0,\s*380\)/);
+  it("the report bridge never records the raw message or stack (OPS-016)", () => {
+    // The summary used to BE the raw message (bounded to 380 chars), so a
+    // storage error naming a bucket or ARN reached every VIEWER. It is a fixed
+    // sentence now; the only error-derived token is the closed class.
     // The metadata object passed to recordWorkerIncident from the
     // bridge function includes queueName + retriable + errorClass —
     // NOT the raw stack. We slice from the FUNCTION DEFINITION (the
@@ -470,6 +473,18 @@ describe("Phase IA-reliability — worker DLQ failures bridge into OperationalIn
       nextFn > declIdx ? nextFn : declIdx + 4000,
     );
     expect(declBlock).not.toMatch(/errorStack/);
+    // The function BODY only (the slice above runs on into the next
+    // function's documentation).
+    const rest = PROCESSOR.slice(declIdx);
+    const body = rest
+      .slice(0, rest.search(/\r?\n\}\r?\n/))
+      // Code only: the comments explain what was removed by naming it.
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+    expect(body.length).toBeGreaterThan(200);
+    expect(body).not.toMatch(/\.message\b/);
+    expect(body).not.toMatch(/rawMessage/);
+    expect(body).not.toMatch(/safeSummary:\s*[a-zA-Z_.]*[Mm]essage/);
   });
 
   it("OTS budget-exhaustion terminal failure records a WORKER incident with CRITICAL severity", () => {

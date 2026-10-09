@@ -48,7 +48,11 @@ import {
   observeWorkerFleetHeartbeat,
   queueNameFromPlatformFingerprint,
 } from "./platform-conditions.service.js";
-import { parseOtsBudgetExhaustedFingerprint, REVIEW_ESCALATION_TERMINAL } from "@proovra/shared";
+import {
+  IN_FLIGHT_REPORT_REQUEST_STATES,
+  parseOtsBudgetExhaustedFingerprint,
+  REVIEW_ESCALATION_TERMINAL,
+} from "@proovra/shared";
 import type { PrismaClient, Prisma } from "@prisma/client";
 
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
@@ -754,26 +758,97 @@ async function observeEvidenceArtifact(
     }
 
     if (record.latestReportVersion == null) return { ...base, activity: "ACTIVE" };
-    // A report exists. The condition is still active if a REPORT issuance
-    // created after that report is live or failed — the failure was about a
-    // version that does not exist yet.
+
+    // OPS-004 — A VERSIONED CONDITION IS OVER ONLY WHEN THAT VERSION EXISTS.
+    // `REPORT:<id>:v<N>:<class>` was a failure to produce version N; an older
+    // report is not recovery from it.
+    if (parsed.reportVersion != null && record.latestReportVersion < parsed.reportVersion) {
+      return { ...base, activity: "ACTIVE" };
+    }
+
+    // OPS-028 — THE REPORT MUST BE PUBLISHED, NOT MERELY A ROW. The stored
+    // object is HEAD-checked at the recorded version id, its size must match
+    // and, where the store kept a checksum, it must be the recorded SHA-256.
     const latestReport = await ctx.client.report.findFirst({
       where: { evidenceId, version: record.latestReportVersion },
-      select: { generatedAtUtc: true },
+      select: {
+        generatedAtUtc: true,
+        storageBucket: true,
+        storageKey: true,
+        sizeBytes: true,
+        pdfSha256: true,
+        s3VersionId: true,
+      },
     });
+    if (!latestReport) return { ...base, activity: "ACTIVE" };
+    const stored = await storedReportObjectPresent(latestReport);
+    if (stored === "UNKNOWN") return { ...base, activity: "UNKNOWN" };
+    if (stored === "MISSING") return { ...base, activity: "ACTIVE" };
+    if (parsed.reportVersion != null) return { ...base, activity: "RECOVERED" };
+
+    // A LEGACY condition names no version. It is still active if a REPORT
+    // issuance created after the latest report is live or failed. OPS-004 —
+    // every attempt that has not committed carries stage NULL, and a Prisma
+    // `not` excludes NULL in SQL, so the old filter saw none of them: a newer
+    // FAILED_TERMINAL or PROCESSING attempt was invisible and v1 read as
+    // recovery. NULL is matched explicitly.
     const pending = await ctx.client.reportGenerationRequest.findFirst({
       where: {
         evidenceId,
         artifactType: "REPORT",
-        stage: { not: "REPORT_COMMITTED" },
-        state: { in: ["QUEUED", "PROCESSING", "FAILED_RETRYABLE", "FAILED_TERMINAL"] },
-        ...(latestReport ? { createdAtUtc: { gt: latestReport.generatedAtUtc } } : {}),
+        OR: [{ stage: null }, { stage: { not: "REPORT_COMMITTED" } }],
+        state: { in: [...IN_FLIGHT_REPORT_REQUEST_STATES, "FAILED_TERMINAL"] },
+        createdAtUtc: { gt: latestReport.generatedAtUtc },
       },
       select: { id: true },
     });
     return { ...base, activity: pending ? "ACTIVE" : "RECOVERED" };
   } catch {
     return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
+ * OPS-028 — IS THE COMMITTED REPORT'S OBJECT ACTUALLY IN THE STORE?
+ *
+ * A HEAD at the recorded version id: a read of our own object store, never a
+ * provider contact and never a byte release. MISSING when the store says the
+ * object is not there, has a different size, or holds a checksum that is not
+ * the recorded SHA-256; UNKNOWN when the store could not be asked — which
+ * must never close a condition.
+ */
+export async function storedReportObjectPresent(report: {
+  storageBucket: string;
+  storageKey: string;
+  sizeBytes: bigint | null;
+  pdfSha256: string | null;
+  s3VersionId: string | null;
+}): Promise<"PRESENT" | "MISSING" | "UNKNOWN"> {
+  if (!report.storageBucket || !report.storageKey) return "MISSING";
+  try {
+    const { headObject } = await import("../../storage.js");
+    const head = await headObject({
+      bucket: report.storageBucket,
+      key: report.storageKey,
+      versionId: report.s3VersionId ?? null,
+      withChecksum: Boolean(report.pdfSha256),
+    });
+    if (report.sizeBytes != null && head.sizeBytes != null && BigInt(head.sizeBytes) !== report.sizeBytes) {
+      return "MISSING";
+    }
+    // A multipart upload's checksum is a composite (`<b64>-<parts>`), not the
+    // object's SHA-256, and is not compared.
+    if (report.pdfSha256 && head.checksumSha256 && !head.checksumSha256.includes("-")) {
+      const storedHex = Buffer.from(head.checksumSha256, "base64").toString("hex");
+      if (storedHex.toLowerCase() !== report.pdfSha256.toLowerCase()) return "MISSING";
+    }
+    return "PRESENT";
+  } catch (err) {
+    const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (e?.name === "NotFound" || e?.name === "NoSuchKey" || e?.name === "NoSuchVersion" || e?.$metadata?.httpStatusCode === 404) {
+      return "MISSING";
+    }
+    return "UNKNOWN";
   }
 }
 
@@ -829,10 +904,13 @@ export function parseArtifactFingerprint(fingerprint: string): {
     };
   }
   if (head === "REPORT") {
-    const cls = (parts[2] ?? "").toUpperCase();
+    // OPS-004 — `REPORT:<id>:v<N>:<class>` names the version the failed
+    // attempt was for; the legacy `REPORT:<id>:<class>` names none.
+    const versionMatch = /^v(\d{1,7})$/.exec(parts[2] ?? "");
+    const cls = (versionMatch ? parts[3] ?? "" : parts[2] ?? "").toUpperCase();
     return {
       evidenceId: parts[1] ?? null,
-      reportVersion: null,
+      reportVersion: versionMatch ? Number(versionMatch[1]) : null,
       packageFailureClass:
         cls.startsWith("VERIFICATION_PACKAGE_INCOMPLETE") ||
         cls === "VERIFICATION_PACKAGE_STORAGE_REJECTED",

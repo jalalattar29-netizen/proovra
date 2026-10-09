@@ -188,9 +188,12 @@ describe("O1.1 — withProovraSpan is wired into critical entry points", () => {
 describe("O1.1 — /v1/runtime/otel-health endpoint safety", () => {
   const src = read("services/api/src/routes/runtime-otel-health.routes.ts");
 
-  it("auth-gated through the team-member access check", () => {
-    expect(src).toContain("requireAuth");
-    expect(src).toContain("evaluateMemberAccess");
+  it("served only through the platform authority (OPS-026)", () => {
+    // Process-wide runtime posture is a platform fact. It used to be gated by
+    // a workspace-member check, so any member of any workspace could read it.
+    expect(src).toMatch(/preHandler:\s*requirePlatformAdmin/);
+    expect(src).not.toContain("evaluateMemberAccess");
+    expect(src).not.toContain("requireOpsReader");
   });
 
   it("returns only the bounded `getOtelStatus()` snapshot", () => {

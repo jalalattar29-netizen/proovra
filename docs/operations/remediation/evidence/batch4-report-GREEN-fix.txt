@@ -1,0 +1,7 @@
+ ✓ test/operations-truth-report.integration.test.ts (4 tests)
+   ✓ Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-004 a newer FAILED_TERMINAL or PROCESSING attempt (stage NULL) keeps a legacy report condition open 
+   ✓ Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-004 a versioned condition closes only when THAT version exists 
+   ✓ Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-028 a report row whose object is missing is not recovery; the stored object is 
+   ✓ Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-015 / OPS-016 the worker bridge scopes a Personal record to its owner and never records raw error text 
+ Test Files  1 passed (1)
+      Tests  4 passed (4)

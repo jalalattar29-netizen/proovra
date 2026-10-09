@@ -1,0 +1,11 @@
+   × Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-004 a newer FAILED_TERMINAL or PROCESSING attempt (stage NULL) keeps a legacy report condition open
+     → FAILED_TERMINAL: expected 'RESOLVED' to be 'OPEN' // Object.is equality
+   × Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-004 a versioned condition closes only when THAT version exists
+     → expected 'RESOLVED' to be 'OPEN' // Object.is equality
+   × Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-028 a report row whose object is missing is not recovery; the stored object is
+     → expected 'RESOLVED' to be 'OPEN' // Object.is equality
+   × Operations truth closure — report failure truth (live PG16, MinIO, worker bridge) > OPS-015 / OPS-016 the worker bridge scopes a Personal record to its owner and never records raw error text
+     → expected null to be 'a0615827-ec44-4f29-b13f-a9788e7f768a' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  4 failed (4)

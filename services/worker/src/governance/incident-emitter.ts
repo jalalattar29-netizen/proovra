@@ -26,6 +26,7 @@ import {
   REOPENED_EVENT,
   reopenReasonFor,
   resolveConditionSource,
+  resolveEvidenceWorkspaceId,
   RESOLUTION_EVENT_ORIGINS,
   type IncidentTransitionStatus,
   type OperationsSourceId,
@@ -274,7 +275,27 @@ export async function recordWorkerIncident(
   // deterministic fallback rather than INSERT NULL into a NOT NULL
   // column and lose the operator-facing record entirely.
   const safeSummary = clipString(coerceSafeSummary(input.safeSummary), SUMMARY_MAX);
-  const teamId = input.teamId ?? null;
+  // OPS-015 — A RECORD'S CONDITION BELONGS TO THE RECORD'S WORKSPACE.
+  //
+  // A Personal record is stored with team_id NULL, so every caller that passed
+  // `evidence.teamId` wrote its failure as LEGACY_UNSCOPED: on no tenant
+  // surface, invisible to the one person whose record it was. The workspace is
+  // resolved here, once, for every worker writer, through the same canonical
+  // resolver the API's recovery path reads them with — a personal record's
+  // workspace is its owner's Personal Space. A record that cannot be resolved
+  // keeps the old shape rather than being attributed to a guess.
+  let teamId = input.teamId ?? null;
+  if (!teamId && input.relatedEvidenceId) {
+    try {
+      const evidence = await prisma.evidence.findUnique({
+        where: { id: input.relatedEvidenceId },
+        select: { teamId: true, ownerUserId: true },
+      });
+      if (evidence) teamId = await resolveEvidenceWorkspaceId(evidence, prisma);
+    } catch {
+      teamId = null;
+    }
+  }
   const sanitisedMetadata =
     input.metadata != null
       ? safeJsonSnapshot({

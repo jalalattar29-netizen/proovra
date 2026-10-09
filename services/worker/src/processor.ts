@@ -3420,6 +3420,18 @@ export async function processGenerateReport(job: Job<unknown>) {
  * recipient address, and the request row is readable through the operator
  * projection. Only the error's own code survives.
  */
+/**
+ * OPS-016 — the closed class an Operations condition is keyed and described
+ * by: the error's own bounded code in the shape of a code (the part before any
+ * `:` detail), or UNCLASSIFIED. Never derived from free text.
+ */
+export function incidentErrorClass(error: unknown): string {
+  const code = toBoundedReasonCode(error).split(":", 1)[0]!.trim().toUpperCase();
+  return /^[A-Z][A-Z0-9_]{2,63}$/.test(code) && code !== "ERROR" && !/^[A-Z]+ERROR$/.test(code)
+    ? code
+    : "UNCLASSIFIED";
+}
+
 function toBoundedReasonCode(error: unknown): string {
   if (error && typeof error === "object" && "code" in error) {
     const code = (error as { code?: unknown }).code;
@@ -5922,7 +5934,8 @@ ownerUserId: prepared.packageMetadataContext.ownerUserId,
 //   * Best-effort — incident emission failure is logged and swallowed
 //     so it never masks the original DLQ move.
 // ---------------------------------------------------------------------------
-async function recordReportFailureIncident(input: {
+/** Exported for the Operations truth-closure integration proof (OPS-015 / OPS-016). */
+export async function recordReportFailureIncident(input: {
   evidenceId: string;
   jobId: string | undefined;
   error: unknown;
@@ -5942,33 +5955,25 @@ async function recordReportFailureIncident(input: {
   try {
     const ev = await prisma.evidence.findUnique({
       where: { id: input.evidenceId },
-      select: { teamId: true, title: true },
+      select: { teamId: true, latestReportVersion: true },
     });
-    // Phase WORKER-INCIDENT-SAFESUMMARY-FIX — always produce a
-    // non-empty rawMessage. WorkerError carries its code in `.message`
-    // and may also expose `.code` directly. Either way we want a
-    // deterministic operator-readable string so safeSummary downstream
-    // cannot collapse to empty.
-    const errorCode =
-      input.error && typeof (input.error as { code?: unknown }).code === "string"
-        ? ((input.error as { code: string }).code)
-        : null;
-    const errorMessage =
-      input.error instanceof Error && input.error.message
-        ? input.error.message
-        : typeof input.error === "string" && input.error
-          ? input.error
-          : null;
-    const rawMessage =
-      errorMessage || errorCode || "Unknown error";
-    const errorClass = rawMessage
-      .split(/[:\n]/, 1)[0]
-      .trim()
-      .slice(0, 80)
-      .toUpperCase()
-      .replace(/\s+/g, "_") || "UNKNOWN";
-    const fingerprint = `REPORT:${input.evidenceId}:${errorClass}`;
-    const evidenceLabel = ev?.title ? ev.title.slice(0, 80) : input.evidenceId.slice(0, 8);
+    // OPS-016 — A CLOSED CODE, NEVER THE RAW MESSAGE.
+    //
+    // The class used to be the first line of `error.message`, upper-cased,
+    // and the customer-visible summary WAS the message — so a storage error
+    // naming a bucket, a key or an ARN became both the condition's identity
+    // and the sentence every VIEWER read. The class is now the error's own
+    // bounded code (the same `toBoundedReasonCode` the durable request row
+    // records), reduced to the closed shape of a code; anything else is
+    // UNCLASSIFIED. The summary is a fixed sentence.
+    const errorClass = incidentErrorClass(input.error);
+    // OPS-004 — THE VERSION IS PART OF THE IDENTITY. The attempt was for the
+    // report after the latest committed one; the probe resolves this
+    // condition only when a report at THAT version exists, so an older
+    // report can no longer read as recovery from a newer failure.
+    const targetVersion = (ev?.latestReportVersion ?? 0) + 1;
+    const fingerprint = `REPORT:${input.evidenceId}:v${targetVersion}:${errorClass}`;
+    const recordRef = input.evidenceId.slice(0, 8);
     await recordWorkerIncident({
       sourceId: "pipeline.report_generation_failed",
       teamId: ev?.teamId ?? null,
@@ -5976,15 +5981,18 @@ async function recordReportFailureIncident(input: {
       severity: input.severity,
       fingerprint,
       title: input.retriable
-        ? `Report generation retry budget exhausted (${evidenceLabel})`
-        : `Report generation failure (${evidenceLabel})`,
-      safeSummary: rawMessage.slice(0, 380),
+        ? `Report v${targetVersion} stopped after its retries — record ${recordRef}`
+        : `Report v${targetVersion} generation failed — record ${recordRef}`,
+      safeSummary: input.retriable
+        ? `Automatic retries for report version ${targetVersion} of this record were exhausted (${errorClass}). The evidence is unaffected. An operator can recover or retry it from Operations; the condition clears only when report version ${targetVersion} exists.`
+        : `Report version ${targetVersion} of this record could not be generated and will not be retried automatically (${errorClass}). The evidence is unaffected. An operator can recover it from Operations; the condition clears only when report version ${targetVersion} exists.`,
       relatedEvidenceId: input.evidenceId,
       relatedJobId: input.jobId ?? null,
       metadata: {
         queueName: "report",
         retriable: input.retriable,
         errorClass,
+        reportVersion: targetVersion,
       },
     });
   } catch (err) {
@@ -6034,13 +6042,9 @@ async function recordPackageGenerationIncident(input: {
   storageCode?: string | null;
 }): Promise<void> {
   try {
-    const errorClass =
-      (input.reasonCode || "UNKNOWN")
-        .split(/[:\n]/, 1)[0]
-        .trim()
-        .slice(0, 80)
-        .toUpperCase()
-        .replace(/\s+/g, "_") || "UNKNOWN";
+    // OPS-016 — the same closed shape as the report bridge: a code, or
+    // UNCLASSIFIED. Never free text in an identity or a summary.
+    const errorClass = incidentErrorClass({ code: input.reasonCode || "UNCLASSIFIED" });
     const deterministic = errorClass === "VERIFICATION_PACKAGE_STORAGE_REJECTED";
     await recordWorkerIncident({
       sourceId: "pipeline.package_generation_failed",

@@ -710,6 +710,15 @@ export async function reconcileStrandedReportRequests(input: {
       const packageOnly =
         row.reportVersion != null &&
         (row.artifactType === "VERIFICATION_PACKAGE" || row.stage === "REPORT_COMMITTED");
+      // OPS-004 — a REPORT condition names the version the request was for:
+      // the one after the latest committed report.
+      const targetReportVersion = packageOnly
+        ? null
+        : ((
+            await prisma.evidence
+              .findUnique({ where: { id: row.evidenceId }, select: { latestReportVersion: true } })
+              .catch(() => null)
+          )?.latestReportVersion ?? 0) + 1;
       await recordWorkerIncident(
         packageOnly
           ? {
@@ -735,10 +744,9 @@ export async function reconcileStrandedReportRequests(input: {
               teamId: row.teamId,
               category: "REPORT",
               severity: "HIGH",
-              fingerprint: `REPORT:${row.evidenceId}:RETRY_BUDGET_EXHAUSTED`,
-              title: "Report issuance stopped after its retry budget was exhausted",
-              safeSummary:
-                "Automatic retries for this record's report were exhausted. An operator can review and retry it from Operations.",
+              fingerprint: `REPORT:${row.evidenceId}:v${targetReportVersion}:RETRY_BUDGET_EXHAUSTED`,
+              title: `Report v${targetReportVersion} stopped after its retry budget was exhausted`,
+              safeSummary: `Automatic retries for report version ${targetReportVersion} of this record were exhausted. An operator can review and retry it from Operations; the condition clears only when report version ${targetReportVersion} exists.`,
               relatedEvidenceId: row.evidenceId,
               metadata: {
                 queueName: "report",
@@ -746,6 +754,7 @@ export async function reconcileStrandedReportRequests(input: {
                 errorClass: "RETRY_BUDGET_EXHAUSTED",
                 requestId: row.id,
                 attemptCount: row.attemptCount,
+                reportVersion: targetReportVersion,
               },
             },
       ).catch(() => null);

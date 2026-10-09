@@ -76,14 +76,28 @@ describe("Worker incident emitter — safeSummary cannot be NULL", () => {
     expect(insertIdx).toBeGreaterThan(coerceIdx);
   });
 
-  it("recordReportFailureIncident produces a non-empty rawMessage from message OR code OR fallback", () => {
-    // The processor's bridge MUST never feed an empty string into
-    // safeSummary. Lock the three-tier composition explicitly.
-    expect(PROCESSOR).toMatch(/const\s+errorMessage\s*=/);
-    expect(PROCESSOR).toMatch(/const\s+errorCode\s*=/);
-    expect(PROCESSOR).toMatch(
-      /const\s+rawMessage\s*=\s*\n?\s*errorMessage\s*\|\|\s*errorCode\s*\|\|\s*"Unknown error"/,
-    );
+  it("recordReportFailureIncident always writes a non-empty FIXED summary, never the raw message (OPS-016)", () => {
+    // The bridge must never feed an empty string into safeSummary — and it
+    // must never feed the error's free text either: the old three-tier
+    // `message || code || "Unknown error"` composition put bucket names and
+    // ARNs in front of every VIEWER. Both branches are literal sentences whose
+    // only error-derived token is the closed class (UNCLASSIFIED at worst).
+    const start = PROCESSOR.indexOf("export async function recordReportFailureIncident");
+    const rest = PROCESSOR.slice(start);
+    const block = rest
+      .slice(0, rest.search(/\r?\n\}\r?\n/))
+      // Code only: the comments explain what was removed by naming it.
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+    expect(block.length).toBeGreaterThan(200);
+    expect(block).not.toMatch(/rawMessage|errorMessage/);
+    const summary = block.slice(block.indexOf("safeSummary:"), block.indexOf("relatedEvidenceId:"));
+    const literals = summary.match(/`[^`]+`/g) ?? [];
+    expect(literals.length).toBe(2);
+    for (const l of literals) {
+      expect(l.length).toBeGreaterThan(40);
+      expect(l.replace(/\$\{(targetVersion|errorClass)\}/g, "")).not.toMatch(/\$\{/);
+    }
   });
 
   it("the safeSummary coercer never returns an empty string for any reasonable input", () => {
