@@ -115,6 +115,7 @@ export function IncidentInspector({
   onAcknowledge,
   onResolve,
   onSuppress,
+  onUnsuppress,
   onAssign,
   pending,
   remediation,
@@ -144,6 +145,8 @@ export function IncidentInspector({
   onResolve: (resolutionNote?: string) => void;
   /** OPS-030 — always carries the operator's reason. */
   onSuppress: (reason: string) => void;
+  /** OPS-030 — "Resume notifications" for a SUPPRESSED condition. */
+  onUnsuppress?: () => void;
   onAssign: (assigneeUserId: string | null) => void;
   pending: boolean;
   /**
@@ -694,8 +697,19 @@ export function IncidentInspector({
         {/* ------------------------------------------------------------ */}
         {/* Actions                                                       */}
         {/* ------------------------------------------------------------ */}
-        {row.canAcknowledge || row.canResolve || row.canSuppress ? (
+        {row.canAcknowledge || row.canResolve || row.canSuppress || row.canUnsuppress ? (
           <footer className="opsw-drawer__foot" data-ops-inspector-actions>
+            {row.canUnsuppress && onUnsuppress ? (
+              <button
+                type="button"
+                className="app-secondary-action"
+                disabled={pending}
+                onClick={onUnsuppress}
+                data-ops-action="unsuppress"
+              >
+                {copy.resumeNotifications}
+              </button>
+            ) : null}
             {row.canAcknowledge ? (
               <button
                 type="button"

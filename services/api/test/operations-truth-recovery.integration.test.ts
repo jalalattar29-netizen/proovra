@@ -205,7 +205,7 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
 
     // OPS-031 — the still-open denial links to ITS record.
     const d = (await c.inj("GET", `/v1/ops/incidents/${stillHeld!.id}?teamId=${a.teamId}`, a.ownerToken)).json();
-    expect(d.remediation.deepLink.href).toBe(`/evidence/${held.id}`);
+    expect(d.remediation.deepLink.href).toBe(`/evidence/${held.id}?tab=artifacts`);
     expect(d.remediation.guidance).toContain("governance");
   });
 
@@ -262,6 +262,6 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
     expect(await actionsFor(a.ownerToken)).toContain("report.supersede_failed_generation");
     expect(await actionsFor(a.viewerToken)).not.toContain("report.supersede_failed_generation");
     const link = (await c.inj("GET", `/v1/ops/incidents/${row.id}?teamId=${a.teamId}`, a.ownerToken)).json().remediation.deepLink;
-    expect(link.href).toBe(`/evidence/${ev.id}`);
+    expect(link.href).toBe(`/evidence/${ev.id}?tab=artifacts`);
   });
 });

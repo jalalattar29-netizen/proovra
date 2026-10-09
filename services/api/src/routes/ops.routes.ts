@@ -113,6 +113,7 @@ import {
   projectIncident,
   resolveIncident,
   suppressIncident,
+  unsuppressIncident,
 } from "../services/observability/incident.service.js";
 import {
   buildCanonicalJobId,
@@ -769,11 +770,17 @@ export async function opsRoutes(app: FastifyInstance) {
       // role receives the workspace-scoped fields above and nothing else.
       const platform = await resolvePlatformAdmin(actor.userId);
       if (platform.allowed) {
+        // OPS-008 — the Operations sweep's coverage, measured from the run
+        // rows the scheduler ranks by. Platform-only: it counts every tenant.
+        const { operationsSweepCoverage } = await import(
+          "../jobs/workspace-operations-reconciliation.job.js"
+        );
         body.platform = {
           snapshot: getFeatureSnapshot(),
           violations: collectStartupViolations(),
           observability: buildObservabilityHealth(),
           alerts: buildAlertHealth(),
+          operationsSweep: await operationsSweepCoverage().catch(() => null),
         };
       }
       return reply.code(200).send(body);
@@ -1156,6 +1163,102 @@ export async function opsRoutes(app: FastifyInstance) {
           workspacesNotReadable: notReadable,
           // The totals describe what this caller may see, and say so.
           complete: notReadable === 0 && teams.length < 200,
+        },
+      });
+    },
+  );
+
+  /**
+   * GET /v1/orgs/:id/operations/incidents — OPS-034, the roll-up's drilldown.
+   *
+   * The ORIGINAL conditions, read through the one workspace scope predicate
+   * (`workspaceIncidentWhere`) of every workspace this caller may read, OR'd
+   * together, and projected by the one projection (`projectIncident`). Each
+   * row carries its workspace, so the web opens it in that workspace and every
+   * action runs against the original condition there. Filters: workspace,
+   * severity, status, source. Keyset pagination on (lastSeenAtUtc, id).
+   */
+  app.get(
+    "/v1/orgs/:id/operations/incidents",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const orgId = z.string().uuid().parse((req.params as { id?: string }).id);
+      const q = z
+        .object({
+          workspaceId: z.string().uuid().optional(),
+          severity: z.enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]]).optional(),
+          status: z.enum(INCIDENT_STATUSES as unknown as [string, ...string[]]).optional(),
+          sourceId: z.string().min(1).max(80).optional(),
+          cursor: z.string().max(200).optional(),
+          limit: z.coerce.number().int().min(1).max(100).optional(),
+        })
+        .parse(req.query ?? {});
+      const userId = getAuthUserId(req);
+      const access = await checkOrgAccess(prisma, { orgId, userId });
+      if (access.kind !== "ok") {
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
+      }
+      const teams = await prisma.team.findMany({
+        where: { organizationId: orgId, ...(q.workspaceId ? { id: q.workspaceId } : {}) },
+        select: { id: true, name: true },
+        take: 200,
+      });
+      const readable: Array<{ id: string; name: string }> = [];
+      for (const t of teams) {
+        if (await mayReadOperationsWorkbench(userId, t.id)) readable.push(t);
+      }
+      const limit = q.limit ?? 50;
+      if (readable.length === 0) {
+        return reply.code(200).send({ incidents: [], pagination: { nextCursor: null } });
+      }
+      let after: { lastSeen: Date; id: string } | null = null;
+      if (q.cursor) {
+        try {
+          const [iso, id] = Buffer.from(q.cursor, "base64url").toString("utf8").split("|");
+          if (iso && id && /^[0-9a-f-]{36}$/i.test(id)) after = { lastSeen: new Date(iso), id };
+        } catch {
+          after = null;
+        }
+      }
+      const rows = await prisma.operationalIncident.findMany({
+        where: {
+          AND: [
+            { OR: readable.map((t) => workspaceIncidentWhere(t.id)) },
+            q.status
+              ? { status: q.status as never }
+              : { status: { in: ["OPEN", "ACKNOWLEDGED"] as never } },
+            ...(q.severity ? [{ severity: q.severity as never }] : []),
+            ...(q.sourceId ? [{ sourceId: q.sourceId }] : []),
+            ...(after
+              ? [
+                  {
+                    OR: [
+                      { lastSeenAtUtc: { lt: after.lastSeen } },
+                      { lastSeenAtUtc: after.lastSeen, id: { lt: after.id } },
+                    ],
+                  },
+                ]
+              : []),
+          ],
+        },
+        orderBy: [{ lastSeenAtUtc: "desc" }, { id: "desc" }],
+        take: limit + 1,
+      });
+      const page = rows.slice(0, limit);
+      const last = page[page.length - 1];
+      const nameById = new Map(readable.map((t) => [t.id, t.name]));
+      return reply.code(200).send({
+        incidents: page.map((row) => ({
+          ...projectIncident(row),
+          workspaceId: row.teamId,
+          workspaceName: row.teamId ? nameById.get(row.teamId) ?? null : null,
+        })),
+        pagination: {
+          nextCursor:
+            rows.length > limit && last
+              ? Buffer.from(`${last.lastSeenAtUtc.toISOString()}|${last.id}`, "utf8").toString("base64url")
+              : null,
         },
       });
     },
@@ -1963,6 +2066,36 @@ export async function opsRoutes(app: FastifyInstance) {
           teamId: body.teamId,
           actorUserId: actor.userId,
           suppressionReason: body.reason ?? null,
+          ipAddress: requestIp(req),
+          userAgent: requestUa(req),
+        });
+        return reply.code(200).send({ incident: projectIncident(updated) });
+      } catch (err) {
+        if (handleIncidentError(reply, err)) return;
+        throw err;
+      }
+    },
+  );
+
+  /**
+   * POST /v1/ops/incidents/:id/unsuppress — OPS-030, "Resume notifications".
+   *
+   * The same permission as stopping them: whoever may silence a condition may
+   * un-silence it. Only a SUPPRESSED condition moves; it returns to OPEN.
+   */
+  app.post(
+    "/v1/ops/incidents/:id/unsuppress",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = ParamsIncidentId.parse(req.params);
+      const body = TeamIdOnly.parse(req.body ?? {});
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
+      if (!actor) return;
+      try {
+        const updated = await unsuppressIncident({
+          incidentId: id,
+          teamId: body.teamId,
+          actorUserId: actor.userId,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
         });

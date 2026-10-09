@@ -367,6 +367,8 @@ export type OperationsCopy = {
   announceAcknowledged: string;
   announceResolved: string;
   announceSuppressed: string;
+  resumeNotifications: string;
+  announceResumed: string;
   bulkUpdated: string;
   bulkPartial: string;
   bulkSuppressReasonLabel: string;
@@ -420,6 +422,8 @@ const OPERATIONS_EN: OperationsCopy = {
   announceAcknowledged: "Condition acknowledged.",
   announceResolved: "Condition resolved.",
   announceSuppressed: "Notifications stopped for this condition.",
+  resumeNotifications: "Resume notifications",
+  announceResumed: "Notifications resumed for this condition.",
   bulkUpdated: "{done} of {total} updated.",
   bulkPartial: "{done} of {total} updated. {failed} could not be changed and remain selected.",
   bulkSuppressReasonLabel: "Why should notifications stop for these conditions? (required)",
@@ -475,6 +479,8 @@ const OPERATIONS_DE: OperationsCopy = {
   announceAcknowledged: "Zustand bestätigt.",
   announceResolved: "Zustand behoben.",
   announceSuppressed: "Benachrichtigungen für diesen Zustand gestoppt.",
+  resumeNotifications: "Benachrichtigungen fortsetzen",
+  announceResumed: "Benachrichtigungen für diesen Zustand fortgesetzt.",
   bulkUpdated: "{done} von {total} aktualisiert.",
   bulkPartial:
     "{done} von {total} aktualisiert. {failed} konnten nicht geändert werden und bleiben ausgewählt.",
@@ -529,6 +535,8 @@ const OPERATIONS_AR: OperationsCopy = {
   announceAcknowledged: "تم تأكيد الحالة.",
   announceResolved: "تم حل الحالة.",
   announceSuppressed: "توقفت الإشعارات لهذه الحالة.",
+  resumeNotifications: "استئناف الإشعارات",
+  announceResumed: "استُؤنفت الإشعارات لهذه الحالة.",
   bulkUpdated: "تم تحديث {done} من {total}.",
   bulkPartial: "تم تحديث {done} من {total}. تعذّر تغيير {failed} وما زالت محددة.",
   bulkSuppressReasonLabel: "لماذا يجب إيقاف الإشعارات لهذه الحالات؟ (مطلوب)",

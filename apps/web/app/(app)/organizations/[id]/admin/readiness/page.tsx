@@ -55,17 +55,20 @@
  *   - Shared design system: Card / Badge (deep-imported).
  */
 
-import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../../../lib/api";
+import { usePlatformContext } from "../../../../../../lib/platform-context";
 import { toSafeUserError } from "../../../../../../lib/feedback/toSafeUserError";
 import { formatUserDateTime } from "../../../../../../lib/date";
 import { Card } from "../../../../../../components/ui/Card";
 import { Badge, type BadgeTone } from "../../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
 import { identityProviderLabel } from "../../../../../../lib/labels/identityOrgLabels";
+import { SEVERITY_VOCABULARY, STATUS_VOCABULARY } from "../../../../operations/_lib/vocabulary";
+import type { IncidentSeverity, IncidentStatus } from "../../../../operations/_lib/types";
 
 // ---------------------------------------------------------------------------
 // Per-panel bounded state machine (mirrors the /operations page). A single
@@ -336,7 +339,7 @@ function ReadinessTab() {
         />
       </Card>
 
-      <OperationsRollupSection panel={rollupPanel} />
+      <OperationsRollupSection panel={rollupPanel} orgId={orgId} />
 
       {teamId ? (
         <>
@@ -394,7 +397,13 @@ type OperationsRollup = {
  * they cannot read is counted, never named, and the totals say they are
  * partial — an organisation role is not membership of every workspace.
  */
-function OperationsRollupSection({ panel }: { panel: PanelState<OperationsRollup> }) {
+function OperationsRollupSection({
+  panel,
+  orgId,
+}: {
+  panel: PanelState<OperationsRollup>;
+  orgId: string;
+}) {
   if (panel.status === "loading") {
     return (
       <SectionCard section="operations-rollup" title="Operations across this organization" panel={panel}>
@@ -434,7 +443,123 @@ function OperationsRollupSection({ panel }: { panel: PanelState<OperationsRollup
           </li>
         ))}
       </ul>
+      <OrganizationIncidentList orgId={orgId} workspaces={r.workspaces} />
     </SectionCard>
+  );
+}
+
+type OrgIncidentRow = {
+  id: string;
+  title: string;
+  severity: string;
+  status: string;
+  lastSeenAtUtc: string;
+  workspaceId: string | null;
+  workspaceName: string | null;
+};
+
+/**
+ * OPS-034 — the drilldown: the ORIGINAL conditions across the readable
+ * workspaces, filterable by workspace and severity, paged by the server. A row
+ * opens in its own workspace's Operations page, where every action runs
+ * against that original condition.
+ */
+function OrganizationIncidentList({
+  orgId,
+  workspaces,
+}: {
+  orgId: string;
+  workspaces: OperationsRollup["workspaces"];
+}) {
+  const router = useRouter();
+  const { switchWorkspace } = usePlatformContext();
+  const [workspaceFilter, setWorkspaceFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("");
+  const [rows, setRows] = useState<OrgIncidentRow[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+
+  const load = useCallback(
+    (next: string | null) => {
+      const qs = new URLSearchParams();
+      if (workspaceFilter) qs.set("workspaceId", workspaceFilter);
+      if (severityFilter) qs.set("severity", severityFilter);
+      if (next) qs.set("cursor", next);
+      setState("loading");
+      apiFetch(`/v1/orgs/${encodeURIComponent(orgId)}/operations/incidents?${qs.toString()}`, { method: "GET" })
+        .then((res) => {
+          const v = res as { incidents: OrgIncidentRow[]; pagination: { nextCursor: string | null } };
+          setRows((prev) => (next ? [...prev, ...(v.incidents ?? [])] : (v.incidents ?? [])));
+          setCursor(v.pagination?.nextCursor ?? null);
+          setState("ready");
+        })
+        .catch(() => setState("error"));
+    },
+    [orgId, workspaceFilter, severityFilter],
+  );
+  useEffect(() => {
+    load(null);
+  }, [load]);
+
+  return (
+    <div style={{ display: "grid", gap: 8, marginTop: 12 }} data-rollup-incidents>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <label style={mutedStyle}>
+          Workspace{" "}
+          <select value={workspaceFilter} onChange={(e) => setWorkspaceFilter(e.target.value)} data-rollup-filter-workspace>
+            <option value="">All readable workspaces</option>
+            {workspaces.map((w) => (
+              <option key={w.workspaceId} value={w.workspaceId}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={mutedStyle}>
+          Severity{" "}
+          <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} data-rollup-filter-severity>
+            <option value="">Any</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="WARNING">Warning</option>
+            <option value="INFO">Info</option>
+          </select>
+        </label>
+      </div>
+      {state === "error" ? (
+        <div style={errorBoxStyle} data-rollup-incidents-error>
+          The conditions across this organization could not be loaded.
+        </div>
+      ) : null}
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+        {rows.map((i) => (
+          <li key={i.id} data-rollup-incident={i.id}>
+            <button
+              type="button"
+              className="app-secondary-action"
+              onClick={async () => {
+                if (!i.workspaceId) return;
+                await switchWorkspace(i.workspaceId);
+                router.push(`/operations?incident=${encodeURIComponent(i.id)}`);
+              }}
+              data-rollup-open={i.id}
+            >
+              {i.title}
+            </button>{" "}
+            <span style={mutedStyle}>
+              {i.workspaceName ?? "—"} ·{" "}
+              {(SEVERITY_VOCABULARY[i.severity as IncidentSeverity] ?? SEVERITY_VOCABULARY.INFO).label} ·{" "}
+              {(STATUS_VOCABULARY[i.status as IncidentStatus] ?? STATUS_VOCABULARY.OPEN).label}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {cursor ? (
+        <button type="button" className="app-secondary-action" onClick={() => load(cursor)} data-rollup-more>
+          Load more
+        </button>
+      ) : null}
+    </div>
   );
 }
 

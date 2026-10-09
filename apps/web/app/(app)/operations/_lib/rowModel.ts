@@ -146,6 +146,8 @@ export type OperationsRowModel = {
   canAcknowledge: boolean;
   canResolve: boolean;
   canSuppress: boolean;
+  /** OPS-030 — a SUPPRESSED condition may be resumed by whoever may suppress. */
+  canUnsuppress: boolean;
   canAssign: boolean;
 };
 
@@ -363,7 +365,8 @@ export function buildRowModel(
       i.lifecycle?.manualResolution === true &&
       ctx.capabilities.canResolve &&
       isUnresolved,
-    canSuppress: ctx.capabilities.canSuppress && isUnresolved,
+    canSuppress: ctx.capabilities.canSuppress && isUnresolved && i.status !== "SUPPRESSED",
+    canUnsuppress: ctx.capabilities.canSuppress && i.status === "SUPPRESSED",
     canAssign: ctx.capabilities.canAssign && isUnresolved,
   };
 }

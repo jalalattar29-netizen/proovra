@@ -1,0 +1,4 @@
+ ✓ test/operations-truth-gaps.integration.test.ts (5 tests)
+   ✓ Operations truth closure — remaining contract points (live PostgreSQL 16) > OPS-003 a payer change closes the old payer's condition and raises it for the new payer 
+ Test Files  1 passed (1)
+      Tests  5 passed (5)

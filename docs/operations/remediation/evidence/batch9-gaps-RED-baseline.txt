@@ -1,0 +1,13 @@
+   × Operations truth closure — remaining contract points (live PostgreSQL 16) > OPS-030 Resume notifications returns a SUPPRESSED condition to OPEN, with both moves in history
+     → expected 404 to be 409 // Object.is equality
+   × Operations truth closure — remaining contract points (live PostgreSQL 16) > OPS-031 an integrity condition links to the record's Integrity tab
+     → expected '/evidence' to be '/evidence/575b8d20-87b6-418c-8c76-8ac…' // Object.is equality
+   × Operations truth closure — remaining contract points (live PostgreSQL 16) > OPS-003 a payer change closes the old payer's condition and raises it for the new payer
+     → expected 'OPEN' to be 'RESOLVED' // Object.is equality
+   × Operations truth closure — remaining contract points (live PostgreSQL 16) > OPS-008 more than 500 workspaces: every due workspace is reached once per pass, and Platform Admin sees the coverage
+     → operationsSweepCoverage is not a function
+   × Operations truth closure — remaining contract points (live PostgreSQL 16) > OPS-034 the organisation list is the original conditions of readable workspaces, filtered and paged; actions hit the original
+     → Target cannot be null or undefined.
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  5 failed (5)

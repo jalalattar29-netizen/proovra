@@ -192,6 +192,12 @@ export type RemediationDeepLink = {
    */
   recordScoped?: boolean;
   /**
+   * OPS-031 — the Evidence detail TAB that owns the fix: Artifacts for a
+   * report, package or package denial; Integrity for a timestamp, anchor or
+   * storage-protection condition. Appended as `?tab=` with the record id.
+   */
+  recordTab?: "artifacts" | "integrity";
+  /**
    * The CANONICAL PERMISSION the destination requires, in the vocabulary
    * `evaluateMemberAccess` already evaluates. A capability-key gate here would
    * need a second mapping maintained beside the permission model, and the two
@@ -322,6 +328,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         label: "Open evidence record",
         requiredPermission: "evidence.read",
         recordScoped: true,
+        recordTab: "integrity",
       },
     },
     ots_initialization_stalled: {
@@ -333,6 +340,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         label: "Open evidence record",
         requiredPermission: "evidence.read",
         recordScoped: true,
+        recordTab: "integrity",
       },
     },
     ots_pending_aged: {
@@ -344,6 +352,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         label: "Open evidence record",
         requiredPermission: "evidence.read",
         recordScoped: true,
+        recordTab: "integrity",
       },
     },
     tsa_failure: {
@@ -362,6 +371,7 @@ const INTEGRITY_ENTRIES: Readonly<Record<IntegrityClass, RemediationEntry>> =
         label: "Open evidence record",
         requiredPermission: "evidence.read",
         recordScoped: true,
+        recordTab: "integrity",
       },
     },
   });
@@ -386,6 +396,7 @@ const CATEGORY_ENTRIES: Readonly<Record<IncidentCategory, RemediationEntry>> =
         label: "Open evidence record",
         requiredPermission: "evidence.read",
         recordScoped: true,
+        recordTab: "integrity",
       },
     },
     REPORT: {
@@ -491,11 +502,20 @@ const CATEGORY_ENTRIES: Readonly<Record<IncidentCategory, RemediationEntry>> =
 // SOURCE-KEYED ENTRIES (OPS-031)
 // ===========================================================================
 
-const EVIDENCE_RECORD_LINK: RemediationDeepLink = {
+const EVIDENCE_ARTIFACTS_LINK: RemediationDeepLink = {
   href: "/evidence",
-  label: "Open evidence record",
+  label: "Open the record's artifacts",
   requiredPermission: "evidence.read",
   recordScoped: true,
+  recordTab: "artifacts",
+};
+
+const EVIDENCE_INTEGRITY_LINK: RemediationDeepLink = {
+  href: "/evidence",
+  label: "Open the record's integrity",
+  requiredPermission: "evidence.read",
+  recordScoped: true,
+  recordTab: "integrity",
 };
 
 /**
@@ -523,17 +543,17 @@ const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze
     disposition: "DIRECT_REMEDIATION",
     action: REGENERATE_ARTIFACTS,
     secondaryAction: SUPERSEDE_FAILED_GENERATION,
-    deepLink: EVIDENCE_RECORD_LINK,
+    deepLink: EVIDENCE_ARTIFACTS_LINK,
   },
   "pipeline.package_generation_failed": {
     disposition: "DIRECT_REMEDIATION",
     action: REGENERATE_ARTIFACTS,
     secondaryAction: SUPERSEDE_FAILED_GENERATION,
-    deepLink: EVIDENCE_RECORD_LINK,
+    deepLink: EVIDENCE_ARTIFACTS_LINK,
   },
   "pipeline.package_generation_denied": {
     disposition: "SAFE_DEEP_LINK",
-    deepLink: EVIDENCE_RECORD_LINK,
+    deepLink: EVIDENCE_ARTIFACTS_LINK,
     guidance:
       "This record's governance (for example a legal hold, a destruction review or unresolved storage drift) does not allow a verification package to be built. The record's governance panel shows which. This closes when the record becomes eligible or a package exists.",
   },
@@ -573,7 +593,7 @@ const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze
   },
   "storage.immutable_drift": {
     disposition: "SAFE_DEEP_LINK",
-    deepLink: EVIDENCE_RECORD_LINK,
+    deepLink: EVIDENCE_INTEGRITY_LINK,
     guidance:
       "The immutable-storage protection on this record's stored object did not match its retention or legal-hold state at the last reconciliation. The platform reconciler re-checks it; this closes when a reconciliation finds the protection in place. Packages for the record are withheld until then.",
   },
@@ -715,7 +735,10 @@ export function resolveRemediations(
     if (link.requiredPermission !== null && !ctx.hasPermission(link.requiredPermission)) return null;
     const recordId = incident.relatedEvidenceId ?? null;
     return link.recordScoped && recordId && /^[0-9a-f-]{36}$/i.test(recordId)
-      ? { ...link, href: `${link.href}/${recordId}` }
+      ? {
+          ...link,
+          href: `${link.href}/${recordId}${link.recordTab ? `?tab=${link.recordTab}` : ""}`,
+        }
       : link;
   };
   if (!entry) {

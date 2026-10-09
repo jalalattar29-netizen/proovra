@@ -292,6 +292,11 @@ export function GroupInspector({
                         SEVERITY_VOCABULARY.INFO).label}
                     </AppStatusBadge>
                     <span aria-hidden="true">·</span>
+                    {/* OPS-012 — each member's OWN current state. */}
+                    <span data-ops-affected-status={r.status}>
+                      {(STATUS_VOCABULARY[r.status as IncidentStatus] ?? STATUS_VOCABULARY.OPEN).label}
+                    </span>
+                    <span aria-hidden="true">·</span>
                     <span title={formatUserDateTime(r.firstSeenAtUtc)}>
                       {describeRelativeTime(r.firstSeenAtUtc)}
                     </span>

@@ -1137,7 +1137,18 @@ async function observeDependentCancellation(
       },
       select: { dependentCancellationState: true },
     });
-    if (!row) return { ...base, activity: "NOT_APPLICABLE" };
+    if (!row) {
+      // OPS-003 — OWNERSHIP MOVED. The add-on still exists but no longer
+      // belongs to this workspace (its payer or workspace changed). The writer
+      // records the obligation where it now lives, so THIS workspace's
+      // condition is over — read as recovered here rather than left orphaned
+      // and only manually closable. Only existence is read, nothing about it.
+      const moved = await ctx.client.workspaceStorageAddon.findUnique({
+        where: { id: addonId },
+        select: { id: true },
+      });
+      return { ...base, activity: moved ? "RECOVERED" : "NOT_APPLICABLE" };
+    }
 
     const resolved =
       row.dependentCancellationState === "CONFIRMED" ||

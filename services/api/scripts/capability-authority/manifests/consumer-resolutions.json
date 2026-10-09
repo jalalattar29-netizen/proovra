@@ -286,26 +286,26 @@
       "reviewedAtUtc": "2026-09-25"
     },
     {
-      "site": "apps/mobile/app/(stack)/operations/index.tsx:391",
+      "site": "apps/mobile/app/(stack)/operations/index.tsx:439",
       "match": {
         "method": "POST",
-        "caller": "OperationsScreen",
+        "caller": "OperationsWorkspaceScreen",
         "path": "/v1/ops/incidents/<interp>/<interp>"
       },
       "helper": "buildOpsLifecyclePath(id, action) — action is LifecycleAction (\"ack\" | \"resolve\" | \"suppress\")",
       "callSitesRead": [
-        "apps/mobile/app/(stack)/operations/index.tsx:391",
-        "apps/mobile/app/(stack)/operations/index.tsx:454",
-        "apps/mobile/app/(stack)/operations/index.tsx:455",
-        "apps/mobile/app/(stack)/operations/index.tsx:456"
+        "apps/mobile/app/(stack)/operations/index.tsx:439",
+        "apps/mobile/app/(stack)/operations/index.tsx:503",
+        "apps/mobile/app/(stack)/operations/index.tsx:508",
+        "apps/mobile/app/(stack)/operations/index.tsx:863"
       ],
       "routes": [
         "POST /v1/ops/incidents/:id/ack",
         "POST /v1/ops/incidents/:id/resolve",
         "POST /v1/ops/incidents/:id/suppress"
       ],
-      "evidence": "lifecycle(id, \"ack\" | \"resolve\" | \"suppress\") at :454-456; LifecycleAction is declared in apps/mobile/src/product/ops-console.ts:372. Re-read 2026-09-29 after ET-REC-04 added three imports above the call (line 388 -> 391); a match block now names the call independent of its line.",
-      "reviewedAtUtc": "2026-09-29"
+      "evidence": "lifecycle(id, \"ack\" | \"resolve\" | \"suppress\") at :454-456; LifecycleAction is declared in apps/mobile/src/product/ops-console.ts:372. Re-read 2026-09-29 after ET-REC-04 added three imports above the call (line 388 -> 391); a match block now names the call independent of its line. Re-read 2026-10-09 (OPS-035): the screen body is now OperationsWorkspaceScreen (keyed per workspace); ack at :503, resolve at :508, and the sheet passes its LifecycleAction at :863 — still exactly \"ack\" | \"resolve\" | \"suppress\".",
+      "reviewedAtUtc": "2026-10-09"
     },
     {
       "site": "apps/mobile/app/(stack)/evidence-request/[id].tsx:243",

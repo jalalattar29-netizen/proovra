@@ -108,7 +108,8 @@ export type OperationsSweepResult = {
  * the back; a workspace that has never run sorts to the front and is picked up
  * on the very next tick after it is created.
  */
-async function workspacesNeedingReconciliation(
+/** Exported for the fairness proof; the sweep below is its only caller. */
+export async function workspacesNeedingReconciliation(
   limit: number,
   now: Date,
 ): Promise<{ ids: string[]; due: number }> {
@@ -143,6 +144,50 @@ async function workspacesNeedingReconciliation(
      LIMIT ${limit}
   `;
   return { ids: rows.map((r) => r.id), due: rows.length > 0 ? Number(rows[0]!.due) : 0 };
+}
+
+/**
+ * OPS-008 — THE SWEEP'S COVERAGE, MEASURED, for the platform plane.
+ *
+ * How many workspaces exist, how many are due (never run, or older than the
+ * freshness window) and the oldest last run among them. Read from the same run
+ * rows the ranking uses, so it cannot disagree with what the next tick will
+ * select. A due count that does not fall tick over tick says the batch is too
+ * small for the deployment.
+ */
+export async function operationsSweepCoverage(now: Date = new Date()): Promise<{
+  workspaces: number;
+  due: number;
+  neverRun: number;
+  oldestLastRunAtUtc: string | null;
+  newestRunAtUtc: string | null;
+}> {
+  const cutoff = new Date(now.getTime() - OPERATIONS_FRESHNESS_WINDOW_MS);
+  const [row] = await prisma.$queryRaw<
+    Array<{ workspaces: bigint; due: bigint; never_run: bigint; oldest: Date | null; newest: Date | null }>
+  >`
+    WITH last_run AS (
+      SELECT t.id,
+             (SELECT max(r.started_at_utc)
+                FROM governance_reconciliation_runs r
+               WHERE r.team_id = t.id
+                 AND r.kind::text = ${WORKSPACE_OPERATIONS_RUN_KIND}) AS last
+        FROM teams t
+    )
+    SELECT count(*) AS workspaces,
+           count(*) FILTER (WHERE last IS NULL OR last <= ${cutoff}) AS due,
+           count(*) FILTER (WHERE last IS NULL) AS never_run,
+           min(last) AS oldest,
+           max(last) AS newest
+      FROM last_run
+  `;
+  return {
+    workspaces: Number(row?.workspaces ?? 0),
+    due: Number(row?.due ?? 0),
+    neverRun: Number(row?.never_run ?? 0),
+    oldestLastRunAtUtc: row?.oldest ? row.oldest.toISOString() : null,
+    newestRunAtUtc: row?.newest ? row.newest.toISOString() : null,
+  };
 }
 
 /**

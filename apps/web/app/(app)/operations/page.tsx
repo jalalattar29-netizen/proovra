@@ -1160,7 +1160,7 @@ function OperationsWorkbench() {
   const runTransition = React.useCallback(
     async (
       incidentId: string,
-      action: "ack" | "resolve" | "suppress",
+      action: "ack" | "resolve" | "suppress" | "unsuppress",
       extra?: { resolutionNote?: string; reason?: string },
     ) => {
       if (!teamId || busy) return;
@@ -1196,7 +1196,9 @@ function OperationsWorkbench() {
             ? copy.announceAcknowledged
             : action === "resolve"
               ? copy.announceResolved
-              : copy.announceSuppressed,
+              : action === "unsuppress"
+                ? copy.announceResumed
+                : copy.announceSuppressed,
         );
         refresh();
       } catch (err) {
@@ -2078,7 +2080,7 @@ function OperationsWorkbench() {
                     ? openIncident(id)
                     : void runTransition(id, "resolve"),
                 // OPS-030 — stopping notifications needs a reason, which the
-                // drawer asks for and confirms.
+                // drawer asks for, then double-checks with the operator.
                 onSuppress: openIncident,
                 onAssign: openIncident,
                 onToggleMark: toggleMark,
@@ -2178,6 +2180,7 @@ function OperationsWorkbench() {
             void runTransition(openRow.id, "resolve", { resolutionNote })
           }
           onSuppress={(reason) => void runTransition(openRow.id, "suppress", { reason })}
+          onUnsuppress={() => void runTransition(openRow.id, "unsuppress")}
           onAssign={(userId) => void assign(openRow.id, userId)}
           remediation={remediation}
           remediationBusy={remediationBusy}

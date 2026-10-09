@@ -984,6 +984,35 @@ export async function suppressIncident(
 }
 
 /**
+ * OPS-030 — RESUME NOTIFICATIONS: the authorized way back from a suppression.
+ *
+ * SUPPRESSED -> OPEN was always an allowed transition in the shared table, but
+ * nothing offered it, so a silenced condition could only come back by
+ * recurring. The same transition authority, event and audit as every other
+ * move; a fresh SLA promise starts now, because the suppressed span was never
+ * a period anyone was being held to.
+ */
+export async function unsuppressIncident(
+  input: IncidentTransitionTarget & IncidentActorContext,
+  client: PrismaClient = defaultPrisma,
+): Promise<prismaPkg.OperationalIncident> {
+  const existing = await client.operationalIncident.findFirst({
+    where:
+      input.scope === "PLATFORM_ADMIN"
+        ? { id: input.incidentId }
+        : { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
+    select: { status: true },
+  });
+  if (!existing) throw new IncidentError("incident_not_found");
+  // Only a SUPPRESSED condition can be resumed; RESOLVED -> OPEN is a
+  // recurrence, which only the source may declare.
+  if (existing.status !== prismaPkg.IncidentStatus.SUPPRESSED) {
+    throw new IncidentError("invalid_status_transition");
+  }
+  return transitionIncident(input, prismaPkg.IncidentStatus.OPEN, "unsuppressed", client);
+}
+
+/**
  * Phase 32.8C control plane — assignIncident.
  *
  * Sets `assignedOperatorUserId` + `assignedByUserId` + `assignedAtUtc`.
@@ -1148,7 +1177,7 @@ export async function probeConditionActivity(
 async function transitionIncident(
   input: IncidentTransitionTarget & IncidentActorContext,
   next: prismaPkg.IncidentStatus,
-  eventType: "acknowledged" | "resolved" | "suppressed",
+  eventType: "acknowledged" | "resolved" | "suppressed" | "unsuppressed",
   client: PrismaClient,
 ): Promise<prismaPkg.OperationalIncident> {
   // ADM-011 (2026-08-27) — ONE transition authority, TWO lookup scopes.
@@ -1308,7 +1337,9 @@ async function transitionIncident(
             ? clipSafeSummary(input.resolutionNote)
             : next === prismaPkg.IncidentStatus.SUPPRESSED
               ? clipSafeSummary(`Notifications stopped by an operator: ${suppressionReason}`)
-              : `Incident ${eventType} by operator.`,
+              : eventType === "unsuppressed"
+                ? "Notifications resumed by an operator."
+                : `Incident ${eventType} by operator.`,
       },
     });
   } catch {
@@ -1338,6 +1369,17 @@ async function transitionIncident(
       );
     } else if (next === prismaPkg.IncidentStatus.SUPPRESSED) {
       await cycles.suppressSlaCycle({ incidentId: updated.id }, client);
+    } else if (eventType === "unsuppressed" && subjectTeamId) {
+      await cycles.openSlaCycle(
+        {
+          teamId: subjectTeamId,
+          incidentId: updated.id,
+          severity: updated.severity,
+          startedAtUtc: new Date(),
+          actorUserId: input.actorUserId,
+        },
+        client,
+      );
     }
   } catch {
     /* best-effort; never blocks an authorized transition */
