@@ -109,17 +109,34 @@ function emptyCounts(): RuleCounts {
   return { matched: 0, changed: 0, requiresOwnerReview: 0, truncated: false };
 }
 
-/** Close one unresolved row with a stated reason. History is appended, never rewritten. */
+/**
+ * Close one unresolved row with a stated reason. History is appended, never
+ * rewritten.
+ *
+ * Every row this is called for is one its source no longer reports — the
+ * source was retired, superseded by the one platform condition, or the event
+ * was reclassified as routine — so the decision is the SAME shared one a
+ * recovered source takes (`SOURCE_RECOVERED`), not a second rule. The write is
+ * a compare-and-set on the status read, so a concurrent transition wins.
+ */
 async function closeWithNote(
   client: PrismaClient,
   row: { id: string },
   note: string,
   now: Date,
 ): Promise<void> {
-  await client.operationalIncident.update({
-    where: { id: row.id },
+  const current = await client.operationalIncident.findUnique({ where: { id: row.id }, select: { status: true } });
+  if (!current) return;
+  const decision = decideObservationTransition({
+    currentStatus: current.status as "OPEN" | "ACKNOWLEDGED" | "SUPPRESSED" | "RESOLVED",
+    observation: "SOURCE_RECOVERED",
+  });
+  if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") return;
+  const closed = await client.operationalIncident.updateMany({
+    where: { id: row.id, status: current.status },
     data: { status: S.RESOLVED, resolvedAtUtc: now, resolvedByUserId: null, resolutionNote: note },
   });
+  if (closed.count === 0) return;
   await client.operationalIncidentEvent.create({
     data: { incidentId: row.id, eventType: RECONCILED_EVENT, safeMessage: note },
   });

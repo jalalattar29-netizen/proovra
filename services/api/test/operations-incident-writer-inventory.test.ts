@@ -85,6 +85,16 @@ const WRITERS: readonly Writer[] = [
       "decideObservationTransition — recovery proven by the source's own probe",
   },
   {
+    // OPERATIONS TRUTH (2026-10-09) — the owner-run existing-data repair.
+    // Closes rows whose source no longer reports them and re-opens premature
+    // automatic resolutions; both through the shared observation decision.
+    module: "../src/services/operations/operations-truth-reconciliation.service.ts",
+    host: "API",
+    writesStatus: true,
+    authority:
+      "decideObservationTransition — SOURCE_RECOVERED to close what its source no longer reports, SOURCE_ACTIVE to re-open",
+  },
+  {
     module: "../src/services/ops/operational-seed.service.ts",
     host: "API",
     // A bounded `deleteMany` over ids the seed itself created. It removes
