@@ -233,6 +233,7 @@ COPY --from=build /app/tsconfig.json /app/tsconfig.json
 #   docker build --build-arg APP_RELEASE_SHA="$(git rev-parse HEAD)" ...
 ARG APP_RELEASE_SHA=""
 ENV APP_RELEASE_SHA=$APP_RELEASE_SHA
+LABEL org.opencontainers.image.revision=$APP_RELEASE_SHA
 
 WORKDIR /app/services/worker
 

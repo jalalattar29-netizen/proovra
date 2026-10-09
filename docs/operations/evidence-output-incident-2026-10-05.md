@@ -140,3 +140,55 @@ The exact, ordered copy-paste commands: [reem-team-grant-tsa-output-procedure.md
 (trust bundle → compose render → schema → deploy with `/readyz == 200` → grant with
 before/after snapshots and replay → kept-timestamp validation → output recovery → proof →
 rollback). Nothing in it deletes evidence, reports or packages.
+
+## 6. 2026-10-09 — every report failed PDF verification (evidence `ce465a9e-43c2-4702-87e5-32fcb2dc52fc`)
+
+**Symptom.** Regenerate reached the API, the queue and the worker; the worker
+rendered the PDF and then failed reading it back in `assertRenderedReport` →
+`extractPdfText` with `UnknownErrorException: The API version "5.4.296" does not
+match the Worker version "5.6.205"`. Nothing was committed (correct), but the
+error carried no `retriable` flag, so it was retried for up to 12 durable claims:
+the page showed *Generating report (v1)* / *taking longer than expected* while
+the operator notification already said automatic retries were exhausted.
+
+**Root cause (reproduced in the production worker image).** The worker shipped
+two PDF.js builds: its own `pdfjs-dist` 5.6.205 (preview, technical metadata,
+redaction) and the 5.4.296 that `pdf-parse@2.4.5` **bundles inside its dist**
+(report read-back). In Node, PDF.js runs a fake worker whose handler is cached
+process-wide on `globalThis.pdfjsWorker`; whichever build parses a PDF first
+claims it and the other build then fails its API/worker version check. A worker
+process that had previewed or inspected any PDF could never verify a report.
+Unit tests passed because each test process loads one build. A pnpm override
+could not fix it — the second copy is bundled, not resolved.
+
+**Fix.**
+* One runtime: `services/worker/src/pdf/pdfjs-runtime.ts` loads the API **and**
+  the worker module from the one `pdfjs-dist`, refuses a mismatched version or a
+  foreign process-wide handler (`PDFJS_RUNTIME_MISMATCH`), and is the only
+  import of PDF.js in the worker. `pdf-parse` is removed; `pdfjs-dist` is pinned
+  exactly (5.6.205); the lockfile resolves one copy.
+* Report read-back is pdf-parse 2.4.5's `getText()` algorithm ported onto that
+  runtime — byte-identical text on a real PROOVRA report (15,385 chars).
+* Verification stays on. A PDF that cannot be read back fails the gate with the
+  stable, non-retryable code **`REPORT_PDF_VERIFICATION_FAILED`** (TECHNICAL):
+  one attempt → `FAILED_TERMINAL`, no report, no package, no polling; every
+  surface reads the same terminal state; the existing supersession offers
+  "Retry report generation" to the right holder.
+* Gates: `node services/worker/scripts/check-pdfjs-integrity.mjs` (CI) and
+  `scripts/smoke-pdf-verification.mjs` inside the built worker image (journey CI
+  and before every image push). The smoke fails against the previous image with
+  the production exception. Images now carry `APP_RELEASE_SHA` and the
+  `org.opencontainers.image.revision` label.
+
+**Owner recovery (after deploying the fixed worker image).**
+1. Deploy the API and worker images built from the merge commit (worker first is
+   safe; no migration is part of this fix).
+2. Confirm the running worker reports the merge SHA (heartbeat / Admin fleet) and
+   run the smoke in it:
+   `docker exec <worker> node scripts/smoke-pdf-verification.mjs` → `"ok":true`.
+3. On the record, a member who can resolve workspace operations uses **Retry
+   report generation** (or Operations → *Retry after exhausted failure* with a
+   reason). This supersedes the dead request (`…:v0:s<n>`); the failed rows stay
+   as history. Requests that were still `FAILED_RETRYABLE` are re-driven by the
+   reconciler and now succeed on their own.
+4. The REPORT condition resolves by its probe once the verified v1 exists.

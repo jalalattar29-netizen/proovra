@@ -561,6 +561,8 @@ export const OUTPUT_OPERATION_ERROR_KEYS = [
   "REPORT_RENDER_FAILED",
   "REPORT_PUBLICATION_FAILED",
   "REPORT_READBACK_FAILED",
+  /** The rendered PDF could not be read back and checked, so it was not issued. */
+  "REPORT_VERIFICATION_FAILED",
   "PACKAGE_RENDER_FAILED",
   "PACKAGE_PUBLICATION_FAILED",
   "PACKAGE_READBACK_FAILED",
@@ -618,6 +620,7 @@ export const OUTPUT_OPERATION_ERRORS: Record<OutputOperationErrorKey, Def> = {
   WORKER_FAILED: def("Report generation failed", "The report could not be generated this time.", "error", true, "RETRY", true),
   REPORT_RENDER_FAILED: def("The report could not be rendered", "Rendering the report PDF failed.", "error", true, "RETRY", true),
   REPORT_PUBLICATION_FAILED: def("The report could not be stored", "The report was rendered but could not be written to storage.", "error", true, "RETRY", true),
+  REPORT_VERIFICATION_FAILED: def("The report could not be verified", "The report PDF was rendered but could not be read back and checked against the record, so it was not issued. The evidence record and its integrity data are unaffected.", "error", true, "RETRY", true),
   REPORT_READBACK_FAILED: def("The stored report could not be verified", "The report was stored but reading it back did not match what was written.", "error", true, "RETRY", true),
   PACKAGE_RENDER_FAILED: def("The verification package could not be built", "Building the verification package failed.", "error", true, "RECOVER", true),
   PACKAGE_PUBLICATION_FAILED: def("The verification package could not be stored", "The package was built but could not be written to storage.", "error", true, "RECOVER", true),
@@ -689,6 +692,7 @@ export function outputOperationErrorForTerminal(input: {
     return outputOperationError("INTEGRITY_TERMINAL");
   }
   if (code === "REPORT_OBJECT_MISSING") return outputOperationError("REPORT_OBJECT_MISSING");
+  if (code === "REPORT_PDF_VERIFICATION_FAILED") return outputOperationError("REPORT_VERIFICATION_FAILED");
   if (code === "LEGAL_HOLD_ACTIVE") return outputOperationError("LEGAL_HOLD");
   if (code.includes("NOT_INCLUDED")) return outputOperationError("PLAN_REFUSED");
   if (code.includes("ALLOWANCE") || code.includes("STORAGE_LIMIT") || code.includes("QUOTA")) {

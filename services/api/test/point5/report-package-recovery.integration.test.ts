@@ -75,6 +75,11 @@ const seam = vi.hoisted(() => ({
   afterRenderSnapshot: null as null | (() => Promise<void>),
   /** Fail the render-input gate this many times, exactly as production did. */
   renderInputFailures: 0,
+  /**
+   * Fail the rendered-report gate this many times exactly as production did
+   * (2026-10-09): the PDF could not be read back (PDF.js API/worker mismatch).
+   */
+  renderedReportUnreadable: 0,
 }));
 
 vi.mock("../../../worker/src/verification-package.js", async (importOriginal) => {
@@ -119,7 +124,14 @@ vi.mock("../../../worker/src/output-verification.js", async (importOriginal) => 
   const actual = await importOriginal<typeof import("../../../worker/src/output-verification.js")>();
   return {
     ...actual,
-    assertRenderedReport: async () => {},
+    assertRenderedReport: async () => {
+      if (seam.renderedReportUnreadable > 0) {
+        seam.renderedReportUnreadable -= 1;
+        throw new actual.OutputVerificationError("REPORT_PDF_VERIFICATION_FAILED", [
+          { check: "PDF_TEXT", detail: "the rendered PDF could not be read back (PDFJS_RUNTIME_MISMATCH)" },
+        ]);
+      }
+    },
     assertRenderInputs: (...args: Parameters<typeof actual.assertRenderInputs>) => {
       if (seam.renderInputFailures > 0) {
         seam.renderInputFailures -= 1;
@@ -355,6 +367,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     seam.beforeRenderSnapshot = null;
     seam.afterRenderSnapshot = null;
     seam.renderInputFailures = 0;
+    seam.renderedReportUnreadable = 0;
   });
 
   /** A fresh SIGNED record in workspace A with its original in storage. */
@@ -1896,6 +1909,136 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     const after = await state(evidenceId);
     expect(reportIdentity(after.reports), "the stored report is untouched (same version, object and digest)").toEqual(reportBefore);
     expect((await rowsOf(evidenceId, 1)).filter((r) => r.state === "PUBLISHED").length).toBe(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // PDF VERIFICATION FAILURE IS TERMINAL AND TRUTHFUL (2026-10-09). Production:
+  // "The API version 5.4.296 does not match the Worker version 5.6.205" on every
+  // attempt. It was retried (no `retriable` flag), so the record cycled through
+  // QUEUED → PROCESSING → FAILED_RETRYABLE for up to 12 claims: the page showed
+  // "Generating report" and "taking longer than expected" while operators were
+  // told retries were exhausted. Now the rendered-report gate refuses with one
+  // stable, non-retryable code, every surface reads the same terminal state, and
+  // the existing supersession recovers it once the worker is fixed.
+  // -------------------------------------------------------------------------
+  it("PDF VERIFICATION FAILURE: one attempt → FAILED_TERMINAL with a stable code; no report, no package; every surface agrees; the incident resolves only after a verified v1 lands", async () => {
+    const ev = await signedEvidence();
+    const owner = harness.fixtures.teamA.ownerUserId;
+    const credits = await creditEntries(ev.evidenceId);
+    const { requestReportGeneration } = await import("../../src/services/reports/report-generation-authority.service.js");
+    const completion = await requestReportGeneration({
+      evidenceId: ev.evidenceId,
+      purpose: "evidence_completed",
+      requestedByMachineId: "api.evidence-complete",
+    } as never);
+    const failedId = (completion as { requestId: string }).requestId;
+
+    // ONE attempt, as the first BullMQ try: the gate refuses and it is NOT retried.
+    seam.renderedReportUnreadable = 1;
+    const err = await run(failedId, 0);
+    expect((err as { code?: string }).code).toBe("REPORT_PDF_VERIFICATION_FAILED");
+    expect(seam.renderedReportUnreadable, "the failure was produced by the gate").toBe(0);
+    const failedRow = await prisma.reportGenerationRequest.findUniqueOrThrow({
+      where: { id: failedId },
+      select: { state: true, terminalReasonCode: true, idempotencyKey: true, attemptCount: true, completedAtUtc: true },
+    });
+    expect(failedRow).toMatchObject({ state: "FAILED_TERMINAL", terminalReasonCode: "REPORT_PDF_VERIFICATION_FAILED" });
+    expect(failedRow.completedAtUtc, "a terminal row is closed").not.toBeNull();
+    expect(await prisma.report.count({ where: { evidenceId: ev.evidenceId } }), "nothing unverified is committed").toBe(0);
+    expect(
+      (await prisma.verificationPackage.findMany({ where: { evidenceId: ev.evidenceId }, select: { state: true } })).filter(
+        (p) => p.state === "PUBLISHED",
+      ),
+      "no package is published",
+    ).toEqual([]);
+    // The record itself is untouched: still SIGNED, its trust data intact.
+    expect((await prisma.evidence.findUniqueOrThrow({ where: { id: ev.evidenceId }, select: { status: true, fileSha256: true } }))).toEqual({
+      status: "SIGNED",
+      fileSha256: ev.originalSha,
+    });
+
+    // THE PAGE: terminal, not generating; no polling; progress says it stopped.
+    const evRow = await prisma.evidence.findUniqueOrThrow({
+      where: { id: ev.evidenceId },
+      select: { status: true, teamId: true, ownerUserId: true, verificationPackageMetadata: true },
+    });
+    const { buildEvidenceArtifactStatus } = await import("../../src/services/evidence-artifact-status.service.js");
+    const page = (await buildEvidenceArtifactStatus({
+      evidenceId: ev.evidenceId,
+      callerUserId: owner,
+      evidenceStatus: evRow.status,
+      evidenceTeamId: evRow.teamId,
+      evidenceOwnerUserId: evRow.ownerUserId,
+      evidenceVerificationPackageMetadata: evRow.verificationPackageMetadata,
+    } as never)) as unknown as {
+      outputs: {
+        report: { state: string; generation: string; action: string; terminalReasonCode: string | null; terminalReasonClass: string | null };
+        pollIntervalMs: number | null;
+        activeRequest: { progress: { outcome: string } } | null;
+      };
+    };
+    expect(page.outputs.report).toMatchObject({
+      state: "TERMINAL_FAILURE",
+      terminalReasonCode: "REPORT_PDF_VERIFICATION_FAILED",
+      terminalReasonClass: "TECHNICAL",
+    });
+    expect(page.outputs.report.generation).not.toBe("PROCESSING");
+    expect(page.outputs.pollIntervalMs, "a terminal failure is not polled").toBeNull();
+    if (page.outputs.activeRequest) expect(page.outputs.activeRequest.progress.outcome).toBe("FAILED");
+    // The customer-facing words for the code: never "evidence failed", never "retries exhausted".
+    const { outputOperationErrorForTerminal } = await import("@proovra/shared");
+    const words = outputOperationErrorForTerminal({ terminalReasonCode: failedRow.terminalReasonCode });
+    expect(words.key).toBe("REPORT_VERIFICATION_FAILED");
+    expect(words.description).toMatch(/evidence record and its integrity data are unaffected/);
+
+    // RETRY ELIGIBILITY comes from the existing recovery authority: the right
+    // holder is offered the supersession; the record does not offer a new version.
+    const loaded = await recordActions(ev.evidenceId, owner);
+    expect(loaded.actions.report).toEqual({
+      action: "RETRY",
+      reason: null,
+      operation: "FULL_GENERATION",
+      supersedesTechnicalTerminal: true,
+    });
+    expect(loaded.actions.newVersion.action).toBe("NONE");
+
+    // OPERATIONS: one REPORT condition, open while no verified report exists.
+    const incidentWhere = { relatedEvidenceId: ev.evidenceId, category: "REPORT" } as const;
+    const opened = await prisma.operationalIncident.findMany({ where: incidentWhere, select: { status: true, title: true, fingerprint: true } });
+    expect(opened.length, "one condition for the failure").toBe(1);
+    expect(opened[0]!.title, "a deterministic failure is not a retry-budget story").not.toMatch(/retry budget exhausted/i);
+    const { reconcileWorkspaceOperations } = await import("../../src/services/operations/operations-reconciliation.service.js");
+    await reconcileWorkspaceOperations({ workspaceId: ev.teamId, trigger: "cli" } as never);
+    expect(
+      (await prisma.operationalIncident.findFirstOrThrow({ where: incidentWhere, select: { status: true } })).status,
+      "not resolved while no verified report exists",
+    ).not.toBe("RESOLVED");
+
+    // The worker is fixed; the right holder retries from the record.
+    const retry = await recordRetry(ev.evidenceId, owner);
+    expect(retry.kind).toBe("accepted");
+    const successorId = idOf(retry);
+    expect(await run(successorId, 0)).toBeNull();
+
+    expect((await state(ev.evidenceId)).reports.map((r) => r.version), "exactly Report v1").toEqual([1]);
+    expect((await rowsOf(ev.evidenceId, 1)).map((r) => r.state), "both profiles published").toEqual(["PUBLISHED", "PUBLISHED"]);
+    expect(
+      await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id: successorId }, select: { state: true } }),
+    ).toEqual({ state: "SUCCEEDED" });
+    expect(
+      await prisma.reportGenerationRequest.findUniqueOrThrow({
+        where: { id: failedId },
+        select: { state: true, terminalReasonCode: true, idempotencyKey: true, attemptCount: true, completedAtUtc: true },
+      }),
+      "the failure stays in history, unchanged",
+    ).toEqual(failedRow);
+
+    await reconcileWorkspaceOperations({ workspaceId: ev.teamId, trigger: "cli" } as never);
+    expect(
+      (await prisma.operationalIncident.findFirstOrThrow({ where: incidentWhere, select: { status: true } })).status,
+      "resolved once the verified report exists",
+    ).toBe("RESOLVED");
+    expect(await creditEntries(ev.evidenceId), "no credit moved").toBe(credits);
   });
 
 });

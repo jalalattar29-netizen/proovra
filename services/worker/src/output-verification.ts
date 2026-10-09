@@ -21,6 +21,7 @@
  * the run fails terminally (an operator incident), never "retried until it
  * agrees".
  */
+import { extractPdfTextWithPdfjs } from "./pdf/pdfjs-runtime.js";
 import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
 import { open } from "node:fs/promises";
 import { createReadStream } from "node:fs";
@@ -50,7 +51,12 @@ import type { ReportEvidence } from "./report-v2/types.js";
 export class OutputVerificationError extends Error {
   readonly retriable = false;
   constructor(
-    readonly code: "REPORT_RENDER_INPUT_INCONSISTENT" | "REPORT_OUTPUT_INCONSISTENT" | "PACKAGE_OUTPUT_INCONSISTENT",
+    readonly code:
+      | "REPORT_RENDER_INPUT_INCONSISTENT"
+      | "REPORT_OUTPUT_INCONSISTENT"
+      | "PACKAGE_OUTPUT_INCONSISTENT"
+      /** The rendered PDF could not be read back at all, so it was not checked and is never issued. */
+      | "REPORT_PDF_VERIFICATION_FAILED",
     readonly findings: CanonicalFactsFinding[],
   ) {
     super(`${code}: ${findings.slice(0, 5).map((f) => `${f.check} (${f.detail})`).join("; ")}`);
@@ -262,27 +268,40 @@ export function assertRenderInputs(
   if (findings.length) throw new OutputVerificationError("REPORT_RENDER_INPUT_INCONSISTENT", findings);
 }
 
-/** The text of a PDF, from its bytes (the worker's own pdf-parse). */
+/**
+ * The text of a PDF, from its bytes — through the worker's ONE PDF.js build
+ * (pdf/pdfjs-runtime.ts). It used to load pdf-parse, which bundles a SECOND
+ * PDF.js (5.4.296) that collided with the worker's own (5.6.205) in any
+ * process that had already parsed a PDF elsewhere: "The API version 5.4.296
+ * does not match the Worker version 5.6.205" (production, 2026-10-09).
+ */
 export async function extractPdfText(pdf: Buffer): Promise<string> {
-  const mod = (await import("pdf-parse")) as unknown as {
-    PDFParse?: new (o: { data: Buffer }) => { getText(): Promise<{ text: string }>; destroy?(): Promise<void> };
-    default?: (b: Buffer) => Promise<{ text: string }>;
-  };
-  if (typeof mod.PDFParse === "function") {
-    const parser = new mod.PDFParse({ data: pdf });
-    try {
-      return (await parser.getText()).text;
-    } finally {
-      await parser.destroy?.();
-    }
-  }
-  if (typeof mod.default === "function") return (await mod.default(pdf)).text;
-  throw new Error("PDF_TEXT_EXTRACTOR_UNAVAILABLE");
+  return extractPdfTextWithPdfjs(pdf);
 }
 
 /** AFTER RENDERING — the PDF's own text states the facts. */
 export async function assertRenderedReport(pdf: Buffer, facts: CanonicalArtifactFacts, reportVersion: number): Promise<void> {
-  const findings = checkRenderedReportText(await extractPdfText(pdf), facts, { reportVersion });
+  /*
+   * A PDF THAT CANNOT BE READ IS NOT VERIFIED (2026-10-09). Reading the bytes
+   * back is the gate, so an extraction failure refuses the report exactly like
+   * a finding does: a stable, NON-retryable code, never a retry loop. Retrying
+   * cannot help — the same bytes and the same runtime fail the same way (the
+   * production PDF.js API/worker mismatch failed every attempt) — and a retry
+   * loop is what left the page saying "Generating" while operators were told
+   * retries were exhausted. TECHNICAL by class: once the runtime is fixed, the
+   * existing supersession retries it.
+   */
+  let text: string;
+  try {
+    text = await extractPdfText(pdf);
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "unknown";
+    const runtime = (err as { code?: unknown } | null)?.code === "PDFJS_RUNTIME_MISMATCH" ? "PDFJS_RUNTIME_MISMATCH" : name;
+    throw new OutputVerificationError("REPORT_PDF_VERIFICATION_FAILED", [
+      { check: "PDF_TEXT", detail: `the rendered PDF could not be read back (${runtime.slice(0, 64)})` },
+    ]);
+  }
+  const findings = checkRenderedReportText(text, facts, { reportVersion });
   if (findings.length) throw new OutputVerificationError("REPORT_OUTPUT_INCONSISTENT", findings);
 }
 

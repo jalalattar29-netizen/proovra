@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
-import * as pdfParseModule from "pdf-parse";
+import { extractPdfTextWithPdfjs, openPdf } from "../pdf/pdfjs-runtime.js";
 import ffmpegPath from "ffmpeg-static";
 
 export type ExtractedPreview = {
@@ -26,12 +26,6 @@ type ExtractParams = {
 };
 
 const execFileAsync = promisify(execFile);
-const pdfParse = (
-  "default" in pdfParseModule
-    ? (pdfParseModule.default as (buffer: Buffer) => Promise<{ text: string }>)
-    : (pdfParseModule as unknown as (buffer: Buffer) => Promise<{ text: string }>)
-);
-
 function bufferToDataUrl(
   buffer: Buffer,
   mimeType: string
@@ -181,29 +175,8 @@ async function buildPdfFirstPagePreview(buffer: Buffer): Promise<string | null> 
       globalThis.Path2D = canvasModule.Path2D;
     }
 
-    const pdfjs = (await import("pdfjs-dist/legacy/build/pdf.mjs")) as unknown as {
-      getDocument: (options: Record<string, unknown>) => {
-        promise: Promise<{
-          getPage: (pageNumber: number) => Promise<{
-            getViewport: (options: { scale: number }) => {
-              width: number;
-              height: number;
-            };
-            render: (options: Record<string, unknown>) => { promise: Promise<void> };
-          }>;
-          destroy?: () => Promise<void> | void;
-        }>;
-      };
-    };
-
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(buffer),
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      disableFontFace: true,
-    });
-
-    const pdf = await loadingTask.promise;
+    // The worker's one PDF.js build (see pdf/pdfjs-runtime.ts).
+    const pdf = await openPdf(buffer, { disableFontFace: true });
     const page = await pdf.getPage(1);
     const viewport = page.getViewport({ scale: 1.45 });
 
@@ -375,8 +348,8 @@ async function extractPdfPreview(
     let textExcerpt: string | null = null;
 
     try {
-      const data = await pdfParse(buffer);
-      textExcerpt = safeTextExcerpt(data.text) || null;
+      const text = await extractPdfTextWithPdfjs(buffer);
+      textExcerpt = safeTextExcerpt(text.replace(/-- d+ of d+ --/g, " ")) || null;
     } catch {
       textExcerpt = null;
     }
