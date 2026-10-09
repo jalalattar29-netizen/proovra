@@ -141,7 +141,7 @@ describe("Operations truth closure — remaining contract points (live PostgreSQ
       });
     }
     expect(new Set(visited).size).toBe(visited.length);
-    expect(new Set(visited)).toEqual(new Set(fresh.map((t) => t.id)));
+    expect(new Set(visited)).toEqual(new Set(fresh.map((t: { id: string }) => t.id)));
     expect((await operationsSweepCoverage()).due).toBe(0);
 
     // The coverage reaches Platform Admin, and only Platform Admin.

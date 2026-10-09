@@ -83,7 +83,7 @@ export async function seedIncident(c: Ctx, teamId: string | null, o: Record<stri
     data: {
       teamId,
       scope: o.scope ?? (teamId ? "WORKSPACE" : "LEGACY_UNSCOPED"),
-      sourceId: o.sourceId ?? "governance.policy_condition",
+      sourceId: "sourceId" in o ? o.sourceId : "governance.policy_condition",
       category: o.category ?? "GOVERNANCE",
       severity: o.severity ?? "HIGH",
       status: o.status ?? "OPEN",

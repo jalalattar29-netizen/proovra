@@ -115,8 +115,9 @@ sensitive writes. Each has a counter in the metrics catalog
 - **Worker uses Pino with redaction.** API logger is console-only
   (production suppresses info/warn — only `error` emitted).
 - **Three health endpoints**: `/healthz` (liveness), `/readyz` (DB +
-  config), `/v1/ops/health` (detailed snapshot — feature flags, queue
-  depth, open incidents).
+  config), `/v1/ops/health` (workspace view for an Operations reader; the
+  process-wide `platform` snapshot — feature flags, violations,
+  observability, alerts, sweep coverage — only for Platform Admin, OPS-010).
 - **Prometheus exposition** built in via `buildPrometheusExposition()`.
 
 ### 3.2 Observability gaps (top 5)

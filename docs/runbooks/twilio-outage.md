@@ -14,7 +14,7 @@
 ## Safe commands / routes
 1. Check Twilio status page out-of-band.
 2. `POST /v1/communications/process-retries` (cron secret) — drains the retry queue.
-3. `GET /v1/ops/health` → confirms `snapshot.communications.configured = true` and the provider health.
+3. `GET /v1/ops/health` as a Platform Admin → confirms `platform.snapshot.communications.configured = true` and the provider health (the `platform` block is withheld from workspace members — OPS-010).
 
 ## What NOT to do
 - **Do not** rotate `TWILIO_API_SECRET` to "force a reconnect" — the provider holds no long-lived state.

@@ -115,7 +115,7 @@ layer: `services/api/src/services/security/security-event.service.ts`.
 | --- | --- | --- | --- |
 | `GET /healthz` | none | Liveness probe | `{ status: "ok" }` |
 | `GET /readyz` | none | Readiness — DB + config validation | 200 OK or 503 with reason |
-| `GET /v1/ops/health` | `identity.member.read` | Detailed snapshot | feature flags, queue depth, open incidents, reconcile summary, Prometheus snapshot |
+| `GET /v1/ops/health` | Operations reader of the workspace; `platform` block only for Platform Admin | Workspace view + platform snapshot | everyone: database up/down and THIS workspace's open conditions; Platform Admin only (`platform`): feature snapshot, startup violations, observability, alert routing, Operations sweep coverage (OPS-010 / OPS-008) |
 | Worker `GET /health` | none (internal) | Worker liveness | queue counts + Redis ping latency |
 
 ### 4.2 Gaps

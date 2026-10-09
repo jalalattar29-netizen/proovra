@@ -70,7 +70,8 @@
     "db:org-security-policy-readiness": "tsx prisma/scripts/org-security-policy-readiness.ts",
     "db:lifecycle-state-readiness": "node scripts/evidence-lifecycle-state-readiness.mjs",
     "pretypecheck": "pnpm run build:deps",
-    "verify:runbook-endpoints": "node scripts/verify-runbook-endpoints.mjs"
+    "verify:runbook-endpoints": "node scripts/verify-runbook-endpoints.mjs",
+    "ops:operations-truth-reconcile": "tsx src/scripts/operations-truth-reconcile.ts"
   },
   "keywords": [],
   "author": "",
