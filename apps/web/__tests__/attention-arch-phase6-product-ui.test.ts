@@ -225,7 +225,7 @@ test("a read-only operator gets NO mutation controls and no empty action column"
   // selected it renders at most the answer to the run that just emptied the
   // selection (OPS-011) — text, never a button.
   const BULK = read("app/(app)/operations/_components/BulkToolbar.tsx");
-  const empty = /if \(count === 0\) \{([\s\S]*?)\n  \}/.exec(BULK);
+  const empty = /if \(count === 0\) \{([\s\S]*?)\n {2}\}/.exec(BULK);
   assert.ok(empty, "the empty-selection branch exists");
   assert.match(empty![1], /return outcome \? \(/);
   assert.match(empty![1], /data-ops-bulk-outcome/);
