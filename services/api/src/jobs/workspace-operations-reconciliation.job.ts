@@ -87,6 +87,12 @@ export type OperationsSweepResult = {
   /** Bounded category when the sweep itself could not proceed. */
   error: string | null;
   durationMs: number;
+  /**
+   * OPS-008 — how many workspaces were due when this tick ranked them (the
+   * coverage backlog). A number that does not fall tick over tick says the
+   * batch is too small for the deployment.
+   */
+  due: number;
 };
 
 /**
@@ -105,52 +111,38 @@ export type OperationsSweepResult = {
 async function workspacesNeedingReconciliation(
   limit: number,
   now: Date,
-): Promise<string[]> {
+): Promise<{ ids: string[]; due: number }> {
   const cutoff = new Date(now.getTime() - OPERATIONS_FRESHNESS_WINDOW_MS);
 
-  // Candidate workspaces. Bounded, and deliberately a plain list of ids: this
-  // sweep never reads tenant data itself, so it needs nothing else.
-  const teams = await prisma.team.findMany({
-    select: { id: true },
-    // A generous bound. Larger than the batch so the ranking below has
-    // something to rank, and finite so a very large deployment cannot turn one
-    // tick into a full table scan.
-    take: limit * 20,
-    orderBy: { createdAt: "asc" },
-  });
-  if (teams.length === 0) return [];
-
-  const latestRuns = await prisma.governanceReconciliationRun.groupBy({
-    by: ["teamId"],
-    where: {
-      kind: WORKSPACE_OPERATIONS_RUN_KIND,
-      teamId: { in: teams.map((t) => t.id) },
-    },
-    _max: { startedAtUtc: true },
-  });
-  const lastRunByTeam = new Map<string, Date>();
-  for (const row of latestRuns) {
-    if (row.teamId && row._max.startedAtUtc) {
-      lastRunByTeam.set(row.teamId, row._max.startedAtUtc);
-    }
-  }
-
-  const due = teams
-    .map((t) => ({ id: t.id, last: lastRunByTeam.get(t.id) ?? null }))
-    // Never-run workspaces and workspaces whose newest run predates the
-    // freshness window. A workspace inside its window is not touched: churning
-    // it would spend the batch on workspaces that already have a current
-    // picture while the ones that do not keep waiting.
-    .filter((t) => t.last === null || t.last.getTime() <= cutoff.getTime())
-    .sort((a, b) => {
-      if (a.last === null && b.last === null) return 0;
-      if (a.last === null) return -1;
-      if (b.last === null) return 1;
-      return a.last.getTime() - b.last.getTime();
-    })
-    .slice(0, limit);
-
-  return due.map((t) => t.id);
+  // OPS-008 — RANKED IN SQL, OVER EVERY WORKSPACE.
+  //
+  // This used to read `take: limit * 20` teams ordered by creation and rank
+  // only those: with more than five hundred workspaces, every workspace
+  // created after the five-hundredth was never selected by the scheduler at
+  // all — a never-run workspace among them included. The ranking is now one
+  // statement over the whole table: never-run first, then oldest run first,
+  // id as the stable tiebreak, bounded only by the batch. The last-run lookup
+  // is the (team_id, kind, started_at_utc DESC) index, once per workspace.
+  //
+  // It still reads only ids: this sweep never reads tenant data itself.
+  const rows = await prisma.$queryRaw<Array<{ id: string; due: bigint }>>`
+    WITH last_run AS (
+      SELECT t.id,
+             (SELECT max(r.started_at_utc)
+                FROM governance_reconciliation_runs r
+               WHERE r.team_id = t.id
+                 AND r.kind::text = ${WORKSPACE_OPERATIONS_RUN_KIND}) AS last
+        FROM teams t
+    ),
+    due AS (
+      SELECT id, last FROM last_run WHERE last IS NULL OR last <= ${cutoff}
+    )
+    SELECT id::text AS id, (SELECT count(*) FROM due) AS due
+      FROM due
+     ORDER BY last ASC NULLS FIRST, id ASC
+     LIMIT ${limit}
+  `;
+  return { ids: rows.map((r) => r.id), due: rows.length > 0 ? Number(rows[0]!.due) : 0 };
 }
 
 /**
@@ -170,11 +162,14 @@ export async function runWorkspaceOperationsSweep(
     failed: 0,
     error: null,
     durationMs: 0,
+    due: 0,
   };
 
   let workspaces: string[];
   try {
-    workspaces = await workspacesNeedingReconciliation(batchSize, new Date());
+    const ranked = await workspacesNeedingReconciliation(batchSize, new Date());
+    workspaces = ranked.ids;
+    result.due = ranked.due;
   } catch (err) {
     result.ok = false;
     result.error = safeOperationsFailureCategory(err);

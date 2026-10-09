@@ -1118,10 +1118,14 @@ export async function opsRoutes(app: FastifyInstance) {
 
       const outcome = await ensureWorkspaceOperationsFresh({
         workspaceId: body.teamId,
+        triggeredByUserId: actor.userId,
       });
       return reply.code(202).send({
-        started: outcome.refreshing,
-        alreadyRunning: outcome.refreshing && outcome.run?.readiness === "RUNNING",
+        // OPS-032 — the request that RAN the reconciliation says so. It is
+        // awaited inline, so `refreshing` was false for exactly that request.
+        started: outcome.ran || outcome.refreshing,
+        ran: outcome.ran,
+        alreadyRunning: outcome.alreadyRunning,
         refusedReason: outcome.refreshBlockedReason,
         retryable: outcome.refreshBlockedReason == null,
         readiness: outcome.run?.readiness ?? "NEVER_RUN",
@@ -1637,7 +1641,7 @@ export async function opsRoutes(app: FastifyInstance) {
       const status =
         err.code === "incident_not_found"
           ? 404
-          : err.code === "invalid_fingerprint"
+          : err.code === "invalid_fingerprint" || err.code === "SUPPRESSION_REASON_REQUIRED"
             ? 400
             : 409;
       reply.code(status).send({ error: { code: err.code } });
@@ -1843,7 +1847,11 @@ export async function opsRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsIncidentId.parse(req.params);
-      const body = TeamIdOnly.parse(req.body ?? {});
+      // OPS-030 — the reason is required and recorded; the service refuses
+      // a blank one too, so no other caller can skip it.
+      const body = TeamIdOnly.extend({
+        reason: z.string().max(400).optional(),
+      }).parse(req.body ?? {});
       const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
       if (!actor) return;
       try {
@@ -1851,6 +1859,7 @@ export async function opsRoutes(app: FastifyInstance) {
           incidentId: id,
           teamId: body.teamId,
           actorUserId: actor.userId,
+          suppressionReason: body.reason ?? null,
           ipAddress: requestIp(req),
           userAgent: requestUa(req),
         });
@@ -3110,6 +3119,12 @@ export async function opsRoutes(app: FastifyInstance) {
         BULK_ACTION_PERMISSION[body.actionType],
       );
       if (!actor) return;
+
+      // OPS-030 — refused before any item runs: a bulk "Stop notifying" with
+      // no reason would otherwise record N item failures for one omission.
+      if (body.actionType === "BULK_SUPPRESS_INCIDENTS" && (body.note ?? "").trim().length < 3) {
+        return reply.code(400).send({ error: { code: "SUPPRESSION_REASON_REQUIRED" } });
+      }
 
       // 1. Durable idempotency replay — the marker is persisted on the
       //    run row's resultJson, so a retry after a dropped connection

@@ -33,8 +33,9 @@
  * ---------------------------------------------------------------------------
  * RESOLUTION (Phase 3.4)
  * ---------------------------------------------------------------------------
- * A condition resolves when `Evidence.tsaStatus` / `Evidence.otsStatus`
- * leaves FAILED — read POSITIVELY, per condition, from the Evidence row.
+ * A condition resolves when the record's proof has POSITIVELY recovered — a
+ * VALIDATED timestamp, an anchored OpenTimestamps proof (OPS-019, see
+ * `hasRecovered`) — read per condition from the Evidence row.
  *
  * It never resolves because a record was absent from a capped scan. The
  * resolver below re-reads each open condition's own Evidence by id, so a
@@ -70,6 +71,7 @@
 import type { PrismaClient } from "@prisma/client";
 import * as prismaPkg from "@prisma/client";
 import type { IncidentCategory, IncidentSeverity } from "@proovra/shared";
+import { resolveOtsProofStatus, resolveTsaProofStatus, tsaProofStatusIsValidated } from "@proovra/shared";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
@@ -250,6 +252,53 @@ export function isCurrentlyFailing(
   integrityClass: IntegrityClass,
 ): boolean {
   return statusFor(row, integrityClass) === FAILED;
+}
+
+/**
+ * OPS-019 — HAS THIS RECORD POSITIVELY RECOVERED THIS PROOF?
+ *
+ * Recovery used to be "the status is no longer FAILED", so a FAILED timestamp
+ * that became NULL, PENDING or an unvalidated STAMPED token closed its
+ * condition, and an OTS failure closed on PENDING or NULL — contradicting the
+ * registry's own contract ("otsStatus reaches ANCHORED or UPGRADED").
+ *
+ * The answer now comes from the canonical proof-status resolvers every
+ * customer surface already uses: a timestamp has recovered only when it is
+ * VALIDATED; an anchor only when it is recorded as anchored (verified against
+ * the chain, or anchored and not yet chain-checked). Anything else — pending,
+ * absent, recorded-not-validated — keeps the condition open.
+ */
+export type IntegrityRecoveryRow = {
+  tsaStatus: string | null;
+  tsaValidatedAtUtc: Date | null;
+  otsStatus: string | null;
+  otsAnchoredAtUtc: Date | null;
+  otsAnchorCheck: string | null;
+  otsBitcoinTxid: string | null;
+};
+
+export const INTEGRITY_RECOVERY_SELECT = {
+  tsaStatus: true,
+  tsaValidatedAtUtc: true,
+  otsStatus: true,
+  otsAnchoredAtUtc: true,
+  otsAnchorCheck: true,
+  otsBitcoinTxid: true,
+} as const;
+
+export function hasRecovered(row: IntegrityRecoveryRow, integrityClass: IntegrityClass): boolean {
+  if (integrityClass === "tsa_failure") {
+    return tsaProofStatusIsValidated(
+      resolveTsaProofStatus({ tsaStatus: row.tsaStatus, tsaValidatedAtUtc: row.tsaValidatedAtUtc }),
+    );
+  }
+  const ots = resolveOtsProofStatus({
+    status: row.otsStatus,
+    anchoredAtUtc: row.otsAnchoredAtUtc,
+    anchorCheck: row.otsAnchorCheck,
+    bitcoinTxid: row.otsBitcoinTxid,
+  });
+  return ots === "VERIFIED" || ots === "ANCHORED_UNVERIFIED";
 }
 
 const PROOF_LABEL: Record<IntegrityClass, string> = {
@@ -755,8 +804,8 @@ async function recordIntegrityCondition(
       title: `${proof} missing for ${recordLabel}`,
       safeSummary:
         `This record has no ${proof}: ${describeFailureClass(failureClass)}. ` +
-        `It stays unresolved until the record's own ${integrityClass === "tsa_failure" ? "tsaStatus" : "otsStatus"} ` +
-        `leaves FAILED. Each affected record is tracked separately — this condition covers one record only.`,
+        `It stays unresolved until the record's ${integrityClass === "tsa_failure" ? "timestamp is validated" : "OpenTimestamps proof is anchored"}. ` +
+        `Each affected record is tracked separately — this condition covers one record only.`,
       relatedEvidenceId: evidence.id,
       relatedProvider:
         integrityClass === "tsa_failure" ? evidence.tsaProvider : null,
@@ -989,8 +1038,8 @@ async function resolveRecoveredOtsPendingAged(
  * Resolve conditions whose record has RECOVERED.
  *
  * Positive evidence only: each open condition names its Evidence, that
- * Evidence is read by id, and the condition resolves only when the relevant
- * status column is observably no longer FAILED. A record that has been
+ * Evidence is read by id, and the condition resolves only when its proof has
+ * observably recovered (`hasRecovered`, OPS-019). A record that has been
  * deleted, or whose row cannot be read, leaves the condition OPEN — we do not
  * know that it recovered, and "we could not check" is not "it is fine".
  */
@@ -1044,7 +1093,7 @@ async function resolveRecoveredConditions(
         args.scopeWhere,
       ],
     },
-    select: { id: true, tsaStatus: true, otsStatus: true },
+    select: { id: true, ...INTEGRITY_RECOVERY_SELECT },
   });
   const statusById = new Map(evidenceRows.map((row) => [row.id, row]));
 
@@ -1053,7 +1102,9 @@ async function resolveRecoveredConditions(
     const evidence = statusById.get(parts.evidenceId);
     // Unreadable or gone: NOT proof of recovery. Leave it open.
     if (!evidence) continue;
-    if (isCurrentlyFailing(evidence, parts.integrityClass)) continue;
+    // OPS-019 — POSITIVE recovery only. "No longer FAILED" (NULL, PENDING,
+    // an unvalidated token) is not recovery and leaves the condition open.
+    if (!hasRecovered(evidence, parts.integrityClass)) continue;
 
     // The SHARED authority decides, here as in the writer. A recovery
     // observation may close OPEN, ACKNOWLEDGED and SUPPRESSED alike: domain
@@ -1072,8 +1123,10 @@ async function resolveRecoveredConditions(
         // No human resolver is fabricated for a domain-truth resolution.
         resolvedByUserId: null,
         resolutionNote: `Resolved from Evidence domain truth: ${
-          parts.integrityClass === "tsa_failure" ? "tsaStatus" : "otsStatus"
-        } is no longer FAILED.`,
+          parts.integrityClass === "tsa_failure"
+            ? "the RFC 3161 timestamp is validated"
+            : "the OpenTimestamps proof is anchored"
+        }.`,
         // `acknowledgedAtUtc` / `acknowledgedByUserId` are DELIBERATELY left
         // alone. Who took this on is part of what happened to it, and a
         // resolution is not a reason to forget. They are cleared only by a

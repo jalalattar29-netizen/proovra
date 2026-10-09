@@ -1,0 +1,17 @@
+   × Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-019 a TSA failure stays open on PENDING and on an unvalidated token; closes on a validated one
+     → {"tsaStatus":"PENDING"}: expected 'RESOLVED' to be 'OPEN' // Object.is equality
+   × Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-019 an OTS failure stays open on PENDING / NULL; closes when the proof is anchored
+     → PENDING: expected 'RESOLVED' to be 'OPEN' // Object.is equality
+   × Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-017 a workspace whose search index was never built reads 'not built yet', not 'failing'
+     → expected 'Search index reconciliation failing' to be 'Search index not built yet' // Object.is equality
+   × Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-014 an expected 403 refusal opens no condition; the security log keeps it
+     → expected 1 to be +0 // Object.is equality
+   × Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-008 the scheduler selects a never-run workspace however many older workspaces exist
+     → expected +0 to be 1 // Object.is equality
+   × Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-032 the request that ran the reconciliation reports that it ran
+     → expected { started: false, …(4) } to match object { started: true, ran: true, …(1) }
+   × Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-030 'Stop notifying' needs a reason (single and bulk), and the reason is in the history
+     → expected 200 to be 400 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  7 failed (7)

@@ -188,8 +188,16 @@ export async function reconcileWorkspaceOperations(input: {
 export type EnsureFreshOutcome = {
   /** The run the surface should render from. Null means NEVER_RUN. */
   run: WorkspaceOperationsRunSnapshot | null;
-  /** True when this call started (or found already running) a live run. */
+  /** True when a run is live after this call (started here or already running). */
   refreshing: boolean;
+  /**
+   * OPS-032 — True when THIS call executed a reconciliation run. The run is
+   * awaited inline, so it has finished by the time the caller answers, and
+   * `refreshing` alone read false for exactly the request that did the work.
+   */
+  ran: boolean;
+  /** True when another run held the claim, so this call did not run one. */
+  alreadyRunning: boolean;
   /** Bounded reason a refresh could not be started. Null when it could. */
   refreshBlockedReason: string | null;
 };
@@ -212,6 +220,8 @@ export type EnsureFreshOutcome = {
 export async function ensureWorkspaceOperationsFresh(input: {
   workspaceId: string;
   now?: Date;
+  /** OPS-032 — the person who asked, recorded on the run they started. */
+  triggeredByUserId?: string | null;
 }): Promise<EnsureFreshOutcome> {
   const now = input.now ?? new Date();
   let run: WorkspaceOperationsRunSnapshot | null;
@@ -223,18 +233,20 @@ export async function ensureWorkspaceOperationsFresh(input: {
     return {
       run: null,
       refreshing: false,
+      ran: false,
+      alreadyRunning: false,
       refreshBlockedReason: safeOperationsFailureCategory(err),
     };
   }
 
   // A live run needs nothing started; it needs to be waited for.
   if (run && run.readiness === "RUNNING") {
-    return { run, refreshing: true, refreshBlockedReason: null };
+    return { run, refreshing: true, ran: false, alreadyRunning: true, refreshBlockedReason: null };
   }
 
   // READY and inside its window: the picture is current, do not churn.
   if (run && run.readiness === "READY") {
-    return { run, refreshing: false, refreshBlockedReason: null };
+    return { run, refreshing: false, ran: false, alreadyRunning: false, refreshBlockedReason: null };
   }
 
   // NEVER_RUN, STALE, PARTIAL, FAILED or STALLED. All five want a fresh run.
@@ -244,6 +256,7 @@ export async function ensureWorkspaceOperationsFresh(input: {
     const outcome = await reconcileWorkspaceOperations({
       workspaceId: input.workspaceId,
       trigger: "ensure",
+      triggeredByUserId: input.triggeredByUserId ?? null,
     });
     const after = await latestWorkspaceOperationsRun(
       prisma,
@@ -255,6 +268,8 @@ export async function ensureWorkspaceOperationsFresh(input: {
       refreshing:
         outcome.kind === "already_running" ||
         after?.readiness === "RUNNING",
+      ran: outcome.kind !== "already_running",
+      alreadyRunning: outcome.kind === "already_running",
       refreshBlockedReason:
         outcome.kind === "failed" ? outcome.reason : null,
     };
@@ -266,6 +281,8 @@ export async function ensureWorkspaceOperationsFresh(input: {
     return {
       run,
       refreshing: false,
+      ran: false,
+      alreadyRunning: false,
       refreshBlockedReason: safeOperationsFailureCategory(err),
     };
   }

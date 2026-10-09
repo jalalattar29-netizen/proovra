@@ -325,6 +325,11 @@ async function runOneItem(input: {
       return;
     }
     case "BULK_SUPPRESS_INCIDENTS": {
+      // OPS-030 — stopping notifications needs a stated reason, in bulk too;
+      // the bulk note IS that reason and is recorded on every condition.
+      if (!input.actor.note || input.actor.note.trim().length < 3) {
+        throw new BulkActionError("note_required");
+      }
       const { suppressIncident } = await import(
         "../observability/incident.service.js"
       );
@@ -332,6 +337,7 @@ async function runOneItem(input: {
         {
           incidentId: input.targetId,
           teamId: input.teamId,
+          suppressionReason: input.actor.note,
           actorUserId: input.actor.actorUserId,
           ipAddress: input.actor.ipAddress,
           userAgent: input.actor.userAgent,

@@ -406,6 +406,17 @@ export function dedicatedSourceOwning(eventType: string): string | null {
  */
 export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
   Object.freeze({
+    // ---- Authorization ------------------------------------------------------
+    // OPS-014 — a 403 is the permission model WORKING: a viewer opened a
+    // control their role does not hold, a member followed a link to a surface
+    // outside their plan. It was classified as an "Identity security
+    // condition", so every expected refusal opened a customer-visible
+    // incident nobody could act on. It stays in the security audit log;
+    // genuinely suspicious denial PATTERNS have their own detectors
+    // (high_risk_action_blocked, runtime blocks, session-risk surges).
+    permission_denied:
+      "An expected authorization refusal. The audit log records it; an incident would describe the permission model working.",
+
     // ---- Session and re-authentication lifecycle -------------------------
     all_sessions_revoked: "A person signed out everywhere. Deliberate.",
     all_sessions_revoked_admin:
@@ -636,11 +647,7 @@ export const CLASSIFIED_SECURITY_EVENTS: Readonly<
   },
 
   // ---- Identity security -------------------------------------------------
-  permission_denied: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: null,
-  },
+  // (permission_denied is ROUTINE — OPS-014; see ROUTINE_SECURITY_EVENTS.)
   step_up_denied: {
     sourceId: "identity.security_condition",
     category: "IDENTITY_SECURITY",

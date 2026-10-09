@@ -130,7 +130,7 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
     const a = c.h.fixtures.teamA;
     const owner = a.ownerUserId;
     // OTS: the record anchored after the budget bridge fired.
-    const ev = await seedEvidence(c, a.teamId, owner, { otsStatus: "ANCHORED" });
+    const ev = await seedEvidence(c, a.teamId, owner, { otsStatus: "ANCHORED", otsAnchoredAtUtc: new Date(), otsBitcoinTxid: "b".repeat(64) });
     const ots = await seedIncident(c, a.teamId, {
       sourceId: "evidence_integrity.ots_budget_exhausted",
       category: "WORKER",

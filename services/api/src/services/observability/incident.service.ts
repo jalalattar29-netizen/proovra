@@ -84,6 +84,12 @@ import { safeJsonSnapshot } from "./redact.js";
 export type IncidentErrorCode =
   | "incident_not_found"
   | "invalid_fingerprint"
+  /**
+   * OPS-030 — "Stop notifying" silences a live condition. It may not be done
+   * without a stated reason, which is recorded in the condition's history
+   * and the audit row.
+   */
+  | "SUPPRESSION_REASON_REQUIRED"
   | "invalid_status_transition"
   /**
    * An operator tried to declare a condition resolved while its own source
@@ -917,7 +923,12 @@ export type IncidentActorContext = {
   ipAddress?: string | null;
   userAgent?: string | null;
   resolutionNote?: string | null;
+  /** OPS-030 — why notifications for this condition are being stopped. */
+  suppressionReason?: string | null;
 };
+
+/** OPS-030 — the shortest reason that can say anything. */
+export const SUPPRESSION_REASON_MIN = 3;
 
 /**
  * WHICH incident a transition is allowed to find (ADM-011).
@@ -1260,6 +1271,16 @@ async function transitionIncident(
     if (refusal) throw new IncidentError(refusal);
   }
 
+  // OPS-030 — a suppression carries its reason, or does not happen.
+  const suppressionReason =
+    typeof input.suppressionReason === "string" ? input.suppressionReason.trim() : "";
+  if (
+    next === prismaPkg.IncidentStatus.SUPPRESSED &&
+    suppressionReason.length < SUPPRESSION_REASON_MIN
+  ) {
+    throw new IncidentError("SUPPRESSION_REASON_REQUIRED");
+  }
+
   const data: Record<string, unknown> = { status: next };
   if (next === prismaPkg.IncidentStatus.ACKNOWLEDGED) {
     data.acknowledgedAtUtc = new Date();
@@ -1285,7 +1306,9 @@ async function transitionIncident(
         safeMessage:
           eventType === "resolved" && input.resolutionNote
             ? clipSafeSummary(input.resolutionNote)
-            : `Incident ${eventType} by operator.`,
+            : next === prismaPkg.IncidentStatus.SUPPRESSED
+              ? clipSafeSummary(`Notifications stopped by an operator: ${suppressionReason}`)
+              : `Incident ${eventType} by operator.`,
       },
     });
   } catch {
@@ -1359,6 +1382,9 @@ async function transitionIncident(
         category: existing.category,
         ipAddress: input.ipAddress ?? null,
         userAgent: input.userAgent ?? null,
+        ...(next === prismaPkg.IncidentStatus.SUPPRESSED
+          ? { suppressionReason: clipSafeSummary(suppressionReason) }
+          : {}),
       },
     },
     client,

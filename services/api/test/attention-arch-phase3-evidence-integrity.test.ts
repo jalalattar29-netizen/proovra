@@ -74,9 +74,21 @@ type FakeEvidence = {
   otsStatus: string | null;
   otsFailureReason: string | null;
   otsUpgradedAtUtc: Date | null;
+  tsaValidatedAtUtc?: Date | null;
   updatedAt: Date;
   deletedAt?: Date | null;
 };
+
+/**
+ * OPS-019 — what RECOVERY of a timestamp actually is: a STAMPED token that
+ * was validated. These tests used to "recover" a record by setting
+ * `tsaStatus = "ANCHORED"` (not even a TSA state), which only passed because
+ * recovery meant "no longer FAILED".
+ */
+function markTimestampValidated(e: FakeEvidence): void {
+  e.tsaStatus = "STAMPED";
+  e.tsaValidatedAtUtc = NOW;
+}
 
 function makeClient(evidence: FakeEvidence[]) {
   const incidents: FakeIncident[] = [];
@@ -401,7 +413,20 @@ describe("Phase 3.4 — resolution comes from Evidence domain truth", () => {
     await sync(evidence, fake);
     expect(fake.incidents[0].status).toBe("OPEN");
 
-    evidence[0].tsaStatus = "ANCHORED";
+    // "No longer FAILED" is not recovery: pending, absent, or a token that
+    // was recorded and never validated all leave the condition open.
+    for (const pending of [
+      { tsaStatus: "PENDING", tsaValidatedAtUtc: null },
+      { tsaStatus: null, tsaValidatedAtUtc: null },
+      { tsaStatus: "STAMPED", tsaValidatedAtUtc: null },
+    ]) {
+      Object.assign(evidence[0], pending);
+      const still = await sync(evidence, fake);
+      expect(still.result.resolved, JSON.stringify(pending)).toBe(0);
+      expect(fake.incidents[0].status).toBe("OPEN");
+    }
+
+    markTimestampValidated(evidence[0]);
     const after = await sync(evidence, fake);
     expect(after.result.resolved).toBe(1);
     expect(fake.incidents[0].status).toBe("RESOLVED");
@@ -440,7 +465,7 @@ describe("Phase 3.5 — re-fire after recovery", () => {
     await sync(evidence, fake);
     expect(fake.incidents[0].status).toBe("OPEN");
 
-    evidence[0].tsaStatus = "ANCHORED";
+    markTimestampValidated(evidence[0]);
     await sync(evidence, fake);
     expect(fake.incidents[0].status).toBe("RESOLVED");
 
@@ -482,7 +507,7 @@ describe("Phase 3.5 — re-fire after recovery", () => {
     await sync(evidence, fake);
     fake.incidents[0].status = "SUPPRESSED";
 
-    evidence[0].tsaStatus = "ANCHORED";
+    markTimestampValidated(evidence[0]);
     await sync(evidence, fake);
     // Domain truth outranks suppression: the thing is actually fixed, so the
     // next genuine failure reopens cleanly instead of looking like a

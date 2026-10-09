@@ -1,0 +1,6 @@
+ ✓ test/operations-truth-lifecycle.integration.test.ts (7 tests)
+   ✓ Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-019 a TSA failure stays open on PENDING and on an unvalidated token; closes on a validated one 
+   ✓ Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-019 an OTS failure stays open on PENDING / NULL; closes when the proof is anchored 
+   ✓ Operations truth closure — lifecycle truth (live PostgreSQL 16) > OPS-014 an expected 403 refusal opens no condition; the security log keeps it 
+ Test Files  1 passed (1)
+      Tests  7 passed (7)

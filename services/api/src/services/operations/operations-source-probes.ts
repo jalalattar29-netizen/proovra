@@ -527,16 +527,19 @@ async function observeIntegrity(
       // and it must not resolve anything.
       return { ...base, activity: "UNKNOWN" };
     }
-    const record = await ctx.client.evidence.findUnique({
-      where: { id: parts.evidenceId },
-      select: { tsaStatus: true, otsStatus: true },
+    // Bound to the workspace as well as the id: a fingerprint is not an
+    // authorization.
+    const record = await ctx.client.evidence.findFirst({
+      where: { AND: [{ id: parts.evidenceId }, ctx.evidenceWhere] },
+      select: integrity.INTEGRITY_RECOVERY_SELECT,
     });
     if (!record) return { ...base, activity: "NOT_APPLICABLE" };
+    // OPS-019 — recovered only on the POSITIVE canonical predicate (a
+    // validated timestamp; an anchored proof). Pending, absent or
+    // recorded-not-validated is not recovery.
     return {
       ...base,
-      activity: integrity.isCurrentlyFailing(record, parts.integrityClass)
-        ? "ACTIVE"
-        : "RECOVERED",
+      activity: integrity.hasRecovered(record, parts.integrityClass) ? "RECOVERED" : "ACTIVE",
     };
   } catch {
     return { ...base, activity: "UNKNOWN" };

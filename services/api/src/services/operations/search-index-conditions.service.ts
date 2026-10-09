@@ -120,6 +120,16 @@ export async function syncSearchIndexConditions(
   const verdict = classifySearchReadiness(readiness.state);
 
   if (verdict === "FAILING") {
+    // OPS-017 — "NOT YET INDEXED" IS NOT "FAILING".
+    //
+    // The derivation reports STALLED for a workspace whose index has simply
+    // never been built (no reconciliation run recorded, with or without work
+    // already scheduled). That opened "Search index reconciliation failing"
+    // over a workspace nothing had ever tried to index. The same single
+    // condition now says what is true — not built yet, an advisory — and is
+    // titled failing only when a reconciliation HAS run and the index is still
+    // behind with nothing working on it, or the run row says it failed.
+    const neverReconciled = readiness.state === "STALLED" && readiness.runStatus == null;
     await recordIncident(
       {
         sourceId: SEARCH_INDEX_SOURCE_ID,
@@ -129,23 +139,27 @@ export async function syncSearchIndexConditions(
         // records, proofs, reports and packages are unaffected, and what is
         // degraded is FINDING them. Ranking it beside an unprovable record
         // would make the queue's genuinely worst rows harder to see.
-        severity: "WARNING" as IncidentSeverity,
+        severity: (neverReconciled ? "INFO" : "WARNING") as IncidentSeverity,
         fingerprint: searchIndexFingerprint(input.teamId),
         // COUNT-FREE and stable: the same sentence on every observation, so
         // nothing in it can go out of date the way a title carrying a number
         // does. The changing numbers travel in the metadata below.
-        title: "Search index reconciliation failing",
-        safeSummary:
-          "This workspace's search index is out of step with its records, and nothing is currently working to close the gap, " +
-          "so search results may be missing or out of date. " +
-          "Evidence records, proofs, reports and verification packages are unaffected. " +
-          "The condition closes on its own once the index is proven complete.",
+        title: neverReconciled ? "Search index not built yet" : "Search index reconciliation failing",
+        safeSummary: neverReconciled
+          ? "This workspace's records have not been indexed for search yet — no indexing run has been recorded — so search may not find them until it runs. " +
+            "Evidence records, proofs, reports and verification packages are unaffected. " +
+            "The condition closes on its own once the index is proven complete."
+          : "This workspace's search index is out of step with its records, and nothing is currently working to close the gap, " +
+            "so search results may be missing or out of date. " +
+            "Evidence records, proofs, reports and verification packages are unaffected. " +
+            "The condition closes on its own once the index is proven complete.",
         runbookSlug: "search-index",
         metadata: {
           // The DERIVED state, not a run's exit code. `STALLED` means work is
           // outstanding with nothing assigned to it; `FAILED` means the
           // durable run row says the reconciliation failed.
           readinessState: readiness.state,
+          neverReconciled,
           eligibleCount: readiness.eligibleCount,
           indexedCount: readiness.indexedCount,
           outstandingCount: readiness.outstandingCount,
