@@ -15,3 +15,12 @@ export type BulkActionItemStatus = (typeof BULK_ACTION_ITEM_STATUSES)[number];
 export function bulkActionItemSucceeded(status: string | null | undefined): boolean {
   return status === "COMPLETED";
 }
+
+/**
+ * Nothing is left to do for this target: the action was applied, or the
+ * runner skipped it because there was nothing to change. Only targets that are
+ * NOT settled stay selected for a retry.
+ */
+export function bulkActionItemSettled(status: string | null | undefined): boolean {
+  return status === "COMPLETED" || status === "SKIPPED";
+}

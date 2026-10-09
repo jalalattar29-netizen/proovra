@@ -135,7 +135,11 @@ import {
 } from "./_lib/filters";
 import { buildRowModel } from "./_lib/rowModel";
 import { fillOperationsCopy, useOpsCopy } from "./_lib/copy";
-import { bulkActionItemSucceeded, makeClientRequestKey } from "@proovra/shared";
+import {
+  bulkActionItemSettled,
+  bulkActionItemSucceeded,
+  makeClientRequestKey,
+} from "@proovra/shared";
 import type {
   AssignableOperator,
   Incident,
@@ -1451,12 +1455,18 @@ function OperationsWorkbench() {
         // OPS-011 — the runner writes COMPLETED, never "SUCCEEDED"; the web
         // read every fully successful sweep as "0 of N updated". The status
         // contract is shared with the API and native now.
+        // Not settled (neither applied nor skipped as already done) stays
+        // selected for a retry — and an id the runner never reported on is
+        // unknown, not done. The same rule native applies.
         const failedIds = new Set(
           items
-            .filter((i) => !bulkActionItemSucceeded(i.status))
+            .filter((i) => !bulkActionItemSettled(i.status))
             .map((i) => i.targetId),
         );
-        const succeeded = targetIds.length - failedIds.size;
+        for (const id of targetIds) {
+          if (!items.some((i) => i.targetId === id)) failedIds.add(id);
+        }
+        const succeeded = items.filter((i) => bulkActionItemSucceeded(i.status)).length;
 
         const outcomeText =
           failedIds.size === 0

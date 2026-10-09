@@ -150,11 +150,20 @@ export const Easing = { linear: (t) => t, inOut: (f) => f, ease: (t) => t };
 export const LayoutAnimation = { configureNext: () => {}, Presets: { easeInEaseOut: {} } };
 export const UIManager = { setLayoutAnimationEnabledExperimental: () => {} };
 // A test can put the app in the background with globalThis.__APP_STATE__ = "background".
+// A test can also EMIT a transition: globalThis.__emitAppState("active").
+const appStateListeners = new Set();
+globalThis.__emitAppState = (next) => {
+  globalThis.__APP_STATE__ = next;
+  for (const fn of [...appStateListeners]) fn(next);
+};
 export const AppState = {
   get currentState() {
     return globalThis.__APP_STATE__ ?? "active";
   },
-  addEventListener: () => ({ remove() {} }),
+  addEventListener: (_type, fn) => {
+    appStateListeners.add(fn);
+    return { remove() { appStateListeners.delete(fn); } };
+  },
 };
 export const BackHandler = { addEventListener: () => ({ remove() {} }) };
 export const Keyboard = { dismiss: () => {}, addListener: () => ({ remove() {} }) };

@@ -32,6 +32,14 @@ type LocaleContextValue = {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
+/**
+ * The active locale, or English where no provider is mounted. For surfaces
+ * that only READ the locale (OPS-035); settings keeps `useLocale`.
+ */
+export function useOptionalLocale(): Locale {
+  return useContext(LocaleContext)?.locale ?? "en";
+}
+
 export function useLocale() {
   const ctx = useContext(LocaleContext);
   if (!ctx) throw new Error("LocaleContext missing");

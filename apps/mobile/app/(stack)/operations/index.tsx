@@ -9,7 +9,9 @@
  * opens a sheet; the web's narrow-width CARD rendering of a row is the row.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View } from "react-native";
+import { AppState, View } from "react-native";
+import { makeClientRequestKey, operationsCopyFor } from "@proovra/shared";
+import { useOptionalLocale } from "../../../src/locale-context";
 import { useRouter } from "expo-router";
 
 import { apiFetch, apiFetchText } from "../../../src/api";
@@ -52,6 +54,7 @@ import {
   buildOpsIncidentPath,
   buildOpsIncidentsPath,
   buildOpsLifecyclePath,
+  lifecycleBody,
   buildOpsOperatorsPath,
   buildOpsRemediatePath,
   buildRemediateBody,
@@ -138,9 +141,40 @@ function failureOf(err: unknown, message: string): Failure {
   return { message: safe.message || message, reference: safe.requestId ?? null };
 }
 
+/**
+ * OPS-035 — ONE WORKSPACE, ONE SCREEN STATE.
+ *
+ * Filters, the selection, an open condition or group sheet and every read
+ * belonged to whichever workspace was active when they were set, and none of
+ * them was reset when the active workspace changed — so a switch could leave
+ * the previous workspace's selection armed for a bulk action, or its sheet
+ * open. Keying the screen on the active workspace remounts it: everything
+ * starts from the new workspace's own state.
+ */
 export default function OperationsScreen() {
+  const platform = usePlatformContext();
+  const teamId = platform.context?.activeTeamId ?? null;
+  // Back in the foreground, the active workspace is asked again: it may have
+  // been switched on another surface while this screen was away. A changed
+  // workspace remounts the screen below through its key.
+  const refreshRef = useRef(platform.refresh);
+  refreshRef.current = platform.refresh;
+  useEffect(() => {
+    let last = AppState.currentState;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (last !== "active" && next === "active") refreshRef.current();
+      last = next;
+    });
+    return () => sub.remove();
+  }, []);
+  return <OperationsWorkspaceScreen key={teamId ?? "no-workspace"} />;
+}
+
+function OperationsWorkspaceScreen() {
   const router = useRouter();
   const platform = usePlatformContext();
+  // OPS-035 — the shared Operations dictionary (en / de / ar), as on web.
+  const copy = operationsCopyFor(useOptionalLocale());
   const envelope = platform.envelope;
   const teamId = platform.context?.activeTeamId ?? null;
   const workspaceName = platform.context?.displayName ?? "this workspace";
@@ -193,6 +227,18 @@ export default function OperationsScreen() {
   const loadedOnce = useRef(false);
   const collaborative = operatorCount > 1;
   const stepUp = useChallengeStepUp(teamId);
+
+  // OPS-035 — RETURNING TO THE FOREGROUND RE-READS. A queue left open in the
+  // background is shown as it was when the app was put away; the first frame
+  // after coming back asks again rather than presenting a stale picture.
+  useEffect(() => {
+    let last = AppState.currentState;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (last !== "active" && next === "active") setReload((n) => n + 1);
+      last = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   // Debounced search (the web's 250 ms).
   useEffect(() => {
@@ -382,13 +428,15 @@ export default function OperationsScreen() {
   /* ------------------------------------------------------------ mutations */
 
   const lifecycle = useCallback(
-    async (id: string, action: LifecycleAction) => {
+    async (id: string, action: LifecycleAction, extra?: { resolutionNote?: string; reason?: string }) => {
       if (!teamId || busy) return;
       setBusy(true);
       setPendingId(id);
       setNotice(null);
       try {
-        await apiFetch(buildOpsLifecyclePath(id, action), { method: "POST", body: JSON.stringify({ teamId }) });
+        // OPS-029 / OPS-030 — the note a Resolve needs and the reason a
+        // suppression needs travel with the request.
+        await apiFetch(buildOpsLifecyclePath(id, action), { method: "POST", body: JSON.stringify(lifecycleBody(teamId, extra)) });
       } catch (err) {
         const code = refusalCode(err);
         if (code) setRefusal(REFUSAL_NOTICE[code]!);
@@ -422,15 +470,16 @@ export default function OperationsScreen() {
   );
 
   const runBulk = useCallback(
-    async (actionType: BulkActionType, assigneeUserId?: string) => {
+    async (actionType: BulkActionType, assigneeUserId?: string, note?: string) => {
       if (!teamId || marked.length === 0 || busy) return;
       const targets = [...marked];
+      const idempotencyKey = makeClientRequestKey();
       setBusy(true);
       setNotice(null);
       setBulkOutcome(null);
       try {
         const res = await stepUp.run((headers) =>
-          apiFetch(OPS_BULK_PATH, { method: "POST", headers, body: JSON.stringify(bulkBody(teamId, actionType, targets, assigneeUserId)) }),
+          apiFetch(OPS_BULK_PATH, { method: "POST", headers, body: JSON.stringify(bulkBody(teamId, actionType, targets, assigneeUserId, { note, idempotencyKey })) }),
         );
         const outcome = summarizeBulk(res, targets);
         setMarked(outcome.stillSelected);
@@ -452,10 +501,16 @@ export default function OperationsScreen() {
       // C/IncidentSurface.tsx: "Change owner" opens the inspector, where ownership lives.
       if (key === "open" || key === "assign") setOpenId(id);
       else if (key === "acknowledge") void lifecycle(id, "ack");
-      else if (key === "resolve") void lifecycle(id, "resolve");
-      else void lifecycle(id, "suppress");
+      // OPS-029 — a source that needs a written conclusion is resolved from
+      // its sheet, where the note is asked for.
+      else if (key === "resolve") {
+        if (incidents.find((i) => i.id === id)?.requiresResolutionNote) setOpenId(id);
+        else void lifecycle(id, "resolve");
+      }
+      // OPS-030 — stopping notifications needs a reason; the sheet asks.
+      else setOpenId(id);
     },
-    [lifecycle],
+    [lifecycle, incidents],
   );
 
   /* ------------------------------------------------------------ render */
@@ -463,7 +518,7 @@ export default function OperationsScreen() {
   const busyHeader = refreshing || checking;
   const header = (
     <ProovraPageHeader
-      title="Operations"
+      title={copy.pageTitle}
       subtitle={subtitleFor(caps)}
       contextStrip={
         restricted ? undefined : (
@@ -480,7 +535,7 @@ export default function OperationsScreen() {
       primaryAction={
         restricted ? undefined : (
           <ProovraButton
-            label={busyHeader ? "Refreshing…" : "Refresh"}
+            label={busyHeader ? copy.refreshing : copy.refresh}
             variant="secondary"
             fullWidth={false}
             disabled={busyHeader}
@@ -741,8 +796,8 @@ export default function OperationsScreen() {
                 setOpenId(null);
               }}
               options={[
-                { value: "grouped", label: "Grouped" },
-                { value: "all", label: "All conditions" },
+                { value: "grouped", label: copy.viewGrouped },
+                { value: "all", label: copy.viewAll },
               ]}
             />
           </ProovraSection>
@@ -757,7 +812,7 @@ export default function OperationsScreen() {
               busy={busy}
               outcome={bulkOutcome}
               onAcknowledge={() => void runBulk("BULK_ACKNOWLEDGE_INCIDENTS")}
-              onSuppress={() => void runBulk("BULK_SUPPRESS_INCIDENTS")}
+              onSuppress={(reason) => void runBulk("BULK_SUPPRESS_INCIDENTS", undefined, reason)}
               onAssign={(userId) => void runBulk("BULK_ASSIGN_INCIDENTS", userId)}
               onClear={() => {
                 setMarked([]);
@@ -805,7 +860,7 @@ export default function OperationsScreen() {
           busy={busy}
           reloadToken={reload}
           onClose={() => setOpenId(null)}
-          onLifecycle={(action) => void lifecycle(openId, action)}
+          onLifecycle={(action, extra) => void lifecycle(openId, action, extra)}
           onAssign={(userId) => void assign(openId, userId)}
           onChanged={refresh}
         />
@@ -878,18 +933,49 @@ function BulkToolbar({
   busy: boolean;
   outcome: string | null;
   onAcknowledge: () => void;
-  onSuppress: () => void;
+  /** OPS-030 — a bulk "Stop notifying" carries the operator's reason. */
+  onSuppress: (reason: string) => void;
   onAssign: (userId: string) => void;
   onClear: () => void;
 }) {
+  const copy = operationsCopyFor(useOptionalLocale());
+  const [suppressOpen, setSuppressOpen] = useState(false);
+  const [suppressReason, setSuppressReason] = useState("");
   return (
     <ProovraCard>
       <View style={{ gap: theme.space.s2 }} testID="ops-bulk-toolbar">
         <ProovraText variant="bodySm" weight="semibold">
           {count === 1 ? "1 condition selected" : `${count} conditions selected`}
         </ProovraText>
-        {caps.acknowledge ? <ProovraButton label="Acknowledge" variant="secondary" disabled={busy} onPress={onAcknowledge} /> : null}
-        {caps.suppress ? <ProovraButton label="Stop notifying" variant="danger" disabled={busy} onPress={onSuppress} /> : null}
+        {caps.acknowledge ? <ProovraButton label={copy.acknowledge} variant="secondary" disabled={busy} onPress={onAcknowledge} /> : null}
+        {caps.suppress ? (
+          <ProovraButton
+            label={copy.stopNotifying}
+            variant="danger"
+            disabled={busy}
+            onPress={() => setSuppressOpen((v) => !v)}
+            testID="ops-bulk-suppress"
+          />
+        ) : null}
+        {caps.suppress && suppressOpen ? (
+          <View style={{ gap: 4 }} testID="ops-bulk-suppress-reason">
+            <ProovraInput
+              value={suppressReason}
+              onChangeText={(t) => setSuppressReason(t.slice(0, 400))}
+              placeholder={copy.bulkSuppressReasonLabel}
+              accessibilityLabel={copy.bulkSuppressReasonLabel}
+              autoCapitalize="sentences"
+              multiline
+            />
+            <ProovraButton
+              label={copy.stopNotifying}
+              variant="danger"
+              disabled={busy || suppressReason.trim().length < 3}
+              onPress={() => onSuppress(suppressReason.trim())}
+              testID="ops-bulk-suppress-confirm"
+            />
+          </View>
+        ) : null}
         {collaborative && caps.assign && operators.length > 0 ? (
           <ProovraFilterChips
             label="Assign to…"
@@ -1129,11 +1215,17 @@ function IncidentInspector({
   busy: boolean;
   reloadToken: number;
   onClose: () => void;
-  onLifecycle: (a: LifecycleAction) => void;
+  /** OPS-029 / OPS-030 — carries the note or the reason when one is needed. */
+  onLifecycle: (a: LifecycleAction, extra?: { resolutionNote?: string; reason?: string }) => void;
   onAssign: (userId: string | null) => void;
   onChanged: () => void;
 }) {
   const router = useRouter();
+  const copy = operationsCopyFor(useOptionalLocale());
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [suppressOpen, setSuppressOpen] = useState(false);
+  const [suppressReason, setSuppressReason] = useState("");
+  const [confirmSuppress, setConfirmSuppress] = useState(false);
   const routerPush = (href: string) => router.push(href as never);
   const [detail, setDetail] = useState<IncidentDetail | null>(null);
   const [error, setError] = useState<Failure | null>(null);
@@ -1413,14 +1505,68 @@ function IncidentInspector({
               </ProovraText>
             ) : null}
 
+            {elig?.canResolve && i.requiresResolutionNote ? (
+              // OPS-029 — the note is asked for before Resolve is offered.
+              <View style={{ gap: 4 }} testID="ops-resolution-note">
+                <ProovraInput
+                  value={resolutionNote}
+                  onChangeText={(t) => setResolutionNote(t.slice(0, 400))}
+                  placeholder={copy.resolutionNoteLabel}
+                  accessibilityLabel={copy.resolutionNoteLabel}
+                  autoCapitalize="sentences"
+                  multiline
+                />
+              </View>
+            ) : null}
+            {elig?.canSuppress && suppressOpen ? (
+              // OPS-030 — why notifications should stop, recorded in history.
+              <View style={{ gap: 4 }} testID="ops-suppress-reason">
+                <ProovraInput
+                  value={suppressReason}
+                  onChangeText={(t) => setSuppressReason(t.slice(0, 400))}
+                  placeholder={copy.suppressReasonLabel}
+                  accessibilityLabel={copy.suppressReasonLabel}
+                  autoCapitalize="sentences"
+                  multiline
+                />
+              </View>
+            ) : null}
             <View style={{ gap: theme.space.s2 }}>
-              {elig?.canAcknowledge ? <ProovraButton label="Acknowledge" variant="secondary" disabled={busy} onPress={() => onLifecycle("ack")} /> : null}
-              {elig?.canResolve ? <ProovraButton label="Resolve" disabled={busy} onPress={() => onLifecycle("resolve")} /> : null}
-              {elig?.canSuppress ? <ProovraButton label="Stop notifying" variant="danger" disabled={busy} onPress={() => onLifecycle("suppress")} /> : null}
+              {elig?.canAcknowledge ? <ProovraButton label={copy.acknowledge} variant="secondary" disabled={busy} onPress={() => onLifecycle("ack")} /> : null}
+              {elig?.canResolve ? (
+                <ProovraButton
+                  label={copy.resolve}
+                  disabled={busy || (i.requiresResolutionNote && resolutionNote.trim().length === 0)}
+                  onPress={() =>
+                    onLifecycle("resolve", i.requiresResolutionNote ? { resolutionNote: resolutionNote.trim() } : undefined)
+                  }
+                  testID="ops-resolve"
+                />
+              ) : null}
+              {elig?.canSuppress ? (
+                <ProovraButton
+                  label={copy.stopNotifying}
+                  variant="danger"
+                  disabled={busy || (suppressOpen && suppressReason.trim().length < 3)}
+                  onPress={() => (suppressOpen ? setConfirmSuppress(true) : setSuppressOpen(true))}
+                  testID="ops-suppress"
+                />
+              ) : null}
             </View>
           </>
         ) : null}
       </View>
+      <ProovraConfirmSheet
+        visible={confirmSuppress}
+        title={copy.suppressConfirmTitle}
+        consequence={copy.suppressConfirmBody}
+        confirmLabel={copy.stopNotifying}
+        onConfirm={() => {
+          setConfirmSuppress(false);
+          onLifecycle("suppress", { reason: suppressReason.trim() });
+        }}
+        onCancel={() => setConfirmSuppress(false)}
+      />
       <ProovraConfirmSheet
         visible={confirming !== null}
         title={confirming ? `${confirming.label}?` : ""}

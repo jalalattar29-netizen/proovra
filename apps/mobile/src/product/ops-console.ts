@@ -27,6 +27,7 @@
  *     web replaces it with generic copy.
  */
 import type { ProovraStatusTone } from "@proovra/ui";
+import { bulkActionItemSettled, bulkActionItemSucceeded } from "@proovra/shared";
 
 import { describeDuration } from "../lib/relative-time";
 
@@ -476,6 +477,8 @@ export interface Incident {
   readonly assignedOperatorUserId: string | null;
   readonly resolutionAuthority: string | null;
   readonly manualResolution: boolean;
+  /** OPS-029 — this source's Resolve must carry a written conclusion. */
+  readonly requiresResolutionNote: boolean;
   readonly metricContract: string | null;
   readonly metric: OpsMetric | null;
   readonly sla: IncidentSla | null;
@@ -536,6 +539,7 @@ export function parseIncident(v: unknown): Incident | null {
     assignedOperatorUserId: str(i["assignedOperatorUserId"]),
     resolutionAuthority: str(lifecycle["resolutionAuthority"]),
     manualResolution: lifecycle["manualResolution"] === true,
+    requiresResolutionNote: lifecycle["requiresResolutionNote"] === true,
     metricContract: str(lifecycle["metricContract"]),
     metric: i["metric"] ? parseMetric(i["metric"]) : null,
     sla: i["sla"] ? parseSla(i["sla"]) : null,
@@ -922,8 +926,32 @@ export function ownerLabel(i: Incident, viewer: string | null, operators: Readon
 
 export type BulkActionType = "BULK_ACKNOWLEDGE_INCIDENTS" | "BULK_SUPPRESS_INCIDENTS" | "BULK_ASSIGN_INCIDENTS";
 
-export function bulkBody(teamId: string, actionType: BulkActionType, targetIds: readonly string[], assigneeUserId?: string) {
-  return { teamId, actionType, targetIds: [...targetIds].slice(0, 200), ...(assigneeUserId ? { assigneeUserId } : {}) };
+export function bulkBody(
+  teamId: string,
+  actionType: BulkActionType,
+  targetIds: readonly string[],
+  assigneeUserId?: string,
+  extra?: { note?: string; idempotencyKey?: string },
+) {
+  return {
+    teamId,
+    actionType,
+    targetIds: [...targetIds].slice(0, 200),
+    ...(assigneeUserId ? { assigneeUserId } : {}),
+    // OPS-030 — a bulk "Stop notifying" carries the operator's reason.
+    ...(extra?.note ? { note: extra.note } : {}),
+    // OPS-011 — one key per sweep; a replay reads back the first run.
+    ...(extra?.idempotencyKey ? { idempotencyKey: extra.idempotencyKey } : {}),
+  };
+}
+
+/** OPS-029 / OPS-030 — the lifecycle body, carrying the note or the reason. */
+export function lifecycleBody(teamId: string, extra?: { resolutionNote?: string; reason?: string }) {
+  return {
+    teamId,
+    ...(extra?.resolutionNote ? { resolutionNote: extra.resolutionNote } : {}),
+    ...(extra?.reason ? { reason: extra.reason } : {}),
+  };
 }
 
 /**
@@ -933,9 +961,10 @@ export function bulkBody(teamId: string, actionType: BulkActionType, targetIds: 
  */
 export function summarizeBulk(v: unknown, requested: readonly string[]) {
   const items = arr(obj(v)["items"]).map((x) => ({ targetId: str(obj(x)["targetId"]), status: str(obj(x)["status"]) }));
-  const succeeded = items.filter((i) => i.status === "COMPLETED").length;
+  // OPS-011 — the SHARED status contract, the same one the web reads.
+  const succeeded = items.filter((i) => bulkActionItemSucceeded(i.status)).length;
   const skipped = items.filter((i) => i.status === "SKIPPED").length;
-  const stillSelected = items.filter((i) => i.status !== "COMPLETED" && i.status !== "SKIPPED" && i.targetId).map((i) => i.targetId!);
+  const stillSelected = items.filter((i) => !bulkActionItemSettled(i.status) && i.targetId).map((i) => i.targetId!);
   // An id the server never reported on is unknown, not done.
   for (const id of requested) if (!items.some((i) => i.targetId === id)) stillSelected.push(id);
   const n = requested.length;

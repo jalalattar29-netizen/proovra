@@ -2606,6 +2606,7 @@ export * from "./cron-headers.js";
 // OPS-011 — bulk-action item status contract (web + native + API).
 export {
   BULK_ACTION_ITEM_STATUSES,
+  bulkActionItemSettled,
   bulkActionItemSucceeded,
   type BulkActionItemStatus,
 } from "./operations-bulk.js";

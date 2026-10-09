@@ -302,9 +302,15 @@ test("bulk: STEP_UP_REQUIRED → challenge → code → the SAME request retried
 
   const start = requests.find((q) => q.path === "/v1/identity-security/step-up/start");
   assert.deepEqual(start.body, { teamId: TEAM, purpose: "REVIEWER_OPS_BULK_ACTION", resourceKind: "workspace", resourceId: TEAM });
-  const retried = requests.filter((q) => q.path === "/v1/ops/bulk-actions").at(-1);
+  const attempts = requests.filter((q) => q.path === "/v1/ops/bulk-actions");
+  const retried = attempts.at(-1);
   assert.equal(retried.headers["x-proovra-step-up-challenge-id"], "ch-1");
-  assert.deepEqual(retried.body, { teamId: TEAM, actionType: "BULK_ACKNOWLEDGE_INCIDENTS", targetIds: [INCIDENT.id] });
+  // OPS-011 — the retry is the SAME request: same body, same idempotency key,
+  // so a replay after the challenge reads back one run, never two.
+  const { idempotencyKey, ...rest } = retried.body;
+  assert.deepEqual(rest, { teamId: TEAM, actionType: "BULK_ACKNOWLEDGE_INCIDENTS", targetIds: [INCIDENT.id] });
+  assert.ok(typeof idempotencyKey === "string" && idempotencyKey.length >= 8);
+  assert.equal(attempts[0].body.idempotencyKey, idempotencyKey);
   assert.equal(bulkCalls, 2);
   assert.ok(r.hasText("1 of 1 updated."), "a COMPLETED item must count as updated");
 });

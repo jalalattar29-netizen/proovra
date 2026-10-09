@@ -1,0 +1,18 @@
+✖ OPS-035 coming back to the foreground re-reads the queue 
+✖ OPS-035 a workspace changed while away remounts the screen from that workspace's own state 
+✖ OPS-030 'Stop notifying' asks why, confirms, and sends the reason 
+✖ OPS-029 a source that needs a written conclusion asks for it before Resolve 
+✖ OPS-011 a native bulk sweep carries an idempotency key 
+ℹ pass 0
+ℹ fail 5
+✖ failing tests:
+✖ OPS-035 coming back to the foreground re-reads the queue 
+  AssertionError [ERR_ASSERTION]: no re-read after returning to the foreground
+✖ OPS-035 a workspace changed while away remounts the screen from that workspace's own state 
+  AssertionError [ERR_ASSERTION]: the new workspace was not read
+✖ OPS-030 'Stop notifying' asks why, confirms, and sends the reason 
+  AssertionError [ERR_ASSERTION]: no pressable with testID ops-suppress
+✖ OPS-029 a source that needs a written conclusion asks for it before Resolve 
+  AssertionError [ERR_ASSERTION]: no pressable with testID ops-resolve
+✖ OPS-011 a native bulk sweep carries an idempotency key 
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
