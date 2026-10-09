@@ -1,0 +1,187 @@
+Final web/native Operations runs on the fix branch, 2026-10-09.
+
+apps/web — __tests__/render/operations-workbench.render.test.tsx (verbose):
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the tenant page is not a platform console > reads no platform runtime endpoint
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the tenant page is not a platform console > renders no link to a platform-admin console
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the tenant page is not a platform console > has exactly one h1, and it says Operations
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the tenant page is not a platform console > shows no process counters, uptime or gauge vocabulary
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — access > Personal Free is refused by the canonical route gate and makes ZERO requests
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — access > a workspace whose envelope grants the capability but has no id gets the page's own truthful state
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one design, three densities > Personal Pro (sole operator) loses the ownership axis entirely
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one design, three densities > a shared workspace gains ownership, on the SAME table
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one design, three densities > a VIEWER in a shared workspace keeps the ownership axis and loses every mutation
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one design, three densities > the ownership axis follows the OPERATOR COUNT, not the caller's own assign capability
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > opens on every status, and still sends one when it is chosen
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > a summary card sets one coherent view and re-reads
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > only one summary card is the primary filter at a time
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > typing in search puts the term in the URL, so a filtered queue is shareable
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > a search term in the URL is sent to the SERVER, not applied to the loaded page
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > an unknown filter value in a shared link widens rather than crashing
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > every filter is re-sent with the next page, so page 2 cannot use a different predicate
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — filtering asks the server, not the page > no native select survived anywhere on the route
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an all-clear is a claim about a COMPLETE read > an empty, complete, unfiltered read is genuinely clear
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an all-clear is a claim about a COMPLETE read > the clear state offers only destinations a tenant can open
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an all-clear is a claim about a COMPLETE read > an empty FILTERED read is not clear
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an all-clear is a claim about a COMPLETE read > an empty TRUNCATED read is not clear, and raises no page-level alert
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an all-clear is a claim about a COMPLETE read > a FAILED incident read shows unavailable, never clear
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an all-clear is a claim about a COMPLETE read > a failed SUMMARY degrades the strip without blanking the queue
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an all-clear is a claim about a COMPLETE read > a failed read never leaks the provider's own words
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — two renderers, one model > the table and the cards carry the same conditions in the same order
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — two renderers, one model > every condition states its severity and status as TEXT, not only colour
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — two renderers, one model > a condition that is late against its OWN promise is marked in words
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the inspector > opens from the condition title and loads its OWN history
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the inspector > a history that FAILED to load is not an empty history
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the inspector > links to the affected record, and only when there is one
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the inspector > renders no SLA, no due date and no runbook link
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the inspector > Escape closes it and focus returns to the control that opened it
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the inspector > the queue geometry is unchanged while it is open
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > acknowledge posts to the canonical route, once, with the workspace claim
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > a mutation re-reads from the server rather than patching the row
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > a refused mutation is reported safely and changes nothing
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > an already-acknowledged condition is offered no Acknowledge
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > assignment goes through the canonical route with null meaning unassign
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > a still-active condition opens the dialog instead of the page banner
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > the condition keeps the status the SERVER returned, never RESOLVED
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > closing the dialog mutates nothing and returns focus into the row that opened it
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > Escape closes it, and it still mutates nothing
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > the same refusal from the INSPECTOR opens the same dialog
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > there is no BULK Resolve, so the dialog has no third entry point to cover
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > a DIFFERENT error code keeps the existing banner and opens no dialog
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — acting on a condition > the bulk toolbar appears only after a selection, and fans out to the canonical runner
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — a response for another workspace is discarded > a slow read that resolves after the workspace changed never paints
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — accessibility > every summary card is a real button announcing its filter state
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — accessibility > the row menu names the CONDITION, not just 'Actions'
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — accessibility > the row menu is a real menu, keyboard-openable, that closes on Escape
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — accessibility > the inspector is a labelled modal dialog
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — accessibility > the pending state of a refresh is announced, not only drawn
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a NEVER-RUN workspace says PREPARING, never clear
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a RUNNING reconciliation is announced while the queue stays readable
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a PARTIAL run warns that the counts are a floor
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a NON-retryable PARTIAL run withholds 'Check again' and says why
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a RETRYABLE PARTIAL run still offers 'Check again'
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a run recorded by an OLDER image, carrying no reasons, still offers the retry
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > 'Check again' asks for a NEW CHECK — it does not re-read the same summary
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a FAILED run on a schema mismatch offers no retry at all
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a STALLED run is reported as unfinished, not as busy
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a FAILED run explains the bounded category and never a provider message
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > a STALE run neither claims clear nor lectures the operator about it
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — reconciliation state is visible, and gates the all-clear > the page NEVER says clear when the server withholds permission
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — Resolve is offered by the SOURCE contract, not by capability alone > hides Resolve for a SOURCE_TRUTH condition, for a full-capability admin
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — Resolve is offered by the SOURCE contract, not by capability alone > hides Resolve for a NO_DIRECT_RESOLUTION condition
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — Resolve is offered by the SOURCE contract, not by capability alone > shows Resolve for an OPERATOR_DECISION condition, and only with the capability
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — Resolve is offered by the SOURCE contract, not by capability alone > an older server that sends no lifecycle gets NO Resolve control
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — Resolve is offered by the SOURCE contract, not by capability alone > the inspector and the row agree — one projection, not two
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — Resolve is offered by the SOURCE contract, not by capability alone > remediation is projected independently of Resolve
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the current value is live, labelled, and not the occurrence count > renders the affected count, its unit and its threshold, beside a count-free title
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the current value is live, labelled, and not the occurrence count > AN AGE-BASED CONDITION READS AS A SPAN IN THE FLAT ROW TOO
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the current value is live, labelled, and not the occurrence count > says so when the last observation failed, instead of showing a stale value as current
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the current value is live, labelled, and not the occurrence count > bounds a five-figure Enterprise value in the row and keeps the exact one in the inspector
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the current value is live, labelled, and not the occurrence count > a source with no metric renders no metric, rather than a zero
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — a stale client's Resolve is refused with the right sentence > CONDITION_STILL_ACTIVE opens its OWN notice
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — a stale client's Resolve is refused with the right sentence > CONDITION_ACTIVITY_UNKNOWN opens its OWN notice
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — a stale client's Resolve is refused with the right sentence > CONDITION_NOT_DIRECTLY_RESOLVABLE opens its OWN notice
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the metric and the resolution note are layout-safe > the metric spans sit inside the wrapping condition meta line
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the metric and the resolution note are layout-safe > the Operations stylesheet declares no physical left/right properties
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > renders one row per SOURCE, not one per condition
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > LEADS WITH THE QUANTITY AN OPERATOR ACTS ON, and its threshold
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > A GROUP WHOSE COUNTS AGREE SAYS THE NUMBER ONCE
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > THE HEADER SAYS HOW MANY GROUPS AND HOW MANY CONDITIONS
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > AN AGE RENDERS AS A SPAN, NEVER AS A RAW MINUTE COUNT
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > A RETRY STORM COUNTS CONDITIONS, AND SAYS SO
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > GROUPED STATUS IS COLOURED TEXT, NOT A SECOND CAPSULE
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > every status posture renders as text with its own tone
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > bounds a five-figure count in the row and keeps the exact one in the panel
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > opening a group loads its affected records
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > paging the drill-down APPENDS rather than replacing
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > a failed drill-down shows a bounded message, never the raw error
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > the flat list is one toggle away, and reaches the same conditions
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > Personal and Enterprise render the SAME grouped surface
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped queue is the default > no group offers a bulk Resolve
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — an unregistered condition has no Resolve > hides Resolve for a condition whose source nothing claims
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — grouped is the PRODUCT default > a fresh mount renders groups with no toggle pressed
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — grouped is the PRODUCT default > the grouped queue never renders an all-clear over real groups
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped surface is layout- and direction-safe > every count and label sits inside a WRAPPING container
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the grouped surface is layout- and direction-safe > the grouped stylesheet declares no physical left/right properties
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 1. the third severity is on the strip
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 2. its count is the SERVER's field, never counted in the browser
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 3. IT STAYS VISIBLE AT ZERO
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 4. a missing field is an em dash, never a fabricated zero
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 5. it is a real accessible filter button
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 6. pressing it sets the canonical severity filter and re-reads
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 7. THE SELECTION IS IN THE URL, so the view is shareable
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 8. AND A RELOAD OF THAT URL RESTORES IT
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 9. the severities read Critical, High, Warning in that order
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 10. THERE IS EXACTLY ONE WARNING METRIC
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the Warning card > 11. the card count comes from the vocabulary, and ownership still governs
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 12. THE CARDS PAINT THE CANONICAL SEVERITY TONES
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 13. the aggregate and the commitments wear their own tones
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 14. BLACK IS SPENT ONLY ON THE UNRESOLVED TOTAL
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 15. A SEVERITY IS THE SAME COLOUR IN THE QUEUE AS ON THE CARDS
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 16. AND THE SAME COLOUR IN GROUPED AS IN ALL CONDITIONS
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 17. every vocabulary reads the ONE table
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 18. severity descends in strength: Critical, then High, then Warning
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 19. COLOUR IS NEVER THE CARRIER — every value keeps its word
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — one tone table, every surface > 20. NO COLOUR IS DECIDED IN JSX
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the cards' interactive states are real > KEYBOARD FOCUS IS VISIBLE, because the route no longer breaks it
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the cards' interactive states are real > the SELECTED card carries its own tone, not a generic highlight
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the summary grid adapts to its container > 21. FOUR, THREE, TWO, ONE — by container width, with no fixed card widths
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — the summary grid adapts to its container > 22. cards may shrink, wrap their text, and share a row height
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — paging through a truncated queue > shows the first page and offers the next, with no page-level warning
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — paging through a truncated queue > appends the next page in the server's order, without duplicating the first
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — paging through a truncated queue > sends the cursor, and keeps the filters that produced page 1
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — paging through a truncated queue > takes the control away once the collection is exhausted
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — paging through a truncated queue > keeps offering the control while the server still has a cursor
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations — paging through a truncated queue > reports a failed next page AT THE CONTROL, and keeps the rows already read
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-036 a failed grouped read renders UNAVAILABLE with a retry — never '0 groups' and no-match
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-011 a fully successful bulk run reads 'N of N updated' (the runner writes COMPLETED)
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-032 Refresh asks for a NEW check of the sources, explicitly, then re-reads
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-007 an action with the drawer open re-reads the list and leaves Refresh usable
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-012 a group member opens its condition drawer, where its action lives
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-029 a source that needs a written conclusion asks for it; Resolve sends it
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-030 'Stop notifying' asks why, confirms, and sends the reason
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-020 focus moves into the drawer and Escape returns it to the opener
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-020 a condition is URL-addressable: ?incident=<id> opens its drawer
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-020 the grouped view offers no 'Load more' for a list it does not show
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > OPS-020 German and Arabic render the page chrome in the reader's language
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > the default view is the simple page: Action required, Monitoring, Recently resolved
+ ✓ __tests__/render/operations-workbench.render.test.tsx > Operations truth closure — web > a group whose members are all resolved is never shown as being monitored
+ Test Files  1 passed (1)
+      Tests  144 passed (144)
+
+apps/web — whole suites: unit 3295 tests, 0 failed; render 111 files, 1741 tests, 0 failed.
+
+apps/mobile — ops-truth-closure, ops-console, ops-parity:
+✔ the access gate equals the web's executed resolveRuntimeReadAccess + page mapping
+✔ bulk success is COMPLETED — the value the server writes — not the web's SUCCEEDED
+✔ restricted: no OPERATIONS_VIEW shows the web's copy and makes NO /v1/ops call
+✔ the queue renders summary cards, grouped conditions, and the flat list on demand
+✔ a summary card is a filter toggle that reaches the server query
+✔ inspector: acknowledge posts to /ack; a server refusal shows the web's notice
+✔ bulk: STEP_UP_REQUIRED → challenge → code → the SAME request retried WITH the challenge header
+✔ bulk: cancelling verification changes nothing and says so
+✔ health: posture and list fail independently; alerts are most severe first
+✔ a group's affected count speaks the server's unit: 'conditions' is not 'records' (GroupSurface describeAffected)
+✔ grouped emptiness is decided by the GROUPS: an empty flat page never paints 'clear' over real groups (P:1808)
+✔ a grouped read still in flight is LOADING, not an empty queue (P:1799-1807)
+✔ a row states owner, first seen and latest activity — not a truncated second line (C/IncidentSurface card)
+✔ the row menu: Actions → Resolve posts the lifecycle transition (C/IncidentSurface buildActions)
+✔ Load 50 more is the page-size label and appends the next page (P:1851-1861)
+✔ a failed history read keeps the condition on screen, with its support reference (P:707-728 + IncidentInspector)
+✔ technical references carry their own Copy control (IncidentInspector Identifier)
+✔ a failed summary hides the cards and says so with a support reference (P:1562-1569, P:1675)
+✔ Refresh reads 'Refreshing…' and is disabled while a re-read is in flight (P:1472-1481)
+✔ Workspace health is gated on WORKSPACE_HEALTH_VIEW: no capability, no read (routeRegistry.ts:1164-1172)
+✔ with WORKSPACE_HEALTH_VIEW the queue links to Workspace health and the page reads it
+✔ service chip offers 'View workspace health' to a WORKSPACE_HEALTH_VIEW holder, and it routes there
+✔ without WORKSPACE_HEALTH_VIEW the chip offers no health link — and never an admin one
+✔ OPS-035 coming back to the foreground re-reads the queue
+✔ OPS-035 a workspace changed while away remounts the screen from that workspace's own state
+✔ OPS-030 'Stop notifying' asks why, confirms, and sends the reason
+✔ OPS-029 a source that needs a written conclusion asks for it before Resolve
+✔ OPS-011 a native bulk sweep carries an idempotency key
+✔ OPS-032 Refresh asks for a NEW check of the sources, explicitly, then re-reads
+ℹ tests 29
+ℹ pass 29
+ℹ fail 0
+
+apps/mobile — whole suite: 1906 tests, 0 failed.

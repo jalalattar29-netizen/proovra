@@ -1,0 +1,1169 @@
+{
+  "baseline": "85c88007",
+  "audit": "c28b4864",
+  "totals": {
+    "findings": 36,
+    "FIXED": 35,
+    "BLOCKED_EXTERNAL_PROOF": 1,
+    "bySeverity": {
+      "P1": {
+        "total": 7,
+        "FIXED": 7,
+        "BLOCKED_EXTERNAL_PROOF": 0
+      },
+      "P2": {
+        "total": 20,
+        "FIXED": 20,
+        "BLOCKED_EXTERNAL_PROOF": 0
+      },
+      "P3": {
+        "total": 9,
+        "FIXED": 8,
+        "BLOCKED_EXTERNAL_PROOF": 1
+      }
+    }
+  },
+  "findings": [
+    {
+      "id": "OPS-001",
+      "severity": "P1",
+      "title": "Workspace 'Queue telemetry sampler delayed' is derived from Home page loads, not from the worker sampler",
+      "disposition": "FIXED",
+      "rootCause": "The workspace probe read QueueTelemetrySnapshot rows that only Home's page-load writer produced, so a 'sampler delayed' condition measured page visits, not the worker sampler.",
+      "ownerSystem": "Platform Admin control plane (worker-liveness.service.ts / queue-inventory.service.ts)",
+      "fixCommits": [
+        "05c0dee47"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch2-platform-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch2-platform-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-platform.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey D"
+      ],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: retired_false_signals"
+    },
+    {
+      "id": "OPS-002",
+      "severity": "P1",
+      "title": "'Queue retry storm' counts this workspace's re-observed conditions, not queue retries; its drill-down lists only itself; Home counts it twice",
+      "disposition": "FIXED",
+      "rootCause": "'Queue retry storm' counted the workspace's own re-observed conditions as job retries; no queue retry data fed it.",
+      "ownerSystem": "Platform Admin queue console (queue-inventory / queue-replay-safety)",
+      "fixCommits": [
+        "05c0dee47"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch2-platform-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch2-platform-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-platform.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey D"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: retired_false_signals"
+    },
+    {
+      "id": "OPS-003",
+      "severity": "P1",
+      "title": "Personal storage add-on obligation: never auto-resolves, can be manually 'resolved' while live, drawer blames platform infrastructure",
+      "disposition": "FIXED",
+      "rootCause": "The billing condition had no source-truth sweep, its probe matched team_id strictly so personal add-ons read NOT_APPLICABLE (manual close allowed), a payer change orphaned the condition, and a failed cancellation attempt overwrote UNGRANTABLE_PROVIDER_ACTIVE so the obligation could be withdrawn while the provider still charged.",
+      "ownerSystem": "Billing (dependent-cancellation.service.ts) + provider reconciliation",
+      "fixCommits": [
+        "b5bf80b0a",
+        "ad9f15f6f",
+        "d6cf624c0"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-recovery.integration.test.ts",
+        "services/api/test/operations-truth-gaps.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey B"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: billing_owner_review, source_truth_recovery"
+    },
+    {
+      "id": "OPS-004",
+      "severity": "P1",
+      "title": "Report failure condition auto-resolves while a newer version is failed or still processing",
+      "disposition": "FIXED",
+      "rootCause": "The report-failure identity carried no version and the probe excluded NULL-stage attempts, so any older report or an in-flight newer attempt read as recovery.",
+      "ownerSystem": "Evidence output lifecycle (evidence-output-lifecycle.ts IN_FLIGHT states)",
+      "fixCommits": [
+        "0134b44fd"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch4-report-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch4-report-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-report.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: premature_recoveries_reopened"
+    },
+    {
+      "id": "OPS-005",
+      "severity": "P2",
+      "title": "/v1/ops/* enforces role only; plan/entitlement is enforced in the web alone",
+      "disposition": "FIXED",
+      "rootCause": "/v1/ops/* checked the role permission only; plan, workspace kind and sharing were enforced in the web envelope alone.",
+      "ownerSystem": "Capability authority (capability-registry.ts) + plan catalog",
+      "fixCommits": [
+        "3a52f5d39"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch1-security-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch1-security-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-security.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey F"
+      ],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-006",
+      "severity": "P1",
+      "title": "Worker scheduled sweeps send x-cron-secret; the API authenticates x-proovra-integration-cron-secret (deterministic 401)",
+      "disposition": "FIXED",
+      "rootCause": "The worker sent x-cron-secret while the API verified a differently named header, so scheduled sweeps were refused with 401.",
+      "ownerSystem": "middleware/cron-secret.ts",
+      "fixCommits": [
+        "3a52f5d39"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch1-security-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch1-security-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-cron-header.integration.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api",
+        "worker"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-007",
+      "severity": "P2",
+      "title": "Detail and list reads share one request counter: after any action with the drawer open the list never refreshes and Refresh stays disabled",
+      "disposition": "FIXED",
+      "rootCause": "Detail and list reads shared one request counter, so an action taken with the drawer open discarded the list refresh and left Refresh stuck.",
+      "ownerSystem": "Web Operations page",
+      "fixCommits": [
+        "4e6e4c4bd",
+        "d6cf624c0"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A"
+      ],
+      "impact": [
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-008",
+      "severity": "P1",
+      "title": "Scheduled Operations sweep only ranks the 500 oldest workspaces",
+      "disposition": "FIXED",
+      "rootCause": "The scheduler selected only the 500 oldest workspaces by id and never ranked by due-ness, so later workspaces were never swept; nothing reported coverage.",
+      "ownerSystem": "Workspace operations reconciliation job",
+      "fixCommits": [
+        "5db9ecbc5",
+        "ad9f15f6f"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-gaps.integration.test.ts",
+        "services/api/test/operations-truth-lifecycle.integration.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-009",
+      "severity": "P2",
+      "title": "Per-workspace worker-heartbeat conditions never auto-resolve and open SLA cycles",
+      "disposition": "FIXED",
+      "rootCause": "Worker liveness was written as a condition per workspace with no recovery path, opening SLA cycles that never closed.",
+      "ownerSystem": "worker-liveness.service.ts",
+      "fixCommits": [
+        "05c0dee47"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch2-platform-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch2-platform-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-platform.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey D"
+      ],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: workspace_heartbeat_copies"
+    },
+    {
+      "id": "OPS-010",
+      "severity": "P2",
+      "title": "GET /v1/ops/health gives any workspace member (VIEWER, FREE) process-global configuration and unscoped counts",
+      "disposition": "FIXED",
+      "rootCause": "/v1/ops/health returned process-global configuration (feature snapshot, startup violations, alert routing) to any workspace member.",
+      "ownerSystem": "Platform Admin readiness/observability",
+      "fixCommits": [
+        "3a52f5d39"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch1-security-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch1-security-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-security.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey F"
+      ],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-011",
+      "severity": "P2",
+      "title": "Web bulk outcome counts SUCCEEDED; the API returns COMPLETED — every successful bulk run is shown as failed",
+      "disposition": "FIXED",
+      "rootCause": "The web counted bulk items with status SUCCEEDED while the runner writes COMPLETED, so every successful run read as failed; and after a full success the outcome unmounted with the toolbar.",
+      "ownerSystem": "bulk-actions.service.ts",
+      "fixCommits": [
+        "4e6e4c4bd",
+        "904912e18",
+        "940a2977f"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch7-native-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch11-closure-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch7-native-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch11-closure-GREEN.txt",
+        "docs/operations/remediation/evidence/final-browser-matrix-GREEN.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx",
+        "apps/mobile/test/ops-truth-closure.render.test.mjs"
+      ],
+      "e2eProof": [
+        "e2e/operations-layout/operations-truth-a11y.spec.ts — browser matrix"
+      ],
+      "impact": [
+        "browser",
+        "native"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-012",
+      "severity": "P2",
+      "title": "Default Grouped view: group drawer has only 'Close'; no actions and no route to the condition drawer",
+      "disposition": "FIXED",
+      "rootCause": "The default grouped view's drawer had no actions and no route to a member condition, and the condition drawer offered two competing recovery actions instead of the one the record's state allows.",
+      "ownerSystem": "Web Operations page",
+      "fixCommits": [
+        "4e6e4c4bd",
+        "ad9f15f6f",
+        "d6cf624c0"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx",
+        "services/api/test/operations-remediation-registry.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A"
+      ],
+      "impact": [
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-013",
+      "severity": "P2",
+      "title": "'Retry after exhausted failure' (supersede) is never offered; the offered action tells the user to use it",
+      "disposition": "FIXED",
+      "rootCause": "'Retry after exhausted failure' required operations.resolve, which the detail route never resolved, so it was never offered; and it was offered regardless of whether the record's failure was actually exhausted.",
+      "ownerSystem": "Evidence output recovery (requestOutputRecovery)",
+      "fixCommits": [
+        "b5bf80b0a",
+        "d6cf624c0",
+        "940a2977f"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt",
+        "docs/operations/remediation/evidence/batch11-closure-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/batch11-closure-GREEN.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-recovery.integration.test.ts",
+        "services/api/test/operations-remediation-registry.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-014",
+      "severity": "P2",
+      "title": "Expected 403 refusals become a customer-visible 'Identity security condition'",
+      "disposition": "FIXED",
+      "rootCause": "Expected 403 refusals were recorded as identity-security conditions visible to customers.",
+      "ownerSystem": "Security event log",
+      "fixCommits": [
+        "5db9ecbc5"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-lifecycle.integration.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: routine_authorization_refusals"
+    },
+    {
+      "id": "OPS-015",
+      "severity": "P2",
+      "title": "Failures for personal records stored with team_id NULL become LEGACY_UNSCOPED and are invisible to their owner",
+      "disposition": "FIXED",
+      "rootCause": "Failures for Personal records stored with team_id NULL were written LEGACY_UNSCOPED and appeared on no tenant surface.",
+      "ownerSystem": "resolveEvidenceWorkspaceId (shared-runtime)",
+      "fixCommits": [
+        "0134b44fd"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch4-report-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch4-report-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-report.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey D"
+      ],
+      "impact": [
+        "api",
+        "worker"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: legacy_unscoped_rescope"
+    },
+    {
+      "id": "OPS-016",
+      "severity": "P2",
+      "title": "Raw error text becomes the customer summary (verbatim to VIEWERs) and part of the fingerprint",
+      "disposition": "FIXED",
+      "rootCause": "The raw error message became both the fingerprint class and the customer-visible summary, leaking storage paths and duplicating conditions per message.",
+      "ownerSystem": "Worker incident emitter",
+      "fixCommits": [
+        "0134b44fd"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch4-report-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch4-report-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-report.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A"
+      ],
+      "impact": [
+        "api",
+        "worker",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: raw_pipeline_messages"
+    },
+    {
+      "id": "OPS-017",
+      "severity": "P3",
+      "title": "'Search index reconciliation failing' opens when no reconciliation has ever run (and when work is already scheduled)",
+      "disposition": "FIXED",
+      "rootCause": "Search reconciliation 'failing' opened when no reconciliation had ever run, asserting a failure that had not happened.",
+      "ownerSystem": "Search readiness (search-readiness.ts)",
+      "fixCommits": [
+        "5db9ecbc5"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-lifecycle.integration.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-018",
+      "severity": "P2",
+      "title": "Sources declared PROBE_AUTO_RESOLVE that nothing closes (one is permanently stuck)",
+      "disposition": "FIXED",
+      "rootCause": "Several sources declared PROBE_AUTO_RESOLVE but no sweep ran their probes, so they never closed; the escalation probe read ESCALATED as recovered.",
+      "ownerSystem": "Each source's domain authority",
+      "fixCommits": [
+        "b5bf80b0a"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-recovery.integration.test.ts",
+        "services/api/test/operations-recovery-conservation.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: source_truth_recovery"
+    },
+    {
+      "id": "OPS-019",
+      "severity": "P2",
+      "title": "TSA and OTS failure conditions resolve on any non-FAILED status (NULL, PENDING, unvalidated STAMPED)",
+      "disposition": "FIXED",
+      "rootCause": "TSA and OTS conditions resolved on any non-FAILED status (NULL, PENDING, an unvalidated token), not on a validated token or an anchored proof.",
+      "ownerSystem": "Evidence trust authority",
+      "fixCommits": [
+        "5db9ecbc5"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-lifecycle.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey C"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: premature_recoveries_reopened, source_truth_recovery"
+    },
+    {
+      "id": "OPS-020",
+      "severity": "P3",
+      "title": "Drawer/page UX and accessibility: no focus move/trap, wrong focus restore, English-only in de/ar, no deep link, Load-more in grouped view",
+      "disposition": "FIXED",
+      "rootCause": "The drawer did not move or trap focus, restored focus wrongly, and the page was English-only with no RTL; there was no deep link to a condition.",
+      "ownerSystem": "Web Operations page",
+      "fixCommits": [
+        "4e6e4c4bd"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx",
+        "e2e/operations-layout/operations-truth-a11y.spec.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-layout/operations-truth-a11y.spec.ts — browser matrix"
+      ],
+      "impact": [
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-021",
+      "severity": "P3",
+      "title": "Web capability envelope disagrees with API authority (revoked rows counted, expired access, suspended org)",
+      "disposition": "FIXED",
+      "rootCause": "The web envelope counted revoked members and ignored expired access and suspended organizations, disagreeing with the API's member authority.",
+      "ownerSystem": "evaluateMemberAccess",
+      "fixCommits": [
+        "3a52f5d39"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch1-security-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch1-security-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-security.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey F"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-022",
+      "severity": "P2",
+      "title": "Real BullMQ failures and retries never reach any Operations surface; persisted retryCount is hard-coded 0",
+      "disposition": "FIXED",
+      "rootCause": "Real BullMQ final failures had no producer into Operations, and the persisted retry count was never measured from the queue.",
+      "ownerSystem": "Platform queue console",
+      "fixCommits": [
+        "05c0dee47"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch2-platform-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch2-platform-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-platform.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey D"
+      ],
+      "impact": [
+        "api",
+        "platform"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-023",
+      "severity": "P2",
+      "title": "Storage add-on condition wording/category: PENDING titled 'still billing', MANUAL title replaced, category STORAGE",
+      "disposition": "FIXED",
+      "rootCause": "One title served every add-on cancellation state (PENDING read 'still billing') and the payer was not named.",
+      "ownerSystem": "Billing",
+      "fixCommits": [
+        "b5bf80b0a"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-recovery.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey B"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-024",
+      "severity": "P3",
+      "title": "Queue replay eligibility admits completed jobs; BullMQ then refuses and the API reports 404 'job_not_found'",
+      "disposition": "FIXED",
+      "rootCause": "Replay admitted completed jobs; BullMQ then refused and the API answered with a misleading 404/400 and the wrong previous state.",
+      "ownerSystem": "queue-replay-action.service.ts",
+      "fixCommits": [
+        "05c0dee47"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch2-platform-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch2-platform-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-platform.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey D"
+      ],
+      "impact": [
+        "api",
+        "platform"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-025",
+      "severity": "P1",
+      "title": "/v1/investigation/diagnostics returns another tenant's queue job failure text to any workspace member",
+      "disposition": "FIXED",
+      "rootCause": "/v1/investigation/diagnostics returned the newest failed job of each global queue — another tenant's failure text and ids — to any workspace member.",
+      "ownerSystem": "Platform queue console",
+      "fixCommits": [
+        "3a52f5d39"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch1-security-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch1-security-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-security.integration.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-026",
+      "severity": "P2",
+      "title": "/v1/runtime/secrets-health gives any member (VIEWER) the secrets posture: secret names, presence, AWS secret/region, fallback mode",
+      "disposition": "FIXED",
+      "rootCause": "/v1/runtime/secrets-health and otel-health were gated by identity.member.read, giving any member the secrets posture.",
+      "ownerSystem": "Platform Admin",
+      "fixCommits": [
+        "3a52f5d39"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch1-security-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch1-security-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-security.integration.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-027",
+      "severity": "P2",
+      "title": "No writer produces PLATFORM scope; provider-credential conditions are stored LEGACY_UNSCOPED with an hourly fingerprint and no resolver",
+      "disposition": "FIXED",
+      "rootCause": "Nothing wrote PLATFORM scope; provider-credential conditions accumulated as LEGACY_UNSCOPED rows, one per hour.",
+      "ownerSystem": "Incident scope authority",
+      "fixCommits": [
+        "05c0dee47"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch2-platform-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch2-platform-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-platform.integration.test.ts"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "api"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "reconcileOperationsTruth: provider_auth_superseded_rows"
+    },
+    {
+      "id": "OPS-028",
+      "severity": "P3",
+      "title": "Report-failure recovery is proven by a DB row without verifying the stored object",
+      "disposition": "FIXED",
+      "rootCause": "Report recovery was proven by the presence of a database row, never by the stored object; and a record whose own decision runs nothing was still offered a recovery.",
+      "ownerSystem": "Evidence output lifecycle / artifact verification",
+      "fixCommits": [
+        "0134b44fd",
+        "d6cf624c0",
+        "940a2977f"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch4-report-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt",
+        "docs/operations/remediation/evidence/batch11-closure-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch4-report-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/batch11-closure-GREEN.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-report.integration.test.ts",
+        "services/api/test/operations-remediation-registry.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-029",
+      "severity": "P2",
+      "title": "Resolve is a dead control for sources that require a resolution note: the web sends no note and has no field",
+      "disposition": "FIXED",
+      "rootCause": "For sources that require a resolution note the web sent none, so every Resolve failed with a generic error; the native client did the same.",
+      "ownerSystem": "incident-transition-authority",
+      "fixCommits": [
+        "4e6e4c4bd",
+        "904912e18",
+        "d6cf624c0"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch7-native-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch7-native-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/final-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx",
+        "apps/mobile/test/ops-truth-closure.render.test.mjs"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey E"
+      ],
+      "impact": [
+        "browser",
+        "native"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-030",
+      "severity": "P2",
+      "title": "'Stop notifying' (suppress) hides a live source-truth condition with no confirmation and no recorded reason",
+      "disposition": "FIXED",
+      "rootCause": "Suppress hid a live source-truth condition with no confirmation and no reason, and nothing could undo it.",
+      "ownerSystem": "incident.service transitionIncident",
+      "fixCommits": [
+        "5db9ecbc5",
+        "4e6e4c4bd",
+        "904912e18",
+        "ad9f15f6f"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch7-native-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch7-native-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt",
+        "docs/operations/remediation/evidence/final-browser-matrix-GREEN.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-lifecycle.integration.test.ts",
+        "services/api/test/operations-truth-gaps.integration.test.ts",
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx",
+        "apps/mobile/test/ops-truth-closure.render.test.mjs"
+      ],
+      "e2eProof": [
+        "e2e/operations-layout/operations-truth-a11y.spec.ts — browser matrix"
+      ],
+      "impact": [
+        "api",
+        "browser",
+        "native"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-031",
+      "severity": "P2",
+      "title": "Remediation guidance and deep links are keyed by category, not source: wrong guidance and generic targets",
+      "disposition": "FIXED",
+      "rootCause": "Remediation guidance and deep links were keyed by category, not by source, so conditions got the wrong guidance and links to a generic page instead of the record's tab.",
+      "ownerSystem": "Remediation registry (per source lifecycle)",
+      "fixCommits": [
+        "b5bf80b0a",
+        "ad9f15f6f"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-recovery.integration.test.ts",
+        "services/api/test/operations-truth-gaps.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A",
+        "e2e/operations-truth-journeys.spec.ts — Journey C"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-032",
+      "severity": "P3",
+      "title": "POST /v1/ops/workspace-reconcile reports started:false for the request that ran the reconciliation",
+      "disposition": "FIXED",
+      "rootCause": "workspace-reconcile reported started:false for the request that ran the run and recorded no actor; the Refresh button only re-read the last run, so a repaired record stayed open for the rest of the 45-minute window.",
+      "ownerSystem": "operations-reconciliation.service",
+      "fixCommits": [
+        "5db9ecbc5",
+        "d6cf624c0"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch5-lifecycle-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-lifecycle.integration.test.ts",
+        "services/api/test/operations-truth-gaps.integration.test.ts",
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx",
+        "apps/mobile/test/ops-truth-closure.render.test.mjs"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A",
+        "e2e/operations-truth-journeys.spec.ts — Journey B",
+        "e2e/operations-truth-journeys.spec.ts — Journey C"
+      ],
+      "impact": [
+        "api",
+        "browser",
+        "native"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-033",
+      "severity": "P3",
+      "title": "Projected titles replace stored titles with the source label: 120 distinct conditions all read 'Governance policy condition'",
+      "disposition": "FIXED",
+      "rootCause": "The projection replaced each stored per-record title with the source label, so many distinct conditions looked identical; titles did not name the record.",
+      "ownerSystem": "incident projection",
+      "fixCommits": [
+        "b5bf80b0a",
+        "d6cf624c0"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-RED.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch3-recovery-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch10-journeys-GREEN.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-recovery.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey A"
+      ],
+      "impact": [
+        "api",
+        "browser",
+        "native"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-034",
+      "severity": "P3",
+      "title": "Enterprise has no organization roll-up; Operations is strictly per workspace",
+      "disposition": "FIXED",
+      "rootCause": "There was no organization roll-up; Operations was strictly per workspace.",
+      "ownerSystem": "Operations summary authority",
+      "fixCommits": [
+        "2da6ba1d3",
+        "ad9f15f6f"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch8-rollup-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch8-rollup-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch9-gaps-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-api-integration-GREEN.txt"
+      ],
+      "regressionTests": [
+        "services/api/test/operations-truth-rollup.integration.test.ts",
+        "services/api/test/operations-truth-gaps.integration.test.ts"
+      ],
+      "e2eProof": [
+        "e2e/operations-truth-journeys.spec.ts — Journey E"
+      ],
+      "impact": [
+        "api",
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    },
+    {
+      "id": "OPS-035",
+      "severity": "P3",
+      "title": "Native Operations: no reset on workspace switch, no refresh on foreground, English-only",
+      "disposition": "BLOCKED_EXTERNAL_PROOF",
+      "rootCause": "The native screen kept filters, selection and open sheets across a workspace switch, did not refresh on returning to the foreground, and hard-coded English.",
+      "ownerSystem": "Native Operations screen",
+      "fixCommits": [
+        "904912e18"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch7-native-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch7-native-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "apps/mobile/test/ops-truth-closure.render.test.mjs",
+        "apps/mobile/test/ops-console.test.mjs"
+      ],
+      "e2eProof": [],
+      "impact": [
+        "native"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none",
+      "externalBlocker": "Device runtime: the fix is proven by the native render tests and both native binaries build in .github/workflows/native-build.yml; no device or emulator runtime harness exists to execute it, and none is claimed."
+    },
+    {
+      "id": "OPS-036",
+      "severity": "P2",
+      "title": "A failed grouped read renders '0 groups · 0 conditions … match these filters' in the default view",
+      "disposition": "FIXED",
+      "rootCause": "A failed grouped read rendered '0 groups · 0 conditions' and the no-match state — an implied all-clear over real conditions.",
+      "ownerSystem": "Web Operations page",
+      "fixCommits": [
+        "4e6e4c4bd"
+      ],
+      "redProof": [
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt"
+      ],
+      "greenProof": [
+        "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/final-browser-matrix-GREEN.txt",
+        "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
+      ],
+      "regressionTests": [
+        "apps/web/__tests__/render/operations-workbench.render.test.tsx"
+      ],
+      "e2eProof": [
+        "e2e/operations-layout/operations-truth-a11y.spec.ts — browser matrix"
+      ],
+      "impact": [
+        "browser"
+      ],
+      "migrationImpact": "none",
+      "dataReconciliation": "none"
+    }
+  ]
+}
