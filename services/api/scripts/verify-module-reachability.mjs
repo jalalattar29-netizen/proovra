@@ -105,6 +105,9 @@ const ENTRYPOINTS = Object.freeze({
     // they do NOT import is genuinely not.
     "services/api/src/commands/audit-tenant-scope-readiness.ts",
     "services/api/src/scripts/backfill-search-index.ts",
+    // OPERATIONS TRUTH (2026-10-09) — the existing-data reconciliation,
+    // dry-run by default; `pnpm --filter proovra-api ops:operations-truth-reconcile`.
+    "services/api/src/scripts/operations-truth-reconcile.ts",
     "services/api/src/scripts/redact-leaked-intake-tokens.ts",
     "services/api/src/scripts/repair-tsa-failed-with-token.ts",
     "services/api/src/scripts/smoke-evidence-forward-path.ts",

@@ -251,6 +251,11 @@ function resolutionNoteFor(i: Incident): string | null {
   if (authority === "NO_DIRECT_RESOLUTION") {
     return "This condition is owned by a surface outside this workspace. It cannot be marked resolved here.";
   }
+  if (authority === "OPERATOR_DECISION") {
+    return i.lifecycle?.requiresResolutionNote
+      ? "This condition closes when an operator resolves it with a written conclusion, which is kept in its history."
+      : "This condition closes when an operator resolves it.";
+  }
   return null;
 }
 

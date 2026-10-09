@@ -350,6 +350,8 @@ export type OperationsCopy = {
   closeGroup: string;
   whatHappened: string;
   whatYouCanDo: string;
+  /** The exact condition under which this condition closes. */
+  closesWhen: string;
   howMuch: string;
   when: string;
   ownership: string;
@@ -404,6 +406,7 @@ const OPERATIONS_EN: OperationsCopy = {
   closeGroup: "Close group details",
   whatHappened: "What happened",
   whatYouCanDo: "What you can do",
+  closesWhen: "When it closes",
   howMuch: "How much",
   when: "When",
   ownership: "Ownership",
@@ -460,6 +463,7 @@ const OPERATIONS_DE: OperationsCopy = {
   closeGroup: "Gruppendetails schließen",
   whatHappened: "Was ist passiert",
   whatYouCanDo: "Was Sie tun können",
+  closesWhen: "Wann es geschlossen wird",
   howMuch: "Umfang",
   when: "Wann",
   ownership: "Zuständigkeit",
@@ -517,6 +521,7 @@ const OPERATIONS_AR: OperationsCopy = {
   closeGroup: "إغلاق تفاصيل المجموعة",
   whatHappened: "ما الذي حدث",
   whatYouCanDo: "ما يمكنك فعله",
+  closesWhen: "متى تُغلق",
   howMuch: "الحجم",
   when: "متى",
   ownership: "المسؤولية",

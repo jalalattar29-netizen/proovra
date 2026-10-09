@@ -3728,6 +3728,23 @@ describe("Operations truth closure — web", () => {
     expect(q("[data-ops-bulk-outcome]")?.textContent).toBe("1 of 1 updated.");
   });
 
+  it("the drawer reads in the operator's order: what happened → measured → when it closes → what to do → history", async () => {
+    await mount(envelope(TEAM_ADMIN));
+    await act(async () => {
+      fireEvent.click(q('[data-ops-open="i-high"]') as HTMLElement);
+    });
+    await settle();
+    const titles = qa("[data-ops-inspector] .opsw-drawer__section-title").map((h) => (h.textContent ?? "").trim());
+    const at = (t: string) => titles.indexOf(t);
+    expect(at("What happened")).toBe(0);
+    expect(at("When")).toBeGreaterThan(at("What happened"));
+    // The exact resolution condition is stated, before the action it frames.
+    expect(at("When it closes")).toBeGreaterThan(at("When"));
+    expect(q("[data-ops-resolution-condition] [data-ops-resolution-note]")?.textContent).toMatch(/closes/);
+    if (at("What you can do") !== -1) expect(at("What you can do")).toBeGreaterThan(at("When it closes"));
+    expect(at("History")).toBeGreaterThan(at("When it closes"));
+  });
+
   it("OPS-032 Refresh asks for a NEW check of the sources, explicitly, then re-reads", async () => {
     await mount(envelope(TEAM_ADMIN));
     requestLog = [];
