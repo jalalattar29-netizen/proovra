@@ -237,37 +237,37 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     freshnessParticipating: true,
     surfaces: { home: true, notifications: true, operations: true },
   },
+  // RETIRED (OPS-002 / OPS-001). Kept as rows so their stored conditions
+  // stay explainable; nothing discovers or produces them any more, and they
+  // are on no surface. The "retry storm" counted re-observed workspace
+  // conditions, not job retries; the "telemetry sampler" measured Home visits.
   {
     id: "queue.retry_storm",
-    owner: "OperationalIncident.occurrenceCount",
-    scopeAuthority: "WORKSPACE_INCIDENT_SCOPE",
-    discovery: "unresolved conditions in this workspace above the re-fire threshold",
-    fingerprint: "one workspace-level condition, threshold-triggered",
-    resolution: "no unresolved condition remains above the threshold",
-    freshnessParticipating: true,
-    surfaces: { home: false, notifications: false, operations: true },
+    owner: "(retired — never produced)",
+    scopeAuthority: "PLATFORM_TELEMETRY",
+    discovery: "retired: not discovered",
+    fingerprint: "none",
+    resolution: "not applicable",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "platform.telemetry_stale",
-    owner: "QueueTelemetrySnapshot",
+    owner: "(retired — never produced)",
     scopeAuthority: "PLATFORM_TELEMETRY",
-    discovery: "no telemetry snapshot inside the staleness window",
-    fingerprint: "one condition, platform-wide observation surfaced per workspace",
-    resolution: "a fresh snapshot lands",
-    // NOT freshness-participating: this is a statement about the PLATFORM, not
-    // about whether this tenant has unresolved work. Letting it mark a
-    // workspace PARTIAL would make every tenant un-clearable during a
-    // telemetry outage that has nothing to do with their records.
+    discovery: "retired: not discovered",
+    fingerprint: "none",
+    resolution: "not applicable",
     freshnessParticipating: false,
-    surfaces: { home: false, notifications: false, operations: true },
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "platform.worker_heartbeat_stale",
-    owner: "WorkerTelemetry",
+    owner: "WorkerHeartbeat via getWorkerFleetHealth",
     scopeAuthority: "PLATFORM_TELEMETRY",
-    discovery: "no worker heartbeat inside the staleness window",
-    fingerprint: "one condition, platform-wide observation surfaced per workspace",
-    resolution: "a heartbeat lands",
+    discovery: "the worker-fleet liveness authority reports no live heartbeat, once per sweep tick",
+    fingerprint: "ONE platform condition (platform:worker_heartbeat_stale), never one per workspace",
+    resolution: "the fleet authority reports a live heartbeat",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },
@@ -331,11 +331,11 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
   },
   {
     id: "job.background_failure",
-    owner: "BullMQ queues",
+    owner: "BullMQ queues via the queue inventory",
     scopeAuthority: "PLATFORM_TELEMETRY",
-    discovery: "owned by the queue console and its replay-safety authority",
-    fingerprint: "one condition per (queue, failure class)",
-    resolution: "the queue drains or the job is replayed",
+    discovery: "jobs that failed after exhausting their retries in the last hour, read from the queue inventory once per sweep tick",
+    fingerprint: "one PLATFORM condition per queue (platform:job_failure:<queue>)",
+    resolution: "no final failure on that queue inside the window",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: false, operations: true },
   },

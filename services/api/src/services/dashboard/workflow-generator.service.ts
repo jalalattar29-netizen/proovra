@@ -61,7 +61,6 @@ function workflowTypeForIncident(input: {
     if (fp.includes("review:")) return "REVIEW_ESCALATION";
     if (fp.includes("telemetry:")) return "TELEMETRY_RECOVERY";
     if (fp.includes("worker:") || fp.includes("heartbeat")) return "TELEMETRY_RECOVERY";
-    if (fp.includes("retry_storm")) return "QUEUE_RECOVERY";
     return "QUEUE_RECOVERY";
   }
   return "OTHER";

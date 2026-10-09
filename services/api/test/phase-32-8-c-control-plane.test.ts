@@ -43,6 +43,8 @@ const MIGRATION = readApi(
 const GENERATOR = readApi("src/services/dashboard/incident-generator.service.ts");
 /** The ONE observation authority per source — counts, thresholds, identities. */
 const PROBES = readApi("src/services/operations/operations-source-probes.ts");
+/** The ONE writer of the platform's own conditions (OPS-009 / OPS-022). */
+const PLATFORM_CONDITIONS = readApi("src/services/operations/platform-conditions.service.ts");
 const CORRELATION = readApi(
   "src/services/dashboard/incident-correlation.service.ts",
 );
@@ -176,9 +178,14 @@ describe("Phase 32.8C control plane — incident generator", () => {
   it("every rule reads from real existing tables — no fabricated data", () => {
     expect(PROBES).toMatch(/client\.evidence\.count/);
     expect(PROBES).toMatch(/client\.evidenceReviewWorkflow\.count/);
-    expect(PROBES).toMatch(/client\.operationalIncident\.count/);
-    expect(PROBES).toMatch(/client\.queueTelemetrySnapshot\.findFirst/);
-    expect(PROBES).toMatch(/client\.workerTelemetrySnapshot\.findFirst/);
+    // OPS-001 / OPS-002 / OPS-009 — the three "rules" that read the incident
+    // table itself, page-visit telemetry snapshots and a second heartbeat
+    // detector are gone. Platform health is read from its own authorities.
+    expect(PROBES).not.toMatch(/client\.operationalIncident\.count/);
+    expect(PROBES).not.toMatch(/queueTelemetrySnapshot|workerTelemetrySnapshot/);
+    expect(PLATFORM_CONDITIONS).toMatch(/getWorkerFleetHealth/);
+    expect(PLATFORM_CONDITIONS).toMatch(/listFailedJobs/);
+    expect(PLATFORM_CONDITIONS).toMatch(/getQueueInventory/);
     // …and the generator observes through that module rather than counting
     // anything itself. A second count here would be the defect again.
     expect(GENERATOR).toMatch(/observeAggregate\(spec,/);
@@ -192,13 +199,17 @@ describe("Phase 32.8C control plane — incident generator", () => {
       "PACKAGE_BACKLOG_HIGH",
       "PACKAGE_BACKLOG_CRITICAL",
       "STALE_REVIEW_HOURS",
-      "RETRY_STORM_OCCURRENCE_THRESHOLD",
-      "TELEMETRY_STALE_MINUTES",
-      "WORKER_HEARTBEAT_STALE_MINUTES",
       "UNSIGNED_FINALIZED_AGED_DAYS",
       "COORDINATION_STALE_DAYS",
     ]) {
       expect(PROBES).toContain(k);
+    }
+    for (const k of ["QUEUE_FAILURE_WINDOW_MS", "QUEUE_FAILURE_HIGH_COUNT"]) {
+      expect(PLATFORM_CONDITIONS).toContain(`export const ${k}`);
+    }
+    // The heartbeat window is the fleet authority's own, never a second copy.
+    for (const k of ["RETRY_STORM_OCCURRENCE_THRESHOLD", "TELEMETRY_STALE_MINUTES", "WORKER_HEARTBEAT_STALE_MINUTES"]) {
+      expect(PROBES).not.toContain(k);
     }
   });
 
@@ -216,7 +227,9 @@ describe("Phase 32.8C control plane — incident generator", () => {
     expect(PROBES).toMatch(/return `\$\{spec\.fingerprintPrefix\}:\$\{teamId\}`/);
     const prefixes = PROBES.match(/fingerprintPrefix:\s*"[^"]+"/g);
     expect(prefixes).not.toBeNull();
-    expect(prefixes!.length).toBeGreaterThanOrEqual(6);
+    // Five workspace aggregates. The three platform "aggregates" became ONE
+    // platform writer with no tenant in the key (OPS-009).
+    expect(prefixes!.length).toBeGreaterThanOrEqual(5);
     // Distinct: two sources sharing a prefix would share a condition.
     expect(new Set(prefixes).size).toBe(prefixes!.length);
   });
@@ -226,8 +239,13 @@ describe("Phase 32.8C control plane — incident generator", () => {
     // and never rewritten, so 26 stayed true-looking for the life of the
     // condition. Titles are stable now and the value lives in the metric.
     const titles = PROBES.match(/stableTitle:\s*"[^"]+"/g) ?? [];
-    expect(titles.length).toBeGreaterThanOrEqual(6);
+    expect(titles.length).toBeGreaterThanOrEqual(5);
     for (const t of titles) expect(t).not.toMatch(/\d/);
+    // The platform writer's titles carry no count either: the value is in the
+    // metric, and a queue's label is a name.
+    const platformTitles = PLATFORM_CONDITIONS.match(/title:\s*(`[^`]*`|"[^"]*")/g) ?? [];
+    expect(platformTitles.length).toBeGreaterThanOrEqual(2);
+    for (const t of platformTitles) expect(t).not.toMatch(/\d/);
   });
 
   it("never projects raw bytes / signed URLs / storage keys", () => {

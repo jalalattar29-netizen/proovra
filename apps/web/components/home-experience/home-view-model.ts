@@ -2008,6 +2008,10 @@ function mergeOperationalConditions(
       continue;
     }
 
+    if (representation.kind === "RETIRED") {
+      // A false signal that is no longer produced (OPS-001 / OPS-002).
+      continue;
+    }
     if (representation.kind === "MERGE") {
       // Accounted for by an existing row (or by an aggregate that said zero).
       continue;

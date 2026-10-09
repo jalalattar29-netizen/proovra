@@ -165,6 +165,13 @@ export const SOURCE_RECOVERY_POLICIES = [
   "OPERATOR_CLOSES",
   /** Neither. The condition is carried until its own surface clears it. */
   "NO_RECOVERY_SIGNAL",
+  /**
+   * No probe can observe recovery from outside, but the EMITTER observes it
+   * directly: the same call that failed is retried and, when it succeeds, the
+   * emitter closes the condition it opened. A provider refusing our credential
+   * is the case — only a successful provider call proves the key works again.
+   */
+  "EMITTER_OBSERVES_RECOVERY",
 ] as const;
 export type SourceRecoveryPolicy = (typeof SOURCE_RECOVERY_POLICIES)[number];
 
@@ -288,6 +295,14 @@ export const SOURCE_DISCOVERY_STATES = [
   "ACTIVE",
   "NOT_YET_DISCOVERED",
   "DISABLED",
+  /**
+   * The producer was REMOVED because the signal was false (OPS-001, OPS-002).
+   * The source stays registered so historical rows remain classifiable, is
+   * PLATFORM_INTERNAL so those rows leave every tenant surface at once, and is
+   * never written again. The existing-data reconciliation closes its open rows
+   * with a note that says the condition was retired — never that it recovered.
+   */
+  "RETIRED",
 ] as const;
 export type SourceDiscoveryState = (typeof SOURCE_DISCOVERY_STATES)[number];
 
@@ -330,9 +345,10 @@ export const ACTIVITY_PROBE_KEYS = [
   "pipeline.signed_without_report_aged_count",
   "review.stale_workflow_count",
   "coordination.stale_backlog_count",
-  "queue.retry_storm_count",
-  "platform.telemetry_age",
+  /** The canonical worker-fleet liveness verdict (worker-liveness.service). */
   "platform.worker_heartbeat_age",
+  /** Final job failures on one queue inside the recent window (queue-inventory). */
+  "platform.queue_recent_failures",
   /** The append-only `ImmutableStorageCheck` verdict for one record. */
   // The add-on obligation state. Only a provider call or a provider
   // observation moves it to CONFIRMED, which is what makes the condition it
@@ -942,32 +958,35 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "Unresolved comments and annotations past the window are counted from their own resolvedAtUtc columns.",
     },
     {
+      // OPS-002 — RETIRED. It counted this workspace's own conditions that had
+      // been RE-OBSERVED five times by the sweep and called that a "queue
+      // retry storm". No queue, job or retry was ever read: any condition that
+      // persisted for five sweeps produced it. Real job failures are now the
+      // platform source `job.background_failure`, read from BullMQ.
       sourceId: "queue.retry_storm",
       category: "WORKER",
-      displayLabel: "Queue retry storm",
-      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
-      discoveryState: "ACTIVE",
+      displayLabel: "Queue retry storm (retired)",
+      producers: [],
+      discoveryState: "RETIRED",
       legacyFingerprints: [
         { kind: "PREFIX", prefix: "dashboard:reliability:retry_storms" },
       ],
-      resolutionAuthority: "SOURCE_TRUTH",
-      activityProbeKey: "queue.retry_storm_count",
-      recoveryPolicy: "PROBE_AUTO_RESOLVE",
-      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
-      suppressionPolicy: "SUPPRESSION_PERSISTS",
-      // Nothing to press: the storm ends when the conditions underneath it are
-      // dealt with, and a button claiming to end it would be a fiction.
-      remediationDisposition: "GUIDANCE_ONLY",
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      recurrencePolicy: "NOT_APPLICABLE",
+      suppressionPolicy: "SUPPRESSION_NOT_OFFERED",
+      remediationDisposition: "NOT_APPLICABLE",
       requiredCapability: "operations.view",
-      audience: "TENANT_ACTIONABLE",
+      audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
-      workspaceApplicability: "ALL_WORKSPACES",
-      metricContract: "AGGREGATE_THRESHOLD",
-      drillDownContract: "AFFECTED_RECORDS",
+      workspaceApplicability: "PLATFORM_OBSERVED",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
       requiresResolutionNote: false,
       rationale:
-        "The storm is defined as a count of this workspace's own re-firing conditions, which is re-countable at any moment.",
+        "Retired false signal: a count of re-observed workspace conditions, not of queue retries. Historical rows are closed by the existing-data reconciliation as retired.",
     },
     // =======================================================================
     // PLATFORM HEALTH.
@@ -979,40 +998,47 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     // its own broken worker.
     // =======================================================================
     {
+      // OPS-001 — RETIRED. Its probe read QueueTelemetrySnapshot WHERE
+      // teamId = workspace, and the only writer of such rows was a lazy write
+      // on the Home dashboard GET. The worker sampler writes team_id NULL, so
+      // "sampler delayed" measured how long ago somebody opened Home, while the
+      // worker was healthy. Worker health is the platform source
+      // `platform.worker_heartbeat_stale`, read from the liveness authority.
       sourceId: "platform.telemetry_stale",
       category: "WORKER",
-      displayLabel: "Queue telemetry sampler delayed",
-      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
-      discoveryState: "ACTIVE",
+      displayLabel: "Queue telemetry sampler delayed (retired)",
+      producers: [],
+      discoveryState: "RETIRED",
       legacyFingerprints: [
         { kind: "PREFIX", prefix: "dashboard:telemetry:queue_stale" },
       ],
-      resolutionAuthority: "SOURCE_TRUTH",
-      activityProbeKey: "platform.telemetry_age",
-      recoveryPolicy: "PROBE_AUTO_RESOLVE",
-      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
-      suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "GUIDANCE_ONLY",
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      recurrencePolicy: "NOT_APPLICABLE",
+      suppressionPolicy: "SUPPRESSION_NOT_OFFERED",
+      remediationDisposition: "NOT_APPLICABLE",
       requiredCapability: "operations.view",
-      // WORKSPACE-BOUND: the scanner reads QueueTelemetrySnapshot WHERE
-      // teamId = this workspace, so a stale sampler here is a fact about THIS
-      // tenant's queue visibility. The tenant cannot restart the sampler, so
-      // advisory — but they are entitled to know their own telemetry is dark.
-      audience: "TENANT_ADVISORY",
+      audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
-      metricContract: "AGE_THRESHOLD",
+      metricContract: "NONE",
       drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
       requiresResolutionNote: false,
       rationale:
-        "The age of THIS workspace's freshest telemetry snapshot is a clock reading, so recovery is observed rather than asserted.",
+        "Retired false signal: it measured Home page visits, not the worker sampler. Historical rows are closed by the existing-data reconciliation as retired.",
     },
     {
+      // OPS-009 — ONE platform condition, written once, from the canonical
+      // worker-fleet liveness verdict. It used to be written once PER
+      // WORKSPACE from a second heartbeat detector with its own threshold, and
+      // the resolver looked those rows up through the tenant predicate that
+      // hides this source — so they never closed.
       sourceId: "platform.worker_heartbeat_stale",
       category: "WORKER",
       displayLabel: "Worker heartbeat stale",
-      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
+      producers: ["services/api/src/services/operations/platform-conditions.service.ts"],
       discoveryState: "ACTIVE",
       legacyFingerprints: [
         { kind: "PREFIX", prefix: "dashboard:worker:heartbeat_stale" },
@@ -1022,23 +1048,17 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       recoveryPolicy: "PROBE_AUTO_RESOLVE",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "GUIDANCE_ONLY",
+      remediationDisposition: "SPECIALIZED_SURFACE",
       requiredCapability: "operations.view",
-      // GLOBAL. The scanner reads WorkerTelemetrySnapshot WHERE
-      // workerKind = 'WORKER' with NO tenant predicate — one process-wide
-      // heartbeat — and then writes a per-workspace fingerprint, so ONE dead
-      // worker opened one identical condition in every workspace on the
-      // platform, each counted, each blocking that tenant's all-clear. It is
-      // platform telemetry and belongs on the platform surface.
       audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "AGE_THRESHOLD",
-      drillDownContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "REFUSE",
       requiresResolutionNote: false,
       rationale:
-        "The heartbeat read carries no tenant predicate: it is one global fact, and duplicating it per workspace made every tenant un-clearable for a fault none of them owned.",
+        "One global fact read from getWorkerFleetHealth; one PLATFORM row that closes when the fleet reports a live heartbeat.",
     },
     // =======================================================================
     // THE SECURITY-EVENT BRIDGE.
@@ -1414,12 +1434,15 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       // offer a Resolve: a mutation-shaped action belongs to the tenant who
       // can act, and no tenant can replace our credential.
       //
-      // It ends the way it began: the emitter dedupes by the hour, so once a
-      // working key is in place the condition simply stops recurring. Nobody
-      // asserts it is fixed; it stops being true.
+      // OPS-027 — ONE PLATFORM condition per provider, with a stable
+      // fingerprint. It used to be written with no scope (LEGACY_UNSCOPED) and
+      // an hourly fingerprint, so a bad key produced a new invisible row every
+      // hour and nothing ever closed one. The emitter now records it at
+      // PLATFORM scope and closes it itself on the next SUCCESSFUL provider
+      // call — the only observation that proves the credential works again.
       resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
-      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      recoveryPolicy: "EMITTER_OBSERVES_RECOVERY",
       // A key rotated badly a second time is a second outage, not a
       // continuation of the closed one.
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
@@ -1674,30 +1697,32 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "A configuration that remains invalid is an active state; no canonical integration-validation authority can re-check it from a resolve path, so nobody may declare it corrected.",
     },
     {
+      // OPS-022 — real BullMQ failures, at PLATFORM scope, one condition per
+      // queue. A job that exhausted its retries inside the recent window keeps
+      // the condition open; a window with none closes it. The jobs themselves
+      // stay in the queue console — the condition only points there.
       sourceId: "job.background_failure",
       category: "WORKER",
-      displayLabel: "Background job failure",
-      producers: [],
-      discoveryState: "NOT_YET_DISCOVERED",
+      displayLabel: "Background jobs failing",
+      producers: ["services/api/src/services/operations/platform-conditions.service.ts"],
+      discoveryState: "ACTIVE",
       legacyFingerprints: [],
-      resolutionAuthority: "NO_DIRECT_RESOLUTION",
-      activityProbeKey: "NONE",
-      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "platform.queue_recent_failures",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
       recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
       suppressionPolicy: "SUPPRESSION_PERSISTS",
       remediationDisposition: "SPECIALIZED_SURFACE",
       requiredCapability: "operations.view",
-      // Queue health is process-wide. If it is ever emitted, one drained queue
-      // must not appear as a separate problem in every tenant's list.
       audience: "PLATFORM_INTERNAL",
-      cardinality: "EVENT",
+      cardinality: "AGGREGATE",
       workspaceApplicability: "PLATFORM_OBSERVED",
-      metricContract: "NONE",
+      metricContract: "AGGREGATE_THRESHOLD",
       drillDownContract: "SOURCE_SURFACE",
       notApplicableDisposition: "REFUSE",
       requiresResolutionNote: false,
       rationale:
-        "BullMQ queue state is global and owned by the queue console and its replay-safety authority; no workspace can observe or declare its recovery.",
+        "Read from the queue-inventory authority: final job failures on one queue in the recent window. Replay and detail stay in the platform queue console.",
     },
     {
       sourceId: "storage.condition",
@@ -1867,6 +1892,10 @@ export const UNREGISTERED_CONDITION_DIAGNOSTIC =
     }
     if (s.discoveryState === "NOT_YET_DISCOVERED" && s.producers.length > 0) {
       throw new Error(`${s.sourceId}: NOT_YET_DISCOVERED but names a producer`);
+    }
+    // A retired source is never written and is never shown to a tenant.
+    if (s.discoveryState === "RETIRED" && (s.producers.length > 0 || s.audience !== "PLATFORM_INTERNAL")) {
+      throw new Error(`${s.sourceId}: RETIRED must have no producer and a PLATFORM_INTERNAL audience`);
     }
     // THE LABEL MUST NOT CONTAIN A NUMBER.
     //

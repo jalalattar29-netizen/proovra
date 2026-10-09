@@ -54,7 +54,11 @@ const SCHEMA = read("../prisma/schema.prisma");
 // THE MATRIX
 // ===========================================================================
 
-type Fingerprint = "PER_RECORD" | "PER_WORKSPACE";
+/**
+ * PLATFORM (`platform:worker_heartbeat_stale`) — a fact about the platform
+ * that has no workspace. Written ONCE, with no tenant in its key (OPS-009).
+ */
+type Fingerprint = "PER_RECORD" | "PER_WORKSPACE" | "PLATFORM";
 
 type Disposition =
   /** Operations opens the condition and owns its triage lifecycle. */
@@ -149,38 +153,31 @@ const SOURCES: readonly Source[] = [
     disposition: "OPERATIONS_INCIDENT_WITH_DEEP_LINK",
     remediation: "the Review & Sign queue",
   },
+  // OPS-002 / OPS-001 — "Retry storms" and "Stale queue telemetry" are not
+  // sources: the first counted re-observed workspace conditions, the second
+  // measured Home page visits. Both are RETIRED and asserted absent below.
   {
-    name: "Retry storms",
-    writer: "incident-generator.service.ts",
-    identityOwner: "operations/operations-source-probes.ts",
-    evidence: "dashboard:reliability:retry_storms",
-    category: "WORKER",
-    fingerprint: "PER_WORKSPACE",
-    severity: "threshold on retry rate",
-    disposition: "OPERATIONS_INCIDENT",
-    remediation: "the owning domain's retry path",
-  },
-  {
-    name: "Stale queue telemetry",
-    writer: "incident-generator.service.ts",
-    identityOwner: "operations/operations-source-probes.ts",
-    evidence: "dashboard:telemetry:queue_stale",
-    category: "WORKER",
-    fingerprint: "PER_WORKSPACE",
-    severity: "threshold on staleness",
-    disposition: "OPERATIONS_INCIDENT",
-    remediation: "platform operations (deep link withheld from tenants)",
-  },
-  {
+    // OPS-009 — ONE platform fact, written once per sweep tick from the
+    // worker-fleet liveness authority; never one copy per workspace.
     name: "Worker heartbeat staleness",
-    writer: "incident-generator.service.ts",
-    identityOwner: "operations/operations-source-probes.ts",
-    evidence: "dashboard:worker:heartbeat_stale",
+    writer: "operations/platform-conditions.service.ts",
+    evidence: `"platform:worker_heartbeat_stale"`,
     category: "WORKER",
-    fingerprint: "PER_WORKSPACE",
-    severity: "threshold on heartbeat age",
+    fingerprint: "PLATFORM",
+    severity: "the fleet authority's stale window, escalated at four windows",
     disposition: "OPERATIONS_INCIDENT",
     remediation: "platform operations (deep link withheld from tenants)",
+  },
+  {
+    // OPS-022 — real BullMQ final failures, one platform fact per queue.
+    name: "Background job failures",
+    writer: "operations/platform-conditions.service.ts",
+    evidence: `"platform:job_failure:"`,
+    category: "WORKER",
+    fingerprint: "PLATFORM",
+    severity: "final failures inside the window, HIGH at QUEUE_FAILURE_HIGH_COUNT",
+    disposition: "OPERATIONS_INCIDENT",
+    remediation: "the platform queue console (inspect and replay)",
   },
   {
     name: "Finalized but unsigned, aged",
@@ -260,10 +257,13 @@ const SOURCES: readonly Source[] = [
 // 1. EVERY DECLARED SOURCE EXISTS IN THE TREE
 // ===========================================================================
 
+const PLATFORM_CONDITIONS = read("../src/services/operations/platform-conditions.service.ts");
+
 const WRITER_SOURCE: Record<string, string> = {
   "evidence-integrity-conditions.service.ts": INTEGRITY,
   "incident-generator.service.ts": GENERATOR,
   "operations/operations-source-probes.ts": PROBES,
+  "operations/platform-conditions.service.ts": PLATFORM_CONDITIONS,
 };
 
 /** Where a source's fingerprint literal must be: its identity owner. */
@@ -389,6 +389,27 @@ describe("fingerprint strategy is a deliberate property of each source", () => {
     );
     // …and the sweep uses that function rather than rebuilding the string.
     expect(GENERATOR).toContain("aggregateFingerprint(spec, ctx.teamId)");
+  });
+
+  it("platform sources key on NOTHING tenant-shaped, and are written with platform scope", () => {
+    for (const s of SOURCES.filter((x) => x.fingerprint === "PLATFORM")) {
+      expect(WRITER_SOURCE[s.writer], s.name).toContain(s.evidence);
+    }
+    expect(PLATFORM_CONDITIONS).not.toMatch(/teamId:\s*(?!null)[a-zA-Z]/);
+    expect(PLATFORM_CONDITIONS.match(/platform:\s*true/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+  });
+
+  it("OPS-001 / OPS-002 — the retired false signals have no discovery spec anywhere", () => {
+    for (const retired of [
+      "dashboard:reliability:retry_storms",
+      "dashboard:telemetry:queue_stale",
+      "dashboard:worker:heartbeat_stale",
+      "queue.retry_storm_count",
+      "platform.telemetry_age",
+    ]) {
+      expect(PROBES, retired).not.toContain(`"${retired}"`);
+      expect(GENERATOR, retired).not.toContain(retired);
+    }
   });
 
   it("no aggregate fingerprint is built anywhere but the one function", () => {

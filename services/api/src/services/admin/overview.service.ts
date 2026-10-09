@@ -428,6 +428,9 @@ export async function buildPlatformOverview(
     ),
     m("Telemetry sample", () =>
       prisma.queueTelemetrySnapshot.findFirst({
+        // OPS-001 — only the worker sampler measures queues. Historical
+        // DB_DERIVED rows were written by Home page visits.
+        where: { source: "BULLMQ" },
         orderBy: { sampledAtUtc: "desc" },
         select: { sampledAtUtc: true },
       }),

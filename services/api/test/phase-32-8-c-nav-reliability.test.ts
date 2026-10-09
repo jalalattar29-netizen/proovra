@@ -207,13 +207,20 @@ describe("Phase 32.8C+++++++ — ops-health evaluators", () => {
     expect(OPS_TYPES).toMatch(/case\s+"FAILED":\s*\n?\s*return\s+"critical"/);
   });
 
-  it("telemetry evaluator distinguishes STALE (worker fresh) from FAILED (worker dead)", () => {
-    expect(TELEMETRY_HEALTH).toMatch(
-      /status:\s*"STALE"[\s\S]{0,400}heartbeat last recorded[\s\S]{0,200}worker is likely overloaded/i,
-    );
-    expect(TELEMETRY_HEALTH).toMatch(
-      /status:\s*"FAILED"[\s\S]{0,400}beyond the failure threshold/,
-    );
+  it("telemetry evaluator asks the ONE worker-fleet authority and states it coarsely (OPS-001 / OPS-009)", () => {
+    // It used to grade page-visit QueueTelemetrySnapshot rows WHERE teamId =
+    // the workspace, with a second set of heartbeat thresholds. It now has no
+    // database read of its own and no threshold of its own.
+    expect(TELEMETRY_HEALTH).toMatch(/await getWorkerFleetHealth\(\)/);
+    expect(TELEMETRY_HEALTH).not.toMatch(/prisma\./);
+    expect(TELEMETRY_HEALTH).not.toMatch(/TelemetrySnapshot\./);
+    // Each fleet verdict maps to a distinct state; unknown is never healthy.
+    expect(TELEMETRY_HEALTH).toMatch(/case "HEALTHY":[\s\S]{0,80}status:\s*"HEALTHY"/);
+    expect(TELEMETRY_HEALTH).toMatch(/case "STALE":[\s\S]{0,80}status:\s*"STALE"/);
+    expect(TELEMETRY_HEALTH).toMatch(/case "NOT_MEASURED":[\s\S]{0,80}status:\s*"DISCONNECTED"/);
+    expect(TELEMETRY_HEALTH).toMatch(/default:[\s\S]{0,80}status:\s*"UNAVAILABLE"/);
+    // Customer-safe: no worker ids or ages in the words.
+    expect(TELEMETRY_HEALTH).not.toMatch(/workerId|ageSeconds/);
   });
 
   it("reconcile evaluator never paints UNAVAILABLE when worker is alive", () => {

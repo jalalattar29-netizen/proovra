@@ -1,0 +1,15 @@
+   × Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-001 a Home page visit writes no telemetry; discovery never produces a telemetry-sampler condition 
+     → expected '{"generatedAt":"2026-10-09T05:41:14.4…' not to contain 'retryStormIncidents'
+   × Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-002 re-observed workspace conditions are never reported as a queue retry storm 
+     → expected 2 to be +0 // Object.is equality
+   × Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-009 worker liveness is ONE platform condition across workspaces, closed by a live heartbeat 
+     → expected [] to deeply equal [ { teamId: null, …(2) } ]
+   × Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-022 a real BullMQ final failure is ONE platform condition per queue, resolved when the window clears 
+     → Cannot find module '../src/services/operations/platform-conditions.service.js' imported from 'D:/pv-ops-base/services/api/test/operations-truth-platform.integration.test.ts'
+   × Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-027 a provider credential refusal is ONE stable platform condition, closed by the next answered call 
+     → expected [ { teamId: null, …(4) } ] to deeply equal [ { teamId: null, …(4) } ]
+   × Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-024 replay is failed-only, completed and concurrent duplicates are 409, the audit records BullMQ's state, a customer owner is refused 
+     → expected 404 to be 409 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  6 failed (6)

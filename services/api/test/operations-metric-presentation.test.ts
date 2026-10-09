@@ -176,15 +176,17 @@ describe("the label is the source's, and carries no count", () => {
     expect(projected.lifecycle.sourceId).toBe("pipeline.report_backlog");
   });
 
-  it("...and so does the telemetry row whose title carried an elapsed time", () => {
+  it("...and so does the heartbeat row whose title carried an elapsed time", () => {
+    // A per-workspace heartbeat copy written before OPS-009: no source id, the
+    // age baked into the title. It still reaches its contract and its label.
     const projected = projectIncident(
       row({
         category: "WORKER",
-        fingerprint: `dashboard:telemetry:queue_stale:${TEAM}`,
-        title: "Queue telemetry sampler delayed (902m)",
+        fingerprint: `dashboard:worker:heartbeat_stale:${TEAM}`,
+        title: "Worker heartbeat stale (902m)",
       }),
     );
-    expect(projected.title).toBe("Queue telemetry sampler delayed");
+    expect(projected.title).toBe("Worker heartbeat stale");
     expect(projected.title).not.toMatch(/902/);
     // The CONTRACT travels with it, so the browser knows the number it will
     // receive is an age and not a population.
@@ -194,14 +196,29 @@ describe("the label is the source's, and carries no count", () => {
   it("a row with a DECLARED source uses its label too", () => {
     const projected = projectIncident(
       row({
+        sourceId: "job.background_failure",
+        category: "WORKER",
+        fingerprint: "platform:job_failure:search-indexing",
+        title: "Background jobs failing: Search indexing (5)",
+      }),
+    );
+    expect(projected.title).toBe("Background jobs failing");
+    expect(projected.lifecycle.sourceMatch).toBe("DECLARED");
+  });
+
+  it("OPS-002 — a stored row of a RETIRED false signal says it is retired", () => {
+    // The old title claimed thirty-six "repeat incidents" were a retry storm.
+    // The label an operator now reads states what the row is: history.
+    const projected = projectIncident(
+      row({
         sourceId: "queue.retry_storm",
         category: "WORKER",
         fingerprint: `dashboard:reliability:retry_storms:${TEAM}`,
         title: "Retry storm pattern detected (36 repeat incidents)",
       }),
     );
-    expect(projected.title).toBe("Queue retry storm");
-    expect(projected.lifecycle.sourceMatch).toBe("DECLARED");
+    expect(projected.title).toBe("Queue retry storm (retired)");
+    expect(projected.lifecycle.resolutionAuthority).toBe("NO_DIRECT_RESOLUTION");
   });
 
   it("AN UNREGISTERED ROW KEEPS ITS STORED TITLE", () => {
@@ -223,8 +240,8 @@ describe("the label is the source's, and carries no count", () => {
   });
 
   it("conditionDisplayLabel is total over the three match kinds", () => {
-    const declared = resolveConditionSource({ sourceId: "queue.retry_storm" });
-    expect(conditionDisplayLabel(declared, "stored")).toBe("Queue retry storm");
+    const declared = resolveConditionSource({ sourceId: "platform.worker_heartbeat_stale" });
+    expect(conditionDisplayLabel(declared, "stored")).toBe("Worker heartbeat stale");
 
     const legacy = resolveConditionSource({
       fingerprint: "dashboard:pipeline:report_backlog:t1",
@@ -304,38 +321,38 @@ describe("the three quantities are distinct fields", () => {
     expect(g.title).not.toMatch(/[0-9]/);
   });
 
-  it("A RETRY-STORM GROUP COUNTS CONDITIONS, NOT RECORDS", () => {
+  it("A QUEUE-FAILURE GROUP COUNTS FAILED JOBS, NOT RECORDS", () => {
     // The unit used to be hard-coded "records" on BOTH sides — server and
-    // browser — so this group said "36 affected records" about thirty-six
-    // repeatedly-observed conditions, and an operator who went looking for
-    // thirty-six affected evidence records would have found none.
+    // browser. A queue whose jobs failed after exhausting their retries
+    // affects JOBS; "5 affected records" would send an operator looking for
+    // evidence records that do not exist.
     const [g] = projectConditionGroups([
       condition({
         category: "WORKER",
-        sourceId: "queue.retry_storm",
-        fingerprint: "dashboard:reliability:retry_storms:t1",
-        title: "Retry storm pattern detected (36 repeat incidents)",
+        sourceId: "job.background_failure",
+        fingerprint: "platform:job_failure:search-indexing",
+        title: "Background jobs failing: Search indexing",
         metric: metric({
-          currentValue: 36,
+          currentValue: 5,
           thresholdValue: 1,
-          criticalThresholdValue: 3,
-          unit: "conditions",
+          criticalThresholdValue: 5,
+          unit: "items",
         }),
       }),
     ]);
-    expect(g.affectedRecordCount).toBe(36);
-    expect(g.affectedUnit).toBe("conditions");
-    expect(g.metric?.unit).toBe("conditions");
-    expect(g.title).toBe("Queue retry storm");
+    expect(g.affectedRecordCount).toBe(5);
+    expect(g.affectedUnit).toBe("items");
+    expect(g.metric?.unit).toBe("items");
+    expect(g.title).toBe("Background jobs failing");
   });
 
   it("AN AGE IS A DURATION, NOT A POPULATION", () => {
     const [g] = projectConditionGroups([
       condition({
         category: "WORKER",
-        sourceId: "platform.telemetry_stale",
-        fingerprint: "dashboard:telemetry:queue_stale:t1",
-        title: "Queue telemetry sampler delayed (902m)",
+        sourceId: "platform.worker_heartbeat_stale",
+        fingerprint: "platform:worker_heartbeat_stale",
+        title: "Worker heartbeat stale (902m)",
         metric: metric({
           currentValue: 902,
           thresholdValue: 15,

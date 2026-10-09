@@ -96,9 +96,7 @@ function describeAge(group: IncidentGroup): string | null {
   if (group.durationSeconds == null) return null;
   const span = describeDuration(group.durationSeconds);
   if (span === "—") return null;
-  return group.sourceId === "platform.telemetry_stale"
-    ? `Last telemetry sample ${span} ago`
-    : `Last observed ${span} ago`;
+  return `Last observed ${span} ago`;
 }
 
 export function GroupSurface({

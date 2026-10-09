@@ -115,7 +115,17 @@ describe("each representation matches the source's own lifecycle contract", () =
     for (const id of registryIds) {
       const lifecycle = lifecycleFor(id);
       if (lifecycle?.audience !== "PLATFORM_INTERNAL") continue;
-      expect(representationFor(id)?.kind, `${id} is PLATFORM_INTERNAL`).toBe("PLATFORM");
+      // A RETIRED false signal (OPS-001 / OPS-002) is not even the advisory:
+      // it is nothing, and that is decided by the lifecycle, not by the map.
+      const expected = lifecycle.discoveryState === "RETIRED" ? "RETIRED" : "PLATFORM";
+      expect(representationFor(id)?.kind, `${id} is PLATFORM_INTERNAL`).toBe(expected);
+    }
+  });
+
+  it("only a lifecycle-RETIRED source may be represented as RETIRED", () => {
+    for (const id of registryIds) {
+      if (representationFor(id)?.kind !== "RETIRED") continue;
+      expect(lifecycleFor(id)?.discoveryState, id).toBe("RETIRED");
     }
   });
 
@@ -253,24 +263,31 @@ describe("the reported reproduction", () => {
     { sourceId: "security.unclassified_signal", conditionCount: 1, statusPosture: "OPEN" },
   ];
 
-  it("produces a real row for each, not one generic sentence", () => {
+  /*
+   * OPS-001 / OPS-002 — two of those three were FALSE signals: the "telemetry
+   * sampler" measured Home page visits and the "retry storm" counted
+   * re-observed conditions, not job retries. Both are retired and no longer
+   * produced. A stored row of either must reach Home as NOTHING — not a
+   * workspace row, and not the "a platform service is degraded" advisory,
+   * which would restate the false signal in vaguer words. The real one keeps
+   * its own row.
+   */
+  it("the real condition keeps its row; the retired false signals produce nothing", () => {
     const vm = withGroups(REPRO);
-    expect(keys(vm)).toEqual(
-      expect.arrayContaining([
-        "ops:platform.telemetry_stale",
-        "ops:queue.retry_storm",
-        "ops:security.unclassified_signal",
-      ]),
-    );
-    expect(vm.workspacePriorities.length).toBeGreaterThanOrEqual(3);
+    expect(keys(vm)).toEqual(["ops:security.unclassified_signal"]);
   });
 
-  it("the rows read as product language", () => {
+  it("a retired source alone leaves Home with no attention row at all", () => {
+    const vm = withGroups(REPRO.slice(0, 2));
+    expect(keys(vm)).toEqual([]);
+  });
+
+  it("the remaining row reads as product language", () => {
     const vm = withGroups(REPRO);
     const row = vm.workspacePriorities.find(
-      (p: { key: string }) => p.key === "ops:queue.retry_storm",
+      (p: { key: string }) => p.key === "ops:security.unclassified_signal",
     ) as { label: string; href: string };
-    expect(row.label).toBe("Background processing is retrying repeatedly");
+    expect(row.label).toBe("A security signal needs review");
     expect(row.href).toBe("/operations");
   });
 });

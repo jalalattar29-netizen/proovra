@@ -16,6 +16,7 @@
  */
 
 import { prisma } from "../../db.js";
+import { getWorkerFleetHealth } from "../operations/worker-liveness.service.js";
 import type { OpsHealthState } from "./types.js";
 import { severityForStatus } from "./types.js";
 
@@ -26,8 +27,7 @@ export async function evaluateReconcileHealth(input: {
   teamId: string;
 }): Promise<OpsHealthState> {
   let heartbeat: { createdAt: Date } | null = null;
-  let workerHb: { heartbeatAtUtc: Date } | null = null;
-  let workerOk = true;
+  let workerAlive = false;
   try {
     heartbeat = await prisma.securityEvent.findFirst({
       where: { teamId: input.teamId, eventType: "reviewer_reconcile_run" },
@@ -37,24 +37,19 @@ export async function evaluateReconcileHealth(input: {
   } catch {
     /* read failure → degrade-not-fail below */
   }
+  // OPS-009 — ONE liveness authority. This used to read the newest
+  // WorkerTelemetrySnapshot with its own 15-minute threshold, beside the
+  // canonical fleet verdict; a worker could be "alive" here and STALE there.
   try {
-    workerHb = await prisma.workerTelemetrySnapshot.findFirst({
-      where: { workerKind: "WORKER" },
-      orderBy: { heartbeatAtUtc: "desc" },
-      select: { heartbeatAtUtc: true },
-    });
+    workerAlive = (await getWorkerFleetHealth()).state === "HEALTHY";
   } catch {
-    workerOk = false;
+    workerAlive = false;
   }
 
   const now = Date.now();
   const reconcileAgeH = heartbeat
     ? (now - heartbeat.createdAt.getTime()) / 3_600_000
     : null;
-  const workerAgeM = workerHb
-    ? (now - workerHb.heartbeatAtUtc.getTime()) / 60_000
-    : null;
-  const workerAlive = workerOk && workerAgeM !== null && workerAgeM < 15;
 
   if (heartbeat === null && !workerAlive) {
     return finalize({

@@ -1121,7 +1121,7 @@ export function describeGroupAge(g: Pick<IncidentGroup, "durationSeconds" | "sou
   if (g.durationSeconds == null) return null;
   const span = describeDuration(g.durationSeconds);
   if (span === "—") return null;
-  return g.sourceId === "platform.telemetry_stale" ? `Last telemetry sample ${span} ago` : `Last observed ${span} ago`;
+  return `Last observed ${span} ago`;
 }
 
 /** The ONE quantity a group row states: age, else affected count, else conditions. */

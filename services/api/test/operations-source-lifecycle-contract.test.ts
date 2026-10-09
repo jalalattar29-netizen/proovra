@@ -170,13 +170,24 @@ describe("§13.1 — the contract is total, and there is no default", () => {
       "pipeline.signed_without_report_aged",
       "review.stale_workflows",
       "coordination.backlog_stale",
-      "queue.retry_storm",
-      "platform.telemetry_stale",
       "platform.worker_heartbeat_stale",
+      "job.background_failure",
     ]) {
       expect(lifecycleForSourceId(id)!.resolutionAuthority, id).toBe(
         "SOURCE_TRUTH",
       );
+    }
+  });
+
+  it("OPS-001 / OPS-002 — the retired false signals are RETIRED: no producer, no probe, no Resolve, platform-internal", () => {
+    for (const id of ["queue.retry_storm", "platform.telemetry_stale"]) {
+      const s = lifecycleForSourceId(id)!;
+      expect(s.discoveryState, id).toBe("RETIRED");
+      expect(s.producers, id).toEqual([]);
+      expect(s.activityProbeKey, id).toBe("NONE");
+      expect(s.resolutionAuthority, id).toBe("NO_DIRECT_RESOLUTION");
+      expect(s.audience, id).toBe("PLATFORM_INTERNAL");
+      expect(offersManualResolution(s), id).toBe(false);
     }
   });
 
@@ -232,17 +243,26 @@ describe("§2 — a condition resolves to its source by DECLARED id", () => {
 
   it("four sources write category WORKER and the fingerprint tells them apart", () => {
     // The precise reason a category-keyed rule could not work. All four are
-    // WORKER; all four resolve to different sources.
-    const workerSources = aggregateSpecs().filter((s) => s.category === "WORKER");
-    expect(workerSources.length).toBeGreaterThanOrEqual(4);
-    const resolved = workerSources.map(
-      (s) =>
-        resolveConditionSource({
-          category: "WORKER",
-          fingerprint: aggregateFingerprint(s, TEAM),
-        }).lifecycle.sourceId,
-    );
-    expect(new Set(resolved).size).toBe(workerSources.length);
+    // WORKER; all four resolve to different sources. Three of the four are
+    // historical rows now (the retired false signals, and the per-workspace
+    // heartbeat copies OPS-009 replaced) — and a stored row must still be
+    // attributed to the RIGHT source so the reconciliation can close it.
+    const fingerprints: Array<[string, string]> = [
+      ...aggregateSpecs()
+        .filter((s) => s.category === "WORKER")
+        .map((s) => [aggregateFingerprint(s, TEAM), s.sourceId] as [string, string]),
+      [`dashboard:reliability:retry_storms:${TEAM}`, "queue.retry_storm"],
+      [`dashboard:telemetry:queue_stale:${TEAM}`, "platform.telemetry_stale"],
+      [`dashboard:worker:heartbeat_stale:${TEAM}`, "platform.worker_heartbeat_stale"],
+    ];
+    expect(fingerprints.length).toBeGreaterThanOrEqual(4);
+    for (const [fingerprint, expected] of fingerprints) {
+      expect(
+        resolveConditionSource({ category: "WORKER", fingerprint }).lifecycle.sourceId,
+        fingerprint,
+      ).toBe(expected);
+    }
+    expect(new Set(fingerprints.map(([, id]) => id)).size).toBe(fingerprints.length);
   });
 
   it("per-record integrity fingerprints resolve to their own class", () => {

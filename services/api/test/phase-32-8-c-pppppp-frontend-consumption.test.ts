@@ -134,67 +134,44 @@ describe("Phase 32.8C++++++ — backend contract exposes TSA issuer fields", () 
 // PART 3 — CommandCenter.tsx renders worker heartbeats
 // =============================================================================
 
-describe("Phase 32.8C++++++ — worker heartbeats UI", () => {
-  it("renders the workerHeartbeats list with data-cc-worker-heartbeats hook", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-worker-heartbeats\b/);
+/**
+ * OPS-001 / OPS-010 — worker heartbeats and queue snapshots are PLATFORM facts.
+ *
+ * The workspace Command Center used to list every worker's id, kind, status
+ * and heartbeat age, and every queue snapshot — including the "DB-derived"
+ * rows the dashboard itself wrote on page load — to any workspace member. The
+ * old pins asserted that list's markup. The contract now is that a workspace
+ * surface renders none of it and decides no worker freshness of its own; the
+ * platform queue console owns both.
+ */
+describe("OPS-001 / OPS-010 — no platform telemetry on the workspace Command Center", () => {
+  it("renders no worker heartbeat list and no worker identity", () => {
+    expect(COMMAND_CENTER_TSX).not.toMatch(/data-cc-worker-heartbeats\b/);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/data-cc-worker-kind|data-cc-worker-status/);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/h\.ageSeconds|workerStatusSeverity/);
   });
 
-  it("renders workerKind + status + ageSeconds", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-worker-kind/);
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-worker-status/);
-    expect(COMMAND_CENTER_TSX).toMatch(/h\.ageSeconds/);
+  it("decides no worker freshness of its own (one liveness authority)", () => {
+    expect(COMMAND_CENTER_TSX).not.toMatch(/WORKER_HEARTBEAT_STALE_SECONDS|QUEUE_SAMPLE_STALE_SECONDS/);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/classifyTelemetryFreshness/);
   });
 
-  it("flags stale heartbeats via data-cc-stale when ageSeconds > 300", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/WORKER_HEARTBEAT_STALE_SECONDS\s*=\s*300/);
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-stale=/);
-    expect(COMMAND_CENTER_TSX).toMatch(/Heartbeat stale/);
+  it("renders no queue snapshot list and no DB-derived source label", () => {
+    expect(COMMAND_CENTER_TSX).not.toMatch(/data-cc-queue-snapshots\b/);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/data-cc-queue-source/);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/q\.(waitingCount|activeCount|delayedCount|failedCount|stalledCount)/);
   });
 
-  it("does NOT render raw stack traces or lastErrorMessage longer than 400 chars (bounded by backend)", () => {
-    // Backend bounds lastErrorMessage to 400 chars; the UI surfaces only
-    // lastErrorCode and the bounded fields. Verify no raw stack-trace
-    // rendering hook exists.
-    expect(COMMAND_CENTER_TSX).not.toMatch(/lastErrorMessage[^A-Za-z]/);
-    expect(COMMAND_CENTER_TSX).not.toMatch(/data-cc-worker-stack/);
+  it("OPS-002 — renders no retry-storm tile", () => {
+    expect(COMMAND_CENTER_TSX).not.toMatch(/retry_storms|Retry storms|retryStormIncidents/);
   });
 
-  it("renders status chips for CRITICAL/DEGRADED with severe styling", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/workerStatusSeverity/);
-  });
-});
-
-// =============================================================================
-// PART 4 — CommandCenter.tsx renders queue snapshots
-// =============================================================================
-
-describe("Phase 32.8C++++++ — queue snapshots UI", () => {
-  it("renders the queue snapshots list with data-cc-queue-snapshots hook", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-queue-snapshots\b/);
-  });
-
-  it("renders queueName + queueDomain + source label", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-queue-name/);
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-queue-domain/);
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-queue-source/);
-  });
-
-  it("renders source labels honestly (BullMQ / DB_DERIVED)", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/data-cc-queue-source-label/);
-  });
-
-  it("renders waiting/active/delayed/failed/stalled counts", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(/q\.waitingCount/);
-    expect(COMMAND_CENTER_TSX).toMatch(/q\.activeCount/);
-    expect(COMMAND_CENTER_TSX).toMatch(/q\.delayedCount/);
-    expect(COMMAND_CENTER_TSX).toMatch(/q\.failedCount/);
-    expect(COMMAND_CENTER_TSX).toMatch(/q\.stalledCount/);
-  });
-
-  it("never renders raw job payloads, storage keys, or signed URLs", () => {
+  it("never renders raw job payloads, storage keys, signed URLs or stack traces", () => {
     expect(COMMAND_CENTER_TSX).not.toMatch(/jobPayload/i);
     expect(COMMAND_CENTER_TSX).not.toMatch(/storageKey/i);
     expect(COMMAND_CENTER_TSX).not.toMatch(/signedUrl/i);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/lastErrorMessage[^A-Za-z]/);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/data-cc-worker-stack/);
   });
 });
 
@@ -291,10 +268,9 @@ describe("Phase 32.8C++++++ — obsolete UI copy removed", () => {
     expect(COMMAND_CENTER_TSX).not.toMatch(/singular caseId/);
   });
 
-  it("Queue / Worker Telemetry section foot points at WorkerTelemetrySnapshot", () => {
-    expect(COMMAND_CENTER_TSX).toMatch(
-      /persisted\s+to\s+WorkerTelemetrySnapshot/,
-    );
+  it("OPS-001 — the section no longer claims the API writes DB-derived counts on dashboard load", () => {
+    expect(COMMAND_CENTER_TSX).not.toMatch(/written by the API on\s+dashboard load/);
+    expect(COMMAND_CENTER_TSX).not.toMatch(/persisted\s+to\s+WorkerTelemetrySnapshot/);
   });
 });
 
@@ -359,18 +335,9 @@ describe("Phase 32.8C++++++ — viewer read-only preserved", () => {
     expect(newBlock![0]).not.toMatch(/onSubmit/);
   });
 
-  it("worker heartbeat list is a pure read-only ul (no resolve/dismiss buttons)", () => {
+  it("the queue/worker section carries no write control at all", () => {
     const block = COMMAND_CENTER_TSX.match(
-      /data-cc-worker-heartbeats[\s\S]*?<\/ul>/,
-    );
-    expect(block).not.toBeNull();
-    expect(block![0]).not.toMatch(/<button/);
-    expect(block![0]).not.toMatch(/onClick/);
-  });
-
-  it("queue snapshots list is a pure read-only ul", () => {
-    const block = COMMAND_CENTER_TSX.match(
-      /data-cc-queue-snapshots[\s\S]*?<\/ul>/,
+      /function QueueWorkerTelemetryBoard\([\s\S]*?<\/SectionShell>/,
     );
     expect(block).not.toBeNull();
     expect(block![0]).not.toMatch(/<button/);

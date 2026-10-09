@@ -64,6 +64,7 @@ import {
 
 import { reconcileWorkspaceOperations } from "../services/operations/operations-reconciliation.service.js";
 import { sweepUnscopedSourceTruthRecoveries } from "../services/operations/source-truth-recovery.service.js";
+import { reconcilePlatformConditions } from "../services/operations/platform-conditions.service.js";
 
 /**
  * How many workspaces one tick will touch.
@@ -214,6 +215,16 @@ export async function runWorkspaceOperationsSweep(
     } catch {
       result.failed += 1;
     }
+  }
+
+  // PLATFORM CONDITIONS (OPS-001 / OPS-009 / OPS-022). Worker liveness and
+  // real queue failures are recorded ONCE per tick as PLATFORM rows, read from
+  // the worker-fleet and queue-inventory authorities — never once per
+  // workspace and never from a page visit. It never throws.
+  try {
+    await reconcilePlatformConditions();
+  } catch {
+    result.failed += 1;
   }
 
   result.durationMs = Date.now() - startedAt;

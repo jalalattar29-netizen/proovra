@@ -1340,7 +1340,7 @@ function PredictiveRiskBoard({
       >
         <EnterpriseEmpty
           title="No deterministic risk signals firing"
-          body="The forecast is computed from real engine outputs (reviewer + governance + pipeline + audit + retry-storm signals). Forecasts appear here when concrete thresholds are crossed."
+          body="The forecast is computed from real engine outputs (reviewer + governance + pipeline + audit signals). Forecasts appear here when concrete thresholds are crossed."
           hint="This is a deterministic heuristic forecast — not an ML prediction or AI insight."
         />
       </SectionShell>
@@ -1844,64 +1844,6 @@ function AccessSecurityClassifierBoard({
   );
 }
 
-/**
- * Stale-heartbeat threshold (seconds). A worker telemetry row older than
- * this is rendered with the `data-cc-stale="true"` flag so operators can
- * see the silence visually.
- */
-const WORKER_HEARTBEAT_STALE_SECONDS = 300;
-
-/**
- * Freshness threshold for queue snapshot samples (seconds). Samples
- * older than this trigger the "telemetry delayed" degradation banner —
- * the sampler is running but its last write is stale.
- */
-const QUEUE_SAMPLE_STALE_SECONDS = 600;
-
-/**
- * Telemetry freshness classifier.
- *
- * Returns:
- *  - `healthy_empty` — no rows yet AND no observed stale samples; this
- *    is the legitimate "platform is up but hasn't sampled yet" state.
- *  - `healthy`       — rows exist and the freshest sample is within
- *    the threshold.
- *  - `delayed`       — rows exist but the freshest sample is older than
- *    the threshold (telemetry is delayed, NOT unavailable).
- *  - `unavailable`   — the upstream meta says the read could not
- *    complete at all.
- */
-type TelemetryFreshness = "healthy_empty" | "healthy" | "delayed" | "unavailable";
-
-function classifyTelemetryFreshness(opts: {
-  metaStatus: SectionStatus;
-  freshestSampleUtc: string | null;
-  staleAfterSeconds: number;
-}): TelemetryFreshness {
-  if (opts.metaStatus === "unavailable") return "unavailable";
-  if (!opts.freshestSampleUtc) return "healthy_empty";
-  const ageSeconds = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(opts.freshestSampleUtc).getTime()) / 1000),
-  );
-  return ageSeconds > opts.staleAfterSeconds ? "delayed" : "healthy";
-}
-
-function workerStatusSeverity(
-  status: string,
-): "info" | "warning" | "high" | "critical" {
-  switch (status) {
-    case "CRITICAL":
-      return "critical";
-    case "DEGRADED":
-      return "high";
-    case "UNKNOWN":
-      return "warning";
-    default:
-      return "info";
-  }
-}
-
 function QueueWorkerTelemetryBoard({
   section,
   telemetryHealth,
@@ -1914,29 +1856,10 @@ function QueueWorkerTelemetryBoard({
   reconcileHealth?: NonNullable<CommandCenterEnvelope["opsHealth"]>["reconcile"] | null;
 }) {
   const d = section.data;
-  const snapshots = d?.queueSnapshots ?? [];
-  const heartbeats = d?.workerHeartbeats ?? [];
-  // Phase 32.8C closure pass — compute freshness directly so the worker
-  // being silently up but never having sampled doesn't render as a
-  // "unavailable" red card. `healthy_empty` means the platform is up
-  // but hasn't sampled yet; `delayed` means the sampler is running but
-  // its last write is older than the threshold.
-  const queueFreshness = classifyTelemetryFreshness({
-    metaStatus: section.meta.status,
-    freshestSampleUtc: snapshots[0]?.sampledAtUtc ?? null,
-    staleAfterSeconds: QUEUE_SAMPLE_STALE_SECONDS,
-  });
-  const workerFreshness = classifyTelemetryFreshness({
-    metaStatus: section.meta.status,
-    freshestSampleUtc: heartbeats[0]?.heartbeatAtUtc ?? null,
-    staleAfterSeconds: WORKER_HEARTBEAT_STALE_SECONDS * 2,
-  });
-  if (
-    section.meta.status === "unavailable" &&
-    snapshots.length === 0 &&
-    heartbeats.length === 0
-  ) {
-    // Truly unavailable: meta says read failed AND no fallback data.
+  if (section.meta.status === "unavailable") {
+    // The section's own read failed. There are no snapshot or heartbeat rows
+    // to fall back on any more (OPS-001 / OPS-010: platform facts, not shown
+    // to a workspace), so the section says only that its read degraded.
     return (
       <SectionShell
         kicker="Queue / Worker Telemetry"
@@ -1979,19 +1902,6 @@ function QueueWorkerTelemetryBoard({
         health={telemetryHealth ?? null}
       />
 
-      {queueFreshness === "delayed" || workerFreshness === "delayed" ? (
-        <div
-          className="ec-section-note"
-          data-cc-section-status="degraded"
-          data-cc-section-kind="queue-worker-telemetry"
-          data-cc-telemetry-freshness="delayed"
-          role="status"
-        >
-          Telemetry sampler returning delayed snapshots. The worker remains
-          operational; the latest sample is older than the freshness
-          threshold.
-        </div>
-      ) : null}
       <div className="ec-tile-grid" data-cc-queue-telemetry-tiles>
         <div className="ec-tile" data-cc-queue-telemetry-tile="heartbeat" data-cc-tile-severe={d.reconcileHealth === "UNAVAILABLE" || d.reconcileHealth === "STALE" ? "true" : "false"}>
           <span className="ec-tile-value">{d.reconcileHealth}</span>
@@ -2017,175 +1927,11 @@ function QueueWorkerTelemetryBoard({
           <span className="ec-tile-value">{d.packageQueuePending}</span>
           <span className="ec-tile-label">Package queue pending</span>
         </div>
-        <div
-          className="ec-tile"
-          data-cc-queue-telemetry-tile="retry_storms"
-          data-cc-tile-severe={d.retryStormIncidents > 0 ? "true" : "false"}
-        >
-          <span className="ec-tile-value">{d.retryStormIncidents}</span>
-          <span className="ec-tile-label">Retry storms</span>
-        </div>
       </div>
 
-      {/* Phase 32.8C++++++ — Worker heartbeats from WorkerTelemetrySnapshot. */}
-      <div
-        className="ec-subsection"
-        data-cc-worker-heartbeats-block
-        aria-label="Worker heartbeats"
-      >
-        <div className="ec-subsection-head">
-          <h3 className="ec-subsection-title">Worker heartbeats</h3>
-          <span className="ec-chip-faint">
-            {heartbeats.length === 0
-              ? "No worker heartbeats yet"
-              : `${heartbeats.length} active worker${heartbeats.length === 1 ? "" : "s"}`}
-          </span>
-        </div>
-        {heartbeats.length === 0 ? (
-          <EnterpriseEmpty
-            title="No worker heartbeats yet"
-            body="Worker telemetry snapshots populate once the worker sampler has emitted at least one heartbeat."
-          />
-        ) : (
-          <ul className="ec-telemetry-list" data-cc-worker-heartbeats>
-            {heartbeats.map((h) => {
-              const isStale = h.ageSeconds > WORKER_HEARTBEAT_STALE_SECONDS;
-              return (
-                <li
-                  key={`${h.workerKind}:${h.workerId}`}
-                  className="ec-telemetry-row"
-                  data-cc-worker-id={h.workerId}
-                  data-cc-worker-kind={h.workerKind}
-                  data-cc-worker-status={h.status}
-                  data-cc-stale={isStale ? "true" : "false"}
-                  data-cc-coord-severity={workerStatusSeverity(h.status)}
-                >
-                  <div className="ec-telemetry-row-main">
-                    <span className="ec-telemetry-label">{h.workerKind}</span>
-                    <span
-                      className="ec-chip"
-                      data-cc-tile-severe={
-                        h.status === "CRITICAL" || h.status === "DEGRADED" || isStale
-                          ? "true"
-                          : "false"
-                      }
-                    >
-                      {h.status}
-                    </span>
-                    {isStale ? (
-                      <span className="ec-chip" data-cc-stale-flag>
-                        Heartbeat stale
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="ec-telemetry-meta">
-                    <span data-cc-worker-id-label title={h.workerId}>
-                      {h.workerId.length > 24
-                        ? `${h.workerId.slice(0, 24)}…`
-                        : h.workerId}
-                    </span>
-                    <time dateTime={h.heartbeatAtUtc} className="ec-chip-faint">
-                      heartbeat {relTime(h.heartbeatAtUtc)}
-                    </time>
-                    {h.processedCount !== null && h.processedCount !== undefined ? (
-                      <span className="ec-chip-faint">
-                        {h.processedCount} processed
-                      </span>
-                    ) : null}
-                    {h.failedCount !== null && h.failedCount !== undefined && h.failedCount > 0 ? (
-                      <span
-                        className="ec-chip"
-                        data-cc-tile-severe="true"
-                      >
-                        {h.failedCount} failed
-                      </span>
-                    ) : null}
-                    {h.lastErrorCode ? (
-                      <span className="ec-chip" data-cc-tile-severe="true">
-                        {h.lastErrorCode}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      {/* Phase 32.8C++++++ — Queue snapshots from QueueTelemetrySnapshot. */}
-      <div
-        className="ec-subsection"
-        data-cc-queue-snapshots-block
-        aria-label="Queue snapshots"
-      >
-        <div className="ec-subsection-head">
-          <h3 className="ec-subsection-title">Queue snapshots</h3>
-          <span className="ec-chip-faint">
-            {snapshots.length === 0
-              ? "No queue samples yet"
-              : `${snapshots.length} queue${snapshots.length === 1 ? "" : "s"}`}
-          </span>
-        </div>
-        {snapshots.length === 0 ? (
-          <EnterpriseEmpty
-            title="No queue telemetry yet"
-            body="Queue snapshots populate from the worker BullMQ sampler or the API DB-derived writer on first dashboard read."
-          />
-        ) : (
-          <ul className="ec-telemetry-list" data-cc-queue-snapshots>
-            {snapshots.map((q) => (
-              <li
-                key={`${q.queueName}:${q.sampledAtUtc}`}
-                className="ec-telemetry-row"
-                data-cc-queue-name={q.queueName}
-                data-cc-queue-domain={q.queueDomain}
-                data-cc-queue-source={q.source}
-                data-cc-tile-severe={
-                  q.failedCount > 0 || q.stalledCount > 0 ? "true" : "false"
-                }
-              >
-                <div className="ec-telemetry-row-main">
-                  <span className="ec-telemetry-label">{q.queueName}</span>
-                  <span className="ec-chip-faint">{q.queueDomain}</span>
-                  <span
-                    className="ec-chip-faint"
-                    data-cc-queue-source-label
-                    title={`Sampled by ${q.source}`}
-                  >
-                    {q.source}
-                  </span>
-                </div>
-                <div className="ec-telemetry-meta">
-                  <span>{q.waitingCount} waiting</span>
-                  <span>{q.activeCount} active</span>
-                  <span>{q.delayedCount} delayed</span>
-                  {q.failedCount > 0 ? (
-                    <span className="ec-chip" data-cc-tile-severe="true">
-                      {q.failedCount} failed
-                    </span>
-                  ) : null}
-                  {q.stalledCount > 0 ? (
-                    <span className="ec-chip" data-cc-tile-severe="true">
-                      {q.stalledCount} stalled
-                    </span>
-                  ) : null}
-                  <time dateTime={q.sampledAtUtc} className="ec-chip-faint">
-                    sampled {relTime(q.sampledAtUtc)}
-                  </time>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="ec-section-foot">
-        Worker heartbeats are sampled by the worker every 60s and persisted
-        to WorkerTelemetrySnapshot. Queue depth is sampled from BullMQ when
-        the worker is online; DB-derived counts are written by the API on
-        dashboard load when no fresh BullMQ sample is available.
-      </div>
+      {/* OPS-001 / OPS-010 — worker heartbeats and queue snapshots are
+          PLATFORM facts. They are no longer sent to a workspace and are
+          not shown here; the platform queue console owns them. */}
     </SectionShell>
   );
 }
@@ -4738,9 +4484,9 @@ const SECTION_OPERATIONAL_COPY: Record<
   },
   "queue-worker-telemetry": {
     degraded:
-      "Telemetry sampler returning delayed snapshots. The worker remains operational; queue/heartbeat samples are older than the freshness threshold.",
+      "Some of this workspace's queue counts could not be read on this cycle; the counts shown are the ones that were. Background-processing health is monitored by the platform team.",
     unavailable:
-      "Queue/worker telemetry read could not complete on this cycle. The worker remains operational — the dashboard will resample on the next refresh.",
+      "This workspace's queue counts could not be read on this cycle. They are read again on the next refresh; nothing about your records has changed.",
   },
   coordination: {
     degraded:

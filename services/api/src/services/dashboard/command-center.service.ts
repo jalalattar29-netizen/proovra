@@ -76,11 +76,6 @@ import {
   runClassifierForWorkspace,
 } from "./access-anomaly.service.js";
 import {
-  listLatestQueueSnapshots,
-  recordDbDerivedSnapshotsForWorkspace,
-} from "./queue-telemetry.service.js";
-import { listLatestWorkerTelemetry } from "./worker-telemetry.service.js";
-import {
   listCaseSharedEvidenceClusters,
   listEvidenceLinkedToMultipleCases,
 } from "./case-evidence-link.service.js";
@@ -161,7 +156,6 @@ export type OperationalPressureItem = {
     // than living only in the Trust State row counts.
     | "tsa_failed"
     | "ots_failed"
-    | "retry_storm"
     | "governance_conflict"
     | "policy_conflict"
     | "evidence_no_case"
@@ -222,7 +216,6 @@ export type ReasonCode =
   | "RETENTION_REVIEW_DUE"
   | "DESTRUCTION_REVIEW_PENDING"
   | "QUEUE_CONGESTION"
-  | "RETRY_STORM"
   | "OPERATIONAL_INCIDENT"
   | "INTEGRITY_REVIEW_REQUIRED"
   | "INTEGRITY_FAILED"
@@ -411,21 +404,6 @@ const ROUTING_CATALOG: Record<
       "An operational incident classified as a package-generation failure is open.",
     recommendedAction:
       "Open the runbook and acknowledge or resolve the incident.",
-    primaryRoute: "/ops/observability",
-    secondaryRoute: null,
-    sourceTable: "OperationalIncident",
-    requiredPermission: null,
-    requiredRoles: ["OWNER", "ADMIN"],
-    escalationPath: "Platform on-call",
-  },
-  retry_storm: {
-    reasonCode: "RETRY_STORM",
-    affectedDomain: "operational_health",
-    affectedEntityType: "incident",
-    operationalExplanation:
-      "A repeated operational incident is firing above the retry-storm threshold.",
-    recommendedAction:
-      "Investigate the underlying job/worker and resolve the root cause.",
     primaryRoute: "/ops/observability",
     secondaryRoute: null,
     sourceTable: "OperationalIncident",
@@ -1224,7 +1202,6 @@ const STUCK_UPLOAD_HOURS = 4;
 const STALLED_REVIEW_HOURS = 48;
 const REVIEWER_INACTIVITY_HOURS = 72;
 const UNSIGNED_EVIDENCE_AGE_DAYS = 7;
-const RETRY_STORM_OCCURRENCE_THRESHOLD = 5;
 
 /**
  * PHASE 4D (2026-08-22) — incident severity -> Command Center tone.
@@ -3116,7 +3093,6 @@ export async function buildCommandCenter(input: {
     governance,
     pipeline: pipelineDetail,
     audit: auditReadiness,
-    retryStorm: queueWorkerTelemetryResult.data.retryStormIncidents,
   });
 
   // Org Intelligence V2 — derived from pressure + workload (no extra
@@ -5928,7 +5904,6 @@ export type QueueWorkerTelemetry = {
   reportQueuePending: number;
   packageQueuePending: number;
   oldestQueuedAgeHours: number | null;
-  retryStormIncidents: number;
   /** Phase 32.8C+++++ — persisted queue snapshots (BullMQ or DB-derived). */
   queueSnapshots: Array<{
     queueName: string;
@@ -5967,41 +5942,22 @@ async function runQueueWorkerTelemetry(
     warnings: [],
     unsupportedSignals: [],
     sourceSummary: [
-      "QueueTelemetrySnapshot (Phase 32.8C+++++ — durable queue depth/backlog samples)",
-      "WorkerTelemetrySnapshot (Phase 32.8C+++++ — durable worker heartbeat samples)",
       "SecurityEvent(eventType=reviewer_reconcile_run)",
       "EvidenceReviewWorkflow",
       "Evidence",
-      "OperationalIncident(occurrenceCount)",
     ],
   };
-  // Phase 32.8C+++++ — read durable snapshots if present; lazy-write DB-derived
-  // snapshots if absent so the next dashboard load sees data. Both reads are
-  // wrapped — a failure degrades to the live-aggregation fallback below.
-  let queueSnapshots: QueueWorkerTelemetry["queueSnapshots"] = [];
-  let workerHeartbeats: QueueWorkerTelemetry["workerHeartbeats"] = [];
-  try {
-    queueSnapshots = await listLatestQueueSnapshots({
-      teamId,
-      withinMinutes: 240,
-      limit: 20,
-    });
-    if (queueSnapshots.length === 0) {
-      await recordDbDerivedSnapshotsForWorkspace({ teamId }).catch(() => {});
-      queueSnapshots = await listLatestQueueSnapshots({
-        teamId,
-        withinMinutes: 240,
-        limit: 20,
-      });
-    }
-  } catch {
-    /* degrade — keep empty array, live-aggregation fallback below covers it */
-  }
-  try {
-    workerHeartbeats = await listLatestWorkerTelemetry({ withinMinutes: 1440 });
-  } catch {
-    /* degrade */
-  }
+  // OPS-001 / OPS-010 — NO TELEMETRY IS WRITTEN OR READ HERE.
+  //
+  // This GET used to lazy-write "DB-derived queue snapshots" for the
+  // workspace whenever it found none from the last four hours, and those rows
+  // were then read by Operations as "the queue telemetry sampler" — so a
+  // workspace's worker health was a measure of when somebody last opened this
+  // page. It also returned the global worker heartbeats (worker ids, status)
+  // to every workspace member. Worker and queue health are PLATFORM facts and
+  // live in the platform control plane; a page visit never produces them.
+  const queueSnapshots: QueueWorkerTelemetry["queueSnapshots"] = [];
+  const workerHeartbeats: QueueWorkerTelemetry["workerHeartbeats"] = [];
   try {
     const heartbeat = await prisma.securityEvent.findFirst({
       where: { teamId, eventType: "reviewer_reconcile_run" },
@@ -6024,7 +5980,6 @@ async function runQueueWorkerTelemetry(
       reportQueuePending,
       packageQueuePending,
       oldestQueued,
-      retryStormIncidents,
     ] = await Promise.all([
       // Same number again; the guard stays, the query does not.
       Promise.resolve(scope === "SHARED" ? counters.inStatus(["QUEUED"]) : 0),
@@ -6038,13 +5993,8 @@ async function runQueueWorkerTelemetry(
             select: { createdAt: true },
           })
         : Promise.resolve(null),
-      prisma.operationalIncident.count({
-        where: {
-          ...workspaceIncidentWhere(teamId),
-          status: { in: ["OPEN", "ACKNOWLEDGED"] },
-          occurrenceCount: { gte: RETRY_STORM_OCCURRENCE_THRESHOLD },
-        },
-      }),
+      // OPS-002 — the "retry storm" count (conditions re-observed five times)
+      // is retired: it measured nothing about queues.
     ]);
 
     const oldestQueuedAgeHours = oldestQueued
@@ -6067,7 +6017,6 @@ async function runQueueWorkerTelemetry(
           oldestQueuedAgeHours !== null
             ? Number(oldestQueuedAgeHours.toFixed(2))
             : null,
-        retryStormIncidents,
         queueSnapshots,
         workerHeartbeats,
       },
@@ -6083,7 +6032,6 @@ async function runQueueWorkerTelemetry(
         reportQueuePending: 0,
         packageQueuePending: 0,
         oldestQueuedAgeHours: null,
-        retryStormIncidents: 0,
         queueSnapshots,
         workerHeartbeats,
       },
@@ -6385,7 +6333,6 @@ function runPredictiveRisk(input: {
   governance: CommandCenterEnvelope["sections"]["governancePosture"];
   pipeline: CommandCenterEnvelope["sections"]["pipelineDetail"];
   audit: CommandCenterEnvelope["sections"]["auditReadiness"];
-  retryStorm: number;
 }): { meta: SectionMeta; forecasts: PredictiveRiskForecast[] } {
   const meta: SectionMeta = {
     status: "ok",
@@ -6528,22 +6475,6 @@ function runPredictiveRisk(input: {
         (s, c) => (c.severity !== "info" ? s + c.value : s),
         0,
       ),
-      caseCount: 0,
-    });
-  }
-
-  if (input.retryStorm >= 1) {
-    forecasts.push({
-      id: "fc_retry_storm",
-      forecastType: "report_pipeline_degradation",
-      severity: input.retryStorm >= 3 ? "high" : "warning",
-      reason: `${input.retryStorm} active retry-storm incident(s).`,
-      likelyImpact:
-        "Repeat failures will continue to consume worker capacity.",
-      recommendedAction:
-        "Open the runbook and address the underlying job.",
-      confidence: input.retryStorm >= 3 ? "high" : "medium",
-      evidenceCount: 0,
       caseCount: 0,
     });
   }

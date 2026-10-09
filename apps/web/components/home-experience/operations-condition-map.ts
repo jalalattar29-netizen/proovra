@@ -187,6 +187,15 @@ export type HomeConditionRepresentation =
       readonly kind: "PLATFORM";
       /** Recorded so the refusal to show internals is auditable, not silent. */
       readonly because: string;
+    }
+  | {
+      /**
+       * OPS-001 / OPS-002 — a source that was a FALSE signal and is no longer
+       * produced. A stored row of it says nothing true about anything, so it
+       * reaches Home as nothing at all — not even the platform advisory.
+       */
+      readonly kind: "RETIRED";
+      readonly because: string;
     };
 
 /**
@@ -357,27 +366,15 @@ export const HOME_CONDITION_REPRESENTATION: Record<
   },
 
   // ---- Queue / processing --------------------------------------------------
+  // OPS-001 / OPS-002 — RETIRED. Neither source is produced any more; a stored
+  // row of either is platform history, never a workspace's Home attention.
   "queue.retry_storm": {
-    kind: "ROW",
-    severity: "warning",
-    domains: ["report"],
-    label: "Background processing is retrying repeatedly",
-    whyItMatters:
-      "Work such as report generation and anchoring is being retried instead of completing, so results may be delayed.",
-    recommendedAction: "Open Operations to see which work is affected.",
-    actionLabel: "Open operations",
-    href: "/operations",
+    kind: "RETIRED",
+    because: "RETIRED: counted re-observed conditions, not job retries (OPS-002).",
   },
   "platform.telemetry_stale": {
-    kind: "ROW",
-    severity: "info",
-    domains: ["report"],
-    label: "Processing status is reporting late",
-    whyItMatters:
-      "Progress figures for background work may lag behind reality for a while. Your evidence is unaffected.",
-    recommendedAction: "No action needed — this clears on its own.",
-    actionLabel: "Open operations",
-    href: "/operations",
+    kind: "RETIRED",
+    because: "RETIRED: measured Home page visits, not workers (OPS-001).",
   },
 
   // ---- Security / identity -------------------------------------------------

@@ -14,134 +14,82 @@
  *     is what lets us tell STALE apart from FAILED.
  */
 
-import { prisma } from "../../db.js";
+import { getWorkerFleetHealth } from "../operations/worker-liveness.service.js";
 import type { OpsHealthState } from "./types.js";
 import { severityForStatus } from "./types.js";
-const WORKER_STALE_SECONDS = 600; // 10m
-const QUEUE_FRESH_SECONDS = 240;
-const QUEUE_STALE_SECONDS = 900; // 15m
 
-export async function evaluateTelemetryHealth(input: {
+/**
+ * OPS-001 / OPS-009 — ONE liveness authority.
+ *
+ * This evaluator used to run its own heartbeat detector (10-minute
+ * thresholds, beside the 15-minute Operations probe and the canonical
+ * 180-second fleet authority) and to grade `QueueTelemetrySnapshot` rows
+ * WHERE teamId = the workspace — rows that only a Home page load ever wrote.
+ * It now asks the canonical worker-fleet authority and answers in coarse,
+ * customer-safe words: no worker ids, no ages, no queue internals. The
+ * `teamId` is accepted for contract compatibility and is deliberately not
+ * read, because background-processing health has no workspace.
+ */
+export async function evaluateTelemetryHealth(_input: {
   teamId: string;
 }): Promise<OpsHealthState> {
-  let workerHb: { heartbeatAtUtc: Date; status: string } | null = null;
-  let queueSample: { sampledAtUtc: Date } | null = null;
-  let workerReadOk = true;
-  let queueReadOk = true;
+  let fleet: Awaited<ReturnType<typeof getWorkerFleetHealth>>;
   try {
-    workerHb = await prisma.workerTelemetrySnapshot.findFirst({
-      where: { workerKind: "WORKER" },
-      orderBy: { heartbeatAtUtc: "desc" },
-      select: { heartbeatAtUtc: true, status: true },
-    });
+    fleet = await getWorkerFleetHealth();
   } catch {
-    workerReadOk = false;
-  }
-  try {
-    queueSample = await prisma.queueTelemetrySnapshot.findFirst({
-      where: { teamId: input.teamId },
-      orderBy: { sampledAtUtc: "desc" },
-      select: { sampledAtUtc: true },
-    });
-  } catch {
-    queueReadOk = false;
-  }
-
-  const now = Date.now();
-  const workerAgeS = workerHb
-    ? Math.floor((now - workerHb.heartbeatAtUtc.getTime()) / 1000)
-    : null;
-  const queueAgeS = queueSample
-    ? Math.floor((now - queueSample.sampledAtUtc.getTime()) / 1000)
-    : null;
-
-  // True hard-failure paths first.
-  if (!workerReadOk && !queueReadOk) {
     return finalize({
       status: "UNAVAILABLE",
-      reason:
-        "Both worker and queue telemetry reads failed on this cycle. The dashboard will reattempt; canonical job processing remains independent of the rollup.",
+      reason: "Background-processing health could not be read on this cycle. It will be checked again; nothing about your records has changed.",
       recoverable: true,
       lastSuccessfulRunAt: null,
       retrying: true,
-      degradedSince: new Date().toISOString(),
-      canonicalSourceHealthy: false,
-    });
-  }
-
-  // No data yet — distinguish from failure.
-  if (!workerHb && !queueSample) {
-    return finalize({
-      status: "DISCONNECTED",
-      reason:
-        "No telemetry samples have been recorded yet. The worker sampler writes its first sample on startup; if the worker has not started since the last deploy, this is the expected state.",
-      recoverable: true,
-      lastSuccessfulRunAt: null,
-      retrying: false,
       degradedSince: null,
-      canonicalSourceHealthy: true,
-    });
-  }
-
-  // Worker process is the canonical source. If its heartbeat is way
-  // out of tolerance, the worker is the problem.
-  if (workerAgeS !== null && workerAgeS > WORKER_STALE_SECONDS * 4) {
-    return finalize({
-      status: "FAILED",
-      reason: `Worker heartbeat last recorded ${formatAge(workerAgeS)} ago — beyond the failure threshold (${Math.floor(WORKER_STALE_SECONDS * 4 / 60)}m). The worker process is likely down.`,
-      recoverable: false,
-      lastSuccessfulRunAt: workerHb!.heartbeatAtUtc.toISOString(),
-      retrying: false,
-      degradedSince: workerHb!.heartbeatAtUtc.toISOString(),
       canonicalSourceHealthy: false,
     });
   }
-  if (workerAgeS !== null && workerAgeS > WORKER_STALE_SECONDS) {
-    return finalize({
-      status: "STALE",
-      reason: `Worker heartbeat last recorded ${formatAge(workerAgeS)} ago — past the freshness threshold (${Math.floor(WORKER_STALE_SECONDS / 60)}m) but within the failure window. The worker is likely overloaded; canonical job processing continues.`,
-      recoverable: true,
-      lastSuccessfulRunAt: workerHb!.heartbeatAtUtc.toISOString(),
-      retrying: true,
-      degradedSince: workerHb!.heartbeatAtUtc.toISOString(),
-      canonicalSourceHealthy: true,
-    });
+  switch (fleet.state) {
+    case "HEALTHY":
+      return finalize({
+        status: "HEALTHY",
+        reason: "Background processing is running.",
+        recoverable: true,
+        lastSuccessfulRunAt: fleet.lastHeartbeatAtUtc,
+        retrying: false,
+        degradedSince: null,
+        canonicalSourceHealthy: true,
+      });
+    case "STALE":
+      return finalize({
+        status: "STALE",
+        reason: "Background processing is delayed. Queued work is kept and continues when processing recovers; the platform team is alerted.",
+        recoverable: true,
+        lastSuccessfulRunAt: fleet.lastHeartbeatAtUtc,
+        retrying: true,
+        degradedSince: fleet.lastHeartbeatAtUtc,
+        canonicalSourceHealthy: false,
+      });
+    case "STOPPED":
+    case "NOT_MEASURED":
+      return finalize({
+        status: "DISCONNECTED",
+        reason: "Background processing has not reported in yet. Queued work is kept.",
+        recoverable: true,
+        lastSuccessfulRunAt: fleet.lastHeartbeatAtUtc,
+        retrying: false,
+        degradedSince: null,
+        canonicalSourceHealthy: false,
+      });
+    default:
+      return finalize({
+        status: "UNAVAILABLE",
+        reason: "Background-processing health could not be read on this cycle. It will be checked again; nothing about your records has changed.",
+        recoverable: true,
+        lastSuccessfulRunAt: null,
+        retrying: true,
+        degradedSince: null,
+        canonicalSourceHealthy: false,
+      });
   }
-
-  // Worker fresh — check queue sampler freshness.
-  if (queueAgeS !== null && queueAgeS > QUEUE_STALE_SECONDS) {
-    return finalize({
-      status: "STALE",
-      reason: `Queue telemetry last sampled ${formatAge(queueAgeS)} ago (worker heartbeat fresh). Sampler is delayed; queues themselves remain reachable.`,
-      recoverable: true,
-      lastSuccessfulRunAt: queueSample!.sampledAtUtc.toISOString(),
-      retrying: true,
-      degradedSince: queueSample!.sampledAtUtc.toISOString(),
-      canonicalSourceHealthy: true,
-    });
-  }
-  if (queueAgeS !== null && queueAgeS > QUEUE_FRESH_SECONDS) {
-    return finalize({
-      status: "DEGRADED",
-      reason: `Queue telemetry last sampled ${formatAge(queueAgeS)} ago (over the fresh threshold of ${Math.floor(QUEUE_FRESH_SECONDS / 60)}m). Worker remains operational.`,
-      recoverable: true,
-      lastSuccessfulRunAt: queueSample!.sampledAtUtc.toISOString(),
-      retrying: true,
-      degradedSince: queueSample!.sampledAtUtc.toISOString(),
-      canonicalSourceHealthy: true,
-    });
-  }
-
-  // Worker fresh + queue fresh — healthy.
-  return finalize({
-    status: "HEALTHY",
-    reason: `Worker heartbeat ${workerAgeS !== null ? formatAge(workerAgeS) : "—"} old; queue sample ${queueAgeS !== null ? formatAge(queueAgeS) : "—"} old.`,
-    recoverable: true,
-    lastSuccessfulRunAt: (workerHb?.heartbeatAtUtc ?? queueSample?.sampledAtUtc)?.toISOString() ?? null,
-    retrying: false,
-    degradedSince: null,
-    canonicalSourceHealthy: true,
-  });
 }
 
 function finalize(input: Omit<OpsHealthState, "severity">): OpsHealthState {
@@ -151,11 +99,3 @@ function finalize(input: Omit<OpsHealthState, "severity">): OpsHealthState {
   };
 }
 
-function formatAge(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}

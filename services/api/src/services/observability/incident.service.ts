@@ -66,6 +66,8 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import {
+  platformIncidentWhere,
+  scopeForDeclaration,
   scopeForWorkspaceId,
   workspaceIncidentWhere,
   resolveIncidentSourceWorkspace,
@@ -213,6 +215,15 @@ export type RecordIncidentInput = {
   runbookSlug?: string | null;
   metadata?: Record<string, unknown> | null;
   /**
+   * A DELIBERATE PLATFORM-WIDE CONDITION (OPS-022 / OPS-027 / OPS-009).
+   *
+   * Stored with scope PLATFORM and no team. It is visible only through the
+   * platform authorities and never through a tenant surface. A NULL team
+   * WITHOUT this flag still becomes LEGACY_UNSCOPED — the flag is the explicit
+   * declaration the scope model has always required, never an inference.
+   */
+  platform?: boolean;
+  /**
    * THE CURRENT AGGREGATE VALUE, for a source whose contract declares one.
    *
    * Supplied by the observation that found the condition, and REWRITTEN on the
@@ -255,6 +266,11 @@ export async function recordIncident(
   client: PrismaClient = defaultPrisma,
 ): Promise<RecordIncidentResult> {
   if (!isValidIncidentFingerprint(input.fingerprint)) {
+    throw new IncidentError("invalid_fingerprint");
+  }
+  if (input.platform && input.teamId) {
+    // A platform declaration with a workspace is the contradiction the scope
+    // column exists to prevent.
     throw new IncidentError("invalid_fingerprint");
   }
   const safeTitle = clipSafeSummary(input.title).slice(0, 180);
@@ -423,7 +439,9 @@ export async function recordIncident(
         // defaulted. Relying on the column default would write WORKSPACE onto
         // a NULL-team row, which is precisely the contradiction the
         // discriminator exists to make impossible.
-        scope: scopeForWorkspaceId(input.teamId),
+        scope: input.platform
+          ? scopeForDeclaration({ kind: "PLATFORM" })
+          : scopeForWorkspaceId(input.teamId),
         category: input.category as prismaPkg.IncidentCategory,
         severity: input.severity as prismaPkg.IncidentSeverity,
         status: prismaPkg.IncidentStatus.OPEN,
@@ -760,7 +778,10 @@ function severityRank(s: IncidentSeverity): number {
  */
 export async function resolveConditionFromSourceRecovery(
   input: {
-    teamId: string;
+    /** The workspace, or null together with `platform: true`. */
+    teamId: string | null;
+    /** Resolve a PLATFORM-scoped condition (OPS-009 / OPS-022 / OPS-027). */
+    platform?: boolean;
     fingerprint: string;
     /** Operator-safe. Says what was observed, never how it was queried. */
     safeMessage: string;
@@ -771,8 +792,11 @@ export async function resolveConditionFromSourceRecovery(
   client: PrismaClient = defaultPrisma,
 ): Promise<{ resolved: boolean }> {
   const now = input.now ?? new Date();
+  if (!input.platform && !input.teamId) return { resolved: false };
   const existing = await client.operationalIncident.findFirst({
-    where: { ...workspaceIncidentWhere(input.teamId), fingerprint: input.fingerprint },
+    where: input.platform
+      ? { ...platformIncidentWhere(), fingerprint: input.fingerprint }
+      : { ...workspaceIncidentWhere(input.teamId!), fingerprint: input.fingerprint },
     select: { id: true, status: true, metricSnapshot: true, severity: true },
   });
   if (!existing) return { resolved: false };

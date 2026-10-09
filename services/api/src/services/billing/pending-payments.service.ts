@@ -37,7 +37,10 @@ import * as prismaPkg from "@prisma/client";
 
 import { DomainError } from "../../errors.js";
 import { prisma } from "../../db.js";
-import { recordIncident } from "../observability/incident.service.js";
+import {
+  recordIncident,
+  resolveConditionFromSourceRecovery,
+} from "../observability/incident.service.js";
 import { bump } from "../ops/metrics.service.js";
 import {
   organizationWorkspaceIds,
@@ -214,19 +217,19 @@ export function recordProviderFailureSignal(input: {
 
   /*
    * The one failure no customer and no retry can resolve: the provider has
-   * stopped accepting our credential. Deduped by the hour, so a bad key opens
-   * one incident rather than one per customer who presses Re-check.
+   * stopped accepting our credential. OPS-027 — ONE PLATFORM condition per
+   * provider (stable fingerprint, deliberate platform scope), re-observed on
+   * every refusal and closed by `recordProviderObservationSuccess` on the next
+   * call the provider answers. It used to be an hourly, unscoped row that
+   * nothing could see or close.
    */
   void recordIncident({
     sourceId: "billing.provider_authorization",
     teamId: null,
+    platform: true,
     category: "RECONCILIATION",
     severity: "HIGH",
-    fingerprint:
-      "billing-provider-auth:" +
-      input.provider +
-      ":" +
-      String(Math.floor(Date.now() / 3600_000)),
+    fingerprint: providerAuthorizationFingerprint(input.provider),
     title: input.provider + " refused our credentials",
     safeSummary:
       input.provider +
@@ -241,6 +244,32 @@ export function recordProviderFailureSignal(input: {
     },
   }).catch(() => {
     /* incident creation is best-effort; the counter above always lands */
+  });
+}
+
+/** The one stable identity of "this provider refuses our credential". */
+export function providerAuthorizationFingerprint(provider: prismaPkg.PaymentProvider): string {
+  return "billing-provider-auth:" + provider;
+}
+
+/**
+ * The provider ANSWERED a payment observation (any state but UNKNOWN), which
+ * proves it accepts our credential. Closes the platform authorization
+ * condition if one is open; a no-op otherwise. Best-effort: recovery
+ * bookkeeping never fails the customer's request.
+ */
+export function recordProviderObservationSuccess(input: {
+  provider: prismaPkg.PaymentProvider;
+}): void {
+  void resolveConditionFromSourceRecovery({
+    teamId: null,
+    platform: true,
+    fingerprint: providerAuthorizationFingerprint(input.provider),
+    safeMessage:
+      input.provider +
+      " answered a payment observation: the credential is accepted again. Resolved from a successful provider call.",
+  }).catch(() => {
+    /* best-effort */
   });
 }
 
@@ -354,6 +383,7 @@ export async function recheckPayment(input: {
       actions: actionsFor(row.status),
     };
   }
+  recordProviderObservationSuccess({ provider: row.provider });
 
   const decision = decidePaymentTransition({
     current: row.status,
@@ -550,6 +580,7 @@ export async function abandonPendingPayment(input: {
 
     return recordLocalAbandonment(row, actionsFor);
   }
+  recordProviderObservationSuccess({ provider: row.provider });
 
   if (observation.state !== "PENDING") {
     // The provider knows something better than "abandoned". Record THAT.

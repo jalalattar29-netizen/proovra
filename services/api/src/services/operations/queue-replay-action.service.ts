@@ -59,6 +59,13 @@ export type ReplayActionResult =
         | "job_not_found"
         | "replay_forbidden"
         | "job_not_failed"
+        /** OPS-024 — the job already completed; there is nothing to replay. */
+        | "job_completed"
+        /** OPS-024 — the job left the failed set between the check and the
+         *  retry (a concurrent replay won): the duplicate is refused. */
+        | "job_state_changed"
+        /** OPS-024 — BullMQ refused for a reason other than state. */
+        | "replay_failed"
         | "duplicate_replay"
         | "reason_required"
         | "unknown_job_kind"
@@ -287,12 +294,25 @@ async function doReplayLike(
       message: "Job not found in queue.",
     };
   }
-  const isFailed = (await job.isFailed()) || (await job.isCompleted());
-  if (!isFailed) {
+  // OPS-024 — FAILED ONLY, and the state is read from BullMQ, once.
+  //
+  // Completed jobs used to be "eligible": BullMQ then refused the retry and
+  // the operator was told 404 "job not found" about a job that was right
+  // there. A completed job is refused for what it is, and the state read here
+  // is the previousState the audit row records — never an assumed "FAILED".
+  const previousState = String(await job.getState().catch(() => "unknown"));
+  if (previousState === "completed") {
+    return {
+      ok: false,
+      code: "job_completed",
+      message: "This job already completed. There is nothing to replay.",
+    };
+  }
+  if (previousState !== "failed") {
     return {
       ok: false,
       code: "job_not_failed",
-      message: "Only failed (or completed) jobs are eligible for replay.",
+      message: `Only failed jobs are eligible for replay. This job is ${previousState}.`,
     };
   }
   const category = getJobReplayCategory(input.queueName, String(job.name));
@@ -404,7 +424,7 @@ async function doReplayLike(
       resourceType: QUEUE_JOB_RESOURCE_TYPE,
       resourceId: queueJobCorrelationRef(input.queueName, input.jobId),
       targetDisplay: `${input.queueName} · ${job.name}`,
-      previousState: "FAILED",
+      previousState: previousState.toUpperCase(),
       requestedState: action === "replay" ? "REPLAYED" : "RETRIED",
       // Deliberately null: the job is on the queue and has not run.
       resultingState: null,
@@ -444,10 +464,22 @@ async function doReplayLike(
           err instanceof Error ? err.name.slice(0, 60) : "unknown",
       },
     });
+    // OPS-024 — say what actually happened. BullMQ's retry is atomic on the
+    // job's state: when a concurrent replay already moved it out of the failed
+    // set, the second call is refused HERE, which is what makes a double click
+    // or two operators idempotent. That is a conflict, not a missing job.
+    const stateNow = String(await job.getState().catch(() => "unknown"));
+    if (stateNow !== "failed" && stateNow !== "unknown") {
+      return {
+        ok: false,
+        code: "job_state_changed",
+        message: `The job is no longer failed (it is ${stateNow}); another replay may already have queued it.`,
+      };
+    }
     return {
       ok: false,
-      code: "job_not_found",
-      message: "Replay failed.",
+      code: "replay_failed",
+      message: "The queue refused the replay. The job is unchanged.",
     };
   }
 }

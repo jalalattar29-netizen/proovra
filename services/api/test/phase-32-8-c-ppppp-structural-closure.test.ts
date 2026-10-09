@@ -6,8 +6,8 @@
  *  PART 1 — Prisma schema additions (5 new models + 9 new enums +
  *           TSA issuer columns on EvidenceIntegritySnapshot)
  *  PART 2 — Migration file source-contract
- *  PART 3 — Queue telemetry service (DB-derived writer + reader)
- *  PART 4 — Worker telemetry service (heartbeat writer + reader)
+ *  PART 3 — Queue telemetry: the API writes NO snapshot (OPS-001)
+ *  PART 4 — Worker telemetry: the worker sampler is the ONE writer
  *  PART 5 — Case ↔ evidence link service (lazy backfill, cross-case
  *           intelligence reads)
  *  PART 6 — Operational timeline projection (idempotent writer +
@@ -20,7 +20,7 @@
  *           no legal overclaim, no core-flow blocking)
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -33,8 +33,9 @@ const SCHEMA = readApi("prisma/schema.prisma");
 const MIGRATION = readApi(
   "prisma/migrations/20260626100000_phase328cppppp_structural_intelligence_closure/migration.sql",
 );
-const QUEUE = readApi("src/services/dashboard/queue-telemetry.service.ts");
-const WORKER = readApi("src/services/dashboard/worker-telemetry.service.ts");
+function existsApi(rel: string): boolean {
+  return existsSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)));
+}
 /** The ONE writer of `WorkerTelemetrySnapshot` — see the note below. */
 const WORKER_SAMPLER = readFileSync(
   fileURLToPath(new URL("../../worker/src/telemetry.ts", import.meta.url)),
@@ -250,87 +251,62 @@ describe("Phase 32.8C+++++ — migration file source-contract", () => {
 });
 
 // =============================================================================
-// PART 3 — Queue telemetry service
+// PART 3 / PART 4 — Queue + worker telemetry (OPS-001 / OPS-010 / OPS-022)
 // =============================================================================
 
-describe("Phase 32.8C+++++ — queue-telemetry.service.ts", () => {
-  it("writer never throws (advisory data) and bounds queueName", () => {
-    expect(QUEUE).toMatch(/Advisory write — never throws/);
-    expect(QUEUE).toMatch(/queueName:\s*input\.sample\.queueName\.slice\(0,\s*80\)/);
+/**
+ * The API-side "DB-derived" queue snapshot writer is GONE.
+ *
+ * It wrote per-workspace QueueTelemetrySnapshot rows whenever somebody opened
+ * the Home dashboard and found none from the last four hours, and Operations
+ * then read those rows as "the queue telemetry sampler" — a workspace's worker
+ * health was a measure of page visits. The old pins here asserted the writer's
+ * shape; the contract that matters is that it exists nowhere in the API, and
+ * that the dashboard neither writes nor reads platform telemetry.
+ */
+function apiSources(dir = fileURLToPath(new URL("../src", import.meta.url))): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const p = `${dir}/${name}`;
+    if (statSync(p).isDirectory()) out.push(...apiSources(p));
+    else if (p.endsWith(".ts")) out.push(p);
+  }
+  return out;
+}
+
+describe("OPS-001 — no API-side queue/worker telemetry writer", () => {
+  it("the per-workspace telemetry modules are gone from the tree", () => {
+    expect(existsApi("src/services/dashboard/queue-telemetry.service.ts")).toBe(false);
+    expect(existsApi("src/services/dashboard/worker-telemetry.service.ts")).toBe(false);
   });
 
-  it("DB-derived writer reads from existing bounded count queries only", () => {
-    expect(QUEUE).toMatch(/prisma\.evidenceReviewWorkflow\.count/);
-    expect(QUEUE).toMatch(/prisma\.evidence\.count/);
-    expect(QUEUE).toMatch(/prisma\.destructionReview\.count/);
+  it("no API source writes a QueueTelemetrySnapshot or WorkerTelemetrySnapshot row", () => {
+    const writers = apiSources().filter((p) =>
+      /\b(queueTelemetrySnapshot|workerTelemetrySnapshot)\.(create|createMany|upsert|update|updateMany)\(/.test(
+        readFileSync(p, "utf8"),
+      ),
+    );
+    expect(writers).toEqual([]);
   });
 
-  it("uses the correct DestructionReview status enum strings", () => {
-    // Catalog: PENDING|UNDER_REVIEW|APPROVED|DENIED|DEFERRED|RESTORED|EXECUTED|CANCELLED
-    expect(QUEUE).toMatch(/\["PENDING",\s*"UNDER_REVIEW",\s*"DEFERRED"\]/);
-  });
-
-  it("reader caps the bounded result and de-duplicates per queueName", () => {
-    expect(QUEUE).toMatch(/Math\.min\(Math\.max\(input\.limit \?\? \d+,\s*1\),\s*50\)/);
-    expect(QUEUE).toMatch(/seen\.add\(r\.queueName\)/);
-  });
-
-  it("never projects raw bytes / signed URLs / storage keys", () => {
-    expect(QUEUE).not.toMatch(/storageKey/i);
-    expect(QUEUE).not.toMatch(/signedUrl/i);
-    expect(QUEUE).not.toMatch(/canonicalBytes/);
-  });
-
-  it("never emits security/audit/custody events", () => {
-    expect(QUEUE).not.toMatch(/recordSecurityEvent\(/);
-    expect(QUEUE).not.toMatch(/recordAuditEvent\(/);
-    expect(QUEUE).not.toMatch(/recordCustodyEvent\(/);
+  it("the dashboard GET neither writes nor reads platform telemetry", () => {
+    expect(COMMAND_CENTER).not.toMatch(/queueTelemetrySnapshot|workerTelemetrySnapshot/);
+    expect(COMMAND_CENTER).toMatch(/const queueSnapshots: QueueWorkerTelemetry\["queueSnapshots"\] = \[\];/);
+    expect(COMMAND_CENTER).toMatch(/const workerHeartbeats: QueueWorkerTelemetry\["workerHeartbeats"\] = \[\];/);
   });
 });
 
-// =============================================================================
-// PART 4 — Worker telemetry service
-// =============================================================================
-
-describe("Phase 32.8C+++++ — worker-telemetry.service.ts", () => {
-  /**
-   * PHASE 13 §4 — the WRITER these assertions were about is not in this module.
-   *
-   * This file carried a second `workerTelemetrySnapshot.create` for "synthetic
-   * API-side stamps" that nothing in the tree ever called: a parallel authority
-   * over the same table with no caller. It was removed, and the assertions
-   * follow the writer rather than the filename — the sampler in
-   * `services/worker/src/telemetry.ts` is the ONE writer of this table, armed
-   * at boot by `startTelemetrySampler`.
-   *
-   * The property being held is unchanged and is now checked where it can
-   * actually fail: the worker id is bounded before it is written, and the row
-   * carries no free-text error field for a stack trace to leak through.
-   */
-  it("the one writer bounds workerId and never persists free-text error detail", () => {
+describe("Phase 32.8C+++++ — worker telemetry sampler (the ONE writer)", () => {
+  it("bounds workerId and never persists free-text error detail", () => {
     expect(WORKER_SAMPLER).toMatch(/prisma\.workerTelemetrySnapshot\.create/);
     expect(WORKER_SAMPLER).toMatch(/\.slice\(0,\s*120\)/);
     expect(WORKER_SAMPLER).not.toMatch(/lastErrorMessage/);
     // A telemetry hiccup must never be able to stop the worker sampling.
     expect(WORKER_SAMPLER).toMatch(/catch\s*\(err\)\s*\{[\s\S]{0,120}logger\.warn/);
-    expect(WORKER).not.toMatch(/workerTelemetrySnapshot\.create/);
   });
 
-  it("reader returns one row per workerKind (latest heartbeat)", () => {
-    expect(WORKER).toMatch(/seen\.add\(r\.workerKind\)/);
-  });
-
-  it("reader caps the bounded result set", () => {
-    expect(WORKER).toMatch(/take:\s*200/);
-  });
-
-  it("never projects raw stack traces, secrets, or signed URLs", () => {
-    // The reader is what faces the dashboard, so this is asserted about the
-    // projection rather than about a comment: nothing it selects can carry a
-    // storage key, a signed URL or an unbounded error string.
-    expect(WORKER).not.toMatch(/storageKey/i);
-    expect(WORKER).not.toMatch(/signedUrl/i);
-    expect(WORKER).not.toMatch(/stack/i);
+  it("OPS-022 — measures retries instead of persisting a constant zero", () => {
+    expect(WORKER_SAMPLER).not.toMatch(/retryCount:\s*0\s*,/);
   });
 });
 
@@ -457,13 +433,7 @@ describe("Phase 32.8C+++++ — TSA issuer parsing safety", () => {
 // =============================================================================
 
 describe("Phase 32.8C+++++ — dashboard wiring", () => {
-  it("imports the 5 new services", () => {
-    expect(COMMAND_CENTER).toMatch(
-      /from\s*"\.\/queue-telemetry\.service\.js"/,
-    );
-    expect(COMMAND_CENTER).toMatch(
-      /from\s*"\.\/worker-telemetry\.service\.js"/,
-    );
+  it("imports the 3 remaining structural services (telemetry ones retired, OPS-001)", () => {
     expect(COMMAND_CENTER).toMatch(
       /from\s*"\.\/case-evidence-link\.service\.js"/,
     );
@@ -473,13 +443,10 @@ describe("Phase 32.8C+++++ — dashboard wiring", () => {
     expect(COMMAND_CENTER).toMatch(/from\s*"\.\/case-comment\.service\.js"/);
   });
 
-  it("queue/worker telemetry section advertises new tables in sourceSummary", () => {
-    expect(COMMAND_CENTER).toMatch(
-      /QueueTelemetrySnapshot[^"\n]*Phase 32\.8C\+\+\+\+\+/,
-    );
-    expect(COMMAND_CENTER).toMatch(
-      /WorkerTelemetrySnapshot[^"\n]*Phase 32\.8C\+\+\+\+\+/,
-    );
+  it("queue/worker telemetry section does not advertise platform telemetry tables (OPS-001)", () => {
+    expect(COMMAND_CENTER).not.toMatch(/"QueueTelemetrySnapshot \(/);
+    expect(COMMAND_CENTER).not.toMatch(/"WorkerTelemetrySnapshot \(/);
+    expect(COMMAND_CENTER).not.toMatch(/"OperationalIncident\(occurrenceCount\)"/);
   });
 
   it("queue/worker telemetry section no longer declares 'no DB-persisted queue snapshot' as unsupported", () => {
@@ -547,7 +514,7 @@ describe("Phase 32.8C+++++ — dashboard wiring", () => {
 
 describe("Phase 32.8C+++++ — no-regression invariants", () => {
   it("no new service emits security/audit/custody events", () => {
-    for (const src of [QUEUE, WORKER, CASE_LINK, TIMELINE, CASE_COMMENT]) {
+    for (const src of [CASE_LINK, TIMELINE, CASE_COMMENT]) {
       expect(src).not.toMatch(/recordSecurityEvent\(/);
       expect(src).not.toMatch(/recordAuditEvent\(/);
       expect(src).not.toMatch(/recordCustodyEvent\(/);
@@ -555,7 +522,7 @@ describe("Phase 32.8C+++++ — no-regression invariants", () => {
   });
 
   it("no new service generates signed URLs or report/package output", () => {
-    for (const src of [QUEUE, WORKER, CASE_LINK, TIMELINE, CASE_COMMENT]) {
+    for (const src of [CASE_LINK, TIMELINE, CASE_COMMENT]) {
       expect(src).not.toMatch(/getSignedUrl/i);
       expect(src).not.toMatch(/generateReport/i);
       expect(src).not.toMatch(/generatePackage/i);
@@ -563,7 +530,7 @@ describe("Phase 32.8C+++++ — no-regression invariants", () => {
   });
 
   it("no new service contains legal-overclaim language (word-boundary matched)", () => {
-    for (const src of [QUEUE, WORKER, CASE_LINK, TIMELINE, CASE_COMMENT]) {
+    for (const src of [CASE_LINK, TIMELINE, CASE_COMMENT]) {
       for (const banned of [
         "admissible",
         "authentic",

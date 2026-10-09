@@ -485,8 +485,7 @@ function buildChains(input: {
   const telemetryIncs = input.incidents.filter(
     (i) =>
       i.fingerprint.includes("telemetry:") ||
-      i.fingerprint.includes("heartbeat_stale") ||
-      i.fingerprint.includes("retry_storms"),
+      i.fingerprint.includes("heartbeat_stale"),
   );
   if (telemetryIncs.length >= 2 || workerIncs.length >= 3) {
     const allIncs = telemetryIncs.length >= 2 ? telemetryIncs : workerIncs;
@@ -497,7 +496,6 @@ function buildChains(input: {
     );
     const corrs = input.correlations.filter(
       (c) =>
-        c.correlationType === "RETRY_STORM_CHAIN" ||
         c.correlationType === "INFRASTRUCTURE_PRESSURE" ||
         c.correlationType === "QUEUE_SATURATION_CHAIN",
     );

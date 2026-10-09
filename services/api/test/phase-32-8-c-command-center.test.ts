@@ -746,7 +746,6 @@ describe("Phase 32.8C (Full Rebuild) — operational pressure aggregation", () =
       "missing_package",
       "failed_report",
       "failed_package",
-      "retry_storm",
       "policy_conflict",
       "evidence_no_case",
       "unsigned_evidence_old",
@@ -771,7 +770,6 @@ describe("Phase 32.8C (Full Rebuild) — operational pressure aggregation", () =
     expect(SERVICE).toMatch(/STALLED_REVIEW_HOURS\s*=\s*\d+/);
     expect(SERVICE).toMatch(/REVIEWER_INACTIVITY_HOURS\s*=\s*\d+/);
     expect(SERVICE).toMatch(/UNSIGNED_EVIDENCE_AGE_DAYS\s*=\s*\d+/);
-    expect(SERVICE).toMatch(/RETRY_STORM_OCCURRENCE_THRESHOLD\s*=\s*\d+/);
   });
 
   it("missing-report + missing-package signals derive from real Prisma relations (no fabrication)", () => {
@@ -781,10 +779,13 @@ describe("Phase 32.8C (Full Rebuild) — operational pressure aggregation", () =
     );
   });
 
-  it("retry-storm signal reads occurrenceCount from operationalIncident (real data)", () => {
-    expect(SERVICE).toMatch(
-      /occurrenceCount:\s*\{\s*gte:\s*RETRY_STORM_OCCURRENCE_THRESHOLD/,
-    );
+  it("OPS-002 — no 'retry storm' signal: re-observed conditions are not job retries", () => {
+    // It counted workspace conditions whose occurrenceCount crossed five and
+    // called that a queue retry storm — a measure of how often a sweep saw a
+    // condition, not of any job's retries. Removed from every surface.
+    expect(SERVICE).not.toMatch(/RETRY_STORM_OCCURRENCE_THRESHOLD/);
+    expect(SERVICE).not.toMatch(/occurrenceCount:\s*\{\s*gte:/);
+    expect(SERVICE).not.toMatch(/"retry_storm"|"RETRY_STORM"|retryStormIncidents|fc_retry_storm/);
   });
 
   it("blocked-export signal reads verificationPackageMetadata.blocked === true (no fabrication)", () => {
@@ -984,7 +985,6 @@ describe("Phase 32.8C+ — Operational routing catalog", () => {
       "RETENTION_REVIEW_DUE",
       "DESTRUCTION_REVIEW_PENDING",
       "QUEUE_CONGESTION",
-      "RETRY_STORM",
       "OPERATIONAL_INCIDENT",
       "INTEGRITY_REVIEW_REQUIRED",
       "INTEGRITY_FAILED",
@@ -1652,15 +1652,14 @@ describe("Phase 32.8C++ — Queue / Worker Telemetry", () => {
     );
   });
 
-  it("BullMQ infra depth and worker heartbeat persistence are now CLOSED via QueueTelemetrySnapshot + WorkerTelemetrySnapshot (Phase 32.8C+++++)", () => {
-    // Phase 32.8C+++++ — durable QueueTelemetrySnapshot + WorkerTelemetrySnapshot
-    // tables replace the old "no DB-persisted snapshot" / "heartbeat not persisted"
-    // unsupportedSignals. The dashboard now reads from the persisted samples and
-    // lazy-writes DB-derived snapshots if BullMQ-source samples are missing.
-    expect(SERVICE).not.toMatch(/no DB-persisted queue snapshot/);
-    expect(SERVICE).not.toMatch(/worker process heartbeat is not persisted/);
-    expect(SERVICE).toMatch(/QueueTelemetrySnapshot[^"\n]*Phase 32\.8C\+\+\+\+\+/);
-    expect(SERVICE).toMatch(/WorkerTelemetrySnapshot[^"\n]*Phase 32\.8C\+\+\+\+\+/);
+  it("OPS-001 / OPS-010 — the workspace dashboard neither writes nor returns platform queue/worker telemetry", () => {
+    // It used to lazy-write "DB-derived" queue snapshots on page load (which
+    // Operations then read as the telemetry sampler) and to return the global
+    // worker heartbeats — worker ids and status — to every workspace member.
+    expect(SERVICE).not.toMatch(/recordDbDerivedSnapshotsForWorkspace|listLatestQueueSnapshots|listLatestWorkerTelemetry/);
+    expect(SERVICE).not.toMatch(/queueTelemetrySnapshot|workerTelemetrySnapshot/);
+    expect(SERVICE).toMatch(/const queueSnapshots: QueueWorkerTelemetry\["queueSnapshots"\] = \[\];/);
+    expect(SERVICE).toMatch(/const workerHeartbeats: QueueWorkerTelemetry\["workerHeartbeats"\] = \[\];/);
   });
 });
 

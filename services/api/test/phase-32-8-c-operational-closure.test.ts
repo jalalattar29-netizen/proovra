@@ -73,11 +73,16 @@ describe("Phase 32.8C closure — per-kind operational copy", () => {
     expect(block![0]).toMatch(/security:\s*\{[\s\S]*?audit log/i);
   });
 
-  it("kind-specific copy for queue-worker-telemetry says worker remains operational", () => {
-    // Hyphenated keys must be quoted in JS object literals.
-    expect(CC).toMatch(
-      /"queue-worker-telemetry":\s*\{[\s\S]*?worker remains operational/,
-    );
+  it("kind-specific copy for queue-worker-telemetry claims nothing it did not observe (OPS-001)", () => {
+    // It used to say "the worker remains operational" whenever ITS OWN read
+    // failed — a liveness claim made from no liveness data. The copy now
+    // names only what failed (this workspace's counts) and who watches the
+    // platform. Hyphenated keys must be quoted in JS object literals.
+    const entry = CC.match(/"queue-worker-telemetry":\s*\{[\s\S]*?\n  \},/);
+    expect(entry).not.toBeNull();
+    expect(entry![0]).not.toMatch(/worker remains operational/i);
+    expect(entry![0]).not.toMatch(/sampler/i);
+    expect(entry![0]).toMatch(/queue counts could not be read/);
   });
 
   it("each major section kind has a copy entry", () => {
@@ -139,43 +144,24 @@ describe("Phase 32.8C closure — per-kind operational copy", () => {
 // PART 3 — Telemetry freshness classifier
 // =============================================================================
 
-describe("Phase 32.8C closure — telemetry freshness classifier", () => {
-  it("exports a TelemetryFreshness type with 4 states", () => {
-    expect(CC).toMatch(
-      /type TelemetryFreshness\s*=\s*"healthy_empty"\s*\|\s*"healthy"\s*\|\s*"delayed"\s*\|\s*"unavailable"/,
-    );
+/**
+ * OPS-001 / OPS-009 — the browser no longer grades worker freshness.
+ *
+ * A client-side classifier graded heartbeat and queue-snapshot ages with its
+ * own thresholds (a third liveness authority, beside the probe and the fleet
+ * verdict) over rows that page visits had written. The section now renders no
+ * telemetry rows and grades nothing; liveness is the platform's own fact.
+ */
+describe("OPS-001 / OPS-009 — no client-side telemetry freshness authority", () => {
+  it("the classifier, its states and its thresholds are gone", () => {
+    expect(CC).not.toMatch(/TelemetryFreshness/);
+    expect(CC).not.toMatch(/classifyTelemetryFreshness/);
+    expect(CC).not.toMatch(/WORKER_HEARTBEAT_STALE_SECONDS|QUEUE_SAMPLE_STALE_SECONDS/);
   });
 
-  it("classifyTelemetryFreshness function is defined", () => {
-    expect(CC).toMatch(/function classifyTelemetryFreshness\(/);
-  });
-
-  it("treats 'no rows yet' as healthy_empty (not unavailable)", () => {
-    expect(CC).toMatch(
-      /if\s*\(!opts\.freshestSampleUtc\)\s*return\s*"healthy_empty"/,
-    );
-  });
-
-  it("freshness threshold constants are defined", () => {
-    expect(CC).toMatch(/WORKER_HEARTBEAT_STALE_SECONDS\s*=\s*300/);
-    expect(CC).toMatch(/QUEUE_SAMPLE_STALE_SECONDS\s*=\s*600/);
-  });
-
-  it("QueueWorkerTelemetryBoard uses the classifier", () => {
-    expect(CC).toMatch(/queueFreshness\s*=\s*classifyTelemetryFreshness\(/);
-    expect(CC).toMatch(/workerFreshness\s*=\s*classifyTelemetryFreshness\(/);
-  });
-
-  it("only renders 'truly unavailable' when meta unavailable AND no fallback rows", () => {
-    expect(CC).toMatch(
-      /section\.meta\.status === "unavailable"\s*&&\s*snapshots\.length === 0\s*&&\s*heartbeats\.length === 0/,
-    );
-  });
-
-  it("renders a delayed-telemetry banner when freshness is 'delayed'", () => {
-    expect(CC).toMatch(/queueFreshness === "delayed"/);
-    expect(CC).toMatch(/data-cc-telemetry-freshness="delayed"/);
-    expect(CC).toMatch(/worker remains[\s\S]*?operational/);
+  it("no 'telemetry sampler delayed' banner is rendered from page-visit rows", () => {
+    expect(CC).not.toMatch(/sampler returning delayed/i);
+    expect(CC).not.toMatch(/data-cc-telemetry-delayed/);
   });
 });
 
@@ -279,9 +265,9 @@ describe("Phase 32.8C closure — operationally meaningful empty states", () => 
 // =============================================================================
 
 describe("Phase 32.8C closure — no false red states", () => {
-  it("queue/worker telemetry only renders 'unavailable' when BOTH read failed AND no fallback rows", () => {
+  it("queue/worker telemetry renders its degraded state only when its own read failed, and calls it degraded", () => {
     expect(CC).toMatch(
-      /section\.meta\.status === "unavailable"\s*&&\s*snapshots\.length === 0\s*&&\s*heartbeats\.length === 0/,
+      /const d = section\.data;\s*if \(section\.meta\.status === "unavailable"\) \{[\s\S]{0,400}title="Telemetry read degraded"/,
     );
   });
 

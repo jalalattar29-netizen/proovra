@@ -174,8 +174,8 @@ export type OperationsConditionGroup = {
   /**
    * WHAT THE AFFECTED COUNT COUNTS. Null whenever that count is null.
    *
-   * The retry-storm source counts CONDITIONS, not records: thirty-six
-   * repeatedly-observed conditions is a true sentence and "36 affected
+   * The queue-failure source counts failed JOBS ("items"), not records: five
+   * failed search-index jobs is a true sentence and "5 affected
    * records" is not. The unit travels with the number so no renderer has to
    * assume one.
    */
@@ -470,8 +470,8 @@ export function projectConditionGroups(
 
     // PER_RECORD: each condition IS one record, and that is true of every
     // per-record source rather than of one category. AGGREGATE_THRESHOLD: the
-    // counted population, in its OWN unit — the retry-storm source counts
-    // conditions, not records. Anything else: null, rendered as an absence.
+    // counted population, in its OWN unit — the queue-failure source counts
+    // failed jobs ("items"), not records. Anything else: null, an absence.
     const affectedRecordCount =
       lifecycle.cardinality === "PER_RECORD"
         ? members.length

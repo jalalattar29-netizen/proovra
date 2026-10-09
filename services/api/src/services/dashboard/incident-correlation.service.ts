@@ -121,7 +121,6 @@ function detectPatterns(
   const candidates: CorrelationCandidate[] = [];
   const reportIncidents = incidents.filter((i) => i.category === "REPORT");
   const packageIncidents = incidents.filter((i) => i.category === "PACKAGE");
-  const workerIncidents = incidents.filter((i) => i.category === "WORKER");
   const governanceIncidents = incidents.filter(
     (i) => i.category === "GOVERNANCE",
   );
@@ -147,24 +146,11 @@ function detectPatterns(
     });
   }
 
-  // 2. Retry storm chain: 2+ WORKER incidents in the window.
-  if (
-    workerIncidents.length >= 2 &&
-    workerIncidents.some((i) => severityRank(i.severity) >= 2)
-  ) {
-    candidates.push({
-      correlationKey: `retry_storm_chain:${teamId}`,
-      correlationType: "RETRY_STORM_CHAIN",
-      severity: maxSeverity(workerIncidents),
-      rootOperationalCause:
-        "Multiple worker incidents firing concurrently — likely cascading retries.",
-      operationalSummary: `${workerIncidents.length} worker incidents active in the last ${CORRELATION_WINDOW_HOURS}h.`,
-      recommendedAction:
-        "Open the retry-storm runbook; consider pausing the noisiest queue to break the cascade.",
-      linkedIncidents: workerIncidents,
-      confidence: "medium",
-    });
-  }
+  // 2. (OPS-002) The "retry storm chain" is retired. It called any two
+  //    workspace WORKER conditions "likely cascading retries" without reading a
+  //    single job's retry history. Real queue failures are PLATFORM conditions
+  //    now (platform-conditions.service.ts) and never reach a workspace scan.
+  //    The RETRY_STORM_CHAIN enum value stays for rows already stored.
 
   // 3. Infrastructure pressure: 2+ incidents across STORAGE/DATABASE.
   const infra = [...storageIncidents, ...databaseIncidents];

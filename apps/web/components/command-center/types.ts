@@ -82,7 +82,6 @@ export type ReasonCode =
   | "RETENTION_REVIEW_DUE"
   | "DESTRUCTION_REVIEW_PENDING"
   | "QUEUE_CONGESTION"
-  | "RETRY_STORM"
   | "OPERATIONAL_INCIDENT"
   | "INTEGRITY_REVIEW_REQUIRED"
   | "INTEGRITY_FAILED"
@@ -124,7 +123,6 @@ export type OperationalPressureItem = {
     | "missing_package"
     | "failed_report"
     | "failed_package"
-    | "retry_storm"
     | "governance_conflict"
     | "policy_conflict"
     | "evidence_no_case"
@@ -897,7 +895,6 @@ export type QueueWorkerTelemetryData = {
   reportQueuePending: number;
   packageQueuePending: number;
   oldestQueuedAgeHours: number | null;
-  retryStormIncidents: number;
   /** Phase 32.8C+++++ — durable QueueTelemetrySnapshot rows. */
   queueSnapshots: QueueTelemetrySnapshotRow[];
   /** Phase 32.8C+++++ — durable WorkerTelemetrySnapshot rows. */

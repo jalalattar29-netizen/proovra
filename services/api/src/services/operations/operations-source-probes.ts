@@ -43,6 +43,11 @@
  * guessing in either direction.
  */
 
+import {
+  observeQueueRecentFailures,
+  observeWorkerFleetHeartbeat,
+  queueNameFromPlatformFingerprint,
+} from "./platform-conditions.service.js";
 import { parseOtsBudgetExhaustedFingerprint } from "@proovra/shared";
 import type { PrismaClient, Prisma } from "@prisma/client";
 
@@ -58,7 +63,6 @@ import {
 } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
-import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
 // COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
 // product decision out of the artifact-backlog conditions.
 import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
@@ -80,9 +84,6 @@ export const PACKAGE_BACKLOG_HIGH = 20;
 export const PACKAGE_BACKLOG_CRITICAL = 100;
 export const STALE_REVIEW_HOURS = 72;
 export const STALE_REVIEW_HIGH_COUNT = 5;
-export const RETRY_STORM_OCCURRENCE_THRESHOLD = 5;
-export const TELEMETRY_STALE_MINUTES = 30;
-export const WORKER_HEARTBEAT_STALE_MINUTES = 15;
 export const UNSIGNED_FINALIZED_AGED_DAYS = 14;
 export const UNSIGNED_FINALIZED_HIGH_COUNT = 5;
 export const COORDINATION_STALE_DAYS = 21;
@@ -395,114 +396,12 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
       return { value: comments + annotations + caseComments };
     },
   },
-  {
-    probeKey: "queue.retry_storm_count",
-    sourceId: "queue.retry_storm",
-    category: "WORKER",
-    fingerprintPrefix: "dashboard:reliability:retry_storms",
-    stableTitle: "Queue retry storm",
-    unit: "conditions",
-    affectedEntityType: "operational_condition",
-    // One re-firing condition is already the storm; three is the escalation.
-    thresholdValue: 1,
-    criticalThresholdValue: 3,
-    baseSeverity: "WARNING",
-    escalatedSeverity: "HIGH",
-    escalationComparison: "GTE",
-    runbookSlug: "retry-storm",
-    describe: () =>
-      `Active conditions in this workspace are recurring with occurrenceCount >= ${RETRY_STORM_OCCURRENCE_THRESHOLD}. Source: OperationalIncident.occurrenceCount.`,
-    count: async (ctx) => ({
-      value: await ctx.client.operationalIncident.count({
-        // COMPOSED, not spread. The scope authority carries its own boolean
-        // predicate now — the platform-internal exclusion — and this count
-        // carries one too. A spread would let one silently overwrite the
-        // other, and the query would keep working while a tenant read stopped
-        // being scoped.
-        where: workspaceIncidentWhereWith(ctx.teamId, {
-          status: { in: ["OPEN", "ACKNOWLEDGED"] },
-          occurrenceCount: { gte: RETRY_STORM_OCCURRENCE_THRESHOLD },
-          // The storm condition must not count ITSELF. Without this a storm
-          // that re-fires five times keeps its own threshold met forever and
-          // can never recover, which is a condition that is true because it
-          // exists.
-          //
-          // Expressed as a nested `AND` rather than a sibling `NOT`: the
-          // spread above now carries its own boolean predicate, and a
-          // top-level key set on both sides would silently discard one of
-          // them.
-          NOT: {
-            fingerprint: { startsWith: "dashboard:reliability:retry_storms:" },
-          },
-        }),
-      }),
-    }),
-  },
-  {
-    probeKey: "platform.telemetry_age",
-    sourceId: "platform.telemetry_stale",
-    category: "WORKER",
-    fingerprintPrefix: "dashboard:telemetry:queue_stale",
-    stableTitle: "Queue telemetry sampler delayed",
-    unit: "minutes",
-    affectedEntityType: null,
-    thresholdValue: TELEMETRY_STALE_MINUTES,
-    criticalThresholdValue: TELEMETRY_STALE_MINUTES * 4,
-    baseSeverity: "WARNING",
-    escalatedSeverity: "HIGH",
-    escalationComparison: "GT",
-    runbookSlug: "telemetry-sampler",
-    describe: () =>
-      `The most recent queue telemetry snapshot for this workspace is older than the ${TELEMETRY_STALE_MINUTES}-minute window. The worker remains operational; the sampler may be delayed or paused.`,
-    count: async (ctx) => {
-      const recent = await ctx.client.queueTelemetrySnapshot.findFirst({
-        where: { teamId: ctx.teamId },
-        orderBy: { sampledAtUtc: "desc" },
-        select: { sampledAtUtc: true },
-      });
-      // NO ROWS IS NOT STALENESS. A workspace the sampler has never written
-      // for has no age to measure, and reporting zero here would make an
-      // absent sampler read as a perfectly fresh one.
-      if (!recent) return { value: 0 };
-      return {
-        value: Math.max(
-          0,
-          Math.round((ctx.now.getTime() - recent.sampledAtUtc.getTime()) / 60_000),
-        ),
-      };
-    },
-  },
-  {
-    probeKey: "platform.worker_heartbeat_age",
-    sourceId: "platform.worker_heartbeat_stale",
-    category: "WORKER",
-    fingerprintPrefix: "dashboard:worker:heartbeat_stale",
-    stableTitle: "Worker heartbeat stale",
-    unit: "minutes",
-    affectedEntityType: null,
-    thresholdValue: WORKER_HEARTBEAT_STALE_MINUTES,
-    criticalThresholdValue: WORKER_HEARTBEAT_STALE_MINUTES * 4,
-    baseSeverity: "HIGH",
-    escalatedSeverity: "CRITICAL",
-    escalationComparison: "GT",
-    runbookSlug: "worker-heartbeat",
-    describe: () =>
-      `The last persisted worker heartbeat is older than the ${WORKER_HEARTBEAT_STALE_MINUTES}-minute window. The worker process or its database connection may be down.`,
-    count: async (ctx) => {
-      const recent = await ctx.client.workerTelemetrySnapshot.findFirst({
-        where: { workerKind: "WORKER" },
-        orderBy: { heartbeatAtUtc: "desc" },
-        select: { heartbeatAtUtc: true },
-      });
-      if (!recent) return { value: 0 };
-      return {
-        value: Math.max(
-          0,
-          Math.round((ctx.now.getTime() - recent.heartbeatAtUtc.getTime()) / 60_000),
-        ),
-      };
-    },
-  },
+  // OPS-001 / OPS-002 / OPS-009 — the retry-storm count, the per-workspace
+  // telemetry age and the per-workspace worker heartbeat were REMOVED from
+  // workspace discovery. The first counted re-observed conditions, the second
+  // measured Home page visits, and the third duplicated one global fact into
+  // every workspace. Worker and queue health are now PLATFORM conditions read
+  // from their own authorities (platform-conditions.service.ts).
 ] as const;
 
 const SPEC_BY_PROBE: ReadonlyMap<ActivityProbeKey, AggregateSpec> = new Map(
@@ -1282,12 +1181,12 @@ const PROBE_HANDLERS: Readonly<
     observeAggregateByKey("review.stale_workflow_count", ctx),
   "coordination.stale_backlog_count": (ctx) =>
     observeAggregateByKey("coordination.stale_backlog_count", ctx),
-  "queue.retry_storm_count": (ctx) =>
-    observeAggregateByKey("queue.retry_storm_count", ctx),
-  "platform.telemetry_age": (ctx) =>
-    observeAggregateByKey("platform.telemetry_age", ctx),
-  "platform.worker_heartbeat_age": (ctx) =>
-    observeAggregateByKey("platform.worker_heartbeat_age", ctx),
+  // PLATFORM probes. They read the canonical platform authorities — the
+  // worker-fleet liveness verdict and the queue inventory — and ignore the
+  // workspace in the context, because the facts they answer have none.
+  "platform.worker_heartbeat_age": (ctx) => observeWorkerFleetHeartbeat(ctx.now),
+  "platform.queue_recent_failures": (ctx) =>
+    observeQueueRecentFailures(queueNameFromPlatformFingerprint(ctx.fingerprint), ctx.now),
 });
 
 async function observeAggregateByKey(

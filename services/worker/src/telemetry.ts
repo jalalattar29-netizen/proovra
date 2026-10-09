@@ -157,6 +157,12 @@ export function startTelemetrySampler(opts?: {
             "failed",
             "completed",
           );
+          // OPS-022 — retries are MEASURED, not written as a constant zero. A
+          // job waiting out its backoff sits in `delayed` with attemptsMade >
+          // 0; a bounded page of delayed jobs answers "how many are retrying".
+          // The page is bounded, so the count is a floor on a huge backlog.
+          const delayedPage = (counts.delayed ?? 0) > 0 ? await q.queue.getDelayed(0, 199) : [];
+          const retryCount = delayedPage.filter((j) => Number(j?.attemptsMade ?? 0) > 0).length;
           await prisma.queueTelemetrySnapshot.create({
             data: {
               teamId: null,
@@ -167,7 +173,7 @@ export function startTelemetrySampler(opts?: {
               delayedCount: counts.delayed ?? 0,
               failedCount: counts.failed ?? 0,
               completedCount: counts.completed ?? null,
-              retryCount: 0,
+              retryCount,
               stalledCount: 0,
               source: "BULLMQ",
             },

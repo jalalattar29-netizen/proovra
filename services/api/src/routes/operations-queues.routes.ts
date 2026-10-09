@@ -62,6 +62,33 @@ import { requirePlatformOpsActor } from "./require-platform-ops-actor.js";
  * now platform authority AND workspace membership, in that order.
  */
 
+/**
+ * OPS-024 — one mapping for retry and replay refusals.
+ *
+ * Every refusal that is about the job's current STATE is a 409 conflict: the
+ * job exists, and replaying it now would be wrong or a duplicate. The old
+ * mapping sent a completed job to 404 "job_not_found" and a concurrent
+ * duplicate to 400.
+ */
+function replayRefusalStatus(code: string): number {
+  switch (code) {
+    case "replay_forbidden":
+      return 403;
+    case "queue_unknown":
+    case "job_not_found":
+      return 404;
+    case "job_completed":
+    case "job_not_failed":
+    case "job_state_changed":
+    case "report_request_settled": // ET-REC-08: the durable request is settled
+      return 409;
+    case "replay_failed":
+      return 502;
+    default:
+      return 400;
+  }
+}
+
 const KnownQueueName = z.enum(KNOWN_QUEUE_NAMES as [string, ...string[]]);
 
 /**
@@ -239,14 +266,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
         reason: body.reason,
       });
       if (!result.ok) {
-        const status =
-          result.code === "replay_forbidden"
-            ? 403
-            : result.code === "job_not_found"
-              ? 404
-              : result.code === "report_request_settled"
-                ? 409 // ET-REC-08: the durable request is settled; nothing to replay
-                : 400;
+        const status = replayRefusalStatus(result.code);
         return reply
           .code(status)
           .send({ error: { code: result.code, message: result.message } });
@@ -318,14 +338,7 @@ export async function operationsQueuesRoutes(app: FastifyInstance) {
         reason: body.reason,
       });
       if (!result.ok) {
-        const status =
-          result.code === "replay_forbidden"
-            ? 403
-            : result.code === "job_not_found"
-              ? 404
-              : result.code === "report_request_settled"
-                ? 409 // ET-REC-08: the durable request is settled; nothing to replay
-                : 400;
+        const status = replayRefusalStatus(result.code);
         return reply
           .code(status)
           .send({ error: { code: result.code, message: result.message } });

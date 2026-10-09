@@ -1,0 +1,10 @@
+ ✓ test/operations-truth-platform.integration.test.ts (6 tests) 
+   ✓ Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-001 a Home page visit writes no telemetry; discovery never produces a telemetry-sampler condition  
+   ✓ Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-002 re-observed workspace conditions are never reported as a queue retry storm  
+   ✓ Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-009 worker liveness is ONE platform condition across workspaces, closed by a live heartbeat  
+   ✓ Operations truth closure — platform conditions (live PostgreSQL 16 + Redis/BullMQ) > OPS-027 a provider credential refusal is ONE stable platform condition, closed by the next answered call  
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+
+MUTATION (OPS-024): completed/non-failed refusal disabled in queue-replay-action.service.ts
+  -> "OPS-024 replay ..." FAILED: expected 'job_state_changed' to be 'job_completed'. Mutant killed; source restored.

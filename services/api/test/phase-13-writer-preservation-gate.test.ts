@@ -402,6 +402,9 @@ describe("phase 13 §4 — writer disposition manifest", () => {
       ["services/api/src/services/search/saved-search.service.ts", "touchSavedView"],
       ["services/api/src/services/reliability/upload-session.service.ts", "recordUploadActivity"],
     ] as const) {
+      // A module deleted outright (OPS-001 removed worker-telemetry.service.ts)
+      // is the strongest form of "gone from the tree".
+      if (!existsSync(path.join(REPO, file))) continue;
       const source = readFileSync(path.join(REPO, file), "utf8");
       assert.ok(
         !new RegExp(`(function|const|let|class)\\s+${decl}\\b`).test(source),
