@@ -598,13 +598,16 @@
       "rootCause": "The drawer did not move or trap focus, restored focus wrongly, and the page was English-only with no RTL; there was no deep link to a condition.",
       "ownerSystem": "Web Operations page",
       "fixCommits": [
-        "4e6e4c4bd"
+        "4e6e4c4bd",
+        "0dec96dc6"
       ],
       "redProof": [
-        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt"
+        "docs/operations/remediation/evidence/batch6-web-RED-baseline.txt",
+        "docs/operations/remediation/evidence/batch12-final-gates-RED.txt"
       ],
       "greenProof": [
         "docs/operations/remediation/evidence/batch6-web-GREEN-fix.txt",
+        "docs/operations/remediation/evidence/batch12-final-gates-GREEN.txt",
         "docs/operations/remediation/evidence/final-web-native-GREEN.txt"
       ],
       "regressionTests": [

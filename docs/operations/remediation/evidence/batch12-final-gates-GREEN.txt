@@ -1,0 +1,13 @@
+Batch 12 — GREEN on the fix branch
+
+  apps/web      __tests__/render/operations-workbench.render.test.tsx               145 passed
+                  ✓ OPS-020 the drawer reads in the operator's order: what happened → measured → when it closes → what to do → history
+  services/api  test/operations-incident-writer-inventory.test.ts                    7 passed
+  services/api  test/operations-truth-reconciliation.integration.test.ts             1 passed (fresh PostgreSQL 16)
+  services/api  full unit suite: 857 files — the writer-inventory failure was the only failure (25,294 passed,
+                1 skipped); it passes after the fix. The run also logged one vitest worker RPC timeout while
+                a concurrent lint held the machine; no test failed from it.
+  pnpm -r typecheck: every package Done; apps/web clean once the locally generated .next/types (a build
+                artifact CI never has) is set aside.
+  pnpm -r lint: clean (the one error was a regex in this remediation's own test, fixed in 710f25125).
+  pnpm audit:architecture: AuditEngineIntegrity = PASS, two runs byte-identical; --engine-check PASS.

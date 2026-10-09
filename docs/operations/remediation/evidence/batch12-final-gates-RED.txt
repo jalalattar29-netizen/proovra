@@ -1,0 +1,16 @@
+Batch 12 — found by the final gates (render suite, full API unit suite)
+
+1. OPS-020 — the drawer did not read in the operator's order and stated the resolution condition last
+   apps/web render "the drawer reads in the operator's order: what happened → measured → when it closes
+   → what to do → history" against the previous IncidentInspector (commit 710f25125's parent tree):
+     × Operations truth closure — web > the drawer reads in the operator's order: what happened → measured → when it closes → what to do → history
+       → expected -1 to be greater than 1
+   ("When it closes" did not exist; the sentence sat in the footer after the history, and only for
+   source-truth and externally owned conditions.)
+
+2. Data reconciliation — a status writer outside the shared transition authority
+   services/api full unit suite, test/operations-incident-writer-inventory.test.ts:
+     FAIL §12 — the incident writer inventory is complete > every production module that writes the table is inventoried
+     AssertionError: modules writing operational_incidents but absent from the inventory:
+     services/api/src/services/operations/operations-truth-reconciliation.service.ts
+   (closeWithNote wrote RESOLVED directly instead of taking the shared decideObservationTransition decision.)
