@@ -1,0 +1,6 @@
+   × Operations truth closure — Enterprise roll-up (live PostgreSQL 16) > OPS-034 totals are the union of the readable workspaces' own summaries; others are counted, not named
+     → expected 404 to be 200 // Object.is equality
+   ✓ Operations truth closure — Enterprise roll-up (live PostgreSQL 16) > OPS-034 a person outside the organisation is refused
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)

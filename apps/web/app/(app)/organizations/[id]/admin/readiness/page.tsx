@@ -173,6 +173,28 @@ function ReadinessTab() {
     useState<PanelState<IntegrationsHealth>>(PANEL_LOADING);
   const [evidencePanel, setEvidencePanel] =
     useState<PanelState<IncidentRow[]>>(PANEL_LOADING);
+  // OPS-034 — the organisation's Operations, rolled up server-side from each
+  // workspace's own summary, over the workspaces this person may read.
+  const [rollupPanel, setRollupPanel] =
+    useState<PanelState<OperationsRollup>>(PANEL_LOADING);
+
+  useEffect(() => {
+    if (!orgId) return;
+    let cancelled = false;
+    setRollupPanel(PANEL_LOADING);
+    apiFetch(`/v1/orgs/${encodeURIComponent(orgId)}/operations/rollup`, { method: "GET" })
+      .then((res) => {
+        if (cancelled) return;
+        setRollupPanel({ status: "ready", data: res as OperationsRollup, checkedAt: new Date().toISOString() });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setRollupPanel(panelError(err, "Unable to load Operations across this organization."));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId]);
 
   // 1) Load this org's workspaces.
   useEffect(() => {
@@ -314,6 +336,8 @@ function ReadinessTab() {
         />
       </Card>
 
+      <OperationsRollupSection panel={rollupPanel} />
+
       {teamId ? (
         <>
           <OperationalStatusSection panel={opsPanel} />
@@ -330,6 +354,87 @@ function ReadinessTab() {
         </Card>
       ) : null}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// OPS-034 — Operations across this organization
+// ---------------------------------------------------------------------------
+
+type OperationsRollup = {
+  organizationId: string;
+  workspaces: Array<{
+    workspaceId: string;
+    name: string;
+    summary: {
+      open: number;
+      critical: number;
+      high: number;
+      warning: number;
+      info: number;
+      unassigned: number;
+      readiness: string;
+      mayAssertAllClear: boolean;
+    };
+  }>;
+  totals: { open: number; critical: number; high: number; warning: number; info: number; unassigned: number };
+  coverage: {
+    workspacesInOrganization: number;
+    workspacesIncluded: number;
+    workspacesNotReadable: number;
+    complete: boolean;
+  };
+};
+
+/**
+ * The organisation's unresolved Operations conditions, by workspace.
+ *
+ * Read-only and thin: the numbers are each workspace's own Operations summary,
+ * summed by the server over the workspaces this person may read. A workspace
+ * they cannot read is counted, never named, and the totals say they are
+ * partial — an organisation role is not membership of every workspace.
+ */
+function OperationsRollupSection({ panel }: { panel: PanelState<OperationsRollup> }) {
+  if (panel.status === "loading") {
+    return (
+      <SectionCard section="operations-rollup" title="Operations across this organization" panel={panel}>
+        {null}
+      </SectionCard>
+    );
+  }
+  if (panel.status === "error") {
+    return (
+      <SectionCard section="operations-rollup" title="Operations across this organization" panel={panel}>
+        {null}
+      </SectionCard>
+    );
+  }
+  const r = panel.data;
+  return (
+    <SectionCard section="operations-rollup" title="Operations across this organization" panel={panel}>
+      <p style={mutedStyle} data-rollup-totals>
+        {r.totals.open === 1 ? "1 unresolved condition" : `${r.totals.open} unresolved conditions`}
+        {" · "}
+        {r.totals.critical} critical · {r.totals.high} high · {r.totals.unassigned} unassigned
+      </p>
+      {r.coverage.workspacesNotReadable > 0 ? (
+        <p style={mutedStyle} data-rollup-partial>
+          {r.coverage.workspacesNotReadable === 1
+            ? "1 workspace in this organization is not included, because you are not an Operations reader there."
+            : `${r.coverage.workspacesNotReadable} workspaces in this organization are not included, because you are not an Operations reader there.`}
+        </p>
+      ) : null}
+      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }} data-rollup-workspaces>
+        {r.workspaces.map((w) => (
+          <li key={w.workspaceId} data-rollup-workspace={w.workspaceId}>
+            <strong>{w.name}</strong>{" "}
+            <span style={mutedStyle}>
+              {w.summary.open} unresolved · {w.summary.critical} critical · {w.summary.high} high
+            </span>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
   );
 }
 

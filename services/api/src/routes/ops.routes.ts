@@ -138,6 +138,7 @@ import {
   type WorkflowActionKey,
 } from "../services/observability/workflow-actions.service.js";
 import { requireStepUpForSensitiveAction } from "../services/identity-security/step-up-middleware.js";
+import { checkOrgAccess, orgAccessDenial } from "../services/organization/org-access.js";
 
 const TeamIdQuery = z.object({ teamId: z.string().uuid() });
 
@@ -224,6 +225,26 @@ async function requireOpsCapability(
     return null;
   }
   return { userId };
+}
+
+/**
+ * OPS-034 — may this person READ this workspace's Operations workbench?
+ *
+ * The same two questions `requireOpsCapability(..., "operations.view")`
+ * asks — an ACTIVE member whose role holds `operations.view`, in a workspace
+ * whose effective plan has the workbench — answered without writing a reply,
+ * for the Enterprise roll-up that asks it once per workspace.
+ */
+async function mayReadOperationsWorkbench(userId: string, teamId: string): Promise<boolean> {
+  const member = await prisma.teamMember.findUnique({
+    where: { teamId_userId: { teamId, userId } },
+    select: { id: true },
+  });
+  if (!member) return false;
+  const decision = await evaluateMemberAccess({ teamId, userId, permission: "operations.view" });
+  if (!decision.allowed) return false;
+  const resolved = await resolveMemberWorkspaceCapabilities({ userId, teamId });
+  return resolved?.capabilities.OPERATIONS_VIEW === true;
 }
 
 /** Each Operations permission and the capability that must accompany it. */
@@ -1054,6 +1075,88 @@ export async function opsRoutes(app: FastifyInstance) {
       return reply.code(200).send({
         summary,
         workspace: { operatorCount },
+      });
+    },
+  );
+
+  /**
+   * GET /v1/orgs/:id/operations/rollup — OPS-034, the Enterprise roll-up.
+   *
+   * THIN BY CONSTRUCTION. There is no organisation-level incident store and
+   * this does not create one: it is the union, over the organisation's
+   * workspaces that THIS CALLER may already read, of the very summary
+   * `/v1/ops/summary` returns for each. A workspace the caller cannot read is
+   * counted (so the total says it is partial) and never named or opened —
+   * being an organisation admin is not membership of every workspace, and
+   * the per-workspace boundary is the one Operations already enforces.
+   */
+  app.get(
+    "/v1/orgs/:id/operations/rollup",
+    { preHandler: requireAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const orgId = z.string().uuid().parse((req.params as { id?: string }).id);
+      const userId = getAuthUserId(req);
+      const access = await checkOrgAccess(prisma, { orgId, userId });
+      if (access.kind !== "ok") {
+        const denial = orgAccessDenial(access);
+        return reply.code(denial.status).send(denial.body);
+      }
+      const teams = await prisma.team.findMany({
+        where: { organizationId: orgId },
+        select: { id: true, name: true },
+        orderBy: { createdAt: "asc" },
+        take: 200,
+      });
+      const workspaces: Array<{
+        workspaceId: string;
+        name: string;
+        summary: Pick<
+          Awaited<ReturnType<typeof buildOperationsSummary>>,
+          "open" | "critical" | "high" | "warning" | "info" | "unassigned" | "readiness" | "mayAssertAllClear"
+        >;
+      }> = [];
+      let notReadable = 0;
+      for (const team of teams) {
+        if (!(await mayReadOperationsWorkbench(userId, team.id))) {
+          notReadable += 1;
+          continue;
+        }
+        const summary = await buildOperationsSummary({ workspaceId: team.id, viewerUserId: userId });
+        workspaces.push({
+          workspaceId: team.id,
+          name: team.name,
+          summary: {
+            open: summary.open,
+            critical: summary.critical,
+            high: summary.high,
+            warning: summary.warning,
+            info: summary.info,
+            unassigned: summary.unassigned,
+            readiness: summary.readiness,
+            mayAssertAllClear: summary.mayAssertAllClear,
+          },
+        });
+      }
+      const sum = (k: "open" | "critical" | "high" | "warning" | "info" | "unassigned") =>
+        workspaces.reduce((n, w) => n + w.summary[k], 0);
+      return reply.code(200).send({
+        organizationId: orgId,
+        workspaces,
+        totals: {
+          open: sum("open"),
+          critical: sum("critical"),
+          high: sum("high"),
+          warning: sum("warning"),
+          info: sum("info"),
+          unassigned: sum("unassigned"),
+        },
+        coverage: {
+          workspacesInOrganization: teams.length,
+          workspacesIncluded: workspaces.length,
+          workspacesNotReadable: notReadable,
+          // The totals describe what this caller may see, and say so.
+          complete: notReadable === 0 && teams.length < 200,
+        },
       });
     },
   );
