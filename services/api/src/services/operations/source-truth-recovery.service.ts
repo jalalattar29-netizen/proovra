@@ -64,6 +64,88 @@ type PrismaClient = prismaPkg.PrismaClient;
  */
 const SWEEP_LIMIT = 200;
 
+/**
+ * The most conditions ONE sweep of one source examines, across keyset pages
+ * of SWEEP_LIMIT. Reaching it marks the sweep truncated, and the next sweep
+ * continues from where this one stopped (CONTINUATION below) rather than
+ * starting again at the oldest row — which is how a workspace with more than
+ * 200 open conditions of one source used to starve every newer one forever.
+ */
+const SWEEP_BUDGET = 1000;
+
+/**
+ * Where the next sweep of (scope, source) resumes. Process-local by design:
+ * losing it on a restart costs one pass starting from the oldest row again,
+ * never a skipped condition, because every pass walks forward in a total order
+ * and wraps to the start when it reaches the end.
+ */
+const CONTINUATION = new Map<string, { firstSeenAtUtc: Date; id: string }>();
+
+type SweepRow = {
+  id: string;
+  status: prismaPkg.IncidentStatus;
+  fingerprint: string;
+  firstSeenAtUtc: Date;
+};
+
+/**
+ * Walk the selected open conditions in keyset pages, oldest first, from the
+ * stored continuation, wrapping once to the start. Returns every row visited
+ * (bounded by SWEEP_BUDGET) and whether the walk stopped short of a full cycle.
+ */
+async function walkOpenConditions<R extends SweepRow>(
+  key: string,
+  readPage: (after: { firstSeenAtUtc: Date; id: string } | null, take: number) => Promise<R[]>,
+  visit: (rows: R[]) => Promise<void>,
+): Promise<{ examined: number; truncated: boolean }> {
+  const start = CONTINUATION.get(key) ?? null;
+  let after = start;
+  let wrapped = start === null;
+  let examined = 0;
+  for (;;) {
+    const remaining = SWEEP_BUDGET - examined;
+    if (remaining <= 0) {
+      if (after) CONTINUATION.set(key, after);
+      return { examined, truncated: true };
+    }
+    const take = Math.min(SWEEP_LIMIT, remaining);
+    let page = await readPage(after, take);
+    if (wrapped && start) {
+      // Second lap: stop at the row the first lap began from.
+      page = page.filter(
+        (r) =>
+          r.firstSeenAtUtc < start.firstSeenAtUtc ||
+          (r.firstSeenAtUtc.getTime() === start.firstSeenAtUtc.getTime() && r.id < start.id),
+      );
+    }
+    if (page.length > 0) {
+      await visit(page);
+      examined += page.length;
+      const last = page[page.length - 1]!;
+      after = { firstSeenAtUtc: last.firstSeenAtUtc, id: last.id };
+    }
+    if (page.length < take) {
+      if (wrapped) {
+        CONTINUATION.delete(key);
+        return { examined, truncated: false };
+      }
+      wrapped = true;
+      after = null;
+    }
+  }
+}
+
+function afterClause(after: { firstSeenAtUtc: Date; id: string } | null) {
+  return after
+    ? {
+        OR: [
+          { firstSeenAtUtc: { gt: after.firstSeenAtUtc } },
+          { firstSeenAtUtc: after.firstSeenAtUtc, id: { gt: after.id } },
+        ],
+      }
+    : {};
+}
+
 export type SourceTruthRecoverySweep = {
   /** How many conditions were examined. */
   readonly examined: number;
@@ -125,10 +207,12 @@ export async function sweepSourceTruthRecoveries(
   }
 
   const now = input.now ?? new Date();
-  const limit = Math.max(1, Math.min(input.limit ?? SWEEP_LIMIT, SWEEP_LIMIT));
-
-  const open = await client.operationalIncident.findMany({
-    where: workspaceIncidentWhereWith(input.teamId, {
+  let resolved = 0;
+  const walked = await walkOpenConditions(
+    `ws:${input.teamId}:${input.sourceId}`,
+    (after, take) =>
+      client.operationalIncident.findMany({
+    where: workspaceIncidentWhereWith(input.teamId, afterClause(after), {
       // DECLARED ID OR LEGACY SHAPE.
       //
       // A row written before `source_id` existed carries NULL there, and the
@@ -153,27 +237,22 @@ export async function sweepSourceTruthRecoveries(
         ],
       },
     }),
-    select: { id: true, status: true, fingerprint: true },
-    // Oldest first: a condition nobody has cleared for longest is the one an
-    // operator most needs closed if it is genuinely over.
+    select: { id: true, status: true, fingerprint: true, firstSeenAtUtc: true },
+    // Oldest first, in a TOTAL order the continuation can resume from.
     orderBy: [{ firstSeenAtUtc: "asc" }, { id: "asc" }],
-    take: limit + 1,
-  });
-  const truncated = open.length > limit;
-  const rows = truncated ? open.slice(0, limit) : open;
-  if (rows.length === 0) {
-    return { examined: 0, resolved: 0, truncated: false };
-  }
-
-  const resolved = await closeRecoveredConditions(rows, {
-    lifecycle,
-    sourceId: input.sourceId,
-    now,
-    client,
-    workspaceFor: async () => input.teamId,
-  });
-
-  return { examined: rows.length, resolved, truncated };
+    take,
+  }),
+    async (rows) => {
+      resolved += await closeRecoveredConditions(rows, {
+        lifecycle,
+        sourceId: input.sourceId,
+        now,
+        client,
+        workspaceFor: async () => input.teamId,
+      });
+    },
+  );
+  return { examined: walked.examined, resolved, truncated: walked.truncated };
 }
 
 /**
@@ -201,9 +280,13 @@ export async function sweepUnscopedSourceTruthRecoveries(
     return { examined: 0, resolved: 0, truncated: false };
   }
   const now = input.now ?? new Date();
-  const limit = Math.max(1, Math.min(input.limit ?? SWEEP_LIMIT, SWEEP_LIMIT));
-  const open = await client.operationalIncident.findMany({
+  let resolved = 0;
+  const walked = await walkOpenConditions(
+    `unscoped:${input.sourceId}`,
+    (after, take) =>
+      client.operationalIncident.findMany({
     where: {
+      ...afterClause(after),
       ...legacyUnscopedIncidentWhere(),
       teamId: null,
       relatedEvidenceId: { not: null },
@@ -216,21 +299,21 @@ export async function sweepUnscopedSourceTruthRecoveries(
         ],
       },
     },
-    select: { id: true, status: true, fingerprint: true, teamId: true, scope: true, relatedEvidenceId: true },
+    select: { id: true, status: true, fingerprint: true, teamId: true, scope: true, relatedEvidenceId: true, firstSeenAtUtc: true },
     orderBy: [{ firstSeenAtUtc: "asc" }, { id: "asc" }],
-    take: limit + 1,
-  });
-  const truncated = open.length > limit;
-  const rows = truncated ? open.slice(0, limit) : open;
-  if (rows.length === 0) return { examined: 0, resolved: 0, truncated: false };
-  const resolved = await closeRecoveredConditions(rows, {
-    lifecycle,
-    sourceId: input.sourceId,
-    now,
-    client,
-    workspaceFor: (row) => resolveIncidentSourceWorkspace(row, client),
-  });
-  return { examined: rows.length, resolved, truncated };
+    take,
+  }),
+    async (rows) => {
+      resolved += await closeRecoveredConditions(rows, {
+        lifecycle,
+        sourceId: input.sourceId,
+        now,
+        client,
+        workspaceFor: (row) => resolveIncidentSourceWorkspace(row, client),
+      });
+    },
+  );
+  return { examined: walked.examined, resolved, truncated: walked.truncated };
 }
 
 type RecoveryRow = { id: string; status: prismaPkg.IncidentStatus; fingerprint: string };
@@ -241,7 +324,7 @@ type RecoveryRow = { id: string; status: prismaPkg.IncidentStatus; fingerprint: 
  * closed. Shared by the workspace sweep and the unscoped-record sweep so there
  * is one close path.
  */
-async function closeRecoveredConditions<R extends RecoveryRow>(
+export async function closeRecoveredConditions<R extends RecoveryRow>(
   rows: readonly R[],
   args: {
     lifecycle: NonNullable<ReturnType<typeof lifecycleForSourceId>>;

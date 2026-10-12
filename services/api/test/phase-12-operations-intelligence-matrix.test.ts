@@ -285,6 +285,12 @@ vi.mock("../src/db.js", () => ({
         const status = H.members.get(memberKey(where.teamId, where.userId));
         return status ? { id: "member-1", status, role: "ADMIN" } : null;
       },
+      // The eligible-operator read the assignment paths use: ACTIVE members of
+      // the workspace only, as the real predicate selects.
+      findMany: async ({ where }: { where: { teamId: string; status?: string } }) =>
+        [...H.members.entries()]
+          .filter(([key, status]) => key.startsWith(`${where.teamId}:`) && (!where.status || status === where.status))
+          .map(([key]) => ({ userId: key.slice(where.teamId.length + 1), role: "ADMIN", user: { displayName: null, email: null } })),
     },
     operationalWorkflow: {
       findUnique: async ({ where }: { where: { id: string } }) =>

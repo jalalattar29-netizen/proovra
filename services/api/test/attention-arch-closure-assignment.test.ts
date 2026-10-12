@@ -295,7 +295,9 @@ describe("Closure — the assignment control is reachable and accessible", () =>
     // reassign and unassign are one transition on one column, and giving
     // that column two controls gives it two ways to disagree with itself.
     expect(CONTROL).toContain("const UNASSIGNED =");
-    expect(CONTROL).toContain('label: "Unassigned"');
+    // The option's word comes from the shared Operations dictionary (D10),
+    // so it reads "Unassigned" / "Nicht zugewiesen" / "غير مُسندة".
+    expect(CONTROL).toContain("{ value: UNASSIGNED, label: copy.ownerUnassigned }");
     expect(CONTROL).toContain("onAssign(v === UNASSIGNED ? null : v)");
     expect(CONTROL).toContain('data-ops-action="self-assign"');
   });

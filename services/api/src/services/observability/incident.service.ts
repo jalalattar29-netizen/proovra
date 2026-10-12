@@ -48,6 +48,8 @@ import {
   markConditionMetricStale,
   offersManualResolution,
   OCCURRENCE_WHILE_SUPPRESSED_EVENT,
+  OCCURRENCE_AFTER_RESOLUTION_EVENT,
+  lifecycleForSourceId,
   REOPENED_EVENT,
   reopenReasonFor,
   isRegisteredOperationsSource,
@@ -75,6 +77,7 @@ import {
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
 import { bump, setGauge } from "../ops/metrics.service.js";
 import { reportUnregisteredConditionSource } from "../operations/unregistered-condition-diagnostic.js";
+import { incidentStatusFilterWhere } from "../operations/incident-open-statuses.js";
 import { safeJsonSnapshot } from "./redact.js";
 
 // -----------------------------------------------------------------------------
@@ -91,6 +94,16 @@ export type IncidentErrorCode =
    */
   | "SUPPRESSION_REASON_REQUIRED"
   | "invalid_status_transition"
+  /** The assignee is not an ACTIVE, eligible operator of the condition's workspace. */
+  | "invalid_assignee"
+  /** The source declares SUPPRESSION_NOT_OFFERED. */
+  | "SUPPRESSION_NOT_OFFERED"
+  /**
+   * The condition changed state between the check and the write (an
+   * auto-resolution, a reopen or another operator). Nothing was written; the
+   * caller re-reads and decides again.
+   */
+  | "CONDITION_STATE_CHANGED"
   /**
    * An operator tried to declare a condition resolved while its own source
    * still says it is failing. Refused rather than accepted-and-silently-undone:
@@ -490,7 +503,14 @@ export async function recordIncident(
     }
   }
 
-  if (existing) {
+  // COMPARE-AND-SET. The decision below is made against `existing.status`,
+  // and the write is conditioned on that status still being current: an
+  // operator acknowledgement or a recovery sweep landing between the read and
+  // the write makes the write a no-op, and the observation is re-decided
+  // against the new state. Without it an observation decided on OPEN could
+  // overwrite a resolution or acknowledgement written a moment earlier.
+  let casAttempts = 0;
+  while (existing) {
     // ---------------------------------------------------------------------
     // ONE AUTHORITY DECIDES WHAT AN OBSERVATION MAY DO.
     //
@@ -517,6 +537,9 @@ export async function recordIncident(
       // by `resolveRecoveredConditions`, from the domain own truth.
       observation: "SOURCE_ACTIVE" satisfies SourceObservation,
       previousResolutionOrigin,
+      // The source's DECLARED recurrence policy, enforced: a NEW_CONDITION
+      // source's resolved bucket is never reopened by a late observation.
+      recurrencePolicy: lifecycleForSourceId(existing.sourceId ?? input.sourceId)?.recurrencePolicy ?? null,
     });
     const reopening = decisionIsReopen(decision);
 
@@ -597,8 +620,12 @@ export async function recordIncident(
       // frozen-count defect a second time, in a second column — and the value
       // beside it would say 40 while the badge said CRITICAL.
       // -------------------------------------------------------------------
+      //
+      // A REOPEN is a new active interval and is evaluated on its OWN facts:
+      // the severity of the occurrence observed now, never the worst one from
+      // a cycle that already ended.
       severity:
-        input.metric != null
+        input.metric != null || reopening
           ? (input.severity as prismaPkg.IncidentSeverity)
           : severityRank(input.severity) >
               severityRank(existing.severity as IncidentSeverity)
@@ -627,9 +654,20 @@ export async function recordIncident(
     // Captured BEFORE the write, so anything downstream reads the state the
     // decision was made against rather than the state it produced.
     existingStatusBeforeWrite = existing.status;
-    row = await client.operationalIncident.update({
-      where: { id: existing.id },
+    const cas = await client.operationalIncident.updateMany({
+      where: { id: existing.id, status: existing.status },
       data,
+    });
+    if (cas.count !== 1) {
+      casAttempts += 1;
+      if (casAttempts >= 3) {
+        throw new Error("operational_incident_concurrent_transition");
+      }
+      existing = await readExisting();
+      continue;
+    }
+    row = await client.operationalIncident.findUniqueOrThrow({
+      where: { id: existing.id },
     });
     created = false;
     bump(
@@ -637,6 +675,12 @@ export async function recordIncident(
         ? "operational_incident_reopened"
         : "operational_incident_increment",
     );
+    break;
+  }
+  if (!row) {
+    // The row the observation raced vanished between reads. Never report an
+    // observation as recorded when nothing was written.
+    throw new Error("operational_incident_observation_lost");
   }
 
   // Persist the event-history row.
@@ -650,7 +694,9 @@ export async function recordIncident(
       ? REOPENED_EVENT
       : decision === "PRESERVE_SUPPRESSED"
         ? OCCURRENCE_WHILE_SUPPRESSED_EVENT
-        : "increment";
+        : existingStatusBeforeWrite === prismaPkg.IncidentStatus.RESOLVED
+          ? OCCURRENCE_AFTER_RESOLUTION_EVENT
+          : "increment";
   const reopenReason = reopenReasonFor(decision);
   try {
     await client.operationalIncidentEvent.create({
@@ -831,8 +877,12 @@ export async function resolveConditionFromSourceRecovery(
           previous: previousMetric,
         });
 
-  await client.operationalIncident.update({
-    where: { id: existing.id },
+  // COMPARE-AND-SET on the status the decision was made against. A
+  // re-observation that reopened the row, or an operator transition, between
+  // the read and this write leaves it untouched: a recovery decided on stale
+  // state must never close a condition that is live again.
+  const cas = await client.operationalIncident.updateMany({
+    where: { id: existing.id, status: existing.status },
     data: {
       status: prismaPkg.IncidentStatus.RESOLVED,
       resolvedAtUtc: now,
@@ -844,6 +894,7 @@ export async function resolveConditionFromSourceRecovery(
         : { metricSnapshot: nextMetric as prismaPkg.Prisma.InputJsonValue }),
     },
   });
+  if (cas.count !== 1) return { resolved: false };
 
   await client.operationalIncidentEvent
     .create({
@@ -1054,6 +1105,32 @@ export async function assignIncident(
   // assignment actually changed rather than only where it landed.
   const previousAssigneeUserId = existing.assignedOperatorUserId;
   const isUnassign = input.assigneeUserId === null;
+  // The ONE eligibility rule for every assignment path — tenant route,
+  // platform console and bulk alike: an ACTIVE member of the condition's own
+  // workspace, access not expired, whose role holds the Operations permission.
+  // A suspended, revoked or expired member, or anybody for a workspace-less
+  // condition, is refused here rather than at whichever caller remembered.
+  if (!isUnassign) {
+    const { isAssignableOperator } = await import(
+      "../operations/assignable-operators.service.js"
+    );
+    const workspaceOperator =
+      existing.teamId != null &&
+      (await isAssignableOperator({ teamId: existing.teamId, userId: input.assigneeUserId! }, client));
+    // From the PLATFORM console a condition may also be handed to a confirmed
+    // platform administrator — the people who act there. Never from a tenant
+    // route, which offers workspace operators only.
+    const platformOperator =
+      !workspaceOperator &&
+      input.scope === "PLATFORM_ADMIN" &&
+      (await import("../platform-admin.service.js")
+        .then((m) => m.resolvePlatformAdmin(input.assigneeUserId!))
+        .then((d) => d.allowed === true)
+        .catch(() => false));
+    if (!workspaceOperator && !platformOperator) {
+      throw new IncidentError("invalid_assignee");
+    }
+  }
   const updated = await client.operationalIncident.update({
     where: { id: existing.id },
     data: {
@@ -1087,7 +1164,7 @@ export async function assignIncident(
       outcome: "success",
       sourceApp: "API",
       actorUserId: input.actorUserId,
-      actorAuthority: "PLATFORM_OPS",
+      actorAuthority: actingAuthority(input),
       workspaceId: existing.teamId,
       resourceType: "operational_incident",
       resourceId: updated.id,
@@ -1174,6 +1251,16 @@ export async function probeConditionActivity(
   }
 }
 
+/**
+ * The authority the actor acted UNDER, for the tenant audit: a workspace
+ * member using their own Operations permissions, or a platform administrator
+ * acting from the platform console. Both used to be recorded as PLATFORM_OPS,
+ * which made the two indistinguishable in the tenant's own audit log.
+ */
+function actingAuthority(input: { scope?: string }): "WORKSPACE_OPERATOR" | "PLATFORM_ADMIN" {
+  return input.scope === "PLATFORM_ADMIN" ? "PLATFORM_ADMIN" : "WORKSPACE_OPERATOR";
+}
+
 async function transitionIncident(
   input: IncidentTransitionTarget & IncidentActorContext,
   next: prismaPkg.IncidentStatus,
@@ -1219,6 +1306,17 @@ async function transitionIncident(
     )
   ) {
     throw new IncidentError("invalid_status_transition");
+  }
+  // The source's DECLARED suppression policy, enforced.
+  if (
+    next === prismaPkg.IncidentStatus.SUPPRESSED &&
+    resolveConditionSource({
+      sourceId: existing.sourceId,
+      category: existing.category,
+      fingerprint: existing.fingerprint,
+    }).lifecycle.suppressionPolicy === "SUPPRESSION_NOT_OFFERED"
+  ) {
+    throw new IncidentError("SUPPRESSION_NOT_OFFERED");
   }
 
   // ---------------------------------------------------------------------
@@ -1323,9 +1421,17 @@ async function transitionIncident(
         ? clipSafeSummary(input.resolutionNote)
         : null;
   }
-  const updated = await client.operationalIncident.update({
-    where: { id: existing.id },
+  // COMPARE-AND-SET on the status every check above was made against. An
+  // acknowledgement decided on OPEN must not overwrite a resolution the
+  // recovery sweep wrote a moment ago, and a stale resolve must not close a
+  // condition that has since reopened. A lost race is a 409, never a write.
+  const cas = await client.operationalIncident.updateMany({
+    where: { id: existing.id, status: existing.status },
     data,
+  });
+  if (cas.count !== 1) throw new IncidentError("CONDITION_STATE_CHANGED");
+  const updated = await client.operationalIncident.findUniqueOrThrow({
+    where: { id: existing.id },
   });
   try {
     await client.operationalIncidentEvent.create({
@@ -1370,6 +1476,11 @@ async function transitionIncident(
     } else if (next === prismaPkg.IncidentStatus.SUPPRESSED) {
       await cycles.suppressSlaCycle({ incidentId: updated.id }, client);
     } else if (eventType === "unsuppressed" && subjectTeamId) {
+      // Suppression latched any breach but left the cycle live, so opening a
+      // new one declined and the resumed condition inherited a deadline that
+      // ran out while nobody was being notified. End that cycle — its breach
+      // flags are kept in the history — and start the promise from now.
+      await cycles.closeSlaCycle({ incidentId: updated.id, reason: "SUPPRESSED" }, client);
       await cycles.openSlaCycle(
         {
           teamId: subjectTeamId,
@@ -1407,7 +1518,7 @@ async function transitionIncident(
        * the human transitions is what keeps them apart: an acknowledgement is
        * somebody taking responsibility, not the system observing something.
        */
-      actorAuthority: "PLATFORM_OPS",
+      actorAuthority: actingAuthority(input),
       workspaceId: existing.teamId,
       resourceType: "operational_incident",
       resourceId: updated.id,
@@ -1469,7 +1580,12 @@ export type ListIncidentsInput = {
   /** Injectable clock, so the predicate is testable against fixed instants. */
   now?: Date;
   teamId: string;
-  status?: IncidentStatus;
+  /**
+   * One value of the status FILTER vocabulary (`INCIDENT_STATUS_FILTERS`).
+   * Omitted means UNRESOLVED — the canonical open/acknowledged/suppressed set —
+   * so resolved history is listed only when a caller asks for it.
+   */
+  status?: IncidentStatus | "UNRESOLVED" | "ALL";
   severity?: IncidentSeverity;
   category?: IncidentCategory;
   /**
@@ -1657,10 +1773,9 @@ export async function listIncidents(
       // construction rather than by a filter somebody has to remember.
       ...workspaceIncidentWhere(input.teamId),
       ...slaWhere(input.sla ?? null, input.now ?? new Date()),
-      ...(input.status ? { status: input.status as prismaPkg.IncidentStatus } : {}),
       ...(input.resolvedSince
         ? { status: prismaPkg.IncidentStatus.RESOLVED, resolvedAtUtc: { gte: input.resolvedSince } }
-        : {}),
+        : incidentStatusFilterWhere(input.status)),
       ...(input.severity ? { severity: input.severity as prismaPkg.IncidentSeverity } : {}),
       ...(input.category ? { category: input.category as prismaPkg.IncidentCategory } : {}),
       ...(owner.kind === "UNASSIGNED"

@@ -34,7 +34,10 @@ const SCHEMA = read("../prisma/schema.prisma");
 const WORKFLOW_GENERATOR = read(
   "../src/services/dashboard/workflow-generator.service.ts",
 );
-const SLA_POLICY = read("../src/services/reviewer-ops/sla-policy.service.ts");
+// The resolution moved to shared-runtime (OPS-09); the API module re-exports it.
+const SLA_POLICY =
+  read("../src/services/reviewer-ops/sla-policy.service.ts") +
+  read("../../../packages/shared-runtime/src/ops/sla-policy-resolution.ts");
 const SAVED_VIEWS = read(
   "../src/services/reviewer-ops/saved-queue-views.service.ts",
 );
@@ -153,8 +156,10 @@ describe("SLA disposition", () => {
     // The hours still come from ONE resolver — the reviewer-ops one asserted
     // above — but they are read ONCE, when a condition qualifies, and then
     // persisted. Nothing invents an hour count of its own.
+    // The authority lives in shared-runtime so the API and the Worker open
+    // the SAME promise (OPS-09); the API module is a thin binding.
     const CYCLE = read(
-      "../src/services/operations/incident-sla-cycle.service.ts",
+      "../../../packages/shared-runtime/src/ops/incident-sla-cycle.ts",
     );
     expect(CYCLE).toContain("resolveEffectiveSlaPolicy");
     for (const literal of ["= 24", "= 48", "= 72", "= 4;", "DEFAULT_HOURS"]) {

@@ -51,6 +51,22 @@ import { requirePlatformAdmin } from "../middleware/require-platform-admin.js";
 import { resolvePlatformAdmin } from "../services/platform-admin.service.js";
 import { workspaceIncidentWhere } from "../services/observability/incident-scope.js";
 import {
+  incidentStatusFilterWhere,
+  unresolvedIncidentWhere,
+} from "../services/operations/incident-open-statuses.js";
+
+/**
+ * Whether a refused or failed workspace re-check can succeed if asked again.
+ * Only a schema mismatch or a database permission refusal is structural (a
+ * deployment fault); timeouts, unavailable stores, queue faults and
+ * unexpected errors are transient. No refusal (null) is trivially retryable.
+ */
+function isRetryableReconcileRefusal(reason: string | null): boolean {
+  return reason !== "schema_mismatch" && reason !== "permission_denied";
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import {
   platformAlertsHandler,
   platformMetricsHandler,
 } from "./admin-platform-telemetry.routes.js";
@@ -88,9 +104,10 @@ import {
   listGroupAffectedRecords,
   AFFECTED_PAGE_DEFAULT,
   AFFECTED_PAGE_MAX,
+  GROUPED_SCAN_BOUND,
   GROUPED_SCAN_LIMIT,
 } from "../services/operations/operations-group-drilldown.service.js";
-import { decodeConditionMetric } from "@proovra/shared-runtime";
+import { decodeConditionMetric, resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 import { emitTenantAudit } from "../services/audit/tenant-audit.service.js";
 import {
   createOperationsSavedView,
@@ -119,7 +136,7 @@ import {
   buildCanonicalJobId,
   INCIDENT_CATEGORIES,
   INCIDENT_SEVERITIES,
-  INCIDENT_STATUSES,
+  INCIDENT_STATUS_FILTERS,
   OperationsSavedViewFilterSchema,
   resolveEvidenceOutputActions,
 } from "@proovra/shared";
@@ -724,38 +741,17 @@ export async function opsRoutes(app: FastifyInstance) {
       // platform-internal exclusion), so this route can never count a row the
       // workspace's own queue does not show.
       const tenantWhere = workspaceIncidentWhere(q.teamId);
+      // The canonical unresolved set (OPEN, ACKNOWLEDGED, SUPPRESSED) for every
+      // count, and a failed count is NULL — unknown — never a reassuring 0.
+      const unresolved = { ...tenantWhere, ...unresolvedIncidentWhere() };
       const [openTotal, openHigh, openCritical] = await Promise.all([
+        prisma.operationalIncident.count({ where: unresolved }).catch(() => null),
         prisma.operationalIncident
-          .count({
-            where: {
-              ...tenantWhere,
-              status: {
-                in: [
-                  prismaPkg.IncidentStatus.OPEN,
-                  prismaPkg.IncidentStatus.ACKNOWLEDGED,
-                ],
-              },
-            },
-          })
-          .catch(() => 0),
+          .count({ where: { ...unresolved, severity: prismaPkg.IncidentSeverity.HIGH } })
+          .catch(() => null),
         prisma.operationalIncident
-          .count({
-            where: {
-              ...tenantWhere,
-              status: prismaPkg.IncidentStatus.OPEN,
-              severity: prismaPkg.IncidentSeverity.HIGH,
-            },
-          })
-          .catch(() => 0),
-        prisma.operationalIncident
-          .count({
-            where: {
-              ...tenantWhere,
-              status: prismaPkg.IncidentStatus.OPEN,
-              severity: prismaPkg.IncidentSeverity.CRITICAL,
-            },
-          })
-          .catch(() => 0),
+          .count({ where: { ...unresolved, severity: prismaPkg.IncidentSeverity.CRITICAL } })
+          .catch(() => null),
       ]);
       const body: Record<string, unknown> = {
         ok: dbOk,
@@ -1111,17 +1107,26 @@ export async function opsRoutes(app: FastifyInstance) {
         return reply.code(denial.status).send(denial.body);
       }
       const teams = await prisma.team.findMany({
-        where: { organizationId: orgId },
+        // A Personal workspace is never an organisation workspace, whatever
+        // container it is filed under: its conditions are the person's own.
+        where: { organizationId: orgId, isPersonal: false },
         select: { id: true, name: true },
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         take: 200,
       });
       const workspaces: Array<{
         workspaceId: string;
         name: string;
+        /**
+         * KNOWN means this workspace's summary was read in full. An
+         * unreadable or truncated summary is UNKNOWN: its counts are null and
+         * it is excluded from the totals, which then say they are partial —
+         * it never contributes a zero that reads as "nothing wrong" (OPS-05).
+         */
+        coverage: "KNOWN" | "UNKNOWN" | "PARTIAL";
         summary: Pick<
           Awaited<ReturnType<typeof buildOperationsSummary>>,
-          "open" | "critical" | "high" | "warning" | "info" | "unassigned" | "readiness" | "mayAssertAllClear"
+          "open" | "critical" | "high" | "warning" | "info" | "unassigned" | "readiness" | "mayAssertAllClear" | "complete" | "incompleteReason"
         >;
       }> = [];
       let notReadable = 0;
@@ -1131,9 +1136,12 @@ export async function opsRoutes(app: FastifyInstance) {
           continue;
         }
         const summary = await buildOperationsSummary({ workspaceId: team.id, viewerUserId: userId });
+        const coverage: "KNOWN" | "UNKNOWN" | "PARTIAL" =
+          summary.open === null ? "UNKNOWN" : summary.complete ? "KNOWN" : "PARTIAL";
         workspaces.push({
           workspaceId: team.id,
           name: team.name,
+          coverage,
           summary: {
             open: summary.open,
             critical: summary.critical,
@@ -1143,11 +1151,18 @@ export async function opsRoutes(app: FastifyInstance) {
             unassigned: summary.unassigned,
             readiness: summary.readiness,
             mayAssertAllClear: summary.mayAssertAllClear,
+            complete: summary.complete,
+            incompleteReason: summary.incompleteReason,
           },
         });
       }
+      // Totals over the workspaces whose counts are KNOWN (a truncated one
+      // contributes its floor). Unknown workspaces are counted in coverage.
       const sum = (k: "open" | "critical" | "high" | "warning" | "info" | "unassigned") =>
-        workspaces.reduce((n, w) => n + w.summary[k], 0);
+        workspaces.reduce((n, w) => n + (w.summary[k] ?? 0), 0);
+      const unknown = workspaces.filter((w) => w.coverage === "UNKNOWN").length;
+      const partial = workspaces.filter((w) => w.coverage === "PARTIAL").length;
+      const capped = teams.length >= 200;
       return reply.code(200).send({
         organizationId: orgId,
         workspaces,
@@ -1163,8 +1178,14 @@ export async function opsRoutes(app: FastifyInstance) {
           workspacesInOrganization: teams.length,
           workspacesIncluded: workspaces.length,
           workspacesNotReadable: notReadable,
-          // The totals describe what this caller may see, and say so.
-          complete: notReadable === 0 && teams.length < 200,
+          // Read but unknown (the summary failed) or truncated (a floor).
+          workspacesUnknown: unknown,
+          workspacesPartial: partial,
+          workspaceListTruncated: capped,
+          // The totals describe what this caller may see, and say so: they
+          // are complete only when every workspace was readable AND read in
+          // full, and the workspace list itself was not truncated.
+          complete: notReadable === 0 && unknown === 0 && partial === 0 && !capped,
         },
       });
     },
@@ -1178,7 +1199,7 @@ export async function opsRoutes(app: FastifyInstance) {
    * together, and projected by the one projection (`projectIncident`). Each
    * row carries its workspace, so the web opens it in that workspace and every
    * action runs against the original condition there. Filters: workspace,
-   * severity, status, source. Keyset pagination on (lastSeenAtUtc, id).
+   * severity, status, source. Keyset pagination on (firstSeenAtUtc, id), which never moves.
    */
   app.get(
     "/v1/orgs/:id/operations/incidents",
@@ -1189,7 +1210,7 @@ export async function opsRoutes(app: FastifyInstance) {
         .object({
           workspaceId: z.string().uuid().optional(),
           severity: z.enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]]).optional(),
-          status: z.enum(INCIDENT_STATUSES as unknown as [string, ...string[]]).optional(),
+          status: z.enum(INCIDENT_STATUS_FILTERS as unknown as [string, ...string[]]).optional(),
           sourceId: z.string().min(1).max(80).optional(),
           cursor: z.string().max(200).optional(),
           limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -1202,7 +1223,7 @@ export async function opsRoutes(app: FastifyInstance) {
         return reply.code(denial.status).send(denial.body);
       }
       const teams = await prisma.team.findMany({
-        where: { organizationId: orgId, ...(q.workspaceId ? { id: q.workspaceId } : {}) },
+        where: { organizationId: orgId, isPersonal: false, ...(q.workspaceId ? { id: q.workspaceId } : {}) },
         select: { id: true, name: true },
         take: 200,
       });
@@ -1214,37 +1235,39 @@ export async function opsRoutes(app: FastifyInstance) {
       if (readable.length === 0) {
         return reply.code(200).send({ incidents: [], pagination: { nextCursor: null } });
       }
-      let after: { lastSeen: Date; id: string } | null = null;
+      // KEYSET on (firstSeenAtUtc, id). firstSeen never changes for a row
+      // (a reopen keeps it), so a condition that re-fires between two pages
+      // cannot jump across the boundary and be skipped or repeated, which a
+      // keyset on the mutable lastSeenAtUtc allowed.
+      let after: { firstSeen: Date; id: string } | null = null;
       if (q.cursor) {
-        try {
-          const [iso, id] = Buffer.from(q.cursor, "base64url").toString("utf8").split("|");
-          if (iso && id && /^[0-9a-f-]{36}$/i.test(id)) after = { lastSeen: new Date(iso), id };
-        } catch {
-          after = null;
+        const [iso, id, extra] = Buffer.from(q.cursor, "base64url").toString("utf8").split("|");
+        const at = iso ? new Date(iso) : null;
+        if (extra !== undefined || !at || Number.isNaN(at.getTime()) || !id || !UUID_RE.test(id)) {
+          return reply.code(400).send({ error: { code: "invalid_cursor" } });
         }
+        after = { firstSeen: at, id };
       }
       const rows = await prisma.operationalIncident.findMany({
         where: {
           AND: [
             { OR: readable.map((t) => workspaceIncidentWhere(t.id)) },
-            q.status
-              ? { status: q.status as never }
-              : { status: { in: ["OPEN", "ACKNOWLEDGED"] as never } },
+            incidentStatusFilterWhere(q.status),
             ...(q.severity ? [{ severity: q.severity as never }] : []),
             ...(q.sourceId ? [{ sourceId: q.sourceId }] : []),
             ...(after
               ? [
                   {
                     OR: [
-                      { lastSeenAtUtc: { lt: after.lastSeen } },
-                      { lastSeenAtUtc: after.lastSeen, id: { lt: after.id } },
+                      { firstSeenAtUtc: { lt: after.firstSeen } },
+                      { firstSeenAtUtc: after.firstSeen, id: { lt: after.id } },
                     ],
                   },
                 ]
               : []),
           ],
         },
-        orderBy: [{ lastSeenAtUtc: "desc" }, { id: "desc" }],
+        orderBy: [{ firstSeenAtUtc: "desc" }, { id: "desc" }],
         take: limit + 1,
       });
       const page = rows.slice(0, limit);
@@ -1259,7 +1282,7 @@ export async function opsRoutes(app: FastifyInstance) {
         pagination: {
           nextCursor:
             rows.length > limit && last
-              ? Buffer.from(`${last.lastSeenAtUtc.toISOString()}|${last.id}`, "utf8").toString("base64url")
+              ? Buffer.from(`${last.firstSeenAtUtc.toISOString()}|${last.id}`, "utf8").toString("base64url")
               : null,
         },
       });
@@ -1321,6 +1344,9 @@ export async function opsRoutes(app: FastifyInstance) {
           // non-retryable state from this; it never sees the detail.
           refusedReason: "schema_mismatch",
           retryable: false,
+          // The standard error envelope too, so a client that lifts only
+          // error.* on a non-2xx reads the real, proven cause.
+          error: { code: "schema_mismatch", retryable: false },
         });
       }
 
@@ -1336,7 +1362,11 @@ export async function opsRoutes(app: FastifyInstance) {
         ran: outcome.ran,
         alreadyRunning: outcome.alreadyRunning,
         refusedReason: outcome.refreshBlockedReason,
-        retryable: outcome.refreshBlockedReason == null,
+        // OPS-11 — retryable unless the refusal is one asking again cannot
+        // fix. Every refusal used to be sent as non-retryable, so a database
+        // blip or a timeout was presented as a deployment mismatch with
+        // "contact whoever manages this deployment".
+        retryable: isRetryableReconcileRefusal(outcome.refreshBlockedReason),
         readiness: outcome.run?.readiness ?? "NEVER_RUN",
       });
     },
@@ -1350,7 +1380,7 @@ export async function opsRoutes(app: FastifyInstance) {
         .object({
           teamId: z.string().uuid(),
           status: z
-            .enum(INCIDENT_STATUSES as unknown as [string, ...string[]])
+            .enum(INCIDENT_STATUS_FILTERS as unknown as [string, ...string[]])
             .optional(),
           severity: z
             .enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]])
@@ -1498,7 +1528,7 @@ export async function opsRoutes(app: FastifyInstance) {
   const GroupsQuery = z.object({
     teamId: z.string().uuid(),
     status: z
-      .enum(INCIDENT_STATUSES as unknown as [string, ...string[]])
+      .enum(INCIDENT_STATUS_FILTERS as unknown as [string, ...string[]])
       .optional(),
     severity: z
       .enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]])
@@ -1564,19 +1594,48 @@ export async function opsRoutes(app: FastifyInstance) {
       // The grouping is a PRESENTATION over the conditions the filters
       // selected, so it reads them through the same service the flat list
       // does — one authority, one scope, one set of filters.
-      const page = await listIncidents({
-        teamId: q.teamId,
-        sla: q.sla ?? null,
-        now,
-        resolvedSince,
-        status: q.status as never,
-        severity: q.severity as never,
-        category: q.category as never,
-        owner,
-        q: q.q,
-        limit: GROUPED_SCAN_LIMIT,
-        cursor: null,
-      });
+      //
+      // KEYSET PAGES until the filtered set is exhausted (OPS-06). One page of
+      // 500 used to be the whole answer, so a workspace with long history lost
+      // whole groups — suppressed ones first — under a header that looked
+      // complete. The order is (firstSeenAtUtc, id): it never moves, so a row
+      // re-firing mid-read cannot be skipped or counted twice.
+      //
+      // The SLA filter is narrowed with the SAME projection the flat list and
+      // the badge use (OPS-07). The database predicate is a superset for some
+      // postures (and empty for others); grouping the superset counted
+      // conditions the filter did not select.
+      const scanned: Array<Awaited<ReturnType<typeof listIncidents>>["incidents"][number]> = [];
+      let cursor: string | null = null;
+      let exhausted = false;
+      while (scanned.length < GROUPED_SCAN_BOUND) {
+        const chunk = await listIncidents({
+          teamId: q.teamId,
+          sla: q.sla ?? null,
+          now,
+          resolvedSince,
+          status: q.status as never,
+          severity: q.severity as never,
+          category: q.category as never,
+          owner,
+          q: q.q,
+          sort: "oldest",
+          limit: Math.min(GROUPED_SCAN_LIMIT, GROUPED_SCAN_BOUND - scanned.length),
+          cursor,
+        });
+        let rows = chunk.incidents;
+        if (q.sla && rows.length > 0) {
+          const cycles = await loadSlaCycles({ teamId: q.teamId, incidentIds: rows.map((r) => r.id) });
+          rows = rows.filter((r) => withSla(projectIncident(r), cycles, now).sla.posture === q.sla);
+        }
+        scanned.push(...rows);
+        if (chunk.complete || !chunk.nextCursor) {
+          exhausted = true;
+          break;
+        }
+        cursor = chunk.nextCursor;
+      }
+      const page = { incidents: scanned, complete: exhausted };
 
       const groups = projectConditionGroups(
         page.incidents.map((row) => ({
@@ -1677,7 +1736,7 @@ export async function opsRoutes(app: FastifyInstance) {
   const AffectedQuery = z.object({
     teamId: z.string().uuid(),
     status: z
-      .enum(INCIDENT_STATUSES as unknown as [string, ...string[]])
+      .enum(INCIDENT_STATUS_FILTERS as unknown as [string, ...string[]])
       .optional(),
     severity: z
       .enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]])
@@ -1815,11 +1874,18 @@ export async function opsRoutes(app: FastifyInstance) {
         outputRecovery?: "SUPERSEDE" | "RECOVER" | "NONE" | null;
       } | null = detail.relatedEvidenceId
         ? await prisma.evidence
-            .findFirst({
-              where: { id: detail.relatedEvidenceId, teamId: q.teamId },
-              select: { otsStatus: true, otsFailureReason: true },
+            .findUnique({
+              where: { id: detail.relatedEvidenceId },
+              select: { teamId: true, ownerUserId: true, otsStatus: true, otsFailureReason: true },
             })
-            .then((r) => (r ? { otsStatus: r.otsStatus ? String(r.otsStatus) : null, otsFailureReason: r.otsFailureReason ?? null } : null))
+            // The record is in this workspace by the canonical resolver, not
+            // by team_id alone: a Personal record is stored with team_id NULL
+            // and lives in its owner's Personal workspace (OPS-01).
+            .then(async (r) =>
+              r && (await resolveEvidenceWorkspaceId(r, prisma as never)) === q.teamId
+                ? { otsStatus: r.otsStatus ? String(r.otsStatus) : null, otsFailureReason: r.otsFailureReason ?? null }
+                : null,
+            )
             .catch(() => null)
         : null;
       // The record's own output decision — the SAME one the Evidence page
@@ -1901,7 +1967,9 @@ export async function opsRoutes(app: FastifyInstance) {
       const status =
         err.code === "incident_not_found"
           ? 404
-          : err.code === "invalid_fingerprint" || err.code === "SUPPRESSION_REASON_REQUIRED"
+          : err.code === "invalid_fingerprint" ||
+              err.code === "SUPPRESSION_REASON_REQUIRED" ||
+              err.code === "invalid_assignee"
             ? 400
             : 409;
       reply.code(status).send({ error: { code: err.code } });
@@ -2031,7 +2099,15 @@ export async function opsRoutes(app: FastifyInstance) {
               ? 409
               : result.result === "QUEUE_UNAVAILABLE"
                 ? 503
-                : 200;
+                : result.result === "FAILED"
+                  ? // The domain authority could not accept the work. A 200 here
+                    // told every HTTP client the remediation had succeeded.
+                    502
+                  : 200;
+      // Whether asking again can help: a transport or dispatch failure may
+      // clear; a refusal or an ineligible record will not, however often the
+      // button is pressed.
+      const retryable = result.result === "QUEUE_UNAVAILABLE" || result.result === "FAILED";
 
       // ET-REC-05 — a non-2xx answer ALSO carries the standard error envelope
       // with the remediation inside it. The web client lifts only
@@ -2045,6 +2121,7 @@ export async function opsRoutes(app: FastifyInstance) {
           error: {
             code: `remediation_${result.result.toLowerCase()}`,
             message: result.message,
+            retryable,
             remediation: result,
           },
         });
@@ -2562,6 +2639,11 @@ export async function opsRoutes(app: FastifyInstance) {
       // own the row resolves to the same 404 a non-existent workflow
       // resolves to (anti-enumeration), so `body.teamId` below is proven
       // equal to the persisted `workflow.teamId` before it gates anything.
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2569,13 +2651,10 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
-      if (!actor) return;
-      const member = await prisma.teamMember.findFirst({
-        where: { teamId: bound.teamId, userId: body.assigneeUserId },
-        select: { id: true },
-      });
-      if (!member) {
+      // The same eligibility rule as incident assignment: ACTIVE, access not
+      // expired, role holds the Operations permission. A suspended, revoked or
+      // expired member is not a valid owner.
+      if (!(await isAssignableOperator({ teamId: bound.teamId, userId: body.assigneeUserId }))) {
         return reply.code(400).send({
           error: "invalid_assignee",
           message: "Assignee must be a member of this workspace.",
@@ -2612,6 +2691,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2619,8 +2703,6 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
-      if (!actor) return;
       return runWorkflowAction({
         req,
         reply,
@@ -2651,6 +2733,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2658,8 +2745,6 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.assign");
-      if (!actor) return;
       return runWorkflowAction({
         req,
         reply,
@@ -2690,6 +2775,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = MitigationBody.parse(req.body ?? {});
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2697,8 +2787,6 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
-      if (!actor) return;
       return runWorkflowAction({
         req,
         reply,
@@ -2730,6 +2818,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = ResolveWorkflowBody.parse(req.body ?? {});
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2737,8 +2830,6 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
-      if (!actor) return;
       return runWorkflowAction({
         req,
         reply,
@@ -2770,6 +2861,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2777,8 +2873,6 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.suppress");
-      if (!actor) return;
       return runWorkflowAction({
         req,
         reply,
@@ -2809,6 +2903,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = TeamIdOnlyWorkflow.parse(req.body ?? {});
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2816,8 +2915,6 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.resolve");
-      if (!actor) return;
       return runWorkflowAction({
         req,
         reply,
@@ -2848,6 +2945,11 @@ export async function opsRoutes(app: FastifyInstance) {
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = ParamsWorkflowId.parse(req.params);
       const body = ScheduleRetryBody.parse(req.body ?? {});
+      // Authorization FIRST: a non-member is told the workspace does not exist
+      // before anything about the workflow is consulted, so the two 404s can
+      // no longer be told apart to probe which workflow belongs to which team.
+      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
+      if (!actor) return;
       const bound = await bindWorkflowWorkspace({
         workflowId: id,
         declaredTeamId: body.teamId,
@@ -2855,8 +2957,6 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!bound) {
         return reply.code(404).send({ error: { code: "workflow_not_found" } });
       }
-      const actor = await requireOpsCapability(req, reply, body.teamId, "operations.acknowledge");
-      if (!actor) return;
       return runWorkflowAction({
         req,
         reply,
@@ -3047,13 +3147,19 @@ export async function opsRoutes(app: FastifyInstance) {
     teamId: string,
     userId: string,
   ): Promise<boolean> {
-    return evaluateMemberAccess({
+    const permitted = await evaluateMemberAccess({
       teamId,
       userId,
       permission: "operations.saved_views.manage" as never,
     })
       .then((d) => d.allowed === true)
       .catch(() => false);
+    if (!permitted) return false;
+    // AND the workspace capability: a "shared" view in a single-operator
+    // workspace is shared with nobody, and the capability model withholds it
+    // there. The permission alone let a solo owner create one.
+    const resolved = await resolveMemberWorkspaceCapabilities({ userId, teamId }).catch(() => null);
+    return resolved?.capabilities.OPERATIONS_SAVED_VIEWS_MANAGE === true;
   }
 
   /**
@@ -3914,6 +4020,9 @@ export async function opsRoutes(app: FastifyInstance) {
     count: z.number().int().min(1).max(1000).optional(),
   });
 
+  const TELEMETRY_EVENT_MAX = 50;
+  const TELEMETRY_REQUEST_BUDGET = 200;
+
   const UploadTelemetryBody = z.object({
     teamId: z.string().uuid(),
     events: z.array(UploadTelemetryEvent).min(1).max(50),
@@ -3941,6 +4050,13 @@ export async function opsRoutes(app: FastifyInstance) {
       if (!member) {
         return reply.code(404).send({ error: { code: "not_found" } });
       }
+      // An ACTIVE member with live access — the same lifecycle every other
+      // gate applies. A row alone admitted suspended, revoked and expired
+      // members to the process-wide counters.
+      const access = await evaluateMemberAccess({ teamId: body.teamId, userId, permission: "operations.view" });
+      if (!access.allowed) {
+        return reply.code(403).send({ error: { code: "permission_denied", reason: access.reason } });
+      }
       // Per-user rate limit. 60 calls / minute is well above what
       // a healthy capture page would ever need.
       const rate = await enforceRateLimit({
@@ -3955,9 +4071,15 @@ export async function opsRoutes(app: FastifyInstance) {
         );
         return reply.code(429).send({ error: { code: "rate_limited" } });
       }
+      // BOUNDED. One request may add at most TELEMETRY_EVENT_MAX to one counter
+      // and TELEMETRY_REQUEST_BUDGET in total, so a client cannot inflate the
+      // process-wide counters by tens of thousands per call.
+      let budget = TELEMETRY_REQUEST_BUDGET;
       for (const evt of body.events) {
-        const n = evt.count ?? 1;
+        const n = Math.min(evt.count ?? 1, TELEMETRY_EVENT_MAX, budget);
         for (let i = 0; i < n; i++) bump(evt.type);
+        budget -= n;
+        if (budget <= 0) break;
       }
       return reply.code(202).send({ accepted: body.events.length });
     },

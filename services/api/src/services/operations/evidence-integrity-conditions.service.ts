@@ -341,6 +341,8 @@ const SCAN_BOUND = 2000;
 type ExistingCondition = {
   status: (typeof prismaPkg.IncidentStatus)[keyof typeof prismaPkg.IncidentStatus];
   firstSeenAtUtc: Date;
+  /** When the current active interval began (live SLA cycle, else first seen). */
+  activeSinceUtc: Date;
 };
 
 /**
@@ -365,12 +367,25 @@ async function loadExistingConditions(
         teamId,
         fingerprint: { in: fingerprints.slice(i, i + CHUNK) as string[] },
       },
-      select: { fingerprint: true, status: true, firstSeenAtUtc: true },
+      select: {
+        fingerprint: true,
+        status: true,
+        firstSeenAtUtc: true,
+        // The LIVE SLA cycle starts the current active interval: a reopened
+        // condition ages from its reopen, not from its first-ever sighting.
+        slaCycles: {
+          where: { endedAtUtc: null },
+          select: { startedAtUtc: true },
+          orderBy: { cycleNumber: "desc" },
+          take: 1,
+        },
+      },
     });
     for (const row of rows) {
       out.set(row.fingerprint, {
         status: row.status,
         firstSeenAtUtc: row.firstSeenAtUtc,
+        activeSinceUtc: row.slaCycles?.[0]?.startedAtUtc ?? row.firstSeenAtUtc,
       });
     }
   }
@@ -744,9 +759,14 @@ async function recordIntegrityCondition(
   const severity: IncidentSeverity = deriveIntegritySeverity({
     failureClass,
     // A condition we have never seen starts its clock now; an existing one
-    // keeps the clock it started with, so age escalation measures how long
-    // the PROBLEM has existed rather than how long since the last scan.
-    firstSeenAtUtc: existing?.firstSeenAtUtc ?? now,
+    // keeps the clock of its CURRENT active interval, so age escalation
+    // measures how long the problem has existed rather than how long since
+    // the last scan — and a resolved condition that recurs starts a new
+    // interval instead of inheriting the age of one that already ended.
+    firstSeenAtUtc:
+      !existing || existing.status === prismaPkg.IncidentStatus.RESOLVED
+        ? now
+        : existing.activeSinceUtc,
     now,
     underLegalHold: args.underLegalHold,
   });
@@ -993,8 +1013,9 @@ async function resolveRecoveredOtsPendingAged(
     });
     if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") continue;
 
-    await client.operationalIncident.update({
-      where: { id: row.id },
+    // Compare-and-set: a reopen or operator transition in between wins.
+    const cas = await client.operationalIncident.updateMany({
+      where: { id: row.id, status: row.status },
       data: {
         status: prismaPkg.IncidentStatus.RESOLVED,
         resolvedAtUtc: args.now,
@@ -1006,6 +1027,7 @@ async function resolveRecoveredOtsPendingAged(
         // alone. Who took this on is part of what happened to it.
       },
     });
+    if (cas.count !== 1) continue;
     await client.operationalIncidentEvent
       .create({
         data: {
@@ -1093,7 +1115,7 @@ async function resolveRecoveredConditions(
         args.scopeWhere,
       ],
     },
-    select: { id: true, ...INTEGRITY_RECOVERY_SELECT },
+    select: { id: true, deletedAt: true, ...INTEGRITY_RECOVERY_SELECT },
   });
   const statusById = new Map(evidenceRows.map((row) => [row.id, row]));
 
@@ -1102,6 +1124,40 @@ async function resolveRecoveredConditions(
     const evidence = statusById.get(parts.evidenceId);
     // Unreadable or gone: NOT proof of recovery. Leave it open.
     if (!evidence) continue;
+    // IN TRASH. The discovery scan no longer evaluates a trashed record, so
+    // its condition could never recover and could not be closed by anyone
+    // while the record waited out its grace period. It is closed as no
+    // longer applicable to live evidence — never as recovered — and a
+    // restored record is evaluated again by the next scan, which reopens it
+    // if the proof is still failing.
+    if (evidence.deletedAt) {
+      const closed = await client.operationalIncident.updateMany({
+        where: { id: row.id, status: row.status },
+        data: {
+          status: prismaPkg.IncidentStatus.RESOLVED,
+          resolvedAtUtc: args.now,
+          resolvedByUserId: null,
+          resolutionNote:
+            "Closed: the record was moved to trash, so this integrity condition no longer applies to live evidence. Restoring the record re-evaluates it.",
+        },
+      });
+      if (closed.count !== 1) continue;
+      await client.operationalIncidentEvent
+        .create({
+          data: {
+            incidentId: row.id,
+            eventType: "closed_record_trashed",
+            safeMessage:
+              "The record was moved to trash. Closed as no longer applicable, not as recovered.",
+          },
+        })
+        .catch(() => null);
+      await import("./incident-sla-cycle.service.js")
+        .then((cycles) => cycles.closeSlaCycle({ incidentId: row.id, reason: "RESOLVED" }, client))
+        .catch(() => null);
+      resolved += 1;
+      continue;
+    }
     // OPS-019 — POSITIVE recovery only. "No longer FAILED" (NULL, PENDING,
     // an unvalidated token) is not recovery and leaves the condition open.
     if (!hasRecovered(evidence, parts.integrityClass)) continue;
@@ -1115,8 +1171,9 @@ async function resolveRecoveredConditions(
     });
     if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") continue;
 
-    await client.operationalIncident.update({
-      where: { id: row.id },
+    // Compare-and-set: a reopen or operator transition in between wins.
+    const cas = await client.operationalIncident.updateMany({
+      where: { id: row.id, status: row.status },
       data: {
         status: prismaPkg.IncidentStatus.RESOLVED,
         resolvedAtUtc: args.now,
@@ -1133,6 +1190,7 @@ async function resolveRecoveredConditions(
         // genuine reopen, which starts a new cycle that nobody owns yet.
       },
     });
+    if (cas.count !== 1) continue;
     await client.operationalIncidentEvent
       .create({
         data: {
@@ -1353,8 +1411,9 @@ async function resolveRecoveredOtsInitializationStalled(
     });
     if (decision !== "AUTO_RESOLVE_SOURCE_RECOVERY") continue;
 
-    await client.operationalIncident.update({
-      where: { id: row.id },
+    // Compare-and-set: a reopen or operator transition in between wins.
+    const cas = await client.operationalIncident.updateMany({
+      where: { id: row.id, status: row.status },
       data: {
         status: prismaPkg.IncidentStatus.RESOLVED,
         resolvedAtUtc: args.now,
@@ -1363,6 +1422,7 @@ async function resolveRecoveredOtsInitializationStalled(
           "Resolved from Evidence domain truth: the record has entered the OpenTimestamps lifecycle.",
       },
     });
+    if (cas.count !== 1) continue;
     await client.operationalIncidentEvent
       .create({
         data: {

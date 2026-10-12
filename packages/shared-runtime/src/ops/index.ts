@@ -13,3 +13,6 @@ export * from "./condition-metric.js";
 export * from "./ots-aging.js";
 // UC-LCH-002 — the capture-failure metric authority (per-channel counters).
 export * from "./capture-failure-metrics.js";
+// THE incident SLA cycle authority, shared by the API and the Worker writers.
+export * from "./sla-policy-resolution.js";
+export * from "./incident-sla-cycle.js";

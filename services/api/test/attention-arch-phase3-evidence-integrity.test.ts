@@ -214,6 +214,35 @@ function makeClient(evidence: FakeEvidence[]) {
           return row;
         },
       ),
+      // Compare-and-set, modelled faithfully: the write lands only when the
+      // row is still in the status the caller decided against.
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; status?: string };
+          data: Record<string, unknown>;
+        }) => {
+          const row = incidents.find((i) => i.id === where.id);
+          if (!row || (where.status !== undefined && row.status !== where.status)) {
+            return { count: 0 };
+          }
+          for (const [k, v] of Object.entries(data)) {
+            if (v && typeof v === "object" && "increment" in (v as Record<string, unknown>)) {
+              (row as unknown as Record<string, number>)[k] += (v as { increment: number }).increment;
+            } else {
+              (row as unknown as Record<string, unknown>)[k] = v;
+            }
+          }
+          return { count: 1 };
+        },
+      ),
+      findUniqueOrThrow: vi.fn(async ({ where }: { where: { id: string } }) => {
+        const row = incidents.find((i) => i.id === where.id);
+        if (!row) throw new Error("not found");
+        return row;
+      }),
       count: vi.fn(async () => incidents.length),
       groupBy: vi.fn(async () => []),
     },

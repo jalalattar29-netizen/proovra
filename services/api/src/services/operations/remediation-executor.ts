@@ -40,10 +40,12 @@
 
 import { isPermanentOtsProofFailureReason } from "@proovra/shared";
 import type { PrismaClient } from "@prisma/client";
+import { resolveEvidenceWorkspaceId } from "@proovra/shared-runtime";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { requestEvidenceOtsAnchoring } from "../integrity/ots-anchoring-authority.service.js";
 import { emitTenantAudit } from "../audit/tenant-audit.service.js";
+import { workspaceIncidentWhere } from "../observability/incident-scope.js";
 import { bump } from "../ops/metrics.service.js";
 import {
   requestOutputRecovery,
@@ -107,7 +109,7 @@ export async function executeRemediation(
   // A condition belonging to another workspace is not found here at all, so
   // there is no branch that could be reordered into leaking its existence.
   const incident = await client.operationalIncident.findFirst({
-    where: { id: input.incidentId, teamId: input.teamId },
+    where: { id: input.incidentId, ...workspaceIncidentWhere(input.teamId) },
   });
   if (!incident) return outcome("REFUSED");
 
@@ -138,11 +140,15 @@ export async function executeRemediation(
   const evidenceId = incident.relatedEvidenceId;
   if (!evidenceId) return outcome("NOT_ELIGIBLE");
 
-  const evidence = await client.evidence.findFirst({
-    where: { id: evidenceId, teamId: input.teamId },
+  // The record's workspace is decided by the canonical resolver, never by
+  // `team_id` alone: a Personal record is stored with team_id NULL and lives
+  // in its owner's Personal workspace, which is where its condition is.
+  const evidence = await client.evidence.findUnique({
+    where: { id: evidenceId },
     select: {
       id: true,
       teamId: true,
+      ownerUserId: true,
       status: true,
       otsStatus: true,
       otsFailureReason: true,
@@ -151,6 +157,9 @@ export async function executeRemediation(
   });
   // Cross-tenant evidence, or evidence deleted since the incident opened.
   if (!evidence || evidence.deletedAt) return outcome("NOT_ELIGIBLE");
+  if ((await resolveEvidenceWorkspaceId(evidence, client as never)) !== input.teamId) {
+    return outcome("NOT_ELIGIBLE");
+  }
 
   if (action.requiresReason && !(input.reason ?? "").trim()) {
     return outcome("REFUSED");

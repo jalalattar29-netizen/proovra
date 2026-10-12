@@ -163,6 +163,16 @@ export type ObservationFacts = {
    * provenance must never be read as the more permissive of the two.
    */
   previousResolutionOrigin?: ResolutionOrigin | null;
+  /**
+   * The source's declared recurrence policy (`source-lifecycle.ts`).
+   *
+   * NEW_CONDITION sources identify an occurrence by a time-bucketed
+   * fingerprint: a recurrence after resolution is a NEW condition, which the
+   * next bucket opens. An observation landing in a bucket already resolved
+   * therefore never reopens it — it is recorded against the resolved row and
+   * the resolution stands. Every other policy reopens the same fingerprint.
+   */
+  recurrencePolicy?: string | null;
 };
 
 export type ManualResolutionFacts = {
@@ -300,6 +310,7 @@ export function decideObservationTransition(
     case "SUPPRESSED":
       return "PRESERVE_SUPPRESSED";
     case "RESOLVED":
+      if (facts.recurrencePolicy === "NEW_CONDITION") return "OBSERVATION_ONLY";
       return facts.previousResolutionOrigin === "SOURCE_RECOVERY"
         ? "REOPEN_SOURCE_RECURRENCE"
         : "REOPEN_LEGACY_ACTIVE_SOURCE";
@@ -444,7 +455,19 @@ export const RESOLUTION_EVENT_ORIGINS: Readonly<
   resolved_by_domain_truth: "SOURCE_RECOVERY",
   /** Written by `transitionIncident` when an operator resolved it. */
   resolved: "OPERATOR",
+  /**
+   * Written by an owner-run reconciliation that closed the row only after
+   * proving, from the canonical source, that the condition was no longer
+   * valid. A later recurrence is therefore a genuine recurrence.
+   */
+  resolved_by_reconciliation: "SOURCE_RECOVERY",
 });
+
+/**
+ * The canonical event type for an observation that lands on a RESOLVED row
+ * whose source declares NEW_CONDITION recurrence: recorded, never reopened.
+ */
+export const OCCURRENCE_AFTER_RESOLUTION_EVENT = "occurrence_after_resolution";
 
 /** The canonical event type for a reopen. Never an `increment`. */
 export const REOPENED_EVENT = "reopened";

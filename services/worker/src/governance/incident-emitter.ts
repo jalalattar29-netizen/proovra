@@ -23,6 +23,9 @@ import {
   decideObservationTransition,
   decisionIsReopen,
   OCCURRENCE_WHILE_SUPPRESSED_EVENT,
+  OCCURRENCE_AFTER_RESOLUTION_EVENT,
+  closeSlaCycle,
+  openSlaCycle,
   REOPENED_EVENT,
   reopenReasonFor,
   resolveConditionSource,
@@ -252,7 +255,36 @@ const DEDUPE_SELECT = {
   status: true,
   severity: true,
   relatedEvidenceId: true,
+  sourceId: true,
 } as const;
+
+/**
+ * THE SLA PROMISE, through the SAME authority the API writer uses (OPS-09).
+ *
+ * Worker-written conditions — report and package failures, package denials,
+ * OTS budget exhaustion, immutable drift, notification escalations — used to
+ * be recorded with no cycle at all, so they could never read Due soon or
+ * Overdue. A cycle opens on first observation and again on a reopen (after
+ * the previous one is closed); a workspace-less condition gets none, because
+ * a promise is made BY a workspace. Best-effort: SLA bookkeeping must never
+ * lose the observation itself.
+ */
+async function startSlaCycle(
+  row: { id: string; teamId: string | null; severity: prismaPkg.IncidentSeverity },
+  startedAtUtc: Date,
+  reopened: boolean,
+): Promise<void> {
+  if (!row.teamId) return;
+  try {
+    if (reopened) await closeSlaCycle({ incidentId: row.id, reason: "REOPENED" }, prisma);
+    await openSlaCycle(
+      { teamId: row.teamId, incidentId: row.id, severity: row.severity, startedAtUtc },
+      prisma,
+    );
+  } catch (err) {
+    logger.warn({ err, incidentId: row.id }, "worker.incident.sla_cycle_failed");
+  }
+}
 
 /**
  * Canonical worker incident recording. Replace direct
@@ -403,6 +435,7 @@ export async function recordWorkerIncident(
         } catch {
           // event history is best-effort
         }
+        await startSlaCycle(row, row.firstSeenAtUtc, false);
         return row;
       }
       // Lost the race: `existing` is now the canonical row and execution
@@ -469,15 +502,23 @@ export async function recordWorkerIncident(
       currentStatus: existing.status as IncidentTransitionStatus,
       observation: "SOURCE_ACTIVE",
       previousResolutionOrigin,
+      // The DECLARED recurrence policy, enforced exactly as the API writer does.
+      recurrencePolicy: lifecycle.recurrencePolicy,
     });
     const willReopen = decisionIsReopen(decision);
     const reopenReason = reopenReasonFor(decision);
-    const row = await prisma.operationalIncident.update({
-      where: { id: existing.id },
+    // COMPARE-AND-SET on the status the decision was made against. A
+    // resolution, reopen or acknowledgement that landed in between makes this
+    // a no-op, and the observation is retried once against the new state.
+    const observedAt = new Date();
+    const cas = await prisma.operationalIncident.updateMany({
+      where: { id: existing.id, status: existing.status },
       data: {
-        lastSeenAtUtc: new Date(),
+        lastSeenAtUtc: observedAt,
         occurrenceCount: { increment: 1 },
-        severity: severityToPrismaEnum(nextSeverity),
+        // A reopen is a new active interval: the CURRENT severity, never the
+        // worst one from a cycle that has already ended.
+        severity: severityToPrismaEnum(willReopen ? input.severity : nextSeverity),
         ...(willReopen
           ? {
               status: prismaPkg.IncidentStatus.OPEN,
@@ -494,6 +535,14 @@ export async function recordWorkerIncident(
           input.relatedEvidenceId ?? existing.relatedEvidenceId,
       },
     });
+    if (cas.count !== 1) {
+      if ((input as { __casRetry?: boolean }).__casRetry) {
+        throw new Error("operational_incident_concurrent_transition");
+      }
+      return recordWorkerIncident({ ...input, __casRetry: true } as RecordWorkerIncidentInput);
+    }
+    const row = await prisma.operationalIncident.findUniqueOrThrow({ where: { id: existing.id } });
+    if (willReopen) await startSlaCycle(row, observedAt, true);
     try {
       await prisma.operationalIncidentEvent.create({
         data: {
@@ -502,7 +551,9 @@ export async function recordWorkerIncident(
             ? REOPENED_EVENT
             : decision === "PRESERVE_SUPPRESSED"
               ? OCCURRENCE_WHILE_SUPPRESSED_EVENT
-              : "increment",
+              : existing.status === prismaPkg.IncidentStatus.RESOLVED
+                ? OCCURRENCE_AFTER_RESOLUTION_EVENT
+                : "increment",
           safeMessage: safeSummary,
           metadataJson: (reopenReason
             ? {

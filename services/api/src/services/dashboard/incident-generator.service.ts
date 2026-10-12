@@ -49,7 +49,7 @@ import {
 } from "../operations/source-truth-recovery.service.js";
 // COMMERCIAL CLOSURE (2026-09-08) — keeps a commercial product decision out of
 // the artifact-backlog conditions this sweep opens.
-import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
+import { outputEntitlementScope } from "../billing/evidence-output-eligibility.service.js";
 import {
   aggregateFingerprint,
   aggregateSpecs,
@@ -243,7 +243,13 @@ export async function generateIncidentsForWorkspace(
     if (dependent.opened > 0) {
       rules.push("billing_dependent_cancellation:per_record");
     }
-    successful.push(...DEPENDENT_CANCELLATION_SOURCE_IDS);
+    if (dependent.truncated) {
+      // It did not look at every obligation, so it may never report this
+      // source clear: truncated, which readiness reads as PARTIAL.
+      truncatedSources.push(...DEPENDENT_CANCELLATION_SOURCE_IDS);
+    } else {
+      successful.push(...DEPENDENT_CANCELLATION_SOURCE_IDS);
+    }
   } catch (err) {
     // SCAN: this source both reads the obligations and writes their
     // conditions, and the read is what fails first if anything does.
@@ -278,9 +284,12 @@ export async function generateIncidentsForWorkspace(
     client: prisma,
     now: new Date(),
     evidenceWhere: ctx.evidenceWhere,
-    outputEntitledWhere: await outputEntitledEvidenceWhere({
-      teamId: ctx.teamId,
-    }),
+    // ALL / NARROW / UNKNOWN told apart: an unresolved entitlement makes the
+    // output backlogs UNKNOWN rather than counting every record as owed.
+    ...(await outputEntitlementScope({ teamId: ctx.teamId }).then((scope) => ({
+      outputEntitledWhere: scope.kind === "NARROW" ? scope.where : null,
+      outputEntitlementUnknown: scope.kind === "UNKNOWN",
+    }))),
   };
 
   for (const spec of aggregateSpecs()) {
@@ -440,8 +449,15 @@ export async function generateIncidentsForWorkspace(
     const counted = !alreadyAttempted.has(sourceId);
     if (counted) attempted.push(sourceId);
     try {
-      await sweepSourceTruthRecoveries({ teamId: ctx.teamId, sourceId });
-      if (counted) successful.push(sourceId);
+      const sweep = await sweepSourceTruthRecoveries({ teamId: ctx.teamId, sourceId });
+      // A sweep that stopped at its budget has NOT examined every condition:
+      // it is reported truncated (readiness PARTIAL, never a clear) and the
+      // next sweep continues from where it stopped.
+      if (sweep.truncated) {
+        if (!truncatedSources.includes(sourceId)) truncatedSources.push(sourceId);
+      } else if (counted) {
+        successful.push(sourceId);
+      }
     } catch (err) {
       failSource([sourceId], "SCAN", err);
     }

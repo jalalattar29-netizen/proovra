@@ -559,6 +559,41 @@ export async function outputEntitledEvidenceWhere(params: {
   }
 }
 
+/**
+ * The same narrowing with its two "no narrowing" cases told apart: ALL (the
+ * plan funds every record, so the whole population is owed) and UNKNOWN (the
+ * plan or lifecycle could not be resolved). `outputEntitledEvidenceWhere`
+ * returns null for both; a backlog COUNTED over an unknown entitlement would
+ * be a confident number over records that may owe nothing, so Operations
+ * reads this form and reports UNKNOWN instead.
+ */
+export async function outputEntitlementScope(params: {
+  ownerUserId?: string | null;
+  teamId: string | null;
+}): Promise<{ kind: "ALL" } | { kind: "NARROW"; where: OwedOutputEvidenceWhere } | { kind: "UNKNOWN" }> {
+  try {
+    const ctx = params.teamId
+      ? await resolveCommercialPlan({ type: "WORKSPACE", teamId: params.teamId, requesterUserId: params.ownerUserId ?? "" })
+      : params.ownerUserId
+        ? await resolveCommercialPlan({ type: "PERSONAL_ACCOUNT", userId: params.ownerUserId })
+        : null;
+    if (!ctx) return { kind: "UNKNOWN" };
+    const lifecycle = await resolveSubjectLifecycle({
+      plan: ctx.plan as PlanType,
+      ownerUserId: ctx.ownerUserId,
+      teamId: params.teamId,
+      billingShape: String(ctx.billingShape),
+    });
+    const issuance = resolveOutputIssuanceEntitlement({ plan: ctx.plan as PlanType, funding: "PLAN", lifecycle });
+    if (issuance.decision === "UNRESOLVED") return { kind: "UNKNOWN" };
+    if (issuance.decision === "ENTITLED") return { kind: "ALL" };
+    const where = await outputEntitledEvidenceWhere(params);
+    return where ? { kind: "NARROW", where } : { kind: "UNKNOWN" };
+  } catch {
+    return { kind: "UNKNOWN" };
+  }
+}
+
 /** The narrowing `outputEntitledEvidenceWhere` returns: compose it under `AND`. */
 export type OwedOutputEvidenceWhere = {
   OR: [{ id: { in: string[] } }, { outputEarnedBasis: { in: string[] } }];

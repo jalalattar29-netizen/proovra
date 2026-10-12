@@ -55,7 +55,11 @@ function readSource(rel: string): string {
 describe("Phase 25.5 — SLA policy resolver wiring", () => {
   const slaSrc = readSource(
     "../src/services/reviewer-ops/sla-policy.service.ts",
-  );
+  ) +
+    // The resolution itself moved to shared-runtime so the API and the Worker
+    // open SLA cycles against the SAME policy (OPS-09); the API module
+    // re-exports it.
+    readSource("../../../packages/shared-runtime/src/ops/sla-policy-resolution.ts");
   const engineSrc = readSource(
     "../src/services/reviewer-ops/reviewer-operations-engine.service.ts",
   );

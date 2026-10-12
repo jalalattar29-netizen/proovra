@@ -298,7 +298,9 @@ describe("ADM-013 Phase 4 — losing the create race costs no observation", () =
     const afterCatch = WRITER.slice(
       WRITER.indexOf("bump(\"operational_incident_create_raced\")"),
     );
-    const nextBranch = afterCatch.indexOf("if (existing) {");
+    // The update path is now a compare-and-set loop (`while (existing)`):
+    // a lost race re-reads and decides again on the same path.
+    const nextBranch = afterCatch.indexOf("while (existing) {");
     const anyOtherBranch = afterCatch.indexOf("if (created");
     expect(nextBranch).toBeGreaterThan(0);
     expect(

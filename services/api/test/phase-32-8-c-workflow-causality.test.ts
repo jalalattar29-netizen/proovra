@@ -538,7 +538,9 @@ describe("Phase 32.8C FINAL-2 — API routes", () => {
   it("assign route enforces workspace membership on the assignee", () => {
     const block = OPS_ROUTES.match(/app\.post\(\s*"\/v1\/ops\/workflows\/:id\/assign"[\s\S]*?\}\s*,\s*\)/);
     expect(block).not.toBeNull();
-    expect(block![0]).toMatch(/prisma\.teamMember\.findFirst/);
+    // Membership AND eligibility, through the one rule incident assignment
+    // uses: ACTIVE, access not expired, role holds the Operations permission.
+    expect(block![0]).toMatch(/isAssignableOperator\(/);
     expect(block![0]).toMatch(/invalid_assignee/);
   });
 
