@@ -36,7 +36,9 @@ describe("verification package README (ET-PKG-02/03)", () => {
   });
 
   it("the OTS hint names the digest, and no text claims platform-independent key trust", () => {
-    expect(SRC).toContain("ots verify -d <hash in this file> opentimestamps-proof.ots");
+    // (2026-10-12) Structure first (offline), then the chain with a node the reviewer trusts.
+    expect(SRC).toContain("ots info opentimestamps-proof.ots");
+    expect(SRC).toContain("ots --bitcoin-node <node URL> verify -d <committedDigest.hex> opentimestamps-proof.ots");
     expect(SRC).not.toContain("without reliance on the PROOVRA platform");
     expect(SRC).not.toContain("Verify with: ots verify opentimestamps-proof.ots\"");
   });

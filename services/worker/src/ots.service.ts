@@ -37,6 +37,23 @@ export function resolveOtsTimeoutMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 30000;
 }
 
+let otsClientIdentityCache: Promise<string | null> | null = null;
+
+/**
+ * The OpenTimestamps client this worker runs, e.g. "opentimestamps-client 0.7.2"
+ * (2026-10-12) — recorded with the proof material it produced. Null when the
+ * binary cannot report it; never guessed.
+ */
+export function otsClientIdentity(): Promise<string | null> {
+  otsClientIdentityCache ??= execFileAsync(resolveOtsBin(), ["--version"], { timeout: 10_000 })
+    .then((r) => {
+      const v = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().replace(/^v/i, "");
+      return /^d+.d+(.d+)?/.test(v) ? `opentimestamps-client ${v}` : null;
+    })
+    .catch(() => null);
+  return otsClientIdentityCache;
+}
+
 function calendarUrl(): string | null {
   return clean(process.env.OTS_CALENDAR_URL);
 }

@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import * as prismaPkg from "@prisma/client";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 import type { ReportTrustDecision } from "./report-v2/types.js";
+import { otsClientIdentity } from "./ots.service.js";
 import {
   buildTrustDecision,
   buildReportCanonicalMaterials,
@@ -4921,6 +4922,7 @@ const finalizedAnchorPayload = buildFinalizedAnchorPayload({
             (tsaValidationEvent?.payload as { tsaValidation?: unknown } | null)?.tsaValidation ?? null,
           ),
         });
+        const otsClient = await otsClientIdentity();
         const packageBuildInput: Parameters<typeof createVerificationPackage>[0] = {
           supersedesPackage: null,
           timestampValidation,
@@ -5003,6 +5005,19 @@ signingKeyVersion: evidence.signingKeyVersion ?? undefined,
               finalized.finalizedReportEvidencePayload.otsAnchorCheck ?? null,
             failureReason:
               finalized.finalizedReportEvidencePayload.otsFailureReason ?? null,
+            // (2026-10-12) The OTS truth columns and the client that produced the proof.
+            attestationRecordedAtUtc: finalized.finalizedReportEvidencePayload.otsAttestationRecordedAtUtc ?? null,
+            attestationBlockHeight: finalized.finalizedReportEvidencePayload.otsAttestationBlockHeight ?? null,
+            chainVerificationStatus: finalized.finalizedReportEvidencePayload.otsChainVerificationStatus ?? null,
+            chainCheckedAtUtc: finalized.finalizedReportEvidencePayload.otsChainCheckedAtUtc ?? null,
+            chainVerifiedAtUtc: finalized.finalizedReportEvidencePayload.otsChainVerifiedAtUtc ?? null,
+            chainBlockHeight: finalized.finalizedReportEvidencePayload.otsChainBlockHeight ?? null,
+            chainBlockHash: finalized.finalizedReportEvidencePayload.otsChainBlockHash ?? null,
+            chainBlockTimeUtc: finalized.finalizedReportEvidencePayload.otsChainBlockTimeUtc ?? null,
+            chainConfirmations: finalized.finalizedReportEvidencePayload.otsChainConfirmations ?? null,
+            chainVerifier: finalized.finalizedReportEvidencePayload.otsChainVerifier ?? null,
+            chainFailureCode: finalized.finalizedReportEvidencePayload.otsChainFailureCode ?? null,
+            otsClient,
           },
           metadata: {
             title: prepared.display.displayTitle,
