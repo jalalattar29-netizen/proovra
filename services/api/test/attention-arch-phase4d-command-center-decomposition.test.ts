@@ -137,10 +137,13 @@ describe("Phase 4D.1 — Command Center projects Operations, never computes it",
   it("reads the canonical summary for its counts", () => {
     const body = pressureBody();
     expect(body).toContain("buildOperationsSummary({ workspaceId: teamId })");
-    expect(body).toMatch(/critical: summary\.critical/);
-    expect(body).toMatch(/high: summary\.high/);
-    expect(body).toMatch(/warning: summary\.warning/);
-    expect(body).toMatch(/info: summary\.info/);
+    // The counts are the summary's own, through one helper that refuses to
+    // turn an unknown (null) count into a zero.
+    expect(body).toContain("counts: knownCounts(summary)");
+    expect(CC_SERVICE).toMatch(/critical: summary\.critical/);
+    expect(CC_SERVICE).toMatch(/high: summary\.high/);
+    expect(CC_SERVICE).toMatch(/warning: summary\.warning/);
+    expect(CC_SERVICE).toMatch(/info: summary\.info/);
   });
 
   it("reads the canonical condition list for its rows", () => {
@@ -172,7 +175,7 @@ describe("Phase 4D.1 — Command Center projects Operations, never computes it",
 
   it("deep-links into the canonical surface rather than acting in place", () => {
     const body = pressureBody();
-    expect(body).toMatch(/href: `\/operations\?incidentId=/);
+    expect(body).toMatch(/href: `\/operations\?incident=/);
     for (const mutation of [
       "acknowledgeIncident",
       "resolveIncident",

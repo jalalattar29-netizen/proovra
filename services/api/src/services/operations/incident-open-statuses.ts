@@ -22,7 +22,7 @@
  * ===========================================================================
  * WHICH ANSWER, AND WHY
  * ===========================================================================
- * ACKNOWLEDGED counts as unresolved.
+ * ACKNOWLEDGED and SUPPRESSED count as unresolved.
  *
  * An acknowledged incident is one a human has looked at and NOT fixed. The
  * condition is still live, the thing it describes is still happening, and
@@ -36,15 +36,20 @@
  * a queue of things nobody has triaged yet, which is a different question and
  * has its own name below.
  */
-
 import type { Prisma } from "@prisma/client";
+import { UNRESOLVED_INCIDENT_STATUSES as SHARED_UNRESOLVED } from "@proovra/shared";
 
 /**
- * Unresolved: the condition is still live, whether or not a human has seen it.
+ * Unresolved: the condition is still live, whether or not a human has seen it
+ * and whether or not its notifications are paused.
  *
- * This is the count a headline, a badge or an "N incidents" figure means.
+ * This is the count a headline, a badge or an "N incidents" figure means. It
+ * is the shared canonical set (`@proovra/shared` observability), so the API,
+ * the web and mobile cannot disagree about it. SUPPRESSED belongs here for the
+ * same reason ACKNOWLEDGED does: suppression pauses notification, it does not
+ * fix anything, and a headline that dropped it would reward the button.
  */
-export const UNRESOLVED_INCIDENT_STATUSES = ["OPEN", "ACKNOWLEDGED"] as const;
+export const UNRESOLVED_INCIDENT_STATUSES = SHARED_UNRESOLVED;
 
 /**
  * Untriaged: nobody has acknowledged it yet.
@@ -63,4 +68,17 @@ export function unresolvedIncidentWhere(): Prisma.OperationalIncidentWhereInput 
 /** `where` fragment for the untriaged population. */
 export function untriagedIncidentWhere(): Prisma.OperationalIncidentWhereInput {
   return { status: { in: [...UNTRIAGED_INCIDENT_STATUSES] } };
+}
+
+/**
+ * The `where` fragment for one value of the queue's status FILTER vocabulary
+ * (`INCIDENT_STATUS_FILTERS`). UNRESOLVED is the canonical set above; ALL is no
+ * status narrowing (history included); anything else is one stored status.
+ */
+export function incidentStatusFilterWhere(
+  filter: string | null | undefined,
+): Prisma.OperationalIncidentWhereInput {
+  if (!filter || filter === "UNRESOLVED") return unresolvedIncidentWhere();
+  if (filter === "ALL") return {};
+  return { status: filter as Prisma.EnumIncidentStatusFilter["equals"] };
 }

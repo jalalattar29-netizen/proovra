@@ -43,6 +43,7 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { workspaceIncidentWhere } from "../observability/incident-scope.js";
+import { UNRESOLVED_INCIDENT_STATUSES } from "./incident-open-statuses.js";
 import {
   projectConditionGroups,
   type OperationsConditionGroup,
@@ -60,18 +61,25 @@ export type OperationsSummary = {
   workspaceId: string;
   generatedAtUtc: string;
 
-  /** Conditions that are OPEN or ACKNOWLEDGED — i.e. still unresolved. */
-  open: number;
-  /** Of the open set, by severity. */
-  critical: number;
-  high: number;
-  warning: number;
-  info: number;
+  /**
+   * Unresolved conditions: OPEN, ACKNOWLEDGED or SUPPRESSED — the canonical
+   * set (`UNRESOLVED_INCIDENT_STATUSES`).
+   *
+   * EVERY count below is `null` when the summary could not be read
+   * (`complete: false`, `incompleteReason: "SOURCE_FAILED"`). Null is "we do
+   * not know", which no surface may render as 0 or as healthy.
+   */
+  open: number | null;
+  /** Of the unresolved set, by severity. */
+  critical: number | null;
+  high: number | null;
+  warning: number | null;
+  info: number | null;
 
-  /** Open and ACKNOWLEDGED — somebody has said they have it. */
-  acknowledged: number;
-  /** Open and assigned to the CALLER, when a caller is supplied. */
-  assignedToMe: number;
+  /** Unresolved and ACKNOWLEDGED — somebody has said they have it. */
+  acknowledged: number | null;
+  /** Unresolved and assigned to the CALLER, when a caller is supplied. */
+  assignedToMe: number | null;
   /**
    * Open and owned by NOBODY.
    *
@@ -87,7 +95,7 @@ export type OperationsSummary = {
    * declines to render it (there is no OPERATIONS_ASSIGN there); the number
    * itself stays correct for every workspace.
    */
-  unassigned: number;
+  unassigned: number | null;
   /**
    * SLA COUNTERS, from the SAME projection the rows carry.
    *
@@ -103,10 +111,10 @@ export type OperationsSummary = {
    * authority, so counting them as broken promises would manufacture failures
    * out of missing records.
    */
-  slaBreached: number;
-  slaAtRisk: number;
-  slaOnTrack: number;
-  slaUntracked: number;
+  slaBreached: number | null;
+  slaAtRisk: number | null;
+  slaOnTrack: number | null;
+  slaUntracked: number | null;
 
   /**
    * Conditions this workspace has CLOSED.
@@ -209,11 +217,7 @@ const SUMMARY_SCAN_BOUND = 5000;
  * Hiding something from a default view and removing it from the truth are
  * different acts, and only the first is what an operator asked for.
  */
-const UNRESOLVED_STATUSES = [
-  prismaPkg.IncidentStatus.OPEN,
-  prismaPkg.IncidentStatus.ACKNOWLEDGED,
-  prismaPkg.IncidentStatus.SUPPRESSED,
-] as const;
+const UNRESOLVED_STATUSES = UNRESOLVED_INCIDENT_STATUSES;
 
 export type OperationsSummaryInput = {
   workspaceId: string;
@@ -246,6 +250,8 @@ export async function buildOperationsSummary(
     relatedEvidenceId: string | null;
     assignedOperatorUserId: string | null;
     metricSnapshot: prismaPkg.Prisma.JsonValue | null;
+    sourceId: string | null;
+    resolvedAtUtc: Date | null;
   }>;
   try {
     rows = await client.operationalIncident.findMany({
@@ -282,6 +288,12 @@ export async function buildOperationsSummary(
         // report-backlog group reads "1" beside a condition covering 26
         // records, which is the ambiguity this closure removes.
         metricSnapshot: true,
+        // The DECLARED source (OPS-03). Without it the grouping fell back to
+        // fingerprint patterns, and every source with no legacy pattern —
+        // package failures, add-on billing contradictions, search indexing —
+        // merged into one "unregistered" group on Home.
+        sourceId: true,
+        resolvedAtUtc: true,
       },
       // The bound is deliberately larger than any plausible real backlog, so
       // hitting it means something is wrong rather than that a workspace is
@@ -409,6 +421,9 @@ export async function buildOperationsSummary(
   const groups = projectConditionGroups(
     bounded.map((row) => ({
       ...row,
+      // The WHOLE snapshot, exactly as the grouped endpoint passes it, so a
+      // group's unit, threshold and affected-record count agree on both.
+      metric: decodeConditionMetric(row.metricSnapshot),
       metricCurrentValue:
         decodeConditionMetric(row.metricSnapshot)?.currentValue ?? null,
     })),
@@ -453,10 +468,9 @@ export async function buildOperationsSummary(
 /**
  * The shape a consumer receives when the summary could not be produced.
  *
- * Zeros with `complete: false`, NOT zeros that look like good news. The two
- * booleans are what a UI must read before it renders any reassuring string;
- * `open: 0` on its own is meaningless here and is present only so the type
- * stays total.
+ * Every count is `null` with `complete: false`: unknown, never zero. A
+ * zero would be read — by Home, the workbench, mobile and the Enterprise
+ * roll-up alike — as the confident claim that nothing is wrong.
  */
 export function unavailableSummary(
   workspaceId: string,
@@ -466,20 +480,21 @@ export function unavailableSummary(
   return {
     workspaceId,
     generatedAtUtc: now.toISOString(),
-    open: 0,
-    critical: 0,
-    high: 0,
-    warning: 0,
-    info: 0,
-    acknowledged: 0,
-    // Not read: unavailable, not zero.
+    // Not read: UNKNOWN, never zero (OPS-05). A zero here was rendered as a
+    // confident "0 critical" beside a workspace nobody could read.
+    open: null,
+    critical: null,
+    high: null,
+    warning: null,
+    info: null,
+    acknowledged: null,
     resolved: null,
-    assignedToMe: 0,
-    unassigned: 0,
-    slaBreached: 0,
-    slaAtRisk: 0,
-    slaOnTrack: 0,
-    slaUntracked: 0,
+    assignedToMe: null,
+    unassigned: null,
+    slaBreached: null,
+    slaAtRisk: null,
+    slaOnTrack: null,
+    slaUntracked: null,
     groups: [],
     complete: false,
     mayAssertAllClear: false,

@@ -42,6 +42,33 @@ import {
 
 import { prisma as defaultPrisma } from "../../db.js";
 import { workspaceIncidentWhereWith } from "../observability/incident-scope.js";
+import { incidentStatusFilterWhere } from "./incident-open-statuses.js";
+
+/**
+ * The group key the resolver gives a condition no registered source claims.
+ * Its members are the rows whose stored source is not registered, plus legacy
+ * NULL-source rows no registered prefix claims — exactly the rows the grouping
+ * puts under this key, so its drill-down is never an empty page beside a count.
+ */
+const UNREGISTERED_GROUP_KEY = "unregistered.condition";
+
+function unregisteredIdentity(): prismaPkg.Prisma.OperationalIncidentWhereInput {
+  const registered = OPERATIONS_SOURCE_LIFECYCLES.map((l) => l.sourceId).filter(
+    (id) => id !== UNREGISTERED_GROUP_KEY,
+  );
+  const prefixes = registryPatterns().map((p) => p.prefix);
+  return {
+    OR: [
+      { sourceId: { notIn: registered } },
+      {
+        sourceId: null,
+        ...(prefixes.length > 0
+          ? { NOT: { OR: prefixes.map((prefix) => ({ fingerprint: { startsWith: prefix } })) } }
+          : {}),
+      },
+    ],
+  };
+}
 
 /** The largest page a caller may ask for. */
 export const AFFECTED_PAGE_MAX = 200;
@@ -49,14 +76,19 @@ export const AFFECTED_PAGE_MAX = 200;
 export const AFFECTED_PAGE_DEFAULT = 50;
 
 /**
- * How many conditions the grouped queue reads before projecting.
- *
- * Deliberately larger than any plausible real queue and still BOUNDED: the
- * grouped response is one row per source whatever this is, so the cost of
- * raising it is the scan, not the payload. Hitting it makes the response
- * `complete: false`, which stops anything concluding "all clear".
+ * The grouped queue reads its conditions in keyset PAGES of this size
+ * (immutable order: firstSeenAtUtc, id) and keeps reading until the filtered
+ * set is exhausted, so a long-lived workspace's groups are never silently cut
+ * at the first page.
  */
 export const GROUPED_SCAN_LIMIT = 500;
+
+/**
+ * The hard ceiling on one grouped read — the same bound the summary scans to.
+ * Reaching it makes the response `complete: false` (the groups are then a
+ * floor), never a silent omission.
+ */
+export const GROUPED_SCAN_BOUND = 5000;
 
 /** One affected record, bounded. */
 export type AffectedRecordRow = {
@@ -106,7 +138,9 @@ export async function listGroupAffectedRecords(
   // in one reading and exclude it in another.
   const legacy = legacyFingerprintPrefixesFor(input.sourceId);
   const identity: prismaPkg.Prisma.OperationalIncidentWhereInput =
-    legacy.length > 0
+    input.sourceId === UNREGISTERED_GROUP_KEY
+      ? unregisteredIdentity()
+      : legacy.length > 0
       ? {
           OR: [
             { sourceId: input.sourceId },
@@ -133,7 +167,9 @@ export async function listGroupAffectedRecords(
     where: workspaceIncidentWhereWith(
       input.teamId,
       identity,
-      ...(input.status ? [{ status: input.status as prismaPkg.IncidentStatus }] : []),
+      // The queue's status FILTER vocabulary; omitted means UNRESOLVED, so a
+      // group's drill-down lists the same members its count was made of.
+      incidentStatusFilterWhere(input.status),
       ...(input.severity
         ? [{ severity: input.severity as prismaPkg.IncidentSeverity }]
         : []),

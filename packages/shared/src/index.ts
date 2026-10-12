@@ -379,6 +379,7 @@ export {
   OUTPUT_OPERATION_ERRORS,
   outputOperationError,
   outputOperationErrorForReason,
+  outputOperationErrorForOutcome,
   outputOperationErrorForTerminal,
   resolveOutputOperationError,
 } from "./output-offer.js";
@@ -1155,9 +1156,14 @@ export type {
   IncidentCategory,
   IncidentSeverity,
   IncidentStatus,
+  IncidentStatusFilter,
 } from "./observability.js";
 
 export {
+  DEFAULT_INCIDENT_STATUS_FILTER,
+  INCIDENT_STATUS_FILTERS,
+  UNRESOLVED_INCIDENT_STATUSES,
+  isUnresolvedIncidentStatus,
   ALERT_CATEGORIES,
   AlertCategorySchema,
   INCIDENT_CATEGORIES,

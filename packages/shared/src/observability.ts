@@ -48,14 +48,47 @@ export const INCIDENT_STATUSES = [
 export const IncidentStatusSchema = z.enum(INCIDENT_STATUSES);
 export type IncidentStatus = z.infer<typeof IncidentStatusSchema>;
 
-const INCIDENT_TERMINAL_STATUSES: ReadonlyArray<IncidentStatus> = [
-  "RESOLVED",
+/**
+ * THE canonical unresolved predicate, shared by every surface that counts or
+ * lists conditions: KPIs, Workspace Health, Home, the queue, groups, the
+ * Enterprise roll-up and mobile.
+ *
+ *   OPEN          unresolved
+ *   ACKNOWLEDGED  unresolved, and somebody has seen it
+ *   SUPPRESSED    unresolved, and its notifications are paused
+ *   RESOLVED      resolved
+ *
+ * Acknowledging or suppressing a condition never makes it resolved, and a
+ * surface that excluded either would let a workspace look healthy by pressing
+ * buttons rather than by fixing anything.
+ */
+export const UNRESOLVED_INCIDENT_STATUSES = [
+  "OPEN",
+  "ACKNOWLEDGED",
   "SUPPRESSED",
-];
+] as const satisfies ReadonlyArray<IncidentStatus>;
 
-export function isTerminalIncidentStatus(s: IncidentStatus): boolean {
-  return INCIDENT_TERMINAL_STATUSES.includes(s);
+export function isUnresolvedIncidentStatus(s: string): boolean {
+  return (UNRESOLVED_INCIDENT_STATUSES as ReadonlyArray<string>).includes(s);
 }
+
+/** Only RESOLVED ends a condition. Suppression pauses notification. */
+export function isTerminalIncidentStatus(s: IncidentStatus): boolean {
+  return s === "RESOLVED";
+}
+
+/**
+ * The status FILTER vocabulary of the Operations queue: one stored status,
+ * the canonical unresolved set, or every status (history included). The
+ * queue's default is UNRESOLVED, so resolved history appears only when asked.
+ */
+export const INCIDENT_STATUS_FILTERS = [
+  ...INCIDENT_STATUSES,
+  "UNRESOLVED",
+  "ALL",
+] as const;
+export type IncidentStatusFilter = (typeof INCIDENT_STATUS_FILTERS)[number];
+export const DEFAULT_INCIDENT_STATUS_FILTER: IncidentStatusFilter = "UNRESOLVED";
 
 const INCIDENT_TRANSITIONS: Readonly<
   Record<IncidentStatus, ReadonlyArray<IncidentStatus>>

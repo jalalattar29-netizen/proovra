@@ -26,7 +26,7 @@ import { z } from "zod";
 import {
   INCIDENT_CATEGORIES,
   INCIDENT_SEVERITIES,
-  INCIDENT_STATUSES,
+  INCIDENT_STATUS_FILTERS,
 } from "./observability.js";
 
 import {
@@ -808,8 +808,11 @@ export const OperationsSavedViewFilterSchema = z
     // names, same values, same bounds. A saved view that could express a
     // filter the queue cannot apply is a view that silently does something
     // else when it is replayed.
+    // The queue's status FILTER vocabulary: one stored status, the canonical
+    // UNRESOLVED set, or ALL (history included) — exactly what the queue
+    // route accepts, so a saved "Unresolved" or "All" view replays as itself.
     status: z
-      .enum(INCIDENT_STATUSES as unknown as [string, ...string[]])
+      .enum(INCIDENT_STATUS_FILTERS as unknown as [string, ...string[]])
       .optional(),
     severity: z
       .enum(INCIDENT_SEVERITIES as unknown as [string, ...string[]])

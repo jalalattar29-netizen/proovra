@@ -44,6 +44,16 @@ import { requireAuth } from "../middleware/auth.js";
 import { getAuthUserId } from "../auth.js";
 import { authorizeOrFail } from "../middleware/authorize.js";
 import { workspaceIncidentWhere } from "../services/observability/incident-scope.js";
+import {
+  unresolvedIncidentWhere,
+  untriagedIncidentWhere,
+} from "../services/operations/incident-open-statuses.js";
+import {
+  latestWorkspaceOperationsRun,
+  mayAssertOperationsClear,
+} from "@proovra/shared-runtime";
+
+const ALERTS_CAP = 100;
 
 const WorkspaceParam = z.object({ workspaceId: z.string().uuid() });
 
@@ -107,40 +117,73 @@ export async function workspaceOperationsRoutes(
       const actor = await requireWorkspaceMember(req, reply, workspaceId);
       if (!actor) return;
 
+      // THE canonical unresolved predicate (OPS-04). Health used to count
+      // OPEN only, so acknowledging or suppressing the one CRITICAL condition
+      // turned the workspace HEALTHY while nothing had been fixed.
       const scoped = workspaceIncidentWhere(workspaceId);
-      const [openBySeverity, unresolvedTotal, mostRecent] = await Promise.all([
+      const now = new Date();
+      const [unresolvedBySeverity, untriagedTotal, mostRecent, run] = await Promise.all([
         prisma.operationalIncident.groupBy({
           by: ["severity"],
-          where: { ...scoped, status: "OPEN" },
+          where: { ...scoped, ...unresolvedIncidentWhere() },
           _count: { _all: true },
         }),
         prisma.operationalIncident.count({
-          where: { ...scoped, status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+          where: { ...scoped, ...untriagedIncidentWhere() },
         }),
         prisma.operationalIncident.findFirst({
           where: scoped,
           orderBy: { lastSeenAtUtc: "desc" },
           select: { lastSeenAtUtc: true },
         }),
+        // Discovery freshness. A workspace nothing has scanned, or whose last
+        // scan failed or went stale, is UNKNOWN — never HEALTHY by default.
+        latestWorkspaceOperationsRun(prisma as never, workspaceId, now).catch(() => null),
       ]);
 
       const severity = Object.fromEntries(
-        openBySeverity.map((r) => [r.severity, r._count._all]),
+        unresolvedBySeverity.map((r) => [r.severity, r._count._all]),
       ) as Record<string, number>;
       const critical = severity.CRITICAL ?? 0;
       const high = severity.HIGH ?? 0;
+      const unresolvedTotal = unresolvedBySeverity.reduce((n, r) => n + r._count._all, 0);
+      const clear = mayAssertOperationsClear({
+        run,
+        incidentReadComplete: true,
+        unresolvedCount: unresolvedTotal,
+      });
+      const state =
+        critical > 0
+          ? "CRITICAL"
+          : high > 0
+            ? "DEGRADED"
+            : unresolvedTotal > 0
+              ? "ATTENTION"
+              : clear.clear
+                ? "HEALTHY"
+                : "UNKNOWN";
 
       return reply.code(200).send({
         scope: "WORKSPACE",
         workspaceId,
-        state: critical > 0 ? "CRITICAL" : high > 0 ? "DEGRADED" : "HEALTHY",
+        state,
+        // Why the state is UNKNOWN (null otherwise): the discovery gate's own
+        // bounded reason, e.g. NEVER_RUN, STALE, FAILED, PARTIAL_SOURCES.
+        unknownReason: state === "UNKNOWN" && !clear.clear ? clear.reason : null,
+        readiness: run?.readiness ?? "NEVER_RUN",
+        /**
+         * Unresolved conditions (OPEN, ACKNOWLEDGED or SUPPRESSED) — the same
+         * canonical set the Operations summary counts — by severity.
+         */
         openIncidents: {
-          total: openBySeverity.reduce((n, r) => n + r._count._all, 0),
+          total: unresolvedTotal,
           bySeverity: severity,
         },
         unresolvedIncidents: unresolvedTotal,
+        /** OPEN only: unresolved and not yet acknowledged by anybody. */
+        untriagedIncidents: untriagedTotal,
         lastIncidentActivityUtc: mostRecent?.lastSeenAtUtc ?? null,
-        evaluatedAtUtc: new Date().toISOString(),
+        evaluatedAtUtc: now.toISOString(),
       });
     },
   );
@@ -170,13 +213,18 @@ export async function workspaceOperationsRoutes(
       const actor = await requireWorkspaceMember(req, reply, workspaceId);
       if (!actor) return;
 
-      const rows = await prisma.operationalIncident.findMany({
-        where: {
-          ...workspaceIncidentWhere(workspaceId),
-          status: { in: ["OPEN", "ACKNOWLEDGED"] },
-        },
-        orderBy: [{ severity: "asc" }, { lastSeenAtUtc: "desc" }],
-        take: 100,
+      const where = {
+        ...workspaceIncidentWhere(workspaceId),
+        ...unresolvedIncidentWhere(),
+      };
+      // CRITICAL first: the severity enum is declared INFO..CRITICAL, so
+      // DESCENDING is most-severe-first. Ascending put INFO first and let a
+      // backlog of informational rows push every CRITICAL one past the cap.
+      const [rows, bySeverity] = await Promise.all([
+        prisma.operationalIncident.findMany({
+        where,
+        orderBy: [{ severity: "desc" }, { lastSeenAtUtc: "desc" }, { id: "desc" }],
+        take: ALERTS_CAP + 1,
         // An explicit allow-list. `fingerprint` is deliberately absent: it is
         // an internal dedup identity and can name platform subsystems.
         select: {
@@ -191,17 +239,29 @@ export async function workspaceOperationsRoutes(
           occurrenceCount: true,
           runbookSlug: true,
         },
-      });
+        }),
+        prisma.operationalIncident.groupBy({
+          by: ["severity"],
+          where,
+          _count: { _all: true },
+        }),
+      ]);
+      const counted = Object.fromEntries(
+        bySeverity.map((r) => [r.severity, r._count._all]),
+      ) as Record<string, number>;
 
       return reply.code(200).send({
         scope: "WORKSPACE",
         workspaceId,
-        items: rows,
+        items: rows.slice(0, ALERTS_CAP),
+        // Counts are over EVERY unresolved condition, not the capped rows.
         counts: {
-          total: rows.length,
-          critical: rows.filter((r) => r.severity === "CRITICAL").length,
-          high: rows.filter((r) => r.severity === "HIGH").length,
+          total: bySeverity.reduce((n, r) => n + r._count._all, 0),
+          critical: counted.CRITICAL ?? 0,
+          high: counted.HIGH ?? 0,
         },
+        // The item list is capped; this says whether it is the whole set.
+        complete: rows.length <= ALERTS_CAP,
         evaluatedAtUtc: new Date().toISOString(),
       });
     },

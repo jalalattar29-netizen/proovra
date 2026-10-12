@@ -1340,9 +1340,11 @@ async function runOperationalPressure(
   try {
     page = await listIncidents({
       teamId,
-      // Unresolved work only. RESOLVED and SUPPRESSED conditions belong to
-      // the Operations history, not to current pressure.
-      status: undefined,
+      // The canonical unresolved set; the filter below keeps OPEN and
+      // ACKNOWLEDGED, because a SUPPRESSED condition's notifications are
+      // paused and it is not current pressure (it is still unresolved, and
+      // still counted as such by the summary).
+      status: "UNRESOLVED",
       limit: PRESSURE_TOTAL,
     });
   } catch {
@@ -1351,12 +1353,7 @@ async function runOperationalPressure(
       items: [],
       // The COUNTS still come from the summary, which succeeded — a failed
       // list read costs the rows, not the totals.
-      counts: {
-        critical: summary.critical,
-        high: summary.high,
-        warning: summary.warning,
-        info: summary.info,
-      },
+      counts: knownCounts(summary),
     };
   }
 
@@ -1377,7 +1374,7 @@ async function runOperationalPressure(
       subtitle: incident.safeSummary,
       // Deep-link into the canonical surface. The Command Center shows what
       // is outstanding; acting on it is capability-gated on /operations.
-      href: `/operations?incidentId=${encodeURIComponent(incident.id)}`,
+      href: `/operations?incident=${encodeURIComponent(incident.id)}`,
       occurredAt: incident.firstSeenAtUtc.toISOString(),
       affectedEntityId: incident.relatedEvidenceId,
     })),
@@ -1389,13 +1386,26 @@ async function runOperationalPressure(
     // is showing a floor rather than a total, and says so.
     status: summary.complete && page.complete ? "ok" : "degraded",
     items,
-    counts: {
-      critical: summary.critical,
-      high: summary.high,
-      warning: summary.warning,
-      info: summary.info,
-    },
+    counts: knownCounts(summary),
   };
+}
+
+/**
+ * The summary's severity counts, for a summary that WAS read. Counts are null
+ * only when the summary itself failed (`SOURCE_FAILED`), and that case returns
+ * `unavailable` above before any count is used — so this never turns an
+ * unknown into a zero.
+ */
+function knownCounts(summary: {
+  critical: number | null;
+  high: number | null;
+  warning: number | null;
+  info: number | null;
+}): { critical: number; high: number; warning: number; info: number } {
+  if (summary.critical === null || summary.high === null || summary.warning === null || summary.info === null) {
+    throw new Error("operations summary counts are unknown");
+  }
+  return { critical: summary.critical, high: summary.high, warning: summary.warning, info: summary.info };
 }
 
 // ---------------------------------------------------------------------------

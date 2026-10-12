@@ -2879,7 +2879,7 @@ export async function buildInboxAggregation(
           body: `${inc.safeSummary}${occBlurb}`,
           href: inc.relatedEvidenceId
             ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
-            : `/operations?incidentId=${encodeURIComponent(inc.id)}`,
+            : `/operations?incident=${encodeURIComponent(inc.id)}`,
           occurredAt: inc.lastSeenAtUtc.toISOString(),
           dueAt: null,
           context: {
@@ -2916,7 +2916,7 @@ export async function buildInboxAggregation(
           body: `${inc.safeSummary}${occBlurb}`,
           href: inc.relatedEvidenceId
             ? `/evidence/${encodeURIComponent(inc.relatedEvidenceId)}?tab=integrity`
-            : `/operations?incidentId=${encodeURIComponent(inc.id)}`,
+            : `/operations?incident=${encodeURIComponent(inc.id)}`,
           occurredAt: inc.lastSeenAtUtc.toISOString(),
           dueAt: null,
           context: {

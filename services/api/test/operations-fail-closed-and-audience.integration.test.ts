@@ -334,7 +334,7 @@ describe("Fail-closed identity and audience (live PostgreSQL 16)", () => {
       workspaceId: team.teamId,
     });
     expect(s.open).toBe(1);
-    expect(s.critical + s.high).toBeLessThanOrEqual(1);
+    expect((s.critical ?? 0) + (s.high ?? 0)).toBeLessThanOrEqual(1);
     // …and the groups.
     expect(s.groups.map((g: { sourceId: string }) => g.sourceId)).toEqual(["pipeline.report_backlog"]);
   }, 300_000);

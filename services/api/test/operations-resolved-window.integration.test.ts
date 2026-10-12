@@ -79,7 +79,9 @@ describe("Operations — resolved window, grouping and isolation (live PostgreSQ
   });
 
   it("5 conditions from 2 sources group into 2 sources, all statuses, conserving the count", async () => {
-    const { status, body } = await groupsOf("");
+    // Every status, history included, must be ASKED for: the default is the
+    // canonical unresolved set.
+    const { status, body } = await groupsOf("&status=ALL");
     expect(status).toBe(200);
     expect(body.totals).toEqual({ groups: 2, conditions: 5 });
     expect(body.groups.map((g) => g.sourceId).sort()).toEqual(["governance.policy_condition", "pipeline.report_backlog"]);

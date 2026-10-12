@@ -44,14 +44,17 @@ const code = (rel: string) =>
     .replace(/^\s*\/\/.*$/gm, "");
 
 describe("the unresolved-incident predicate", () => {
-  it("counts ACKNOWLEDGED as unresolved", () => {
+  it("counts ACKNOWLEDGED and SUPPRESSED as unresolved", () => {
     // An acknowledged incident is one a human has LOOKED at and not fixed.
     // Excluding it would make acknowledging an incident remove it from the
     // headline count — an interface that rewards clicking "acknowledge",
     // which is the wrong incentive to build into an operations surface.
+    // SUPPRESSED likewise (OPS-04): suppression pauses notification, it
+    // fixes nothing, and a headline that dropped it would reward the button.
     expect([...UNRESOLVED_INCIDENT_STATUSES].sort()).toEqual([
       "ACKNOWLEDGED",
       "OPEN",
+      "SUPPRESSED",
     ]);
   });
 
@@ -65,7 +68,7 @@ describe("the unresolved-incident predicate", () => {
   it("produces where-fragments that differ", () => {
     expect(unresolvedIncidentWhere()).not.toEqual(untriagedIncidentWhere());
     expect(unresolvedIncidentWhere()).toEqual({
-      status: { in: ["OPEN", "ACKNOWLEDGED"] },
+      status: { in: ["OPEN", "ACKNOWLEDGED", "SUPPRESSED"] },
     });
   });
 });

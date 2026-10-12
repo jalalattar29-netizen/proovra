@@ -11,6 +11,9 @@ import {
   isAllowedIncidentStatusTransition,
   isSafeRequestId,
   isTerminalIncidentStatus,
+  isUnresolvedIncidentStatus,
+  INCIDENT_STATUS_FILTERS,
+  UNRESOLVED_INCIDENT_STATUSES,
   isValidIncidentFingerprint,
   shouldRedactKey,
 } from "../dist/index.js";
@@ -77,11 +80,19 @@ test("alert categories cover the documented set", () => {
 // Status transitions
 // -----------------------------------------------------------------------------
 
-test("isTerminalIncidentStatus: RESOLVED + SUPPRESSED", () => {
+test("isTerminalIncidentStatus: only RESOLVED ends a condition; SUPPRESSED pauses notification", () => {
   assert.equal(isTerminalIncidentStatus("RESOLVED"), true);
-  assert.equal(isTerminalIncidentStatus("SUPPRESSED"), true);
+  assert.equal(isTerminalIncidentStatus("SUPPRESSED"), false);
   assert.equal(isTerminalIncidentStatus("OPEN"), false);
   assert.equal(isTerminalIncidentStatus("ACKNOWLEDGED"), false);
+});
+
+test("the canonical unresolved set is OPEN, ACKNOWLEDGED and SUPPRESSED", () => {
+  assert.deepEqual([...UNRESOLVED_INCIDENT_STATUSES], ["OPEN", "ACKNOWLEDGED", "SUPPRESSED"]);
+  for (const s of ["OPEN", "ACKNOWLEDGED", "SUPPRESSED"]) assert.equal(isUnresolvedIncidentStatus(s), true);
+  assert.equal(isUnresolvedIncidentStatus("RESOLVED"), false);
+  assert.ok(INCIDENT_STATUS_FILTERS.includes("UNRESOLVED"));
+  assert.ok(INCIDENT_STATUS_FILTERS.includes("ALL"));
 });
 
 test("incident transitions: OPEN → ACKNOWLEDGED/RESOLVED/SUPPRESSED", () => {
