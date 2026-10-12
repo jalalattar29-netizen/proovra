@@ -100,6 +100,8 @@ export type GroupableCondition = {
    * governance escalation all became one group called GOVERNANCE.
    */
   sourceId?: string | null;
+  /** When the condition was resolved; null while it is not RESOLVED. */
+  resolvedAtUtc?: Date | null;
 };
 
 /** A record inside a group. Bounded, and never carrying provider error text. */
@@ -228,6 +230,13 @@ export type OperationsConditionGroup = {
    * answered by the LATEST member, not by the group's oldest.
    */
   latestActivityAtUtc: string;
+  /**
+   * The latest RESOLUTION across the group's members (resolvedAtUtc), or null
+   * when none is resolved. Not the latest activity: a condition resolved
+   * today can have been last seen a week ago, and "recently resolved" is a
+   * statement about the resolution.
+   */
+  latestResolvedAtUtc: string | null;
   /**
    * The group's overall lifecycle posture.
    *
@@ -393,6 +402,7 @@ export function projectConditionGroups(
     let firstSeen = members[0].firstSeenAtUtc;
     let lastSeen = members[0].lastSeenAtUtc;
     let assignedCount = 0;
+    let latestResolved: Date | null = null;
     const classCounts = new Map<IntegrityFailureClass | "UNGROUPED", number>();
 
     for (const m of members) {
@@ -400,6 +410,7 @@ export function projectConditionGroups(
       if (m.firstSeenAtUtc < firstSeen) firstSeen = m.firstSeenAtUtc;
       if (m.lastSeenAtUtc > lastSeen) lastSeen = m.lastSeenAtUtc;
       if (m.assignedOperatorUserId !== null) assignedCount += 1;
+      if (m.resolvedAtUtc && (latestResolved === null || m.resolvedAtUtc > latestResolved)) latestResolved = m.resolvedAtUtc;
 
       // Sub-grouping is DESCRIPTIVE. A record whose reason we cannot classify
       // is counted as UNGROUPED rather than guessed into a class — an
@@ -523,6 +534,7 @@ export function projectConditionGroups(
       groupKey,
       sourceId,
       latestActivityAtUtc: lastSeen.toISOString(),
+      latestResolvedAtUtc: latestResolved ? latestResolved.toISOString() : null,
       statusPosture,
       availableActions,
       metric:

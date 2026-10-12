@@ -122,8 +122,11 @@ export type OperationsSummary = {
    * It does NOT overlap `open` — RESOLVED is disjoint from the unresolved
    * set — which makes it the one card on the strip that is not a slice of the
    * others.
+   *
+   * NULL WHEN THE COUNT COULD NOT BE READ (2026-10-12): a failed lookup is
+   * "unavailable", never the confident claim that nothing was resolved.
    */
-  resolved: number;
+  resolved: number | null;
 
   /**
    * PHASE 2.3 — the honesty contract, carried WITH the numbers rather than
@@ -337,7 +340,7 @@ export async function buildOperationsSummary(
   // `null`, not to `0`, so a lookup that did not happen renders as "—"
   // instead of as the confident claim that this workspace has resolved
   // nothing.
-  let resolved = 0;
+  let resolved: number | null = null;
   try {
     resolved = await client.operationalIncident.count({
       where: {
@@ -346,7 +349,7 @@ export async function buildOperationsSummary(
       },
     });
   } catch {
-    resolved = 0;
+    resolved = null;
   }
 
   for (const row of bounded) {
@@ -469,7 +472,8 @@ export function unavailableSummary(
     warning: 0,
     info: 0,
     acknowledged: 0,
-    resolved: 0,
+    // Not read: unavailable, not zero.
+    resolved: null,
     assignedToMe: 0,
     unassigned: 0,
     slaBreached: 0,

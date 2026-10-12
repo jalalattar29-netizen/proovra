@@ -245,7 +245,7 @@ export const QUEUE_METRICS: ReadonlyArray<{
   { key: "warning", label: "Warning", note: "Worth attention; nothing is blocked yet.", tone: "governance", collaborativeOnly: false },
   { key: "slaBreached", label: "Overdue", note: "Past the time this workspace committed to.", tone: "risk", collaborativeOnly: false },
   { key: "slaAtRisk", label: "Due soon", note: "Approaching the committed time.", tone: "pending", collaborativeOnly: false },
-  { key: "resolved", label: "Resolved", note: "Closed operational conditions.", tone: "verified", collaborativeOnly: false },
+  { key: "resolved", label: "Resolved · all time", note: "Conditions currently closed in this workspace.", tone: "verified", collaborativeOnly: false },
   { key: "assignedToMe", label: "Assigned to me", note: "You own these.", tone: "governance", collaborativeOnly: true },
   { key: "unassigned", label: "Unassigned", note: "Waiting for an owner.", tone: "pending", collaborativeOnly: true },
 ];

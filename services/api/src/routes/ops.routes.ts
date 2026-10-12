@@ -1516,6 +1516,12 @@ export async function opsRoutes(app: FastifyInstance) {
       .optional(),
     sla: z.enum(SLA_POSTURES as unknown as [string, ...string[]]).optional(),
     q: z.string().trim().max(120).optional(),
+    /**
+     * "Resolved in the last N days" (2026-10-12): conditions currently
+     * RESOLVED whose resolvedAtUtc falls in the window, measured on THIS
+     * server's clock. Implies status RESOLVED.
+     */
+    resolvedWithinDays: z.coerce.number().int().min(1).max(90).optional(),
   });
 
   /**
@@ -1549,6 +1555,12 @@ export async function opsRoutes(app: FastifyInstance) {
               : ({ kind: "USER", userId: q.owner } as const);
 
       const now = new Date();
+      if (q.resolvedWithinDays !== undefined && q.status !== undefined && q.status !== "RESOLVED") {
+        return reply.code(400).send({ error: "RESOLVED_WINDOW_REQUIRES_RESOLVED_STATUS" });
+      }
+      // The window's start, on the server clock — never the browser's.
+      const resolvedSince =
+        q.resolvedWithinDays !== undefined ? new Date(now.getTime() - q.resolvedWithinDays * 24 * 60 * 60 * 1000) : null;
       // The grouping is a PRESENTATION over the conditions the filters
       // selected, so it reads them through the same service the flat list
       // does — one authority, one scope, one set of filters.
@@ -1556,6 +1568,7 @@ export async function opsRoutes(app: FastifyInstance) {
         teamId: q.teamId,
         sla: q.sla ?? null,
         now,
+        resolvedSince,
         status: q.status as never,
         severity: q.severity as never,
         category: q.category as never,
@@ -1580,6 +1593,7 @@ export async function opsRoutes(app: FastifyInstance) {
           relatedEvidenceId: row.relatedEvidenceId,
           assignedOperatorUserId: row.assignedOperatorUserId,
           sourceId: row.sourceId,
+          resolvedAtUtc: row.resolvedAtUtc ?? null,
           // THE WHOLE SNAPSHOT. Only the value used to travel, so the group
           // had a number and no unit and no threshold — and rendered every
           // one of them as "affected records".
@@ -1606,6 +1620,15 @@ export async function opsRoutes(app: FastifyInstance) {
           groups: groups.length,
           conditions: totalConditions(groups),
         },
+        /**
+         * The resolution window, when one was asked for: its start and the
+         * server instant it was measured from, so the surface can say exactly
+         * which window it shows.
+         */
+        window:
+          resolvedSince !== null
+            ? { resolvedWithinDays: q.resolvedWithinDays, resolvedSinceUtc: resolvedSince.toISOString(), serverNowUtc: now.toISOString() }
+            : null,
         /**
          * CONSERVATION, stated in the response.
          *

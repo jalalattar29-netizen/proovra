@@ -103,11 +103,18 @@ export function GroupSurface({
   groups,
   openGroupKey,
   onOpen,
+  timeline = "activity",
 }: {
   groups: ReadonlyArray<IncidentGroup>;
   /** The group currently in the inspector, highlighted in the list. */
   openGroupKey: string | null;
   onOpen: (groupKey: string) => void;
+  /**
+   * Which time a row states: when its source was last seen, or — in the
+   * resolved section — when it was last resolved (a condition resolved today
+   * can have been last seen a week ago).
+   */
+  timeline?: "activity" | "resolution";
 }) {
   return (
     <ul className="opsw-groups" data-ops-groups>
@@ -292,12 +299,22 @@ export function GroupSurface({
                 ) : null}
 
                 <span aria-hidden="true">·</span>
-                <span
-                  className="opsw-group__activity"
-                  title={formatUserDateTime(g.latestActivityAtUtc)}
-                >
-                  last seen {describeRelativeTime(g.latestActivityAtUtc)}
-                </span>
+                {timeline === "resolution" && g.latestResolvedAtUtc ? (
+                  <span
+                    className="opsw-group__activity"
+                    data-ops-group-resolved-at={g.latestResolvedAtUtc}
+                    title={formatUserDateTime(g.latestResolvedAtUtc)}
+                  >
+                    resolved {describeRelativeTime(g.latestResolvedAtUtc)}
+                  </span>
+                ) : (
+                  <span
+                    className="opsw-group__activity"
+                    title={formatUserDateTime(g.latestActivityAtUtc)}
+                  >
+                    last seen {describeRelativeTime(g.latestActivityAtUtc)}
+                  </span>
+                )}
               </span>
 
               {/*

@@ -784,9 +784,9 @@ function OperationsWorkspaceScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.space.s2 }}>
               <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="ops-result-summary">
                 {grouped
-                  ? `${(groupTotals?.groups ?? groups.length).toLocaleString("en-US")} ${(groupTotals?.groups ?? groups.length) === 1 ? "group" : "groups"} · ${(
+                  ? `${(groupTotals?.groups ?? groups.length).toLocaleString("en-US")} ${(groupTotals?.groups ?? groups.length) === 1 ? "source" : "sources"} · ${(
                       groupTotals?.conditions ?? 0
-                    ).toLocaleString("en-US")} ${(groupTotals?.conditions ?? 0) === 1 ? "condition" : "conditions"}`
+                    ).toLocaleString("en-US")} ${(groupTotals?.conditions ?? 0) === 1 ? "condition" : "conditions"}${filters.status ? "" : " · all statuses"}`
                   : incidents.length === 1
                     ? "1 condition"
                     : `${incidents.length}${nextCursor ? "+" : ""} conditions`}

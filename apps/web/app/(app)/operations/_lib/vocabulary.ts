@@ -390,9 +390,9 @@ export const QUEUE_METRIC_VOCABULARY: Readonly<
     collaborative: false,
   },
   resolved: {
-    label: "Resolved",
+    label: "Resolved · all time",
     tone: OPERATIONS_TONE.RESOLVED,
-    note: "Closed operational conditions.",
+    note: "Conditions currently closed in this workspace.",
     collaborative: false,
   },
   assignedToMe: {

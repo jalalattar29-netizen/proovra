@@ -65,7 +65,7 @@ let detailReply: () => Reply = () => ({});
 let operatorsReply: () => Reply = () => ({ operators: [], selfUserId: null });
 let mutationReply: (path: string) => Reply = () => ({ ok: true });
 /** The grouped queue, and one group's paged members. */
-let groupsReply: () => Reply = () => ({
+let groupsReply: (path: string) => Reply = () => ({
   groups: [],
   conservation: { conditions: 0, grouped: 0 },
   completeness: { complete: true, mayAssertAllClear: true },
@@ -115,7 +115,15 @@ vi.mock("../../lib/api", () => ({
     if (path.includes("/v1/ops/incident-groups/") && path.includes("/affected")) {
       return pick(affectedReply());
     }
-    if (path.startsWith("/v1/ops/incident-groups?")) return pick(groupsReply());
+    if (path.startsWith("/v1/ops/incident-groups?")) {
+      const reply = pick(groupsReply(path)) as { groups?: Array<{ statusPosture?: string }> };
+      // THE SERVER'S WINDOW: the resolved section's read returns RESOLVED
+      // groups only (the API applies the window; the page no longer filters).
+      if (path.includes("resolvedWithinDays=") && Array.isArray(reply.groups)) {
+        return { ...reply, groups: reply.groups.filter((g) => g.statusPosture === "RESOLVED") };
+      }
+      return reply;
+    }
     if (path.startsWith("/v1/ops/assignable-operators")) {
       return pick(operatorsReply());
     }
@@ -2549,13 +2557,13 @@ describe("Operations — the grouped queue is the default", () => {
     expect(tsa.querySelector("[data-ops-group-conditions]")).toBeNull();
   });
 
-  it("THE HEADER SAYS HOW MANY GROUPS AND HOW MANY CONDITIONS", async () => {
+  it("THE HEADER SAYS HOW MANY SOURCES AND HOW MANY CONDITIONS", async () => {
     // It used to read "38 conditions" over a list of five rows — the FLAT
     // list's length, rendered regardless of which surface was on screen, with
-    // nothing to say how the two numbers were related.
+    // nothing to say how the two numbers were related. A group is a SOURCE,
+    // which can hold several conditions, across every status.
     await mount(envelope(TEAM_ADMIN), "grouped");
-    expect(document.body.textContent).toContain("2 groups");
-    expect(document.body.textContent).toContain("5,001 conditions");
+    expect(document.body.textContent).toContain("2 sources · 5,001 conditions · all statuses");
   });
 
   it("AN AGE RENDERS AS A SPAN, NEVER AS A RAW MINUTE COUNT", async () => {
@@ -3108,6 +3116,19 @@ describe("Operations — the Warning card", () => {
       metric("warning")?.querySelector(".app-metric-card__value")?.textContent,
     ).toBe("7");
     expect(metric("warning")?.getAttribute("data-ops-metric-value")).toBe("7");
+  });
+
+  it("the Resolved card is all-time, says so, and reads — (not 0) when the count could not be read", async () => {
+    summaryReply = () => summary({ resolved: 12 });
+    incidentsReply = () => list([]);
+    await mount(envelope(TEAM_ADMIN));
+    expect(metric("resolved")?.querySelector(".app-metric-card__label")?.textContent).toBe("Resolved · all time");
+    expect(metric("resolved")?.textContent).toContain("Conditions currently closed in this workspace.");
+    expect(metric("resolved")?.getAttribute("data-ops-metric-value")).toBe("12");
+
+    summaryReply = () => summary({ resolved: null });
+    await mount(envelope(TEAM_ADMIN));
+    expect(metric("resolved")?.getAttribute("data-ops-metric-value")).toBe("—");
   });
 
   it("3. IT STAYS VISIBLE AT ZERO", async () => {
@@ -3943,6 +3964,70 @@ describe("Operations truth closure — web", () => {
     expect(action.querySelector('[data-ops-group="evidence_integrity.tsa_failed"]')).not.toBeNull();
     expect(monitoring.querySelector('[data-ops-group="pipeline.report_backlog"]')).not.toBeNull();
     expect(q('[data-ops-section="recently-resolved"]')).not.toBeNull();
+  });
+
+  it("Resolved in the last 7 days is the SERVER's window over resolvedAtUtc: the browser clock never filters it, and a failed read is unavailable", async () => {
+    const resolved = group({
+      groupKey: "pipeline.report_generation_failed",
+      sourceId: "pipeline.report_generation_failed",
+      statusPosture: "RESOLVED",
+      // Last seen long ago; resolved recently. The old client filter used the
+      // last-seen time and dropped it.
+      latestActivityAtUtc: "2026-09-01T00:00:00.000Z",
+      latestResolvedAtUtc: "2026-10-12T09:00:00.000Z",
+    });
+    groupsReply = (path) =>
+      path.includes("resolvedWithinDays=7")
+        ? {
+            groups: [resolved],
+            totals: { groups: 1, conditions: 1 },
+            conservation: { conditions: 1, grouped: 1 },
+            completeness: { complete: true, mayAssertAllClear: true },
+            window: { resolvedWithinDays: 7, resolvedSinceUtc: "2026-10-05T10:00:00.000Z", serverNowUtc: "2026-10-12T10:00:00.000Z" },
+          }
+        : { groups: [], totals: { groups: 0, conditions: 0 }, conservation: { conditions: 0, grouped: 0 }, completeness: { complete: true, mayAssertAllClear: true } };
+
+    // A browser clock years ahead, then years behind: the same section.
+    for (const clock of ["2031-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z"]) {
+      const spy = vi.spyOn(Date, "now").mockReturnValue(Date.parse(clock));
+      try {
+        requestLog = [];
+        await mount(envelope(TEAM_ADMIN), "grouped");
+        const read = requestLog.find((r) => r.path.startsWith("/v1/ops/incident-groups?") && r.path.includes("status=RESOLVED"));
+        expect(read?.path, clock).toContain("resolvedWithinDays=7");
+        const section = q('[data-ops-section="recently-resolved"]') as HTMLElement;
+        expect(section.querySelector("h2")?.textContent).toBe("Resolved in the last 7 days");
+        expect(section.textContent).toContain("The Resolved count above is all-time.");
+        expect(section.querySelector('[data-ops-group="pipeline.report_generation_failed"]'), clock).not.toBeNull();
+        expect(section.querySelector("[data-ops-group-resolved-at]")?.getAttribute("data-ops-group-resolved-at")).toBe("2026-10-12T09:00:00.000Z");
+      } finally {
+        spy.mockRestore();
+      }
+    }
+
+    // The section's own read fails: unavailable, never "nothing resolved".
+    groupsReply = (path) =>
+      path.includes("resolvedWithinDays=7")
+        ? apiFailure(503)
+        : { groups: [], totals: { groups: 0, conditions: 0 }, conservation: { conditions: 0, grouped: 0 }, completeness: { complete: true, mayAssertAllClear: true } };
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    const section = q('[data-ops-section="recently-resolved"]') as HTMLElement;
+    expect(section.querySelector("[data-ops-section-unavailable]")).not.toBeNull();
+    expect(section.querySelector("[data-ops-section-empty]")).toBeNull();
+  });
+
+  it("the grouped header counts sources and conditions across all statuses", async () => {
+    groupsReply = () => ({
+      groups: [
+        group({ groupKey: "evidence_integrity.tsa_failed", statusPosture: "OPEN" }),
+        group({ groupKey: "pipeline.report_backlog", sourceId: "pipeline.report_backlog", statusPosture: "ACKNOWLEDGED" }),
+      ],
+      totals: { groups: 2, conditions: 5 },
+      conservation: { conditions: 5, grouped: 5 },
+      completeness: { complete: true, mayAssertAllClear: true },
+    });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(document.body.textContent).toContain("2 sources · 5 conditions · all statuses");
   });
 
   it("a group whose members are all resolved is never shown as being monitored", async () => {

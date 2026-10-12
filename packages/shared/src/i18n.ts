@@ -341,6 +341,7 @@ export type OperationsCopy = {
   sectionEmptyAction: string;
   sectionEmptyMonitoring: string;
   sectionEmptyResolved: string;
+  sectionResolvedUnavailable: string;
   groupsUnavailableTitle: string;
   groupsUnavailableBody: string;
   retry: string;
@@ -391,11 +392,12 @@ const OPERATIONS_EN: OperationsCopy = {
   sectionActionRequiredHint: "Open conditions that need someone to act.",
   sectionMonitoring: "Monitoring",
   sectionMonitoringHint: "Acknowledged or silenced conditions that are still being checked.",
-  sectionRecentlyResolved: "Recently resolved",
-  sectionRecentlyResolvedHint: "Closed in the last 7 days.",
+  sectionRecentlyResolved: "Resolved in the last 7 days",
+  sectionRecentlyResolvedHint: "Sources with a condition closed in the last 7 days. The Resolved count above is all-time.",
   sectionEmptyAction: "Nothing needs action right now.",
   sectionEmptyMonitoring: "Nothing is being monitored.",
   sectionEmptyResolved: "Nothing was resolved in the last 7 days.",
+  sectionResolvedUnavailable: "Resolved conditions could not be loaded. This is not the same as none: try again.",
   groupsUnavailableTitle: "Grouped conditions could not be loaded",
   groupsUnavailableBody:
     "The conditions are still there; this view could not be read. Try again, or switch to All conditions.",
@@ -448,11 +450,12 @@ const OPERATIONS_DE: OperationsCopy = {
   sectionActionRequiredHint: "Offene Zustände, bei denen jemand handeln muss.",
   sectionMonitoring: "Beobachtung",
   sectionMonitoringHint: "Bestätigte oder stummgeschaltete Zustände, die weiterhin geprüft werden.",
-  sectionRecentlyResolved: "Kürzlich behoben",
-  sectionRecentlyResolvedHint: "In den letzten 7 Tagen geschlossen.",
+  sectionRecentlyResolved: "In den letzten 7 Tagen behoben",
+  sectionRecentlyResolvedHint: "Quellen mit einem in den letzten 7 Tagen geschlossenen Zustand. Die Zahl „Behoben“ oben gilt für den gesamten Zeitraum.",
   sectionEmptyAction: "Derzeit ist nichts zu tun.",
   sectionEmptyMonitoring: "Derzeit wird nichts beobachtet.",
   sectionEmptyResolved: "In den letzten 7 Tagen wurde nichts behoben.",
+  sectionResolvedUnavailable: "Behobene Zustände konnten nicht geladen werden. Das heißt nicht, dass es keine gibt: erneut versuchen.",
   groupsUnavailableTitle: "Gruppierte Zustände konnten nicht geladen werden",
   groupsUnavailableBody:
     "Die Zustände bestehen weiterhin; nur diese Ansicht konnte nicht gelesen werden. Erneut versuchen oder zu „Alle Zustände“ wechseln.",
@@ -506,11 +509,12 @@ const OPERATIONS_AR: OperationsCopy = {
   sectionActionRequiredHint: "حالات مفتوحة تحتاج إلى من يتصرف بشأنها.",
   sectionMonitoring: "قيد المراقبة",
   sectionMonitoringHint: "حالات مؤكَّدة أو مكتومة ما زالت قيد الفحص.",
-  sectionRecentlyResolved: "حُلّت مؤخرًا",
-  sectionRecentlyResolvedHint: "أُغلقت خلال آخر 7 أيام.",
+  sectionRecentlyResolved: "حُلّت خلال آخر 7 أيام",
+  sectionRecentlyResolvedHint: "مصادر لها حالة أُغلقت خلال آخر 7 أيام. عدد «تم الحل» أعلاه يشمل كل الفترات.",
   sectionEmptyAction: "لا شيء يتطلب إجراءً الآن.",
   sectionEmptyMonitoring: "لا شيء قيد المراقبة.",
   sectionEmptyResolved: "لم تُحلّ أي حالة خلال آخر 7 أيام.",
+  sectionResolvedUnavailable: "تعذّر تحميل الحالات المحلولة. هذا لا يعني عدم وجودها: حاول مرة أخرى.",
   groupsUnavailableTitle: "تعذّر تحميل الحالات المجمّعة",
   groupsUnavailableBody:
     "الحالات ما زالت موجودة؛ تعذّرت قراءة هذا العرض فقط. حاول مرة أخرى أو انتقل إلى «كل الحالات».",

@@ -107,7 +107,7 @@ top level of it.
 | OK | `parseMyOrgs` | `GET /v1/me/orgs` | orgs, summary | orgs |
 | OK | `parseMyOrgsTotal` | `GET /v1/me/orgs` | orgs, summary | summary |
 | OK | `parseOperators` | `GET /v1/ops/assignable-operators` | operators, selfUserId | operators, selfUserId |
-| OK | `parseGroups` | `GET /v1/ops/incident-groups` | completeness, conservation, groups, sla, totals | groups, totals |
+| OK | `parseGroups` | `GET /v1/ops/incident-groups` | completeness, conservation, groups, sla, totals, window | groups, totals |
 | OK | `parseAffected` | `GET /v1/ops/incident-groups/:groupKey/affected` | completeness, groupKey, pagination, records | pagination, records |
 | OK | `parseIncidentsPage` | `GET /v1/ops/incidents` | completeness, incidents, pagination, sla | completeness, incidents, pagination, sla |
 | OK | `parseIncidentDetail` | `GET /v1/ops/incidents/:id` | incident, remediation | incident, remediation |

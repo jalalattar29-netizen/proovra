@@ -54,7 +54,7 @@ import {
  * worse: it is a confident FALSE statement about a field the server did not
  * send, on a surface whose entire job is not making those.
  */
-function metricValue(raw: number | undefined): string {
+function metricValue(raw: number | null | undefined): string {
   return typeof raw === "number" && Number.isFinite(raw) ? String(raw) : "—";
 }
 

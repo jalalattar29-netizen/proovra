@@ -426,8 +426,10 @@ function OperationsWorkbench() {
    * conditions — the summary cards above it still counting them.
    */
   const [groupsError, setGroupsError] = React.useState<SafeUserError | null>(null);
-  /** The "Recently resolved" section's own read: resolved in the last 7 days. */
+  /** The "Resolved in the last 7 days" section's own read (server window). */
   const [resolvedGroups, setResolvedGroups] = React.useState<IncidentGroup[]>([]);
+  /** A failed read of that section is unavailable, never "nothing resolved". */
+  const [resolvedUnavailable, setResolvedUnavailable] = React.useState(false);
   const [openGroupKey, setOpenGroupKey] = React.useState<string | null>(null);
   /**
    * THE GROUPED READ'S OWN SEQUENCE.
@@ -542,34 +544,39 @@ function OperationsWorkbench() {
   ]);
 
   /**
-   * THE SIMPLE PAGE — "Recently resolved".
+   * THE SIMPLE PAGE — "Resolved in the last 7 days".
    *
    * The default view answers three questions in order: what needs action, what
    * is being watched, and what was closed lately. The third is its own read of
-   * RESOLVED groups, kept to the last seven days, and only on the default view:
-   * a filtered queue shows what the filters asked for and nothing else.
+   * RESOLVED groups, and only on the default view: a filtered queue shows what
+   * the filters asked for and nothing else.
+   *
+   * THE WINDOW IS THE SERVER'S (2026-10-12). It used to be applied here, on
+   * this browser's clock and on each group's LAST-SEEN time — so a condition
+   * resolved a minute ago that was last seen eight days ago vanished, and a
+   * browser clock running fast or slow moved the boundary. The server now
+   * selects conditions whose resolvedAtUtc is within seven days of ITS clock.
    */
   React.useEffect(() => {
     const refused =
       readAccess.refusedReason !== null || !canView || !readAccess.incidents;
     if (refused || !teamId || !grouped || anyFilterActive(filters)) {
       setResolvedGroups([]);
+      setResolvedUnavailable(false);
       return;
     }
     let cancelled = false;
-    const params = new URLSearchParams({ teamId, status: "RESOLVED" });
+    const params = new URLSearchParams({ teamId, status: "RESOLVED", resolvedWithinDays: "7" });
     void apiFetch(`/v1/ops/incident-groups?${params.toString()}`, { method: "GET" })
       .then((res) => {
         if (cancelled) return;
-        const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        const recent = ((res as { groups?: IncidentGroup[] }).groups ?? []).filter(
-          (g) => Date.parse(g.latestActivityAtUtc) >= since,
-        );
-        setResolvedGroups(recent);
+        setResolvedGroups((res as { groups?: IncidentGroup[] }).groups ?? []);
+        setResolvedUnavailable(false);
       })
       .catch(() => {
-        // Optional context, not the queue: a failed read simply shows none.
-        if (!cancelled) setResolvedGroups([]);
+        if (cancelled) return;
+        setResolvedGroups([]);
+        setResolvedUnavailable(true);
       });
     return () => {
       cancelled = true;
@@ -1923,15 +1930,17 @@ function OperationsWorkbench() {
               grouped && groupsError
                 ? ""
                 : grouped
-                ? `${(groupTotals?.groups ?? groups.length).toLocaleString("en-US")} ${
+                ? // A group is a SOURCE, and one source can hold several
+                  // conditions; the grouped queue spans every status.
+                  `${(groupTotals?.groups ?? groups.length).toLocaleString("en-US")} ${
                     (groupTotals?.groups ?? groups.length) === 1
-                      ? "group"
-                      : "groups"
+                      ? "source"
+                      : "sources"
                   } · ${(groupTotals?.conditions ?? 0).toLocaleString("en-US")} ${
                     (groupTotals?.conditions ?? 0) === 1
                       ? "condition"
                       : "conditions"
-                  }`
+                  }${filters.status ? "" : " · all statuses"}`
                 : rows.length === 1
                   ? "1 condition"
                   : `${rows.length}${nextCursor ? "+" : ""} conditions`
@@ -2118,8 +2127,10 @@ function OperationsWorkbench() {
                 {copy.sectionRecentlyResolved}
               </h2>
               <p className="opsw-muted opsw-section__hint">{copy.sectionRecentlyResolvedHint}</p>
-              {resolvedGroups.length > 0 ? (
-                <GroupSurface groups={resolvedGroups} openGroupKey={openGroupKey} onOpen={setOpenGroupKey} />
+              {resolvedUnavailable ? (
+                <p className="opsw-muted" role="status" data-ops-section-unavailable>{copy.sectionResolvedUnavailable}</p>
+              ) : resolvedGroups.length > 0 ? (
+                <GroupSurface groups={resolvedGroups} openGroupKey={openGroupKey} onOpen={setOpenGroupKey} timeline="resolution" />
               ) : (
                 <p className="opsw-muted" data-ops-section-empty>{copy.sectionEmptyResolved}</p>
               )}

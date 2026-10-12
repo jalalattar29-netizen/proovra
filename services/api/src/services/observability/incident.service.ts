@@ -1493,6 +1493,14 @@ export type ListIncidentsInput = {
    * An opaque token to the client; a unique key to the database.
    */
   cursor?: string | null;
+  /**
+   * RESOLVED SINCE (2026-10-12): only conditions currently RESOLVED whose
+   * `resolvedAtUtc` is at or after this instant. The window is computed by
+   * the caller from the SERVER clock — a browser filtering on its own clock
+   * (and on the last-seen time, not the resolution time) dropped conditions
+   * resolved minutes ago that were last seen over a week before.
+   */
+  resolvedSince?: Date | null;
 };
 
 export type ListIncidentsPage = {
@@ -1650,6 +1658,9 @@ export async function listIncidents(
       ...workspaceIncidentWhere(input.teamId),
       ...slaWhere(input.sla ?? null, input.now ?? new Date()),
       ...(input.status ? { status: input.status as prismaPkg.IncidentStatus } : {}),
+      ...(input.resolvedSince
+        ? { status: prismaPkg.IncidentStatus.RESOLVED, resolvedAtUtc: { gte: input.resolvedSince } }
+        : {}),
       ...(input.severity ? { severity: input.severity as prismaPkg.IncidentSeverity } : {}),
       ...(input.category ? { category: input.category as prismaPkg.IncidentCategory } : {}),
       ...(owner.kind === "UNASSIGNED"

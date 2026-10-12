@@ -193,6 +193,8 @@ export type IncidentGroup = {
   firstSeenAtUtc: string;
   lastSeenAtUtc: string;
   latestActivityAtUtc: string;
+  /** The latest resolution across the members; null when none is resolved (older servers omit it). */
+  latestResolvedAtUtc?: string | null;
   assignedCount: number;
   failureGroups: Array<{ failureClass: string; label: string; count: number }>;
   affectedSample: AffectedRecord[];
@@ -355,8 +357,11 @@ export type OperationsSummary = {
   slaAtRisk: number;
   slaOnTrack: number;
   slaUntracked: number;
-  /** Closed conditions. Counted by the same authority, disjoint from `open`. */
-  resolved: number;
+  /**
+   * Closed conditions, all time. Counted by the same authority, disjoint from
+   * `open`. Null when the count could not be read: unavailable, not zero.
+   */
+  resolved: number | null;
   complete: boolean;
   mayAssertAllClear: boolean;
   incompleteReason: string | null;
