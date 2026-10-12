@@ -419,8 +419,42 @@ export async function transitionSsoConnection(
         input.nextStatus === "REVOKED" ? input.actorUserId : null,
       revokedReason:
         input.nextStatus === "REVOKED" ? input.reason ?? null : null,
+      // OPS-13 — a connection taken OUT of sign-in no longer has an outage.
+      // The outage marker and its failure run describe a provider people are
+      // trying to sign in through; leaving them stamped on a revoked or
+      // disabled connection kept identity.idp_outage open for a connection
+      // nobody can use, with no success callback ever able to clear it.
+      ...(input.nextStatus === "REVOKED" || input.nextStatus === "DISABLED"
+        ? { outageDetectedAtUtc: null, consecutiveFailureCount: 0 }
+        : {}),
     },
   });
+  if (
+    (input.nextStatus === "REVOKED" || input.nextStatus === "DISABLED") &&
+    row.outageDetectedAtUtc
+  ) {
+    // The emitter that took the connection out of service closes the
+    // condition it can no longer have — through the shared transition
+    // authority, compare-and-set, with the SLA cycle closed.
+    try {
+      const { resolveConditionFromSourceRecovery } = await import(
+        "../observability/incident.service.js"
+      );
+      await resolveConditionFromSourceRecovery(
+        {
+          teamId: input.teamId,
+          fingerprint: `idp-outage:${row.id}`,
+          safeMessage:
+            input.nextStatus === "REVOKED"
+              ? "The SSO connection was revoked, so it is no longer used for sign-in and has no outage."
+              : "The SSO connection was disabled, so it is no longer used for sign-in and has no outage.",
+        },
+        client,
+      );
+    } catch {
+      /* best-effort: the probe answers NOT_APPLICABLE for this connection now */
+    }
+  }
   if (input.nextStatus === "REVOKED") {
     bump("sso_connection_revoked_total");
     safeEmitSecurityEvent({

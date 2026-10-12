@@ -152,6 +152,9 @@ const EXPECTED_SUCCEEDED = [
   "evidence_integrity.ots_budget_exhausted",
   "evidence_integrity.ots_initialization_stalled",
   "identity.idp_outage",
+  // (2026-10-12) a webhook destination the delivery runtime auto-disabled is
+  // a per-record SOURCE_TRUTH condition swept for recovery like the others.
+  "integration.webhook_destination_disabled",
   "pipeline.package_generation_denied",
   //   pipeline.package_generation_failed / pipeline.report_generation_failed
   //                             (2026-09-29) the same shape: the WORKER opens
@@ -160,7 +163,6 @@ const EXPECTED_SUCCEEDED = [
   //                             fixture has none open, so nothing is written.
   "pipeline.package_generation_failed",
   "pipeline.report_generation_failed",
-  "pipeline.signed_without_report_aged",
   // `platform.worker_heartbeat_stale` and `queue.retry_storm` were here. Both
   // left workspace discovery (OPS-009: worker liveness is ONE platform
   // condition, written by the platform writer; OPS-002: the "storm" counted

@@ -159,7 +159,12 @@ export async function verifyAccountStepUp(input: {
     safeEmitSecurityEvent({
       teamId: null,
       eventType: "step_up_denied",
-      severity: "WARNING",
+      // OPS-13 — STEP_UP_REQUIRED is the routine "confirm it's you" prompt
+      // (no proof supplied yet), the same fact as
+      // `high_risk_action_step_up_required`, and is INFO. Only a WRONG proof
+      // or a rate-limited burst of them is WARNING. Account-tier: no
+      // workspace, so the bridge never writes a condition for either.
+      severity: code === "STEP_UP_REQUIRED" ? "INFO" : "WARNING",
       details: { actorUserId: userId, action, reason: code },
     });
     return { ok: false, denial: { status, body: { error: { code, methods, message } } } };

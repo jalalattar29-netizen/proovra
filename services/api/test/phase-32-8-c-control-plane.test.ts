@@ -199,7 +199,6 @@ describe("Phase 32.8C control plane — incident generator", () => {
       "PACKAGE_BACKLOG_HIGH",
       "PACKAGE_BACKLOG_CRITICAL",
       "STALE_REVIEW_HOURS",
-      "UNSIGNED_FINALIZED_AGED_DAYS",
       "COORDINATION_STALE_DAYS",
     ]) {
       expect(PROBES).toContain(k);
@@ -227,9 +226,10 @@ describe("Phase 32.8C control plane — incident generator", () => {
     expect(PROBES).toMatch(/return `\$\{spec\.fingerprintPrefix\}:\$\{teamId\}`/);
     const prefixes = PROBES.match(/fingerprintPrefix:\s*"[^"]+"/g);
     expect(prefixes).not.toBeNull();
-    // Five workspace aggregates. The three platform "aggregates" became ONE
-    // platform writer with no tenant in the key (OPS-009).
-    expect(prefixes!.length).toBeGreaterThanOrEqual(5);
+    // Four workspace aggregates (the unreachable unsigned-aged count was
+    // retired, OPS-13). The three platform "aggregates" became ONE platform
+    // writer with no tenant in the key (OPS-009).
+    expect(prefixes!.length).toBeGreaterThanOrEqual(4);
     // Distinct: two sources sharing a prefix would share a condition.
     expect(new Set(prefixes).size).toBe(prefixes!.length);
   });
@@ -239,7 +239,7 @@ describe("Phase 32.8C control plane — incident generator", () => {
     // and never rewritten, so 26 stayed true-looking for the life of the
     // condition. Titles are stable now and the value lives in the metric.
     const titles = PROBES.match(/stableTitle:\s*"[^"]+"/g) ?? [];
-    expect(titles.length).toBeGreaterThanOrEqual(5);
+    expect(titles.length).toBeGreaterThanOrEqual(4);
     for (const t of titles) expect(t).not.toMatch(/\d/);
     // The platform writer's titles carry no count either: the value is in the
     // metric, and a queue's label is a name.

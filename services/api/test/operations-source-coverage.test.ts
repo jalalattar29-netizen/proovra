@@ -179,17 +179,9 @@ const SOURCES: readonly Source[] = [
     disposition: "OPERATIONS_INCIDENT",
     remediation: "the platform queue console (inspect and replay)",
   },
-  {
-    name: "Finalized but unsigned, aged",
-    writer: "incident-generator.service.ts",
-    identityOwner: "operations/operations-source-probes.ts",
-    evidence: "dashboard:integrity:unsigned_aged",
-    category: "GOVERNANCE",
-    fingerprint: "PER_WORKSPACE",
-    severity: "threshold on age",
-    disposition: "OPERATIONS_INCIDENT_WITH_DEEP_LINK",
-    remediation: "the Evidence library",
-  },
+  // "Finalized but unsigned, aged" (pipeline.signed_without_report_aged) is
+  // RETIRED (OPS-13): it counted a status no writer sets. Its absence from
+  // the probes and the generator is pinned in the retired-signals case below.
   {
     name: "Coordination backlog stale",
     writer: "incident-generator.service.ts",
@@ -316,7 +308,7 @@ describe("source coverage — every declared source is real", () => {
 // ===========================================================================
 
 describe("source coverage — the workbench can project every source", () => {
-  it("every category a source writes is filterable in the UI vocabulary", () => {
+  it("every category a source writes is filterable in the UI vocabulary", async () => {
     const vocabulary = readFileSync(
       fileURLToPath(
         new URL(
@@ -326,11 +318,19 @@ describe("source coverage — the workbench can project every source", () => {
       ),
       "utf8",
     );
-    for (const s of SOURCES) {
-      expect(
-        vocabulary,
-        `${s.category} must have a plain-language label, or its conditions render as an enum token`,
-      ).toContain(`${s.category}:`);
+    // D10 — the WORDS moved to the shared dictionary; the web vocabulary
+    // now projects `operationsDict.<locale>.category`. A label must exist
+    // there, and the web module must still read it from there.
+    expect(vocabulary).toContain("operationsDict.en.category");
+    const { operationsDict } = await import("@proovra/shared/i18n");
+    for (const locale of ["en", "de", "ar"] as const) {
+      const labels = operationsDict[locale].category as Record<string, string | undefined>;
+      for (const s of SOURCES) {
+        expect(
+          labels[s.category]?.trim().length ?? 0,
+          `${s.category} must have a plain-language ${locale} label, or its conditions render as an enum token`,
+        ).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -406,6 +406,9 @@ describe("fingerprint strategy is a deliberate property of each source", () => {
       "dashboard:worker:heartbeat_stale",
       "queue.retry_storm_count",
       "platform.telemetry_age",
+      // OPS-13 — the unreachable "uploaded, unsigned, aged" count.
+      "dashboard:integrity:unsigned_aged",
+      "pipeline.signed_without_report_aged_count",
     ]) {
       expect(PROBES, retired).not.toContain(`"${retired}"`);
       expect(GENERATOR, retired).not.toContain(retired);

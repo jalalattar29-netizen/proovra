@@ -201,26 +201,27 @@ export function safeEmitSecurityEvent(
 
 /**
  * Phase 21 — auto-create an operational incident when a
- * WARNING-or-higher SecurityEvent fires. The fingerprint is derived
- * from `(eventType, teamId?)` so a burst of identical events on the
- * same team collapses to a single incident.
+ * WARNING-or-higher SecurityEvent fires — ONLY when the event's type has an
+ * explicit classification that names a registered source.
  *
- * The mapping from SecurityEvent type → IncidentCategory is the
- * source of truth for "which surface owns this signal". Unmapped
- * event types fall back to category=WORKER (operator-debuggable
- * default).
+ * OPS-13 Phase 3 — THERE IS NO DEFAULT ROW ANY MORE.
+ *
+ * The bridge used to send every event type no mapping claimed to
+ * `security.unclassified_signal`, a tenant condition nobody could ever close.
+ * Measured: an outsider's DENIED workspace switch opened one inside the
+ * TARGET workspace, and that owner's Resolve answered 409. An unrecognised
+ * event is now persisted (the SecurityEvent row is written before this runs),
+ * counted (`security_event_unclassified_total`) and logged by bounded event
+ * type — and never written into a workspace.
  */
 async function maybeAutoCreateIncident(
   input: EmitSecurityEventInput,
   securityEventId: string,
   client: PrismaClient,
 ): Promise<void> {
-  // Lazy import to avoid a circular dep with the observability tree
-  // (which itself imports `safeEmitSecurityEvent` indirectly).
-  let incident: typeof import("../observability/incident.service.js");
-  try {
-    incident = await import("../observability/incident.service.js");
-  } catch {
+  const disposition = classifySecurityEvent(input.eventType);
+  if (disposition.kind === "UNCLASSIFIED") {
+    reportUnclassifiedSecurityEvent(input.eventType, input.severity);
     return;
   }
   const mapping = mapEventTypeToIncident(input.eventType);
@@ -232,6 +233,25 @@ async function maybeAutoCreateIncident(
   // already has one under a dedicated source or does not describe a failure at
   // all.
   if (!mapping) return;
+  // A TENANT CONDITION NEEDS A TENANT.
+  //
+  // Account-tier events (`step_up_denied` from the account step-up prompt, a
+  // retired auth endpoint's `high_risk_action_blocked`) carry no workspace. A
+  // NULL team without the explicit platform declaration is written
+  // LEGACY_UNSCOPED — a row no workspace can see and no operator is asked to
+  // own. It is counted instead; the SecurityEvent row keeps the fact.
+  if (!input.teamId) {
+    void bumpSecurityMetric("security_event_condition_without_workspace_total");
+    return;
+  }
+  // Lazy import to avoid a circular dep with the observability tree
+  // (which itself imports `safeEmitSecurityEvent` indirectly).
+  let incident: typeof import("../observability/incident.service.js");
+  try {
+    incident = await import("../observability/incident.service.js");
+  } catch {
+    return;
+  }
   const { category, runbookSlug, sourceId } = mapping;
   const fingerprint = `${category.toLowerCase()}:security_event:${input.eventType}`;
   const title = `Security signal: ${input.eventType}`;
@@ -239,10 +259,10 @@ async function maybeAutoCreateIncident(
   try {
     await incident.recordIncident(
       {
-        // ONE bridge, six domains. The branch that already picks the category
-        // picks the source too, so the two cannot come apart — a mapping that
-        // returned a category without a source is what left these conditions
-        // unregistered.
+        // ONE bridge, several domains. The branch that already picks the
+        // category picks the source too, so the two cannot come apart — a
+        // mapping that returned a category without a source is what left these
+        // conditions unregistered.
         sourceId,
         teamId: input.teamId ?? null,
         category,
@@ -261,50 +281,96 @@ async function maybeAutoCreateIncident(
   }
 }
 
+async function bumpSecurityMetric(
+  name:
+    | "security_event_unclassified_total"
+    | "security_event_condition_without_workspace_total",
+): Promise<void> {
+  try {
+    const m = await import("../ops/metrics.service.js");
+    m.bump(name);
+  } catch {
+    /* metrics module unavailable in test context */
+  }
+}
+
+/**
+ * THE PLATFORM SIGNAL FOR AN UNRECOGNISED EVENT.
+ *
+ * Bounded on purpose: the event TYPE (clipped, and already a catalogue member
+ * — `emitSecurityEvent` refuses anything else) and the severity. Never the
+ * workspace, never the details: an unclassified event is precisely the one
+ * nobody has reviewed for what its payload may carry.
+ */
+function reportUnclassifiedSecurityEvent(eventType: string, severity: string): void {
+  void bumpSecurityMetric("security_event_unclassified_total");
+  void (async () => {
+    try {
+      const { warn } = await import("../../utils/logger.js");
+      warn("security.unclassified_event_type", {
+        eventType: String(eventType).slice(0, 80),
+        severity: String(severity).slice(0, 16),
+      });
+    } catch {
+      /* a diagnostic must never break the path it describes */
+    }
+  })();
+}
+
+/** The four answers the bridge can give, by exact identity. */
+export type SecurityEventDisposition =
+  | { readonly kind: "DEDICATED"; readonly sourceId: string }
+  | { readonly kind: "ROUTINE"; readonly reason: string }
+  | { readonly kind: "CLASSIFIED"; readonly classification: SecurityClassification }
+  | { readonly kind: "UNCLASSIFIED" };
+
+/**
+ * WHAT THE BRIDGE DOES WITH ONE EVENT TYPE.
+ *
+ *   1. an exact identity a DEDICATED source already records  -> no duplicate;
+ *   2. an exact identity on the reviewed ROUTINE allowlist   -> no incident;
+ *   3. an exact identity with a real classification contract -> that source;
+ *   4. EVERYTHING ELSE -> UNCLASSIFIED: counted and logged, never a tenant row.
+ *
+ * No substring, prefix or suffix appears anywhere in this decision.
+ */
+export function classifySecurityEvent(eventType: string): SecurityEventDisposition {
+  const dedicated = dedicatedSourceOwning(eventType);
+  if (dedicated !== null) return { kind: "DEDICATED", sourceId: dedicated };
+  const reason = routineSecurityEventReason(eventType);
+  if (reason !== null) return { kind: "ROUTINE", reason };
+  const classified = Object.prototype.hasOwnProperty.call(
+    CLASSIFIED_SECURITY_EVENTS,
+    eventType,
+  )
+    ? CLASSIFIED_SECURITY_EVENTS[eventType]
+    : undefined;
+  if (classified) return { kind: "CLASSIFIED", classification: classified };
+  return { kind: "UNCLASSIFIED" };
+}
+
 /**
  * WHICH OPERATIONS SOURCE — IF ANY — THIS SECURITY EVENT BELONGS TO.
  *
  * ---------------------------------------------------------------------------
  * WHAT THIS REPLACED, AND WHY IT HAD TO GO
  * ---------------------------------------------------------------------------
- * The previous version decided in two unsafe ways.
- *
- * 1. CLASSIFICATION BY PREFIX. Seventeen `startsWith` branches routed events to
- *    six sources. A prefix is a guess about names, not a contract about facts,
- *    and it guessed wrong in public: `verification_package_attestations_missing`
- *    — an EVIDENCE VERIFICATION PACKAGE losing its attestations — matched
- *    `verification_` and was filed as a COMMUNICATIONS provider failure, with
- *    the Twilio outage runbook attached. Twenty-four routine outcomes
- *    (`step_up_approved`, `upload_session_completed`,
- *    `governance_reconciliation_finished`) were classified as security
- *    conditions for the same reason.
- *
- * 2. ADVERSITY BY SUBSTRING. Whether an UNCLASSIFIED event became a condition
- *    was decided by scanning its name for markers — `_failed`, `_denied`,
- *    `_blocked`, `_mismatch`, `_warning`. That is the dangerous direction: a
- *    new adverse event whose name carries no marker was silently treated as
- *    routine and never reached the queue at all. The platform decided that
- *    nothing had gone wrong because it did not recognise the WORD.
+ * The first version decided by PREFIX (seventeen `startsWith` branches) and
+ * by SUBSTRING (`_failed`, `_denied`, …) — a guess about names, wrong in both
+ * directions. The second version decided over exact identities and sent every
+ * unknown identity to a fail-closed `security.unclassified_signal` row. That
+ * row could never close, and it was written into whatever workspace the event
+ * named — including a workspace an outsider had merely ASKED to switch into.
  *
  * ---------------------------------------------------------------------------
- * THE DECISION ORDER NOW
+ * THE DECISION NOW
  * ---------------------------------------------------------------------------
- * The `SecurityEvent` row is written FIRST and unconditionally — this function
- * runs after it and takes its id, so nothing below can suppress the audit
- * record. Only the OPERATIONS representation is decided here:
- *
- *   1. an exact identity a DEDICATED source already records  -> no duplicate;
- *   2. an exact identity on the reviewed ROUTINE allowlist   -> no incident;
- *   3. an exact identity with a real classification contract -> that source;
- *   4. EVERYTHING ELSE                                       -> unclassified,
- *      fail-closed, `security.unclassified_signal`.
- *
- * Step 4 is the whole correction. An event this build has never seen, at
- * WARNING or above, becomes a condition nobody can close by assertion. Being
- * unrecognised is now a reason to SHOW something, which is the opposite of
- * what the marker scan did.
- *
- * No substring, prefix or suffix appears anywhere in this decision.
+ * The `SecurityEvent` row is written FIRST and unconditionally. This answers
+ * only the OPERATIONS question, from `classifySecurityEvent`: a mapping for a
+ * CLASSIFIED identity, and null for everything else — dedicated, routine, and
+ * unclassified alike. The unclassified case is not silent: the bridge counts
+ * and logs it (`maybeAutoCreateIncident`), so an unreviewed event type is
+ * visible to the platform without becoming a tenant's unclosable condition.
  */
 export function mapEventTypeToIncident(eventType: string): {
   sourceId: string;
@@ -324,25 +390,9 @@ export function mapEventTypeToIncident(eventType: string): {
     | "RECONCILIATION";
   runbookSlug: string | null;
 } | null {
-  // 1. A dedicated source already records this fact. One outage must not
-  //    become two rows an operator reconciles by eye — and the generic copy
-  //    would carry the weaker contract.
-  if (dedicatedSourceOwning(eventType) !== null) return null;
-
-  // 2. A reviewed routine outcome. It belongs in the security audit log, which
-  //    already has it, not in a queue that asks for a conclusion per row.
-  if (routineSecurityEventReason(eventType) !== null) return null;
-
-  // 3. A real classification contract, by EXACT identity.
-  const classified = CLASSIFIED_SECURITY_EVENTS[eventType];
-  if (classified) return { ...classified };
-
-  // 4. FAIL CLOSED. Not recognised is not the same as not a problem.
-  return {
-    sourceId: "security.unclassified_signal",
-    category: "WORKER",
-    runbookSlug: null,
-  };
+  const disposition = classifySecurityEvent(eventType);
+  if (disposition.kind !== "CLASSIFIED") return null;
+  return { ...disposition.classification };
 }
 
 /**
@@ -356,6 +406,11 @@ export function mapEventTypeToIncident(eventType: string): {
  * and the invariant below can prove it is registered, ACTIVE and produced.
  * This suppresses only the DUPLICATE generic incident; the SecurityEvent row
  * and the dedicated source's own condition are both untouched.
+ *
+ * `immutable_storage_drift` / `immutable_storage_reconciliation_failure` were
+ * here, owned by `storage.immutable_drift`. That source is DISABLED (OPS-13)
+ * and neither event type has an emitter in the API, so naming a dedicated
+ * owner for them would claim coverage nothing provides.
  */
 export const DEDICATED_SOURCE_EVENT_TYPES: Readonly<Record<string, string>> =
   Object.freeze({
@@ -365,9 +420,6 @@ export const DEDICATED_SOURCE_EVENT_TYPES: Readonly<Record<string, string>> =
     idp_outage_cleared: "identity.idp_outage",
     // `destruction-review.service.ts` — same function, event then incident.
     destruction_executed: "governance.destruction_executed",
-    // The worker's reconciler owns the drift verdict and its recovery.
-    immutable_storage_drift: "storage.immutable_drift",
-    immutable_storage_reconciliation_failure: "storage.immutable_drift",
     // Index health is derived from eligible-vs-indexed coverage now, not from
     // any single indexing event.
     search_indexing_failed: "search.indexing_failure",
@@ -381,28 +433,45 @@ export const DEDICATED_SOURCE_EVENT_TYPES: Readonly<Record<string, string>> =
     // cycle — and a second one competing with it is a defect this codebase has
     // already paid for once.
     reviewer_sla_breached: "review.escalation",
+    // `escalation-engine.service.ts` — the same function records
+    // `review.escalation` for HIGH/CRITICAL escalations; a WARNING escalation
+    // lives in the reviewer escalation queue, which is its owner.
+    reviewer_escalation_created: "review.escalation",
+    // `adaptive-auth.service.ts` emits it inside `decideAdaptiveAuth`, whose
+    // only caller — `runtimeAdaptiveGate` — records `identity.runtime_block`
+    // for the same BLOCK decision.
+    adaptive_block_triggered: "identity.runtime_block",
+    // `automation-delivery-runtime.service.ts` — the same branch that stamps
+    // `autoDisabledAt` records the per-destination condition.
+    automation_webhook_destination_auto_disabled:
+      "integration.webhook_destination_disabled",
   });
 
+function ownEntry<T>(map: Readonly<Record<string, T>>, key: string): T | null {
+  return Object.prototype.hasOwnProperty.call(map, key) ? (map[key] ?? null) : null;
+}
+
 export function dedicatedSourceOwning(eventType: string): string | null {
-  return DEDICATED_SOURCE_EVENT_TYPES[eventType] ?? null;
+  return ownEntry(DEDICATED_SOURCE_EVENT_TYPES, eventType);
 }
 
 /**
- * REVIEWED ROUTINE, SUCCESSFUL AND ADMINISTRATIVE EVENTS.
+ * REVIEWED EVENTS THAT ARE NOT AN OPERATIONS CONDITION.
  *
  * Exact identities only — no prefix, no regex, no substring. Every entry
  * carries the reason it is not an operational condition, because an allowlist
- * without reasons is a list nobody can review, and this one is the ONLY thing
- * standing between a routine event and the fail-closed default.
+ * without reasons is a list nobody can review.
  *
  * The bar for an entry: a person read what the event means and concluded that
- * its occurrence is either the product working correctly or an administrator
- * doing something deliberate. "Its name looks harmless" is not the bar, and is
- * exactly the reasoning that was removed.
+ * its occurrence is the product working correctly (a success, a policy
+ * refusal, a rate limit), an administrator doing something deliberate, an
+ * outcome reported INLINE to the person who caused it, or a fact another
+ * surface already owns (Security Center, upload recovery, the automation
+ * delivery log, a platform metric). "Its name looks harmless" is not the bar.
  *
- * An identity NOT listed here — including one this build has never seen —
- * becomes `security.unclassified_signal`. Adding to this list is a deliberate,
- * reviewable act; forgetting to add to it is safe.
+ * OPS-13 Phase 3 added every WARNING-or-higher producer that used to fall into
+ * the unclosable `security.unclassified_signal` default. Each was read at its
+ * call site; the reason says what owns it instead.
  */
 export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
   Object.freeze({
@@ -416,6 +485,44 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
     // (high_risk_action_blocked, runtime blocks, session-risk surges).
     permission_denied:
       "An expected authorization refusal. The audit log records it; an incident would describe the permission model working.",
+    // OPS-13 — the membership and organisation-policy gates refusing a switch.
+    // A refusal is bound to the ACTOR's own context (never the workspace that
+    // was asked for), and stays in the security log.
+    workspace_context_switched:
+      "A workspace switch, allowed or refused. A refusal is the membership and policy gates working; it is a security-log entry for the actor, never a condition in the workspace that was asked for.",
+    privileged_session_blocked:
+      "A quarantined session was refused a privileged action — the quarantine enforcing. The quarantine itself (session_quarantined) is the condition.",
+
+    // ---- Sign-in attempts ---------------------------------------------------
+    // One row per ATTEMPT. Security Center keeps every one; the patterns that
+    // matter have their own detectors (failed-auth bursts via risk signals,
+    // `identity.idp_outage` for a provider that keeps failing).
+    auth_login_failed:
+      "One failed sign-in attempt, with no workspace. Security Center and the failed-auth burst detector own it; it is not a workspace condition.",
+    mfa_verification_failed:
+      "One wrong second-factor code. The failed-OTP burst detector owns the pattern; a single attempt is not a workspace condition.",
+    mfa_challenge_replayed:
+      "A spent MFA challenge was presented again and refused — the one-use rule working. Security Center keeps it.",
+    mfa_recovery_throttled:
+      "The MFA recovery rate limit refused a request — the limit working.",
+    sso_login_failed:
+      "One failed SSO sign-in. Security Center keeps it; a provider that keeps failing opens identity.idp_outage through its own threshold.",
+    sso_jit_denied:
+      "Just-in-time provisioning refused a user by policy — the policy working, reported to that user at sign-in.",
+    sso_callback_replay_detected:
+      "A replayed SSO callback was refused — replay protection working. Security Center keeps the attempt.",
+    saml_login_failed:
+      "One failed SAML sign-in. Security Center keeps it; a provider that keeps failing opens identity.idp_outage through its own threshold.",
+    saml_assertion_rejected:
+      "One SAML assertion failed validation and was refused. Security Center keeps it; an IdP-side fault that persists opens identity.idp_outage.",
+    saml_attribute_mapping_failed:
+      "One SAML sign-in whose attributes did not map. Reported to the user at sign-in and kept in Security Center.",
+    saml_jit_denied:
+      "Just-in-time provisioning refused a SAML user by policy — the policy working.",
+    saml_jit_policy_denied:
+      "The SAML JIT policy refused a user — the policy working.",
+    saml_mapping_quarantined:
+      "One SAML sign-in was held by the mapping quarantine rule — the rule working; Security Center keeps it.",
 
     // ---- Session and re-authentication lifecycle -------------------------
     all_sessions_revoked: "A person signed out everywhere. Deliberate.",
@@ -447,6 +554,8 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
     mfa_recovery_requested: "A user began the recovery flow. Not an outcome.",
     mfa_recovery_approved: "Recovery was granted. The success case.",
     mfa_trusted_devices_reset: "A deliberate administrative reset.",
+    mfa_recovery_digest_test_failed:
+      "An admin's test send of the recovery digest failed; the result is shown to that admin inline.",
 
     // ---- Identity provisioning and access administration -----------------
     rbac_temporary_elevation_granted:
@@ -459,16 +568,39 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
       "Ordinary directory churn; the audit log is the record.",
     scim_reconciliation_membership_suspended:
       "The reconciler corrected a membership. Its job, done.",
+    scim_drift_scan_completed:
+      "An admin ran a directory drift scan; the drift it found is the preview that admin is looking at, and applying it is their next deliberate step.",
+    scim_reconciliation_executed:
+      "An admin applied a reviewed directory reconciliation deliberately.",
     sso_connection_created: "An admin configured SSO deliberately.",
     sso_connection_updated: "An admin changed SSO configuration deliberately.",
     sso_connection_revoked: "An admin removed SSO configuration deliberately.",
+    sso_health_checked:
+      "An admin read SSO health. A DEGRADED answer is shown to that admin; a provider that is actually failing sign-ins opens identity.idp_outage.",
+    saml_connection_test_failed:
+      "An admin's SAML connection test failed; the result is shown to that admin inline.",
     saml_mapping_updated: "An admin changed attribute mapping deliberately.",
+    saml_mapping_previewed:
+      "An admin previewed a privilege-affecting mapping; the warning is shown to that admin in the preview.",
+    saml_mapping_privilege_warning:
+      "An admin saved a privilege-affecting mapping after being warned; deliberate, and the audit log is the record.",
 
     // ---- Governance and retention administration -------------------------
     retention_policy_created: "An admin authored a policy deliberately.",
     retention_policy_updated: "An admin changed a policy deliberately.",
+    retention_policy_superseded: "An admin superseded a policy deliberately.",
+    retention_policy_archived: "An admin archived a policy deliberately.",
+    retention_policy_paused: "An admin paused a policy deliberately.",
     destruction_review_created:
       "A destruction review was opened; its own governance surface tracks it.",
+    destruction_review_approved:
+      "A reviewer decided a destruction review deliberately; the governance surface is the record.",
+    destruction_review_denied:
+      "A reviewer decided a destruction review deliberately; the governance surface is the record.",
+    destruction_review_deferred:
+      "A reviewer deferred a destruction review deliberately; the governance surface tracks it.",
+    destruction_review_restored:
+      "A reviewer restored a record from destruction review deliberately.",
     custody_attestation_verified:
       "An attestation verified successfully. The success case.",
     external_review_token_revealed:
@@ -487,12 +619,28 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
       "A reconciliation began. Not an outcome.",
     governance_reconciliation_finished:
       "A reconciliation completed. The success case.",
+    export_reproducibility_verified:
+      "An operator-run reproducibility check; its match or mismatch is the result shown to that operator.",
+
+    // ---- Governance policy enforcement -------------------------------------
+    // Legal hold, immutability and lifecycle rules REFUSING an action is the
+    // policy working as designed; the refusal is returned to whoever asked.
+    export_blocked_by_lifecycle:
+      "An export (or the read-only export-eligibility preflight) was refused by the record's lifecycle — the policy working; the refusal is returned inline.",
+    destruction_blocked_by_hold:
+      "A legal hold refused destruction — exactly what a hold is for.",
+    destruction_blocked_by_immutable:
+      "Immutability refused destruction — exactly what immutability is for.",
+    lifecycle_transition_blocked:
+      "The lifecycle state machine refused a transition it does not allow; the refusal is returned inline.",
 
     // ---- Reviewer operations administration ------------------------------
     reviewer_governance_flags_updated:
       "An admin changed reviewer governance settings deliberately.",
     reviewer_sla_policy_updated:
       "An admin changed the SLA promise deliberately.",
+    reviewer_bulk_triage_executed:
+      "A reviewer ran a bulk triage; per-item failures are reported to that reviewer inline.",
 
     // ---- Signer administration -------------------------------------------
     signer_health_checked:
@@ -500,10 +648,60 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
     signer_promoted: "A deliberate rotation step.",
     signer_retired: "A deliberate rotation step.",
     signer_revoked: "A deliberate rotation step.",
+    signer_health_degraded:
+      "A platform signer health verdict, read by a platform operator and counted by signer_health_degraded_total; the signer console owns it, not a workspace queue.",
+    signer_signature_failure:
+      "A platform signing failure, counted by signer_signature_failure_total and owned by the signer console; it is not a condition a workspace can act on.",
+
+    // ---- Platform operator actions ---------------------------------------
+    queue_job_replay_failed:
+      "A platform operator's queue replay failed; the result is shown to that operator inline in the queue console.",
+    queue_job_replay_forbidden:
+      "A queue replay was refused by its guard; the refusal is returned to the operator inline.",
+    media_intelligence_dlq_replayed:
+      "A platform operator replayed dead-lettered media jobs deliberately.",
+    backup_validation_completed:
+      "An operator-run backup validation; its outcome is the report that operator reads.",
+    restore_validation_failed:
+      "An operator-run restore validation failed; its outcome is the report that operator reads.",
+
+    // ---- Platform faults owned by a metric, not a workspace ---------------
+    search_audit_log_write_failed:
+      "A platform write to the search audit log failed; counted by search_audit_log_write_failed_total. Nothing a workspace can act on.",
+    search_audit_log_read_failed:
+      "A platform read of the search audit log failed; counted by search_audit_log_read_failed_total and returned as an empty page.",
+    mfa_enforcement_degraded:
+      "The MFA enforcement read failed and an explicit fail-open mode applied; a platform resilience fact with no workspace.",
+    mfa_enforcement_failed_closed:
+      "The MFA enforcement read failed and the sign-in was refused (fail-closed); a platform resilience fact with no workspace.",
+    scanner_unavailable:
+      "The file scanner could not run on one upload; the upload's own scan status records it.",
+    ai_chat_abuse_signal:
+      "The AI cost guard refused a request — the guard working.",
 
     // ---- Automation and integrations --------------------------------------
     automation_webhook_secret_rotated:
       "A deliberate secret rotation.",
+    automation_run_failed:
+      "One automation run failed; the automation run log owns it.",
+    automation_run_dead_lettered_unknown:
+      "One automation run ended with an unknown outcome; the automation run log records it as such.",
+    automation_webhook_delivery_failed:
+      "One delivery attempt failed; the delivery log owns retries. A destination that keeps failing is auto-disabled, which IS a condition (integration.webhook_destination_disabled).",
+    automation_webhook_delivery_retry_exhausted:
+      "One delivery exhausted its retries; the delivery log owns it, and repeated failure auto-disables the destination (integration.webhook_destination_disabled).",
+    automation_webhook_delivery_dead_lettered_unknown:
+      "One delivery ended with an unknown outcome; the delivery log records it as unknown.",
+    automation_webhook_delivery_ambiguous:
+      "One delivery's outcome could not be determined; the delivery log records the ambiguity and its resolution.",
+
+    // ---- External review --------------------------------------------------
+    external_review_grant_issue_failed:
+      "Issuing an external-review grant failed; the error is returned inline to the person issuing it.",
+    external_review_grant_lookup_failed:
+      "An external-review grant lookup failed; the error is returned inline.",
+    external_review_grant_transition_failed:
+      "An external-review grant transition failed; the error is returned inline.",
 
     // ---- Intake and delivery lifecycle ------------------------------------
     upload_resumed: "A paused upload continued. The success case.",
@@ -512,6 +710,48 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
       "A caller abandoned an upload deliberately; the reconciler owns anything left behind.",
     upload_abandoned:
       "The same fact observed by the sweep; the reconciler owns the cleanup.",
+    // Multipart and finalize refusals are returned to the uploader inline,
+    // and anything left behind is the upload reconciler's to recover.
+    multipart_initiate_failed:
+      "Starting a multipart upload failed; the error is returned to the uploader inline.",
+    multipart_complete_failed:
+      "Completing a multipart upload failed; the uploader is told inline and upload recovery owns the session.",
+    multipart_head_failed:
+      "The post-upload size check could not read the object; the uploader is told inline and upload recovery owns the session.",
+    multipart_hash_mismatch:
+      "The uploaded bytes did not match their declared hash and finalize refused them — integrity checking working; the uploader is told inline.",
+    multipart_abort_failed:
+      "Aborting a multipart upload failed; the upload reconciler owns the leftover parts.",
+    upload_part_hash_mismatch:
+      "One part's hash did not match and the part was refused — integrity checking working; the uploader re-sends it.",
+    finalize_blocked_by_upload_session:
+      "Finalize was refused because the upload session is not complete — the gate working; returned inline.",
+    finalize_blocked_by_checklist:
+      "Finalize was refused by the capture checklist — the policy working; returned inline.",
+    finalize_duplicate_detected:
+      "Finalize detected a duplicate and refused it — deduplication working; returned inline.",
+    // The session is now REVIEW_REQUIRED, which the admin reliability /
+    // evidence-ops recovery queue lists and resolves (mark abandoned, retry,
+    // request review). That queue is the owner; `intake.delivery_failed` names
+    // an event class with no recovery path and would be the weaker contract.
+    recovery_review_required:
+      "An upload session moved to REVIEW_REQUIRED; the reliability recovery queue lists it and its operator actions resolve it.",
+    // File validation refusing a dangerous or malformed file is the defence
+    // working, and the uploader is told why.
+    executable_upload_blocked:
+      "An executable upload was refused — file validation working; returned inline.",
+    double_extension_detected:
+      "A double-extension file was refused — file validation working; returned inline.",
+    mime_mismatch:
+      "A file whose content did not match its declared type was refused — file validation working; returned inline.",
+    archive_limit_exceeded:
+      "An archive over the configured limits was refused — file validation working; returned inline.",
+    compression_ratio_exceeded:
+      "An archive with an unsafe compression ratio was refused — file validation working; returned inline.",
+    suspicious_archive:
+      "A suspicious archive was refused — file validation working; returned inline.",
+    suspicious_file_type:
+      "A file of a refused type was blocked by the scanner — the defence working; the upload's scan status records it.",
 
     // ---- Communications lifecycle -----------------------------------------
     communication_inbound_start_received:
@@ -527,7 +767,7 @@ export const ROUTINE_SECURITY_EVENTS: Readonly<Record<string, string>> =
   });
 
 export function routineSecurityEventReason(eventType: string): string | null {
-  return ROUTINE_SECURITY_EVENTS[eventType] ?? null;
+  return ownEntry(ROUTINE_SECURITY_EVENTS, eventType);
 }
 
 /** One exact classification: which source owns this event's condition. */
@@ -554,22 +794,24 @@ type SecurityClassification = {
  * EVENTS WITH A REAL, EXACT CLASSIFICATION CONTRACT.
  *
  * Each identity here was checked against what the event actually means, not
- * against how its name begins. Three of the prefix era's members are
- * deliberately ABSENT and now fail closed instead:
+ * against how its name begins. `verification_package_attestations_missing` /
+ * `_degraded` are deliberately ABSENT: they concern an evidence verification
+ * package, and the prefix era filed them as Twilio failures.
  *
- *   verification_package_attestations_missing
- *   verification_package_attestations_degraded
+ * The four governance identities that used to name `governance.policy_condition`
+ * are ABSENT too (OPS-13): none of them has an emitter anywhere in the product
+ * and that source is NOT_YET_DISCOVERED, so classifying them would report
+ * coverage nothing provides.
  *
- * both concern an EVIDENCE VERIFICATION PACKAGE and were being filed as
- * COMMUNICATIONS provider failures with a Twilio runbook, because their names
- * begin with `verification_`. An unclassified fail-closed condition is a
- * truthful "we have not decided what owns this"; a Twilio runbook on a missing
- * attestation is a confident wrong answer.
- *
- * This map may only SHRINK safely. Removing an entry sends the event to the
- * fail-closed default, which is visible; adding one silently narrows a
- * condition's contract and must be reviewed.
+ * Every source named here is TENANT-facing, so the bridge writes it only for an
+ * event that carries a workspace (see `maybeAutoCreateIncident`).
  */
+const IDENTITY_SECURITY: SecurityClassification = Object.freeze({
+  sourceId: "identity.security_condition",
+  category: "IDENTITY_SECURITY",
+  runbookSlug: "suspicious-login-burst",
+});
+
 export const CLASSIFIED_SECURITY_EVENTS: Readonly<
   Record<string, SecurityClassification>
 > = Object.freeze({
@@ -625,11 +867,8 @@ export const CLASSIFIED_SECURITY_EVENTS: Readonly<
   },
 
   // ---- Intake / delivery -------------------------------------------------
-  upload_part_hash_mismatch: {
-    sourceId: "intake.delivery_failed",
-    category: "UPLOAD",
-    runbookSlug: "stuck-upload",
-  },
+  // (upload_part_hash_mismatch is ROUTINE — OPS-13: the part is refused and
+  // re-sent; the integrity check working is not an operations condition.)
   upload_session_create_failed: {
     sourceId: "intake.delivery_failed",
     category: "UPLOAD",
@@ -648,68 +887,31 @@ export const CLASSIFIED_SECURITY_EVENTS: Readonly<
 
   // ---- Identity security -------------------------------------------------
   // (permission_denied is ROUTINE — OPS-014; see ROUTINE_SECURITY_EVENTS.)
-  step_up_denied: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-  suspicious_login_detected: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-  high_risk_action_blocked: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-  high_risk_action_step_up_required: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-  service_account_risk_detected: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-  contributor_risk_detected: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-  impossible_travel_signal: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-  trusted_device_auto_invalidated: {
-    sourceId: "identity.security_condition",
-    category: "IDENTITY_SECURITY",
-    runbookSlug: "suspicious-login-burst",
-  },
-
-  // ---- Governance policy --------------------------------------------------
-  governance_bypass_attempt: {
-    sourceId: "governance.policy_condition",
-    category: "GOVERNANCE",
-    runbookSlug: null,
-  },
-  governance_lifecycle_drift_detected: {
-    sourceId: "governance.policy_condition",
-    category: "GOVERNANCE",
-    runbookSlug: null,
-  },
-  governance_notification_delivery_failed: {
-    sourceId: "governance.policy_condition",
-    category: "GOVERNANCE",
-    runbookSlug: null,
-  },
-  governance_reconciliation_failed: {
-    sourceId: "governance.policy_condition",
-    category: "GOVERNANCE",
-    runbookSlug: null,
-  },
+  // `step_up_denied` is a WRONG PROOF inside a workspace's step-up flow. The
+  // account step-up prompt's routine "no proof yet" answer is INFO, and an
+  // account-tier denial carries no workspace and writes no condition.
+  step_up_denied: IDENTITY_SECURITY,
+  suspicious_login_detected: IDENTITY_SECURITY,
+  high_risk_action_blocked: IDENTITY_SECURITY,
+  high_risk_action_step_up_required: IDENTITY_SECURITY,
+  service_account_risk_detected: IDENTITY_SECURITY,
+  contributor_risk_detected: IDENTITY_SECURITY,
+  impossible_travel_signal: IDENTITY_SECURITY,
+  trusted_device_auto_invalidated: IDENTITY_SECURITY,
+  // OPS-13 — risk detectors that used to fall into the unclassified default.
+  // Each is a workspace's own risk finding that Security Center adjudicates;
+  // the condition closes on the workspace's recorded conclusion.
+  geo_anomaly_detected: IDENTITY_SECURITY,
+  suspicious_session_detected: IDENTITY_SECURITY,
+  session_quarantined: IDENTITY_SECURITY,
+  // A SAML signing certificate is expiring or expired: sign-ins will stop. The
+  // workspace's admin rotates it and records that they did.
+  saml_certificate_expiring: IDENTITY_SECURITY,
+  // The directory asked to provision or link an identity the platform refused
+  // to bind (an unsafe account link, a managed identity owned by another
+  // organisation). Nobody signs in until an admin fixes the directory.
+  scim_account_link_denied: IDENTITY_SECURITY,
+  scim_user_provisioning_conflict: IDENTITY_SECURITY,
 });
 
 // ===========================================================================

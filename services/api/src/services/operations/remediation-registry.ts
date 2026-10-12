@@ -535,9 +535,12 @@ const EVIDENCE_INTEGRITY_LINK: RemediationDeepLink = {
 const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze({
   "billing.dependent_cancellation_failed": {
     disposition: "SAFE_DEEP_LINK",
-    deepLink: { href: "/billing", label: "Open Billing", requiredPermission: "billing.manage" },
+    // The EXACT canonical surface: the payer's Personal billing account (where
+    // self-service add-ons bill) at its action-required card. Withheld from
+    // anybody without billing.manage, who sees the guidance only.
+    deepLink: { href: "/billing?workspace=personal#billing-action-required", label: "Open Billing", requiredPermission: "billing.manage" },
     guidance:
-      "Billing owns this. The payment provider has not yet confirmed that this storage add-on is stopped. PROOVRA retries automatically; from Billing, the account holder who pays for the add-on can retry now or contact support. This closes on its own when the provider confirms the add-on is stopped — it cannot be closed by hand while the add-on may still be charging.",
+      "Billing owns this. The payment provider has not yet confirmed that this storage add-on is stopped, so it may still be charging. PROOVRA retries automatically. Only the person who pays for the add-on can act: from their Billing page they can retry stopping it now or contact support. This closes on its own when the provider confirms the add-on is stopped; it cannot be closed by hand while the add-on may still be charging.",
   },
   "pipeline.report_generation_failed": {
     disposition: "DIRECT_REMEDIATION",
@@ -609,11 +612,15 @@ const SOURCE_ENTRIES: Readonly<Record<string, RemediationEntry>> = Object.freeze
     guidance:
       "An intake link could not be delivered to its recipient. Resend it or copy the link from Intake links.",
   },
-  "security.unclassified_signal": {
+  "integration.webhook_destination_disabled": {
     disposition: "SAFE_DEEP_LINK",
-    deepLink: { href: "/security-center", label: "Open Security Center", requiredPermission: "audit.read" },
+    deepLink: {
+      href: "/operations/automation",
+      label: "Open Automation",
+      requiredPermission: "integration.webhook.manage",
+    },
     guidance:
-      "A security signal that matched no known pattern was kept for a person to review. Security Center owns it.",
+      "Automation stopped delivering to this webhook destination after repeated failed deliveries. Fix the receiving endpoint, then re-enable the destination in Automation; this closes when the destination is enabled again.",
   },
   "search.indexing_failure": {
     disposition: "READ_ONLY_GUIDANCE",

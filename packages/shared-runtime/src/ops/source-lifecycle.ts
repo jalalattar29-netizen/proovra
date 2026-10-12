@@ -344,7 +344,6 @@ export const ACTIVITY_PROBE_KEYS = [
   "review.workflow_open",
   "pipeline.report_backlog_count",
   "pipeline.package_backlog_count",
-  "pipeline.signed_without_report_aged_count",
   "review.stale_workflow_count",
   "coordination.stale_backlog_count",
   /** The canonical worker-fleet liveness verdict (worker-liveness.service). */
@@ -359,6 +358,14 @@ export const ACTIVITY_PROBE_KEYS = [
   "storage.immutable_reconciliation_state",
   /** The canonical search-readiness derivation for one workspace. */
   "search.index_health",
+  /**
+   * Is this automation webhook destination still AUTO-DISABLED?
+   *
+   * Reads the destination's own row: `autoDisabledAt` is stamped by the
+   * delivery runtime when consecutive failures cross the threshold, and the
+   * enable path clears it together with the counter. A read, never a delivery.
+   */
+  "integration.webhook_destination_state",
 ] as const;
 export type ActivityProbeKey = (typeof ACTIVITY_PROBE_KEYS)[number];
 
@@ -765,30 +772,38 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "The count of REPORTED evidence with no verification package is re-countable on demand.",
     },
     {
+      // RETIRED (OPS-13). It counted Evidence(status=UPLOADED) older than 14
+      // days, and no writer ever sets UPLOADED: finalization moves a record
+      // from CREATED/UPLOADING straight to SIGNED, and an upload stuck before
+      // signing is released by the capture reaper at 24 hours. The condition
+      // could therefore never be observed, and its registration claimed a
+      // coverage the product does not have. Signed records still waiting for a
+      // report are `pipeline.report_backlog`; failed generations are
+      // `pipeline.report_generation_failed`.
       sourceId: "pipeline.signed_without_report_aged",
       category: "GOVERNANCE",
-      displayLabel: "Uploaded evidence awaiting signing",
-      producers: ["services/api/src/services/dashboard/incident-generator.service.ts"],
-      discoveryState: "ACTIVE",
+      displayLabel: "Uploaded evidence awaiting signing (retired)",
+      producers: [],
+      discoveryState: "RETIRED",
       legacyFingerprints: [
         { kind: "PREFIX", prefix: "dashboard:integrity:unsigned_aged" },
       ],
-      resolutionAuthority: "SOURCE_TRUTH",
-      activityProbeKey: "pipeline.signed_without_report_aged_count",
-      recoveryPolicy: "PROBE_AUTO_RESOLVE",
-      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
-      suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "SAFE_REMEDIATION",
-      requiredCapability: "evidence.generate_report",
-      audience: "TENANT_ACTIONABLE",
+      resolutionAuthority: "NO_DIRECT_RESOLUTION",
+      activityProbeKey: "NONE",
+      recoveryPolicy: "NO_RECOVERY_SIGNAL",
+      recurrencePolicy: "NOT_APPLICABLE",
+      suppressionPolicy: "SUPPRESSION_NOT_OFFERED",
+      remediationDisposition: "NOT_APPLICABLE",
+      requiredCapability: "operations.view",
+      audience: "PLATFORM_INTERNAL",
       cardinality: "AGGREGATE",
-      workspaceApplicability: "ALL_WORKSPACES",
-      metricContract: "AGGREGATE_THRESHOLD",
-      drillDownContract: "AFFECTED_RECORDS",
+      workspaceApplicability: "PLATFORM_OBSERVED",
+      metricContract: "NONE",
+      drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
       requiresResolutionNote: false,
       rationale:
-        "The aged uploaded-but-unsigned set is a re-countable population measured against a fixed window.",
+        "Retired unreachable signal: it counted a status no writer sets. Historical rows are closed by the existing-data reconciliation as retired, never as recovered.",
     },
     {
       sourceId: "pipeline.report_generation_failed",
@@ -1187,8 +1202,12 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       sourceId: "governance.policy_condition",
       category: "GOVERNANCE",
       displayLabel: "Governance policy condition",
-      producers: ["services/api/src/services/security/security-event.service.ts"],
-      discoveryState: "ACTIVE",
+      // NOT_YET_DISCOVERED (OPS-13). The bridge would classify four governance
+      // event types here, and none of them has an emitter anywhere in the
+      // product. Registered so the classification is ready; never reported as
+      // production coverage.
+      producers: [],
+      discoveryState: "NOT_YET_DISCOVERED",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "governance:security_event" }],
       resolutionAuthority: "OPERATOR_DECISION",
       activityProbeKey: "NONE",
@@ -1208,48 +1227,43 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
         "A governance or publication security signal was recorded; it names an event class rather than a policy row, so no governance authority can re-check THIS condition and closure is the recorded review outcome.",
     },
     {
+      // RETIRED (OPS-13, Phase 3). This was the security-event bridge's DEFAULT
+      // branch: every WARNING-or-higher event type no mapping claimed became a
+      // tenant condition that NOBODY could close — NO_DIRECT_RESOLUTION with no
+      // recovery signal, so it could only ever be suppressed. Measured, it was
+      // worse than noise: an outsider's DENIED workspace switch opened one of
+      // these inside the TARGET workspace, whose owner then got a 409 trying
+      // to close it.
+      //
+      // Every current WARNING+ producer is now classified explicitly in the
+      // bridge (dedicated, routine, or a real source), and an event type the
+      // build does not recognise is counted and logged — never written into a
+      // tenant's queue. The source stays registered so the historical rows
+      // remain classifiable; PLATFORM_INTERNAL takes them off every tenant
+      // surface at once, and the existing-data reconciliation closes the ones
+      // whose event type has since been classified.
       sourceId: "security.unclassified_signal",
       category: "WORKER",
-      displayLabel: "Unclassified security signal",
-      producers: ["services/api/src/services/security/security-event.service.ts"],
-      discoveryState: "ACTIVE",
+      displayLabel: "Unclassified security signal (retired)",
+      producers: [],
+      discoveryState: "RETIRED",
       legacyFingerprints: [{ kind: "PREFIX", prefix: "worker:security_event" }],
-      // -----------------------------------------------------------------
-      // THIS WAS OPERATOR_DECISION, AND IT WAS THE OLD DEFECT UNDER A NAME.
-      // -----------------------------------------------------------------
-      // The bridge's DEFAULT branch: an event type none of the mappings above
-      // claims. Registering it closed the unregistered-row hole, and then
-      // reproduced the hole it was closing — the source MEANS "the platform
-      // cannot classify this signal", and OPERATOR_DECISION made not knowing
-      // what something is confer the right to declare it over.
-      //
-      // It is NO_DIRECT_RESOLUTION now. An operator can acknowledge it, assign
-      // it and suppress it with a recorded reason; they cannot close it,
-      // because nothing in the system knows what closed would mean. The fix
-      // for a stuck row of this kind is to CLASSIFY the event type, which adds
-      // a branch above and a real contract with it.
       resolutionAuthority: "NO_DIRECT_RESOLUTION",
       activityProbeKey: "NONE",
-      // No probe and no operator close, so nothing signals recovery. The
-      // condition is carried until the Security Center adjudicates the
-      // underlying event, or until the source is classified.
       recoveryPolicy: "NO_RECOVERY_SIGNAL",
-      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
-      suppressionPolicy: "SUPPRESSION_PERSISTS",
-      remediationDisposition: "GUIDANCE_ONLY",
-      requiredCapability: "audit.read",
-      // ADVISORY, not actionable: there is no safe action to offer for a
-      // signal the platform could not classify, and an actionable audience
-      // that offers none is a promise the surface does not keep.
-      audience: "TENANT_ADVISORY",
+      recurrencePolicy: "NOT_APPLICABLE",
+      suppressionPolicy: "SUPPRESSION_NOT_OFFERED",
+      remediationDisposition: "NOT_APPLICABLE",
+      requiredCapability: "operations.view",
+      audience: "PLATFORM_INTERNAL",
       cardinality: "EVENT",
-      workspaceApplicability: "ALL_WORKSPACES",
+      workspaceApplicability: "PLATFORM_OBSERVED",
       metricContract: "NONE",
-      drillDownContract: "SOURCE_SURFACE",
+      drillDownContract: "NONE",
       notApplicableDisposition: "REFUSE",
       requiresResolutionNote: false,
       rationale:
-        "An immutable SecurityEvent whose type the bridge cannot classify; nothing knows what recovery would mean for it, so it fails closed rather than becoming closable by assertion.",
+        "Retired fail-closed default: an unrecognised security event is counted and logged, never written into a workspace. Historical rows whose event type is now classified are closed by the existing-data reconciliation as reclassified.",
     },
     // =======================================================================
     // IDENTITY — three writers, three shapes, and only one of them is a state.
@@ -1404,7 +1418,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       /*
        * THE PROVIDER REFUSED OUR CREDENTIALS.
        *
-       * `recordProviderReconciliationFailure` has emitted this since the
+       * `recordProviderFailureSignal` has emitted this since the
        * reconciliation work landed, and no lifecycle contract was ever written
        * for it — so the one incident class that NO customer action and no
        * retry can resolve arrived at Operations unregistered, where consumers
@@ -1415,7 +1429,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       category: "RECONCILIATION",
       displayLabel: "Payment provider refused our credentials",
       producers: [
-        "services/api/src/services/billing/pending-payments.service.ts",
+        "services/api/src/services/billing/provider-authorization-signal.service.ts",
       ],
       discoveryState: "ACTIVE",
       legacyFingerprints: [],
@@ -1426,13 +1440,6 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       // credential". Reconciliation, re-check and every retry a customer can
       // press fail the same way until somebody replaces the key.
       //
-      // NO_DIRECT_RESOLUTION, and it is the honest answer.
-      //
-      // There is no probe that reads "is our Stripe key valid" — the only way
-      // to learn it is to make a real charge-path call, which the product does
-      // not do speculatively. So nothing in the system can observe recovery,
-      // and claiming SOURCE_TRUTH here would promise a source that does not
-      // exist.
       // NO_DIRECT_RESOLUTION, and the registry is right to insist on it.
       //
       // There is no probe that reads "is our Stripe key valid" — the only way
@@ -1472,7 +1479,7 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       notApplicableDisposition: "REFUSE",
       requiresResolutionNote: false,
       rationale:
-        "The payment provider is rejecting our credential. No retry and no customer action changes that, and no probe can observe recovery; the emitter dedupes hourly, so the condition stops recurring once a working key is in place rather than being closed by anyone.",
+        "The payment provider is rejecting our credential. No retry and no customer action changes that, and no probe can observe recovery. The emitter keeps ONE platform condition per provider (stable fingerprint billing-provider-auth:<provider>), re-observed on every refusal by the customer actions, the reconciliation sweep and checkout-attempt recovery, and closed by the emitter on the next provider call that answers.",
     },
     {
       sourceId: "billing.dependent_cancellation_failed",
@@ -1534,7 +1541,14 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
       producers: [
         "services/worker/src/governance/immutable-storage-reconciliation.worker.ts",
       ],
-      discoveryState: "ACTIVE",
+      // DISABLED (OPS-13). The reconciler exists, but production runs it with
+      // no storage probe, so every check is recorded STORAGE_UNAVAILABLE and
+      // no drift can be detected. A real HEAD probe is not a fix by itself:
+      // the product never mirrors legal holds into S3 and its Object Lock
+      // retain-until is a storage default, not the governance retention date,
+      // so comparing them would report drift for every held record. Until the
+      // comparison matches the storage design this source claims no coverage.
+      discoveryState: "DISABLED",
       legacyFingerprints: [
         { kind: "PREFIX", prefix: "immutable_storage_drift" },
       ],
@@ -1659,6 +1673,50 @@ export const OPERATIONS_SOURCE_LIFECYCLES: readonly OperationsSourceLifecycle[] 
     // the record — and their discovery state says so by name, so nothing can
     // report them as production-complete. Every one fails closed.
     // =======================================================================
+    {
+      /*
+       * AN AUTOMATION WEBHOOK DESTINATION THE PLATFORM SWITCHED OFF.
+       *
+       * The delivery runtime disables a destination by itself after
+       * consecutive failures cross the threshold. Before this source existed
+       * the fact reached Operations only through the security bridge's
+       * fail-closed default — an unclosable "unclassified signal" keyed by the
+       * EVENT TYPE, so every destination in a workspace shared one row and none
+       * of them could ever be shown recovered.
+       *
+       * It is an ACTIVE STATE with a canonical subject: the destination row's
+       * own `autoDisabledAt`. One condition per destination
+       * (`webhook-destination-disabled:<destinationId>`), over when the row
+       * says so — the enable path clears `autoDisabledAt` and resets the
+       * failure counter, and the probe reads exactly that.
+       */
+      sourceId: "integration.webhook_destination_disabled",
+      category: "INTEGRATION",
+      displayLabel: "Webhook destination disabled after repeated failures",
+      producers: [
+        "services/api/src/services/automation/automation-delivery-runtime.service.ts",
+      ],
+      discoveryState: "ACTIVE",
+      legacyFingerprints: [],
+      resolutionAuthority: "SOURCE_TRUTH",
+      activityProbeKey: "integration.webhook_destination_state",
+      recoveryPolicy: "PROBE_AUTO_RESOLVE",
+      recurrencePolicy: "REOPEN_SAME_FINGERPRINT",
+      suppressionPolicy: "SUPPRESSION_PERSISTS",
+      remediationDisposition: "SAFE_DEEP_LINK",
+      requiredCapability: "integration.webhook.manage",
+      audience: "TENANT_ACTIONABLE",
+      cardinality: "PER_RECORD",
+      workspaceApplicability: "ALL_WORKSPACES",
+      metricContract: "NONE",
+      drillDownContract: "SOURCE_SURFACE",
+      // The destination can vanish with its workspace. A condition whose
+      // destination is gone can never be observed again, so it stays closable.
+      notApplicableDisposition: "ALLOW_OPERATOR_CLOSE",
+      requiresResolutionNote: false,
+      rationale:
+        "AutomationWebhookDestination.autoDisabledAt is stamped by the delivery runtime when consecutive failures cross the threshold and cleared, with the counter, when the destination is re-enabled — a canonical recovery signal bound to the destination the fingerprint names.",
+    },
     {
       sourceId: "integration.configuration_failure",
       category: "INTEGRATION",

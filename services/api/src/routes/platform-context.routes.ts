@@ -186,9 +186,27 @@ export async function platformContextRoutes(app: FastifyInstance) {
       });
       const previousWorkspaceId = prevRow?.currentWorkspaceId ?? null;
 
+      // OPS-13 — WHOSE security log a switch is written to.
+      //
+      // An ALLOWED switch belongs to the workspace entered. A DENIED switch
+      // belongs to the ACTOR: before membership is proven the requested id is
+      // nothing but a caller-supplied string, and binding the refusal to it
+      // let any signed-in outsider write into another workspace's security
+      // log — and, through the bridge's old default, open an unclosable
+      // condition in that workspace's Operations queue. Once ACTIVE membership
+      // is proven (the later organisation-policy gates), the refusal is that
+      // workspace's own policy acting on its own member, and is bound to it.
+      let targetMembershipProven = false;
       const auditSwitch = (result: "allowed" | "denied", reason?: string) => {
+        const deniedOwnContext =
+          previousWorkspaceId && previousWorkspaceId !== body.workspaceId
+            ? previousWorkspaceId
+            : null;
         safeEmitSecurityEvent({
-          teamId: body.workspaceId ?? previousWorkspaceId,
+          teamId:
+            result === "allowed" || targetMembershipProven
+              ? (body.workspaceId ?? previousWorkspaceId)
+              : deniedOwnContext,
           eventType: "workspace_context_switched",
           severity: result === "denied" ? "WARNING" : "INFO",
           details: {
@@ -264,6 +282,7 @@ export async function platformContextRoutes(app: FastifyInstance) {
             requestId: req.id,
           });
         }
+        targetMembershipProven = true;
         // PHASE 12 — POINT 7 CORRECTIVE PASS (2026-08-05): switching into a
         // PERSONAL workspace BY ITS ID is the same act as switching with
         // `workspaceId: null`, and must meet the same gate.

@@ -204,11 +204,14 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     // still pending — which is a different population from SIGNED. The prose
     // here used to say SIGNED and the code has always said UPLOADED; the code
     // is the authority and this line now matches it.
-    discovery: "UPLOADED evidence in workspace scope older than the unsigned-aged window",
-    fingerprint: "one workspace-level condition, threshold-triggered",
-    resolution: "the aged set empties",
-    freshnessParticipating: true,
-    surfaces: { home: true, notifications: false, operations: true },
+    // RETIRED (OPS-13): no writer ever sets UPLOADED, so the scanner could
+    // never observe this. It no longer participates in freshness and appears
+    // on no customer surface; historical rows are closed as retired.
+    discovery: "retired — counted Evidence(status=UPLOADED), a status no writer sets",
+    fingerprint: "one workspace-level condition, threshold-triggered (historical rows only)",
+    resolution: "closed by the existing-data reconciliation as retired, never as recovered",
+    freshnessParticipating: false,
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "review.stale_workflows",
@@ -302,6 +305,17 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     resolution: "an operator concludes the message has been handled",
     freshnessParticipating: false,
     surfaces: { home: false, notifications: true, operations: true },
+  },
+  {
+    // OPS-13 — the destination the delivery runtime switched off by itself.
+    id: "integration.webhook_destination_disabled",
+    owner: "AutomationWebhookDestination.autoDisabledAt",
+    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
+    discovery: "written by the delivery runtime when consecutive failures cross the auto-disable threshold",
+    fingerprint: "one condition per destination",
+    resolution: "the destination is re-enabled, which clears autoDisabledAt and the failure counter",
+    freshnessParticipating: false,
+    surfaces: { home: true, notifications: true, operations: true },
   },
   {
     id: "webhook.security_failure",
@@ -493,14 +507,18 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     surfaces: { home: false, notifications: true, operations: true },
   },
   {
+    // RETIRED (OPS-13). The bridge no longer writes a default row: an
+    // unrecognised event type is counted and logged. Kept so historical rows
+    // stay explainable; the existing-data reconciliation closes the ones whose
+    // event type has since been classified.
     id: "security.unclassified_signal",
-    owner: "SecurityEvent (unmapped event types)",
-    scopeAuthority: "STRICT_WORKSPACE_COLUMN",
-    discovery: "the security-event bridge's DEFAULT branch — an event type no mapping claims",
-    fingerprint: "one condition per (worker category, event type)",
-    resolution: "an operator records the investigation outcome",
+    owner: "(retired — never produced)",
+    scopeAuthority: "PLATFORM_TELEMETRY",
+    discovery: "retired: not discovered",
+    fingerprint: "none",
+    resolution: "not applicable",
     freshnessParticipating: false,
-    surfaces: { home: false, notifications: true, operations: true },
+    surfaces: { home: false, notifications: false, operations: false },
   },
   {
     id: "identity.idp_outage",
@@ -575,7 +593,7 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     /*
      * The provider has stopped accepting our credential.
      *
-     * `recordProviderReconciliationFailure` has emitted this since the
+     * `recordProviderFailureSignal` has emitted this since the
      * reconciliation work landed, and the registry was never extended for it —
      * so the one incident class that NO customer action and no retry can
      * resolve arrived at Operations as an unregistered source. Consumers
@@ -585,8 +603,8 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
      * PLATFORM-WIDE, not workspace-scoped: a refused API key is our
      * relationship with Stripe or PayPal, not one tenant's problem, and
      * `recordIncident` is called with `teamId: null` for exactly that reason.
-     * Deduped by the hour at the emitter, so a bad key opens one incident
-     * rather than one per customer who presses Re-check.
+     * One stable condition per provider, so a bad key opens one incident
+     * rather than one per customer or sweep that observes the refusal.
      */
     id: "billing.provider_authorization",
     owner: "payment provider credential",
@@ -595,9 +613,9 @@ const DISCOVERY: readonly OperationsSourceDiscovery[] = [
     scopeAuthority: "PLATFORM_TELEMETRY",
     discovery:
       "written when a provider reconciliation call fails with AUTHORIZATION_FAILED — the provider refused our credentials",
-    fingerprint: "one condition per (provider, hour)",
+    fingerprint: "one condition per provider (stable: billing-provider-auth:<provider>)",
     resolution:
-      "the condition stops recurring once a working credential is in place — the emitter dedupes hourly and there is no probe that can observe a provider key becoming valid again",
+      "closed by the emitter on the next payment-provider observation that answers (customer re-check/abandon, the reconciliation sweep or checkout-attempt recovery); there is no probe that can observe a provider key becoming valid",
     freshnessParticipating: false,
     // Not a workspace's business, and nothing a customer can act on: this is
     // an operator page fact. It reaches Notifications because nobody is

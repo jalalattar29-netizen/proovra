@@ -98,8 +98,14 @@ describe("the vocabulary is complete", () => {
      * to make ADDING a condition a deliberate edit rather than an arithmetic
      * side effect.
      */
-    expect(registryIds.length).toBe(40);
-    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(40);
+    /*
+     * OPS-13 — 40 → 41. `integration.webhook_destination_disabled`: a webhook
+     * destination the delivery runtime switched off by itself, one condition
+     * per destination, closed by the destination row. It used to reach
+     * Operations only as the unclosable `security.unclassified_signal`.
+     */
+    expect(registryIds.length).toBe(41);
+    expect(Object.keys(HOME_CONDITION_REPRESENTATION).length).toBe(41);
   });
 });
 
@@ -272,9 +278,16 @@ describe("the reported reproduction", () => {
    * which would restate the false signal in vaguer words. The real one keeps
    * its own row.
    */
-  it("the real condition keeps its row; the retired false signals produce nothing", () => {
+  /*
+   * OPS-13 — and the third was not that workspace's condition either. The
+   * executed audit traced it: an outsider's REFUSED switch into the workspace
+   * opened `security.unclassified_signal` there, which nobody could close.
+   * The bridge default is retired (an unrecognised event is counted, never
+   * written into a workspace) and its stored rows reach Home as nothing.
+   */
+  it("none of the three was a real workspace condition; all three produce nothing", () => {
     const vm = withGroups(REPRO);
-    expect(keys(vm)).toEqual(["ops:security.unclassified_signal"]);
+    expect(keys(vm)).toEqual([]);
   });
 
   it("a retired source alone leaves Home with no attention row at all", () => {
@@ -282,13 +295,21 @@ describe("the reported reproduction", () => {
     expect(keys(vm)).toEqual([]);
   });
 
-  it("the remaining row reads as product language", () => {
-    const vm = withGroups(REPRO);
+  it("a real condition beside them keeps its row, in product language", () => {
+    const vm = withGroups([
+      ...REPRO,
+      {
+        sourceId: "integration.webhook_destination_disabled",
+        conditionCount: 1,
+        statusPosture: "OPEN",
+      },
+    ]);
+    expect(keys(vm)).toEqual(["ops:integration.webhook_destination_disabled"]);
     const row = vm.workspacePriorities.find(
-      (p: { key: string }) => p.key === "ops:security.unclassified_signal",
+      (p: { key: string }) => p.key === "ops:integration.webhook_destination_disabled",
     ) as { label: string; href: string };
-    expect(row.label).toBe("A security signal needs review");
-    expect(row.href).toBe("/operations");
+    expect(row.label).toBe("A webhook destination was switched off");
+    expect(row.href).toBe("/operations/automation");
   });
 });
 

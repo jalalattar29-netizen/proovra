@@ -1047,6 +1047,8 @@ export async function governanceLifecycleRoutes(app: FastifyInstance) {
         teamId: personalRecordOfThisWorkspace ? null : query.teamId,
         evidenceId: query.evidenceId,
         actorUserId: ok.actorUserId,
+        // A read-only question, not an export attempt (OPS-13).
+        preflight: true,
       });
       return reply.code(200).send(result);
     },

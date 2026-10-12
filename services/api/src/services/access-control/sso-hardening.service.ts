@@ -302,10 +302,64 @@ export type NoteSsoFailureResult = {
   outageOpened: boolean;
 };
 
+/**
+ * OPS-13 (D8) — WHICH FAILURES SAY THE IDENTITY PROVIDER IS DOWN.
+ *
+ * The outage counter used to count EVERY failed callback, so a run of users
+ * refused by the workspace's own policy — JIT disabled, an email domain that
+ * is not verified, an unsafe account link, an attribute mapping that does not
+ * match, an expired state from a stale tab — opened an "IdP outage" for a
+ * provider that was answering perfectly. Only failures that are the
+ * PROVIDER's or the transport's count now:
+ *
+ *   * discovery, code exchange, an invalid token or userinfo answer (OIDC);
+ *   * an undecodable / unparseable response, a missing or invalid signature,
+ *     an issuer or audience that does not match the pinned configuration, an
+ *     assertion with no subject (SAML);
+ *   * the route's own unexpected-error buckets (`initiate_failed`,
+ *     `callback_failed`, `saml_initiate_failed`, `saml_acs_failed`), which
+ *     are the transport failing in ways no policy code describes.
+ *
+ * Anything else — every policy and per-user rejection, every replay or clock
+ * refusal, and any reason this list does not know — is NOT counted. It is
+ * still recorded on the callback attempt and in Security Center.
+ */
+const IDP_FAULT_REASONS: ReadonlySet<string> = new Set([
+  // Route-level unexpected failures (transport / provider unreachable).
+  "initiate_failed",
+  "callback_failed",
+  "saml_initiate_failed",
+  "saml_acs_failed",
+  // OIDC provider answers.
+  "sso_discovery_failed",
+  "sso_code_exchange_failed",
+  "sso_oidc_token_invalid",
+  "sso_oidc_userinfo_invalid",
+  "sso_invalid_sp_key",
+  // SAML responses the provider produced wrongly or that did not arrive whole.
+  "saml_decode_failed",
+  "saml_parse_failed",
+  "saml_signature_missing",
+  "saml_signature_invalid",
+  "saml_issuer_mismatch",
+  "saml_issuer_unpinned",
+  "saml_audience_mismatch",
+  "saml_name_id_missing",
+  "saml_assertion_missing",
+]);
+
+export function ssoFailureIndicatesIdpFault(reason: string): boolean {
+  return IDP_FAULT_REASONS.has(String(reason).toLowerCase());
+}
+
 export async function noteSsoFailure(
   input: { connectionId: string; reason: string },
   client: PrismaClient = defaultPrisma,
 ): Promise<NoteSsoFailureResult> {
+  // A user or policy rejection says nothing about the provider's health.
+  if (!ssoFailureIndicatesIdpFault(input.reason)) {
+    return { consecutiveFailures: 0, outageOpened: false };
+  }
   const row = await client.ssoConnection.findUnique({
     where: { id: input.connectionId },
     select: {

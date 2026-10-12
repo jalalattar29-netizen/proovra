@@ -983,9 +983,12 @@ export async function scimCreateUser(
       code === "SCIM_MANAGED_CROSS_ORG_CONFLICT" ||
       code === "MANAGED_IDENTITY_CROSS_ORG_CONFLICT"
     ) {
+      // OPS-13 — its own event type. This used to be emitted as
+      // `scim_user_created` (a ROUTINE success) at HIGH, so a refused
+      // provisioning read in the audit log as a user being created.
       safeEmitSecurityEvent({
         teamId: ctx.teamId,
-        eventType: "scim_user_created",
+        eventType: "scim_user_provisioning_conflict",
         severity: "HIGH",
         details: {
           tokenId: ctx.tokenId,

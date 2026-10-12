@@ -864,9 +864,18 @@ describe("Source semantics: immutable drift and search index (live PG16)", () =>
     // `job.background_failure` — the platform writer records real BullMQ
     // final failures once per scheduler tick (OPS-022).
     expect(notDiscovered.map((s) => s.sourceId).sort()).toEqual(
-      ["ai.condition", "database.condition", "integration.configuration_failure", "storage.condition"].sort(),
+      ["ai.condition", "database.condition", "governance.policy_condition", "integration.configuration_failure", "storage.condition"].sort(),
     );
-    for (const s of notDiscovered) {
+    // OPS-13: governance.policy_condition is the bridge's CLASSIFICATION
+    // target for four governance event types that have no emitter today. It
+    // is not production coverage — but a row that does land there records an
+    // event that happened, so it stays operator-closable with a written note
+    // rather than becoming a card nobody can close.
+    const classificationTarget = notDiscovered.find((s) => s.sourceId === "governance.policy_condition")!;
+    expect(classificationTarget.producers).toEqual([]);
+    expect(classificationTarget.resolutionAuthority).toBe("OPERATOR_DECISION");
+    expect(classificationTarget.requiresResolutionNote).toBe(true);
+    for (const s of notDiscovered.filter((x) => x.sourceId !== "governance.policy_condition")) {
       // No producer, no probe, and no way to declare one over. A source with
       // nothing behind it must not be closable by anybody.
       expect(s.producers, s.sourceId).toEqual([]);

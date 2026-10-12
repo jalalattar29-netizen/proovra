@@ -261,6 +261,9 @@ export const SECURITY_EVENT_TYPES = [
   // P0 remediation (2026-07-21) — enterprise account-linking safety +
   // canonical workspace context-switch audit.
   "scim_account_link_denied",
+  // OPS-13 — a SCIM create refused because the managed identity belongs to
+  // another organisation. It used to be mis-emitted as `scim_user_created`.
+  "scim_user_provisioning_conflict",
   "workspace_context_switched",
   "session_inventory_viewed",
   "session_revoked_admin",

@@ -69,7 +69,7 @@ import {
 import { prisma as defaultPrisma } from "../../db.js";
 // COMMERCIAL CLOSURE (2026-09-08) — the ONE narrowing that keeps a commercial
 // product decision out of the artifact-backlog conditions.
-import { outputEntitledEvidenceWhere } from "../billing/evidence-output-eligibility.service.js";
+import { outputEntitlementScope } from "../billing/evidence-output-eligibility.service.js";
 
 import { primaryPublishedPackageWhere } from "@proovra/shared-runtime/reports";
 // ===========================================================================
@@ -88,8 +88,6 @@ export const PACKAGE_BACKLOG_HIGH = 20;
 export const PACKAGE_BACKLOG_CRITICAL = 100;
 export const STALE_REVIEW_HOURS = 72;
 export const STALE_REVIEW_HIGH_COUNT = 5;
-export const UNSIGNED_FINALIZED_AGED_DAYS = 14;
-export const UNSIGNED_FINALIZED_HIGH_COUNT = 5;
 export const COORDINATION_STALE_DAYS = 21;
 export const COORDINATION_STALE_HIGH_COUNT = 10;
 
@@ -154,6 +152,8 @@ export type ProbeContext = {
    * beside the evidence scope, never per probe.
    */
   readonly outputEntitledWhere: Prisma.EvidenceWhereInput | null;
+  /** True when the plan entitlement could not be resolved (backlogs read UNKNOWN). */
+  readonly outputEntitlementUnknown?: boolean;
 };
 
 /** Build a probe context, resolving the canonical evidence scope once. */
@@ -173,10 +173,14 @@ export async function buildProbeContext(input: {
     now: input.now ?? new Date(),
     evidenceWhere:
       input.evidenceWhere ?? (await workspaceEvidenceWhere(input.teamId, client)),
-    outputEntitledWhere:
-      input.outputEntitledWhere !== undefined
-        ? input.outputEntitledWhere
-        : await outputEntitledEvidenceWhere({ teamId: input.teamId }),
+    ...(input.outputEntitledWhere !== undefined
+      ? { outputEntitledWhere: input.outputEntitledWhere, outputEntitlementUnknown: false }
+      : await outputEntitlementScope({ teamId: input.teamId }).then((scope) => ({
+          outputEntitledWhere: scope.kind === "NARROW" ? scope.where : null,
+          // An entitlement that could not be resolved makes the output
+          // backlogs UNKNOWN — never a count over the whole population.
+          outputEntitlementUnknown: scope.kind === "UNKNOWN",
+        }))),
   };
 }
 
@@ -226,6 +230,12 @@ type AggregateSpec = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** Throws (probe reads UNKNOWN) when the output entitlement could not be resolved. */
+function assertEntitlementKnown(ctx: ProbeContext): Record<string, never> {
+  if (ctx.outputEntitlementUnknown) throw new Error("output_entitlement_unresolved");
+  return {};
+}
+
 const AGGREGATE_SPECS: readonly AggregateSpec[] = [
   {
     probeKey: "pipeline.report_backlog_count",
@@ -244,12 +254,13 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     describe: () =>
       `Signed evidence records that are entitled to a report in this workspace have none. Source: Evidence(status=SIGNED, latestReportVersion=null), narrowed to records whose plan or funding includes a report. HIGH at ${REPORT_BACKLOG_HIGH}, CRITICAL at ${REPORT_BACKLOG_CRITICAL}.`,
     count: async (ctx) => ({
+      ...assertEntitlementKnown(ctx),
       value: await ctx.client.evidence.count({
         where: {
           AND: [
             ctx.evidenceWhere,
             ...(ctx.outputEntitledWhere ? [ctx.outputEntitledWhere] : []),
-            { status: "SIGNED", latestReportVersion: null },
+            { status: "SIGNED", latestReportVersion: null, deletedAt: null },
           ],
         },
       }),
@@ -272,46 +283,13 @@ const AGGREGATE_SPECS: readonly AggregateSpec[] = [
     describe: () =>
       `Reported evidence records that are entitled to a verification package have none. Source: Evidence(status=REPORTED, verificationPackageVersion=null), narrowed to records whose plan or funding includes a package. HIGH at ${PACKAGE_BACKLOG_HIGH}, CRITICAL at ${PACKAGE_BACKLOG_CRITICAL}.`,
     count: async (ctx) => ({
+      ...assertEntitlementKnown(ctx),
       value: await ctx.client.evidence.count({
         where: {
           AND: [
             ctx.evidenceWhere,
             ...(ctx.outputEntitledWhere ? [ctx.outputEntitledWhere] : []),
-            { status: "REPORTED", verificationPackageVersion: null },
-          ],
-        },
-      }),
-    }),
-  },
-  {
-    probeKey: "pipeline.signed_without_report_aged_count",
-    sourceId: "pipeline.signed_without_report_aged",
-    category: "GOVERNANCE",
-    fingerprintPrefix: "dashboard:integrity:unsigned_aged",
-    stableTitle: "Uploaded evidence awaiting signing",
-    unit: "records",
-    affectedEntityType: "evidence",
-    thresholdValue: UNSIGNED_FINALIZED_HIGH_COUNT,
-    criticalThresholdValue: UNSIGNED_FINALIZED_HIGH_COUNT * 3,
-    baseSeverity: "WARNING",
-    escalatedSeverity: "HIGH",
-    escalationComparison: "GTE",
-    runbookSlug: "signing-pipeline",
-    describe: () =>
-      `Evidence records are status=UPLOADED, unsigned, and older than ${UNSIGNED_FINALIZED_AGED_DAYS} days. Source: Evidence(status=UPLOADED, createdAt < cutoff). HIGH at ${UNSIGNED_FINALIZED_HIGH_COUNT}.`,
-    count: async (ctx) => ({
-      value: await ctx.client.evidence.count({
-        where: {
-          AND: [
-            ctx.evidenceWhere,
-            {
-              status: "UPLOADED",
-              createdAt: {
-                lt: new Date(
-                  ctx.now.getTime() - UNSIGNED_FINALIZED_AGED_DAYS * DAY_MS,
-                ),
-              },
-            },
+            { status: "REPORTED", verificationPackageVersion: null, deletedAt: null },
           ],
         },
       }),
@@ -989,12 +967,57 @@ async function observeIdpOutage(
       // Workspace-bound: the connection must belong to the workspace whose
       // operator is asking.
       where: { id: connectionId, teamId: ctx.teamId },
-      select: { outageDetectedAtUtc: true },
+      select: { outageDetectedAtUtc: true, status: true },
+    });
+    if (!row) return { ...base, activity: "NOT_APPLICABLE" };
+    // OPS-13 — a REVOKED or DISABLED connection is out of sign-in. Its outage
+    // can never be observed again (no callback reaches it, so no success can
+    // clear the marker), which is exactly NOT_APPLICABLE: the subject the
+    // condition names no longer participates. The source's ALLOW_OPERATOR_CLOSE
+    // disposition keeps such a row closable; the transition that takes a
+    // connection out of service also clears the marker and closes it.
+    if (row.status === "REVOKED" || row.status === "DISABLED") {
+      return { ...base, activity: "NOT_APPLICABLE" };
+    }
+    return {
+      ...base,
+      activity: row.outageDetectedAtUtc != null ? "ACTIVE" : "RECOVERED",
+    };
+  } catch {
+    return { ...base, activity: "UNKNOWN" };
+  }
+}
+
+/**
+ * IS THIS WEBHOOK DESTINATION STILL AUTO-DISABLED? (OPS-13)
+ *
+ * `webhook-destination-disabled:<destinationId>` names one automation webhook
+ * destination. Its own row is the authority: the delivery runtime stamps
+ * `autoDisabledAt` when consecutive failures cross the threshold, and the
+ * enable path clears it (and the counter) when an admin turns it back on.
+ *
+ *   enabled and autoDisabledAt NULL  -> RECOVERED
+ *   row gone (in this workspace)     -> NOT_APPLICABLE
+ *   anything else                    -> ACTIVE
+ *
+ * A read of one row. It never attempts a delivery.
+ */
+async function observeWebhookDestinationDisabled(
+  ctx: ProbeContext,
+): Promise<SourceObservation> {
+  const base = { observedAtUtc: ctx.now } as const;
+  try {
+    const destinationId = identifiableSubject(fingerprintSegment(ctx.fingerprint, 1));
+    if (!destinationId) return { ...base, activity: "NOT_APPLICABLE" };
+    const row = await ctx.client.automationWebhookDestination.findFirst({
+      // Workspace-bound: a fingerprint is not an authorization.
+      where: { id: destinationId, teamId: ctx.teamId },
+      select: { enabled: true, autoDisabledAt: true },
     });
     if (!row) return { ...base, activity: "NOT_APPLICABLE" };
     return {
       ...base,
-      activity: row.outageDetectedAtUtc != null ? "ACTIVE" : "RECOVERED",
+      activity: row.enabled && row.autoDisabledAt == null ? "RECOVERED" : "ACTIVE",
     };
   } catch {
     return { ...base, activity: "UNKNOWN" };
@@ -1318,6 +1341,11 @@ const PROBE_HANDLERS: Readonly<
   // `idp-outage:<connectionId>` — cleared to NULL by the first success.
   "identity.idp_outage_state": (ctx) => observeIdpOutage(ctx),
 
+  // `webhook-destination-disabled:<destinationId>` — the destination's own
+  // autoDisabledAt / enabled columns.
+  "integration.webhook_destination_state": (ctx) =>
+    observeWebhookDestinationDisabled(ctx),
+
   // `review-escalation:<reason>:<workflowId>` — the workflow's own status.
   "review.workflow_open": (ctx) => observeReviewWorkflowOpen(ctx),
 
@@ -1339,8 +1367,6 @@ const PROBE_HANDLERS: Readonly<
     observeAggregateByKey("pipeline.report_backlog_count", ctx),
   "pipeline.package_backlog_count": (ctx) =>
     observeAggregateByKey("pipeline.package_backlog_count", ctx),
-  "pipeline.signed_without_report_aged_count": (ctx) =>
-    observeAggregateByKey("pipeline.signed_without_report_aged_count", ctx),
   "review.stale_workflow_count": (ctx) =>
     observeAggregateByKey("review.stale_workflow_count", ctx),
   "coordination.stale_backlog_count": (ctx) =>

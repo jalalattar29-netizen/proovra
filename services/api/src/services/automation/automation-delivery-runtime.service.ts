@@ -108,6 +108,16 @@ import {
   WEBHOOK_MAX_TOTAL_ATTEMPTS,
 } from "./automation-webhook.service.js";
 import { sanitiseReason } from "./automation.service.js";
+import { recordIncident } from "../observability/incident.service.js";
+
+/**
+ * OPS-13 — the identity of the per-destination condition
+ * `integration.webhook_destination_disabled`. One condition per destination;
+ * the probe and the enable path read the destination id back out of it.
+ */
+export function webhookDestinationDisabledFingerprint(destinationId: string): string {
+  return `webhook-destination-disabled:${destinationId}`;
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -1064,7 +1074,8 @@ async function finaliseSkipped(
  * Mark a destination failure: bump `consecutiveFailureCount`, set
  * `lastFailureAt`, and auto-disable when the threshold is reached.
  */
-async function markDestinationFailure(
+/** Exported for the OPS-13 integration suite; production callers are in this module. */
+export async function markDestinationFailure(
   prisma: PrismaClient,
   destinationId: string,
   reason: string,
@@ -1116,6 +1127,34 @@ async function markDestinationFailure(
       });
     } catch {
       /* best-effort */
+    }
+    // OPS-13 — THE CONDITION, per destination, through the canonical writer.
+    //
+    // It used to reach Operations only via the security bridge's fail-closed
+    // default: one unclosable row per WORKSPACE keyed by the event type. It is
+    // now one SOURCE_TRUTH condition per destination, closed when the
+    // destination's own row says it is enabled and no longer auto-disabled.
+    try {
+      await recordIncident(
+        {
+          sourceId: "integration.webhook_destination_disabled",
+          teamId: updated.teamId,
+          category: "INTEGRATION",
+          severity: "HIGH",
+          fingerprint: webhookDestinationDisabledFingerprint(updated.id),
+          title: "Webhook destination disabled after repeated failures",
+          safeSummary: `Automation stopped delivering to this webhook destination after ${updated.consecutiveFailureCount} consecutive failed deliveries. Fix the receiving endpoint, then re-enable the destination in Automation.`,
+          runbookSlug: null,
+          metadata: {
+            destinationId: updated.id,
+            consecutiveFailureCount: updated.consecutiveFailureCount,
+            threshold: WEBHOOK_AUTO_DISABLE_THRESHOLD,
+          },
+        },
+        prisma,
+      );
+    } catch {
+      /* incident creation is best-effort; the destination row is the truth */
     }
   }
 }

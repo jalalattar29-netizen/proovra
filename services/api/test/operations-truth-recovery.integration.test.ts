@@ -90,7 +90,7 @@ describe("Operations truth closure — recovery, remediation, titles (live Postg
     d = await titleOf();
     expect(d.incident.title).toBe("Storage add-on still billing — support needed");
     // Source-keyed remediation: Billing owns it.
-    expect(d.remediation.deepLink).toMatchObject({ href: "/billing", label: "Open Billing" });
+    expect(d.remediation.deepLink).toMatchObject({ href: "/billing?workspace=personal#billing-action-required", label: "Open Billing" });
     expect(d.remediation.guidance).toContain("Billing owns this");
     expect(JSON.stringify(d.remediation)).not.toContain("platform infrastructure");
 

@@ -167,8 +167,10 @@ describe("§13.1 — the contract is total, and there is no default", () => {
       "evidence_integrity.ots_pending_aged",
       "pipeline.report_backlog",
       "pipeline.package_backlog",
-      "pipeline.signed_without_report_aged",
+      // (pipeline.signed_without_report_aged is RETIRED — OPS-13; pinned below.)
       "review.stale_workflows",
+      // OPS-13 — the destination row itself answers whether it is still off.
+      "integration.webhook_destination_disabled",
       "coordination.backlog_stale",
       "platform.worker_heartbeat_stale",
       "job.background_failure",
@@ -180,7 +182,14 @@ describe("§13.1 — the contract is total, and there is no default", () => {
   });
 
   it("OPS-001 / OPS-002 — the retired false signals are RETIRED: no producer, no probe, no Resolve, platform-internal", () => {
-    for (const id of ["queue.retry_storm", "platform.telemetry_stale"]) {
+    for (const id of [
+      "queue.retry_storm",
+      "platform.telemetry_stale",
+      // OPS-13 — counted a status no writer sets; and the bridge default that
+      // wrote unclosable rows into workspaces.
+      "pipeline.signed_without_report_aged",
+      "security.unclassified_signal",
+    ]) {
       const s = lifecycleForSourceId(id)!;
       expect(s.discoveryState, id).toBe("RETIRED");
       expect(s.producers, id).toEqual([]);

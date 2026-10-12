@@ -112,6 +112,7 @@ export const HOME_OPERATIONS_SOURCE_IDS = [
   "intake.delivery_failed",
   "communications.provider_failure",
   "webhook.security_failure",
+  "integration.webhook_destination_disabled",
   "search.indexing_failure",
   "job.background_failure",
   "integration.configuration_failure",
@@ -266,10 +267,9 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     because: "Home derives the package backlog from the same pipeline projection.",
   },
   "pipeline.signed_without_report_aged": {
-    kind: "MERGE",
-    into: "matters_need_reports",
+    kind: "RETIRED",
     because:
-      "Signed-but-unreported records are the same deliverable gap the matters row already reports.",
+      "RETIRED: counted a status no writer sets, so it could never be observed (OPS-13). Signed records awaiting a report are the report backlog.",
   },
   "pipeline.report_generation_failed": {
     kind: "ROW",
@@ -379,15 +379,9 @@ export const HOME_CONDITION_REPRESENTATION: Record<
 
   // ---- Security / identity -------------------------------------------------
   "security.unclassified_signal": {
-    kind: "ROW",
-    severity: "info",
-    domains: ["governance"],
-    label: "A security signal needs review",
-    whyItMatters:
-      "Something was recorded that did not match a known pattern, so it has been kept for a person to look at.",
-    recommendedAction: "Open Operations to review the signal.",
-    actionLabel: "Open operations",
-    href: "/operations",
+    kind: "RETIRED",
+    because:
+      "RETIRED: the bridge's unclosable default row; unrecognised security events are counted, never written into a workspace (OPS-13).",
   },
   "identity.security_condition": {
     kind: "ROW",
@@ -429,6 +423,17 @@ export const HOME_CONDITION_REPRESENTATION: Record<
     recommendedAction: "Open the security centre and review active sessions.",
     actionLabel: "Open security centre",
     href: "/security-center",
+  },
+  "integration.webhook_destination_disabled": {
+    kind: "ROW",
+    severity: "warning",
+    domains: ["governance"],
+    label: "A webhook destination was switched off",
+    whyItMatters:
+      "Deliveries to it kept failing, so automation stopped sending to it. The receiving system is getting nothing until it is turned back on.",
+    recommendedAction: "Fix the receiving endpoint, then re-enable the destination in Automation.",
+    actionLabel: "Open automation",
+    href: "/operations/automation",
   },
   "webhook.security_failure": {
     kind: "ROW",

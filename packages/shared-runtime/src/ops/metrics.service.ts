@@ -26,6 +26,13 @@
 export const COUNTER_NAMES = [
   "security_event_emit_failed",
   "security_event_emit_dropped_unknown_type",
+  // OPS-13 Phase 3 — a WARNING+ SecurityEvent whose type the bridge has no
+  // classification for. Persisted to the security log; NO tenant condition is
+  // written. This counter (and a bounded log line) is the platform signal.
+  "security_event_unclassified_total",
+  // A classified tenant condition whose event carried no workspace. It would
+  // have been an invisible LEGACY_UNSCOPED row; it is counted instead.
+  "security_event_condition_without_workspace_total",
   "step_up_started",
   "step_up_approved",
   "step_up_denied",
@@ -296,6 +303,12 @@ export const COUNTER_NAMES = [
   // written. Evaluation audits do not fail the request they describe, so a
   // lost row is counted here instead of vanishing in a catch.
   "governance_policy_audit_write_failed_total",
+  // A governance policy evaluation that could not read its effective policy
+  // set (or a rule's decision input) and was REFUSED rather than allowed.
+  "governance_policy_evaluation_unavailable_total",
+  // Finalize-time Object Lock retention that S3 refused (AccessDenied) and a
+  // HEAD of the version did not confirm — recorded as not locked.
+  "evidence_retention_unconfirmed_total",
   // Phase 31.6 — Async media intelligence orchestration counters.
   // `enqueue_*` fires from the API producer (route-side); `processor_*`
   // fires from the worker consumer. `dlq_total` is bumped when an

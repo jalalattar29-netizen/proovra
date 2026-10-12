@@ -102,7 +102,10 @@ const CLASSIFIED = [
   {
     sourceId: "governance.policy_condition",
     authority: "OPERATOR_DECISION",
-    writer: "security-event.service.ts (GOVERNANCE branch)",
+    // OPS-13 — none of its four event types has an emitter anywhere, so the
+    // bridge no longer classifies them and the source is NOT_YET_DISCOVERED.
+    // The legacy fingerprint still resolves historical rows to it (below).
+    writer: "none — NOT_YET_DISCOVERED",
     fingerprint: "governance:security_event:<eventType>",
     claim:
       "names an event class rather than a policy row, so no governance authority can re-check this condition",

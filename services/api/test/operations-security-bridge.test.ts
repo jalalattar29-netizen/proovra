@@ -29,6 +29,7 @@
  * anywhere in it. This file pins that.
  */
 
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -43,6 +44,7 @@ import {
   CLASSIFIED_SECURITY_EVENTS,
   DEDICATED_SOURCE_EVENT_TYPES,
   ROUTINE_SECURITY_EVENTS,
+  classifySecurityEvent,
   dedicatedSourceOwning,
   emitSecurityEvent,
   mapEventTypeToIncident,
@@ -66,27 +68,28 @@ const UNCLASSIFIED = "security.unclassified_signal";
 // THE CONTRACT  (required test 6)
 // ===========================================================================
 
-describe("security.unclassified_signal fails closed", () => {
-  it("6. AN UNKNOWN SECURITY CONDITION CANNOT BE MANUALLY RESOLVED", () => {
+describe("security.unclassified_signal is RETIRED (OPS-13)", () => {
+  it("6. THE OLD DEFAULT IS RETIRED: NO PRODUCER, NO RESOLVE, OFF EVERY TENANT SURFACE", () => {
+    // It was NO_DIRECT_RESOLUTION + NO_RECOVERY_SIGNAL and TENANT_ADVISORY: a
+    // row in a workspace that nobody could ever close. The executed audit
+    // showed an outsider's DENIED workspace switch opening one inside the
+    // target workspace. It stays registered so historical rows classify, and
+    // it is never written again.
     const lifecycle = lifecycleForSourceId(UNCLASSIFIED)!;
+    expect(lifecycle.discoveryState).toBe("RETIRED");
+    expect(lifecycle.producers).toEqual([]);
     expect(lifecycle.resolutionAuthority).toBe("NO_DIRECT_RESOLUTION");
-    // A note requirement exists to make a human CONCLUSION auditable. There is
-    // no conclusion available for a signal nothing could classify, so
-    // demanding one would be theatre — and the registry's own invariant
-    // refuses the combination.
     expect(lifecycle.requiresResolutionNote).toBe(false);
     expect(offersManualResolution(lifecycle)).toBe(false);
     expect(lifecycle.activityProbeKey).toBe("NONE");
-    // Advisory: there is no safe action to offer, and an actionable audience
-    // that offers none is a promise the surface does not keep.
-    expect(lifecycle.audience).toBe("TENANT_ADVISORY");
+    expect(lifecycle.audience).toBe("PLATFORM_INTERNAL");
+    // …and the bridge does not name it anywhere in its code any more.
+    expect(readBridgeCode()).not.toContain(`"${UNCLASSIFIED}"`);
   });
 
   it("OPERATOR_DECISION IS NOT RESTORED FOR UNKNOWN SECURITY EVENTS", () => {
-    // The regression this guards: registering the default branch closed the
-    // unregistered-row hole and then reproduced it, by making the source that
-    // MEANS "the platform cannot classify this" closable by assertion. Not
-    // knowing what something is never confers the right to declare it over.
+    // Not knowing what something is never confers the right to declare it
+    // over — and now it confers no tenant row at all.
     const lifecycle = lifecycleForSourceId(UNCLASSIFIED)!;
     expect(lifecycle.resolutionAuthority).not.toBe("OPERATOR_DECISION");
     expect(lifecycle.resolutionAuthority).not.toBe("SOURCE_TRUTH");
@@ -142,78 +145,108 @@ describe("the decision is over exact identities, in order", () => {
     expect(dedicatedSourceOwning("search_indexing_failed")).toBe(
       "search.indexing_failure",
     );
-    expect(dedicatedSourceOwning("immutable_storage_drift")).toBe(
-      "storage.immutable_drift",
+    // OPS-13 — the dedicated owners the bridge now defers to.
+    expect(dedicatedSourceOwning("adaptive_block_triggered")).toBe(
+      "identity.runtime_block",
     );
+    expect(dedicatedSourceOwning("automation_webhook_destination_auto_disabled")).toBe(
+      "integration.webhook_destination_disabled",
+    );
+    // storage.immutable_drift is DISABLED and its events have no API emitter:
+    // naming it as an owner would claim coverage nothing provides.
+    expect(dedicatedSourceOwning("immutable_storage_drift")).toBeNull();
   });
 
-  it("3. AN UNKNOWN WARNING EVENT STILL OPENS security.unclassified_signal", () => {
-    // No marker in the name. Under the old scan these were routine.
+  it("3. AN UNKNOWN WARNING EVENT IS UNCLASSIFIED AND NAMES NO SOURCE", () => {
+    // No marker in the name, and no map claims it. It is persisted to the
+    // security log, counted and logged by the bridge — and maps to NO source,
+    // so no tenant row can be written for it (see the bridge behaviour suite).
     for (const t of [
       "credential_exfiltration_suspected",
       "tamper_evidence_broken",
       "quarantine_bypass",
       "synthetic_warning_event_the_build_has_never_seen",
     ]) {
-      const mapping = mapEventTypeToIncident(t);
-      expect(mapping, t).not.toBeNull();
-      expect(mapping!.sourceId, t).toBe(UNCLASSIFIED);
+      expect(classifySecurityEvent(t).kind, t).toBe("UNCLASSIFIED");
+      expect(mapEventTypeToIncident(t), t).toBeNull();
     }
   });
 
-  it("4. AN UNKNOWN HIGH EVENT STILL OPENS security.unclassified_signal", () => {
-    // The decision does not read severity — it cannot, since severity is not
-    // part of the identity. That is the point: the same unknown identity gets
-    // the same fail-closed answer at WARNING and at HIGH, and the bridge
-    // forwards the severity it was given.
-    const mapping = mapEventTypeToIncident("synthetic_high_severity_unknown");
-    expect(mapping).not.toBeNull();
-    expect(mapping!.sourceId).toBe(UNCLASSIFIED);
-
+  it("4. AN UNKNOWN HIGH EVENT GETS THE SAME ANSWER, AND IS COUNTED, NOT WRITTEN", () => {
+    // The decision does not read severity: the same unknown identity gets the
+    // same answer at WARNING and at HIGH.
+    expect(classifySecurityEvent("synthetic_high_severity_unknown").kind).toBe("UNCLASSIFIED");
     const bridge = readBridgeCode();
+    // The unclassified branch reports and returns BEFORE any incident write.
+    const unclassified = bridge.indexOf('disposition.kind === "UNCLASSIFIED"');
+    expect(unclassified).toBeGreaterThan(-1);
+    expect(unclassified).toBeLessThan(bridge.indexOf("recordIncident("));
+    expect(bridge).toContain("security_event_unclassified_total");
+    // A classified event still forwards the severity it was given.
     expect(bridge).toMatch(
       /severity: input\.severity === "HIGH" \? "HIGH" : "WARNING"/,
     );
   });
 
-  it("5. A MORE SEVERE UNKNOWN EVENT CANNOT BYPASS THE FAIL-CLOSED DEFAULT", () => {
-    // There is exactly one way out of the default, and it is membership in one
-    // of the three exact maps. Nothing about an event's shape, spelling or
-    // severity provides another.
-    const escapes = ["", "  ", "UPPER_CASE_EVENT", "évènement", "a".repeat(300)]
-      .map((t) => mapEventTypeToIncident(t))
-      .filter((m) => m === null || m.sourceId !== UNCLASSIFIED);
+  it("5. NO SHAPE, SPELLING OR SEVERITY ESCAPES INTO A SOURCE", () => {
+    // There is exactly one way to a source: membership in CLASSIFIED (or a
+    // dedicated owner). Nothing about an unknown identity provides another.
+    const escapes = ["", "  ", "UPPER_CASE_EVENT", "évènement", "a".repeat(300), "constructor", "__proto__", "toString"]
+      .map((t) => ({ t, kind: classifySecurityEvent(t).kind, mapped: mapEventTypeToIncident(t) }))
+      .filter((m) => m.kind !== "UNCLASSIFIED" || m.mapped !== null);
     expect(escapes).toEqual([]);
   });
 
-  it("8. EVERY SUPPRESSED EVENT IS IN ONE OF THE TWO EXPLICIT MAPS", () => {
-    // Stated as a property over the WHOLE declared catalogue, so a future
-    // event cannot be suppressed by a rule that is not one of these two.
-    for (const t of everyEventType()) {
-      if (mapEventTypeToIncident(t) !== null) continue;
-      const suppressedBy =
-        dedicatedSourceOwning(t) !== null || routineSecurityEventReason(t) !== null;
-      expect(suppressedBy, `${t} is suppressed by no explicit map`).toBe(true);
+  it("8. EVERY WARNING-OR-HIGHER PRODUCER IN THE TREE IS EXPLICITLY CLASSIFIED", () => {
+    // OPS-13 — the gate the old default stood in for. Every production call
+    // site that can emit a SecurityEvent at WARNING or HIGH names an event
+    // type one of the three maps claims. A new WARNING+ emitter that nobody
+    // classified fails HERE, in review — instead of opening a row nobody can
+    // close in a customer's workspace.
+    const unclassified = warningOrHigherEmittedEventTypes().filter(
+      ({ eventType }) => classifySecurityEvent(eventType).kind === "UNCLASSIFIED",
+    );
+    expect(
+      unclassified,
+      `WARNING+ producers with no classification:\n${unclassified
+        .map((u) => `${u.eventType} @ ${u.site}`)
+        .join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("8b. THE PRODUCER SCAN IS CONNECTED (it sees the producers the audit named)", () => {
+    const seen = new Set(warningOrHigherEmittedEventTypes().map((e) => e.eventType));
+    for (const t of [
+      "workspace_context_switched",
+      "export_blocked_by_lifecycle",
+      "destruction_blocked_by_hold",
+      "sso_login_failed",
+      "auth_login_failed",
+      "automation_webhook_destination_auto_disabled",
+      "multipart_complete_failed",
+      "recovery_review_required",
+      "scim_user_provisioning_conflict",
+      "adaptive_block_triggered",
+    ]) {
+      expect(seen.has(t), t).toBe(true);
     }
   });
 
-  it("9. AN EVENT IN NEITHER MAP CREATES THE FAIL-CLOSED SOURCE", () => {
-    const partition = { owned: 0, routine: 0, classified: 0, unclassified: 0 };
+  it("9. THE CATALOGUE PARTITIONS INTO FOUR ANSWERS, AND ONLY CLASSIFIED MAPS TO A SOURCE", () => {
+    const partition = { dedicated: 0, routine: 0, classified: 0, unclassified: 0 };
     for (const t of everyEventType()) {
-      if (dedicatedSourceOwning(t) !== null) partition.owned += 1;
-      else if (routineSecurityEventReason(t) !== null) partition.routine += 1;
-      else if (CLASSIFIED_SECURITY_EVENTS[t]) partition.classified += 1;
-      else {
-        partition.unclassified += 1;
-        expect(mapEventTypeToIncident(t)!.sourceId, t).toBe(UNCLASSIFIED);
+      const kind = classifySecurityEvent(t).kind;
+      partition[kind.toLowerCase() as keyof typeof partition] += 1;
+      if (kind === "CLASSIFIED") {
+        expect(mapEventTypeToIncident(t)!.sourceId, t).toBe(CLASSIFIED_SECURITY_EVENTS[t]!.sourceId);
+      } else {
+        expect(mapEventTypeToIncident(t), t).toBeNull();
       }
     }
     // eslint-disable-next-line no-console -- the partition IS the deliverable
     console.table([partition]);
-    // The catalogue is large and the fail-closed bucket is the DEFAULT, so it
-    // is expected to be the biggest. Asserting it is non-empty pins that the
-    // default is reachable at all — a build where every event had been swept
-    // into an allowlist would be the old fail-open behaviour by another route.
+    // The catalogue declares more types than are emitted at WARNING+ (many are
+    // INFO-only); those stay unclassified and are counted if they ever fire.
     expect(partition.unclassified).toBeGreaterThan(0);
   });
 
@@ -424,4 +457,112 @@ function decisionFunctionBody(): string {
   expect(start, "mapEventTypeToIncident not found").toBeGreaterThan(-1);
   const end = code.indexOf("\n}", start);
   return code.slice(start, end).replace(/"[^"]*"/g, '""');
+}
+
+// ===========================================================================
+// THE PRODUCER SCAN (test 8)
+// ===========================================================================
+
+/**
+ * Call sites whose event type is computed from something other than a literal
+ * in the call itself, with the identities they can emit at WARNING or above —
+ * read from the function that computes them.
+ */
+const DYNAMIC_PRODUCERS: Record<string, readonly string[]> = {
+  // `signalKindToSecurityEvent` — the four identities the risk signal maps to.
+  "services/api/src/services/identity-security/risk.service.ts": [
+    "service_account_risk_detected",
+    "contributor_risk_detected",
+    "impossible_travel_signal",
+    "suspicious_login_detected",
+  ],
+};
+
+function blankCommentsKeepOffsets(src: string): string {
+  const blank = (s: string) => s.replace(/[^\n]/g, " ");
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(/(^|[^:"'`])\/\/[^\n]*/g, (m, lead: string) => lead + blank(m.slice(lead.length)));
+}
+
+/** The text of one top-level property's value inside an object literal. */
+function propertyValue(objectText: string, key: string): string | null {
+  let depth = 0;
+  for (let i = 0; i < objectText.length; i += 1) {
+    const ch = objectText[i]!;
+    if ("({[".includes(ch)) depth += 1;
+    else if (")}]".includes(ch)) depth -= 1;
+    if (depth !== 1) continue;
+    if (objectText.startsWith(key, i) && !/[A-Za-z0-9_]/.test(objectText[i - 1] ?? "")) {
+      let j = i + key.length;
+      while (objectText[j] === " ") j += 1;
+      if (objectText[j] === ",") return key; // shorthand
+      if (objectText[j] !== ":") continue;
+      j += 1;
+      let d = 0;
+      const start = j;
+      for (; j < objectText.length; j += 1) {
+        const c = objectText[j]!;
+        if ("({[".includes(c)) d += 1;
+        else if (")}]".includes(c)) {
+          if (d === 0) break;
+          d -= 1;
+        } else if (c === "," && d === 0) break;
+      }
+      return objectText.slice(start, j).trim();
+    }
+  }
+  return null;
+}
+
+function warningOrHigherEmittedEventTypes(): Array<{ eventType: string; site: string }> {
+  const files = execFileSync("git", ["ls-files", "services/api/src"], {
+    cwd: REPO,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.endsWith(".ts") && !l.endsWith(BRIDGE));
+  const out: Array<{ eventType: string; site: string }> = [];
+  for (const rel of files) {
+    const src = blankCommentsKeepOffsets(readFileSync(`${REPO}/${rel}`, "utf8"));
+    // Only `safeEmitSecurityEvent` reaches the bridge: `emitSecurityEvent`
+    // writes the row and returns, and never consults the decision.
+    const re = /\bsafeEmitSecurityEvent\s*\(\s*\{/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src)) !== null) {
+      const open = m.index + m[0].length - 1;
+      let depth = 0;
+      let end = open;
+      for (; end < src.length; end += 1) {
+        if (src[end] === "{") depth += 1;
+        else if (src[end] === "}") {
+          depth -= 1;
+          if (depth === 0) break;
+        }
+      }
+      const obj = src.slice(open, end + 1);
+      const severity = propertyValue(obj, "severity") ?? "";
+      const literalSeverities = [...severity.matchAll(/"(INFO|WARNING|HIGH)"/g)].map((x) => x[1]);
+      // A literal-only INFO severity cannot reach the bridge's incident path.
+      const canEscalate =
+        literalSeverities.length === 0 || literalSeverities.some((x) => x !== "INFO");
+      if (!canEscalate) continue;
+      const line = src.slice(0, m.index).split("\n").length;
+      const site = `${rel}:${line}`;
+      const eventExpr = propertyValue(obj, "eventType") ?? "";
+      let types = [...eventExpr.matchAll(/"([a-z0-9_]+)"/g)].map((x) => x[1]!);
+      // `eventType` passed through a parameter: the call's own severity
+      // ternary names the identities that escalate.
+      if (types.length === 0) types = [...severity.matchAll(/"([a-z][a-z0-9_]+)"/g)].map((x) => x[1]!);
+      if (types.length === 0) types = [...(DYNAMIC_PRODUCERS[rel] ?? [])];
+      if (types.length === 0) {
+        out.push({ eventType: `<unenumerable: ${eventExpr.slice(0, 40)}>`, site });
+        continue;
+      }
+      for (const eventType of types) out.push({ eventType, site });
+    }
+  }
+  return out;
 }

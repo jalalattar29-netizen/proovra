@@ -42,7 +42,29 @@ export type AutomationWebhookDestination = {
   lastSuccessAt: string | null;
   lastFailureAt: string | null;
   failureCount: number;
+  /** Failed deliveries since the last success (resets on success and on re-enable). */
+  consecutiveFailureCount?: number;
+  /** Set when the platform disabled the destination itself after repeated failures. */
+  autoDisabledAt?: string | null;
+  /** Bounded machine reason, e.g. `auto_disabled:consecutive_failures:10`. */
+  disabledReason?: string | null;
 };
+
+/**
+ * OPS-13 — the status line says WHO turned a destination off. An automatically
+ * disabled destination used to read "Not yet enabled", which told the admin
+ * nothing had happened when Automation had in fact stopped delivering to it.
+ */
+export function destinationStatusLabel(d: AutomationWebhookDestination): string {
+  if (d.enabled) return "Enabled";
+  if (d.autoDisabledAt) {
+    const match = /^auto_disabled:consecutive_failures:(\d+)$/.exec(d.disabledReason ?? "");
+    return match
+      ? `Disabled automatically after ${match[1]} consecutive failed deliveries`
+      : "Disabled automatically after repeated failed deliveries";
+  }
+  return d.disabledAt ? "Disabled" : "Not yet enabled";
+}
 
 type ListEnvelope = {
   destinations: AutomationWebhookDestination[];
@@ -432,11 +454,11 @@ function DestinationsWorkspace({
               >
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "baseline", justifyContent: "space-between" }}>
                   <strong>{d.name}</strong>
-                  <span>{d.enabled ? "Enabled" : d.disabledAt ? "Disabled" : "Not yet enabled"}</span>
+                  <span data-automation-destination-status>{destinationStatusLabel(d)}</span>
                 </div>
                 <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", gap: 8, margin: "8px 0", fontSize: 12.5 }}>
                   <div><dt style={{ color: "var(--ink-muted)" }}>Host</dt><dd style={{ margin: 0 }}>{d.urlOrigin}</dd></div>
-                  <div><dt style={{ color: "var(--ink-muted)" }}>Consecutive failures</dt><dd style={{ margin: 0 }}>{d.failureCount}</dd></div>
+                  <div><dt style={{ color: "var(--ink-muted)" }}>Consecutive failures</dt><dd style={{ margin: 0 }}>{d.consecutiveFailureCount ?? d.failureCount}</dd></div>
                   <div><dt style={{ color: "var(--ink-muted)" }}>Last success</dt><dd style={{ margin: 0 }}>{d.lastSuccessAt ? formatUserDateTime(d.lastSuccessAt) : "Never"}</dd></div>
                   <div><dt style={{ color: "var(--ink-muted)" }}>Last failure</dt><dd style={{ margin: 0 }}>{d.lastFailureAt ? formatUserDateTime(d.lastFailureAt) : "Never"}</dd></div>
                 </dl>

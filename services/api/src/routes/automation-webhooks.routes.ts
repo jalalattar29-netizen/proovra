@@ -123,6 +123,9 @@ function projectDestination(row: {
   lastSuccessAt: Date | null;
   lastFailureAt: Date | null;
   failureCount: number;
+  consecutiveFailureCount?: number;
+  autoDisabledAt?: Date | null;
+  disabledReason?: string | null;
 }): Record<string, unknown> {
   return {
     id: row.id,
@@ -140,6 +143,12 @@ function projectDestination(row: {
     lastSuccessAt: row.lastSuccessAt?.toISOString() ?? null,
     lastFailureAt: row.lastFailureAt?.toISOString() ?? null,
     failureCount: row.failureCount,
+    // OPS-13 — WHY a destination is off. Without these an automatically
+    // disabled destination was indistinguishable from one nobody had turned
+    // on yet, and the panel told the admin it was "Not yet enabled".
+    consecutiveFailureCount: row.consecutiveFailureCount ?? 0,
+    autoDisabledAt: row.autoDisabledAt?.toISOString() ?? null,
+    disabledReason: row.disabledReason ?? null,
   };
 }
 
@@ -399,8 +408,38 @@ export async function automationWebhooksRoutes(
         enabled,
         disabledAt: enabled ? null : new Date(),
         updatedByUserId: member.userId,
+        // OPS-13 — re-enabling is the admin's statement that the receiving
+        // end is fixed. The automatic-disable state is cleared WITH the
+        // counter: leaving consecutiveFailureCount at the threshold meant the
+        // very next failed delivery disabled the destination again, and
+        // leaving autoDisabledAt set kept the condition open on a destination
+        // that was running.
+        ...(enabled
+          ? { consecutiveFailureCount: 0, autoDisabledAt: null, disabledReason: null }
+          : {}),
       },
     });
+    if (enabled && existing.autoDisabledAt) {
+      // The writer that observed the recovery closes the condition — through
+      // the shared transition authority, compare-and-set. The source-truth
+      // sweep would reach the same answer from the row on its next pass.
+      try {
+        const { resolveConditionFromSourceRecovery } = await import(
+          "../services/observability/incident.service.js"
+        );
+        const { webhookDestinationDisabledFingerprint } = await import(
+          "../services/automation/automation-delivery-runtime.service.js"
+        );
+        await resolveConditionFromSourceRecovery({
+          teamId: existing.teamId,
+          fingerprint: webhookDestinationDisabledFingerprint(existing.id),
+          safeMessage:
+            "The webhook destination was re-enabled and is no longer automatically disabled.",
+        });
+      } catch {
+        /* best-effort: the probe reads the destination row on the next sweep */
+      }
+    }
     if (!enabled) {
       safeEmitSecurityEvent({
         teamId: existing.teamId,

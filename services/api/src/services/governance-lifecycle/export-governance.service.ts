@@ -56,6 +56,13 @@ export type CheckExportEligibilityInput = {
   teamId: string | null;
   evidenceId: string;
   actorUserId?: string | null;
+  /**
+   * OPS-13 — the caller is the READ-ONLY eligibility preflight
+   * (GET /v1/governance/export-eligibility), which asks whether an export
+   * WOULD be allowed. Nothing was attempted, so a "blocked" answer is recorded
+   * at INFO; only a real export refused by the lifecycle is WARNING.
+   */
+  preflight?: boolean;
 };
 
 export async function checkExportEligibility(
@@ -199,7 +206,7 @@ function emitBlocked(
   safeEmitSecurityEvent({
     teamId: input.teamId,
     eventType: "export_blocked_by_lifecycle",
-    severity: "WARNING",
+    severity: input.preflight ? "INFO" : "WARNING",
     evidenceId: input.evidenceId,
     details: {
       outcome,

@@ -12,6 +12,15 @@ import "../env.js";
  *     OPERATIONS_TRUTH_RECONCILE_APPLY=I_HAVE_OWNER_APPROVAL \
  *     pnpm --filter proovra-api ops:operations-truth-reconcile -- --apply [--limit=1000]
  *
+ *   Optional bounds, for either mode:
+ *     --team=<workspaceUuid>   every rule restricted to one workspace (rules
+ *                              whose rows carry no workspace are skipped);
+ *     --source=<sourceId>      only the rules (and rows) of that source;
+ *     --rule=<rule>[,<rule>]   only the named rules.
+ *   e.g. a dry run of the OPS-13 security reclassification for one workspace:
+ *     pnpm --filter proovra-api ops:operations-truth-reconcile -- \
+ *       --rule=reclassified_security_signals --team=<workspaceUuid>
+ *
  * Safe to rerun: every rule acts only on rows still in the state it repairs.
  * Run the dry run first, review the counts, then apply, then dry-run again —
  * the second dry run must report zero changes (or only `truncated` rules,
@@ -22,7 +31,11 @@ import "../env.js";
 import { createHash } from "node:crypto";
 
 import { prisma } from "../db.js";
-import { reconcileOperationsTruth } from "../services/operations/operations-truth-reconciliation.service.js";
+import {
+  RECONCILIATION_RULES,
+  reconcileOperationsTruth,
+  type ReconciliationRule,
+} from "../services/operations/operations-truth-reconciliation.service.js";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(`--${name}`);
@@ -52,7 +65,33 @@ async function main(): Promise<void> {
     return;
   }
   const limit = val("limit") ? Number(val("limit")) : undefined;
-  const report = await reconcileOperationsTruth({ apply, limitPerRule: limit });
+  const team = val("team");
+  if (team !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(team)) {
+    process.stderr.write("Refusing: --team must be a workspace UUID.\n");
+    process.exitCode = 2;
+    return;
+  }
+  const source = val("source");
+  if (source !== undefined && !/^[a-z_]+\.[a-z_]+$/.test(source)) {
+    process.stderr.write("Refusing: --source must be a registered source id (e.g. identity.idp_outage).\n");
+    process.exitCode = 2;
+    return;
+  }
+  const ruleArg = val("rule");
+  const ruleList = ruleArg ? ruleArg.split(",").map((r) => r.trim()).filter(Boolean) : [];
+  const unknown = ruleList.filter((r) => !(RECONCILIATION_RULES as readonly string[]).includes(r));
+  if (unknown.length > 0) {
+    process.stderr.write(`Refusing: unknown --rule ${unknown.join(", ")}. Known: ${RECONCILIATION_RULES.join(", ")}\n`);
+    process.exitCode = 2;
+    return;
+  }
+  const report = await reconcileOperationsTruth({
+    apply,
+    limitPerRule: limit,
+    teamId: team ?? null,
+    sourceId: source ?? null,
+    rules: ruleList.length > 0 ? (ruleList as ReconciliationRule[]) : null,
+  });
   process.stdout.write(`${JSON.stringify({ database: databaseFingerprint(), ...report }, null, 2)}\n`);
 }
 
