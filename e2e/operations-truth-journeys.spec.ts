@@ -291,8 +291,15 @@ test.describe("Journey A — report failure to recovery, through Operations", ()
     await expect(page.locator(`[data-ops-section="recently-resolved"] ${group}`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`[data-ops-section="action-required"] ${group}`)).toHaveCount(0);
     await expect(page.locator(`[data-ops-section="monitoring"] ${group}`)).toHaveCount(0);
-    await expect(page.locator('[data-ops-metric="open"]')).toContainText("0");
-    await expect(page.locator('[data-ops-metric="resolved"]')).toContainText("1");
+    // The VALUE, not the card's text (whose note also holds digits). The
+    // Unresolved card counts open + acknowledged + suppressed; "0" here is a
+    // read summary's count, never the placeholder an unreadable one renders.
+    await expect(page.locator('[data-ops-metric="open"]')).toHaveAttribute("data-ops-metric-value", "0");
+    await expect(page.locator('[data-ops-metric="resolved"]')).toHaveAttribute("data-ops-metric-value", "1");
+    // The Resolved card opens the list with exactly what it counted: RESOLVED.
+    const listRead = page.waitForRequest((r) => r.url().includes("/v1/ops/incidents?") && r.url().includes("status=RESOLVED"));
+    await page.locator('[data-ops-metric="resolved"]').click();
+    await listRead;
     // The exact condition, opened again, reads RESOLVED and keeps its record.
     await page.goto(`/operations?incident=${incidentId}`);
     const closed = page.locator(`[data-ops-inspector="${incidentId}"]`);
@@ -788,10 +795,15 @@ test.describe("Journey E — Enterprise roll-up, drilldown and action on the ori
     expect(rollup.status(), await rollup.text()).toBe(200);
     const r = (await rollup.json()) as {
       totals: { open: number; critical: number; high: number };
-      workspaces: Array<{ workspaceId: string }>;
+      workspaces: Array<{ workspaceId: string; coverage: string }>;
+      coverage: { workspacesNotReadable: number; workspacesUnknown: number; complete: boolean };
     };
     expect(r.totals).toMatchObject({ open: 3, critical: 1, high: 2 });
     expect(r.workspaces.map((w) => w.workspaceId).sort()).toEqual([w1, w2].sort());
+    // Every readable workspace was read in full; the one this person cannot
+    // read is counted (never named), so the totals SAY they are incomplete.
+    expect(r.workspaces.every((w) => w.coverage === "KNOWN")).toBe(true);
+    expect(r.coverage).toMatchObject({ workspacesNotReadable: 1, workspacesUnknown: 0, complete: false });
 
     // The list is the original conditions, filterable and paged.
     const list = async (qs: string) => {
@@ -813,6 +825,13 @@ test.describe("Journey E — Enterprise roll-up, drilldown and action on the ori
     expect((await list(`workspaceId=${w2}`)).incidents.map((i) => i.id)).toEqual([own[2]]);
     expect((await list(`workspaceId=${w3}`)).incidents).toEqual([]);
     expect((await list("status=OPEN")).incidents).toHaveLength(3);
+    // The default IS the canonical unresolved set, spelled out or not.
+    expect((await list("status=UNRESOLVED")).incidents).toHaveLength(3);
+    expect((await list("status=RESOLVED")).incidents).toHaveLength(0);
+    // A cursor the server did not issue is refused, not silently restarted.
+    const garbage = await owner.api.get(`/v1/orgs/${org.organizationId}/operations/incidents?cursor=not-a-cursor`);
+    expect(garbage.status()).toBe(400);
+    expect(((await garbage.json()) as { error?: { code?: string } }).error?.code).toBe("invalid_cursor");
     expect((await list("sourceId=governance.policy_condition")).incidents).toHaveLength(3);
 
     // In the browser: the readiness page shows the union and drills into the
@@ -823,7 +842,9 @@ test.describe("Journey E — Enterprise roll-up, drilldown and action on the ori
     expect(switched.ok(), await switched.text()).toBe(true);
     await signIn(page, owner.email);
     await page.goto(`/organizations/${org.organizationId}/admin/readiness`);
-    await expect(page.locator("[data-rollup-totals]")).toContainText("3 unresolved conditions", { timeout: 30_000 });
+    await expect(page.locator("[data-rollup-totals]")).toContainText("3 unresolved across 2 workspaces", { timeout: 30_000 });
+    await expect(page.locator("[data-rollup-totals]")).toContainText("1 unavailable");
+    await expect(page.locator("[data-rollup-partial]")).toContainText("1 not readable by you");
     await expect(page.locator("[data-rollup-incident]")).toHaveCount(3);
     for (const id of hidden) await expect(page.locator(`[data-rollup-incident="${id}"]`)).toHaveCount(0);
     await page.locator(`[data-rollup-open="${own[2]}"]`).click();
@@ -837,6 +858,13 @@ test.describe("Journey E — Enterprise roll-up, drilldown and action on the ori
     await expect
       .poll(() => sql("SELECT status FROM operational_incidents WHERE id = $1", [own[2]])[0]!.status, { timeout: 30_000 })
       .toBe("ACKNOWLEDGED");
+    // Acknowledging does not resolve: the condition is still in the default
+    // (UNRESOLVED) organisation list and still counted by the roll-up.
+    expect((await list("")).incidents.map((i) => i.id)).toContain(own[2]);
+    const after = (await (await owner.api.get(`/v1/orgs/${org.organizationId}/operations/rollup`)).json()) as {
+      totals: { open: number };
+    };
+    expect(after.totals.open).toBe(3);
     // OPS-029 — a source whose closure is a human decision asks for that
     // decision in writing: Resolve waits for the note, and the note is kept.
     const resolveButton = drawer.locator('[data-ops-action="resolve"]');
