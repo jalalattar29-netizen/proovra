@@ -103,24 +103,96 @@ const EMBEDDED_EMAIL_GLOBAL = new RegExp(EMBEDDED_EMAIL.source, "g");
 const EXTERNAL_KEY_RULES: ReadonlyArray<KeyRule> = [
   { test: (k) => /email/.test(lower(k)), action: "WITHHELD", reason: "DIRECT_IDENTIFIER" },
   { test: (k) => /^(phone|phonenumber|contributorphone|recipientphone|recipientemail|displayname|fullname)$/.test(lower(k)), action: "WITHHELD", reason: "DIRECT_IDENTIFIER" },
+  // What a capture client reported privately (the captured page's address
+  // and title, ...Private by contract) can name a person.
+  { test: (k) => /private$/.test(lower(k)), action: "WITHHELD", reason: "DIRECT_IDENTIFIER" },
   {
-    test: (k) => /(userid|ownerid|teamid|organizationid|workspaceid|departmentid|sessionid|requestid|intakesessionid|capturesessionid)$/.test(lower(k)) || /^(accessedby|completedbyuserid|uploadedby|createdby)$/.test(lower(k)),
+    test: (k) =>
+      /(userid|ownerid|teamid|organizationid|workspaceid|departmentid|sessionid|requestid|intakesessionid|capturesessionid|customerid|accountid|actorid|memberid|apikeyid)$/.test(lower(k)) ||
+      /^(accessedby|completedbyuserid|uploadedby|createdby)$/.test(lower(k)),
     action: "WITHHELD",
     reason: "INTERNAL_IDENTIFIER",
   },
   {
     test: (k) =>
-      /^(bucket|storagebucket|storagekey|objectkey|storageversionid|s3versionid|versionid|storageregion|region|kmskeyarn|kmskeyid|verificationmaterialref|publicmaterialref|signingkeypath|uploadurl|puturl|url)$/.test(lower(k)),
+      /^(bucket|storagebucket|storagekey|objectkey|storageversionid|s3versionid|versionid|storageregion|region|kmskeyarn|kmskeyid|verificationmaterialref|publicmaterialref|signingkeypath|uploadurl|puturl|url)$/.test(lower(k)) ||
+      // Any signed, download, view or storage URL, and any ARN, under any name.
+      /(presigned|signed|download|view|preview|upload|object|storage|internal)url$/.test(lower(k)) ||
+      /arn$/.test(lower(k)),
     action: "WITHHELD",
     reason: "INTERNAL_INFRASTRUCTURE",
   },
+  // Masked or hashed variants are still network/device identifiers outside
+  // the workspace: a hash of a user agent or address links one person's
+  // records across packages.
+  {
+    test: (k) =>
+      /^(ip|ipaddress|ipaddr|clientip|remoteip|remoteaddress|xforwardedfor)(masked|hash|hashed|prefix)?$/.test(lower(k)) ||
+      /^(masked|hashed)?(ip|ipaddress|clientip)$/.test(lower(k)) ||
+      /^useragent(raw|hash|hashed|string)?$/.test(lower(k)) ||
+      /^(deviceid|devicefingerprint|installationid|pushtoken|advertisingid)$/.test(lower(k)),
+    action: "WITHHELD",
+    reason: "NETWORK_OR_DEVICE_IDENTIFIER",
+  },
+  { test: (k) => /^(address|formattedaddress|streetaddress|placename)$/.test(lower(k)), action: "WITHHELD", reason: "PRECISE_LOCATION" },
   // A bare "key" is withheld only when it holds a storage path (a signal key
   // such as "core_integrity" is not infrastructure).
   { test: (k, v) => lower(k) === "key" && typeof v === "string" && v.includes("/"), action: "WITHHELD", reason: "INTERNAL_INFRASTRUCTURE" },
-  { test: (k) => /^(ip|ipaddress|clientip|remoteaddress|useragent|xforwardedfor)$/.test(lower(k)), action: "WITHHELD", reason: "NETWORK_OR_DEVICE_IDENTIFIER" },
   { test: (k) => /^(externalmapurl|mapurl)$/.test(lower(k)), action: "WITHHELD", reason: "PRECISE_LOCATION" },
   { test: (k) => /^(lat|lng|lon|latitude|longitude)$/.test(lower(k)), action: "COARSENED", reason: "PRECISE_LOCATION" },
 ];
+
+/**
+ * Values withheld whatever their key: a presigned URL, an AWS ARN, a bare
+ * network address. Matched on the value so a renamed or nested field cannot
+ * carry them out.
+ */
+const PRESIGNED_URL = /https?:\/\/[^\s"'<>]*(?:X-Amz-(?:Signature|Credential|Security-Token)|[?&](?:Signature|sig|token)=)[^\s"'<>]*/gi;
+const AWS_ARN = /\barn:aws[a-z-]*:[^\s"',)]+/gi;
+const IPV4 = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g;
+const IPV6 = /\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b|\b(?:[0-9a-f]{1,4}:){1,6}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4})*)?\b/gi;
+
+const VALUE_RULES: ReadonlyArray<{ pattern: RegExp; replacement: string; reason: DisclosureReason }> = [
+  { pattern: PRESIGNED_URL, replacement: "[withheld url]", reason: "INTERNAL_INFRASTRUCTURE" },
+  { pattern: AWS_ARN, replacement: "[withheld arn]", reason: "INTERNAL_INFRASTRUCTURE" },
+  { pattern: EMBEDDED_EMAIL_GLOBAL, replacement: "[withheld email]", reason: "DIRECT_IDENTIFIER" },
+  { pattern: IPV4, replacement: "[withheld address]", reason: "NETWORK_OR_DEVICE_IDENTIFIER" },
+  { pattern: IPV6, replacement: "[withheld address]", reason: "NETWORK_OR_DEVICE_IDENTIFIER" },
+];
+
+/** Every value rule applied to one string; the reasons of those that matched. */
+function scrubString(value: string): { value: string; reasons: DisclosureReason[] } {
+  let out = value;
+  const reasons: DisclosureReason[] = [];
+  for (const rule of VALUE_RULES) {
+    rule.pattern.lastIndex = 0;
+    if (rule.pattern.test(out)) {
+      rule.pattern.lastIndex = 0;
+      out = out.replace(rule.pattern, rule.replacement);
+      reasons.push(rule.reason);
+    }
+  }
+  return { value: out, reasons };
+}
+
+/**
+ * Project one TEXT document (README, Markdown templates, verification notes)
+ * for a profile — the same policy as JSON, by value: email addresses,
+ * presigned URLs, ARNs and network addresses are replaced where they appear.
+ * FULL_FORENSIC returns it unchanged.
+ */
+export function projectTextForDisclosure(
+  profile: DisclosureProfile,
+  file: string,
+  text: string,
+): { value: string; records: DisclosureRecord[] } {
+  if (profile === "FULL_FORENSIC") return { value: text, records: [] };
+  const scrubbed = scrubString(text);
+  return {
+    value: scrubbed.value,
+    records: [...new Set(scrubbed.reasons)].map((reason) => ({ file, path: "$text", action: "WITHHELD" as const, reason })),
+  };
+}
 
 function coarsen(value: unknown): unknown {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -148,11 +220,13 @@ export function projectJsonForDisclosure(
   const records: DisclosureRecord[] = [];
   const walk = (node: unknown, path: string): unknown => {
     if (Array.isArray(node)) return node.map((v, i) => walk(v, `${path}[${i}]`));
-    // An email address inside any other value (e.g. a personal workspace named
-    // "<address>'s personal workspace") is withheld where it appears.
-    if (typeof node === "string" && EMBEDDED_EMAIL.test(node)) {
-      records.push({ file, path, action: "WITHHELD", reason: "DIRECT_IDENTIFIER" });
-      return node.replace(EMBEDDED_EMAIL_GLOBAL, "[withheld email]");
+    // An email address, presigned URL, ARN or network address inside any
+    // other value (e.g. a personal workspace named "<address>'s personal
+    // workspace") is withheld where it appears.
+    if (typeof node === "string") {
+      const scrubbed = scrubString(node);
+      for (const reason of new Set(scrubbed.reasons)) records.push({ file, path, action: "WITHHELD", reason });
+      return scrubbed.value;
     }
     if (!node || typeof node !== "object") return node;
     const out: Record<string, unknown> = {};

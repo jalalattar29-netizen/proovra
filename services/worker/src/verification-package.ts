@@ -5,6 +5,7 @@ import {
   DISCLOSURE_PROFILE_LABELS,
   buildDisclosureManifest,
   projectJsonForDisclosure,
+  projectTextForDisclosure,
   validatePackageConsistency,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
   type DisclosureProfile,
@@ -3266,6 +3267,7 @@ export async function createVerificationPackage(data: {
       "signers/signer-registry-snapshot.json",
       "signers/historical-verification-material.json",
     ]);
+    const NEVER_PROJECTED_TEXT = new Set(["signature.txt"]);
     const appendEntry = (name: string, buffer: Buffer, contentType?: string) => {
       if (profile === "EXTERNAL_DISCLOSURE") {
         if (name === "fingerprint.json") {
@@ -3280,6 +3282,15 @@ export async function createVerificationPackage(data: {
           const projected = projectJsonForDisclosure(profile, name, JSON.parse(buffer.toString("utf8")));
           disclosureRecords.push(...projected.records);
           appendPackageEntry(archive, packageEntries, name, jsonBuffer(projected.value), contentType);
+          return;
+        }
+        // Text documents (README, Markdown templates, verification notes) are
+        // projected by value with the same policy; signatures and keys are
+        // material, never text to redact.
+        if ((contentType === "text/plain" || contentType === "text/markdown") && !NEVER_PROJECTED_TEXT.has(name) && !/\.(pem|sig)$/.test(name)) {
+          const projected = projectTextForDisclosure(profile, name, buffer.toString("utf8"));
+          disclosureRecords.push(...projected.records);
+          appendPackageEntry(archive, packageEntries, name, Buffer.from(projected.value, "utf8"), contentType);
           return;
         }
       }

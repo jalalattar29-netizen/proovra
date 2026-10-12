@@ -11,6 +11,7 @@ import {
   buildTimestampValidationRecord,
   parseTsaValidationEvidence,
   projectJsonForDisclosure,
+  projectTextForDisclosure,
   serializePackageSeal,
   verifySealedPackageEntries,
 } from "../dist/index.js";
@@ -71,6 +72,60 @@ test("an email inside any other value (a personal workspace label) is withheld w
   assert.equal(value.workspaceLabelAtPackageTime, "[withheld email]'s personal workspace");
   assert.equal(value.nested[0].note, "sent to [withheld email] and [withheld email]");
   assert.ok(records.some((r) => r.path === "$.workspaceLabelAtPackageTime" && r.reason === "DIRECT_IDENTIFIER"));
+});
+
+test("EXTERNAL_DISCLOSURE withholds masked, hashed, private and infrastructure variants at any depth, in objects and arrays", () => {
+  const presigned = "https://s3.eu-central-1.amazonaws.com/b/k?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F&X-Amz-Signature=abc";
+  const doc = {
+    level1: {
+      level2: [
+        {
+          level3: {
+            ipAddressMasked: "203.0.113.x",
+            ipHash: "f".repeat(64),
+            userAgentHash: "e".repeat(64),
+            userAgentRaw: "Mozilla/5.0 (X11; Linux x86_64)",
+            deviceId: "dev-123",
+            intakeCustomerId: "cust-9",
+            sourceUrlPrivate: "https://private.example/page?user=42",
+            titlePrivate: "Jane Doe — medical record",
+            downloadUrl: presigned,
+            kmsKeyArnUsed: "arn:aws:kms:eu-central-1:123456789012:key/abc",
+            formattedAddress: "1 Example Street, Exampletown",
+            note: [`fetched from ${presigned}`, "client 198.51.100.7 and 2001:db8:0:0:0:0:0:1", "key arn:aws:kms:eu:111122223333:key/z"],
+          },
+        },
+      ],
+    },
+    eventHash: "a".repeat(64),
+    sequence: 3,
+  };
+  const { value, records } = projectJsonForDisclosure("EXTERNAL_DISCLOSURE", "custody/events.json", doc);
+  const text = JSON.stringify(value);
+  for (const leak of ["203.0.113", "f".repeat(64), "e".repeat(64), "Mozilla", "dev-123", "cust-9", "private.example", "Jane Doe", "X-Amz", "AKIA", "123456789012", "111122223333", "Example Street", "198.51.100.7", "2001:db8"]) {
+    assert.ok(!text.includes(leak), leak);
+  }
+  // Commitments untouched.
+  assert.equal(value.eventHash, doc.eventHash);
+  assert.equal(value.sequence, 3);
+  const reasons = new Set(records.map((r) => r.reason));
+  for (const r of ["NETWORK_OR_DEVICE_IDENTIFIER", "INTERNAL_IDENTIFIER", "DIRECT_IDENTIFIER", "INTERNAL_INFRASTRUCTURE", "PRECISE_LOCATION"]) assert.ok(reasons.has(r), r);
+  assert.ok(records.some((r) => r.path === "$.level1.level2[0].level3.note[1]"));
+});
+
+test("text documents (README, Markdown templates) are projected by value; FULL_FORENSIC is unchanged", () => {
+  const readme = [
+    "Submitted by owner.person@example.test from 192.0.2.44.",
+    "Download: https://bucket.s3.amazonaws.com/o?X-Amz-Signature=deadbeef&X-Amz-Credential=AKIA",
+    "Key: arn:aws:kms:eu-central-1:123456789012:key/abc",
+    "Verify: ots --version; sha256sum evidence.txt",
+  ].join("\n");
+  assert.equal(projectTextForDisclosure("FULL_FORENSIC", "README.txt", readme).value, readme);
+  const { value, records } = projectTextForDisclosure("EXTERNAL_DISCLOSURE", "README.txt", readme);
+  for (const leak of ["owner.person@example.test", "192.0.2.44", "X-Amz", "123456789012"]) assert.ok(!value.includes(leak), leak);
+  assert.match(value, /Verify: ots --version; sha256sum evidence\.txt/);
+  assert.deepEqual(new Set(records.map((r) => r.reason)), new Set(["DIRECT_IDENTIFIER", "NETWORK_OR_DEVICE_IDENTIFIER", "INTERNAL_INFRASTRUCTURE"]));
+  assert.ok(records.every((r) => r.file === "README.txt" && r.path === "$text"));
 });
 
 function sealedEntries(sealInput, files) {

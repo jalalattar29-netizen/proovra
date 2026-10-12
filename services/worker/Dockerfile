@@ -196,7 +196,13 @@ RUN python3 -m venv /opt/ots-venv
 RUN /opt/ots-venv/bin/pip install --upgrade pip setuptools wheel
 # Fail the image build unless the upstream OTS CLI is actually present
 # and reachable as `ots` in a standard runtime location.
-RUN /opt/ots-venv/bin/pip install --no-cache-dir opentimestamps-client \
+#
+# PINNED (2026-10-12): the client is a verification tool whose output the
+# worker records (the attestation it reads; the tool version every package
+# names). An unpinned install could change it under any rebuild. Reviewed
+# exact versions, its two runtime dependencies included.
+RUN /opt/ots-venv/bin/pip install --no-cache-dir \
+    opentimestamps-client==0.7.2 opentimestamps==0.4.5 python-bitcoinlib==0.12.2 \
     && test -x /opt/ots-venv/bin/ots \
     && ln -sf /opt/ots-venv/bin/ots /usr/local/bin/ots \
     && /usr/local/bin/ots --help >/dev/null
