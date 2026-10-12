@@ -33,7 +33,7 @@ git fetch --tags origin
 export GHCR_OWNER=jalalattar29-netizen
 export RELEASE_SHA="$(git rev-parse origin/feat/internal-plan-grant)"
 export IMAGE_TAG="sha-${RELEASE_SHA:0:7}"
-export COMPOSE="docker compose -f infra/docker/docker-compose.prod.yml"
+export COMPOSE="docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml"
 echo "$RELEASE_SHA $IMAGE_TAG"
 docker pull "ghcr.io/$GHCR_OWNER/proovra-api:$IMAGE_TAG"
 docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \

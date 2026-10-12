@@ -105,7 +105,7 @@ curl -fsS http://127.0.0.1:8080/health; echo
 curl -sS -w '  HTTP %{http_code}\n' http://127.0.0.1:8080/readyz      # {"status":"ok"} HTTP 200
 curl -fsS http://127.0.0.1:8090/health | head -c 400; echo
 curl -sS -w '  HTTP %{http_code}\n' https://api.proovra.com/readyz
-export EXEC="docker compose -f infra/docker/docker-compose.prod.yml exec -T proovra-api node"
+export EXEC="docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml exec -T proovra-api node"
 ```
 
 ## 8. Platform Admin actor

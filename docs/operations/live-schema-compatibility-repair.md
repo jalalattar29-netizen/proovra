@@ -139,7 +139,7 @@ git pull --ff-only origin main
 
 # Pull the new image (preferred CI path) OR per-service rebuild.
 PROOVRA_IMAGE_TAG=<new-git-sha> \
-  docker compose -f infra/docker/docker-compose.prod.yml pull proovra-api
+  docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml pull proovra-api
 ```
 
 ### 2. Pre-flight: re-run the live audit BEFORE migration
@@ -267,7 +267,7 @@ The final migration closes EXACTLY these 5 findings. It:
 cd /opt/proovra/app
 git pull --ff-only origin main
 PROOVRA_IMAGE_TAG=<new-git-sha> \
-  docker compose -f infra/docker/docker-compose.prod.yml pull proovra-api
+  docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml pull proovra-api
 
 # 1. Pre-flight audit — confirms only the 5 expected CRITICAL findings.
 docker exec -it docker-proovra-api-1 sh -lc '

@@ -54,7 +54,7 @@ the target, which is the outage.
 Deploy alongside the production stack:
 
 ```
-docker compose -f infra/docker/docker-compose.prod.yml \
+docker compose --env-file /opt/proovra/app/.env -f infra/docker/docker-compose.prod.yml \
                -f infra/docker/docker-compose.monitoring.yml up -d
 ```
 

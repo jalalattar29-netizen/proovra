@@ -30,10 +30,10 @@ st="$STUB_STATE"
 args="$*"
 last="\${@: -1}"
 case "$args" in
-  "compose -f "*" ps -q "*) [ -f "$st/cid-$last" ] && cat "$st/cid-$last"; exit 0 ;;
-  "compose -f "*" pull "*) exit "\${STUB_PULL_RC:-0}" ;;
-  "compose -f "*" run "*) exit "\${STUB_GATE_RC:-0}" ;;
-  "compose -f "*" up -d --no-deps "*)
+  "compose --env-file "*" -f "*" ps -q "*) [ -f "$st/cid-$last" ] && cat "$st/cid-$last"; exit 0 ;;
+  "compose --env-file "*" -f "*" pull "*) exit "\${STUB_PULL_RC:-0}" ;;
+  "compose --env-file "*" -f "*" run "*) exit "\${STUB_GATE_RC:-0}" ;;
+  "compose --env-file "*" -f "*" up -d --no-deps "*)
      echo "new-$last" > "$st/cid-$last"
      echo "ghcr.io/$GHCR_OWNER/$last:$IMAGE_TAG" > "$st/img-new-$last"; exit 0 ;;
   "inspect --format {{.Config.Image}} "*) cat "$st/img-$last"; exit 0 ;;
@@ -75,6 +75,8 @@ function run(args: string[], env: Record<string, string | undefined>, setup?: (s
   for (const d of [join(root, "scripts"), join(root, "infra", "docker"), bin, state]) mkdirSync(d, { recursive: true });
   copyFileSync(SCRIPT, join(root, "scripts", "deploy-prod-pull.sh"));
   writeFileSync(join(root, "infra", "docker", "docker-compose.prod.yml"), "services: {}\n");
+  // The server's compose env file; the script passes it, never reads or prints it.
+  writeFileSync(join(root, ".env"), `DATABASE_URL=${SECRET}\n`);
   for (const [name, body] of [
     ["docker", DOCKER_STUB],
     ["git", GIT_STUB],
@@ -136,6 +138,24 @@ describe("deploy-prod-pull.sh — refuses anything but an immutable release", ()
   });
 });
 
+describe("deploy-prod-pull.sh — the compose env file", () => {
+  it("refuses before touching docker or git when the env file is missing", () => {
+    const r = run([], deployEnv, (_state, root) => rmSync(join(root, ".env")));
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/compose env file .* is not readable/);
+    expect(r.log).toEqual([]);
+  });
+
+  it("passes the env file to every compose call and never prints its values", () => {
+    const r = run([], deployEnv);
+    expect(r.status, r.out).toBe(0);
+    const calls = r.log.filter((l) => l.startsWith("docker compose "));
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(c).toMatch(/^docker compose --env-file \S+[\\/]\.env -f infra\/docker\/docker-compose\.prod\.yml /);
+    expect(r.out).not.toContain(SECRET);
+  });
+});
+
 describe("deploy-prod-pull.sh — a release deploy", () => {
   it("--plan prints the selected release and changes nothing", () => {
     const r = run(["--plan"], deployEnv);
@@ -156,12 +176,12 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
       at(/^git fetch --quiet --tags origin$/),
       at(/^git diff --quiet HEAD --$/),
       at(new RegExp(`^git checkout --quiet --detach ${SHA}$`)),
-      at(/compose -f \S+ pull proovra-api proovra-worker$/),
+      at(/compose --env-file \S+ -f \S+ pull proovra-api proovra-worker$/),
       at(new RegExp(`image inspect .*proovra-worker:${TAG}$`)),
-      at(/compose -f \S+ run --rm --no-deps -T --entrypoint node proovra-api scripts\/runtime-schema-gate\.mjs$/),
-      at(/compose -f \S+ up -d --no-deps proovra-api$/),
+      at(/compose --env-file \S+ -f \S+ run --rm --no-deps -T --entrypoint node proovra-api scripts\/runtime-schema-gate\.mjs$/),
+      at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-api$/),
       at(/^curl .*8080\/readyz$/),
-      at(/compose -f \S+ up -d --no-deps proovra-worker$/),
+      at(/compose --env-file \S+ -f \S+ up -d --no-deps proovra-worker$/),
       at(/^curl .*8090\/health$/),
     ];
     expect(order.every((i) => i >= 0), `${order}\n${r.log.join("\n")}`).toBe(true);
@@ -196,7 +216,7 @@ describe("deploy-prod-pull.sh — a release deploy", () => {
     const r = run([], { ...deployEnv, STUB_GIT_DIRTY: "1" });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/modified TRACKED files/);
-    expect(r.log.some((l) => /checkout|pull/.test(l))).toBe(false);
+    expect(r.log.some((l) => /git checkout| pull /.test(l))).toBe(false);
   });
 
   it("an API that never becomes healthy fails before the worker is touched, and names the rollback", () => {

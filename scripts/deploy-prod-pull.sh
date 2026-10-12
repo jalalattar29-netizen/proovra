@@ -46,11 +46,17 @@ main() {
   cd "${REPO_ROOT}"
 
   local COMPOSE_FILE="${COMPOSE_FILE:-infra/docker/docker-compose.prod.yml}"
+  # The compose file interpolates DATABASE_URL, REDIS_URL, … from the server's
+  # env file (/opt/proovra/app/.env); without --env-file they would be empty.
+  local COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-${REPO_ROOT}/.env}"
   local STATE_DIR="${STATE_DIR:-${REPO_ROOT}/.deploy-state}"
   local API_READY_URL="${API_READY_URL:-http://127.0.0.1:8080/readyz}"
   local WORKER_HEALTH_URL="${WORKER_HEALTH_URL:-http://127.0.0.1:8090/health}"
   local HEALTH_TIMEOUT_S="${HEALTH_TIMEOUT_S:-180}"
   local API_SVC="proovra-api" WORKER_SVC="proovra-worker"
+
+  [ -r "${COMPOSE_ENV_FILE}" ] ||
+    fail "the compose env file ${COMPOSE_ENV_FILE} is not readable (set COMPOSE_ENV_FILE)."
 
   [[ "${GHCR_OWNER:-}" =~ ^[a-z0-9][a-z0-9-]{0,38}$ ]] ||
     fail "GHCR_OWNER is required and must be a lowercase GitHub owner (e.g. the repository owner)."
@@ -75,10 +81,11 @@ main() {
   echo "  api image    = ${API_IMAGE}"
   echo "  worker image = ${WORKER_IMAGE}"
   echo "  compose file = ${COMPOSE_FILE} (checked out at ${SHA})"
+  echo "  env file     = ${COMPOSE_ENV_FILE} (values never printed)"
 
   # --- the rollback point: what is running NOW ---------------------------------
   local CUR_SHA="" CUR_TAG="" CUR_REF CUR_CID
-  CUR_CID="$(docker compose -f "${COMPOSE_FILE}" ps -q "${API_SVC}" 2>/dev/null || true)"
+  CUR_CID="$(compose ps -q "${API_SVC}" 2>/dev/null || true)"
   if [ -n "${CUR_CID}" ]; then
     CUR_REF="$(docker inspect --format '{{.Config.Image}}' "${CUR_CID}")"
     CUR_TAG="${CUR_REF##*:}"
@@ -114,7 +121,7 @@ main() {
   git checkout --quiet --detach "${SHA}"
 
   # --- pull + prove the bytes are the release ---------------------------------
-  docker compose -f "${COMPOSE_FILE}" pull "${API_SVC}" "${WORKER_SVC}"
+  compose pull "${API_SVC}" "${WORKER_SVC}"
   local ref rev
   for ref in "${API_IMAGE}" "${WORKER_IMAGE}"; do
     rev="$(image_revision "${ref}")"
@@ -125,20 +132,20 @@ main() {
 
   # --- the database must already have what this image reads -------------------
   echo "Runtime schema gate (read-only, from the new image)..."
-  docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T --entrypoint node "${API_SVC}" scripts/runtime-schema-gate.mjs ||
+  compose run --rm --no-deps -T --entrypoint node "${API_SVC}" scripts/runtime-schema-gate.mjs ||
     fail "the database does not meet ${TAG}'s schema requirements — apply the migrations first. Nothing was restarted."
 
   # --- API first, then worker -------------------------------------------------
-  docker compose -f "${COMPOSE_FILE}" up -d --no-deps "${API_SVC}"
+  compose up -d --no-deps "${API_SVC}"
   wait_healthy "${API_SVC}" "${API_READY_URL}"
-  docker compose -f "${COMPOSE_FILE}" up -d --no-deps "${WORKER_SVC}"
+  compose up -d --no-deps "${WORKER_SVC}"
   wait_healthy "${WORKER_SVC}" "${WORKER_HEALTH_URL}"
 
   local svc want cid running
   for svc in "${API_SVC}" "${WORKER_SVC}"; do
     want="${API_IMAGE}"
     [ "${svc}" = "${WORKER_SVC}" ] && want="${WORKER_IMAGE}"
-    cid="$(docker compose -f "${COMPOSE_FILE}" ps -q "${svc}")"
+    cid="$(compose ps -q "${svc}")"
     running="$(docker inspect --format '{{.Config.Image}}' "${cid}")"
     [ "${running}" = "${want}" ] || fail "${svc} is running '${running}', expected '${want}'."
   done
@@ -174,13 +181,18 @@ validate_release() {
     fail "IMAGE_TAG '${tag}' does not name RELEASE_SHA; it must be exactly sha-${sha:0:7} (the tag CI publishes for that commit)."
 }
 
+# Every compose call names the env file and the compose file (main's locals).
+compose() {
+  docker compose --env-file "${COMPOSE_ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+}
+
 image_revision() {
   docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$1"
 }
 
 wait_healthy() {
   local svc="$1" url="$2" cid status i
-  cid="$(docker compose -f "${COMPOSE_FILE}" ps -q "${svc}")"
+  cid="$(compose ps -q "${svc}")"
   [ -n "${cid}" ] || fail "${svc} has no container after 'up'."
   for ((i = 1; i <= HEALTH_TIMEOUT_S; i++)); do
     status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${cid}")"
