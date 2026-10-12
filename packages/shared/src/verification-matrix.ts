@@ -194,7 +194,9 @@ export function otsMatrixStatement(state: TrustSignalState, summary: string): st
       return "Bitcoin anchoring has been pending longer than expected; its current state is not known. It has not been independently verified against the Bitcoin blockchain.";
     case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
     case "NOT_CHECKED":
-      return `${summary.replace(/\.$/, "")}. No independent Bitcoin verification result is recorded.`;
+      return /verification unavailable/i.test(summary)
+        ? `${summary.replace(/\.$/, "")}. The configured Bitcoin verifier could not be reached when it last checked.`
+        : `${summary.replace(/\.$/, "")}. No independent Bitcoin verification result is recorded.`;
     case "FAILED":
       return `${summary.replace(/\.$/, "")}. This concerns Bitcoin anchoring only; it does not change the file-integrity, signature or custody checks.`;
     case "UNAVAILABLE":
@@ -282,8 +284,9 @@ function acquisitionRows(mode: string | null, source: string | null | undefined)
             "NOT_CHECKED",
             `${acquisition.label}. ${acquisition.statement} The capture is reported by PROOVRA software; PROOVRA's server did not observe it.`,
           )
-        : // An upload or submission is not a capture by PROOVRA.
-          row("capture_method", "NOT_APPLICABLE", `${acquisition.label}, not captured by PROOVRA. ${acquisition.statement}`);
+        : // An upload or submission is not a capture by PROOVRA. The acquisition
+          // statement itself is the provenance panel's, stated once there.
+          row("capture_method", "NOT_APPLICABLE", `${acquisition.label}, not captured by PROOVRA.`);
   const before = acquisition.beforeProovraVisibility.replace(/\.$/, "");
   const provenance = row(
     "pre_proovra_provenance",
@@ -358,8 +361,28 @@ function publicationRow(publication: PublicationFact): VerificationMatrixRow {
 }
 
 /**
+ * The words a reader sees for each status. The codes are the machine
+ * vocabulary (trust-decision.json, the API); no primary prose prints them.
+ */
+export const VERIFICATION_STATUS_LABELS: Readonly<Record<VerificationStatus, string>> = {
+  VERIFIED: "Verified",
+  FAILED: "Failed",
+  NOT_CHECKED: "Not checked",
+  NOT_APPLICABLE: "Not applicable",
+  UNAVAILABLE: "Unavailable",
+};
+
+const STATUS_PREDICATE: Readonly<Record<VerificationStatus, string>> = {
+  VERIFIED: "was verified",
+  FAILED: "failed",
+  NOT_CHECKED: "was not checked",
+  NOT_APPLICABLE: "does not apply",
+  UNAVAILABLE: "could not be determined",
+};
+
+/**
  * THE bounded summary. It names the integrity and custody result exactly,
- * says that NOT_CHECKED means not independently verified, and always ends with
+ * says that "Not checked" means not independently verified, and always ends with
  * the fixed limitation. Nothing in it may say more than the rows.
  */
 export function verificationMatrixSummary(rows: ReadonlyArray<Pick<VerificationMatrixRow, "key" | "label" | "status">>): string {
@@ -368,17 +391,17 @@ export function verificationMatrixSummary(rows: ReadonlyArray<Pick<VerificationM
   const parts: string[] = [];
   if (failed.length > 0) {
     parts.push(
-      `${failed.join(", ")} FAILED. Do not rely on the preserved bytes until ${failed.length === 1 ? "this check is" : "these checks are"} reviewed.`,
+      `Failed: ${failed.join(", ")}. Do not rely on the preserved bytes until ${failed.length === 1 ? "this check is" : "these checks are"} reviewed.`,
     );
   } else if (of("file_integrity") === "VERIFIED" && of("custody_chain") === "VERIFIED") {
     parts.push("Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes.");
   } else if (of("file_integrity") === "VERIFIED") {
-    parts.push(`Cryptographic integrity checks passed for the preserved bytes; the PROOVRA custody chain is ${of("custody_chain")}.`);
+    parts.push(`Cryptographic integrity checks passed for the preserved bytes; the PROOVRA custody chain ${STATUS_PREDICATE[of("custody_chain")]}.`);
   } else {
-    parts.push(`Cryptographic integrity of the preserved bytes is ${of("file_integrity")}.`);
+    parts.push(`Cryptographic integrity of the preserved bytes ${STATUS_PREDICATE[of("file_integrity")]}.`);
   }
   if (rows.some((r) => r.status === "NOT_CHECKED")) {
-    parts.push("Any signal marked NOT_CHECKED was not independently verified.");
+    parts.push(`Any signal marked “${VERIFICATION_STATUS_LABELS.NOT_CHECKED}” was not independently verified.`);
   }
   parts.push(VERIFICATION_LIMITATION);
   return parts.join(" ");

@@ -206,7 +206,7 @@ test("TSA valid + OTS proof present, not checked → NOT_CHECKED, no verified cl
   assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
   assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
   assert.equal(d.anchoringStatusLabel, "Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
-  assert.match(d.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
+  assert.match(d.summary, /Any signal marked “Not checked” was not independently verified\./);
   assert.match(d.reviewerAction, /PROOVRA has not checked it against the chain/);
   assertNoOverclaim(d);
 });
@@ -272,7 +272,7 @@ test("signature and custody are PASSED only when checked in the evaluation", () 
   const bad = decide({ signatureVerified: false });
   assert.equal(bad.signals.find((s) => s.key === "signature").state, "FAILED");
   assert.equal(bad.integrityReviewRequired, true);
-  assert.match(bad.summary, /^Record signature FAILED\./);
+  assert.match(bad.summary, /^Failed: Record signature./);
 });
 
 test("identity wording names the real sign-in method, never OAuth for an email account", () => {

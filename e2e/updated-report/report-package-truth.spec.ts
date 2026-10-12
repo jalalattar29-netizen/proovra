@@ -181,7 +181,9 @@ test("J1 v1 — capture-time identity, upload wording and timestamp truth; both 
   expect(text).toContain("Personal workspace");
   expect(text).toMatch(/Organization Verification\s+Not established/i);
   expect(text).not.toMatch(IDENTITY_OVERCLAIM);
-  expect(text).toContain("Files submitted through PROOVRA Web Upload. PROOVRA did not observe creation or editing before submission.");
+  expect(text).toContain(
+    "Files were submitted through PROOVRA Web Upload. PROOVRA observed receipt, preservation and integrity from intake onward. Creation, authorship and editing before submission were not observed.",
+  );
   expect(text).not.toMatch(/secure capture/i);
   expect(text).toContain("Timestamp token obtained; not validated");
   expect(text).not.toMatch(/could not be obtained/i);
@@ -337,7 +339,7 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(text).toMatch(/supersedes report v1/);
   expect(text).toMatch(/trusted timestamp was validated after report v1/i);
   expect(text).toContain("Anchoring proof present; not independently chain-verified");
-  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+NOT_CHECKED/);
+  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+Not checked/);
   expect(text).not.toMatch(/Bitcoin anchoring\s+Verified/);
   // A validated token is a certificate-chain fact, never a qualification.
   expect(text).toContain("Timestamp token and certificate chain validated; qualified-service status was not independently evaluated.");
@@ -648,7 +650,7 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
 
   // Report v1: OTS pending, NOT_CHECKED, never chain-verified.
   const text = pdfText(await downloadVersion(session.api, id, "report", 1), "ots-pending-v1.pdf");
-  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+NOT_CHECKED/);
+  expect(text).toMatch(/OpenTimestamps \/ Bitcoin anchoring\s+Not checked/);
   expect(text.replace(/\s+/g, " ")).toContain("Bitcoin anchoring is pending: the OpenTimestamps request was accepted and its Bitcoin attestation has not completed. It has not been independently chain-verified.");
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(findForbiddenCustomerClaims(text)).toEqual([]);
@@ -683,7 +685,8 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
   await signIn(page, session.email);
   await openArtifacts(page, id);
   await expect(page.getByTestId("pair-1-package-profile")).toContainText("Full forensic package");
-  await expect(page.getByTestId("truth-ots-status")).toHaveText(/NOT_CHECKED/);
+  await expect(page.getByTestId("truth-ots-status")).toHaveText(/Not checked/);
+  await expect(page.getByTestId("truth-ots-status")).toHaveAttribute("data-verification-status", "NOT_CHECKED");
   await page.screenshot({ path: join(PROOF_DIR, "ots-pending-artifacts.png"), fullPage: true });
 });
 

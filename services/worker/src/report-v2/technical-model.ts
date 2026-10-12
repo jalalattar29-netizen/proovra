@@ -3,6 +3,7 @@ import type {
   CanonicalOtsStateMaterial,
   CanonicalTimestampStateMaterial,
 } from "@proovra/shared";
+import { OTS_FAILURE_CODE_LABELS, boundedOtsFailureCode } from "@proovra/shared";
 import {
   ReportEvidence,
   ReportAnchorSummary,
@@ -473,7 +474,8 @@ const fingerprintRows: KeyValueRow[] = [
     tsaInputDigestHex: safe(canonicalMaterials.timestampState.tsaInputDigestHex),
     tsaInputKind: safe(canonicalMaterials.timestampState.tsaInputKind),
     otsHash: safe(canonicalMaterials.otsState.otsHash),
-    otsDetail: safe(evidence.otsFailureReason, ""),
+    // The failure in words (the bounded vocabulary), never the stored code.
+    otsDetail: evidence.otsFailureReason ? OTS_FAILURE_CODE_LABELS[boundedOtsFailureCode(evidence.otsFailureReason)!] : "",
     anchorHash: safe(anchorSummary?.anchorHash),
 timestampReferenceNote:
   (canonicalMaterials.timestampState.tokenPresent ||

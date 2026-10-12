@@ -281,9 +281,11 @@ describe("C-1 — cover PDF compactValue is derived from the canonical state", (
   it("the cover reads THE canonical layer/state label and tone (no local word table)", () => {
     // Since 2026-10-08 the compact value is the verification-matrix row's
     // canonical status (VERIFIED only for PASSED) and its tone comes from the
-    // one status->tone mapping: no local word table.
+    // one status->tone mapping: no local word table. (2026-10-12) The reader
+    // sees the shared words for that status (VERIFICATION_STATUS_LABELS), never
+    // the raw code.
     const src = read(COVER);
-    expect(src).toMatch(/value:\s*row\.status/);
+    expect(src).toMatch(/value:\s*VERIFICATION_STATUS_LABELS\[row\.status\]/);
     expect(src).toMatch(/verificationStatusTone\(row\.status\)/);
     expect(src).not.toMatch(/compactValue\s*=\s*"Verified"/);
     expect(src).not.toMatch(/"Anchored"/);

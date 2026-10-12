@@ -3,7 +3,7 @@ import { reportAssetDataUrl } from "../asset-data-url.js";
 import type { ReportViewModel } from "../types.js";
 import { escapeHtml, safe } from "../formatters.js";
 import { renderInlineQrBlock, verificationStatusTone } from "../ui.js";
-import { formatTimestampForReportUtc } from "@proovra/shared";
+import { VERIFICATION_STATUS_LABELS, formatTimestampForReportUtc } from "@proovra/shared";
 const coverBrandIconUrl = reportAssetDataUrl("icon-192.png");
 const coverHeaderLockupUrl = reportAssetDataUrl("report-header.png");
 // `coverBrandIconUrl` is retained for any legacy section that may still reference
@@ -153,7 +153,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
         ? "badge-danger"
         : "badge-warning";
 
-  const integrityBadgeText = `File integrity ${fileIntegrity}`;
+  const integrityBadgeText = `File integrity ${VERIFICATION_STATUS_LABELS[fileIntegrity]}`;
   const primaryItemCount = vm.contentItems.filter(
     (item) => item.artifactRole === "primary_evidence"
   ).length;
@@ -263,7 +263,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
 
             <div class="cover-status-stamp ${integrityBadgeClass}">
               <span>${presentationTone === "success" ? "✓" : "!"}</span>
-              <strong>File integrity ${escapeHtml(fileIntegrity)} · PROOVRA custody chain ${escapeHtml(statusOf("custody_chain"))}</strong>
+              <strong>File integrity ${escapeHtml(VERIFICATION_STATUS_LABELS[fileIntegrity])} · PROOVRA custody chain ${escapeHtml(VERIFICATION_STATUS_LABELS[statusOf("custody_chain")])}</strong>
             </div>
 
             <div class="cover-status-subtitle" data-verification-summary>
@@ -280,7 +280,7 @@ export function renderCoverSection(vm: ReportViewModel): string {
                 const tone = verificationStatusTone(row.status);
                 return renderDecisionIndicator({
                   label: row.label,
-                  value: row.status,
+                  value: VERIFICATION_STATUS_LABELS[row.status],
                   tone: tone === "neutral" ? "warning" : tone,
                 });
               })
@@ -372,12 +372,9 @@ export function renderCoverSection(vm: ReportViewModel): string {
           </div>
 
 <div class="cover-boundary-note cover-boundary-inline">
-  <div class="cover-boundary-title">Report Boundary.</div>
-  <div class="cover-boundary-body">
-    ${escapeHtml(vm.canonicalMaterials.legalBoundary.reportBoundary)}
-  </div>
+  <div class="cover-boundary-title">Independent review.</div>
   <div class="cover-boundary-followup">
-    For technical validation, use the verification page and appendix.
+    Every signal above can be checked independently: use the public verification page, the technical appendix and the verification package.
   </div>
 </div>
       </div>

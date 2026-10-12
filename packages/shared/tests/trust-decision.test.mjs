@@ -256,7 +256,7 @@ test("pending Bitcoin anchoring degrades presentation tone; the summary names it
 
   assert.equal(trustDecision.presentationState, "VERIFIED_PENDING_ANCHORING");
   assert.equal(getTrustDecisionPresentationTone(trustDecision), "warning");
-  assert.match(trustDecision.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
+  assert.match(trustDecision.summary, /Any signal marked “Not checked” was not independently verified\./);
   assert.match(trustDecision.reviewerAction, /Bitcoin anchoring has not completed/);
 });
 
@@ -299,7 +299,7 @@ test("finalized publication requires a validated timestamp and a chain-verified 
   const unchecked = decide("PROOF_STRUCTURE");
   assert.notEqual(unchecked.presentationState, "VERIFIED_FINALIZED");
   assert.match(unchecked.anchoringStatusLabel, /not independently verified against the Bitcoin blockchain/);
-  assert.match(unchecked.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
+  assert.match(unchecked.summary, /Any signal marked “Not checked” was not independently verified\./);
   assert.match(unchecked.reviewerAction, /verify the OpenTimestamps proof against the Bitcoin chain yourself/);
 });
 

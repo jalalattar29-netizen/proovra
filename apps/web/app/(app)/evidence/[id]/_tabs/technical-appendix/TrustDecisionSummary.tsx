@@ -31,6 +31,7 @@ import {
 import {
   readStoredTrustDecision,
   toVerificationStatus,
+  VERIFICATION_STATUS_LABELS,
   type TrustSignal,
   type TrustSignalState,
   type VerificationStatus,
@@ -152,9 +153,9 @@ export function TrustDecisionSummary({
           </div>
 
           <p className="ta-signals__lede">
-            Each signal is stated in exactly one status: VERIFIED, FAILED,
-            NOT_CHECKED, NOT_APPLICABLE or UNAVAILABLE. A signal marked
-            NOT_CHECKED was not independently verified.
+            Each signal is stated in exactly one status: Verified, Failed,
+            Not checked, Not applicable or Unavailable. A signal marked
+            “Not checked” was not independently verified.
           </p>
 
           <div className="ta-signals__list">
@@ -179,7 +180,7 @@ export function TrustDecisionSummary({
                         data-tone={appendixAppTone(described.tone)}
                         data-trust-signal-pill
                       >
-                        {described.status}
+                        {VERIFICATION_STATUS_LABELS[described.status]}
                       </span>
                     </span>
                   }

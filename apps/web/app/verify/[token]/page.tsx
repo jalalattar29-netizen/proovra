@@ -26,6 +26,7 @@ import {
   OTS_FAILURE_CODE_LABELS,
   OTS_FAILURE_CODES,
   storedBytesCheckStatusOf,
+  VERIFICATION_STATUS_LABELS,
   type VerificationMatrix,
   type OtsFailureCode,
 } from "@proovra/shared";
@@ -3501,7 +3502,7 @@ const executiveBadges = useMemo<
             : "neutral";
 
       return {
-        label: `${row.label}: ${row.status}`,
+        label: `${row.label}: ${VERIFICATION_STATUS_LABELS[row.status]}`,
         tone,
         show: true,
       };
@@ -4048,8 +4049,11 @@ tone={
       custodyChainMode,
       otsCalendar,
       otsProofPresent,
-      otsAnchoredAtUtc,
       otsUpgradedAtUtc,
+      // The time PROOVRA recorded the proof and the verified anchor time are
+      // distinct rows (2026-10-12); both invalidate the memo.
+      otsProofRecordedAtUtc,
+      otsVerifiedAnchorAtUtc,
       otsHashMatches,
       // The badge is derived from the claim, the check, the status and the
       // txid (2026-09-29); it is what this memo reads, so it is what
@@ -4400,8 +4404,8 @@ with this evidence record.
         What was checked, signal by signal
       </div>
       <div style={{ ...VERIFY_TYPO.small, maxWidth: 860 }}>
-        Each signal is stated in exactly one status: VERIFIED, FAILED, NOT_CHECKED, NOT_APPLICABLE
-        or UNAVAILABLE. A signal marked NOT_CHECKED was not independently verified. A failed or
+        Each signal is stated in exactly one status: Verified, Failed, Not checked, Not applicable
+        or Unavailable. A signal marked “Not checked” was not independently verified. A failed or
         unchecked timestamp/anchoring layer does not by itself invalidate core hashes, signatures,
         custody records, or preserved originals.
       </div>

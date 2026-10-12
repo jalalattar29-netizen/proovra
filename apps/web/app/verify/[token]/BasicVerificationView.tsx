@@ -14,6 +14,7 @@
 import {
   storedBytesVerificationRow,
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  VERIFICATION_STATUS_LABELS,
   type BasicVerification,
   type ComponentVerificationState,
   type VerificationMatrix,
@@ -75,7 +76,7 @@ export function VerificationMatrixSection({ matrix }: { matrix: VerificationMatr
           testId={`verify-matrix-row-${row.key}`}
           label={row.label}
           state={MATRIX_ROW_STATE[row.status]}
-          badge={row.status}
+          badge={VERIFICATION_STATUS_LABELS[row.status]}
           detail={row.statement}
         />
       ))}

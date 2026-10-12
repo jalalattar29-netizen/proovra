@@ -38,7 +38,7 @@ export function renderLegalInterpretationSection(vm: ReportViewModel): string {
               This report is a technical preservation and verification record, not a final legal judgment.
             </div>
             <div class="legal-interpretation-copy">
-              Reviewers should separate recorded integrity, custody, timestamping, and storage controls from factual truth, authorship, context, relevance, evidentiary weight, and admissibility.
+              Reviewers should keep the recorded integrity, custody, timestamping and storage controls separate from the questions this report cannot answer, set out below.
             </div>
           </div>
         </div>
@@ -62,7 +62,7 @@ export function renderLegalInterpretationSection(vm: ReportViewModel): string {
           ${renderLegalCard({
             title: "Legal review posture",
             body:
-              "Use this report as a technical and procedural record. Questions of factual truth, authorship, context, relevance, evidentiary weight, and admissibility remain for the relevant court, investigator, regulator, insurer, employer, or expert process.",
+              "Use this report as a technical and procedural record. The questions above remain for the relevant court, investigator, regulator, insurer, employer or expert process.",
             tone: "neutral",
           })}
 

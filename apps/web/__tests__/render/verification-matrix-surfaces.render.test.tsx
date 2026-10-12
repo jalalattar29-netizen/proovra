@@ -105,14 +105,14 @@ describe("Public Verify — matrix panels (old API without verificationMatrix)",
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(
       /Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes\./,
     );
-    expect(getByTestId("verify-matrix-summary").textContent).toMatch(/NOT_CHECKED was not independently verified/);
+    expect(getByTestId("verify-matrix-summary").textContent).toMatch(/“Not checked” was not independently verified/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
     // An unchecked OpenTimestamps proof reads NOT_CHECKED.
-    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("NOT_CHECKED");
+    expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("Not checked");
     expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(
       /No independent Bitcoin verification result is recorded/,
     );
-    expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("VERIFIED");
+    expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("Verified");
     // The old wire summary and reviewer action never reach the page.
     expect(text).not.toContain("Rely on this record.");
     expect(text).not.toContain("All signals passed.");
@@ -128,7 +128,7 @@ describe("Public Verify — matrix panels (old API without verificationMatrix)",
     });
     expect(resolveVerifyMatrix(server, decision)).toBe(server);
     const { getByTestId } = render(<VerificationMatrixGrid rows={server.rows} />);
-    expect(getByTestId("verify-matrix-status-public_verify_publication").textContent).toBe("VERIFIED");
+    expect(getByTestId("verify-matrix-status-public_verify_publication").textContent).toBe("Verified");
   });
 
   it("a FAILED file-integrity, signature or custody row requires integrity review", () => {
@@ -181,7 +181,7 @@ describe("Public Verify — BASIC tier renders the matrix", () => {
     expectNoRetiredClaims(container.textContent ?? "");
     expect(getByTestId("verify-matrix-summary").textContent).toMatch(/custody checks passed/);
     expect(getByTestId("verify-matrix-limitation").textContent).toBe(VERIFICATION_LIMITATION);
-    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(/NOT_CHECKED/);
+    expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(/Not checked/);
     expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).not.toMatch(/VERIFIED/);
   });
 
@@ -200,7 +200,9 @@ describe("Technical Appendix — TrustDecisionSummary reads any snapshot score-f
     expect(text).toContain(VERIFICATION_LIMITATION);
     const anchoring = container.querySelector('[data-trust-signal-key="bitcoin_anchoring"]') as HTMLElement;
     expect(anchoring.getAttribute("data-trust-signal-status")).toBe("NOT_CHECKED");
-    expect(anchoring.textContent).toMatch(/NOT_CHECKED/);
+    // The machine status stays in the data attribute; the reader sees words.
+    expect(anchoring.textContent).toMatch(/Not checked/);
+    expect(anchoring.textContent).not.toMatch(/NOT_CHECKED/);
     const core = container.querySelector('[data-trust-signal-key="core_integrity"]') as HTMLElement;
     expect(core.getAttribute("data-trust-signal-status")).toBe("VERIFIED");
   });

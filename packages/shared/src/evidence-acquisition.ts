@@ -268,7 +268,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
     category: "UPLOAD",
     label: "Uploaded to PROOVRA",
     statement:
-      "Files submitted through PROOVRA Web Upload. PROOVRA did not observe creation or editing before submission.",
+      "Files were submitted through PROOVRA Web Upload. PROOVRA observed receipt, preservation and integrity from intake onward. Creation, authorship and editing before submission were not observed.",
     observedByProovra:
       "The upload of these files by a signed-in account, their bytes as received, and their digests when the upload was completed.",
     attested:

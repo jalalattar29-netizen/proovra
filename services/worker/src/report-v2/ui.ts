@@ -1,6 +1,6 @@
 
 import { escapeHtml } from "./formatters.js";
-import type { VerificationMatrix, VerificationStatus } from "@proovra/shared";
+import { VERIFICATION_STATUS_LABELS, type VerificationMatrix, type VerificationStatus } from "@proovra/shared";
 import {
   CalloutModel,
   CustodyHashRow,
@@ -359,7 +359,7 @@ export function renderVerificationMatrix(matrix: VerificationMatrix): string {
               <div class="trust-signal-content">
                 <div class="trust-signal-top">
                   <div class="trust-signal-label">${escapeHtml(row.label)}</div>
-                  <div class="trust-signal-score">${escapeHtml(row.status)}</div>
+                  <div class="trust-signal-score">${escapeHtml(VERIFICATION_STATUS_LABELS[row.status])}</div>
                 </div>
                 <div class="trust-signal-detail">${escapeHtml(row.statement)}</div>
               </div>

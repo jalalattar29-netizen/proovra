@@ -31,7 +31,7 @@ test("PROOVRA Web Upload says exactly what PROOVRA did and did not observe", () 
   const a = resolveEvidenceAcquisition({ acquisitionMode: "PROOVRA_WEB_UPLOAD" });
   assert.equal(
     a.statement,
-    "Files submitted through PROOVRA Web Upload. PROOVRA did not observe creation or editing before submission.",
+    "Files were submitted through PROOVRA Web Upload. PROOVRA observed receipt, preservation and integrity from intake onward. Creation, authorship and editing before submission were not observed.",
   );
   assert.equal(a.isDirectCapture, false);
   assert.equal(a.provenanceTier, "IMPORTED_EXISTING_MEDIA");

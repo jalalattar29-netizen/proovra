@@ -164,7 +164,7 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     expect(findForbiddenCustomerClaims(text)).toEqual([]);
     expect(text).not.toMatch(/Technical Confidence|Trust Decision|Overall trust decision|STRONGLY/);
     expect(text).toContain(VERIFICATION_LIMITATION);
-    expect(text).toContain("Any signal marked NOT_CHECKED was not independently verified.");
+    expect(text).toContain("Any signal marked “Not checked” was not independently verified.");
     // Upload is not capture.
     expect(text).toContain("PROOVRA did not observe creation or editing before submission.");
   });

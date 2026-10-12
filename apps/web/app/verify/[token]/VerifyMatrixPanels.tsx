@@ -17,6 +17,7 @@ import {
   buildVerificationMatrix,
   getTrustDecisionPresentationTone,
   VERIFICATION_LIMITATION,
+  VERIFICATION_STATUS_LABELS,
   verificationMatrixSummary,
   type VerificationMatrix,
   type VerificationMatrixRow,
@@ -279,7 +280,7 @@ export function VerificationMatrixGrid({
                   letterSpacing: "0.03em",
                 }}
               >
-                {row.status}
+                {VERIFICATION_STATUS_LABELS[row.status]}
               </div>
             </div>
 

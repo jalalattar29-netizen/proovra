@@ -20,6 +20,7 @@
  *      GPS) — it is retained but unwired, so the contract still holds.
  */
 
+import { PROVENANCE_BOUNDARY_STATEMENT } from "../src/report-v2/required-statements.js";
 import { describe, expect, it } from "vitest";
 // LEGACY-003: the report-v2 barrel was removed — production
 // (src/processor.ts) imports the concrete modules directly, so these tests
@@ -938,7 +939,13 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
     const t = text(renderReportHtml(vm));
     expect(t).toContain("How this record entered PROOVRA");
     expect(t).toContain("Submitted through the PROOVRA mobile app");
-    expect(t).toMatch(/Legal admissibility and evidentiary weight require separate review/);
+    // The compact provenance panel (2026-10-12): five rows, the boundary once.
+    for (const row of ["Method", "Observed by PROOVRA", "Reported by the submitter or capture client", "Not observed by PROOVRA", "Evidence boundary"]) {
+      expect(t).toContain(row);
+    }
+    expect(t).toContain(PROVENANCE_BOUNDARY_STATEMENT);
+    // The mobile channel's own limitations stay with the panel.
+    expect(t).toContain("is reported by the app and is not independently verified");
   });
 
   it("a legacy record says Not recorded — never a guessed channel", async () => {
@@ -954,7 +961,7 @@ describe("UC-0 — How this record entered PROOVRA (report acquisition statement
     );
     const html = renderReportHtml(vm);
     // The whole acquisition statement section, read by its own element.
-    const panel = html.match(/<section class="[^"]*acquisition-statement-panel[^"]*">[\s\S]*?<\/section>/);
+    const panel = html.match(/<section class="[^"]*acquisition-statement-panel[^"]*"[^>]*>[\s\S]*?<\/section>/);
     expect(panel).not.toBeNull();
     const t = text(panel![0]);
     expect(t).toContain("How this record entered PROOVRA");

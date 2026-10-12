@@ -351,7 +351,12 @@ export function resolveOtsTrustState(input: OtsTrustStateInput): OtsTrustState {
       return {
         state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
         proofStatus,
-        label: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+        // A configured verifier that could not be reached is a recorded check
+        // with no result — said as such, never as "no check recorded".
+        label:
+          truth.state === "CHAIN_VERIFICATION_UNAVAILABLE"
+            ? truth.statusLine
+            : "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
         measuredAtUtc: isoOrNull(input.anchorCheckedAtUtc),
       };
     case "SUBMITTED":

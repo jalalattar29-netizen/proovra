@@ -83,12 +83,21 @@ async function openArtifacts(page: Page, evidenceId: string) {
  * The report's own statements about the timestamp and the anchor: the status
  * word and statement of each verification-matrix row, as rendered in the PDF.
  */
-const MATRIX_STATUS = "(VERIFIED|FAILED|NOT_CHECKED|NOT_APPLICABLE|UNAVAILABLE)";
+// The PDF prints each status as words (2026-10-12); the codes stay the
+// machine vocabulary, so the words are mapped back to compare with packages.
+const STATUS_WORDS: Record<string, string> = {
+  Verified: "VERIFIED",
+  Failed: "FAILED",
+  "Not checked": "NOT_CHECKED",
+  "Not applicable": "NOT_APPLICABLE",
+  Unavailable: "UNAVAILABLE",
+};
+const MATRIX_STATUS = "(Verified|Failed|Not checked|Not applicable|Unavailable)";
 function trustStatements(text: string) {
   const row = (label: string) => {
-    // A statement runs to the next row's mark (or the matrix summary).
-    const m = text.match(new RegExp(`${label}\\s+${MATRIX_STATUS}\\s+([^]{1,260}?)(?=\\s+[!✓i]\\s+[A-Z]|\\s+Summary\\b)`));
-    return { status: m?.[1] ?? null, statement: m?.[2]?.replace(/\s+/g, " ").trim() ?? null };
+    // A statement runs to the next row's mark (or the page's closing reviewer action).
+    const m = text.match(new RegExp(`${label}\\s+${MATRIX_STATUS}\\s+([^]{1,260}?)(?=\\s+[!✓i]\\s+[A-Z]|\\s+Reviewer action\\b)`));
+    return { status: m?.[1] ? (STATUS_WORDS[m[1]] ?? null) : null, statement: m?.[2]?.replace(/\s+/g, " ").trim() ?? null };
   };
   const tsa = row("Trusted timestamp \\(RFC 3161\\)");
   const ots = row("OpenTimestamps / Bitcoin anchoring");

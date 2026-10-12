@@ -20,6 +20,7 @@ import {
   resolveOtsTrustState,
   resolveTsaTrustState,
   toVerificationStatus,
+  VERIFICATION_STATUS_LABELS,
   type ReportFreshness,
   type TrustSignalState,
   type VerificationStatus,
@@ -143,7 +144,7 @@ function Fact({
           data-testid={testId ? `${testId}-status` : undefined}
           data-verification-status={status}
         >
-          {status}
+          {VERIFICATION_STATUS_LABELS[status]}
         </dd>
       ) : null}
       {note ? (

@@ -517,8 +517,21 @@ export function buildTrustDecision(params: {
       otsAnchorCheck: params.evidence.otsAnchorCheck ?? null,
       otsAnchorCheckedAtUtc: params.evidence.otsAnchorCheckedAtUtc ?? null,
       otsProofPresent: Boolean(params.evidence.otsProofBase64),
-      otsSubmittedAtUtc: params.evidence.otsSubmittedAtUtc ?? null,
-      otsUpgradedAtUtc: params.evidence.otsUpgradedAtUtc ?? null,
+      // The proof's own bytes (the digest binding is read from them) and the
+      // recorded independent chain check: without them no anchoring state
+      // beyond "attestation present" can be stated, in either direction.
+      otsProofBase64: params.evidence.otsProofBase64 ?? null,
+      otsAttestationRecordedAtUtc: params.evidence.otsAttestationRecordedAtUtc ?? null,
+      otsAttestationBlockHeight: params.evidence.otsAttestationBlockHeight ?? null,
+      otsChainVerificationStatus: params.evidence.otsChainVerificationStatus ?? null,
+      otsChainCheckedAtUtc: params.evidence.otsChainCheckedAtUtc ?? null,
+      otsChainVerifiedAtUtc: params.evidence.otsChainVerifiedAtUtc ?? null,
+      otsChainBlockHeight: params.evidence.otsChainBlockHeight ?? null,
+      otsChainBlockHash: params.evidence.otsChainBlockHash ?? null,
+      otsChainBlockTimeUtc: params.evidence.otsChainBlockTimeUtc ?? null,
+      otsChainConfirmations: params.evidence.otsChainConfirmations ?? null,
+      otsChainVerifier: params.evidence.otsChainVerifier ?? null,
+      otsChainFailureCode: params.evidence.otsChainFailureCode ?? null,
       signatureVerified: params.evidence.signatureVerified ?? null,
       custodyChainValid: params.evidence.custodyChainValid ?? null,
       storageImmutable: params.evidence.storageImmutable,

@@ -199,7 +199,7 @@ describe("Comparison mode — structured snapshot rendering", () => {
     expect(text).not.toMatch(/STRONGLY|96\s*\/\s*100|Reviewer reliance|Max points/i);
     expect(text).toMatch(/This record does not by itself establish authorship/);
     // A legacy anchoring "passed" is never read as checked.
-    expect(text).toMatch(/NOT_CHECKED was not independently verified/);
+    expect(text).toMatch(/“Not checked” was not independently verified/);
   });
 
   it("gives nested objects bounded sections and arrays structured lists", async () => {

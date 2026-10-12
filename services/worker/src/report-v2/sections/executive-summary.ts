@@ -1,10 +1,11 @@
 import { ReportViewModel } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import {
-  ACQUISITION_GLOBAL_QUALIFIER,
   ACQUISITION_LIMITATION_TEXT,
+  VERIFICATION_STATUS_LABELS,
   formatTimestampForReportUtc,
   resolveEvidenceAcquisition,
+  type AcquisitionLimitationCode,
 } from "@proovra/shared";
 import {
   getCaptureContextTimestampLabel,
@@ -16,6 +17,7 @@ import {
   renderKeyValueGrid,
   renderFieldGrid,
 } from "../ui.js";
+import { PROVENANCE_BOUNDARY_STATEMENT, supersessionStatement } from "../required-statements.js";
 
 /**
  * Server-time label for the Capture Context — never says "intake" for
@@ -50,7 +52,7 @@ function renderSupersession(vm: ReportViewModel): string {
     <section class="capture-context-panel acquisition-statement-panel" data-report-supersession>
       <div class="capture-context-header">
         <div class="executive-confirmation-kicker">Updated report</div>
-        <div class="capture-context-intro">This version supersedes report v${s.previousVersion}${
+        <div class="capture-context-intro">${escapeHtml(supersessionStatement(s.previousVersion))}${
           s.previousGeneratedAtUtc ? ` (issued ${escapeHtml(formatTimestampForReportUtc(s.previousGeneratedAtUtc))})` : ""
         }.</div>
       </div>
@@ -62,28 +64,44 @@ function renderSupersession(vm: ReportViewModel): string {
   `;
 }
 
+/**
+ * Limitations the panel's own rows already state: printing them again was the
+ * repetition the panel replaces.
+ */
+const STATED_BY_THE_PANEL: ReadonlySet<AcquisitionLimitationCode> = new Set([
+  "CREATION_NOT_OBSERVED_BY_PROOVRA",
+  "ACQUISITION_NOT_RECORDED",
+]);
+
+/**
+ * THE provenance panel: how the record entered PROOVRA, in five rows — the
+ * method, what PROOVRA itself observed, what the submitter or capture client
+ * reported, what PROOVRA did not observe, and the evidence boundary — stated
+ * once. Limitations particular to a capture channel follow the rows; the
+ * client's manifest facts sit with what the client reported.
+ */
 function renderAcquisitionStatement(vm: ReportViewModel): string {
   const a = resolveEvidenceAcquisition({
     acquisitionMode: vm.meta.acquisitionMode ?? null,
   });
   const limitations = a.limitations
+    .filter((code) => !STATED_BY_THE_PANEL.has(code))
     .map((code) => `<li>${escapeHtml(ACQUISITION_LIMITATION_TEXT[code])}</li>`)
     .join("");
   return `
-    <section class="capture-context-panel acquisition-statement-panel">
+    <section class="capture-context-panel acquisition-statement-panel provenance-panel" data-provenance-panel>
       <div class="capture-context-header">
         <div class="executive-confirmation-kicker">How this record entered PROOVRA</div>
-        <div class="capture-context-intro">${escapeHtml(a.label)}</div>
       </div>
       <div class="capture-context-note">${escapeHtml(a.statement)}</div>
       <dl class="acquisition-basis">
+        <div><dt>Method</dt><dd>${escapeHtml(a.label)}</dd></div>
         <div><dt>Observed by PROOVRA</dt><dd>${escapeHtml(a.observedByProovra)}</dd></div>
-        <div><dt>Reported by the submitter or capture client</dt><dd>${escapeHtml(a.attested)}</dd></div>
-        <div><dt>Before PROOVRA received it</dt><dd>${escapeHtml(a.beforeProovraVisibility)}</dd></div>
+        <div><dt>Reported by the submitter or capture client</dt><dd>${escapeHtml(a.attested)}${renderCaptureManifestFacts(vm)}</dd></div>
+        <div><dt>Not observed by PROOVRA</dt><dd>${escapeHtml(a.beforeProovraVisibility)}</dd></div>
+        <div><dt>Evidence boundary</dt><dd>${escapeHtml(PROVENANCE_BOUNDARY_STATEMENT)}</dd></div>
       </dl>
-      <ul class="acquisition-limitations">${limitations}</ul>
-      ${renderCaptureManifestFacts(vm)}
-      <div class="capture-context-note">${escapeHtml(ACQUISITION_GLOBAL_QUALIFIER)}</div>
+      ${limitations ? `<ul class="acquisition-limitations">${limitations}</ul>` : ""}
     </section>
   `;
 }
@@ -321,20 +339,6 @@ function renderCaptureContext(vm: ReportViewModel): string {
   `;
 }
 
-function renderExecutiveBoundary(vm: ReportViewModel): string {
-  return `
-    <section class="executive-outcome executive-outcome-warning executive-boundary-outcome">
-      <div class="executive-outcome-title">Important boundary</div>
-      <div class="executive-outcome-body">
-        This report verifies recorded integrity and preservation state only. Legal admissibility, factual truth, authorship, context, and evidentiary weight require separate review.
-      </div>
-      <div class="executive-reviewer-action">
-        ${escapeHtml(vm.trustDecision.reviewerAction)}
-      </div>
-    </section>
-  `;
-}
-
 function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
   return renderPageSection(
     "Trust Signal Analysis",
@@ -347,17 +351,14 @@ function renderTrustSignalAnalysisPage(vm: ReportViewModel): string {
             What was checked, signal by signal
           </div>
           <div class="executive-confirmation-body">
-            Each signal is stated as VERIFIED, FAILED, NOT_CHECKED, NOT_APPLICABLE or UNAVAILABLE. NOT_CHECKED means the material was not independently verified. There is no overall score and no overall verdict.
+            Each signal is stated as Verified, Failed, Not checked, Not applicable or Unavailable. “Not checked” means the material was not independently verified. There is no overall score and no overall verdict.
           </div>
         </section>
 
         ${renderVerificationMatrix(vm.verificationMatrix)}
 
         <section class="trust-signal-analysis-footer">
-          <div class="executive-outcome-title">Summary</div>
-          <div class="executive-outcome-body">
-            ${escapeHtml(vm.verificationMatrix.summary)}
-          </div>
+          <div class="executive-outcome-title">Reviewer action</div>
           <div class="executive-reviewer-action">
             ${escapeHtml(vm.trustDecision.reviewerAction)}
           </div>
@@ -382,7 +383,7 @@ function renderCourtReviewIndexPage(vm: ReportViewModel): string {
             Control points for legal, forensic, and technical review
           </div>
           <div class="executive-confirmation-body">
-            This page consolidates the main review checkpoints used to connect the report, preserved evidence, cryptographic materials, custody history, verification package, and technical appendix. It is an index for reviewers, not a legal admissibility conclusion.
+            This page consolidates the main review checkpoints used to connect the report, preserved evidence, cryptographic materials, custody history, verification package, and technical appendix. It is an index for reviewers, not a legal conclusion.
           </div>
         </section>
 
@@ -393,7 +394,7 @@ function renderCourtReviewIndexPage(vm: ReportViewModel): string {
         <section class="trust-signal-analysis-footer">
           <div class="executive-outcome-title">Review boundary</div>
           <div class="executive-outcome-body">
-            These control points support technical and procedural review. Factual truth, authorship, context, relevance, legal admissibility, and evidentiary weight remain separate human/legal determinations.
+            These control points support technical and procedural review. The questions they cannot answer are set out once, on the Legal Interpretation &amp; Report Boundary page.
           </div>
         </section>
       </div>
@@ -462,7 +463,7 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
     // Per-signal statuses only: no overall verdict, no confidence.
     ...(["file_integrity", "custody_chain"] as const).map((key) => {
       const row = vm.verificationMatrix.rows.find((r) => r.key === key);
-      return { label: row?.label ?? key, value: row?.status ?? "UNAVAILABLE" };
+      return { label: row?.label ?? key, value: VERIFICATION_STATUS_LABELS[row?.status ?? "UNAVAILABLE"] };
     }),
   ];
 
@@ -503,9 +504,6 @@ export function renderExecutiveSummarySection(vm: ReportViewModel): string {
 
         ${renderUnifiedExecutiveGrid(buildCaptureDeviceRows(vm), executiveRows)}
 
-        <div class="executive-bottom-outcomes">
-          ${renderExecutiveBoundary(vm)}
-        </div>
       </div>
     `,
     { className: "executive-summary-section" }

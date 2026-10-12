@@ -84,7 +84,7 @@ import {
 } from "../src/ui";
 import { AuthBrandHeader } from "../src/ui/brand";
 import { BasicVerificationView } from "../src/ui/basic-verification-view";
-import type { BasicVerification } from "@proovra/shared";
+import { VERIFICATION_STATUS_LABELS, type BasicVerification, type VerificationStatus } from "@proovra/shared";
 import { CaptureLocationMap } from "../src/ui/capture-location-map";
 import { parseVerifyCaptureContext } from "../src/product/public-verify";
 
@@ -909,7 +909,7 @@ function MatrixRows({ matrix }: { matrix: VerifyMatrixView }) {
       {matrix.rows.map((r) => (
         <View key={r.key} style={styles.hashRow} testID={`verify-matrix-${r.key}`}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>{r.label}</ProovraText>
-          <ProovraBadge tone={verifyBadgeTone(r.tone)} label={r.status} />
+          <ProovraBadge tone={verifyBadgeTone(r.tone)} label={VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} />
           {r.statement ? <ProovraText variant="label">{r.statement}</ProovraText> : null}
         </View>
       ))}
@@ -924,7 +924,7 @@ function SignalList({ signals }: { signals: VerifyTrustSignalView[] }) {
       {signals.map((s) => (
         <View key={s.key} style={styles.hashRow} testID={`verify-signal-${s.key}`}>
           <ProovraText variant="label" weight="semibold" color={theme.color.ink.muted}>{s.label}</ProovraText>
-          <ProovraBadge tone={verifyBadgeTone(s.tone)} label={s.presentationLabel} />
+          <ProovraBadge tone={verifyBadgeTone(s.tone)} label={VERIFICATION_STATUS_LABELS[s.presentationLabel] ?? s.presentationLabel} />
           {s.summary ? <ProovraText variant="bodySm" weight="semibold">{s.summary}</ProovraText> : null}
           {s.detail ? <ProovraText variant="label" color={theme.color.ink.secondary}>{s.detail}</ProovraText> : null}
         </View>

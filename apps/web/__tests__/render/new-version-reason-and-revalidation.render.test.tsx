@@ -449,8 +449,10 @@ describe("artifact truth header", () => {
     expect(presentNote).not.toContain("Checked against the Bitcoin chain");
     // 2026-10-08 — the canonical status is stated beside each fact: a present
     // but unchecked proof is NOT_CHECKED, never verified.
-    expect(getByTestId("truth-ots-status").textContent).toBe("NOT_CHECKED");
-    expect(getByTestId("truth-tsa-status").textContent).toBe("VERIFIED");
+    expect(getByTestId("truth-ots-status").textContent).toBe("Not checked");
+    expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("NOT_CHECKED");
+    expect(getByTestId("truth-tsa-status").textContent).toBe("Verified");
+    expect(getByTestId("truth-tsa-status").getAttribute("data-verification-status")).toBe("VERIFIED");
     // Only a recorded chain check is dated as one.
     rerender(
       <ArtifactTruthHeader
@@ -479,7 +481,8 @@ describe("artifact truth header", () => {
       />,
     );
     expect(getByTestId("truth-ots-measured").textContent).toContain("Independently verified against the Bitcoin blockchain");
-    expect(getByTestId("truth-ots-status").textContent).toBe("VERIFIED");
+    expect(getByTestId("truth-ots-status").textContent).toBe("Verified");
+    expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("VERIFIED");
     rerender(
       <ArtifactTruthHeader latest={history.versions[0]!} trust={trust} freshness={{ ...freshness, reportVersion: 2, hasNewerFacts: false, changes: [] }} activeRequest={null} formatDateTime={fmt} formatBytes={fmt} actions={null} />,
     );
@@ -501,8 +504,10 @@ describe("artifact truth header", () => {
     );
     expect(getByTestId("truth-tsa").textContent).toBe("Not validated");
     expect(getByTestId("truth-ots").textContent).toBe("Pending");
-    expect(getByTestId("truth-tsa-status").textContent).toBe("NOT_CHECKED");
-    expect(getByTestId("truth-ots-status").textContent).toBe("NOT_CHECKED");
+    expect(getByTestId("truth-tsa-status").textContent).toBe("Not checked");
+    expect(getByTestId("truth-tsa-status").getAttribute("data-verification-status")).toBe("NOT_CHECKED");
+    expect(getByTestId("truth-ots-status").textContent).toBe("Not checked");
+    expect(getByTestId("truth-ots-status").getAttribute("data-verification-status")).toBe("NOT_CHECKED");
     expect(queryByTestId("truth-tsa-measured")).toBeNull();
     expect(queryByTestId("truth-ots-measured")).toBeNull();
     expect(getByTestId("truth-freshness-state").textContent).toBe("Not available");

@@ -132,7 +132,7 @@ test("the Technical tab states each signal's verification status and the bounded
   // A legacy "passed" OpenTimestamps signal was never chain-checked.
   assert.deepEqual(badge("bitcoin_anchoring"), ["NOT_CHECKED"]);
   const summary = r.byTestId("trust-summary")[0].findAll((n) => n.type === "Text").map((n) => [].concat(n.props.children).join(""))[0];
-  assert.ok(summary.includes("Any signal marked NOT_CHECKED was not independently verified."), summary);
+  assert.ok(summary.includes("Any signal marked “Not checked” was not independently verified."), summary);
   assert.ok(summary.endsWith(VERIFICATION_LIMITATION), summary);
   assert.ok(r.hasText("No further detail was recorded for this signal."));
 });

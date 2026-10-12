@@ -1,3 +1,4 @@
+import { VERIFICATION_LIMITATION } from "@proovra/shared";
 import { describe, expect, it } from "vitest";
 // LEGACY-003: the report-v2 barrel was removed — production
 // (src/processor.ts) imports the concrete modules directly, so these tests
@@ -233,20 +234,17 @@ describe("report v2 pipeline", () => {
     expect(html).not.toContain("Decision basis");
     // Kept surfaces that carry the same information.
     expect(html).toContain("Trust Signal Analysis");
-    expect(html).toContain("Important boundary");
+    // (2026-10-12) The separate "Important boundary" box repeated the
+    // executive conclusion's limitation and reviewer action; the conclusion
+    // carries both, once.
+    expect(html).not.toContain("Important boundary");
+    expect(html).toContain(VERIFICATION_LIMITATION);
     expect(html).toContain("Chain of Custody");
     expect(html).toContain("Legal Interpretation");
     expect(html).toContain("Technical Appendix");
-    // Phase 31.7 — cover boundary copy was tightened to safer wording
-    // ("does not independently prove truth, authorship, context, intent,
-    // admissibility, or evidentiary weight"). The intent — that the
-    // cover advises the reader about the report's scope — is what this
-    // assertion protects.
-    // Phase 4 — cover boundary text now comes from the canonical
-    // legal-boundary helper (packages/shared/src/canonical-evidence-materials.ts).
-    // The canonical wording says "does not independently prove factual
-    // truth" which is strictly more precise than the prior "truth".
-    expect(coverHtml).toContain("does not independently prove factual truth");
+    // The cover advises the reader about the report's scope once: the
+    // canonical limitation closing its verification summary (2026-10-12).
+    expect(coverHtml).toContain(VERIFICATION_LIMITATION);
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
     expect(html).not.toContain("Evidence Manifest");
@@ -410,9 +408,9 @@ describe("report v2 pipeline", () => {
     // "reviewer-facing checklist" disclaimer) was removed as redundant
     // presentation. The same reviewer-boundary intent — that the report's
     // previews and checks are reviewer-facing aids, not substitutes for
-    // the preserved original — remains in the Important boundary / Legal
-    // Interpretation sections.
-    expect(html).toContain("Important boundary");
+    // the preserved original — remains in the Legal Interpretation section,
+    // stated once (2026-10-12).
+    expect(html).toContain("Legal and evidentiary boundary");
     expect(html).toContain("supporting.pdf");
     expect(html).toContain("note.txt");
     expect(html).toContain(FULL_HASH_A);
@@ -636,17 +634,13 @@ describe("report v2 pipeline", () => {
         ? html.slice(coverStart, coverEnd)
         : html;
 
-    expect(coverHtml).toContain("Report Boundary.");
-    // Phase 31.7 — cover boundary copy was tightened to safer wording
-    // ("does not independently prove truth, authorship, context, intent,
-    // admissibility, or evidentiary weight"). The intent — that the
-    // cover advises the reader about the report's scope — is what this
-    // assertion protects.
-    // Phase 4 — cover boundary text now comes from the canonical
-    // legal-boundary helper (packages/shared/src/canonical-evidence-materials.ts).
-    // The canonical wording says "does not independently prove factual
-    // truth" which is strictly more precise than the prior "truth".
-    expect(coverHtml).toContain("does not independently prove factual truth");
+    // The cover advises the reader about the report's scope ONCE: the
+    // canonical limitation closes its verification summary (2026-10-12). The
+    // second boundary paragraph beside it said the same thing again; the
+    // panel now points to where every signal can be checked.
+    expect(coverHtml).toContain(VERIFICATION_LIMITATION);
+    expect(coverHtml).toContain("Independent review.");
+    expect(coverHtml).not.toContain("Report Boundary.");
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
     expect(html).toContain("Legal and evidentiary boundary");

@@ -12,7 +12,14 @@
  */
 import React from "react";
 import { View } from "react-native";
-import { storedBytesVerificationRow, TSA_VALIDATED_QUALIFICATION_STATEMENT, type BasicVerification, type ComponentVerificationState } from "@proovra/shared";
+import {
+  storedBytesVerificationRow,
+  TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  VERIFICATION_STATUS_LABELS,
+  type BasicVerification,
+  type ComponentVerificationState,
+  type VerificationStatus,
+} from "@proovra/shared";
 
 import type { VerifyMatrixView, VerifyWebTone } from "../product/public-verify";
 import { ProovraBadge, ProovraCard, ProovraSection, ProovraText } from "./index";
@@ -31,10 +38,10 @@ function MatrixSection({ matrix }: { matrix: VerifyMatrixView }) {
       <ProovraCard testID="basic-verification-matrix">
         <ProovraText variant="bodySm" weight="semibold" testID="basic-verification-headline">{matrix.summary}</ProovraText>
         {matrix.rows.map((r) => (
-          <View key={r.key} style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${r.label}: ${r.status}. ${r.statement}`}>
+          <View key={r.key} style={{ paddingVertical: 10, gap: 6 }} accessibilityLabel={`${r.label}: ${VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status}. ${r.statement}`}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <ProovraText weight="semibold">{r.label}</ProovraText>
-              <ProovraBadge label={r.status} tone={MATRIX_TONE[r.tone]} />
+              <ProovraBadge label={VERIFICATION_STATUS_LABELS[r.status as VerificationStatus] ?? r.status} tone={MATRIX_TONE[r.tone]} />
             </View>
             {r.statement ? <ProovraText variant="bodySm">{r.statement}</ProovraText> : null}
           </View>

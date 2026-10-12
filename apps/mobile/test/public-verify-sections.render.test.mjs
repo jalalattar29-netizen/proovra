@@ -293,10 +293,10 @@ test("a legacy trustDecision (score, verdict, confidence, reliance) renders only
   // The headline is the bounded summary, and it carries the fixed limitation.
   const [headline] = textsIn(r, "verify-headline");
   assert.ok(headline.startsWith("Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes."), headline);
-  assert.ok(headline.includes("Any signal marked NOT_CHECKED was not independently verified."), headline);
+  assert.ok(headline.includes("Any signal marked “Not checked” was not independently verified."), headline);
   assert.ok(headline.endsWith(VERIFICATION_LIMITATION), headline);
   // A legacy "passed" OpenTimestamps signal was never chain-checked: NOT_CHECKED, never VERIFIED.
-  assert.deepEqual(badges(r, "verify-matrix-bitcoin_anchoring"), ["NOT_CHECKED"]);
+  assert.deepEqual(badges(r, "verify-matrix-bitcoin_anchoring"), ["Not checked"]);
   has(r, "Publication posture: Bitcoin attestation present; not independently verified against the Bitcoin blockchain.");
   has(r, "To rely on Bitcoin anchoring, verify the OpenTimestamps proof against the Bitcoin chain yourself; PROOVRA has not checked it against the chain.");
 });
@@ -331,9 +331,9 @@ test("BASIC tier: the verificationMatrix leads, with its summary as the headline
   assert.equal(headline, matrix.summary);
   assert.ok(headline.endsWith(VERIFICATION_LIMITATION));
   has(r, "OpenTimestamps / Bitcoin anchoring");
-  assert.ok(r.byLabel("NOT_CHECKED").length >= 1);
+  assert.ok(r.byLabel("Not checked").length >= 1);
   const ots = r.byTestId("basic-verification-matrix")[0].findAll((n) => typeof n.props?.accessibilityLabel === "string" && n.props.accessibilityLabel.startsWith("OpenTimestamps / Bitcoin anchoring:"));
-  assert.ok(ots.length >= 1 && ots[0].props.accessibilityLabel.startsWith("OpenTimestamps / Bitcoin anchoring: NOT_CHECKED."), "an unchecked OTS proof reads NOT_CHECKED");
+  assert.ok(ots.length >= 1 && ots[0].props.accessibilityLabel.startsWith("OpenTimestamps / Bitcoin anchoring: Not checked."), "an unchecked OTS proof reads Not checked");
   for (const gone of ["96", "Strongly verified", "High"]) lacks(r, gone);
   assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
 });
@@ -358,9 +358,9 @@ test("verificationMatrix, when the reply carries it, is the matrix and the headl
   const [headline] = textsIn(r, "verify-headline");
   assert.equal(headline, matrix.summary);
   assert.equal(r.byTestId("verify-matrix").length, 1);
-  assert.deepEqual(badges(r, "verify-matrix-file_integrity"), ["VERIFIED"]);
+  assert.deepEqual(badges(r, "verify-matrix-file_integrity"), ["Verified"]);
   has(r, "OpenTimestamps / Bitcoin anchoring");
-  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["NOT_CHECKED"], "an unchecked OTS proof is NOT_CHECKED");
+  assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["Not checked"], "an unchecked OTS proof is NOT_CHECKED");
   assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("No independent Bitcoin verification result is recorded.")));
   has(r, "Public Verify publication");
   assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
@@ -384,8 +384,8 @@ test("Signal Detail lists each server signal with its verification status word",
   has(r, "What each signal records");
   assert.equal(r.byTestId("verify-signal-core_integrity").length, 1);
   has(r, "Fingerprint and file hash agree.");
-  assert.deepEqual(badges(r, "verify-signal-core_integrity"), ["VERIFIED"]);
-  assert.deepEqual(badges(r, "verify-signal-bitcoin_anchoring"), ["NOT_CHECKED"], "a legacy OTS pass is NOT_CHECKED");
+  assert.deepEqual(badges(r, "verify-signal-core_integrity"), ["Verified"]);
+  assert.deepEqual(badges(r, "verify-signal-bitcoin_anchoring"), ["Not checked"], "a legacy OTS pass is NOT_CHECKED");
 });
 
 test("a clean integrityProof yields the web's verified legal boundary and the default reviewer action — no issue block", async () => {
@@ -422,8 +422,8 @@ test("a failed signature is never presented as verified: Review Required boundar
   has(r, "Verification Warning");
   has(r, "Custody chain check reported: Event 2 prevEventHash does not match event 1");
   // The failure is stated per signal, never as a verdict or a confidence.
-  assert.deepEqual(badges(r, "verify-matrix-signature"), ["FAILED"]);
-  assert.ok(textsIn(r, "verify-headline")[0].includes("FAILED"));
+  assert.deepEqual(badges(r, "verify-matrix-signature"), ["Failed"]);
+  assert.ok(textsIn(r, "verify-headline")[0].includes("Failed: "));
   lacks(r, "Low");
   lacks(r, "Insufficient verification");
 });

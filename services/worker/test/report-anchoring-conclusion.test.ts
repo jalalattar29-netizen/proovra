@@ -67,7 +67,7 @@ describe("executive conclusion vs the OTS chain check (ET-RPT-09)", () => {
   it("anchored but not chain-checked: no 'finalized' claim, NOT_CHECKED named, no success tone", () => {
     const c = conclude("PROOF_STRUCTURE");
     expect(c.body).not.toMatch(/finalized supporting/i);
-    expect(c.body).toContain("Any signal marked NOT_CHECKED was not independently verified.");
+    expect(c.body).toContain("Any signal marked “Not checked” was not independently verified.");
     expect(c.body).toContain("verify the OpenTimestamps proof against the Bitcoin chain yourself");
     expect(c.body).toContain("This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.");
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
@@ -78,7 +78,7 @@ describe("executive conclusion vs the OTS chain check (ET-RPT-09)", () => {
     const c = conclude("BITCOIN_VERIFIED");
     expect(c.body).toContain("Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes.");
     // Provenance before PROOVRA is never verified, so the limitation stays.
-    expect(c.body).toContain("Any signal marked NOT_CHECKED was not independently verified.");
+    expect(c.body).toContain("Any signal marked “Not checked” was not independently verified.");
     expect(c.body).not.toMatch(/finalized supporting/i);
     expect(findForbiddenCustomerClaims(c.body)).toEqual([]);
   });

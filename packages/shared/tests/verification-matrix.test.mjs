@@ -146,12 +146,12 @@ test("the bounded summary and the fixed limitation", () => {
   const m = matrix();
   assert.equal(
     m.summary,
-    "Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes. Any signal marked NOT_CHECKED was not independently verified. This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.",
+    "Cryptographic integrity and PROOVRA custody checks passed for the preserved bytes. Any signal marked “Not checked” was not independently verified. This record does not by itself establish authorship, factual truth, pre-PROOVRA history or legal admissibility.",
   );
   assert.equal(m.limitation, VERIFICATION_LIMITATION);
   // A failed check is named, and nothing says the bytes passed.
   const failed = matrix({ evidence: { signatureVerified: false } });
-  assert.match(failed.summary, /^Record signature FAILED\. Do not rely on the preserved bytes/);
+  assert.match(failed.summary, /^Failed: Record signature. Do not rely on the preserved bytes/);
   assert.doesNotMatch(failed.summary, /checks passed/);
   assert.ok(failed.summary.endsWith(VERIFICATION_LIMITATION));
 });
