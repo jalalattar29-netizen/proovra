@@ -29,7 +29,10 @@
 import type { ProovraStatusTone } from "@proovra/ui";
 import { bulkActionItemSettled, bulkActionItemSucceeded } from "@proovra/shared";
 
-import { describeDuration } from "../lib/relative-time";
+import { OPS_COPY_EN, fillOpsCopy, formatOpsCount, opsDuration, type OpsCopy } from "./ops-copy";
+import { resolveInboxRoute } from "./inbox";
+import { webUrl } from "./support";
+import { nativeHrefForWebPath } from "./shell-gates";
 
 function obj(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
@@ -80,6 +83,39 @@ export const STATUS_VOCABULARY: Readonly<Record<IncidentStatus, { label: string;
   },
 };
 
+/**
+ * The status FILTER (ops.routes INCIDENT_STATUS_FILTERS). `UNRESOLVED` —
+ * OPEN, ACKNOWLEDGED or SUPPRESSED — is the server's default and the set every
+ * summary count is taken over; `ALL` includes resolved conditions.
+ */
+export const STATUS_FILTERS = ["UNRESOLVED", "OPEN", "ACKNOWLEDGED", "SUPPRESSED", "RESOLVED", "ALL"] as const;
+export type StatusFilter = (typeof STATUS_FILTERS)[number];
+export const DEFAULT_STATUS_FILTER: StatusFilter = "UNRESOLVED";
+export function isUnresolvedStatus(s: string): boolean {
+  return s === "OPEN" || s === "ACKNOWLEDGED" || s === "SUPPRESSED";
+}
+
+/**
+ * THE SOURCE REGISTRY, as far as native needs it (web
+ * operations-condition-map.ts, 2026-10-12):
+ *   - integration.webhook_destination_disabled is a tenant source (category
+ *     INTEGRATION; its next step is the web-only Automation page);
+ *   - security.unclassified_signal and pipeline.signed_without_report_aged are
+ *     RETIRED — platform-internal, never shown to a tenant. A row or group
+ *     carrying either is dropped, even if a server still sends one.
+ */
+export const RETIRED_OPS_SOURCES: ReadonlySet<string> = new Set(["security.unclassified_signal", "pipeline.signed_without_report_aged"]);
+export function isRenderableSource(sourceId: string | null | undefined): boolean {
+  return !sourceId || !RETIRED_OPS_SOURCES.has(sourceId);
+}
+
+/** A condition's title: the server's, else its source's label, else "Condition" — in the reader's language. */
+export function conditionTitle(x: { title: string; sourceId?: string | null }, t: OpsCopy = OPS_COPY_EN): string {
+  if (x.title) return x.title;
+  const bySource = x.sourceId ? (t.sourceLabel as Record<string, string>)[x.sourceId] : undefined;
+  return bySource ?? t.conditionFallbackTitle;
+}
+
 export function severityOf(v: unknown): Severity {
   return (SEVERITIES as readonly string[]).includes(v as string) ? (v as Severity) : "INFO";
 }
@@ -106,9 +142,12 @@ export const CATEGORY_LABEL: Readonly<Record<string, string>> = {
 };
 
 /** Unknown categories are humanised (L/vocabulary.ts:267-272). */
-export function categoryLabel(category: string): string {
-  const known = CATEGORY_LABEL[category];
+export function categoryLabel(category: string, t: OpsCopy = OPS_COPY_EN): string {
+  const known = (t.category as Record<string, string>)[category];
   if (known) return known;
+  // An unknown server key is humanised in English; another language says
+  // "Other source" rather than show an English fragment.
+  if (t !== OPS_COPY_EN) return t.categoryOther;
   const words = category.replace(/_/g, " ").toLowerCase().trim();
   return words.length === 0 ? category : words.charAt(0).toUpperCase() + words.slice(1);
 }
@@ -123,23 +162,8 @@ export const SORT_LABEL = {
 export type SortKey = keyof typeof SORT_LABEL;
 
 /** L/vocabulary.ts:481-501 */
-export function slaLabel(posture: string | null | undefined): string {
-  switch (posture) {
-    case "BREACHED":
-      return "Overdue";
-    case "AT_RISK":
-      return "Due soon";
-    case "ON_TRACK":
-      return "On time";
-    case "ACKNOWLEDGED":
-      return "Owned";
-    case "RESOLVED":
-      return "Resolved";
-    case "UNTRACKED_LEGACY":
-      return "No SLA recorded";
-    default:
-      return "No SLA applies";
-  }
+export function slaLabel(posture: string | null | undefined, t: OpsCopy = OPS_COPY_EN): string {
+  return (t.sla as Record<string, string>)[posture ?? ""] ?? t.sla.NOT_APPLICABLE;
 }
 
 export function slaTone(posture: string | null | undefined): ProovraStatusTone {
@@ -169,51 +193,42 @@ export interface IncidentSla {
 }
 
 /** L/vocabulary.ts:531-563 */
-export function slaExplanation(sla: IncidentSla): string {
-  const duty = sla.obligation === "ACKNOWLEDGEMENT" ? "for someone to take this on" : "for this to be resolved";
+export function slaExplanation(sla: IncidentSla, t: OpsCopy = OPS_COPY_EN): string {
+  const duty = sla.obligation === "ACKNOWLEDGEMENT" ? t.slaDutyAck : t.slaDutyResolve;
   const promise =
-    sla.targetHours == null ? "" : ` This workspace allowed ${sla.targetHours} ${sla.targetHours === 1 ? "hour" : "hours"} ${duty}.`;
+    sla.targetHours == null ? "" : ` ${fillOpsCopy(sla.targetHours === 1 ? t.slaPromiseOne : t.slaPromiseMany, { n: sla.targetHours, duty })}`;
   switch (sla.posture) {
     case "BREACHED":
-      return `Past the time this workspace allowed ${duty}.${promise}`;
+      return `${fillOpsCopy(t.slaBreachedText, { duty })}${promise}`;
     case "AT_RISK":
-      return `Approaching the time this workspace allowed ${duty}.${promise}`;
+      return `${fillOpsCopy(t.slaAtRiskText, { duty })}${promise}`;
     case "ON_TRACK":
-      return `Within the time this workspace allowed ${duty}.${promise}`;
+      return `${fillOpsCopy(t.slaOnTrackText, { duty })}${promise}`;
     case "ACKNOWLEDGED":
-      return `Someone has taken this on and no commitment has been missed.${promise}`;
+      return `${t.slaAcknowledgedText}${promise}`;
     case "RESOLVED":
-      return sla.resolutionBreached
-        ? "This was resolved, but after the time this workspace allowed."
-        : "This was resolved within the time this workspace allowed.";
+      return sla.resolutionBreached ? t.slaResolvedLate : t.slaResolvedOk;
     case "UNTRACKED_LEGACY":
-      return "No historical SLA was recorded for this incident, so no commitment can be reported for it.";
+      return t.slaUntrackedText;
     default:
-      return "No time commitment applies to this condition.";
+      return t.slaNoneText;
   }
 }
 
 /** L/vocabulary.ts:573-580 */
-export function slaBreachRecord(sla: IncidentSla): string | null {
+export function slaBreachRecord(sla: IncidentSla, t: OpsCopy = OPS_COPY_EN): string | null {
   if (sla.posture === "BREACHED") return null;
-  const parts: string[] = [];
-  if (sla.acknowledgementBreached) parts.push("was not taken on in time");
-  if (sla.resolutionBreached) parts.push("was not resolved in time");
-  return parts.length === 0 ? null : `Recorded: this condition ${parts.join(" and ")}.`;
+  if (sla.acknowledgementBreached && sla.resolutionBreached) return t.slaRecordedBoth;
+  if (sla.acknowledgementBreached) return t.slaRecordedAck;
+  if (sla.resolutionBreached) return t.slaRecordedResolve;
+  return null;
 }
 
 /** L/vocabulary.ts:434-443 */
-export function timelineEventLabel(event: string): string {
-  const known: Record<string, string> = {
-    opened: "Opened",
-    reopened: "Reopened",
-    occurrence: "Happened again",
-    acknowledged: "Acknowledged",
-    resolved: "Resolved",
-    suppressed: "Suppressed",
-    assigned: "Owner changed",
-  };
-  if (known[event]) return known[event]!;
+export function timelineEventLabel(event: string, t: OpsCopy = OPS_COPY_EN): string {
+  const known = (t.timeline as Record<string, string>)[event];
+  if (known && event !== "other") return known;
+  if (t !== OPS_COPY_EN) return t.timeline.other;
   const w = event.replace(/[_.]/g, " ").trim();
   return w.length === 0 ? event : w.charAt(0).toUpperCase() + w.slice(1);
 }
@@ -239,7 +254,7 @@ export const QUEUE_METRICS: ReadonlyArray<{
   tone: ProovraStatusTone;
   collaborativeOnly: boolean;
 }> = [
-  { key: "open", label: "Unresolved", note: "Open or acknowledged.", tone: "neutral", collaborativeOnly: false },
+  { key: "open", label: "Unresolved", note: "Open, acknowledged or suppressed.", tone: "neutral", collaborativeOnly: false },
   { key: "critical", label: "Critical", note: "Affecting records now.", tone: "risk", collaborativeOnly: false },
   { key: "high", label: "High", note: "Needs an operator soon.", tone: "pending", collaborativeOnly: false },
   { key: "warning", label: "Warning", note: "Worth attention; nothing is blocked yet.", tone: "governance", collaborativeOnly: false },
@@ -264,16 +279,37 @@ export interface OpsFilters {
   readonly sort: SortKey;
 }
 
-export const DEFAULT_FILTERS: OpsFilters = { sla: "", status: "", severity: "", category: "", owner: "any", q: "", sort: "recent" };
+/**
+ * The default queue is the canonical UNRESOLVED set — exactly what the
+ * "Unresolved" card counts. It used to be "" (any status), so the first screen
+ * mixed resolved conditions into a queue headed by an unresolved count.
+ */
+export const DEFAULT_FILTERS: OpsFilters = { sla: "", status: DEFAULT_STATUS_FILTER, severity: "", category: "", owner: "any", q: "", sort: "recent" };
+
+/** The search box's bound — the saved-view schema's `q` max (120). */
+export const OPS_SEARCH_MAX = 120;
 
 /** `anyFilterActive` (L/filters.ts:88-98) — a non-default sort counts. */
 export function anyFilterActive(f: OpsFilters): boolean {
   return (
-    f.sla !== "" || f.status !== "" || f.severity !== "" || f.category !== "" || f.owner !== "any" || f.q.trim() !== "" || f.sort !== "recent"
+    f.sla !== "" ||
+    (f.status !== DEFAULT_STATUS_FILTER && f.status !== "") ||
+    f.severity !== "" ||
+    f.category !== "" ||
+    f.owner !== "any" ||
+    f.q.trim() !== "" ||
+    f.sort !== "recent"
   );
 }
 
-/** Card → filter (P:1405-1427): reset to defaults, then set ONE axis. */
+/**
+ * Card → filter (P:1405-1427): reset to defaults, then set ONE axis.
+ *
+ * EVERY CARD OPENS THE PREDICATE IT COUNTS. The summary
+ * (operations-summary.service.ts) counts severity, SLA and ownership over the
+ * UNRESOLVED set, so each of those cards keeps the default UNRESOLVED status;
+ * "Resolved" is the one card counted over RESOLVED.
+ */
 export function filtersForMetric(key: QueueMetricKey): OpsFilters {
   switch (key) {
     case "critical":
@@ -329,13 +365,15 @@ function filterParams(teamId: string, f: OpsFilters): URLSearchParams {
   const p = new URLSearchParams();
   p.set("teamId", teamId);
   if (f.sla) p.set("sla", f.sla);
-  if (f.status) p.set("status", f.status);
+  // Sent explicitly, even at the default: the predicate the screen shows is
+  // the one on the wire, never the server's implicit default.
+  p.set("status", f.status || DEFAULT_STATUS_FILTER);
   if (f.severity) p.set("severity", f.severity);
   if (f.category) p.set("category", f.category);
   // `owner=any` is the server default; the web's grouped read sends it by
   // accident (truthiness). Native sends it for neither read.
   if (f.owner && f.owner !== "any") p.set("owner", f.owner);
-  if (f.q.trim()) p.set("q", f.q.trim());
+  if (f.q.trim()) p.set("q", f.q.trim().slice(0, OPS_SEARCH_MAX));
   return p;
 }
 
@@ -349,9 +387,21 @@ export function buildOpsIncidentsPath(teamId: string, f: OpsFilters, cursor?: st
 export function buildOpsGroupsPath(teamId: string, f: OpsFilters): string {
   return `/v1/ops/incident-groups?${filterParams(teamId, f).toString()}`;
 }
-export function buildOpsGroupAffectedPath(teamId: string, groupKey: string, cursor?: string | null): string {
+/**
+ * A group's drill-down carries the queue's own status and severity, so the
+ * records listed are the ones the group was counted from — not every record
+ * the source ever reported, resolved ones included.
+ */
+export function buildOpsGroupAffectedPath(
+  teamId: string,
+  groupKey: string,
+  cursor?: string | null,
+  scope?: { status?: string | null; severity?: string | null },
+): string {
   const p = new URLSearchParams();
   p.set("teamId", teamId);
+  p.set("status", scope?.status || DEFAULT_STATUS_FILTER);
+  if (scope?.severity) p.set("severity", scope.severity);
   if (cursor) p.set("cursor", cursor);
   return `/v1/ops/incident-groups/${enc(groupKey)}/affected?${p.toString()}`;
 }
@@ -369,7 +419,7 @@ export function buildOpsSavedViewPath(id: string): string {
   return `/v1/ops/saved-views/${enc(id)}`;
 }
 export const OPS_RECONCILE_PATH = "/v1/ops/workspace-reconcile";
-export type LifecycleAction = "ack" | "resolve" | "suppress";
+export type LifecycleAction = "ack" | "resolve" | "suppress" | "unsuppress";
 export function buildOpsLifecyclePath(id: string, action: LifecycleAction): string {
   return `/v1/ops/incidents/${enc(id)}/${action}`;
 }
@@ -461,6 +511,8 @@ export interface OpsMetric {
 
 export interface Incident {
   readonly id: string;
+  /** The registry source (lifecycle.sourceId), when the server names it. */
+  readonly sourceId: string | null;
   readonly category: string;
   readonly title: string;
   readonly safeSummary: string;
@@ -523,8 +575,10 @@ export function parseIncident(v: unknown): Incident | null {
   const lifecycle = obj(i["lifecycle"]);
   return {
     id,
+    sourceId: str(lifecycle["sourceId"]),
     category: str(i["category"]) ?? "",
-    title: str(i["title"]) ?? "Operational condition",
+    // No server title: the display resolves one (conditionTitle) in the reader's language.
+    title: str(i["title"]) ?? "",
     safeSummary: str(i["safeSummary"]) ?? "",
     severity: severityOf(i["severity"]),
     status: statusOf(i["status"]),
@@ -556,7 +610,9 @@ export interface IncidentsPage {
 export function parseIncidentsPage(v: unknown): IncidentsPage {
   const d = obj(v);
   return {
-    incidents: arr(d["incidents"]).map(parseIncident).filter((x): x is Incident => x !== null),
+    incidents: arr(d["incidents"])
+      .map(parseIncident)
+      .filter((x): x is Incident => x !== null && isRenderableSource(x.sourceId)),
     complete: obj(d["completeness"])["complete"] === true,
     attentionPostures: arr(obj(d["sla"])["attentionPostures"]).filter((x): x is string => typeof x === "string"),
     nextCursor: str(obj(d["pagination"])["nextCursor"]),
@@ -564,8 +620,13 @@ export function parseIncidentsPage(v: unknown): IncidentsPage {
 }
 
 export interface OpsSummary {
+  /** Null is "could not be read" — never rendered as 0. */
   readonly counts: Readonly<Record<QueueMetricKey, number | null>>;
   readonly complete: boolean;
+  /** `SOURCE_FAILED` (every count null) or `SCAN_BOUND_REACHED` (counts are floors). */
+  readonly incompleteReason: string | null;
+  /** The summary could not be read at all: every count is unknown. */
+  readonly unreadable: boolean;
   readonly mayAssertAllClear: boolean;
   readonly readiness: string | null;
   readonly safeFailureCategory: string | null;
@@ -587,6 +648,8 @@ export function parseSummary(v: unknown): { summary: OpsSummary; operatorCount: 
     summary: {
       counts,
       complete: s["complete"] === true,
+      incompleteReason: str(s["incompleteReason"]),
+      unreadable: str(s["incompleteReason"]) === "SOURCE_FAILED" || (counts.open === null && s["complete"] !== true),
       mayAssertAllClear: s["mayAssertAllClear"] === true,
       readiness: str(s["readiness"]),
       safeFailureCategory: str(rec["safeFailureCategory"]),
@@ -596,6 +659,39 @@ export function parseSummary(v: unknown): { summary: OpsSummary; operatorCount: 
     },
     operatorCount: num(obj(d["workspace"])["operatorCount"]) ?? 0,
   };
+}
+
+/**
+ * How a summary count is SHOWN.
+ *   null                         → "—" (unknown; never 0)
+ *   a floor (SCAN_BOUND_REACHED) → "N+" ("at least N")
+ * "Resolved" is a separate COUNT, not part of the bounded scan, so it is never
+ * a floor.
+ */
+export function summaryCountDisplay(
+  s: OpsSummary,
+  key: QueueMetricKey,
+  format: (n: number) => string = (n) => n.toLocaleString("en-US"),
+): string {
+  const v = s.counts[key];
+  if (v === null) return "—";
+  const floor = !s.complete && s.incompleteReason === "SCAN_BOUND_REACHED" && key !== "resolved";
+  return floor ? `${format(v)}+` : format(v);
+}
+
+/** True when a figure shown is a floor rather than a total. */
+export function summaryIsFloor(s: OpsSummary | null): boolean {
+  return !!s && !s.complete && s.incompleteReason === "SCAN_BOUND_REACHED";
+}
+
+/**
+ * A workspace that has never been checked is checked once, automatically —
+ * but ONLY from a summary that was actually read. An unreadable summary
+ * carries readiness NEVER_RUN as its honest floor (unavailableSummary), and a
+ * failed read must not start work.
+ */
+export function shouldAutoReconcile(s: OpsSummary | null): boolean {
+  return !!s && !s.unreadable && s.readiness === "NEVER_RUN";
 }
 
 /** IncidentGroup — operations/_lib/types.ts:161-212 (field names verified 2026-09-24). */
@@ -639,7 +735,7 @@ export function parseGroups(v: unknown): { groups: IncidentGroup[]; totalGroups:
       return {
         groupKey: key,
         sourceId: str(o["sourceId"]) ?? "",
-        title: str(o["title"]) ?? "Operational condition",
+        title: str(o["title"]) ?? "",
         severity: severityOf(o["severity"]),
         statusPosture: str(o["statusPosture"]) ?? "OPEN",
         category: str(o["category"]) ?? "",
@@ -668,7 +764,7 @@ export function parseGroups(v: unknown): { groups: IncidentGroup[]; totalGroups:
             : null,
       };
     })
-    .filter((x): x is IncidentGroup => x !== null);
+    .filter((x): x is IncidentGroup => x !== null && isRenderableSource(x.sourceId));
   const totals = obj(d["totals"]);
   return {
     groups,
@@ -701,7 +797,7 @@ export function parseAffected(v: unknown): { records: AffectedRecord[]; nextCurs
         return {
           conditionId: id,
           evidenceId: str(o["evidenceId"]),
-          title: str(o["title"]) ?? "Record",
+          title: str(o["title"]) ?? "",
           severity: severityOf(o["severity"]),
           status: str(o["status"]) ?? "",
           firstSeenAtUtc: str(o["firstSeenAtUtc"]) ?? "",
@@ -818,8 +914,8 @@ export function parseOperators(v: unknown): { operators: Operator[]; selfUserId:
         const x = obj(o);
         const userId = str(x["userId"]);
         if (!userId) return null;
-        // P: display name, else email, else first 8 chars of the id.
-        return { userId, label: str(x["displayName"]) ?? str(x["email"]) ?? userId.slice(0, 8), role: str(x["role"]) };
+        // Display name, else email — never a raw id fragment (D16).
+        return { userId, label: str(x["displayName"]) ?? str(x["email"]) ?? "Workspace operator", role: str(x["role"]) };
       })
       .filter((x): x is Operator => x !== null),
     selfUserId: str(d["selfUserId"]),
@@ -851,7 +947,8 @@ export function parseOpsSavedViews(v: unknown, viewer: string | null): SavedView
         ownedByViewer: o["ownedByViewer"] === true || (viewer !== null && str(o["ownerUserId"]) === viewer),
         filter: {
           sla: str(f["sla"]) ?? "",
-          status: str(f["status"]) ?? "",
+          // A view saved without a status replays the default queue.
+          status: str(f["status"]) ?? DEFAULT_STATUS_FILTER,
           severity: str(f["severity"]) ?? "",
           category: str(f["category"]) ?? "",
           owner: str(f["owner"]) ?? "any",
@@ -871,7 +968,10 @@ export function parseOpsSavedViews(v: unknown, viewer: string | null): SavedView
 export function savedViewFilterBody(teamId: string, f: OpsFilters) {
   return {
     teamId,
-    ...(f.status ? { status: f.status } : {}),
+    // The saved-view schema stores a CONCRETE status only. The default
+    // UNRESOLVED is stored as "no status", which replays as the default; ALL
+    // cannot be stored (savedViewCanStore).
+    ...((STATUSES as readonly string[]).includes(f.status) ? { status: f.status } : {}),
     ...(f.severity ? { severity: f.severity } : {}),
     ...(f.category ? { category: f.category } : {}),
     ...(f.owner !== "any" ? { owner: f.owner } : {}),
@@ -884,42 +984,63 @@ export function savedViewFilterBody(teamId: string, f: OpsFilters) {
 /* ------------------------------------------------------------ row model */
 
 export const METRIC_DISPLAY_CAP = 2000;
-export function formatMetricValue(value: number): string {
-  return value > METRIC_DISPLAY_CAP ? `${METRIC_DISPLAY_CAP.toLocaleString("en-US")}+` : value.toLocaleString("en-US");
+export function formatMetricValue(value: number, locale: string | null = null): string {
+  return value > METRIC_DISPLAY_CAP ? `${formatOpsCount(METRIC_DISPLAY_CAP, locale)}+` : formatOpsCount(value, locale);
 }
 
-export function affectedFor(i: Incident): { label: string | null; href: string | null } {
-  if (i.relatedEvidenceId) return { label: `Evidence record ${i.relatedEvidenceId.slice(0, 8)}`, href: `/evidence/${encodeURIComponent(i.relatedEvidenceId)}` };
-  if (i.relatedJobId) return { label: "Background job", href: null };
+export function affectedFor(i: Incident, t: OpsCopy = OPS_COPY_EN): { label: string | null; href: string | null } {
+  if (i.relatedEvidenceId)
+    return { label: fillOpsCopy(t.evidenceRecordShort, { id: i.relatedEvidenceId.slice(0, 8) }), href: `/evidence/${encodeURIComponent(i.relatedEvidenceId)}` };
+  if (i.relatedJobId) return { label: t.backgroundJob, href: null };
   if (i.relatedProvider) return { label: i.relatedProvider, href: null };
   return { label: null, href: null };
 }
 
-export function resolutionNoteFor(i: Incident): string | null {
-  if (i.resolutionAuthority === "SOURCE_TRUTH") {
-    return "This condition closes itself when its source recovers. It cannot be marked resolved by hand.";
-  }
-  if (i.resolutionAuthority === "NO_DIRECT_RESOLUTION") {
-    return "This condition is owned by a surface outside this workspace. It cannot be marked resolved here.";
-  }
+export function resolutionNoteFor(i: Incident, t: OpsCopy = OPS_COPY_EN): string | null {
+  if (i.resolutionAuthority === "SOURCE_TRUTH") return t.resolutionSourceTruth;
+  if (i.resolutionAuthority === "NO_DIRECT_RESOLUTION") return t.resolutionNoDirect;
   return null;
 }
 
-/** Per-row eligibility (L/rowModel.ts). */
-export function rowEligibility(i: Incident, c: OpsCapabilities) {
+/** A view the saved-view schema can replay exactly (it has no ALL status). */
+export function savedViewCanStore(f: OpsFilters): boolean {
+  return f.status !== "ALL";
+}
+
+/**
+ * Per-row eligibility (L/rowModel.ts).
+ *
+ * `collaborative` (operatorCount > 1): ownership is an axis only where more
+ * than one person can take work, so a single-operator workspace is never
+ * offered "Change owner". A SUPPRESSED condition offers "Resume notifications"
+ * to whoever may stop them (POST …/unsuppress is gated on operations.suppress).
+ */
+export function rowEligibility(i: Incident, c: OpsCapabilities, opts?: { collaborative?: boolean }) {
   const live = i.status === "OPEN" || i.status === "ACKNOWLEDGED";
+  const collaborative = opts?.collaborative ?? true;
   return {
     canAcknowledge: c.acknowledge && i.status === "OPEN",
     canResolve: i.manualResolution && c.resolve && live,
     canSuppress: c.suppress && live,
-    canAssign: c.assign && live,
+    canUnsuppress: c.suppress && i.status === "SUPPRESSED",
+    canAssign: c.assign && live && collaborative,
   };
 }
 
-export function ownerLabel(i: Incident, viewer: string | null, operators: ReadonlyArray<Operator>): string {
-  if (!i.assignedOperatorUserId) return "Unassigned";
-  if (viewer && i.assignedOperatorUserId === viewer) return "You";
-  return operators.find((o) => o.userId === i.assignedOperatorUserId)?.label ?? i.assignedOperatorUserId.slice(0, 8);
+/**
+ * Who owns a condition, in words. An owner this reader cannot name (a viewer
+ * never loads the assignable-operator list) is "Assigned" — never a raw
+ * user-id fragment.
+ */
+export function ownerLabel(
+  i: Incident,
+  viewer: string | null,
+  operators: ReadonlyArray<Operator>,
+  words: { assigned: string; unassigned: string; you: string } = { assigned: "Assigned", unassigned: "Unassigned", you: "You" },
+): string {
+  if (!i.assignedOperatorUserId) return words.unassigned;
+  if (viewer && i.assignedOperatorUserId === viewer) return words.you;
+  return operators.find((o) => o.userId === i.assignedOperatorUserId)?.label ?? words.assigned;
 }
 
 /* ------------------------------------------------------------ bulk */
@@ -959,7 +1080,7 @@ export function lifecycleBody(teamId: string, extra?: { resolutionNote?: string;
  * (bulk-actions.service.ts:119). Items still PENDING/FAILED stay selected so the
  * person can retry them; SKIPPED items (nothing to do) are not failures.
  */
-export function summarizeBulk(v: unknown, requested: readonly string[]) {
+export function summarizeBulk(v: unknown, requested: readonly string[], t: OpsCopy = OPS_COPY_EN) {
   const items = arr(obj(v)["items"]).map((x) => ({ targetId: str(obj(x)["targetId"]), status: str(obj(x)["status"]) }));
   // OPS-011 — the SHARED status contract, the same one the web reads.
   const succeeded = items.filter((i) => bulkActionItemSucceeded(i.status)).length;
@@ -969,9 +1090,9 @@ export function summarizeBulk(v: unknown, requested: readonly string[]) {
   for (const id of requested) if (!items.some((i) => i.targetId === id)) stillSelected.push(id);
   const n = requested.length;
   const failed = stillSelected.length;
-  let message = `${succeeded} of ${n} updated.`;
-  if (skipped > 0) message += ` ${skipped} needed no change.`;
-  if (failed > 0) message += ` ${failed} could not be changed and ${failed === 1 ? "remains" : "remain"} selected.`;
+  let message = fillOpsCopy(t.bulkUpdated, { done: succeeded, total: n });
+  if (skipped > 0) message += ` ${fillOpsCopy(t.bulkSkipped, { n: skipped })}`;
+  if (failed > 0) message += ` ${failed === 1 ? t.bulkStillSelectedOne : fillOpsCopy(t.bulkStillSelected, { n: failed })}`;
   return { succeeded, skipped, failed, stillSelected, message };
 }
 
@@ -991,13 +1112,65 @@ export const REFUSAL_NOTICE: Readonly<Record<string, { title: string; body: stri
     title: "This condition cannot be resolved here",
     body: "This condition is owned by the surface that reported it and closes when that surface recovers. You can still acknowledge it, assign it, or suppress it with a recorded reason.",
   },
+  CONDITION_STATE_CHANGED: {
+    title: "This condition changed",
+    body: "Someone or something changed this condition after you opened it. Nothing was applied; the queue has been re-read.",
+  },
+  SUPPRESSION_NOT_OFFERED: {
+    title: "Notifications can't be stopped for this condition",
+    body: "This condition's source does not allow its notifications to be stopped. Nothing was changed.",
+  },
+  invalid_assignee: {
+    title: "That person can't take this",
+    body: "The chosen person is no longer an active operator in this workspace. Nothing was changed.",
+  },
 };
 
-/** The refusal code on a failed lifecycle call, from `{error:{code}}`. */
+/** REFUSAL_NOTICE key → the native copy keys that translate it. */
+export const REFUSAL_COPY_KEYS: Readonly<Record<string, readonly [string, string] | undefined>> = {
+  CONDITION_STILL_ACTIVE: ["stillActiveTitle", "stillActiveBody"],
+  CONDITION_ACTIVITY_UNKNOWN: ["activityUnknownTitle", "activityUnknownBody"],
+  CONDITION_NOT_DIRECTLY_RESOLVABLE: ["notResolvableTitle", "notResolvableBody"],
+  CONDITION_STATE_CHANGED: ["stateChangedTitle", "stateChangedBody"],
+  SUPPRESSION_NOT_OFFERED: ["suppressionNotOfferedTitle", "suppressionNotOfferedBody"],
+  invalid_assignee: ["invalidAssigneeTitle", "invalidAssigneeBody"],
+};
+
+/**
+ * The refusal code on a failed lifecycle or assign call: `{error:{code}}`, or
+ * the assign route's bare `{error: "invalid_assignee"}`.
+ */
 export function refusalCode(err: unknown): string | null {
   const e = obj(err);
   const code = str(e["code"]);
-  return code && REFUSAL_NOTICE[code] ? code : null;
+  if (code && REFUSAL_NOTICE[code]) return code;
+  const bare = str(obj(e["body"])["error"]);
+  return bare && REFUSAL_NOTICE[bare] ? bare : null;
+}
+
+/**
+ * THE REMEDIATION OUTCOME, from a success OR a refused/failed body.
+ *
+ *   QUEUED 202                                     → success
+ *   REFUSED 403 / NOT_ELIGIBLE 409                 → failure, not retryable
+ *   QUEUE_UNAVAILABLE 503 (recorded, not started)  → failure, retryable
+ *   FAILED 502 (the authority could not accept it) → failure, retryable
+ *
+ * The server's `error.retryable` wins when it is present.
+ */
+export type RemediationOutcome = { readonly tone: "success" | "failure"; readonly message: string; readonly retryable: boolean };
+
+export function remediationOutcome(bodyOrErr: unknown, failed: boolean, fallback: string): RemediationOutcome {
+  const o = obj(bodyOrErr);
+  const body = obj(o["body"]);
+  const rem = obj(o["remediation"] ?? body["remediation"]);
+  const result = str(rem["result"]);
+  const message = str(rem["message"]) ?? fallback;
+  const errRetry = obj(body["error"])["retryable"];
+  const failure = failed || (result !== null && result !== "QUEUED" && result !== "COMPLETED" && result !== "SUCCEEDED");
+  const retryable =
+    typeof errRetry === "boolean" ? errRetry : result === "FAILED" || result === "QUEUE_UNAVAILABLE" || (failed && result === null);
+  return { tone: failure ? "failure" : "success", message, retryable: failure ? retryable : false };
 }
 
 /** A remediation outcome from a success OR a refused (403/409/503) body. */
@@ -1007,6 +1180,22 @@ export function remediationMessage(bodyOrErr: unknown): string | null {
   return str(direct["message"]) ?? str(viaErr["message"]);
 }
 
+/**
+ * A refused (or thrown) workspace-reconcile, classified (D9). The server marks
+ * every refusal retryable except `schema_mismatch` and `permission_denied`
+ * (ops.routes isRetryableReconcileRefusal), so:
+ *   schema_mismatch    → the deployment mismatch — and nothing else is
+ *   permission_denied  → a permission problem
+ *   anything retryable → "try again shortly"
+ */
+export type ReconcileRefusalKind = "retry" | "mismatch" | "permission" | "other";
+export function reconcileRefusalKind(refusedReason: string | null | undefined, retryable: boolean | null | undefined): ReconcileRefusalKind {
+  if (refusedReason === "schema_mismatch") return "mismatch";
+  if (refusedReason === "permission_denied") return "permission";
+  if (retryable === false) return "other";
+  return "retry";
+}
+
 export type ReconciliationNotice =
   | { kind: "failed"; message: string; canRetry: boolean }
   | { kind: "stalled" }
@@ -1014,25 +1203,17 @@ export type ReconciliationNotice =
   | { kind: "running" }
   | null;
 
-const FAILED_EXPLANATION: Readonly<Record<string, string>> = {
-  database_unavailable: "The workspace's data couldn't be reached.",
-  timeout: "The check took too long and was stopped.",
-  schema_mismatch:
-    "This version of the app and its data store don't currently match, so the check can't run at all. Checking again won't change that — it needs whoever manages this deployment.",
-  permission_denied:
-    "The check wasn't allowed to read what it needs. Checking again won't change that — it needs whoever manages this deployment.",
-};
 
 /** At most one reconciliation notice (P:1555-1659). STALE has none. */
-export function reconciliationNotice(s: OpsSummary | null): ReconciliationNotice {
+export function reconciliationNotice(s: OpsSummary | null, t: OpsCopy = OPS_COPY_EN): ReconciliationNotice {
   if (!s) return null;
   switch (s.readiness) {
     case "FAILED": {
       const cat = s.safeFailureCategory ?? "";
-      const explanation = FAILED_EXPLANATION[cat] ?? "The check couldn't be completed.";
+      const explanation = (t.failedExplanation as Record<string, string>)[cat] ?? t.failedExplanation.default;
       return {
         kind: "failed",
-        message: `The last check for operational conditions failed. ${explanation} Anything below is from an earlier check and may be out of date.`,
+        message: `${t.failedPrefix} ${explanation} ${t.failedTail}`,
         canRetry: cat !== "schema_mismatch" && cat !== "permission_denied",
       };
     }
@@ -1041,12 +1222,7 @@ export function reconciliationNotice(s: OpsSummary | null): ReconciliationNotice
     case "PARTIAL":
       return {
         kind: "partial",
-        heading:
-          s.failedSources > 0 && s.truncatedSources > 0
-            ? "Some checks failed and others returned more than they could read."
-            : s.truncatedSources > 0
-              ? "Some checks returned more than they could read in one pass."
-              : "Some checks could not be completed.",
+        heading: s.failedSources > 0 && s.truncatedSources > 0 ? t.partialBoth : s.truncatedSources > 0 ? t.partialTruncated : t.partialFailed,
         retryable: s.retryable,
       };
     case "RUNNING":
@@ -1137,46 +1313,52 @@ export const SOURCE_FALLBACK = {
  * the server never sends, so the retry-storm group read "N affected records"
  * about conditions — the exact defect the server's unit field exists to stop.
  */
-export function describeGroupAffected(count: number, unit: string | null): string {
-  const n = formatMetricValue(count);
-  if (unit === "conditions") return `${n} repeatedly observed conditions`;
-  if (unit === "workflows") return `${n} affected workflows`;
-  if (unit === "items") return `${n} affected items`;
-  return `${n} affected records`;
+export function describeGroupAffected(count: number, unit: string | null, t: OpsCopy = OPS_COPY_EN, locale: string | null = null): string {
+  const n = formatMetricValue(count, locale);
+  if (unit === "conditions") return fillOpsCopy(t.groupAffectedConditions, { n });
+  if (unit === "workflows") return fillOpsCopy(t.groupAffectedWorkflows, { n });
+  if (unit === "items") return fillOpsCopy(t.groupAffectedItems, { n });
+  return fillOpsCopy(t.groupAffectedRecords, { n });
 }
 
 /** GroupSurface `describeAge`: null when there is no age, or it cannot be stated. */
-export function describeGroupAge(g: Pick<IncidentGroup, "durationSeconds" | "sourceId">): string | null {
+export function describeGroupAge(g: Pick<IncidentGroup, "durationSeconds" | "sourceId">, t: OpsCopy = OPS_COPY_EN): string | null {
   if (g.durationSeconds == null) return null;
-  const span = describeDuration(g.durationSeconds);
+  const span = opsDuration(g.durationSeconds, t);
   if (span === "—") return null;
-  return `Last observed ${span} ago`;
+  return fillOpsCopy(t.groupAge, { age: span });
 }
 
 /** The ONE quantity a group row states: age, else affected count, else conditions. */
-export function groupQuantity(g: IncidentGroup): string {
-  const age = describeGroupAge(g);
+export function groupQuantity(g: IncidentGroup, t: OpsCopy = OPS_COPY_EN, locale: string | null = null): string {
+  const age = describeGroupAge(g, t);
   if (age != null) return age;
-  if (g.affectedRecordCount != null) return describeGroupAffected(g.affectedRecordCount, g.affectedUnit);
-  return g.conditionCount === 1 ? "1 condition" : `${formatMetricValue(g.conditionCount)} conditions`;
+  if (g.affectedRecordCount != null) return describeGroupAffected(g.affectedRecordCount, g.affectedUnit, t, locale);
+  return g.conditionCount === 1 ? t.groupConditionOne : fillOpsCopy(t.groupConditionsCount, { n: formatMetricValue(g.conditionCount, locale) });
 }
 
-export type RowActionKey = "open" | "assign" | "acknowledge" | "resolve" | "suppress";
+export type RowActionKey = "open" | "assign" | "acknowledge" | "resolve" | "suppress" | "unsuppress";
 
 /**
  * The row menu (C/IncidentSurface.tsx `buildActions`), in the web's order:
  * Change owner, Acknowledge, Resolve, Stop notifying — with "Open details"
  * first, and NO menu at all when none of the four applies.
  */
-export function rowActions(i: Incident, c: OpsCapabilities): ReadonlyArray<{ key: RowActionKey; label: string; danger?: boolean }> {
-  const e = rowEligibility(i, c);
+export function rowActions(
+  i: Incident,
+  c: OpsCapabilities,
+  opts?: { collaborative?: boolean },
+  t: OpsCopy = OPS_COPY_EN,
+): ReadonlyArray<{ key: RowActionKey; label: string; danger?: boolean }> {
+  const e = rowEligibility(i, c, opts);
   const actions: { key: RowActionKey; label: string; danger?: boolean }[] = [];
-  if (e.canAssign) actions.push({ key: "assign", label: "Change owner" });
-  if (e.canAcknowledge) actions.push({ key: "acknowledge", label: "Acknowledge" });
-  if (e.canResolve) actions.push({ key: "resolve", label: "Resolve" });
-  if (e.canSuppress) actions.push({ key: "suppress", label: "Stop notifying about this", danger: true });
+  if (e.canAssign) actions.push({ key: "assign", label: t.rowChangeOwner });
+  if (e.canAcknowledge) actions.push({ key: "acknowledge", label: t.rowAcknowledge });
+  if (e.canResolve) actions.push({ key: "resolve", label: t.rowResolve });
+  if (e.canSuppress) actions.push({ key: "suppress", label: t.rowSuppress, danger: true });
+  if (e.canUnsuppress) actions.push({ key: "unsuppress", label: t.rowResume });
   if (actions.length === 0) return actions;
-  return [{ key: "open", label: "Open details" }, ...actions];
+  return [{ key: "open", label: t.rowOpenDetails }, ...actions];
 }
 
 /** "Load 50 more" (P:1860) — the page size is the one the read asks for. */
@@ -1191,4 +1373,98 @@ export const AFFECTED_MORE_LABEL = "View more affected records";
  */
 export function canViewWorkspaceHealth(envelope: unknown): boolean {
   return obj(obj(envelope)["capabilities"])["WORKSPACE_HEALTH_VIEW"] === true;
+}
+
+/* ------------------------------------------------------------ request identity (D2) */
+
+/**
+ * The identity of ONE queue read: the workspace and every filter axis. A page
+ * fetched under one identity is discarded if it arrives after the identity
+ * changed — "Load more" never appends a page of the previous filters.
+ */
+export function queueRequestKey(teamId: string | null, f: OpsFilters): string {
+  return JSON.stringify([teamId ?? "", f.sla, f.status, f.severity, f.category, f.owner, f.q.trim(), f.sort]);
+}
+
+/* ------------------------------------------------------------ deep links (D3) */
+
+/**
+ * Native screens a web path may be mapped onto. Every entry is a file under
+ * apps/mobile/app (test/ops-remediation-links.test.mjs checks each one), so a
+ * mapped route is never a dead link.
+ */
+export const NATIVE_STATIC_ROUTES: readonly string[] = [
+  "/",
+  "/billing",
+  "/cases",
+  "/evidence",
+  "/evidence-requests",
+  "/intake-links",
+  "/notifications",
+  "/operations",
+  "/operations/health",
+  "/operations/quotas",
+  "/operations/batch-analysis",
+  "/organizations",
+  "/reports",
+  "/search",
+  "/settings",
+  "/settings/security",
+  "/settings/notifications",
+  "/settings/privacy",
+  "/spaces",
+  "/support",
+  "/teams",
+  "/trust-center",
+  "/workspace-people",
+];
+/** Dynamic native screens: `/evidence/[id]`, `/case/[id]`, `/evidence-request/[id]`, `/organizations/[id]`. */
+const NATIVE_DYNAMIC_ROUTES: readonly RegExp[] = [
+  /^\/evidence\/[^/?#]+$/,
+  /^\/case\/[^/?#]+$/,
+  /^\/evidence-request\/[^/?#]+$/,
+  /^\/organizations\/[^/?#]+$/,
+];
+
+/** True when `route` (path part) names a screen that exists in apps/mobile/app. */
+export function nativeRouteExists(route: string): boolean {
+  const path = route.split(/[?#]/)[0] ?? "";
+  return NATIVE_STATIC_ROUTES.includes(path) || NATIVE_DYNAMIC_ROUTES.some((r) => r.test(path));
+}
+
+/** The evidence tabs native opens from a link (`/evidence/[id]?tab=`). */
+export const NATIVE_EVIDENCE_LINK_TABS: readonly string[] = ["integrity", "artifacts"];
+
+export interface RemediationDestination {
+  /** The native route to push, or null when native has no screen for it. */
+  readonly native: string | null;
+  /** The web path the server named (query and hash kept). */
+  readonly webPath: string;
+  /** The absolute web URL when a canonical web origin is configured. */
+  readonly webUrl: string | null;
+}
+
+/**
+ * The server's remediation deep links are WEB paths (`/evidence/:id?tab=integrity`,
+ * the integrations page, `/billing?workspace=personal#billing-action-required`, …).
+ * Each is mapped through the existing native mappers (`resolveInboxRoute`,
+ * `nativeHrefForWebPath`); only a route that exists in apps/mobile/app is
+ * pushed. Anything else is withheld and the caller says the step is on the web.
+ */
+export function remediationDestination(href: string, origin: string | null = null): RemediationDestination {
+  const webPath = href.startsWith("/") ? href : `/${href}`;
+  const beforeHash = webPath.split("#")[0] ?? "";
+  const [path = "", query = ""] = beforeHash.split("?");
+  const params = new URLSearchParams(query);
+  let native: string | null;
+
+  const evidence = /^\/evidence\/([^/?#]+)$/.exec(path);
+  if (evidence) {
+    const tab = params.get("tab");
+    native = `/evidence/${evidence[1]}${tab && NATIVE_EVIDENCE_LINK_TABS.includes(tab) ? `?tab=${encodeURIComponent(tab)}` : ""}`;
+  } else {
+    native = resolveInboxRoute(beforeHash) ?? nativeHrefForWebPath(path);
+  }
+  if (native && !nativeRouteExists(native)) native = null;
+  return { native, webPath, webUrl: webUrl(origin, webPath) };
 }

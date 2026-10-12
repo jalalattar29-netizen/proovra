@@ -32,7 +32,7 @@ import {
   type WorkspacePriority,
 } from "../product/home-dashboard";
 import { middleTruncate, type RecentReportRow } from "../product/home-sections";
-import { healthToneBadge, workspaceHealthOverall, type HealthMetric } from "../product/home-operations";
+import { healthToneBadge, workspaceHealthOverall, type HealthMetric, type WorkspaceHealthVerdict } from "../product/home-operations";
 import { theme } from "../theme/theme";
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraListRow, ProovraText } from "./index";
 import { ProovraEmpty, ProovraPageHeader, ProovraSheet } from "./patterns";
@@ -157,14 +157,17 @@ export function HomeSummaryBand({ summary }: { summary: HomeSummary }) {
 
 /* ------------------------------------------------------ workspace health */
 
-const HEALTH_OVERALL: Record<"healthy" | "needs_attention" | "action_required", { label: string; tone: "verified" | "pending" | "risk" }> = {
+const HEALTH_OVERALL: Record<WorkspaceHealthVerdict, { label: string; tone: "verified" | "pending" | "risk" | "neutral" }> = {
   healthy: { label: "Healthy", tone: "verified" },
   needs_attention: { label: "Needs attention", tone: "pending" },
   action_required: { label: "Action required", tone: "risk" },
+  // D1 — a card whose sources were not read (or with no workspace selected)
+  // is never "Healthy".
+  unknown: { label: "Unknown", tone: "neutral" },
 };
 
-export function HomeWorkspaceHealthCard({ health }: { health: HealthMetric[] }) {
-  const verdict = HEALTH_OVERALL[workspaceHealthOverall(health)];
+export function HomeWorkspaceHealthCard({ health, noWorkspace = false }: { health: HealthMetric[]; noWorkspace?: boolean }) {
+  const verdict = HEALTH_OVERALL[workspaceHealthOverall(health, { noWorkspace })];
   return (
     <HomeCard title="Workspace health" testID="home-workspace-health">
       <View style={{ flexDirection: "row" }}>
@@ -187,8 +190,13 @@ export function HomeWorkspaceHealthCard({ health }: { health: HealthMetric[] }) 
             {m.label}
           </ProovraText>
           {/* An unknown reads as "—" and stays neutral. */}
-          <ProovraText variant="label" weight="semibold" color={theme.color.status[healthToneBadge(m.tone)].fg}>
-            {m.value}
+          <ProovraText
+            variant="label"
+            weight="semibold"
+            color={m.known === false || noWorkspace ? theme.color.ink.muted : theme.color.status[healthToneBadge(m.tone)].fg}
+            accessibilityLabel={m.known === false || noWorkspace ? `${m.label}: unavailable` : undefined}
+          >
+            {noWorkspace ? "—" : m.value}
           </ProovraText>
         </View>
       ))}

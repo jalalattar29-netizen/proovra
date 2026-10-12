@@ -580,3 +580,36 @@ test("the composer carries the web's field names, placeholders and submit label"
   assert.equal(desc.props.placeholder, "Add notes about this batch");
   assert.ok(r.byLabel("Create & Start Batch").length > 0);
 });
+
+test("D11 create succeeded but start failed: 'created but not started', the list re-read, and a retry starts THE SAME job", async () => {
+  let processCalls = 0;
+  const startJob = handlers.process;
+  handlers.process = (id) => {
+    processCalls += 1;
+    if (processCalls === 1) return apiError(503, "SERVICE_UNAVAILABLE", "Queue unavailable");
+    return startJob(id);
+  };
+  const r = await render();
+  await pressLast(r, "+ New Batch Job");
+  await r.type("Batch name", "Retry me");
+  await r.press("Front door photo");
+  const before = batchCalls().length;
+  await r.press("Create & Start Batch");
+  await settle();
+  const first = batchCalls().slice(before).map((q) => `${q.method} ${q.path.split("?")[0]}`);
+  assert.deepEqual(first, ["POST /v1/batch-analysis", "POST /v1/batch-analysis/job-new/process", "GET /v1/batch-analysis"], "the list was not re-read after a failed start");
+  assert.ok(
+    sheetTexts(r).some((t) => t.includes("created but not started")),
+    `the half-done state was not stated: ${JSON.stringify(sheetTexts(r))}`,
+  );
+  assert.ok(!r.hasText("Batch job created and processing started."));
+
+  // Retry: the job is started, NOT created again.
+  await r.press("Create & Start Batch");
+  await settle();
+  const creates = batchCalls().filter((q) => q.method === "POST" && q.path === "/v1/batch-analysis");
+  assert.equal(creates.length, 1, "a retry created a duplicate job");
+  assert.equal(batchCalls().filter((q) => q.path === "/v1/batch-analysis/job-new/process").length, 2);
+  assert.ok(r.hasText("Batch job created and processing started."));
+  r.unmount();
+});

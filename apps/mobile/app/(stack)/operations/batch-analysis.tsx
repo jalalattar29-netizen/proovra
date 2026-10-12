@@ -30,6 +30,8 @@ import { apiFetch, apiFetchText } from "../../../src/api";
 import { formatUserDateTime } from "../../../src/lib/date";
 import { toSafeUserError } from "../../../src/errors/safe-error";
 import { theme } from "../../../src/theme/theme";
+import { useOptionalLocale } from "../../../src/locale-context";
+import { opsCopyFor } from "../../../src/product/ops-copy";
 import { useAuth } from "../../../src/auth-context";
 import { usePlatformContext } from "../../../src/product/platform-context";
 import {
@@ -74,6 +76,7 @@ import {
   selectBatchCandidateItems,
   sortBatchJobs,
   validateBatchDraft,
+  BATCH_CREATED_NOT_STARTED,
   type BatchJob,
 } from "../../../src/product/operations";
 
@@ -97,6 +100,7 @@ function JobRow({
   onCancel: () => void;
   onExport: () => void;
 }) {
+  const t = opsCopyFor(useOptionalLocale());
   const tone = batchStatusTone(job.status);
   const palette = theme.color.status[tone];
 
@@ -183,7 +187,7 @@ function JobRow({
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
         {canExportBatch(job) ? (
           <ProovraButton
-            label="Export CSV"
+            label={t.batchExport}
             variant="ghost"
             fullWidth={false}
             loading={busy}
@@ -197,7 +201,7 @@ function JobRow({
         */}
         {canCancelBatch(job) ? (
           <ProovraButton
-            label="Cancel job"
+            label={t.batchCancelJob}
             variant="ghost"
             fullWidth={false}
             loading={busy}
@@ -213,6 +217,7 @@ function JobRow({
 
 export default function BatchAnalysisScreen() {
   const router = useRouter();
+  const t = opsCopyFor(useOptionalLocale());
   const { user } = useAuth();
   const platform = usePlatformContext();
   const teamId = platform.context?.activeTeamId ?? null;
@@ -319,29 +324,53 @@ export default function BatchAnalysisScreen() {
 
   const draftError = useMemo(() => validateBatchDraft(name, picked), [name, picked]);
 
+  // D11 — A JOB CREATED BUT NOT STARTED. Create and process are two calls; when
+  // the second fails, the job EXISTS (pending). It is remembered against the
+  // draft it was made from, so "try again" starts THAT job rather than
+  // creating a duplicate. `creating` holds across a double tap.
+  const createdNotStarted = useRef<{ signature: string; id: string } | null>(null);
+  const creating = useRef(false);
+
   const create = useCallback(async () => {
     if (draftError) {
       setMessage(draftError);
       return;
     }
+    if (creating.current) return;
+    creating.current = true;
+    const signature = JSON.stringify([name.trim(), description.trim(), [...picked].sort()]);
     setBusy(true);
     setMessage(null);
+    let id: string | null = createdNotStarted.current?.signature === signature ? createdNotStarted.current.id : null;
     try {
-      const created = await apiFetch(BATCH_ANALYSIS_PATH, {
-        method: "POST",
-        body: JSON.stringify(buildBatchCreateBody(name, picked, description)),
-      });
-      const id = readCreatedBatchId(created);
       if (!id) {
-        setMessage("The job was created but the server did not return its id.");
-        return;
+        const created = await apiFetch(BATCH_ANALYSIS_PATH, {
+          method: "POST",
+          body: JSON.stringify(buildBatchCreateBody(name, picked, description)),
+        });
+        id = readCreatedBatchId(created);
+        if (!id) {
+          setMessage("The job was created but the server did not return its id.");
+          await load();
+          return;
+        }
+        createdNotStarted.current = { signature, id };
       }
 
       // Creation does not start it — the create response says so itself. A job
       // left at `pending` that the user believes is running is worse than
       // either outcome, so the two calls are chained exactly as the web does.
-      await apiFetch(buildBatchProcessPath(id), { method: "POST" });
+      try {
+        await apiFetch(buildBatchProcessPath(id), { method: "POST" });
+      } catch (err) {
+        // The job exists and is NOT running. Say exactly that, show it in the
+        // list, and keep the draft so a retry starts this same job.
+        setMessage(`${BATCH_CREATED_NOT_STARTED} ${toSafeUserError(err).message}`);
+        await load();
+        return;
+      }
 
+      createdNotStarted.current = null;
       setComposing(false);
       setName("");
       setDescription("");
@@ -351,6 +380,7 @@ export default function BatchAnalysisScreen() {
     } catch (err) {
       setMessage(toSafeUserError(err).message);
     } finally {
+      creating.current = false;
       setBusy(false);
     }
   }, [draftError, name, description, picked, load]);
@@ -415,19 +445,19 @@ export default function BatchAnalysisScreen() {
   return (
     <ProovraScreen shell testID="operations-batch-analysis">
       <ProovraPageHeader
-        title="Analyze multiple evidence items at once."
-        eyebrow="Batch Analysis"
-        subtitle="Create batch jobs, monitor progress, review outcomes, and export result sets for larger evidence workloads."
+        title={t.batchTitle}
+        eyebrow={t.batchEyebrow}
+        subtitle={t.batchSubtitle}
         primaryAction={
           <ProovraButton
-            label="+ New Batch Job"
+            label={t.batchNew}
             fullWidth={false}
             onPress={openComposer}
           />
         }
         secondaryActions={
           <ProovraButton
-            label="Back"
+            label={t.back}
             variant="ghost"
             fullWidth={false}
             onPress={() => router.back()}
@@ -441,10 +471,10 @@ export default function BatchAnalysisScreen() {
         </ProovraText>
       ) : null}
 
-      {state.phase === "loading" ? <ProovraLoadingState label="Loading jobs" /> : null}
+      {state.phase === "loading" ? <ProovraLoadingState label={t.batchLoading} /> : null}
 
       {state.phase === "failed" ? (
-        <ProovraErrorState message="Batch jobs could not be loaded." onRetry={() => void load()} />
+        <ProovraErrorState message={t.batchLoadFailed} onRetry={() => void load()} />
       ) : null}
 
       {state.phase === "loaded" ? (
@@ -464,9 +494,9 @@ export default function BatchAnalysisScreen() {
       {state.phase === "loaded" && state.jobs.length === 0 ? (
         <ProovraEmpty
           presence="page"
-          title="No Batch Jobs"
-          purpose="Create your first batch job to analyze multiple evidence items"
-          action={<ProovraButton label="Create Batch Job" onPress={openComposer} />}
+          title={t.batchEmptyTitle}
+          purpose={t.batchEmptyBody}
+          action={<ProovraButton label={t.batchCreate} onPress={openComposer} />}
         />
       ) : null}
 
@@ -500,7 +530,7 @@ export default function BatchAnalysisScreen() {
       ) : null}
 
       {/* ------------------------------------------------------- the composer */}
-      <ProovraSheet visible={composing} title="New Batch Job" onClose={() => setComposing(false)}>
+      <ProovraSheet visible={composing} title={t.batchComposerTitle} closeLabel={t.close} onClose={() => setComposing(false)}>
         <ProovraFormField label="Batch Name">
           <ProovraInput
             value={name}
@@ -559,7 +589,7 @@ export default function BatchAnalysisScreen() {
         )}
 
         <ProovraButton
-          label="Create & Start Batch"
+          label={t.batchCreateStart}
           loading={busy}
           disabled={draftError !== null}
           onPress={() => void create()}
@@ -582,7 +612,7 @@ export default function BatchAnalysisScreen() {
 
       <ProovraConfirmSheet
         visible={cancelling !== null}
-        title="Cancel this batch job?"
+        title={t.batchCancelTitle}
         consequence="In-progress items will stop. Already completed items keep their results."
         confirmLabel="Cancel job"
         cancelLabel="Keep running"

@@ -22,6 +22,8 @@ import { useRouter } from "expo-router";
 import { apiFetch } from "../../../src/api";
 import { formatUserDate } from "../../../src/lib/date";
 import { theme } from "../../../src/theme/theme";
+import { useOptionalLocale } from "../../../src/locale-context";
+import { opsCopyFor } from "../../../src/product/ops-copy";
 import {
   ProovraScreen,
   ProovraCard,
@@ -44,7 +46,6 @@ import {
   type UsageStats,
 } from "../../../src/product/operations";
 import {
-  QUOTAS_COPY as COPY,
   QUOTA_BAR_LABEL,
   QUOTA_CARD_LABEL,
   formatCost,
@@ -133,6 +134,7 @@ function SoftMetric({ label, value, center }: { label: string; value: string; ce
 
 export default function QuotasScreen() {
   const router = useRouter();
+  const t = opsCopyFor(useOptionalLocale());
   const [quotas, setQuotas] = useState<Section<QuotaLine[]>>({ phase: "loading" });
   const [usage, setUsage] = useState<Section<Usage>>({ phase: "loading" });
 
@@ -162,23 +164,23 @@ export default function QuotasScreen() {
   return (
     <ProovraScreen shell testID="operations-quotas">
       <ProovraPageHeader
-        title={COPY.title}
-        eyebrow={COPY.eyebrow}
-        subtitle={COPY.subtitle}
+        title={t.quotasTitle}
+        eyebrow={t.quotasEyebrow}
+        subtitle={t.quotasSubtitle}
         secondaryActions={
-          <ProovraButton label="Back" variant="ghost" fullWidth={false} onPress={() => router.back()} />
+          <ProovraButton label={t.back} variant="ghost" fullWidth={false} onPress={() => router.back()} />
         }
       />
 
       {/* Usage cards — the web's first row (Today / This Week / This Month / Average Per Analysis). */}
-      {usage.phase === "loading" ? <ProovraLoadingState label="Loading usage" /> : null}
+      {usage.phase === "loading" ? <ProovraLoadingState label={t.quotasLoadingUsage} /> : null}
       {usage.phase === "failed" ? (
         // Stated, not silently rendered as zeroes. "We could not read this"
         // and "there was none" are different answers.
-        <ProovraErrorState message="Usage could not be loaded." onRetry={() => void load()} />
+        <ProovraErrorState message={t.quotasUsageFailed} onRetry={() => void load()} />
       ) : null}
       {usage.phase === "loaded" && stats === null ? (
-        <ProovraEmpty presence="inline" title="No usage has been recorded." />
+        <ProovraEmpty presence="inline" title={t.quotasNoUsage} />
       ) : null}
       {stats ? (
         <ProovraKpiGrid
@@ -197,12 +199,12 @@ export default function QuotasScreen() {
       ) : null}
 
       {/* Quota cards, then the Current Quotas bars. */}
-      {quotas.phase === "loading" ? <ProovraLoadingState label="Loading allowances" /> : null}
+      {quotas.phase === "loading" ? <ProovraLoadingState label={t.quotasLoadingAllowances} /> : null}
       {quotas.phase === "failed" ? (
-        <ProovraErrorState message="Allowances could not be loaded." onRetry={() => void load()} />
+        <ProovraErrorState message={t.quotasAllowancesFailed} onRetry={() => void load()} />
       ) : null}
       {quotas.phase === "loaded" && lines.length === 0 ? (
-        <ProovraEmpty presence="inline" title="No allowances are published for this account." />
+        <ProovraEmpty presence="inline" title={t.quotasNoAllowances} />
       ) : null}
       {lines.length > 0 ? (
         <>
@@ -214,7 +216,7 @@ export default function QuotasScreen() {
               caption: `${line.remaining} remaining`,
             }))}
           />
-          <ProovraPageSection title={COPY.currentQuotas}>
+          <ProovraPageSection title={t.quotasCurrent}>
             <ProovraCard testID="current-quotas">
               <View style={{ gap: theme.space.s4 }}>
                 {lines.map((line) => (
@@ -236,7 +238,7 @@ export default function QuotasScreen() {
 
       {extras && stats ? (
         <>
-          <ProovraPageSection title={COPY.costOverview}>
+          <ProovraPageSection title={t.quotasCost}>
             <ProovraCard testID="cost-overview">
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
                 <SoftMetric label="Total Cost" value={formatCost(extras.totalCost)} />
@@ -245,7 +247,7 @@ export default function QuotasScreen() {
             </ProovraCard>
           </ProovraPageSection>
 
-          <ProovraPageSection title={COPY.activeServices}>
+          <ProovraPageSection title={t.quotasServices}>
             <ProovraCard testID="active-services">
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
                 <SoftMetric label="Active API Keys" value={extras.activeApiKeys === null ? "—" : String(extras.activeApiKeys)} />
@@ -256,7 +258,7 @@ export default function QuotasScreen() {
 
           {/* The web renders this card only when at least one type was analysed. */}
           {extras.evidenceTypes.length > 0 ? (
-            <ProovraPageSection title={COPY.evidenceTypes}>
+            <ProovraPageSection title={t.quotasEvidenceTypes}>
               <ProovraCard testID="evidence-types">
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s3 }}>
                   {extras.evidenceTypes.map((e) => (

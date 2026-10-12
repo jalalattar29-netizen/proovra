@@ -25,9 +25,13 @@ export function CopyButton({
   accessibilityLabel,
   variant = "ghost",
   testID,
+  copiedLabel = "Copied",
+  failedLabel = "Copy failed",
 }: {
   value: string;
   label?: string;
+  copiedLabel?: string;
+  failedLabel?: string;
   accessibilityLabel?: string;
   variant?: "ghost" | "secondary";
   testID?: string;
@@ -45,7 +49,7 @@ export function CopyButton({
   }, [value]);
   return (
     <ProovraButton
-      label={state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label}
+      label={state === "copied" ? copiedLabel : state === "failed" ? failedLabel : label}
       accessibilityLabel={accessibilityLabel ?? label}
       variant={variant}
       fullWidth={false}

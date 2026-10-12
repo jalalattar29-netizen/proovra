@@ -161,11 +161,15 @@ export function ProovraFilterSearch({
   onChange,
   placeholder = "Search",
   testID,
+  clearLabel = "Clear",
+  clearA11y = "Clear search",
 }: {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
   testID?: string;
+  clearLabel?: string;
+  clearA11y?: string;
 }) {
   const { isRTL } = useLocale();
   return (
@@ -186,12 +190,12 @@ export function ProovraFilterSearch({
         <Pressable
           onPress={() => onChange("")}
           accessibilityRole="button"
-          accessibilityLabel="Clear search"
+          accessibilityLabel={clearA11y}
           style={styles.searchClear}
           hitSlop={8}
         >
           <ProovraText variant="label" color={theme.color.ink.secondary}>
-            Clear
+            {clearLabel}
           </ProovraText>
         </Pressable>
       ) : null}
@@ -564,12 +568,15 @@ export function ProovraSheet({
   onClose,
   onDismiss,
   children,
+  closeLabel = "Close",
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
   onDismiss?: () => void;
   children: React.ReactNode;
+  /** The close control's word, for a localised surface. */
+  closeLabel?: string;
 }) {
   return (
     <Modal
@@ -579,15 +586,15 @@ export function ProovraSheet({
       onRequestClose={onClose}
       onDismiss={onDismiss}
     >
-      <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel="Close" />
+      <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel={closeLabel} />
       <View style={[styles.sheet, styles.sheetTall]}>
         <View style={styles.sheetHead}>
           <ProovraText variant="h3" weight="semibold" style={styles.flex1}>
             {title}
           </ProovraText>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={closeLabel} hitSlop={8}>
             <ProovraText variant="label" weight="semibold" color={theme.color.accent.a600}>
-              Close
+              {closeLabel}
             </ProovraText>
           </Pressable>
         </View>

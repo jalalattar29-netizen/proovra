@@ -257,10 +257,12 @@ const EMPTY_OUTPUTS: ArtifactOutputs = projectArtifactOutputs(null);
 
 export default function EvidenceDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; tab?: string }>();
   const id = params.id ?? "";
 
-  const [tab, setTab] = useState<Tab>("overview");
+  // A link may open one of the always-present tabs (an Operations remediation
+  // link to `/evidence/:id?tab=integrity`, for one).
+  const [tab, setTab] = useState<Tab>(params.tab === "integrity" || params.tab === "artifacts" ? params.tab : "overview");
   // T-12 — the record's case, and the eligibility-narrowed picker.
   const [caseAssignment, setCaseAssignment] = useState<CaseAssignmentView | null>(null);
   const [eligibleCases, setEligibleCases] = useState<Array<{ id: string; name: string }> | null>(null);

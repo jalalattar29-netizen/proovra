@@ -320,7 +320,8 @@ test("the timeline drives the feed, with the web's labels, and the lists do not 
     "Intake link delivered — Ada",
     "Intake link created — Ada",
     "Intake delivery failed (SMS)",
-    "Request more sent — Leak photos",
+    // D4 — the server's reason (required items missing), not a claim that a request was sent.
+    "Intake incomplete — Leak photos",
   ]);
   assert.equal(groups[0].events[0].href, "/evidence/e1");
 });

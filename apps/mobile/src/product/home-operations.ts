@@ -126,6 +126,12 @@ export interface HealthMetric {
   label: string;
   value: string;
   tone: HealthTone;
+  /**
+   * False when the source this row is built from was not read (failed, or no
+   * workspace is selected). Such a row reads "—", stays neutral, and makes the
+   * overall verdict Unknown rather than Healthy.
+   */
+  known?: boolean;
 }
 
 export interface HealthInputs {
@@ -161,6 +167,16 @@ export function buildWorkspaceHealth(inputs: HealthInputs): HealthMetric[] {
   const p = pipeline(inputs.commandCenter);
   const trust = obj(inputs.trustSummary);
   const reportsData = obj(inputs.reports);
+
+  // D1 — WHICH SOURCES WERE READ. A source that failed (undefined) or was
+  // never requested (null: no workspace) is UNKNOWN, and every row built from
+  // it says "—" instead of a reassuring 0.
+  const read = (v: unknown) => v !== undefined && v !== null;
+  const ccRead = read(inputs.commandCenter);
+  const trustRead = read(inputs.trustSummary);
+  const reportsRead = read(inputs.reports);
+  const inboxRead = read(inputs.inbox);
+  const unknown = (key: string, label: string): HealthMetric => ({ key, label, value: "—", tone: "neutral", known: false });
 
   const reported = int(obj(p.evidence).reported) ?? 0;
   const signed = int(obj(p.evidence).signed) ?? 0;
@@ -206,31 +222,65 @@ export function buildWorkspaceHealth(inputs: HealthInputs): HealthMetric[] {
           ? "warn"
           : "ok";
 
+  const casesKnown = inputs.activeCases !== null && inputs.activeCases !== undefined;
+  const reportsReadyKnown = int(obj(p.reports).ready) !== null || reportsRead;
+  const operationalKnown = trustRead && (int(obj(p.reports).failed) !== null || reportsRead);
+
   return [
-    { key: "complete", label: "Records with a report", value: String(reported), tone: reported > 0 ? "ok" : "neutral" },
-    { key: "need_report", label: "Need a report", value: String(needReport), tone: needReport > 0 ? "warn" : "ok" },
+    ccRead
+      ? { key: "complete", label: "Records with a report", value: String(reported), tone: reported > 0 ? "ok" : "neutral", known: true }
+      : unknown("complete", "Records with a report"),
+    ccRead
+      ? { key: "need_report", label: "Need a report", value: String(needReport), tone: needReport > 0 ? "warn" : "ok", known: true }
+      : unknown("need_report", "Need a report"),
     {
       key: "active_cases",
       label: "Active matters",
       // An unknown count is "—", never 0: a workspace whose cases could not be
       // read has not been told it has none.
-      value: inputs.activeCases === null || inputs.activeCases === undefined ? "—" : String(inputs.activeCases),
+      value: casesKnown ? String(inputs.activeCases) : "—",
       tone: "neutral",
+      known: casesKnown,
     },
-    { key: "submissions", label: "Submissions waiting", value: String(submissionsWaiting), tone: submissionsWaiting > 0 ? "warn" : "ok" },
-    { key: "reports_ready", label: "Reports ready", value: String(reportsReady), tone: reportsReadyTone },
-    { key: "operational", label: "Records with delivery issues", value: String(operationalIssues), tone: operationalIssues > 0 ? "danger" : "ok" },
-    { key: "integrity", label: "Records flagged for review", value: String(integrityIssues), tone: integrityIssues > 0 ? "danger" : "ok" },
-    { key: "storage", label: "Storage used", value: inputs.storageLabel ?? "—", tone: storageTone },
+    inboxRead
+      ? { key: "submissions", label: "Submissions waiting", value: String(submissionsWaiting), tone: submissionsWaiting > 0 ? "warn" : "ok", known: true }
+      : unknown("submissions", "Submissions waiting"),
+    reportsReadyKnown
+      ? { key: "reports_ready", label: "Reports ready", value: String(reportsReady), tone: reportsReadyTone, known: true }
+      : unknown("reports_ready", "Reports ready"),
+    operationalKnown
+      ? { key: "operational", label: "Records with delivery issues", value: String(operationalIssues), tone: operationalIssues > 0 ? "danger" : "ok", known: true }
+      : unknown("operational", "Records with delivery issues"),
+    trustRead
+      ? { key: "integrity", label: "Records flagged for review", value: String(integrityIssues), tone: integrityIssues > 0 ? "danger" : "ok", known: true }
+      : unknown("integrity", "Records flagged for review"),
+    {
+      key: "storage",
+      label: "Storage used",
+      value: inputs.storageLabel ?? "—",
+      tone: storageTone,
+      known: inputs.storageLabel !== null && inputs.storageLabel !== undefined,
+    },
   ];
 }
 
-/** The single word the health card leads with. */
+export type WorkspaceHealthVerdict = "healthy" | "needs_attention" | "action_required" | "unknown";
+
+/**
+ * The single word the health card leads with.
+ *
+ * A KNOWN problem is reported whatever else is unknown. But "Healthy" is a
+ * claim about every row, so it is made only when every row was read: with no
+ * workspace selected, or any source unread, the verdict is Unknown.
+ */
 export function workspaceHealthOverall(
   metrics: ReadonlyArray<HealthMetric>,
-): "healthy" | "needs_attention" | "action_required" {
-  if (metrics.some((m) => m.tone === "danger")) return "action_required";
-  if (metrics.some((m) => m.tone === "warn")) return "needs_attention";
+  opts?: { noWorkspace?: boolean },
+): WorkspaceHealthVerdict {
+  if (opts?.noWorkspace) return "unknown";
+  if (metrics.some((m) => m.known !== false && m.tone === "danger")) return "action_required";
+  if (metrics.some((m) => m.known !== false && m.tone === "warn")) return "needs_attention";
+  if (metrics.length === 0 || metrics.some((m) => m.known === false)) return "unknown";
   return "healthy";
 }
 
@@ -422,6 +472,19 @@ const ACTIVITY_KIND_LABELS: Readonly<Record<string, string>> = {
   verification_published: "Verification published",
 };
 
+/** The web inbox's label for `intake_required_items_missing` (inbox/page.tsx). */
+export const INTAKE_MISSING_LABEL = "Intake incomplete";
+
+/** The most events the Home feed shows (it is a recent-activity preview, not a history). */
+export const ACTIVITY_FEED_LIMIT = 12;
+
+/** D18 — the feed's caption: it never claims to be the complete history. */
+export function activityFeedCaption(shown: number): string {
+  return shown >= ACTIVITY_FEED_LIMIT
+    ? `The ${ACTIVITY_FEED_LIMIT} most recent workspace updates. Older activity is not shown here.`
+    : "Recent workspace updates and evidence reports.";
+}
+
 export function buildActivityGroups(input: {
   recentEvidence?: unknown;
   reports?: unknown;
@@ -451,10 +514,14 @@ export function buildActivityGroups(input: {
     const it = obj(raw);
     const at = str(it.occurredAt);
     if (str(it.category) !== "intake_required_items_missing" || !at) continue;
+    // D4 — this inbox category is the SERVER's "required items are missing"
+    // (an evidence request PARTIALLY_FULFILLED or NEEDS_MORE_INFO). It is not
+    // a record that anyone sent a "request more", so the row says what the
+    // server says, and opens the request through the inbox's native mapper.
     events.push({
       id: `req-more:${str(it.id) ?? str(it.itemKey) ?? at}`,
-      title: `Request more sent — ${str(it.title) ?? "Submission"}`,
-      detail: null,
+      title: `${INTAKE_MISSING_LABEL} — ${str(it.title) ?? "Submission"}`,
+      detail: str(it.body),
       atIso: at,
       href: str(it.href),
     });
@@ -545,7 +612,7 @@ export function buildActivityGroups(input: {
     }
   }
 
-  const limit = input.limit ?? 12;
+  const limit = input.limit ?? ACTIVITY_FEED_LIMIT;
   const ordered = events
     .map((e) => ({ e, t: Date.parse(e.atIso) }))
     .filter((x) => !Number.isNaN(x.t))

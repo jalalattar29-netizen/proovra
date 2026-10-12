@@ -9,18 +9,39 @@
  * opens a sheet; the web's narrow-width CARD rendering of a row is the row.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, View } from "react-native";
-import { makeClientRequestKey, operationsCopyFor } from "@proovra/shared";
+import { AppState, Linking, View } from "react-native";
+import { fillOperationsCopy, makeClientRequestKey, operationsCopyFor } from "@proovra/shared";
 import { useOptionalLocale } from "../../../src/locale-context";
 import { useRouter } from "expo-router";
 
 import { apiFetch, apiFetchText } from "../../../src/api";
 import { toSafeUserError } from "../../../src/errors/safe-error";
-import { formatUserDateTime } from "../../../src/lib/date";
-import { describeDuration, describeRelativeTime } from "../../../src/lib/relative-time";
 import { usePlatformContext } from "../../../src/product/platform-context";
+import { webOrigin } from "../../../src/product/intake-create";
 import {
-  AFFECTED_MORE_LABEL,
+  fillOpsCopy,
+  formatOpsCount,
+  formatOpsDateTime,
+  opsDuration,
+  opsNativeCopyFor,
+  opsRelativeTime,
+  type OpsNativeCopy,
+} from "../../../src/product/ops-copy";
+import {
+  DEFAULT_STATUS_FILTER,
+  OPS_PAGE_LIMIT,
+  OPS_SEARCH_MAX,
+  REFUSAL_COPY_KEYS,
+  STATUS_FILTERS,
+  queueRequestKey,
+  reconcileRefusalKind,
+  remediationDestination,
+  remediationOutcome,
+  savedViewCanStore,
+  shouldAutoReconcile,
+  summaryCountDisplay,
+  summaryIsFloor,
+  type RemediationOutcome,
   CATEGORY_LABEL,
   DEFAULT_FILTERS,
   LOAD_MORE_LABEL,
@@ -28,24 +49,20 @@ import {
   OPS_RECONCILE_PATH,
   OPS_SAVED_VIEWS_PATH,
   QUEUE_METRICS,
-  QUEUE_OVERLAP_NOTE,
   RECONCILE_MAX_POLLS,
   REFUSAL_NOTICE,
-  RESTRICTED_BODY,
-  RESTRICTED_TITLE,
   SEVERITIES,
   SEVERITY_VOCABULARY,
   SLA_FILTER_OPTIONS,
   SORT_LABEL,
-  SOURCE_FALLBACK,
-  STATE_COPY,
-  STATUSES,
   STATUS_VOCABULARY,
   affectedFor,
   anyFilterActive,
   bulkBody,
+  canActOnAnything,
   canViewWorkspaceHealth,
   categoryLabel,
+  conditionTitle,
   filtersForMetric,
   buildOpsAssignPath,
   opsCapabilities,
@@ -74,7 +91,6 @@ import {
   reconcilePollDelay,
   reconciliationNotice,
   refusalCode,
-  remediationMessage,
   resolutionNoteFor,
   resolveOperationsAccess,
   rowActions,
@@ -84,7 +100,6 @@ import {
   slaBreachRecord,
   slaExplanation,
   slaLabel,
-  subtitleFor,
   summarizeBulk,
   timelineEventLabel,
   viewerUserId,
@@ -130,6 +145,7 @@ import {
   OpsIncidentCard,
   OpsNotice,
   OpsSeverityCapsule,
+  useOpsRowDirection,
 } from "../../../src/ui/ops-surfaces";
 
 type Phase = "loading" | "ready" | "failed";
@@ -139,6 +155,21 @@ type Failure = { title?: string; message: string; reference?: string | null };
 function failureOf(err: unknown, message: string): Failure {
   const safe = toSafeUserError(err, { message });
   return { message: safe.message || message, reference: safe.requestId ?? null };
+}
+
+/** A lifecycle/assign refusal in the active language (the three new codes are translated natively). */
+function refusalNotice(code: string, nc: OpsNativeCopy): { title: string; body: string } {
+  const keys = REFUSAL_COPY_KEYS[code];
+  const words = nc as unknown as Record<string, string>;
+  if (keys) return { title: words[keys[0]]!, body: words[keys[1]]! };
+  return REFUSAL_NOTICE[code]!;
+}
+
+/** Status filter chip labels: the two set filters are native copy, the four statuses the vocabulary. */
+function statusFilterLabel(v: string, nc: OpsNativeCopy): string {
+  if (v === "UNRESOLVED") return nc.statusUnresolved;
+  if (v === "ALL") return nc.statusAll;
+  return (nc.status as Record<string, { label: string }>)[v]?.label ?? v;
 }
 
 /**
@@ -174,10 +205,14 @@ function OperationsWorkspaceScreen() {
   const router = useRouter();
   const platform = usePlatformContext();
   // OPS-035 — the shared Operations dictionary (en / de / ar), as on web.
-  const copy = operationsCopyFor(useOptionalLocale());
+  const locale = useOptionalLocale();
+  const copy = operationsCopyFor(locale);
+  const nc = opsNativeCopyFor(locale);
+  const fmt = (n: number) => formatOpsCount(n, locale);
+  const rowDir = useOpsRowDirection();
   const envelope = platform.envelope;
   const teamId = platform.context?.activeTeamId ?? null;
-  const workspaceName = platform.context?.displayName ?? "this workspace";
+  const workspaceName = platform.context?.displayName ?? nc.thisWorkspace;
   const restricted = platform.loading ? null : resolveOperationsAccess(envelope, teamId);
   const caps = useMemo(() => opsCapabilities(envelope), [envelope]);
   const viewer = viewerUserId(envelope);
@@ -222,11 +257,32 @@ function OperationsWorkspaceScreen() {
   const [bulkOutcome, setBulkOutcome] = useState<string | null>(null);
 
   const [openId, setOpenId] = useState<string | null>(null);
-  const [openGroup, setOpenGroup] = useState<IncidentGroup | null>(null);
+  /** The group opened, with the queue predicate it was counted under (D6). */
+  const [openGroup, setOpenGroup] = useState<{ group: IncidentGroup; status: string; severity: string | null } | null>(null);
 
   const loadedOnce = useRef(false);
   const collaborative = operatorCount > 1;
   const stepUp = useChallengeStepUp(teamId);
+
+  // D2 — THE IDENTITY OF THE QUEUE ON SCREEN. Every read of the list carries
+  // the workspace + filters it was asked under and a sequence number; a page
+  // that answers after either moved is discarded, never appended.
+  const queueKey = queueRequestKey(teamId, filters);
+  const queueKeyRef = useRef(queueKey);
+  queueKeyRef.current = queueKey;
+  const queueSeq = useRef(0);
+  const moreBusyRef = useRef(false);
+
+  // D15 — in-flight guards that hold across a double tap. State updates are
+  // asynchronous, so a second tap in the same frame still read the old `busy`.
+  const mutationRef = useRef(false);
+  const bulkIntentRef = useRef<{ signature: string; key: string } | null>(null);
+
+  // D13 — a selection belongs to the queue it was made in: any change of
+  // filters, search or workspace clears it.
+  useEffect(() => {
+    setMarked([]);
+  }, [queueKey]);
 
   // OPS-035 — RETURNING TO THE FOREGROUND RE-READS. A queue left open in the
   // background is shown as it was when the app was put away; the first frame
@@ -255,15 +311,22 @@ function OperationsWorkspaceScreen() {
       .then((d) => {
         if (!live) return;
         const parsed = parseSummary(d);
-        setSummary(parsed.summary);
         setOperatorCount(parsed.operatorCount);
-        setSummaryError(null);
+        if (parsed.summary.unreadable) {
+          // D8 — every count is unknown: no cards (never a row of zeros) and
+          // no automatic check started from a read that failed.
+          setSummary(null);
+          setSummaryError({ title: nc.summaryUnreadableTitle, message: nc.summaryUnreadableBody });
+        } else {
+          setSummary(parsed.summary);
+          setSummaryError(null);
+        }
       })
       .catch((err) => {
         if (!live) return;
         // P:639 — a failed summary hides the cards (P:1675) and says so above them.
         setSummary(null);
-        setSummaryError(failureOf(err, SOURCE_FALLBACK.summary));
+        setSummaryError(failureOf(err, nc.stateSummaryFailedTitle));
       });
     return () => {
       live = false;
@@ -276,9 +339,11 @@ function OperationsWorkspaceScreen() {
     // P:618-619 — a re-read over content already on screen is "Refreshing…".
     if (loadedOnce.current) setRefreshing(true);
     setPhase((p) => (p === "ready" ? "ready" : "loading"));
+    const seq = (queueSeq.current += 1);
+    setMoreError(null);
     apiFetch(buildOpsIncidentsPath(teamId, filters))
       .then((d) => {
-        if (!live) return;
+        if (!live || seq !== queueSeq.current) return;
         const page = parseIncidentsPage(d);
         setIncidents(page.incidents);
         setComplete(page.complete);
@@ -291,8 +356,9 @@ function OperationsWorkspaceScreen() {
         setPhase("ready");
       })
       .catch((err) => {
-        if (!live) return;
-        setLoadError(failureOf(err, SOURCE_FALLBACK.incidents));
+        if (!live || seq !== queueSeq.current) return;
+        setLoadError(failureOf(err, nc.stateUnavailableFallback));
+        setNextCursor(null);
         setPhase("failed");
       })
       .finally(() => {
@@ -357,23 +423,48 @@ function OperationsWorkspaceScreen() {
   const refresh = useCallback(() => setReload((n) => n + 1), []);
 
   const loadMore = useCallback(async () => {
-    if (!teamId || !nextCursor || moreBusy) return;
+    if (!teamId || !nextCursor || moreBusyRef.current) return;
+    const key = queueKeyRef.current;
+    const seq = queueSeq.current;
+    const stale = () => queueKeyRef.current !== key || queueSeq.current !== seq;
+    moreBusyRef.current = true;
     setMoreBusy(true);
     setMoreError(null);
     try {
       const page = parseIncidentsPage(await apiFetch(buildOpsIncidentsPath(teamId, filters, nextCursor)));
-      setIncidents((prev) => [...prev, ...page.incidents]);
+      // D2 — a page of the PREVIOUS queue (filters changed, or the list was
+      // re-read meanwhile) is dropped: appending it would mix two predicates.
+      if (stale()) return;
+      setIncidents((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        return [...prev, ...page.incidents.filter((x) => !seen.has(x.id))];
+      });
       setComplete(page.complete);
       setNextCursor(page.nextCursor);
     } catch (err) {
       // P:919 — reported beside the control; the cursor is kept so a retry resumes.
-      setMoreError(failureOf(err, STATE_COPY.loadMoreFailed).message);
+      if (!stale()) setMoreError(failureOf(err, nc.stateLoadMoreFailed).message);
     } finally {
+      moreBusyRef.current = false;
       setMoreBusy(false);
     }
-  }, [teamId, filters, nextCursor, moreBusy]);
+  }, [teamId, filters, nextCursor]);
 
   /* ------------------------------------------------------------ reconcile */
+
+  /** D9 — a refused check in words: only schema_mismatch is a deployment mismatch. */
+  function reconcileNotice(refusedReason: string, retryable: boolean | null): Failure {
+    switch (reconcileRefusalKind(refusedReason, retryable)) {
+      case "mismatch":
+        return { title: nc.checkMismatchTitle, message: nc.checkMismatchBody };
+      case "permission":
+        return { title: nc.checkPermissionTitle, message: nc.checkPermissionBody };
+      case "other":
+        return { title: nc.checkNotStartedTitle, message: nc.checkRefusedOtherBody };
+      default:
+        return { title: nc.checkNotStartedTitle, message: nc.checkNotStartedBody };
+    }
+  }
 
   const reconcileStarted = useRef<string | null>(null);
   const checkingRef = useRef(false);
@@ -392,17 +483,14 @@ function OperationsWorkspaceScreen() {
         readiness?: string;
       };
       if (res?.refusedReason) {
-        setNotice(
-          res.retryable === false
-            ? { title: STATE_COPY.checkRefusedTitle, message: STATE_COPY.checkRefusedBody }
-            : { title: STATE_COPY.checkNotStartedTitle, message: STATE_COPY.checkNotStartedBody },
-        );
+        setNotice(reconcileNotice(res.refusedReason, res.retryable ?? null));
       } else {
         // The check runs inline: poll only a run the server says is still going.
         const stillRunning = res?.alreadyRunning === true || res?.readiness === "RUNNING";
         for (let n = 0; stillRunning && n < RECONCILE_MAX_POLLS; n += 1) {
           await new Promise((r) => setTimeout(r, reconcilePollDelay(n)));
           const parsed = parseSummary(await apiFetch(buildOpsSummaryPath(teamId)));
+          if (parsed.summary.unreadable) break;
           setSummary(parsed.summary);
           if (parsed.summary.readiness !== "RUNNING") break;
         }
@@ -410,11 +498,10 @@ function OperationsWorkspaceScreen() {
     } catch (err) {
       // The web shows generic copy for a 503 schema_mismatch; the body says
       // exactly why, so native reads it.
-      const body = (err as { body?: { refusedReason?: string } })?.body;
+      const e = err as { code?: string; body?: { refusedReason?: string; retryable?: boolean; error?: { code?: string; retryable?: boolean } } };
+      const reason = e?.body?.refusedReason ?? (e?.code === "schema_mismatch" || e?.code === "permission_denied" ? e.code : null);
       setNotice(
-        body?.refusedReason === "schema_mismatch"
-          ? { title: STATE_COPY.checkRefusedTitle, message: STATE_COPY.checkRefusedBody }
-          : failureOf(err, STATE_COPY.checkThrew),
+        reason ? reconcileNotice(reason, e?.body?.retryable ?? e?.body?.error?.retryable ?? null) : failureOf(err, nc.stateCheckThrew),
       );
     } finally {
       checkingRef.current = false;
@@ -423,19 +510,22 @@ function OperationsWorkspaceScreen() {
     }
   }, [teamId, refresh]);
 
-  // A workspace that has never been checked is checked once, automatically (P:1021-1029).
+  // A workspace that has never been checked is checked once, automatically
+  // (P:1021-1029) — from a summary that was READ. An unreadable summary says
+  // NEVER_RUN as its floor; a failed read is not a reason to start work (D8).
   useEffect(() => {
-    if (summary?.readiness === "NEVER_RUN" && teamId && reconcileStarted.current !== teamId) {
+    if (shouldAutoReconcile(summary) && teamId && reconcileStarted.current !== teamId) {
       reconcileStarted.current = teamId;
       void checkAgain();
     }
-  }, [summary?.readiness, teamId, checkAgain]);
+  }, [summary, teamId, checkAgain]);
 
   /* ------------------------------------------------------------ mutations */
 
   const lifecycle = useCallback(
     async (id: string, action: LifecycleAction, extra?: { resolutionNote?: string; reason?: string }) => {
-      if (!teamId || busy) return;
+      if (!teamId || mutationRef.current) return;
+      mutationRef.current = true;
       setBusy(true);
       setPendingId(id);
       setNotice(null);
@@ -445,20 +535,22 @@ function OperationsWorkspaceScreen() {
         await apiFetch(buildOpsLifecyclePath(id, action), { method: "POST", body: JSON.stringify(lifecycleBody(teamId, extra)) });
       } catch (err) {
         const code = refusalCode(err);
-        if (code) setRefusal(REFUSAL_NOTICE[code]!);
-        else setNotice(failureOf(err, STATE_COPY.actionFailed));
+        if (code) setRefusal(refusalNotice(code, nc));
+        else setNotice(failureOf(err, nc.stateActionFailed));
       } finally {
+        mutationRef.current = false;
         setBusy(false);
         setPendingId(null);
         refresh();
       }
     },
-    [teamId, busy, refresh],
+    [teamId, refresh, nc],
   );
 
   const assign = useCallback(
     async (id: string, assigneeUserId: string | null) => {
-      if (!teamId || busy) return;
+      if (!teamId || mutationRef.current) return;
+      mutationRef.current = true;
       setBusy(true);
       setPendingId(id);
       setNotice(null);
@@ -466,20 +558,35 @@ function OperationsWorkspaceScreen() {
         await apiFetch(buildOpsAssignPath(id), { method: "POST", body: JSON.stringify({ teamId, assigneeUserId }) });
         refresh();
       } catch (err) {
-        setNotice(failureOf(err, STATE_COPY.assignFailed));
+        // 400 invalid_assignee / 409 CONDITION_STATE_CHANGED are refusals with their own words.
+        const code = refusalCode(err);
+        if (code) {
+          setRefusal(refusalNotice(code, nc));
+          refresh();
+        } else setNotice(failureOf(err, nc.stateAssignFailed));
       } finally {
+        mutationRef.current = false;
         setBusy(false);
         setPendingId(null);
       }
     },
-    [teamId, busy, refresh],
+    [teamId, refresh, nc],
   );
 
   const runBulk = useCallback(
     async (actionType: BulkActionType, assigneeUserId?: string, note?: string) => {
-      if (!teamId || marked.length === 0 || busy) return;
+      if (!teamId || marked.length === 0 || mutationRef.current) return;
       const targets = [...marked];
-      const idempotencyKey = makeClientRequestKey();
+      // D15 — ONE KEY PER USER INTENT. A retry of the same sweep (same action,
+      // same targets, same assignee and reason) after a failure re-sends the
+      // SAME key, so the server reads back the first run instead of starting a
+      // second; a different intent gets a fresh key.
+      const signature = JSON.stringify([actionType, [...targets].sort(), assigneeUserId ?? null, note ?? null]);
+      if (bulkIntentRef.current?.signature !== signature) {
+        bulkIntentRef.current = { signature, key: makeClientRequestKey() };
+      }
+      const idempotencyKey = bulkIntentRef.current.key;
+      mutationRef.current = true;
       setBusy(true);
       setNotice(null);
       setBulkOutcome(null);
@@ -487,19 +594,22 @@ function OperationsWorkspaceScreen() {
         const res = await stepUp.run((headers) =>
           apiFetch(OPS_BULK_PATH, { method: "POST", headers, body: JSON.stringify(bulkBody(teamId, actionType, targets, assigneeUserId, { note, idempotencyKey })) }),
         );
-        const outcome = summarizeBulk(res, targets);
+        const outcome = summarizeBulk(res, targets, nc);
+        // The sweep settled: the next one is a new intent.
+        bulkIntentRef.current = null;
         setMarked(outcome.stillSelected);
         setBulkOutcome(outcome.message);
       } catch (err) {
         // P:1315-1322: a cancelled challenge is an outcome; anything else is a failure banner.
-        if ((err as { code?: string })?.code === "STEP_UP_CANCEL") setBulkOutcome(STATE_COPY.bulkCancelled);
-        else setNotice(failureOf(err, STATE_COPY.bulkFailed));
+        if ((err as { code?: string })?.code === "STEP_UP_CANCEL") setBulkOutcome(nc.stateBulkCancelled);
+        else setNotice(failureOf(err, nc.stateBulkFailed));
       } finally {
+        mutationRef.current = false;
         setBusy(false);
         refresh();
       }
     },
-    [teamId, marked, busy, stepUp, refresh],
+    [teamId, marked, stepUp, refresh],
   );
 
   const onRowAction = useCallback(
@@ -507,6 +617,8 @@ function OperationsWorkspaceScreen() {
       // C/IncidentSurface.tsx: "Change owner" opens the inspector, where ownership lives.
       if (key === "open" || key === "assign") setOpenId(id);
       else if (key === "acknowledge") void lifecycle(id, "ack");
+      // D19 — "Resume notifications" (POST …/unsuppress) needs no reason.
+      else if (key === "unsuppress") void lifecycle(id, "unsuppress");
       // OPS-029 — a source that needs a written conclusion is resolved from
       // its sheet, where the note is asked for.
       else if (key === "resolve") {
@@ -525,17 +637,17 @@ function OperationsWorkspaceScreen() {
   const header = (
     <ProovraPageHeader
       title={copy.pageTitle}
-      subtitle={subtitleFor(caps)}
+      subtitle={canActOnAnything(caps) ? copy.subtitleOperator : copy.subtitleViewer}
       contextStrip={
         restricted ? undefined : (
           <ProovraText variant="label" color={theme.color.ink.secondary}>
-            {`Conditions in ${workspaceName}${lastLoadedAt ? ` · Updated ${formatUserDateTime(lastLoadedAt)}` : ""}`}
+            {`${fillOpsCopy(nc.contextStrip, { name: workspaceName })}${lastLoadedAt ? ` · ${fillOpsCopy(nc.contextUpdated, { at: formatOpsDateTime(lastLoadedAt, locale) })}` : ""}`}
           </ProovraText>
         )
       }
       secondaryActions={
         !restricted && healthVisible ? (
-          <ProovraButton label="Workspace health" variant="ghost" fullWidth={false} onPress={() => router.push("/operations/health")} />
+          <ProovraButton label={nc.workspaceHealthLink} variant="ghost" fullWidth={false} onPress={() => router.push("/operations/health")} />
         ) : undefined
       }
       primaryAction={
@@ -557,15 +669,19 @@ function OperationsWorkspaceScreen() {
     return (
       <ProovraScreen shell testID="operations">
         {header}
-        <ProovraEmpty title={RESTRICTED_TITLE} purpose={RESTRICTED_BODY[restricted]} />
+        <ProovraEmpty title={nc.restrictedTitle} purpose={nc.restricted[restricted]} />
       </ProovraScreen>
     );
   }
 
-  const reconciliation = reconciliationNotice(summary);
+  const reconciliation = reconciliationNotice(summary, nc);
   const active = anyFilterActive(filters);
   const selected = selectedMetric(filters);
   const selectable = caps.acknowledge || caps.suppress;
+  // D2 — while a further page is loading, the filters are held still: a page
+  // of one queue must not land in another.
+  const filtersLocked = busy || moreBusy;
+  const ownerWords = { assigned: nc.ownerAssigned, unassigned: nc.ownerUnassigned, you: nc.ownerYou };
   const clearFilters = () => {
     setFilters(DEFAULT_FILTERS);
     setSearchText("");
@@ -578,22 +694,22 @@ function OperationsWorkspaceScreen() {
 
   const emptyState = mayAssertClear ? (
     <ProovraEmpty
-      title={STATE_COPY.clearTitle}
-      purpose={STATE_COPY.clearBody}
+      title={nc.stateClearTitle}
+      purpose={nc.stateClearBody}
       action={
         <View style={{ gap: theme.space.s2 }}>
-          <ProovraButton label="Evidence library" variant="secondary" onPress={() => router.push("/evidence")} />
-          <ProovraButton label="Workspace overview" variant="ghost" onPress={() => router.push("/")} />
+          <ProovraButton label={nc.evidenceLibrary} variant="secondary" onPress={() => router.push("/evidence")} />
+          <ProovraButton label={nc.workspaceOverview} variant="ghost" onPress={() => router.push("/")} />
         </View>
       }
     />
   ) : summary?.readiness === "NEVER_RUN" && !active ? (
-    <ProovraEmpty title={STATE_COPY.preparingTitle} purpose={STATE_COPY.preparingBody} />
+    <ProovraEmpty title={nc.statePreparingTitle} purpose={nc.statePreparingBody} />
   ) : (
     <ProovraEmpty
-      title={STATE_COPY.noMatchTitle}
-      purpose={STATE_COPY.noMatchBody}
-      action={<ProovraButton label="Clear filters" onPress={clearFilters} />}
+      title={nc.stateNoMatchTitle}
+      purpose={nc.stateNoMatchBody}
+      action={<ProovraButton label={nc.clearFilters} onPress={clearFilters} />}
     />
   );
 
@@ -601,21 +717,25 @@ function OperationsWorkspaceScreen() {
   if (grouped && groupsFailed) {
     queue = (
       <ProovraEmpty
-        title={STATE_COPY.unavailableTitle}
-        purpose={STATE_COPY.groupsFailed}
-        action={<ProovraButton label="Try again" variant="secondary" onPress={refresh} />}
+        title={nc.stateUnavailableTitle}
+        purpose={nc.stateGroupsFailed}
+        action={<ProovraButton label={nc.tryAgain} variant="secondary" onPress={refresh} />}
       />
     );
   } else if (grouped && groupsLoading && groups.length === 0) {
     // LOADING IS NOT EMPTY (P:1799-1807): never an all-clear for one frame.
-    queue = <ProovraLoadingState label={STATE_COPY.loading} />;
+    queue = <ProovraLoadingState label={nc.stateLoading} />;
   } else if (surfaceEmpty) {
     queue = phase === "ready" ? emptyState : null;
   } else if (grouped) {
     queue = (
       <View style={{ gap: theme.space.s2 }} testID="ops-groups">
         {groups.map((g) => (
-          <OpsGroupCard key={g.groupKey} group={g} onOpen={() => setOpenGroup(g)} />
+          <OpsGroupCard
+            key={g.groupKey}
+            group={g}
+            onOpen={() => setOpenGroup({ group: g, status: filters.status || DEFAULT_STATUS_FILTER, severity: filters.severity || null })}
+          />
         ))}
       </View>
     );
@@ -626,11 +746,12 @@ function OperationsWorkspaceScreen() {
           <OpsIncidentCard
             key={i.id}
             incident={i}
-            owner={collaborative ? ownerLabel(i, viewer, operators) : null}
+            owner={collaborative ? ownerLabel(i, viewer, operators, ownerWords) : null}
+            selectLabel={fillOpsCopy(nc.selectFor, { title: conditionTitle(i, nc) })}
             attention={i.sla !== null && attention.includes(i.sla.posture)}
             selectable={selectable}
             marked={marked.includes(i.id)}
-            actions={rowActions(i, caps)}
+            actions={rowActions(i, caps, { collaborative }, nc)}
             pending={pendingId === i.id}
             onToggle={() => setMarked((m) => (m.includes(i.id) ? m.filter((x) => x !== i.id) : [...m, i.id]))}
             onOpen={() => setOpenId(i.id)}
@@ -651,55 +772,47 @@ function OperationsWorkspaceScreen() {
           title={notice.title}
           text={notice.message}
           reference={notice.reference}
-          actions={[{ label: "Dismiss", variant: "ghost", onPress: () => setNotice(null) }]}
+          actions={[{ label: nc.dismiss, variant: "ghost", onPress: () => setNotice(null) }]}
           testID="ops-mutation-error"
         />
       ) : null}
       {summaryError ? (
         <OpsNotice
           tone="warn"
-          title="The queue summary could not be loaded."
-          text={`${summaryError.message} ${STATE_COPY.degradedTail}`}
+          title={summaryError.title ?? nc.stateSummaryFailedTitle}
+          text={summaryError.title ? summaryError.message : `${summaryError.message} ${nc.stateDegradedTail}`}
           reference={summaryError.reference}
-          actions={[{ label: "Retry", onPress: refresh }]}
+          actions={[{ label: nc.retry, onPress: refresh }]}
           testID="ops-degraded-summary"
         />
       ) : null}
       <ReconciliationBanner notice={reconciliation} onCheckAgain={() => void checkAgain()} />
 
-      {phase === "loading" && incidents.length === 0 ? <ProovraLoadingState label={STATE_COPY.loading} /> : null}
+      {phase === "loading" && incidents.length === 0 ? <ProovraLoadingState label={nc.stateLoading} /> : null}
 
-      {phase === "failed" ? (
-        <ProovraEmpty
-          title={STATE_COPY.unavailableTitle}
-          purpose={loadError?.message ?? STATE_COPY.unavailableFallback}
-          action={
-            <View style={{ gap: theme.space.s2 }}>
-              <ProovraSupportReference reference={loadError?.reference} />
-              <ProovraButton label="Try again" onPress={refresh} />
-            </View>
-          }
-        />
-      ) : null}
-
-      {phase === "ready" ? (
+      {/*
+        D14 — a failed queue read replaces the QUEUE, never the filters and
+        search above it: the person who typed a query that failed must be able
+        to change it.
+      */}
+      {phase === "ready" || phase === "failed" ? (
         <>
           {refreshing ? (
             <ProovraText variant="label" color={theme.color.ink.muted} testID="ops-refreshing">
-              Refreshing…
+              {nc.refreshingInline}
             </ProovraText>
           ) : null}
 
           {summary ? (
-            <ProovraSection title="Queue summary">
+            <ProovraSection title={nc.sectionSummary} heading>
               <ProovraKpiGrid
                 items={QUEUE_METRICS.filter((m) => !m.collaborativeOnly || collaborative).map((m) => {
-                  const v = summary.counts[m.key];
                   return {
                     key: m.key,
-                    label: m.label,
-                    value: typeof v === "number" ? String(v) : "—",
-                    caption: m.note,
+                    label: nc.metric[m.key].label,
+                    // D8 — null is "—", a bounded scan is "N+" (at least N), never 0.
+                    value: summaryCountDisplay(summary, m.key, fmt),
+                    caption: nc.metric[m.key].note,
                     tone: m.tone,
                     selected: selected === m.key,
                     onPress: () => {
@@ -710,8 +823,13 @@ function OperationsWorkspaceScreen() {
                   };
                 })}
               />
+              {summaryIsFloor(summary) ? (
+                <ProovraText variant="label" color={theme.color.ink.secondary} testID="ops-summary-floor">
+                  {nc.summaryFloorNote}
+                </ProovraText>
+              ) : null}
               <ProovraText variant="label" color={theme.color.ink.muted}>
-                {QUEUE_OVERLAP_NOTE}
+                {nc.overlapNote}
               </ProovraText>
             </ProovraSection>
           ) : null}
@@ -730,71 +848,80 @@ function OperationsWorkspaceScreen() {
             onChanged={loadViews}
           />
 
-          <ProovraSection title="Filters">
-            <ProovraFilterSearch value={searchText} onChange={setSearchText} placeholder="Search conditions" testID="ops-search" />
+          <ProovraSection title={nc.sectionFilters} heading>
+            <ProovraFilterSearch
+              value={searchText}
+              onChange={(t) => setSearchText(t.slice(0, OPS_SEARCH_MAX))}
+              placeholder={nc.searchPlaceholder}
+              clearLabel={nc.clearSearch}
+              clearA11y={nc.clearSearch}
+              testID="ops-search"
+            />
             <ProovraFilterChips
-              label="Status"
+              label={nc.statusLabel}
               value={filters.status}
-              disabled={busy}
+              disabled={filtersLocked}
               onChange={(status) => setFilters((f) => ({ ...f, status }))}
-              options={[{ value: "", label: "Any status" }, ...STATUSES.map((s) => ({ value: s as string, label: STATUS_VOCABULARY[s].label }))]}
+              options={STATUS_FILTERS.map((s) => ({ value: s as string, label: statusFilterLabel(s, nc) }))}
             />
             <ProovraFilterChips
-              label="Severity"
+              label={nc.filterSeverity}
               value={filters.severity}
-              disabled={busy}
+              disabled={filtersLocked}
               onChange={(severity) => setFilters((f) => ({ ...f, severity }))}
-              options={[{ value: "", label: "Any severity" }, ...SEVERITIES.map((s) => ({ value: s as string, label: SEVERITY_VOCABULARY[s].label }))]}
+              options={[{ value: "", label: nc.filterSeverityAny }, ...SEVERITIES.map((s) => ({ value: s as string, label: nc.severity[s].label }))]}
             />
             <ProovraFilterChips
-              label="Source"
+              label={nc.filterSource}
               value={filters.category}
-              disabled={busy}
+              disabled={filtersLocked}
               onChange={(category) => setFilters((f) => ({ ...f, category }))}
-              options={[{ value: "", label: "Any source" }, ...Object.entries(CATEGORY_LABEL).map(([value, label]) => ({ value, label }))]}
+              options={[{ value: "", label: nc.filterSourceAny }, ...Object.keys(CATEGORY_LABEL).map((value) => ({ value, label: categoryLabel(value, nc) }))]}
             />
             {collaborative ? (
               <ProovraFilterChips
-                label="Owner"
+                label={nc.filterOwner}
                 value={filters.owner}
-                disabled={busy}
+                disabled={filtersLocked}
                 onChange={(owner) => setFilters((f) => ({ ...f, owner }))}
                 options={[
-                  { value: "any", label: "Anyone" },
-                  { value: "me", label: "Assigned to me" },
-                  { value: "unassigned", label: "Unassigned" },
+                  { value: "any", label: nc.filterOwnerAny },
+                  { value: "me", label: nc.filterOwnerMe },
+                  { value: "unassigned", label: nc.filterOwnerNone },
                   ...operators.map((o) => ({ value: o.userId, label: o.label })),
                 ]}
               />
             ) : null}
             <ProovraFilterChips
-              label="Sort"
+              label={nc.filterSort}
               value={filters.sort}
-              disabled={busy}
+              disabled={filtersLocked}
               onChange={(sort) => setFilters((f) => ({ ...f, sort: sort as SortKey }))}
-              options={(Object.keys(SORT_LABEL) as SortKey[]).map((k) => ({ value: k, label: SORT_LABEL[k] }))}
+              options={(Object.keys(SORT_LABEL) as SortKey[]).map((k) => ({ value: k, label: nc.sort[k] }))}
             />
             <ProovraFilterChips
-              label="Time commitment"
+              label={nc.filterSla}
               value={filters.sla}
-              disabled={busy}
+              disabled={filtersLocked}
               onChange={(sla) => setFilters((f) => ({ ...f, sla }))}
-              options={SLA_FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              options={SLA_FILTER_OPTIONS.map((o) => ({ value: o.value, label: o.value ? slaLabel(o.value, nc) : nc.slaAny }))}
             />
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.space.s2 }}>
+            <View style={{ flexDirection: rowDir, alignItems: "center", justifyContent: "space-between", gap: theme.space.s2 }}>
               <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="ops-result-summary">
-                {grouped
-                  ? `${(groupTotals?.groups ?? groups.length).toLocaleString("en-US")} ${(groupTotals?.groups ?? groups.length) === 1 ? "source" : "sources"} · ${(
-                      groupTotals?.conditions ?? 0
-                    ).toLocaleString("en-US")} ${(groupTotals?.conditions ?? 0) === 1 ? "condition" : "conditions"}${filters.status ? "" : " · all statuses"}`
-                  : incidents.length === 1
-                    ? "1 condition"
-                    : `${incidents.length}${nextCursor ? "+" : ""} conditions`}
+                {phase === "failed"
+                  ? ""
+                  : grouped
+                    ? `${(groupTotals?.groups ?? groups.length) === 1 ? nc.resultSourceOne : fillOpsCopy(nc.resultSources, { n: fmt(groupTotals?.groups ?? groups.length) })} · ${
+                        (groupTotals?.conditions ?? 0) === 1 ? nc.resultConditionOne : fillOpsCopy(nc.resultConditions, { n: fmt(groupTotals?.conditions ?? 0) })
+                      }${filters.status === "ALL" ? ` · ${nc.resultAllStatuses}` : ""}`
+                    : incidents.length === 1 && !nextCursor
+                      ? nc.resultConditionOne
+                      : fillOpsCopy(nc.resultConditions, { n: `${fmt(incidents.length)}${nextCursor ? "+" : ""}` })}
               </ProovraText>
-              {active ? <ProovraButton label="Clear filters" variant="ghost" fullWidth={false} onPress={clearFilters} /> : null}
+              {active ? <ProovraButton label={nc.clearFilters} variant="ghost" fullWidth={false} onPress={clearFilters} /> : null}
             </View>
             <ProovraFilterChips
-              label="View"
+              label={nc.filterView}
               value={grouped ? "grouped" : "all"}
               onChange={(v) => {
                 setGrouped(v === "grouped");
@@ -831,12 +958,25 @@ function OperationsWorkspaceScreen() {
             </ProovraText>
           ) : null}
 
-          {queue}
+          {phase === "failed" ? (
+            <ProovraEmpty
+              title={nc.stateUnavailableTitle}
+              purpose={loadError?.message ?? nc.stateUnavailableFallback}
+              action={
+                <View style={{ gap: theme.space.s2 }}>
+                  <ProovraSupportReference reference={loadError?.reference} />
+                  <ProovraButton label={copy.retry} onPress={refresh} />
+                </View>
+              }
+            />
+          ) : (
+            queue
+          )}
 
-          {!grouped && nextCursor ? (
+          {phase === "ready" && !grouped && nextCursor ? (
             <View style={{ gap: theme.space.s2, alignItems: "center" }}>
               <ProovraButton
-                label={moreBusy ? "Loading…" : LOAD_MORE_LABEL}
+                label={moreBusy ? copy.loading : fillOperationsCopy(copy.loadMore, { n: OPS_PAGE_LIMIT }) || LOAD_MORE_LABEL}
                 variant="secondary"
                 fullWidth={false}
                 disabled={moreBusy}
@@ -855,6 +995,9 @@ function OperationsWorkspaceScreen() {
 
       {openId && teamId ? (
         <IncidentInspector
+          // One sheet per condition: switching conditions never carries one
+          // condition's remediation outcome or typed reason onto another.
+          key={openId}
           teamId={teamId}
           id={openId}
           row={openRow}
@@ -871,13 +1014,23 @@ function OperationsWorkspaceScreen() {
           onChanged={refresh}
         />
       ) : null}
-      {openGroup && teamId ? <GroupInspector teamId={teamId} group={openGroup} onClose={() => setOpenGroup(null)} /> : null}
+      {openGroup && teamId ? (
+        <GroupInspector
+          key={openGroup.group.groupKey}
+          teamId={teamId}
+          group={openGroup.group}
+          status={openGroup.status}
+          severity={openGroup.severity}
+          onClose={() => setOpenGroup(null)}
+        />
+      ) : null}
 
       <ProovraConfirmSheet
+        cancelLabel={nc.cancel}
         visible={refusal !== null}
         title={refusal?.title ?? ""}
         consequence={refusal?.body}
-        confirmLabel="Close"
+        confirmLabel={nc.close}
         tone="warning"
         onConfirm={() => setRefusal(null)}
         onCancel={() => setRefusal(null)}
@@ -890,30 +1043,31 @@ function OperationsWorkspaceScreen() {
 /* ================================================================ pieces */
 
 function ReconciliationBanner({ notice, onCheckAgain }: { notice: ReturnType<typeof reconciliationNotice>; onCheckAgain: () => void }) {
+  const nc = opsNativeCopyFor(useOptionalLocale());
   if (!notice) return null;
   if (notice.kind === "running") {
     return (
       <ProovraText variant="label" color={theme.color.ink.muted} testID="ops-reconciling">
-        {STATE_COPY.reconciling}
+        {nc.stateReconciling}
       </ProovraText>
     );
   }
   if (notice.kind === "stalled") {
     return (
-      <OpsNotice tone="warn" title={STATE_COPY.stalledTitle} text={STATE_COPY.stalledBody} actions={[{ label: "Check again", onPress: onCheckAgain }]} />
+      <OpsNotice tone="warn" title={nc.stateStalledTitle} text={nc.stateStalledBody} actions={[{ label: nc.checkAgain, onPress: onCheckAgain }]} />
     );
   }
   if (notice.kind === "failed") {
     return (
-      <OpsNotice tone="danger" text={notice.message} actions={notice.canRetry ? [{ label: "Try again", onPress: onCheckAgain }] : undefined} />
+      <OpsNotice tone="danger" text={notice.message} actions={notice.canRetry ? [{ label: nc.tryAgain, onPress: onCheckAgain }] : undefined} />
     );
   }
   return (
     <OpsNotice
       tone="warn"
       title={notice.heading}
-      text={`${STATE_COPY.partialTail}${notice.retryable ? "" : ` ${STATE_COPY.partialNotRetryable}`}`}
-      actions={notice.retryable ? [{ label: "Check again", onPress: onCheckAgain }] : undefined}
+      text={`${nc.statePartialTail}${notice.retryable ? "" : ` ${nc.statePartialNotRetryable}`}`}
+      actions={notice.retryable ? [{ label: nc.checkAgain, onPress: onCheckAgain }] : undefined}
     />
   );
 }
@@ -944,14 +1098,16 @@ function BulkToolbar({
   onAssign: (userId: string) => void;
   onClear: () => void;
 }) {
-  const copy = operationsCopyFor(useOptionalLocale());
+  const locale = useOptionalLocale();
+  const copy = operationsCopyFor(locale);
+  const nc = opsNativeCopyFor(locale);
   const [suppressOpen, setSuppressOpen] = useState(false);
   const [suppressReason, setSuppressReason] = useState("");
   return (
     <ProovraCard>
       <View style={{ gap: theme.space.s2 }} testID="ops-bulk-toolbar">
         <ProovraText variant="bodySm" weight="semibold">
-          {count === 1 ? "1 condition selected" : `${count} conditions selected`}
+          {count === 1 ? nc.bulkSelectedOne : fillOpsCopy(nc.bulkSelectedMany, { n: formatOpsCount(count, locale) })}
         </ProovraText>
         {caps.acknowledge ? <ProovraButton label={copy.acknowledge} variant="secondary" disabled={busy} onPress={onAcknowledge} /> : null}
         {caps.suppress ? (
@@ -984,17 +1140,17 @@ function BulkToolbar({
         ) : null}
         {collaborative && caps.assign && operators.length > 0 ? (
           <ProovraFilterChips
-            label="Assign to…"
+            label={nc.bulkAssignTo}
             value=""
             disabled={busy}
             onChange={(v) => v && onAssign(v)}
             options={[
-              ...(selfUserId ? [{ value: selfUserId, label: "Me" }] : []),
+              ...(selfUserId ? [{ value: selfUserId, label: nc.bulkMe }] : []),
               ...operators.filter((o) => o.userId !== selfUserId).map((o) => ({ value: o.userId, label: o.label })),
             ]}
           />
         ) : null}
-        <ProovraButton label="Clear selection" variant="ghost" onPress={onClear} />
+        <ProovraButton label={nc.bulkClear} variant="ghost" onPress={onClear} />
         {outcome ? (
           <ProovraText variant="bodySm" color={theme.color.ink.secondary} testID="ops-bulk-outcome">
             {outcome}
@@ -1024,6 +1180,8 @@ function SavedViewsStrip({
   onApply: (v: SavedView) => void;
   onChanged: () => void;
 }) {
+  const nc = opsNativeCopyFor(useOptionalLocale());
+  const viewsTitle = nc.sectionViews;
   const [form, setForm] = useState<{ mode: "create" } | { mode: "rename"; view: SavedView } | null>(null);
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
@@ -1031,7 +1189,8 @@ function SavedViewsStrip({
   const [managing, setManaging] = useState<SavedView | null>(null);
   const [deleting, setDeleting] = useState<SavedView | null>(null);
   const [busy, setBusy] = useState(false);
-  const canSave = anyFilterActive(filters);
+  // A view the saved-view schema cannot replay exactly (status ALL) is not offered.
+  const canSave = anyFilterActive(filters) && savedViewCanStore(filters);
   if (!loading && views.length === 0 && !canSave && !form) return null;
 
   const canManage = (v: SavedView) => (v.visibility === "TEAM" ? canManageShared : v.ownedByViewer);
@@ -1056,7 +1215,7 @@ function SavedViewsStrip({
       setForm(null);
       setName("");
     } catch (err) {
-      setError(toSafeUserError(err, { message: form.mode === "create" ? STATE_COPY.viewSaveFailed : STATE_COPY.viewRenameFailed }).message);
+      setError(toSafeUserError(err, { message: form.mode === "create" ? nc.viewSaveFailed : nc.viewRenameFailed }).message);
     } finally {
       setBusy(false);
       onChanged();
@@ -1071,7 +1230,7 @@ function SavedViewsStrip({
       // 204 No Content: read as text, not JSON.
       await apiFetchText(`${buildOpsSavedViewPath(v.id)}?teamId=${encodeURIComponent(teamId)}`, { method: "DELETE" });
     } catch (err) {
-      setError(toSafeUserError(err, { message: STATE_COPY.viewDeleteFailed }).message);
+      setError(toSafeUserError(err, { message: nc.viewDeleteFailed }).message);
     } finally {
       setBusy(false);
       setDeleting(null);
@@ -1080,17 +1239,17 @@ function SavedViewsStrip({
   };
 
   return (
-    <ProovraSection title="Views">
+    <ProovraSection title={viewsTitle} heading>
       {loading ? (
         <ProovraText variant="label" color={theme.color.ink.muted}>
-          Loading…
+          {nc.viewsLoading}
         </ProovraText>
       ) : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
         {views.map((v) => (
           <View key={v.id} style={{ flexDirection: "row", alignItems: "center" }}>
             <ProovraButton
-              label={v.visibility === "TEAM" ? `${v.name} · Shared` : v.name}
+              label={v.visibility === "TEAM" ? fillOpsCopy(nc.viewShared, { name: v.name }) : v.name}
               variant="secondary"
               fullWidth={false}
               disabled={locked}
@@ -1098,8 +1257,8 @@ function SavedViewsStrip({
             />
             {canManage(v) ? (
               <ProovraButton
-                label="Manage"
-                accessibilityLabel={`Actions for the view ${v.name}`}
+                label={nc.viewManage}
+                accessibilityLabel={fillOpsCopy(nc.viewActionsFor, { name: v.name })}
                 variant="ghost"
                 fullWidth={false}
                 onPress={() => setManaging(v)}
@@ -1110,7 +1269,7 @@ function SavedViewsStrip({
       </View>
       {canSave && !form ? (
         <ProovraButton
-          label="Save this view"
+          label={nc.viewSave}
           variant="secondary"
           fullWidth={false}
           disabled={locked}
@@ -1126,22 +1285,22 @@ function SavedViewsStrip({
           <ProovraInput
             value={name}
             onChangeText={(t) => setName(t.slice(0, 120))}
-            placeholder={form.mode === "create" ? "Name this view" : "Rename this view"}
-            accessibilityLabel={form.mode === "create" ? "Name for the saved view" : "New name for the saved view"}
+            placeholder={form.mode === "create" ? nc.viewNamePlaceholder : nc.viewRenamePlaceholder}
+            accessibilityLabel={form.mode === "create" ? nc.viewNameA11y : nc.viewRenameA11y}
           />
           {form.mode === "create" && canManageShared ? (
             <ProovraFilterChips
-              label="Share with this workspace"
+              label={nc.viewShareLabel}
               value={shared ? "yes" : "no"}
               onChange={(v) => setShared(v === "yes")}
               options={[
-                { value: "no", label: "Only me" },
-                { value: "yes", label: "Share with this workspace" },
+                { value: "no", label: nc.viewOnlyMe },
+                { value: "yes", label: nc.viewShareLabel },
               ]}
             />
           ) : null}
-          <ProovraButton label={form.mode === "create" ? "Save" : "Rename"} disabled={locked || !name.trim()} onPress={() => void submit()} />
-          <ProovraButton label="Cancel" variant="ghost" onPress={() => setForm(null)} />
+          <ProovraButton label={form.mode === "create" ? nc.viewSaveButton : nc.viewRenameButton} disabled={locked || !name.trim()} onPress={() => void submit()} />
+          <ProovraButton label={nc.cancel} variant="ghost" onPress={() => setForm(null)} />
         </ProovraCard>
       ) : null}
       {error ? (
@@ -1149,9 +1308,9 @@ function SavedViewsStrip({
           {error}
         </ProovraText>
       ) : null}
-      <ProovraSheet visible={managing !== null} title={managing?.name ?? ""} onClose={() => setManaging(null)}>
+      <ProovraSheet closeLabel={nc.close} visible={managing !== null} title={managing?.name ?? ""} onClose={() => setManaging(null)}>
         <ProovraButton
-          label="Rename view"
+          label={nc.viewRenameAction}
           variant="secondary"
           onPress={() => {
             if (managing) {
@@ -1162,7 +1321,7 @@ function SavedViewsStrip({
           }}
         />
         <ProovraButton
-          label="Delete view"
+          label={nc.viewDeleteAction}
           variant="danger"
           onPress={() => {
             setDeleting(managing);
@@ -1171,14 +1330,15 @@ function SavedViewsStrip({
         />
       </ProovraSheet>
       <ProovraConfirmSheet
+        cancelLabel={nc.cancel}
         visible={deleting !== null}
-        title={deleting ? `Delete “${deleting.name}”?` : ""}
+        title={deleting ? fillOpsCopy(nc.viewDeleteTitle, { name: deleting.name }) : ""}
         consequence={
           deleting?.visibility === "TEAM"
-            ? "This view is shared, so it will disappear for everyone in this workspace. The conditions themselves are not affected."
-            : "The conditions themselves are not affected."
+            ? nc.viewDeleteShared
+            : nc.viewDeletePrivate
         }
-        confirmLabel="Delete view"
+        confirmLabel={nc.viewDeleteAction}
         tone="danger"
         busy={busy}
         onConfirm={() => deleting && void remove(deleting)}
@@ -1189,8 +1349,8 @@ function SavedViewsStrip({
 }
 
 /** "<absolute> (<relative>)" — the inspector's instants (C/IncidentInspector.tsx When). */
-function when(iso: string): string {
-  return `${formatUserDateTime(iso)} (${describeRelativeTime(iso)})`;
+function when(iso: string, nc: OpsNativeCopy, locale: string): string {
+  return `${formatOpsDateTime(iso, locale)} (${opsRelativeTime(iso, nc, locale)})`;
 }
 
 function IncidentInspector({
@@ -1227,7 +1387,13 @@ function IncidentInspector({
   onChanged: () => void;
 }) {
   const router = useRouter();
-  const copy = operationsCopyFor(useOptionalLocale());
+  const locale = useOptionalLocale();
+  const copy = operationsCopyFor(locale);
+  const nc = opsNativeCopyFor(locale);
+  const rowDir = useOpsRowDirection();
+  const fmt = (n: number) => formatOpsCount(n, locale);
+  // "Copy request" in English (the web's wording); the label as written elsewhere.
+  const copyLabel = (label: string) => fillOpsCopy(nc.copyRef, { label: locale === "en" ? label.toLowerCase() : label });
   const [resolutionNote, setResolutionNote] = useState("");
   const [suppressOpen, setSuppressOpen] = useState(false);
   const [suppressReason, setSuppressReason] = useState("");
@@ -1236,7 +1402,12 @@ function IncidentInspector({
   const [detail, setDetail] = useState<IncidentDetail | null>(null);
   const [error, setError] = useState<Failure | null>(null);
   const [remBusy, setRemBusy] = useState<string | null>(null);
-  const [remOutcome, setRemOutcome] = useState<string | null>(null);
+  const [remOutcome, setRemOutcome] = useState<RemediationOutcome | null>(null);
+  // D15 / D19 — one remediation in flight, and its outcome belongs to the
+  // condition it was requested for.
+  const remInFlight = useRef(false);
+  const currentId = useRef(id);
+  currentId.current = id;
   const [confirming, setConfirming] = useState<RemediationAction | null>(null);
 
   useEffect(() => {
@@ -1250,7 +1421,7 @@ function IncidentInspector({
       .catch((err) => {
         if (!live) return;
         setDetail(null);
-        setError(failureOf(err, SOURCE_FALLBACK.detail));
+        setError(failureOf(err, nc.stateHistoryFailedTail));
       });
     return () => {
       live = false;
@@ -1267,63 +1438,76 @@ function IncidentInspector({
       setReasonFor(a.actionId);
       return;
     }
+    if (remInFlight.current) return;
+    remInFlight.current = true;
+    const forId = id;
+    const settle = (o: RemediationOutcome) => {
+      // The sheet may now show another condition: an outcome is only ever
+      // shown beside the condition it was requested for.
+      if (currentId.current === forId) setRemOutcome(o);
+    };
     setRemBusy(a.actionId);
     setRemOutcome(null);
     try {
-      const res = await apiFetch(buildOpsRemediatePath(id), {
+      const res = await apiFetch(buildOpsRemediatePath(forId), {
         method: "POST",
         body: buildRemediateBody({ teamId, actionId: a.actionId, reason: a.requiresReason ? reasonText : null }),
       });
-      setReasonFor(null);
-      setReasonText("");
-      setRemOutcome(remediationMessage(res) ?? STATE_COPY.remediationQueued);
+      if (currentId.current === forId) {
+        setReasonFor(null);
+        setReasonText("");
+      }
+      settle(remediationOutcome(res, false, nc.stateRemediationQueued));
     } catch (err) {
-      // A refused remediation carries the server's own explanation.
-      setRemOutcome(remediationMessage(err) ?? toSafeUserError(err, { message: STATE_COPY.remediationFailed }).message);
+      // A refused or failed remediation carries the server's own explanation;
+      // FAILED (502) and QUEUE_UNAVAILABLE (503) say whether trying again helps.
+      settle(remediationOutcome(err, true, toSafeUserError(err, { message: nc.stateRemediationFailed }).message));
     } finally {
+      remInFlight.current = false;
       setRemBusy(null);
       onChanged();
     }
   };
+  const deepLink = detail?.remediation?.deepLink ? remediationDestination(detail.remediation.deepLink.href, webOrigin()) : null;
 
   // THE ROW FIRST (P:1909-1927 renders the inspector from the row): a failed
   // history never blanks the condition the operator opened.
   const i = detail?.incident ?? row;
-  const elig = i ? rowEligibility(i, caps) : null;
-  const affected = i ? affectedFor(i) : null;
+  const elig = i ? rowEligibility(i, caps, { collaborative }) : null;
+  const affected = i ? affectedFor(i, nc) : null;
   const rem = detail?.remediation ?? null;
 
   return (
-    <ProovraSheet visible title={i?.title ?? "Condition"} onClose={onClose}>
+    <ProovraSheet closeLabel={nc.close} visible title={i ? conditionTitle(i, nc) : nc.conditionFallbackTitle} onClose={onClose}>
       <View style={{ gap: theme.space.s4 }} testID="ops-inspector">
-        {!i && !error ? <ProovraLoadingState label="Loading history…" /> : null}
+        {!i && !error ? <ProovraLoadingState label={nc.stateHistoryLoading} /> : null}
         {!i && error ? (
           <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>
-            {`${error.message} The history could not be loaded, so what is shown here is not the full record.`}
+            {`${error.message} ${nc.stateHistoryFailedTail}`}
           </ProovraText>
         ) : null}
         {i ? (
           <>
-            <View style={{ flexDirection: "row", gap: theme.space.s2, flexWrap: "wrap", alignItems: "center" }}>
-              <OpsSeverityCapsule label={SEVERITY_VOCABULARY[i.severity].label} tone={SEVERITY_VOCABULARY[i.severity].tone} />
-              <ProovraBadge label={STATUS_VOCABULARY[i.status].label} tone={STATUS_VOCABULARY[i.status].tone} />
+            <View style={{ flexDirection: rowDir, gap: theme.space.s2, flexWrap: "wrap", alignItems: "center" }}>
+              <OpsSeverityCapsule label={nc.severity[i.severity].label} tone={SEVERITY_VOCABULARY[i.severity].tone} a11y={fillOpsCopy(nc.a11ySeverity, { label: nc.severity[i.severity].label })} />
+              <ProovraBadge label={nc.status[i.status].label} tone={STATUS_VOCABULARY[i.status].tone} />
             </View>
             <ProovraText variant="label" color={theme.color.ink.secondary}>
-              {STATUS_VOCABULARY[i.status].explanation}
+              {nc.status[i.status].explanation}
             </ProovraText>
 
-            <ProovraSection title="What happened">
+            <ProovraSection title={copy.whatHappened} heading>
               {i.safeSummary ? <ProovraText variant="bodySm">{i.safeSummary}</ProovraText> : null}
               <ProovraDetailRows
                 rows={[
-                  { label: "Source", value: categoryLabel(i.category) },
-                  { label: "Severity", value: `${SEVERITY_VOCABULARY[i.severity].label} — ${SEVERITY_VOCABULARY[i.severity].explanation}` },
-                  ...(affected?.label ? [{ label: "Affected record", value: affected.label }] : []),
+                  { label: nc.factSource, value: categoryLabel(i.category, nc) },
+                  { label: nc.factSeverity, value: `${nc.severity[i.severity].label} — ${nc.severity[i.severity].explanation}` },
+                  ...(affected?.label ? [{ label: nc.factAffectedRecord, value: affected.label }] : []),
                 ]}
               />
               {affected?.href ? (
                 <ProovraButton
-                  label="Open record"
+                  label={nc.openRecord}
                   variant="secondary"
                   fullWidth={false}
                   onPress={() => {
@@ -1335,7 +1519,7 @@ function IncidentInspector({
             </ProovraSection>
 
             {rem && (rem.actions.length > 0 || rem.deepLink || rem.guidance || rem.unsafeReason) ? (
-              <ProovraSection title="What you can do">
+              <ProovraSection title={copy.whatYouCanDo} heading>
                 {rem.guidance ? <ProovraText variant="bodySm">{rem.guidance}</ProovraText> : null}
                 {rem.unsafeReason ? (
                   <ProovraText variant="bodySm" color={theme.color.ink.muted}>
@@ -1345,25 +1529,25 @@ function IncidentInspector({
                 {rem.actions.map((a) => (
                   <View key={a.actionId} style={{ gap: 4 }}>
                     <ProovraButton
-                      label={remBusy === a.actionId ? "Starting…" : a.label}
+                      label={remBusy === a.actionId ? nc.starting : a.label}
                       disabled={remBusy !== null || busy}
                       onPress={() => (a.confirm ? setConfirming(a) : void remediate(a))}
                     />
                     <ProovraText variant="label" color={theme.color.ink.muted}>
-                      {`${a.description}${a.async ? STATE_COPY.remediationAsyncHint : ""}`}
+                      {`${a.description}${a.async ? ` ${nc.stateRemediationAsyncHint}` : ""}`}
                     </ProovraText>
                     {a.requiresReason && reasonFor === a.actionId ? (
                       <View style={{ gap: 4 }} testID="ops-remediation-reason">
                         <ProovraInput
                           value={reasonText}
                           onChangeText={(t) => setReasonText(t.slice(0, REMEDIATION_REASON_MAX))}
-                          placeholder="Why is this needed? (recorded with the action)"
-                          accessibilityLabel={`Reason for ${a.label}`}
+                          placeholder={nc.reasonPlaceholder}
+                          accessibilityLabel={fillOpsCopy(nc.reasonFor, { label: a.label })}
                           autoCapitalize="sentences"
                           multiline
                         />
                         <ProovraButton
-                          label={`Submit — ${a.label}`}
+                          label={fillOpsCopy(nc.submitAction, { label: a.label })}
                           disabled={remBusy !== null || busy || !remediationReasonReady(a, reasonText)}
                           onPress={() => (a.confirm ? setConfirming(a) : void remediate(a))}
                         />
@@ -1372,47 +1556,73 @@ function IncidentInspector({
                   </View>
                 ))}
                 {remOutcome ? (
-                  <ProovraText variant="bodySm" testID="ops-remediation-outcome">
-                    {remOutcome}
-                  </ProovraText>
+                  <OpsNotice
+                    tone={remOutcome.tone === "failure" ? "danger" : "success"}
+                    title={remOutcome.tone === "failure" ? nc.remediationFailedTitle : nc.remediationQueuedTitle}
+                    text={
+                      remOutcome.tone === "failure"
+                        ? `${remOutcome.message} ${remOutcome.retryable ? nc.remediationRetryHint : nc.remediationNoRetryHint}`
+                        : remOutcome.message
+                    }
+                    testID="ops-remediation-outcome"
+                  />
                 ) : null}
-                {rem.deepLink ? (
+                {rem.deepLink && deepLink?.native ? (
                   <ProovraButton
                     label={rem.deepLink.label}
                     variant="secondary"
                     fullWidth={false}
                     onPress={() => {
                       onClose();
-                      routerPush(rem.deepLink!.href);
+                      routerPush(deepLink.native!);
                     }}
+                    testID="ops-remediation-link"
                   />
+                ) : null}
+                {rem.deepLink && deepLink && !deepLink.native ? (
+                  // D3 — no native screen for this step: say so, and offer the
+                  // web app when its origin is known. Never a dead route.
+                  <View style={{ gap: 4 }} testID="ops-remediation-web-only">
+                    <ProovraText variant="bodySm" color={theme.color.ink.secondary}>
+                      {`${rem.deepLink.label}. ${nc.webOnlyBody}${deepLink.webUrl ? "" : ` ${fillOpsCopy(nc.webOnlyPath, { path: deepLink.webPath })}`}`}
+                    </ProovraText>
+                    {deepLink.webUrl ? (
+                      <ProovraButton
+                        label={nc.openOnWeb}
+                        accessibilityLabel={`${nc.openOnWeb}: ${rem.deepLink.label}`}
+                        variant="secondary"
+                        fullWidth={false}
+                        onPress={() => void Linking.openURL(deepLink.webUrl!)}
+                      />
+                    ) : null}
+                  </View>
                 ) : null}
               </ProovraSection>
             ) : null}
 
             {i.metric ? (
-              <ProovraSection title="How much">
+              <ProovraSection title={copy.howMuch} heading>
                 <ProovraDetailRows
                   rows={[
-                    { label: "Affected now", value: `${i.metric.currentValue.toLocaleString("en-US")} ${i.metric.unit}${i.metric.truncated ? " (at least — the read was bounded)" : ""}` },
+                    { label: nc.factAffectedNow, value: `${fmt(i.metric.currentValue)} ${i.metric.unit}${i.metric.truncated ? ` ${nc.factAtLeast}` : ""}` },
                     {
-                      label: "Threshold",
-                      value: `${i.metric.thresholdValue.toLocaleString("en-US")}${i.metric.criticalThresholdValue != null ? ` (critical at ${i.metric.criticalThresholdValue.toLocaleString("en-US")})` : ""}`,
+                      label: nc.factThreshold,
+                      value: `${fmt(i.metric.thresholdValue)}${i.metric.criticalThresholdValue != null ? ` ${fillOpsCopy(nc.factCriticalAt, { n: fmt(i.metric.criticalThresholdValue) })}` : ""}`,
                     },
                     ...(i.metric.previousValue != null
                       ? [
                           {
-                            label: "Previous observation",
-                            value: `${i.metric.previousValue.toLocaleString("en-US")}${
-                              i.metric.delta != null ? ` (${i.metric.delta >= 0 ? "+" : ""}${i.metric.delta.toLocaleString("en-US")})` : ""
+                            label: nc.factPrevious,
+                            value: `${fmt(i.metric.previousValue)}${
+                              i.metric.delta != null ? ` (${i.metric.delta >= 0 ? "+" : ""}${fmt(i.metric.delta)})` : ""
                             }`,
                           },
                         ]
                       : []),
                     {
-                      label: "Observed",
-                      value: `${when(i.metric.observedAtUtc)}${
-                        i.metric.stale ? " — the most recent check could not reach this source, so this is the last confirmed value." : ""
+                      label: nc.factObserved,
+                      value: `${when(i.metric.observedAtUtc, nc, locale)}${
+                        i.metric.stale ? ` — ${nc.factStaleTail}` : ""
                       }`,
                     },
                   ]}
@@ -1420,18 +1630,18 @@ function IncidentInspector({
               </ProovraSection>
             ) : null}
 
-            <ProovraSection title="When">
+            <ProovraSection title={copy.when} heading>
               <ProovraDetailRows
                 rows={[
-                  { label: "First seen", value: when(i.firstSeenAtUtc) },
-                  { label: "Latest occurrence", value: when(i.lastSeenAtUtc) },
-                  { label: "Source observations", value: `Observed in ${i.occurrenceCount.toLocaleString("en-US")} checks` },
+                  { label: nc.factFirstSeen, value: when(i.firstSeenAtUtc, nc, locale) },
+                  { label: nc.factLatestOccurrence, value: when(i.lastSeenAtUtc, nc, locale) },
+                  { label: nc.factObservations, value: fillOpsCopy(nc.observedChecks, { n: fmt(i.occurrenceCount) }) },
                   ...(i.sla
                     ? [
                         {
-                          label: "Time commitment",
-                          value: `${slaLabel(i.sla.posture)}${i.sla.dueAtUtc ? ` — ${i.sla.posture === "RESOLVED" ? "was due" : "due"} ${formatUserDateTime(i.sla.dueAtUtc)}` : ""}. ${slaExplanation(i.sla)}${
-                            slaBreachRecord(i.sla) ? ` ${slaBreachRecord(i.sla)}` : ""
+                          label: nc.factTimeCommitment,
+                          value: `${slaLabel(i.sla.posture, nc)}${i.sla.dueAtUtc ? ` — ${fillOpsCopy(i.sla.posture === "RESOLVED" ? nc.slaWasDue : nc.slaDue, { at: formatOpsDateTime(i.sla.dueAtUtc, locale) })}` : ""}. ${slaExplanation(i.sla, nc)}${
+                            slaBreachRecord(i.sla, nc) ? ` ${slaBreachRecord(i.sla, nc)}` : ""
                           }`,
                         },
                       ]
@@ -1441,24 +1651,24 @@ function IncidentInspector({
             </ProovraSection>
 
             {collaborative ? (
-              <ProovraSection title="Ownership">
+              <ProovraSection title={copy.ownership} heading>
                 {!caps.assign ? (
-                  <ProovraText variant="bodySm">{`Owner ${ownerLabel(i, viewer, operators)}`}</ProovraText>
+                  <ProovraText variant="bodySm">{fillOpsCopy(nc.ownerLine, { owner: ownerLabel(i, viewer, operators, { assigned: nc.ownerAssigned, unassigned: nc.ownerUnassigned, you: nc.ownerYou }) })}</ProovraText>
                 ) : (
                   <>
                     <ProovraFilterChips
-                      label="Owner"
+                      label={nc.factOwner}
                       value={i.assignedOperatorUserId ?? ""}
                       disabled={busy || !elig?.canAssign}
                       onChange={(v) => onAssign(v || null)}
-                      options={[{ value: "", label: "Unassigned" }, ...operators.map((o) => ({ value: o.userId, label: o.label }))]}
+                      options={[{ value: "", label: nc.ownerUnassigned }, ...operators.map((o) => ({ value: o.userId, label: o.label }))]}
                     />
                     {selfUserId && selfUserId !== i.assignedOperatorUserId && elig?.canAssign ? (
-                      <ProovraButton label="Take it" variant="secondary" fullWidth={false} disabled={busy} onPress={() => onAssign(selfUserId)} />
+                      <ProovraButton label={nc.takeIt} variant="secondary" fullWidth={false} disabled={busy} onPress={() => onAssign(selfUserId)} />
                     ) : null}
                     {operators.length === 0 ? (
                       <ProovraText variant="label" color={theme.color.ink.muted}>
-                        {STATE_COPY.noOperators}
+                        {nc.stateNoOperators}
                       </ProovraText>
                     ) : null}
                   </>
@@ -1466,48 +1676,48 @@ function IncidentInspector({
               </ProovraSection>
             ) : null}
 
-            <ProovraSection title="History">
+            <ProovraSection title={copy.history} heading>
               {!detail && !error ? (
                 <ProovraText variant="label" color={theme.color.ink.muted}>
-                  Loading history…
+                  {nc.stateHistoryLoading}
                 </ProovraText>
               ) : null}
               {error ? (
                 <View style={{ gap: theme.space.s2 }} testID="ops-timeline-error">
                   <ProovraText variant="bodySm" color={theme.color.status.risk.fg}>
-                    {`${error.message} The history could not be loaded, so what is shown here is not the full record.`}
+                    {`${error.message} ${nc.stateHistoryFailedTail}`}
                   </ProovraText>
                   <ProovraSupportReference reference={error.reference} />
                 </View>
               ) : null}
-              {detail && detail.timeline.length === 0 ? <ProovraText variant="bodySm">{STATE_COPY.historyEmpty}</ProovraText> : null}
+              {detail && detail.timeline.length === 0 ? <ProovraText variant="bodySm">{nc.stateHistoryEmpty}</ProovraText> : null}
               {detail?.timeline.map((t, n) => (
                 <ProovraText key={`${t.event}-${n}`} variant="bodySm">
-                  {`${timelineEventLabel(t.event)}${t.safeMessage ? ` — ${t.safeMessage}` : ""} · ${describeRelativeTime(t.atUtc)}`}
+                  {`${timelineEventLabel(t.event, nc)}${t.safeMessage ? ` — ${t.safeMessage}` : ""} · ${opsRelativeTime(t.atUtc, nc, locale)}`}
                 </ProovraText>
               ))}
               {detail && !detail.timelineComplete ? (
                 <ProovraText variant="label" color={theme.color.ink.muted}>
-                  {STATE_COPY.historyTruncated}
+                  {nc.stateHistoryTruncated}
                 </ProovraText>
               ) : null}
             </ProovraSection>
 
             {detail && (i.relatedProvider || i.relatedJobId || i.requestId || i.traceId) ? (
-              <ProovraSection title="Technical references">
+              <ProovraSection title={copy.technicalReferences} heading>
                 <ProovraText variant="label" color={theme.color.ink.secondary}>
-                  {STATE_COPY.techRefsIntro}
+                  {nc.stateTechRefsIntro}
                 </ProovraText>
-                {i.relatedProvider ? <OpsIdentifier label="Provider" value={i.relatedProvider} /> : null}
-                {i.relatedJobId ? <OpsIdentifier label="Job" value={i.relatedJobId} /> : null}
-                {i.requestId ? <OpsIdentifier label="Request" value={i.requestId} /> : null}
-                {i.traceId ? <OpsIdentifier label="Trace" value={i.traceId} /> : null}
+                {i.relatedProvider ? <OpsIdentifier label={nc.refProvider} value={i.relatedProvider} copyLabel={copyLabel(nc.refProvider)} /> : null}
+                {i.relatedJobId ? <OpsIdentifier label={nc.refJob} value={i.relatedJobId} copyLabel={copyLabel(nc.refJob)} /> : null}
+                {i.requestId ? <OpsIdentifier label={nc.refRequest} value={i.requestId} copyLabel={copyLabel(nc.refRequest)} /> : null}
+                {i.traceId ? <OpsIdentifier label={nc.refTrace} value={i.traceId} copyLabel={copyLabel(nc.refTrace)} /> : null}
               </ProovraSection>
             ) : null}
 
-            {resolutionNoteFor(i) ? (
+            {resolutionNoteFor(i, nc) ? (
               <ProovraText variant="label" color={theme.color.ink.secondary}>
-                {resolutionNoteFor(i)}
+                {resolutionNoteFor(i, nc)}
               </ProovraText>
             ) : null}
 
@@ -1558,11 +1768,23 @@ function IncidentInspector({
                   testID="ops-suppress"
                 />
               ) : null}
+              {elig?.canUnsuppress ? (
+                // D19 / OPS-030 — a silenced condition can be un-silenced by
+                // whoever may silence it (POST …/unsuppress, OPERATIONS_SUPPRESS).
+                <ProovraButton
+                  label={copy.resumeNotifications}
+                  variant="secondary"
+                  disabled={busy}
+                  onPress={() => onLifecycle("unsuppress")}
+                  testID="ops-unsuppress"
+                />
+              ) : null}
             </View>
           </>
         ) : null}
       </View>
       <ProovraConfirmSheet
+        cancelLabel={nc.cancel}
         visible={confirmSuppress}
         title={copy.suppressConfirmTitle}
         consequence={copy.suppressConfirmBody}
@@ -1574,10 +1796,11 @@ function IncidentInspector({
         onCancel={() => setConfirmSuppress(false)}
       />
       <ProovraConfirmSheet
+        cancelLabel={nc.cancel}
         visible={confirming !== null}
-        title={confirming ? `${confirming.label}?` : ""}
+        title={confirming ? fillOpsCopy(nc.confirmAction, { label: confirming.label }) : ""}
         consequence={confirming?.description}
-        confirmLabel={confirming?.label ?? "Confirm"}
+        confirmLabel={confirming?.label ?? nc.confirm}
         onConfirm={() => confirming && void remediate(confirming)}
         onCancel={() => setConfirming(null)}
       />
@@ -1585,93 +1808,130 @@ function IncidentInspector({
   );
 }
 
-function GroupInspector({ teamId, group: g, onClose }: { teamId: string; group: IncidentGroup; onClose: () => void }) {
+function GroupInspector({
+  teamId,
+  group: g,
+  status,
+  severity,
+  onClose,
+}: {
+  teamId: string;
+  group: IncidentGroup;
+  /** D6 — the queue predicate the group was counted under. */
+  status: string;
+  severity: string | null;
+  onClose: () => void;
+}) {
   const router = useRouter();
+  const locale = useOptionalLocale();
+  const nc = opsNativeCopyFor(locale);
+  const fmt = (n: number) => formatOpsCount(n, locale);
   const [records, setRecords] = useState<AffectedRecord[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const live = useRef(true);
+  useEffect(
+    () => () => {
+      live.current = false;
+    },
+    [],
+  );
 
   const load = useCallback(
     async (next?: string | null) => {
       setLoading(true);
       setError(null);
       try {
-        const page = parseAffected(await apiFetch(buildOpsGroupAffectedPath(teamId, g.groupKey, next)));
+        const page = parseAffected(await apiFetch(buildOpsGroupAffectedPath(teamId, g.groupKey, next, { status, severity })));
+        if (!live.current) return;
         // APPEND, never replace: the rows already read must not vanish.
         setRecords((prev) => (next ? [...prev, ...page.records] : page.records));
         setCursor(page.nextCursor);
       } catch (err) {
-        setError(toSafeUserError(err, { message: STATE_COPY.groupFailed }).message);
+        if (live.current) setError(toSafeUserError(err, { message: nc.stateGroupFailed }).message);
       } finally {
-        setLoading(false);
+        if (live.current) setLoading(false);
       }
     },
-    [teamId, g.groupKey],
+    [teamId, g.groupKey, status, severity],
   );
   useEffect(() => {
     void load();
   }, [load]);
+  const recordStatus = (s: string) => (nc.status as Record<string, { label: string }>)[s] ?? null;
 
-  const sev = SEVERITY_VOCABULARY[g.severity];
-  const st = STATUS_VOCABULARY[g.statusPosture as keyof typeof STATUS_VOCABULARY] ?? STATUS_VOCABULARY.OPEN;
+  const sev = { label: nc.severity[g.severity].label, tone: SEVERITY_VOCABULARY[g.severity].tone };
+  const stKey = (g.statusPosture in STATUS_VOCABULARY ? g.statusPosture : "OPEN") as keyof typeof STATUS_VOCABULARY;
+  const st = { label: nc.status[stKey].label, tone: STATUS_VOCABULARY[stKey].tone };
 
   return (
-    <ProovraSheet visible title={g.title} onClose={onClose}>
+    <ProovraSheet closeLabel={nc.close} visible title={conditionTitle(g, nc)} onClose={onClose}>
       <View style={{ gap: theme.space.s3 }} testID="ops-group-inspector">
         <View style={{ flexDirection: "row", gap: theme.space.s2, flexWrap: "wrap", alignItems: "center" }}>
           <OpsSeverityCapsule label={sev.label} tone={sev.tone} />
           <ProovraBadge label={st.label} tone={st.tone} />
         </View>
-        <ProovraSection title="What this is">
+        <ProovraSection title={nc.groupWhatThisIs} heading>
           <ProovraDetailRows
             rows={[
-              { label: "Source", value: categoryLabel(g.category) },
-              { label: "Conditions", value: g.conditionCount.toLocaleString("en-US") },
+              { label: nc.factSource, value: categoryLabel(g.category, nc) },
+              { label: nc.groupConditions, value: fmt(g.conditionCount) },
               ...(g.affectedRecordCount != null
-                ? [{ label: `Affected ${g.affectedUnit ?? "records"}`, value: g.affectedRecordCount.toLocaleString("en-US") }]
+                ? [{ label: fillOpsCopy(nc.groupAffectedUnit, { unit: g.affectedUnit ?? "records" }), value: fmt(g.affectedRecordCount) }]
                 : []),
               ...(g.metric && g.metric.contract === "AGGREGATE_THRESHOLD"
                 ? [
                     {
-                      label: "Threshold",
-                      value: `${g.metric.thresholdValue.toLocaleString("en-US")}${
-                        g.metric.criticalThresholdValue != null ? ` (critical at ${g.metric.criticalThresholdValue.toLocaleString("en-US")})` : ""
+                      label: nc.factThreshold,
+                      value: `${fmt(g.metric.thresholdValue)}${
+                        g.metric.criticalThresholdValue != null ? ` ${fillOpsCopy(nc.factCriticalAt, { n: fmt(g.metric.criticalThresholdValue) })}` : ""
                       }`,
                     },
                   ]
                 : []),
-              ...(g.durationSeconds != null ? [{ label: "Elapsed", value: describeDuration(g.durationSeconds) }] : []),
-              { label: "Source observations", value: `Observed in ${g.observations.toLocaleString("en-US")} checks` },
+              ...(g.durationSeconds != null ? [{ label: nc.groupElapsed, value: opsDuration(g.durationSeconds, nc) }] : []),
+              { label: nc.factObservations, value: fillOpsCopy(nc.observedChecks, { n: fmt(g.observations) }) },
               ...(g.metric?.stale
                 ? [
                     {
-                      label: "Metric freshness",
-                      value: `Last confirmed ${formatUserDateTime(g.metric.observedAtUtc)}. The most recent attempt to read this source did not complete, so the values above are the last ones observed.`,
+                      label: nc.groupFreshness,
+                      value: fillOpsCopy(nc.groupFreshnessBody, { at: formatOpsDateTime(g.metric.observedAtUtc, locale) }),
                     },
                   ]
                 : []),
-              ...(g.firstSeenAtUtc ? [{ label: "First seen", value: when(g.firstSeenAtUtc) }] : []),
-              ...(g.lastSeenAtUtc ? [{ label: "Last seen", value: when(g.lastSeenAtUtc) }] : []),
+              ...(g.firstSeenAtUtc ? [{ label: nc.factFirstSeen, value: when(g.firstSeenAtUtc, nc, locale) }] : []),
+              ...(g.lastSeenAtUtc ? [{ label: nc.groupLastSeenLabel, value: when(g.lastSeenAtUtc, nc, locale) }] : []),
             ]}
           />
         </ProovraSection>
-        <ProovraSection title="Affected records">
+        <ProovraSection title={nc.groupAffectedSection} heading>
+          <ProovraText variant="label" color={theme.color.ink.secondary} testID="ops-affected-scope">
+            {fillOpsCopy(nc.affectedFilteredBy, { status: statusFilterLabel(status, nc).toLowerCase() })}
+          </ProovraText>
           {error ? (
             <ProovraText variant="bodySm" color={theme.color.status.risk.fg} testID="ops-affected-error">
               {error}
             </ProovraText>
           ) : null}
-          {!loading && !error && records.length === 0 ? <ProovraText variant="bodySm">{STATE_COPY.groupEmpty}</ProovraText> : null}
+          {!loading && !error && records.length === 0 ? <ProovraText variant="bodySm">{nc.stateGroupEmpty}</ProovraText> : null}
           {records.map((r) => (
             <ProovraListRow
               key={r.conditionId}
-              title={r.title}
-              subtitle={`${SEVERITY_VOCABULARY[r.severity].label} · ${describeRelativeTime(r.firstSeenAtUtc)}${r.assignedOperatorUserId ? " · owned" : ""}`}
+              title={r.title || nc.conditionFallbackTitle}
+              subtitle={[
+                nc.severity[r.severity].label,
+                // D6 — each record states its own status, in words.
+                recordStatus(r.status)?.label ?? (r.status || null),
+                opsRelativeTime(r.firstSeenAtUtc, nc, locale),
+                r.assignedOperatorUserId ? nc.recordOwned : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               trailing={
                 r.evidenceId ? (
                   <ProovraButton
-                    label="Open record"
+                    label={nc.openRecord}
                     variant="ghost"
                     fullWidth={false}
                     onPress={() => {
@@ -1683,9 +1943,9 @@ function GroupInspector({ teamId, group: g, onClose }: { teamId: string; group: 
               }
             />
           ))}
-          {loading ? <ProovraLoadingState label={STATE_COPY.groupLoading} /> : null}
+          {loading ? <ProovraLoadingState label={nc.stateGroupLoading} /> : null}
           {cursor && !loading ? (
-            <ProovraButton label={AFFECTED_MORE_LABEL} variant="secondary" fullWidth={false} onPress={() => void load(cursor)} />
+            <ProovraButton label={nc.groupMore} variant="secondary" fullWidth={false} onPress={() => void load(cursor)} />
           ) : null}
         </ProovraSection>
       </View>

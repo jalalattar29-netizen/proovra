@@ -20,12 +20,13 @@
 import React, { useState } from "react";
 import { Pressable, View } from "react-native";
 
-import { describeDuration, describeRelativeTime } from "../lib/relative-time";
+import { fillOpsCopy, formatOpsCount, opsCopyFor, opsDuration, opsRelativeTime, type OpsCopy } from "../product/ops-copy";
 import {
   SEVERITY_VOCABULARY,
   STATUS_VOCABULARY,
   affectedFor,
   categoryLabel,
+  conditionTitle,
   formatMetricValue,
   groupQuantity,
   slaLabel,
@@ -34,6 +35,7 @@ import {
   type IncidentGroup,
   type RowActionKey,
 } from "../product/ops-console";
+import { useOptionalLocale } from "../locale-context";
 import { statusTone, theme } from "../theme/theme";
 import { CopyButton } from "./copy-button";
 import { ProovraBadge, ProovraButton, ProovraCard, ProovraSupportReference, ProovraText } from "./index";
@@ -41,12 +43,30 @@ import { ProovraSheet } from "./patterns";
 
 type Tone = Parameters<typeof statusTone>[0];
 
+/**
+ * The row direction for the active locale. Arabic mirrors, as ProovraSection
+ * and ProovraListRow do (they read the same locale's isRTL).
+ */
+export function useOpsRowDirection(): "row" | "row-reverse" {
+  return useOptionalLocale() === "ar" ? "row-reverse" : "row";
+}
+
+/** The Operations dictionary for the active locale. */
+export function useOpsCopy(): { t: OpsCopy; locale: string } {
+  const locale = useOptionalLocale();
+  return { t: opsCopyFor(locale), locale };
+}
+
+/** The minimum touch target (Apple HIG / WCAG 2.5.5): 44pt. */
+export const OPS_MIN_HIT = 44;
+
 /** The web's `fill="solid"` severity capsule — the one filled chip a row carries. */
-export function OpsSeverityCapsule({ label, tone }: { label: string; tone: Tone }) {
+export function OpsSeverityCapsule({ label, tone, a11y }: { label: string; tone: Tone; a11y?: string }) {
   const t = statusTone(tone);
+  const { t: words } = useOpsCopy();
   return (
     <View
-      accessibilityLabel={`Severity ${label}`}
+      accessibilityLabel={a11y ?? fillOpsCopy(words.a11ySeverity, { label })}
       style={{ backgroundColor: t.solid, borderRadius: theme.radius.pill, paddingHorizontal: theme.space.s2, paddingVertical: 2 }}
     >
       <ProovraText variant="label" weight="semibold" color={theme.color.surface.card}>
@@ -58,30 +78,34 @@ export function OpsSeverityCapsule({ label, tone }: { label: string; tone: Tone 
 
 /** AppStatusText: status as coloured text, not a second capsule. */
 export function OpsStatusText({ label, tone }: { label: string; tone: Tone }) {
+  const { t: words } = useOpsCopy();
+  // The status is a WORD, not a colour: the label carries it for anyone who
+  // cannot tell the tones apart, and a reader announces "Status …".
   return (
-    <ProovraText variant="label" weight="semibold" color={statusTone(tone).fg}>
+    <ProovraText variant="label" weight="semibold" color={statusTone(tone).fg} accessibilityLabel={fillOpsCopy(words.a11yStatus, { label })}>
       {label}
     </ProovraText>
   );
 }
 
 /** The row's metric phrase (C/IncidentSurface.tsx `Condition` + rowModel metric label). */
-export function incidentMetricLabel(i: Incident): string | null {
+export function incidentMetricLabel(i: Incident, t: OpsCopy = opsCopyFor("en"), locale: string | null = null): string | null {
   const m = i.metric;
   if (!m) return null;
   const age = i.metricContract === "AGE_THRESHOLD" && m.unit === "minutes";
   return age
-    ? `last sample ${describeDuration(m.currentValue * 60)} ago · window ${describeDuration(m.thresholdValue * 60)}`
-    : `${formatMetricValue(m.currentValue)} affected ${m.unit} · threshold ${m.thresholdValue.toLocaleString("en-US")}`;
+    ? fillOpsCopy(t.metricAge, { age: opsDuration(m.currentValue * 60, t), window: opsDuration(m.thresholdValue * 60, t) })
+    : `${fillOpsCopy(t.metricAffected, { n: formatMetricValue(m.currentValue, locale), unit: m.unit })} · ${fillOpsCopy(t.metricThreshold, { n: formatOpsCount(m.thresholdValue, locale) })}`;
 }
 
 function Fact({ term, children }: { term: string; children: React.ReactNode }) {
+  const dir = useOpsRowDirection();
   return (
-    <View style={{ flexDirection: "row", gap: theme.space.s2, alignItems: "flex-start" }}>
+    <View style={{ flexDirection: dir, gap: theme.space.s2, alignItems: "flex-start" }}>
       <ProovraText variant="label" color={theme.color.ink.muted} style={{ width: 96 }}>
         {term}
       </ProovraText>
-      <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 }}>{children}</View>
+      <View style={{ flex: 1, flexDirection: dir, flexWrap: "wrap", alignItems: "center", gap: theme.space.s2 }}>{children}</View>
     </View>
   );
 }
@@ -97,6 +121,7 @@ export function OpsIncidentCard({
   onToggle,
   onOpen,
   onAction,
+  selectLabel,
 }: {
   incident: Incident;
   /** Null when ownership is not an axis in this workspace. */
@@ -109,15 +134,20 @@ export function OpsIncidentCard({
   onToggle: () => void;
   onOpen: () => void;
   onAction: (key: RowActionKey) => void;
+  /** The checkbox's accessible name (localised by the caller). */
+  selectLabel?: string;
 }) {
   const [menu, setMenu] = useState(false);
-  const sev = SEVERITY_VOCABULARY[i.severity];
-  const st = STATUS_VOCABULARY[i.status];
-  const affected = affectedFor(i);
+  const dir = useOpsRowDirection();
+  const { t, locale } = useOpsCopy();
+  const title = conditionTitle(i, t);
+  const sev = { label: t.severity[i.severity].label, tone: SEVERITY_VOCABULARY[i.severity].tone };
+  const st = { label: t.status[i.status].label, tone: STATUS_VOCABULARY[i.status].tone };
+  const affected = affectedFor(i, t);
   const meta = [
-    categoryLabel(i.category),
-    incidentMetricLabel(i),
-    i.metric?.stale ? `last confirmed ${describeRelativeTime(i.metric.observedAtUtc)}` : null,
+    categoryLabel(i.category, t),
+    incidentMetricLabel(i, t, locale),
+    i.metric?.stale ? fillOpsCopy(t.lastConfirmed, { at: opsRelativeTime(i.metric.observedAtUtc, t, locale) }) : null,
     affected.label,
   ]
     .filter(Boolean)
@@ -125,31 +155,36 @@ export function OpsIncidentCard({
   return (
     <ProovraCard testID={`ops-incident-${i.id}`}>
       <View style={{ gap: theme.space.s2 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: theme.space.s2 }}>
+        <View style={{ flexDirection: dir, alignItems: "center", gap: theme.space.s2 }}>
           {selectable ? (
+            // The TARGET is 44×44pt; the drawn box stays 22pt inside it.
             <Pressable
               onPress={onToggle}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: marked }}
-              accessibilityLabel={`Select ${i.title} for a bulk action`}
-              hitSlop={8}
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                borderWidth: 2,
-                borderColor: marked ? theme.color.accent.a500 : theme.color.border.strong,
-                backgroundColor: marked ? theme.color.accent.a500 : "transparent",
-              }}
-            />
+              accessibilityLabel={selectLabel ?? fillOpsCopy(t.selectFor, { title })}
+              style={{ minWidth: OPS_MIN_HIT, minHeight: OPS_MIN_HIT, alignItems: "center", justifyContent: "center" }}
+              testID={`ops-select-${i.id}`}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  borderWidth: 2,
+                  borderColor: marked ? theme.color.accent.a500 : theme.color.border.strong,
+                  backgroundColor: marked ? theme.color.accent.a500 : "transparent",
+                }}
+              />
+            </Pressable>
           ) : null}
           <OpsSeverityCapsule label={sev.label} tone={sev.tone} />
           <View style={{ flex: 1 }} />
           <OpsStatusText label={st.label} tone={st.tone} />
         </View>
-        <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={i.title} style={{ gap: 2 }}>
+        <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={title} style={{ gap: 2 }}>
           <ProovraText variant="body" weight="semibold">
-            {i.title}
+            {title}
           </ProovraText>
           {meta ? (
             <ProovraText variant="label" color={theme.color.ink.secondary}>
@@ -159,27 +194,27 @@ export function OpsIncidentCard({
         </Pressable>
         <View style={{ gap: 4 }}>
           {owner !== null ? (
-            <Fact term="Owner">
+            <Fact term={t.factOwner}>
               <ProovraText variant="label">{owner}</ProovraText>
             </Fact>
           ) : null}
-          <Fact term="First seen">
-            <ProovraText variant="label">{describeRelativeTime(i.firstSeenAtUtc)}</ProovraText>
-            {attention && i.sla ? <ProovraBadge label={slaLabel(i.sla.posture)} tone={slaTone(i.sla.posture)} /> : null}
+          <Fact term={t.factFirstSeen}>
+            <ProovraText variant="label">{opsRelativeTime(i.firstSeenAtUtc, t, locale)}</ProovraText>
+            {attention && i.sla ? <ProovraBadge label={slaLabel(i.sla.posture, t)} tone={slaTone(i.sla.posture)} /> : null}
           </Fact>
-          <Fact term="Latest activity">
+          <Fact term={t.factLatest}>
             <ProovraText variant="label">
-              {`${describeRelativeTime(i.lastSeenAtUtc)}${
-                i.occurrenceCount > 1 ? ` · Observed in ${i.occurrenceCount.toLocaleString("en-US")} checks` : ""
+              {`${opsRelativeTime(i.lastSeenAtUtc, t, locale)}${
+                i.occurrenceCount > 1 ? ` · ${fillOpsCopy(t.observedChecks, { n: formatOpsCount(i.occurrenceCount, locale) })}` : ""
               }`}
             </ProovraText>
           </Fact>
         </View>
         {actions.length > 0 ? (
-          <View style={{ alignItems: "flex-end" }}>
+          <View style={{ alignItems: dir === "row" ? "flex-end" : "flex-start" }}>
             <ProovraButton
-              label={pending ? "Working…" : "Actions"}
-              accessibilityLabel={`Actions for ${i.title}`}
+              label={pending ? t.rowWorking : t.rowActions}
+              accessibilityLabel={fillOpsCopy(t.rowActionsFor, { title })}
               variant="ghost"
               fullWidth={false}
               disabled={pending}
@@ -188,7 +223,7 @@ export function OpsIncidentCard({
           </View>
         ) : null}
       </View>
-      <ProovraSheet visible={menu} title={i.title} onClose={() => setMenu(false)}>
+      <ProovraSheet closeLabel={t.close} visible={menu} title={title} onClose={() => setMenu(false)}>
         <View style={{ gap: theme.space.s2 }} testID={`ops-row-menu-${i.id}`}>
           {actions.map((a) => (
             <ProovraButton
@@ -207,37 +242,55 @@ export function OpsIncidentCard({
   );
 }
 
+/** The group card's accessible name: title, severity, status and counts — not the title alone. */
+export function groupCardLabel(g: IncidentGroup, t: OpsCopy = opsCopyFor("en"), locale: string | null = null): string {
+  const stKey = (g.statusPosture in STATUS_VOCABULARY ? g.statusPosture : "OPEN") as keyof typeof STATUS_VOCABULARY;
+  const conditions = g.conditionCount === 1 ? t.groupConditionOne : fillOpsCopy(t.groupConditionsCount, { n: formatMetricValue(g.conditionCount, locale) });
+  return [
+    conditionTitle(g, t),
+    fillOpsCopy(t.a11ySeverity, { label: t.severity[g.severity].label }),
+    fillOpsCopy(t.a11yStatus, { label: t.status[stKey].label }),
+    conditions,
+    groupQuantity(g, t, locale),
+  ]
+    .filter((x, n, all) => all.indexOf(x) === n)
+    .join(", ");
+}
+
 export function OpsGroupCard({ group: g, onOpen }: { group: IncidentGroup; onOpen: () => void }) {
-  const sev = SEVERITY_VOCABULARY[g.severity];
-  const st = STATUS_VOCABULARY[g.statusPosture as keyof typeof STATUS_VOCABULARY] ?? STATUS_VOCABULARY.OPEN;
+  const dir = useOpsRowDirection();
+  const { t, locale } = useOpsCopy();
+  const stKey = (g.statusPosture in STATUS_VOCABULARY ? g.statusPosture : "OPEN") as keyof typeof STATUS_VOCABULARY;
+  const sev = { label: t.severity[g.severity].label, tone: SEVERITY_VOCABULARY[g.severity].tone };
+  const st = { label: t.status[stKey].label, tone: STATUS_VOCABULARY[stKey].tone };
   const meta = [
-    categoryLabel(g.category),
-    groupQuantity(g),
-    g.metric && g.metric.contract === "AGGREGATE_THRESHOLD" ? `threshold ${g.metric.thresholdValue.toLocaleString("en-US")}` : null,
-    g.metric?.stale ? `last confirmed ${describeRelativeTime(g.metric.observedAtUtc)}` : null,
-    g.assignedCount > 0 ? `${g.assignedCount} owned` : null,
-    g.lastSeenAtUtc ? `last seen ${describeRelativeTime(g.lastSeenAtUtc)}` : null,
+    categoryLabel(g.category, t),
+    groupQuantity(g, t, locale),
+    g.metric && g.metric.contract === "AGGREGATE_THRESHOLD" ? fillOpsCopy(t.metricThreshold, { n: formatOpsCount(g.metric.thresholdValue, locale) }) : null,
+    g.metric?.stale ? fillOpsCopy(t.lastConfirmed, { at: opsRelativeTime(g.metric.observedAtUtc, t, locale) }) : null,
+    g.assignedCount > 0 ? fillOpsCopy(t.groupOwned, { n: formatOpsCount(g.assignedCount, locale) }) : null,
+    g.lastSeenAtUtc ? fillOpsCopy(t.groupLastSeen, { at: opsRelativeTime(g.lastSeenAtUtc, t, locale) }) : null,
   ]
     .filter(Boolean)
     .join(" · ");
   return (
-    <ProovraCard onPress={onOpen} accessibilityLabel={g.title} testID={`ops-group-${g.groupKey}`}>
+    <ProovraCard onPress={onOpen} accessibilityLabel={groupCardLabel(g, t, locale)} testID={`ops-group-${g.groupKey}`}>
       <View style={{ gap: theme.space.s2 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: theme.space.s2 }}>
+        <View style={{ flexDirection: dir, alignItems: "center", gap: theme.space.s2 }}>
           <OpsSeverityCapsule label={sev.label} tone={sev.tone} />
           <View style={{ flex: 1 }} />
           <OpsStatusText label={st.label} tone={st.tone} />
         </View>
         <ProovraText variant="body" weight="semibold">
-          {g.title}
+          {conditionTitle(g, t)}
         </ProovraText>
         <ProovraText variant="label" color={theme.color.ink.secondary}>
           {meta}
         </ProovraText>
         {g.failureGroups.length > 1 ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
+          <View style={{ flexDirection: dir, flexWrap: "wrap", gap: theme.space.s2 }}>
             {g.failureGroups.map((f) => (
-              <ProovraBadge key={f.label} label={`${formatMetricValue(f.count)} ${f.label.toLowerCase()}`} tone="neutral" />
+              <ProovraBadge key={f.label} label={`${formatMetricValue(f.count, locale)} ${f.label.toLowerCase()}`} tone="neutral" />
             ))}
           </View>
         ) : null}
@@ -258,18 +311,19 @@ export function OpsNotice({
   actions,
   testID,
 }: {
-  tone: "warn" | "danger" | "info";
+  tone: "warn" | "danger" | "info" | "success";
   title?: string;
   text: string;
   reference?: string | null;
   actions?: ReadonlyArray<{ label: string; onPress: () => void; variant?: "secondary" | "ghost" }>;
   testID?: string;
 }) {
-  const t = statusTone(tone === "danger" ? "risk" : tone === "warn" ? "pending" : "info");
+  const dir = useOpsRowDirection();
+  const t = statusTone(tone === "danger" ? "risk" : tone === "warn" ? "pending" : tone === "success" ? "verified" : "info");
   return (
     <View
       testID={testID}
-      accessibilityRole={tone === "info" ? "text" : "alert"}
+      accessibilityRole={tone === "info" || tone === "success" ? "text" : "alert"}
       style={{
         borderWidth: 1,
         borderColor: t.border,
@@ -289,7 +343,7 @@ export function OpsNotice({
       </ProovraText>
       {reference ? <ProovraSupportReference reference={reference} /> : null}
       {actions && actions.length > 0 ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space.s2 }}>
+        <View style={{ flexDirection: dir, flexWrap: "wrap", gap: theme.space.s2 }}>
           {actions.map((a) => (
             <ProovraButton key={a.label} label={a.label} variant={a.variant ?? "secondary"} fullWidth={false} onPress={a.onPress} />
           ))}
@@ -300,16 +354,24 @@ export function OpsNotice({
 }
 
 /** A technical identifier with its own Copy control (C/IncidentInspector.tsx `Identifier`). */
-export function OpsIdentifier({ label, value }: { label: string; value: string }) {
+export function OpsIdentifier({ label, value, copyLabel }: { label: string; value: string; copyLabel?: string }) {
+  const { t } = useOpsCopy();
+  const dir = useOpsRowDirection();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: theme.space.s2, flexWrap: "wrap" }}>
+    <View style={{ flexDirection: dir, alignItems: "center", gap: theme.space.s2, flexWrap: "wrap" }}>
       <ProovraText variant="label" color={theme.color.ink.muted} style={{ width: 72 }}>
         {label}
       </ProovraText>
       <ProovraText variant="label" mono selectable style={{ flex: 1 }}>
         {value}
       </ProovraText>
-      <CopyButton value={value} accessibilityLabel={`Copy ${label.toLowerCase()}`} />
+      <CopyButton
+        value={value}
+        label={t.copyShort}
+        copiedLabel={t.copied}
+        failedLabel={t.copyFailed}
+        accessibilityLabel={copyLabel ?? `Copy ${label.toLowerCase()}`}
+      />
     </View>
   );
 }

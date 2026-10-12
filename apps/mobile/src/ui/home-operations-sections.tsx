@@ -15,15 +15,29 @@ import { useRouter } from "expo-router";
 import { theme } from "../theme/theme";
 import { ProovraCard, ProovraText, ProovraSection, ProovraFilterChips } from "./index";
 import { formatUserDateTime } from "../lib/date";
+import { resolveInboxRoute } from "../product/inbox";
 import {
   ACTIVITY_RANGES,
   ACTIVITY_SAMPLE_NOTE,
   activityBucketCaption,
+  activityFeedCaption,
   type ActivityRangeId,
   type ActivityGroup,
   type ActivitySeries,
   type TypeDistribution,
 } from "../product/home-operations";
+
+/**
+ * D4 — an activity event's href is a WEB path (`/evidence-requests/<id>`,
+ * `/intake-links?linkId=…`, `/evidence/<id>`). It is pushed only through the
+ * inbox's native mapper; one with no native screen renders as plain text.
+ * The intake-links screen reads `linkId`, so that query is kept.
+ */
+export function activityRoute(href: string | null | undefined): string | null {
+  if (!href) return null;
+  if (/^\/intake-links\?linkId=[^&#]+$/.test(href)) return href;
+  return resolveInboxRoute(href);
+}
 
 export function HomeAnalyticsSections({
   distribution: recordsDistribution,
@@ -166,25 +180,28 @@ export function HomeAnalyticsSections({
           ) : (
             <>
               <ProovraText variant="label" color={theme.color.ink.secondary}>
-                Complete history of workspace updates and evidence reports
+                {activityFeedCaption(activity.reduce((n, g) => n + g.events.length, 0))}
               </ProovraText>
               {activity.map((group) => (
                 <View key={group.id} style={{ gap: 2, paddingVertical: theme.space.s2 }}>
                   <ProovraText variant="label" weight="semibold" color={theme.color.ink.secondary}>
                     {group.label}
                   </ProovraText>
-                  {group.events.map((e) => (
-                    <ProovraText
-                      key={e.id}
-                      variant="label"
-                      color={e.href ? theme.color.ink.primary : theme.color.ink.muted}
-                      accessibilityRole={e.href ? "link" : undefined}
-                      accessibilityLabel={e.title}
-                      onPress={e.href ? () => router.push(e.href as never) : undefined}
-                    >
-                      {[e.title, e.detail, formatUserDateTime(e.atIso)].filter(Boolean).join(" · ")}
-                    </ProovraText>
-                  ))}
+                  {group.events.map((e) => {
+                    const route = activityRoute(e.href);
+                    return (
+                      <ProovraText
+                        key={e.id}
+                        variant="label"
+                        color={route ? theme.color.ink.primary : theme.color.ink.muted}
+                        accessibilityRole={route ? "link" : undefined}
+                        accessibilityLabel={e.title}
+                        onPress={route ? () => router.push(route as never) : undefined}
+                      >
+                        {[e.title, e.detail, formatUserDateTime(e.atIso)].filter(Boolean).join(" · ")}
+                      </ProovraText>
+                    );
+                  })}
                 </View>
               ))}
             </>

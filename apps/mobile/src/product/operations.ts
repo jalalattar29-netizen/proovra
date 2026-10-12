@@ -375,3 +375,7 @@ export const BATCH_ANALYSIS_MODE_NOTE =
 export function batchExportFilename(id: string): string {
   return `batch-${id.replace(/[^A-Za-z0-9_-]/g, "_")}.csv`;
 }
+
+/** D11 — the create call succeeded and the process call did not: the job exists, pending. */
+export const BATCH_CREATED_NOT_STARTED =
+  "The batch job was created but not started, so nothing is processing yet. It is listed below as pending. Try again to start this same job — it will not create a second one.";

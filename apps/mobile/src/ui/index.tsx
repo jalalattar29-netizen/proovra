@@ -249,17 +249,20 @@ export function ProovraSection({
   title,
   action,
   children,
+  heading = false,
 }: {
   title?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
+  /** Announce the title as a heading (accessibilityRole "header") so a screen reader can jump between sections. */
+  heading?: boolean;
 }) {
   const { isRTL } = useLocale();
   return (
     <View style={styles.section}>
       {title ? (
         <View style={[styles.sectionHead, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
-          <ProovraText variant="h3" weight="semibold">
+          <ProovraText variant="h3" weight="semibold" accessibilityRole={heading ? "header" : undefined}>
             {title}
           </ProovraText>
           {action}
