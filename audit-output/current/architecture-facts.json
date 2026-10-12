@@ -223,7 +223,7 @@
       "problemCount": 0
     },
     "auditGovernance": {
-      "AuditFilesInventoried": 348,
+      "AuditFilesInventoried": 349,
       "AuditFilesUnclassified": 0,
       "AuditArtifactProducersUnknown": 0,
       "AuditArtifactConsumersUnknown": 0,
@@ -313,9 +313,9 @@
       "producer": "services/api/test/point5/family-coverage-manifest.ts",
       "producerPresent": true,
       "binding": "RUN_ID",
-      "bindingValue": "10aca567-2bee-486f-b5fe-1418803fd28c",
+      "bindingValue": "c2506371-ad42-4f09-ade8-f4ad8a8f605a",
       "schemaVersion": null,
-      "contentHash": "b881db44c7e2388869897298dabc34f51b9cba612b48ab8f1317c4971d52ec77",
+      "contentHash": "a8081d07a3bdda5449c87e6ecec126cd16925721b198338982f7f6a95819fc24",
       "byteLength": 18476,
       "present": true,
       "freshness": "BOUND",
