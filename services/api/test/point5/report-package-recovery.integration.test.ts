@@ -33,6 +33,7 @@
  * controllable failure seam in front of the real package builder.
  */
 
+import { otsProofForDigest, verifiedChainColumns } from "../helpers/ots-proof-bytes.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -399,7 +400,9 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
         signatureBase64: "ZmFrZS1zaWduYXR1cmUtZm9yLXJlY292ZXJ5",
         signingKeyId: FIXTURE_SIGNING_KEY_ID,
         signingKeyVersion: 1,
-        fingerprintHash: "7".repeat(64),
+        // The digest finalization writes: SHA-256 of the canonical fingerprint
+        // (every OTS proof must commit to it, and the package checks that).
+        fingerprintHash: createHash("sha256").update(JSON.stringify({ recovery: ev.id })).digest("hex"),
         fingerprintCanonicalJson: JSON.stringify({ recovery: ev.id }),
         storageBucket: process.env.S3_BUCKET!,
         storageKey,
@@ -931,6 +934,27 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   // (ots_anchor_check = BITCOIN_VERIFIED), and the manifest, anchor.json and
   // opentimestamps.json state the same claim. The seal binds all of it.
   // -------------------------------------------------------------------------
+  // (2026-10-12) Every OTS boundary reads the digest a proof commits to from
+  // its bytes, so the cases carry real-shaped proofs over the record's
+  // fingerprint digest: pending, or with a Bitcoin attestation. A FAILED proof
+  // keeps unreadable bytes (the state a malformed stored proof reaches).
+  // Placeholders, replaced per record by proofs over ITS fingerprint digest.
+  const FINGERPRINT = "<record fingerprint digest>";
+  const PENDING_PROOF = "<pending proof over the record digest>";
+  const ATTESTED_PROOF = "<attested proof over the record digest>";
+  const bindToRecord = (ots: Record<string, unknown>, digest: string) =>
+    Object.fromEntries(
+      Object.entries(ots).map(([k, v]) => [
+        k,
+        v === FINGERPRINT
+          ? digest
+          : v === PENDING_PROOF
+            ? otsProofForDigest(digest)
+            : v === ATTESTED_PROOF
+              ? otsProofForDigest(digest, { bitcoinHeight: 860_000 })
+              : v,
+      ]),
+    );
   const MAGIC_PROOF = Buffer.concat([
     Buffer.from("004f70656e54696d657374616d7073000050726f6f6600bf89e2e884e89294", "hex"),
     Buffer.from("fixture-proof-body"),
@@ -940,7 +964,8 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
 
   async function packageEntriesFor(ots: Record<string, unknown>) {
     const { evidenceId, teamId } = await signedEvidence();
-    await prisma.evidence.update({ where: { id: evidenceId }, data: ots as never });
+    const { fingerprintHash } = await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { fingerprintHash: true } });
+    await prisma.evidence.update({ where: { id: evidenceId }, data: bindToRecord(ots, fingerprintHash!) as never });
     const id = await request({ evidenceId, teamId });
     expect(await run(id, 0)).toBeNull();
     const s = await state(evidenceId, id);
@@ -956,7 +981,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   const CASES: Array<{ name: string; ots: Record<string, unknown>; verified: boolean; claim: string }> = [
     {
       name: "pending proof",
-      ots: { otsStatus: "PENDING", otsProofBase64: MAGIC_PROOF, otsHash: "7".repeat(64) },
+      ots: { otsStatus: "PENDING", otsProofBase64: PENDING_PROOF, otsHash: FINGERPRINT },
       verified: false,
       claim: "pending",
     },
@@ -970,10 +995,12 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       name: "anchored and verified against the chain",
       ots: {
         otsStatus: "ANCHORED",
-        otsProofBase64: MAGIC_PROOF,
+        otsProofBase64: ATTESTED_PROOF,
         otsBitcoinTxid: TXID,
         otsAnchoredAtUtc: ANCHORED_AT,
         otsAnchorCheck: "BITCOIN_VERIFIED",
+        // Verified means the recorded independent chain check WITH its evidence.
+        ...verifiedChainColumns(860_000),
       },
       verified: true,
       claim: "verified",
@@ -982,7 +1009,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       name: "anchored by proof structure only (chain not checked)",
       ots: {
         otsStatus: "ANCHORED",
-        otsProofBase64: MAGIC_PROOF,
+        otsProofBase64: ATTESTED_PROOF,
         otsBitcoinTxid: TXID,
         otsAnchoredAtUtc: ANCHORED_AT,
         otsAnchorCheck: "PROOF_STRUCTURE",
@@ -992,13 +1019,13 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     },
     {
       name: "anchored before the check was recorded (historical row, check NULL)",
-      ots: { otsStatus: "ANCHORED", otsProofBase64: MAGIC_PROOF, otsBitcoinTxid: TXID, otsAnchoredAtUtc: ANCHORED_AT },
+      ots: { otsStatus: "ANCHORED", otsProofBase64: ATTESTED_PROOF, otsBitcoinTxid: TXID, otsAnchoredAtUtc: ANCHORED_AT },
       verified: false,
       claim: "anchored_not_checked",
     },
     {
       name: "ANCHORED label with a txid but no anchor time (no valid proof of anchoring)",
-      ots: { otsStatus: "ANCHORED", otsProofBase64: MAGIC_PROOF, otsBitcoinTxid: TXID },
+      ots: { otsStatus: "ANCHORED", otsProofBase64: ATTESTED_PROOF, otsBitcoinTxid: TXID },
       verified: false,
       claim: "pending",
     },
@@ -1008,7 +1035,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       name: "anchor recorded by proof structure with no readable txid",
       ots: {
         otsStatus: "ANCHORED",
-        otsProofBase64: MAGIC_PROOF,
+        otsProofBase64: ATTESTED_PROOF,
         otsAnchoredAtUtc: ANCHORED_AT,
         otsAnchorCheck: "PROOF_STRUCTURE",
       },
@@ -1020,9 +1047,12 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       name: "chain check recorded but no txid (never verified without its txid)",
       ots: {
         otsStatus: "ANCHORED",
-        otsProofBase64: MAGIC_PROOF,
+        otsProofBase64: ATTESTED_PROOF,
         otsAnchoredAtUtc: ANCHORED_AT,
         otsAnchorCheck: "BITCOIN_VERIFIED",
+        // The complete chain evidence (the database refuses BITCOIN_VERIFIED
+        // without it) — and still no txid, so still never verified.
+        ...verifiedChainColumns(860_000),
       },
       verified: false,
       claim: "anchored_not_checked",
@@ -1607,11 +1637,16 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
     });
     return readStoredTrustDecision(report.trustDecisionSnapshot)!.signals.find((s) => s.key === "bitcoin_anchoring")!;
   };
-  const otsPending = { otsStatus: "PENDING", otsHash: "7".repeat(64), otsCalendar: "https://calendar.example" } as const;
+  /** A pending OTS request over THIS record's fingerprint digest (its otsHash is that digest). */
+  const otsPendingFor = async (evidenceId: string) => ({
+    otsStatus: "PENDING",
+    otsHash: (await prisma.evidence.findUniqueOrThrow({ where: { id: evidenceId }, select: { fingerprintHash: true } })).fingerprintHash,
+    otsCalendar: "https://calendar.example",
+  });
 
   it("OTS PENDING: report v1 and both package profiles publish; OTS is stated PENDING (NOT_CHECKED), never UNAVAILABLE", async () => {
     const ev = await signedEvidence();
-    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: (await otsPendingFor(ev.evidenceId)) as never });
     const credits = await creditEntries(ev.evidenceId);
     const id = await request(ev);
     expect(await run(id, 0)).toBeNull();
@@ -1629,7 +1664,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
       const ots = m.rows.find((r) => r.key === "ots_anchoring")!;
       expect(ots.status, row.disclosureProfile ?? "").toBe("NOT_CHECKED");
       expect(ots.statement).toMatch(/pending/i);
-      expect(ots.statement).toMatch(/not been independently chain-verified/);
+      expect(ots.statement).toMatch(/not been independently verified against the Bitcoin blockchain/);
     }
     const request_ = await prisma.reportGenerationRequest.findUniqueOrThrow({ where: { id }, select: { state: true } });
     expect(request_.state).not.toMatch(/FAILED|DLQ/);
@@ -1639,7 +1674,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
   it("RACE: OTS initialization commits AFTER the payload was prepared, BEFORE rendering — the run succeeds and states PENDING", async () => {
     const ev = await signedEvidence(); // otsStatus null when the run prepares its payload
     seam.beforeRenderSnapshot = async () => {
-      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+      await prisma.evidence.update({ where: { id: ev.evidenceId }, data: (await otsPendingFor(ev.evidenceId)) as never });
     };
     const id = await request(ev);
     expect(await run(id, 0), "no REPORT_RENDER_INPUT_INCONSISTENT for a valid report").toBeNull();
@@ -1650,13 +1685,16 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
 
   it("RACE: OTS advances WHILE the report renders — the issuance keeps its snapshot; packages publish; no false inconsistency", async () => {
     const ev = await signedEvidence();
-    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: (await otsPendingFor(ev.evidenceId)) as never });
     seam.afterRenderSnapshot = async () => {
       await prisma.evidence.update({
         where: { id: ev.evidenceId },
         data: {
           otsStatus: "ANCHORED",
-          otsProofBase64: Buffer.from("ots-proof").toString("base64"),
+          otsProofBase64: otsProofForDigest(
+            (await prisma.evidence.findUniqueOrThrow({ where: { id: ev.evidenceId }, select: { fingerprintHash: true } })).fingerprintHash!,
+            { bitcoinHeight: 860_000 },
+          ),
           otsBitcoinTxid: "c".repeat(64),
           otsAnchoredAtUtc: new Date(),
           otsUpgradedAtUtc: new Date(),
@@ -1674,7 +1712,7 @@ describe("report / package recovery (real processor, live PostgreSQL 16)", () =>
 
   it("RECOVERY of the production DLQ shape: a v1 request failed non-retriably at the render gate is superseded ONCE by the operator path — one report, one pair, no credit, no duplicate on replay", async () => {
     const ev = await signedEvidence();
-    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: otsPending as never });
+    await prisma.evidence.update({ where: { id: ev.evidenceId }, data: (await otsPendingFor(ev.evidenceId)) as never });
     const credits = await creditEntries(ev.evidenceId);
     // The completion path's own request (production: REPORT:<id>:v0).
     const { requestReportGeneration } = await import("../../src/services/reports/report-generation-authority.service.js");
