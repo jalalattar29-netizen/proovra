@@ -137,11 +137,15 @@ describe("automation webhook destinations", () => {
       { timeout: 5000 },
     );
     await waitFor(() => expect(add.getAttribute("aria-expanded")).toBe("true"), { timeout: 5000 });
-    expect(document.activeElement).toBe(within(form).getByLabelText("Name"));
+    // Focus moves in an effect after the expansion renders: awaited for the
+    // same reason as the expansion itself (Main CI 38226547190 raced this file
+    // on a loaded runner while the same SHA passed on the feature branch).
+    await waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText("Name")), { timeout: 5000 });
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "New receiver" } });
     fireEvent.change(within(form).getByLabelText("Destination URL"), { target: { value: "https://new.example/in" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add destination" }));
-    await screen.findByText(/"New receiver" was added and confirmed from the saved record/);
+    // The write, then the reread that confirms it: two round trips, not one render.
+    await screen.findByText(/"New receiver" was added and confirmed from the saved record/, undefined, { timeout: 5000 });
     const post = writes()[0];
     expect(post[0]).toBe("/v1/automation/webhooks");
     expect(JSON.parse(post[1].body)).toEqual({ teamId: TEAM, name: "New receiver", url: "https://new.example/in" });
@@ -150,7 +154,7 @@ describe("automation webhook destinations", () => {
     expect(within(secret).getByText("whsec_created_once")).toBeTruthy();
     expect(within(secret).getByText(/You will not see this secret again/)).toBeTruthy();
     fireEvent.click(within(secret).getByRole("button", { name: "Copy secret" }));
-    await within(secret).findByText("Copied to the clipboard.");
+    await within(secret).findByText("Copied to the clipboard.", undefined, { timeout: 5000 });
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("whsec_created_once");
     fireEvent.click(within(secret).getByRole("button", { name: /I have stored it/ }));
     expect(screen.queryByText("whsec_created_once")).toBeNull();
