@@ -3955,8 +3955,8 @@ body {
   border-radius: 10px !important;
   background-color: rgba(255, 255, 255, 0.18) !important;
   display: grid !important;
-  break-inside: auto !important;
-  page-break-inside: auto !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 
 .capture-context-header {
@@ -4270,8 +4270,8 @@ body {
    instead of clipping content under the fixed footer. */
 .capture-context-panel,
 .evidence-acquisition-panel {
-  break-inside: auto !important;
-  page-break-inside: auto !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 .executive-summary-page,
 .executive-summary-page-enterprise {
