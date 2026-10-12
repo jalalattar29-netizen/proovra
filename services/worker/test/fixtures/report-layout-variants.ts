@@ -115,13 +115,30 @@ function parts(n: number, longName = false): Partial<ReportV2Input["evidence"]> 
   };
 }
 
+/**
+ * Custody events shaped like a real record's: the event types a Web Upload
+ * produces, with the long details the timeline prints. (A real 14-event chain
+ * of this shape is what first produced a stranded heading and a blank page.)
+ */
+const CUSTODY_SHAPES: ReadonlyArray<[string, string]> = [
+  ["EVIDENCE_CREATED", "Evidence record created."],
+  ["IDENTITY_SNAPSHOT_RECORDED", `Authenticated workspace user identity was recorded at submission. Identity snapshot recorded • Authenticated email account • Personal workspace • Organization verification: not established • Email: ${LONG_EMAIL}`],
+  ["UPLOAD_AUTHORIZED", "Upload authorization recorded (presigned URL issued; bytes not yet confirmed) • Mode: web upload authorization"],
+  ["UPLOAD_COMPLETED", "Single evidence item completed • Items: 1 • Size: 46 bytes • technical digest recorded in appendix"],
+  ["SIGNATURE_APPLIED", "Cryptographic signature applied • Key: rga-ed25519 • Version: 1 • technical digest recorded in appendix • Timestamp: not validated • TSA: RGA LOCAL TEST TSA"],
+  ["TIMESTAMP_APPLIED", "Timestamp token obtained, not validated (no trust anchor was available) • Reviewer should rely on the recorded digest, signature, custody history, and available verification materials."],
+  ["EVIDENCE_COMPLETED", "Evidence record completed • Completed by the record owner • Submitted through: PROOVRA Web Upload"],
+  ["STORAGE_PROTECTION_UNAVAILABLE", "Storage protection was attempted, but Object Lock retention was not actually applied. Treat storage immutability as not asserted for this record."],
+  ["IDENTITY_CONTEXT_RECORDED", "The report recorded which identity snapshot it states (the one recorded when the record was created)."],
+  ["REPORT_GENERATED", "Verification report generated • Version: 1 • Verification: recorded integrity verified • Capture: PROOVRA Web Upload"],
+];
+
 function custody(n: number): ReportV2Input["custodyEvents"] {
-  const types = ["EVIDENCE_CREATED", "UPLOAD_COMPLETED", "SIGNATURE_APPLIED", "TIMESTAMP_APPLIED", "REPORT_GENERATED", "EVIDENCE_VIEWED"];
   return Array.from({ length: n }, (_, i) => ({
     sequence: i + 1,
     atUtc: new Date(Date.parse(AT) + i * 60_000).toISOString(),
-    eventType: types[i % types.length]!,
-    payloadSummary: i === 0 ? '{"type":"DOCUMENT"}' : "{}",
+    eventType: CUSTODY_SHAPES[i % CUSTODY_SHAPES.length]![0],
+    payloadSummary: CUSTODY_SHAPES[i % CUSTODY_SHAPES.length]![1],
     eventHash: createDigest(1000 + i),
     prevEventHash: i === 0 ? null : createDigest(999 + i),
   }));
@@ -392,4 +409,7 @@ export const LAYOUT_VARIANTS: ReadonlyArray<VariantOptions> = [
   { name: "browser capture · long manifest URL · chain verified", mode: "browser_capture", longValues: true, ots: "chain_verified" },
   { name: "mobile capture · minimal identity · no OTS", mode: "mobile_capture", identity: "minimal", ots: "none" },
   { name: "maximum limitation content · long values", maxLimitation: true, longValues: true, parts: 5 },
+  // The shape that first stranded a heading and left a blank page in the
+  // production image: an updated (v3) report over a 14-event detailed chain.
+  { name: "v3 · supersession · 14 detailed custody events", supersession: true, version: 3, custodyEvents: 14 },
 ];

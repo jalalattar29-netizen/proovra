@@ -80,6 +80,8 @@ const TOLERANCE = 0.75;
 const SIDE_MARGIN = (8 / 25.4) * 72;
 /** Section titles print at 18.5 px (≈ 13.9 pt); nothing else in the body is that large. */
 const SECTION_TITLE_MIN_SIZE = 13;
+/** The kicker every section prints above its title (letter-spaced in the PDF). */
+const SECTION_KICKER = /^PROOVRAVERIFICATIONREPORT$/i;
 
 const norm = (s: string) => s.replace(/­/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 const clip = (s: string) => (s.length > 48 ? `${s.slice(0, 48)}…` : s);
@@ -110,6 +112,11 @@ export function checkReportGeometry(pages: ReadonlyArray<PageGeometry>, expect: 
     }
     const body = page.items.filter((it) => !footer || Math.abs(it.baseline - footer.baseline) > TOLERANCE);
     if (body.length === 0) out.push({ check: "BLANK_PAGE", detail: `${at} has no content` });
+    // A page holding only a section's kicker and/or title is a heading cut off
+    // from the content it introduces.
+    else if (body.every((it) => it.size >= SECTION_TITLE_MIN_SIZE || SECTION_KICKER.test(it.str.replace(/\s+/g, "")))) {
+      out.push({ check: "ORPHANED_HEADING", detail: `${at} holds only a section heading` });
+    }
 
     for (const it of body) {
       if (it.x < -TOLERANCE || it.right > page.width + TOLERANCE || it.top < -TOLERANCE || it.bottom > page.height + TOLERANCE) {

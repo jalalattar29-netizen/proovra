@@ -106,6 +106,8 @@ describe("the geometric gate's rules", () => {
     expect(checks([noFooter])).toEqual(["PAGE_FOOTER"]);
     expect(checks([page(1, 2, [text("the bounded limitation", 60, 100)]), page(2, 2, [])])).toEqual(["BLANK_PAGE"]);
     expect(checks([page(1, 1, [text("the bounded limitation", 60, 100), text("Chain of Custody", 60, 700, 14)])])).toEqual(["ORPHANED_HEADING"]);
+    // A page holding only a section kicker (letter-spaced in the PDF) and nothing else.
+    expect(checks([page(1, 2, [text("the bounded limitation", 60, 100)]), page(2, 2, [text("P R O O V R A  V E R I F I C A T I O N  R E P O R T", 60, 60, 6)])])).toEqual(["ORPHANED_HEADING"]);
   });
   it("a required statement that is absent or cut is refused", () => {
     expect(checks([page(1, 1, [text("the bounded", 60, 100)])])).toEqual(["REQUIRED_STATEMENT"]);

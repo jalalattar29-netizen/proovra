@@ -1383,8 +1383,8 @@ letter-spacing: -0.005em;
       border-radius: 9px;
       overflow: hidden;
       background: ${c.white};
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .executive-summary-row {
@@ -1767,8 +1767,8 @@ letter-spacing: -0.005em;
       border-radius: 9px;
       overflow: hidden;
       background: ${c.white};
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .integrity-check-row {
@@ -1869,8 +1869,8 @@ letter-spacing: -0.005em;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     .integrity-detail-card {
@@ -2529,7 +2529,7 @@ body {
   width: 210mm !important;
   min-height: var(--report-page-fill) !important;
   margin: 0 !important;
-  padding: 3mm 14mm 4mm 14mm !important;
+  padding: 3mm 14mm 0 14mm !important;
   background: transparent !important;
   overflow: visible !important;
 }
@@ -3275,14 +3275,17 @@ body {
   overflow: visible !important;
 }
 
+/* A section, panel, grid or timeline taller than the space left on a page
+   SPLITS (2026-10-12): kept whole, it was pushed to the next page and left
+   its heading alone, then a blank page. Only individual cards stay whole. */
 .custody-section .section-sheet,
 .custody-section .section-body,
 .custody-page,
 .custody-timeline-panel,
 .custody-forensic-timeline {
   min-height: 0 !important;
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
 
 .custody-page {
@@ -3305,7 +3308,7 @@ body {
 
 .report-page {
   overflow: visible !important;
-  padding: 3mm 14mm 4mm 14mm !important;
+  padding: 3mm 14mm 0 14mm !important;
   background-image: url("${paperSilverUrl}") !important;
   background-size: 210mm var(--report-page-area) !important;
   background-repeat: repeat-y !important;
@@ -3930,8 +3933,8 @@ body {
 
 .executive-summary-page-enterprise .executive-summary-table {
   margin-top: 0 !important;
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
 
 .executive-summary-page-enterprise .executive-summary-row {
@@ -3952,8 +3955,8 @@ body {
   border-radius: 10px !important;
   background-color: rgba(255, 255, 255, 0.18) !important;
   display: grid !important;
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
 
 .capture-context-header {
@@ -4208,7 +4211,7 @@ body {
 .executive-summary-section .report-page {
   min-height: var(--report-page-fill) !important;
   overflow: visible !important;
-  padding: 1.5mm 14mm 4mm 14mm !important;
+  padding: 1.5mm 14mm 0 14mm !important;
 }
 
 .executive-summary-page-enterprise {
@@ -4267,8 +4270,8 @@ body {
    instead of clipping content under the fixed footer. */
 .capture-context-panel,
 .evidence-acquisition-panel {
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
 .executive-summary-page,
 .executive-summary-page-enterprise {
@@ -4281,8 +4284,8 @@ body {
    secondary dark-green accent; cards and the block never split across a
    page boundary. */
 .executive-unified-grid {
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
   margin-top: 2mm !important;
 }
 .executive-unified-grid .kv-label {
@@ -4463,7 +4466,7 @@ body {
 .evidence-gallery-section .report-page {
   min-height: var(--report-page-fill) !important;
   overflow: visible !important;
-  padding: 1mm 14mm 4mm 14mm !important;
+  padding: 1mm 14mm 0 14mm !important;
 }
 
 .evidence-gallery-section .section-heading {
@@ -4607,7 +4610,7 @@ body {
 .evidence-gallery-section .report-page {
   min-height: var(--report-page-fill) !important;
   overflow: visible !important;
-  padding: 1mm 14mm 4mm 14mm !important;
+  padding: 1mm 14mm 0 14mm !important;
 }
 
 .evidence-gallery-section .section-body {
