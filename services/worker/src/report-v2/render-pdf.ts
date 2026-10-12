@@ -2,7 +2,14 @@
 import fs from "node:fs";
 import puppeteer from "puppeteer";
 
-function resolveBrowserExecutablePath(): string | undefined {
+import { OutputVerificationError } from "../output-verification-error.js";
+import { LAYOUT_AUDIT_SCRIPT, layoutAuditFindings, type LayoutAuditEntry } from "../pdf/report-geometry.js";
+import { REPORT_PAGE } from "./page-geometry.js";
+
+/** The PDF /Creator of every report (never the renderer host's user agent). */
+export const REPORT_PDF_CREATOR = "PROOVRA Verification Report Renderer";
+
+export function resolveBrowserExecutablePath(): string | undefined {
   const candidates = [
     process.env.PUPPETEER_EXECUTABLE_PATH?.trim() || "",
     "/usr/bin/chromium",
@@ -140,6 +147,8 @@ export async function renderPdfFromHtml(html: string): Promise<Buffer> {
       "--disable-gpu",
       "--disable-extensions",
       "--no-first-run",
+      // The PDF /Creator is the browser's user agent: name the renderer, not the host.
+      `--user-agent=${REPORT_PDF_CREATOR}`,
     ],
   });
 
@@ -199,6 +208,15 @@ await page.evaluate(
     ]);
   })()`,
 );
+
+    // THE LAYOUT AUDIT (pdf/report-geometry.ts): an element that clips its
+    // own text would print a report with words cut off or missing, and that
+    // leaves no trace in the PDF's text positions. Refused here, before
+    // printing — deterministic, so never retried.
+    const clipped = (await page.evaluate(LAYOUT_AUDIT_SCRIPT)) as LayoutAuditEntry[];
+    if (clipped.length) {
+      throw new OutputVerificationError("REPORT_OUTPUT_INCONSISTENT", layoutAuditFindings(clipped));
+    }
 
     const footerData = (await page.evaluate(
       `(() => {
@@ -279,10 +297,14 @@ reportId: fullReportId(footerData.evidenceReference),
       displayHeaderFooter: true,
       headerTemplate: `<div></div>`,
       footerTemplate,
+      // The SAME margins the stylesheet declares in @page (page-geometry.ts):
+      // the footer template is drawn in the bottom margin, which no content can
+      // enter. They used to disagree (@page margin 0 overrode this 12mm under
+      // preferCSSPageSize), and the footer was drawn over the content area.
       margin: {
-        top: "0mm",
+        top: `${REPORT_PAGE.marginTopMm}mm`,
         right: "0mm",
-        bottom: "12mm",
+        bottom: `${REPORT_PAGE.marginBottomMm}mm`,
         left: "0mm",
       },
     });

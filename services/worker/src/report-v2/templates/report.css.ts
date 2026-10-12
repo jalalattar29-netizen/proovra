@@ -1,5 +1,6 @@
 import { REPORT_BRAND } from "../brand.js";
 import { reportAssetDataUrl } from "../asset-data-url.js";
+import { REPORT_PAGE, REPORT_PAGE_AREA_HEIGHT_MM } from "../page-geometry.js";
 
 export function getReportCss(): string {
   const c = REPORT_BRAND.colors;
@@ -10,10 +11,21 @@ const paperSilverUrl = reportAssetDataUrl("paper-silver.png");
 // asset is needed by a future section.
 // const velvetUrl = reportAssetDataUrl("site-velvet-bg.webp.png");
 
+  // THE PAGE (page-geometry.ts): the footer is drawn in a real bottom margin no
+  // content can enter, and the renderer passes Puppeteer these same margins.
+  // A section is never a fixed-height box that clips: it flows onto as many
+  // pages as its content needs, and --report-page-fill only lets a short page
+  // pin its closing notes to the bottom of the content area.
+  const pageArea = REPORT_PAGE_AREA_HEIGHT_MM;
   return `
 @page {
   size: A4;
-  margin: 0;
+  margin: ${REPORT_PAGE.marginTopMm}mm 0 ${REPORT_PAGE.marginBottomMm}mm 0;
+}
+
+:root {
+  --report-page-area: ${pageArea}mm;
+  --report-page-fill: ${pageArea - 1}mm;
 }
 
     * {
@@ -53,7 +65,7 @@ letter-spacing: -0.005em;
   padding: 0;
   break-after: page;
   page-break-after: always;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .report-page {
@@ -133,7 +145,7 @@ letter-spacing: -0.005em;
   flex-direction: column;
   height: 266mm;
   min-height: 266mm;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(255,255,255,0.82);
   border: 1px solid ${c.line};
   border-radius: 0;
@@ -2489,16 +2501,16 @@ body {
 .report-cover,
 .report-section {
   width: 210mm !important;
-  min-height: 297mm !important;
+  min-height: var(--report-page-fill) !important;
   margin: 0 !important;
   padding: 0 !important;
   background-image: url("${paperSilverUrl}") !important;
-  background-size: 210mm 297mm !important;
-  background-repeat: no-repeat !important;
+  background-size: 210mm var(--report-page-area) !important;
+  background-repeat: repeat-y !important;
   background-position: center top !important;
   break-after: page !important;
   page-break-after: always !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .report-root > .report-cover:first-child,
@@ -2515,11 +2527,11 @@ body {
 /* المحتوى فوق الخلفية */
 .report-page {
   width: 210mm !important;
-  min-height: 297mm !important;
+  min-height: var(--report-page-fill) !important;
   margin: 0 !important;
-  padding: 13mm 14mm 16mm 14mm !important;
+  padding: 3mm 14mm 4mm 14mm !important;
   background: transparent !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .section-sheet {
@@ -2540,15 +2552,14 @@ body {
 
 .cover-certificate-card {
   width: 210mm !important;
-  height: 297mm !important;
-  min-height: 297mm !important;
+  min-height: var(--report-page-fill) !important;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .cover-certificate-top {
@@ -2568,7 +2579,7 @@ body {
   min-height: 0 !important;
   padding: 5mm 14mm 13mm 14mm !important;
   background: transparent !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .cover-certificate-bottom {
@@ -2816,15 +2827,15 @@ body {
 
 .report-section {
   background-image: url("${paperSilverUrl}") !important;
-  background-size: 210mm 297mm !important;
-  background-repeat: no-repeat !important;
+  background-size: 210mm var(--report-page-area) !important;
+  background-repeat: repeat-y !important;
   background-position: center top !important;
 }
 
 .report-page {
   background-image: url("${paperSilverUrl}") !important;
-  background-size: 210mm 297mm !important;
-  background-repeat: no-repeat !important;
+  background-size: 210mm var(--report-page-area) !important;
+  background-repeat: repeat-y !important;
   background-position: center top !important;
   background-color: transparent !important;
 }
@@ -3087,8 +3098,7 @@ body {
 .executive-summary-section .report-page,
 .report-section:has(.integrity-summary-page) .report-page,
 .report-section:has(.workflow-steps) .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
+  min-height: var(--report-page-fill) !important;
   display: flex !important;
   flex-direction: column !important;
 }
@@ -3205,9 +3215,8 @@ body {
 /* EVIDENCE GALLERY — stable multi-page layout */
 
 .evidence-presentation-section .report-page {
-  min-height: 297mm !important;
-  height: 297mm !important;
-  overflow: hidden !important;
+  min-height: var(--report-page-fill) !important;
+  overflow: visible !important;
 }
 
 .evidence-gallery-section .gallery-support-grid {
@@ -3219,9 +3228,8 @@ body {
 
 .evidence-gallery-section .gallery-card {
   min-height: 92mm !important;
-  max-height: 96mm !important;
   border-radius: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .evidence-gallery-section .gallery-card-header {
@@ -3263,9 +3271,8 @@ body {
 /* CUSTODY — keep generated custody pages as real report pages */
 
 .custody-section .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
-  overflow: hidden !important;
+  min-height: var(--report-page-fill) !important;
+  overflow: visible !important;
 }
 
 .custody-section .section-sheet,
@@ -3293,16 +3300,15 @@ body {
 .report-section,
 .report-page {
   width: 210mm !important;
-  min-height: 297mm !important;
+  min-height: var(--report-page-fill) !important;
 }
 
 .report-page {
-  height: 297mm !important;
-  overflow: hidden !important;
-  padding: 13mm 14mm 16mm 14mm !important;
+  overflow: visible !important;
+  padding: 3mm 14mm 4mm 14mm !important;
   background-image: url("${paperSilverUrl}") !important;
-  background-size: 210mm 297mm !important;
-  background-repeat: no-repeat !important;
+  background-size: 210mm var(--report-page-area) !important;
+  background-repeat: repeat-y !important;
   background-position: center top !important;
 }
 
@@ -3457,9 +3463,8 @@ body {
 }
 
 .duplicate-digest-register-section .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
-  overflow: hidden !important;
+  min-height: var(--report-page-fill) !important;
+  overflow: visible !important;
 }
 
 .duplicate-digest-register-page {
@@ -3729,8 +3734,9 @@ body {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 2.8mm !important;
-  break-inside: avoid !important;
-  page-break-inside: avoid !important;
+  /* A grid of cards splits between rows; each card stays whole. */
+  break-inside: auto !important;
+  page-break-inside: auto !important;
 }
 
 .trust-signal-card {
@@ -4120,11 +4126,10 @@ body {
 /* Pin bottom notes above the Chromium footer */
 .trust-signal-analysis-section .report-page,
 .workflow-section .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
+  min-height: var(--report-page-fill) !important;
   display: flex !important;
   flex-direction: column !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .trust-signal-analysis-section .section-sheet,
@@ -4167,11 +4172,10 @@ body {
 
 .trust-signal-analysis-section .report-page,
 .court-review-index-section .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
+  min-height: var(--report-page-fill) !important;
   display: flex !important;
   flex-direction: column !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .trust-signal-analysis-section .section-sheet,
@@ -4202,10 +4206,9 @@ body {
 /* EXECUTIVE SUMMARY — FINAL PDF BALANCE FIX */
 
 .executive-summary-section .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
-  overflow: hidden !important;
-  padding: 11.5mm 14mm 15mm 14mm !important;
+  min-height: var(--report-page-fill) !important;
+  overflow: visible !important;
+  padding: 1.5mm 14mm 4mm 14mm !important;
 }
 
 .executive-summary-page-enterprise {
@@ -4458,10 +4461,9 @@ body {
 /* EVIDENCE GALLERY — 4 cards per page, footer-safe */
 
 .evidence-gallery-section .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
-  overflow: hidden !important;
-  padding: 11mm 14mm 18mm 14mm !important;
+  min-height: var(--report-page-fill) !important;
+  overflow: visible !important;
+  padding: 1mm 14mm 4mm 14mm !important;
 }
 
 .evidence-gallery-section .section-heading {
@@ -4492,19 +4494,15 @@ body {
 .evidence-gallery-section .gallery-support-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-template-rows: repeat(2, 1fr) !important;
+  grid-template-rows: none !important;
   gap: 3mm !important;
-  height: 219mm !important;
-  max-height: 219mm !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   align-items: stretch !important;
 }
 
 .evidence-gallery-section .gallery-card {
   min-height: 0 !important;
-  height: 108mm !important;
-  max-height: 108mm !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   border-radius: 0 !important;
   display: flex !important;
   flex-direction: column !important;
@@ -4519,15 +4517,13 @@ body {
 .evidence-gallery-section .gallery-card-file-name {
   font-size: 8.6px !important;
   line-height: 1.15 !important;
-  max-height: 6mm !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .evidence-gallery-section .gallery-card-role {
   font-size: 6.8px !important;
   line-height: 1.1 !important;
-  max-height: 4mm !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .evidence-gallery-section .gallery-thumb {
@@ -4546,7 +4542,7 @@ body {
 .evidence-gallery-section .gallery-card-meta {
   flex: 1 1 auto !important;
   min-height: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   padding: 1.2mm 2.4mm 2mm !important;
 }
 
@@ -4609,10 +4605,9 @@ body {
 /* GALLERY — 4 evidence cards per page without hitting footer */
 
 .evidence-gallery-section .report-page {
-  height: 297mm !important;
-  min-height: 297mm !important;
-  overflow: hidden !important;
-  padding: 11mm 14mm 17mm 14mm !important;
+  min-height: var(--report-page-fill) !important;
+  overflow: visible !important;
+  padding: 1mm 14mm 4mm 14mm !important;
 }
 
 .evidence-gallery-section .section-body {
@@ -4629,7 +4624,7 @@ body {
 .evidence-gallery-section .gallery-support-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: none !important;
   gap: 3.2mm !important;
   flex: 1 1 auto !important;
   min-height: 0 !important;
@@ -4637,9 +4632,7 @@ body {
 
 .evidence-gallery-section .gallery-card {
   min-height: 0 !important;
-  height: 102mm !important;
-  max-height: 102mm !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .evidence-gallery-section .gallery-card-header {
@@ -4800,8 +4793,8 @@ body {
   .report-cover,
   .report-section {
     background-image: url("${paperSilverUrl}") !important;
-    background-size: 210mm 297mm !important;
-    background-repeat: no-repeat !important;
+    background-size: 210mm var(--report-page-area) !important;
+    background-repeat: repeat-y !important;
     background-position: center top !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

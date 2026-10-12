@@ -40,29 +40,19 @@ import {
   type CanonicalArtifactFacts,
   type CanonicalFactsFinding,
   type SealEntryDigest,
+  VERIFICATION_LIMITATION,
 } from "@proovra/shared";
 import { findRegisteredSigningKey } from "@proovra/shared-runtime";
 
 import { Prisma, type CustodyEventType } from "@prisma/client";
 
 import { prisma } from "./db.js";
+import { OutputVerificationError } from "./output-verification-error.js";
+import { checkReportGeometry, readReportGeometry } from "./pdf/report-geometry.js";
+import { PROVENANCE_BOUNDARY_STATEMENT, supersessionStatement } from "./report-v2/required-statements.js";
 import type { ReportEvidence } from "./report-v2/types.js";
 
-export class OutputVerificationError extends Error {
-  readonly retriable = false;
-  constructor(
-    readonly code:
-      | "REPORT_RENDER_INPUT_INCONSISTENT"
-      | "REPORT_OUTPUT_INCONSISTENT"
-      | "PACKAGE_OUTPUT_INCONSISTENT"
-      /** The rendered PDF could not be read back at all, so it was not checked and is never issued. */
-      | "REPORT_PDF_VERIFICATION_FAILED",
-    readonly findings: CanonicalFactsFinding[],
-  ) {
-    super(`${code}: ${findings.slice(0, 5).map((f) => `${f.check} (${f.detail})`).join("; ")}`);
-    this.name = "OutputVerificationError";
-  }
-}
+export { OutputVerificationError } from "./output-verification-error.js";
 
 /**
  * THE timestamp/anchoring lifecycle columns a report states, and the custody
@@ -351,8 +341,19 @@ export async function extractPdfText(pdf: Buffer): Promise<string> {
   return extractPdfTextWithPdfjs(pdf);
 }
 
-/** AFTER RENDERING — the PDF's own text states the facts. */
-export async function assertRenderedReport(pdf: Buffer, facts: CanonicalArtifactFacts, reportVersion: number): Promise<void> {
+/**
+ * AFTER RENDERING — the PDF's own text states the facts, and its pages are
+ * usable pages: nothing in the footer zone or off the page, no blank page, no
+ * orphaned section title, and every required statement present in full
+ * (pdf/report-geometry.ts). An updated report must carry its supersession
+ * notice.
+ */
+export async function assertRenderedReport(
+  pdf: Buffer,
+  facts: CanonicalArtifactFacts,
+  reportVersion: number,
+  options: { supersedesVersion?: number | null } = {},
+): Promise<void> {
   /*
    * A PDF THAT CANNOT BE READ IS NOT VERIFIED (2026-10-09). Reading the bytes
    * back is the gate, so an extraction failure refuses the report exactly like
@@ -374,6 +375,18 @@ export async function assertRenderedReport(pdf: Buffer, facts: CanonicalArtifact
     ]);
   }
   const findings = checkRenderedReportText(text, facts, { reportVersion });
+  const geometry = await readReportGeometry(pdf);
+  findings.push(
+    ...checkReportGeometry(geometry, {
+      requiredStatements: [
+        { name: "verification limitation", text: VERIFICATION_LIMITATION },
+        { name: "provenance boundary", text: PROVENANCE_BOUNDARY_STATEMENT },
+        ...(options.supersedesVersion != null
+          ? [{ name: "supersession notice", text: supersessionStatement(options.supersedesVersion) }]
+          : []),
+      ],
+    }),
+  );
   if (findings.length) throw new OutputVerificationError("REPORT_OUTPUT_INCONSISTENT", findings);
 }
 
@@ -486,6 +499,15 @@ async function readEntry(path: string, e: CentralEntry): Promise<{ sha256: strin
  * AFTER SEALING — the staged ZIP, read back from disk, is the package it
  * claims to be and states the record's facts.
  */
+/** Material no package may carry, in any profile. Matched on every text entry. */
+export const SECRET_MATERIAL: ReadonlyArray<{ name: string; pattern: RegExp }> = [
+  { name: "a presigned URL", pattern: /X-Amz-(?:Signature|Credential|Security-Token)=/i },
+  { name: "a cloud access key id", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
+  { name: "a cloud secret key", pattern: /aws_secret_access_key/i },
+  { name: "a private key", pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----/ },
+  { name: "a connection string with a password", pattern: /\b(?:postgres(?:ql)?|redis|rediss|mysql|amqp):\/\/[^\s:"'@/]+:[^\s@"']+@/i },
+];
+
 export async function assertStagedPackage(input: {
   zipPath: string;
   facts: CanonicalArtifactFacts;
@@ -510,6 +532,14 @@ export async function assertStagedPackage(input: {
     }
   }
   const findings: CanonicalFactsFinding[] = [];
+
+  // 0. NO SECRET IN ANY PROFILE (2026-10-12): a presigned URL, a cloud
+  // credential, a private key or a connection string with a password is never
+  // verification material, whichever profile the package is.
+  for (const [name, text] of texts) {
+    const hit = SECRET_MATERIAL.find((s) => s.pattern.test(text));
+    if (hit) findings.push({ check: "SECRET_MATERIAL", detail: `${name} carries ${hit.name}` });
+  }
 
   // 1. THE canonical seal verifier — the same one a recipient's tooling runs.
   const seal = verifySealedPackageEntries({

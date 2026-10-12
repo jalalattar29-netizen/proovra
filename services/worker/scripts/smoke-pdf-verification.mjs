@@ -208,6 +208,64 @@ async function main() {
   };
   step("verify", { textChars: text.length, required });
 
+  // 3b. THE PAGES, with the image's own Chromium and fonts (2026-10-12): an
+  // updated (v2) report with a supersession notice, a 120-event custody chain,
+  // a long title and a long capture-manifest URL — the content that used to be
+  // clipped by fixed-height pages or pushed under the footer. The canonical
+  // gate reads the page geometry from the PDF bytes and requires the notice.
+  const LONG_URL =
+    "https://records.example-municipality.gov/archive/2026/procurement/regional-infrastructure-programme/supporting-material/viewer?document=0f9e8d7c6b5a49382716051f2e3d4c5b6a798897a6b5c4d3e2f1&session=a1b2c3d4e5f60718293a4b5c6d7e8f90#section-4.2.1-annex-B";
+  const stressCustody = Array.from({ length: 120 }, (_, i) => ({
+    sequence: i + 1,
+    atUtc: new Date(Date.parse("2026-10-09T08:00:00.000Z") + i * 60_000).toISOString(),
+    eventType: ["EVIDENCE_CREATED", "UPLOAD_COMPLETED", "SIGNATURE_APPLIED", "EVIDENCE_VIEWED"][i % 4],
+    payloadSummary: "{}",
+    eventHash: (i + 4096).toString(16).padStart(64, "e"),
+    prevEventHash: i === 0 ? null : (i + 4095).toString(16).padStart(64, "e"),
+  }));
+  const stressed = {
+    ...input,
+    version: 2,
+    evidence: {
+      ...input.evidence,
+      title:
+        "Recorded statement and supporting material concerning the procurement review of the regional infrastructure programme, submitted for independent verification",
+      acquisitionMode: "DIRECT_WEB_CAPTURE_EXTENSION",
+    },
+    custodyEvents: stressCustody,
+    captureManifest: {
+      schema: "PROOVRA_CAPTURE_MANIFEST_FACTS_V1",
+      kind: "WEB",
+      reportedBy: "CAPTURE_CLIENT",
+      manifestSchemaVersion: "1.0.0",
+      manifestSha256: DIGEST,
+      manifestPartIndex: 1,
+      clientCaptureWindow: { startedAtUtc: "2026-10-09T08:00:00.000Z", endedAtUtc: "2026-10-09T08:01:00.000Z" },
+      completeness: "CAPTURED",
+      reportedComplete: false,
+      limitations: ["DYNAMIC_CONTENT_PRESENT"],
+      client: { kind: "BROWSER_EXTENSION", appVersion: "1.4.2", platform: null, osVersion: "Linux", model: null, browserName: "Chrome", browserVersion: "130" },
+      web: { domain: "records.example-municipality.gov", sourceUrlPrivate: LONG_URL, titlePrivate: null, captureMode: "FULL_PAGE", pageMutatedDuringCapture: true },
+      screen: null,
+    },
+    supersession: {
+      previousVersion: 1,
+      previousGeneratedAtUtc: "2026-10-09T08:02:00.000Z",
+      changes: [
+        "The OpenTimestamps proof gained a Bitcoin attestation after the previous version was generated.",
+        "Three custody events were recorded since the previous version, including two access events.",
+        "The verification package was regenerated and now certifies this report version.",
+      ],
+      reason: "Corrected wording and layout after review.",
+    },
+  };
+  const stressedPdf = await buildReportPdfV2(stressed);
+  await verification.assertRenderedReport(stressedPdf, facts, 2, { supersedesVersion: 1 });
+  const stressedText = (await verification.extractPdfText(stressedPdf)).replace(/\s+/g, "");
+  const stressedHtmlRows = stressCustody.filter((e) => stressedText.includes(e.eventHash)).length;
+  step("pages", { bytes: stressedPdf.length, custodyRowsPrinted: stressedHtmlRows, longUrlPrinted: stressedText.includes(LONG_URL) });
+  required.longUrl = stressedText.includes(LONG_URL);
+
   // 5. The other order: the metadata path still works after verification.
   const metaAfter = await metadata.parsePdfMetadata(await samplePdf("after"), "application/pdf");
   step("metadataAfter", { parseResult: metaAfter?.parseResult ?? null });

@@ -4300,8 +4300,12 @@ async function runReportGeneration(
           recordLegalHold: finalizedRecordLegalHold,
         });
         // AFTER RENDERING: the text extracted from the PDF bytes states the
-        // record's facts and nothing stronger. A contradiction is not published.
-        await assertRenderedReport(finalizedReportPdf, reportCanonicalFacts, prepared.version);
+        // record's facts and nothing stronger, on usable pages (the geometric
+        // gate); an updated report carries its supersession notice. A
+        // contradiction or a defective page is not published.
+        await assertRenderedReport(finalizedReportPdf, reportCanonicalFacts, prepared.version, {
+          supersedesVersion: supersession?.previousVersion ?? null,
+        });
 
         // The allowance is checked with the EXACT size, before any byte is
         // written to storage.
