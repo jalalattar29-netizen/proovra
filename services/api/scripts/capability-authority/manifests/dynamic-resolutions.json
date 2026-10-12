@@ -227,6 +227,12 @@
       "class": "PLATFORM_PERMISSION_API",
       "evidence": "const result = await PermissionsAndroid.request(permission as never) — UC-AND-003 (6934514c). NOT a network request: `PermissionsAndroid` is React Native's Android runtime-permission API (imported from \"react-native\" at the top of the file) and `.request` shows the OS permission dialog for android.permission.POST_NOTIFICATIONS, returning GRANTED/DENIED. The analyzer's seed set matches the bare callee name `request`, so the call is modelled as a request whose path argument is the permission string. No route of ours — and no host at all — is reached. Reviewed by reading the site.",
       "reviewedAtUtc": "2026-10-01"
+    },
+    {
+      "site": "services/worker/src/ots-chain-verifier.ts:158",
+      "class": "EXTERNAL_DESTINATION",
+      "evidence": "fetch(endpoint, { method: \"POST\", ... }) inside makeRpc — JSON-RPC (getblockhash / getblockheader) to the operator's own Bitcoin Core node named by OTS_BITCOIN_NODE_URL, used only when OTS_CHAIN_VERIFIER=bitcoind-rpc to verify an OpenTimestamps attestation against the chain. Not a PROOVRA route; the URL is a secret and is never logged.",
+      "reviewedAtUtc": "2026-10-12"
     }
   ]
 }
