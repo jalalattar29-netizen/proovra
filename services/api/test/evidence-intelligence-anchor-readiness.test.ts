@@ -28,6 +28,14 @@ type Ots = {
   otsStatus: string | null;
   otsAnchoredAtUtc: string | null;
   otsAnchorCheck: string | null;
+  /** (2026-10-12) The recorded independent chain check, when there is one. */
+  otsChainVerificationStatus?: string | null;
+  otsChainVerifiedAtUtc?: string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
 };
 
 const OTS: Record<string, Ots> = {
