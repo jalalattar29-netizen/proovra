@@ -23,11 +23,25 @@
  *   * "Projects" — a metric PROOVRA has no concept of.
  */
 
+import { useEffect, useRef } from "react";
+
 import { Button } from "../../../../components/ui/Button";
 import { Card } from "../../../../components/ui/Card";
 import type { BillingAccountProjection } from "../../../../lib/api/billing-accounts";
 import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { formatDate } from "./format";
+
+/**
+ * The anchor Operations links to (`/billing?workspace=personal#billing-action-required`)
+ * for a storage add-on that is still billing. It names THIS card: the server
+ * banner and, under it, the dedicated retry and support actions.
+ */
+export const BILLING_ACTION_REQUIRED_ANCHOR = "billing-action-required";
+
+/** Whether a location hash names the action-required card. */
+export function hashTargetsActionRequired(hash: string | null | undefined): boolean {
+  return (hash ?? "").replace(/^#/, "") === BILLING_ACTION_REQUIRED_ANCHOR;
+}
 
 export function ActionRequiredBanner({
   projection,
@@ -49,6 +63,22 @@ export function ActionRequiredBanner({
 }) {
   const banner = projection.actionRequired;
   const outstanding = projection.dependentStorageCancellation;
+
+  // The card renders only after the projection loads, which is after the
+  // browser has already tried (and failed) to honour the hash. Scroll once,
+  // when the card first exists, and move focus to it so the deep link lands
+  // a keyboard or screen-reader user on the condition as well.
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (!banner || scrolled.current) return;
+    if (typeof window === "undefined" || !hashTargetsActionRequired(window.location.hash)) return;
+    const el = document.getElementById(BILLING_ACTION_REQUIRED_ANCHOR);
+    if (!el) return;
+    scrolled.current = true;
+    el.scrollIntoView({ block: "start" });
+    el.focus({ preventScroll: true });
+  }, [banner]);
+
   if (!banner) return null;
 
   return (
@@ -56,6 +86,8 @@ export function ActionRequiredBanner({
       variant="status"
       tone={banner.severity === "CRITICAL" ? "risk" : "pending"}
       role="alert"
+      id={BILLING_ACTION_REQUIRED_ANCHOR}
+      tabIndex={-1}
       data-billing-action-required
       title={banner.title}
     >

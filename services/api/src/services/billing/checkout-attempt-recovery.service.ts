@@ -45,6 +45,7 @@ import {
   settlePayPalEvidenceCreditOrder,
 } from "./paypal-settlement.service.js";
 import { SELF_SERVICE_BASE_SUBSCRIPTION_PLANS } from "./base-subscription.service.js";
+import { noteProviderObservation } from "./provider-authorization-signal.service.js";
 import { terminalizePendingPlanCheckout } from "./subscription-cancellation.service.js";
 import {
   settleStripeCheckoutSession,
@@ -331,6 +332,12 @@ async function checkAttempt(
 
   if (attempt.product === "PLAN") {
     const observation = await adapter.observeSubscription(ref);
+    noteProviderObservation({
+      provider: attempt.provider,
+      operation: "RECHECK_CHECKOUT_ATTEMPT",
+      observation,
+      paymentId: attempt.id,
+    });
     if (observation.state === "UNKNOWN") {
       return finish(failureOutcome(observation.failure));
     }
@@ -360,6 +367,12 @@ async function checkAttempt(
 
   // EVIDENCE_CREDIT
   const observation = await adapter.observePayment(ref);
+  noteProviderObservation({
+    provider: attempt.provider,
+    operation: "RECHECK_CHECKOUT_ATTEMPT",
+    observation,
+    paymentId: attempt.id,
+  });
   if (observation.state === "UNKNOWN") {
     return finish(failureOutcome(observation.failure));
   }

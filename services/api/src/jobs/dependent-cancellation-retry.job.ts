@@ -92,6 +92,10 @@ export async function runDependentCancellationRetrySweep(input?: {
   failed: number;
   escalated: number;
   conditionsOpened: number;
+  /** Obligations with no workspace to attribute a condition to. */
+  conditionsSkippedUnscoped: number;
+  /** More unresolved obligations exist than one condition sweep examines. */
+  conditionsTruncated: boolean;
 }> {
   const now = input?.now ?? new Date();
   const subjects = await selectDueCancellationSubjects(
@@ -131,8 +135,23 @@ export async function runDependentCancellationRetrySweep(input?: {
   // converged does not get an incident opened one tick before its probe
   // closes it again.
   let conditionsOpened = 0;
+  let conditionsSkippedUnscoped = 0;
+  let conditionsTruncated = false;
   try {
-    conditionsOpened = (await syncDependentCancellationConditions()).opened;
+    const sync = await syncDependentCancellationConditions();
+    conditionsOpened = sync.opened;
+    conditionsSkippedUnscoped = sync.skippedUnscoped;
+    conditionsTruncated = sync.truncated;
+    // Neither is silent any more: an obligation that cannot be attributed is
+    // a customer still being charged with no Operations condition, and a
+    // truncated sweep is one that did not look at everything.
+    if (sync.skippedUnscoped > 0 || sync.truncated) {
+      logWarn("billing.dependent_cancellation.conditions_incomplete", {
+        scanned: sync.scanned,
+        skippedUnscoped: sync.skippedUnscoped,
+        truncated: sync.truncated,
+      });
+    }
   } catch (err) {
     logWarn("billing.dependent_cancellation.conditions_failed", {
       err: err instanceof Error ? err.message : "unknown",
@@ -146,6 +165,8 @@ export async function runDependentCancellationRetrySweep(input?: {
     failed,
     escalated,
     conditionsOpened,
+    conditionsSkippedUnscoped,
+    conditionsTruncated,
   });
 
   return {
@@ -155,6 +176,8 @@ export async function runDependentCancellationRetrySweep(input?: {
     failed,
     escalated,
     conditionsOpened,
+    conditionsSkippedUnscoped,
+    conditionsTruncated,
   };
 }
 

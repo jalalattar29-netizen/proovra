@@ -1080,6 +1080,34 @@ function offersFor(params: {
     });
 }
 
+/**
+ * The Billing banner sentence for outstanding storage add-on cancellations.
+ *
+ * An obligation owed because the provider ACTIVATED a storage add-on PROOVRA
+ * could not grant has no cancelled plan behind it, so "Your plan cancellation
+ * was accepted" is only said when every outstanding add-on is a plan-
+ * cancellation dependant. A mix gets the sentence that is true of both.
+ */
+export function dependentCancellationBannerMessage(
+  summary: Pick<DependentCancellationSummary, "affectedCount" | "supportRequired"> & {
+    ungrantableCount?: number;
+  },
+): string {
+  const many = summary.affectedCount > 1;
+  const subject = many ? `${summary.affectedCount} storage add-ons are` : "a storage add-on is";
+  const pronoun = many ? "They" : "It";
+  const ungrantable = summary.ungrantableCount ?? 0;
+  const lead =
+    ungrantable === 0
+      ? `Your plan cancellation was accepted, but ${subject} still being stopped`
+      : ungrantable >= summary.affectedCount
+        ? `Your payment provider activated ${many ? `${summary.affectedCount} storage add-ons` : "a storage add-on"} that could not be added to your account, and ${many ? "they are" : "it is"} still being stopped`
+        : `${subject.charAt(0).toUpperCase()}${subject.slice(1)} still being stopped at your payment provider`;
+  return summary.supportRequired
+    ? `${lead} and our automatic retries have not succeeded. ${pronoun} may continue billing until your provider confirms the cancellation — please contact support.`
+    : `${lead}. ${pronoun} may continue billing until your payment provider confirms the cancellation. We are retrying automatically.`;
+}
+
 // =============================================================================
 // The projection
 // =============================================================================
@@ -1736,20 +1764,17 @@ export async function buildBillingAccountProjection(input: {
   // toast, and then vanish: after a refresh the customer saw an active add-on
   // with no explanation, while it kept billing. It is now a server fact on the
   // projection, so it survives reload and stays until the provider confirms.
+  //
+  // A PERSONAL account summarises every add-on its payer pays for, including
+  // legacy workspace-scoped ones: those obligations are raised in Operations
+  // as "retry from Billing", and this is the Billing that has to show them.
   const dependentCancellation = await summarizeDependentCancellations({
     ownerUserId: scope.ownerUserId,
     teamId: scope.teamId,
+    payerScope: account.type === "PERSONAL" && scope.teamId === null,
   });
   if (dependentCancellation) {
-    const many = dependentCancellation.affectedCount > 1;
-    const subject = many
-      ? `${dependentCancellation.affectedCount} storage add-ons are`
-      : "a storage add-on is";
-    bannerMessages.push(
-      dependentCancellation.supportRequired
-        ? `Your plan cancellation was accepted, but ${subject} still being stopped and our automatic retries have not succeeded. ${many ? "They" : "It"} may continue billing until your provider confirms the cancellation — please contact support.`
-        : `Your plan cancellation was accepted, but ${subject} still being stopped. ${many ? "They" : "It"} may continue billing until your payment provider confirms the cancellation. We are retrying automatically.`,
-    );
+    bannerMessages.push(dependentCancellationBannerMessage(dependentCancellation));
   }
 
   return {

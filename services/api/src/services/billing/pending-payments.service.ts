@@ -38,9 +38,9 @@ import * as prismaPkg from "@prisma/client";
 import { DomainError } from "../../errors.js";
 import { prisma } from "../../db.js";
 import {
-  recordIncident,
-  resolveConditionFromSourceRecovery,
-} from "../observability/incident.service.js";
+  recordProviderFailureSignal,
+  recordProviderObservationSuccess,
+} from "./provider-authorization-signal.service.js";
 import { bump } from "../ops/metrics.service.js";
 import {
   organizationWorkspaceIds,
@@ -181,97 +181,17 @@ export function recheckOutcomeForFailure(
   }
 }
 
-/**
- * Operational visibility for a provider failure, with nothing sensitive in it.
- *
- * No token, no secret, no header, no response body, and no customer identifier
- * beyond the payment's own internal id — which correlates this to the audit row
- * and to nothing outside the system.
+/*
+ * The provider-credential signal (`billing.provider_authorization`) lives in
+ * `provider-authorization-signal.service.ts` so the reconciliation sweep can
+ * raise and close it too without an import cycle. Re-exported here for the
+ * callers and suites that already import it from this module.
  */
-export function recordProviderFailureSignal(input: {
-  provider: prismaPkg.PaymentProvider;
-  operation: "RECHECK_PAYMENT" | "ABANDON_PAYMENT";
-  failure: ObservationFailure;
-  paymentId: string;
-}): void {
-  // One counter per FAILURE KIND, so an outage and a credential problem are
-  // distinguishable on a dashboard rather than one flat "provider errors".
-  // Named explicitly rather than composed: a counter name is part of the
-  // operational contract, and a name built by string concatenation is one no
-  // dashboard can be written against before it first fires.
-  switch (input.failure) {
-    case "NOT_FOUND":
-      bump("billing_provider_reference_not_found_total");
-      break;
-    case "REFERENCE_INVALID":
-      bump("billing_provider_reference_invalid_total");
-      break;
-    case "AUTHORIZATION_FAILED":
-      bump("billing_provider_authorization_failed_total");
-      break;
-    default:
-      bump("billing_provider_unavailable_total");
-  }
-
-  if (input.failure !== "AUTHORIZATION_FAILED") return;
-
-  /*
-   * The one failure no customer and no retry can resolve: the provider has
-   * stopped accepting our credential. OPS-027 — ONE PLATFORM condition per
-   * provider (stable fingerprint, deliberate platform scope), re-observed on
-   * every refusal and closed by `recordProviderObservationSuccess` on the next
-   * call the provider answers. It used to be an hourly, unscoped row that
-   * nothing could see or close.
-   */
-  void recordIncident({
-    sourceId: "billing.provider_authorization",
-    teamId: null,
-    platform: true,
-    category: "RECONCILIATION",
-    severity: "HIGH",
-    fingerprint: providerAuthorizationFingerprint(input.provider),
-    title: input.provider + " refused our credentials",
-    safeSummary:
-      input.provider +
-      " answered 401/403 during " +
-      input.operation +
-      ". Payment states cannot be verified until the credential is restored. No customer payment has been changed.",
-    runbookSlug: "billing-provider-authorization",
-    metadata: {
-      provider: input.provider,
-      operation: input.operation,
-      paymentId: input.paymentId,
-    },
-  }).catch(() => {
-    /* incident creation is best-effort; the counter above always lands */
-  });
-}
-
-/** The one stable identity of "this provider refuses our credential". */
-export function providerAuthorizationFingerprint(provider: prismaPkg.PaymentProvider): string {
-  return "billing-provider-auth:" + provider;
-}
-
-/**
- * The provider ANSWERED a payment observation (any state but UNKNOWN), which
- * proves it accepts our credential. Closes the platform authorization
- * condition if one is open; a no-op otherwise. Best-effort: recovery
- * bookkeeping never fails the customer's request.
- */
-export function recordProviderObservationSuccess(input: {
-  provider: prismaPkg.PaymentProvider;
-}): void {
-  void resolveConditionFromSourceRecovery({
-    teamId: null,
-    platform: true,
-    fingerprint: providerAuthorizationFingerprint(input.provider),
-    safeMessage:
-      input.provider +
-      " answered a payment observation: the credential is accepted again. Resolved from a successful provider call.",
-  }).catch(() => {
-    /* best-effort */
-  });
-}
+export {
+  providerAuthorizationFingerprint,
+  recordProviderFailureSignal,
+  recordProviderObservationSuccess,
+} from "./provider-authorization-signal.service.js";
 
 async function loadScopedPayment(input: {
   account: BillingAccountRef;

@@ -201,13 +201,23 @@ export async function selectReconciliationCandidates(
 export async function runBillingReconciliationSweep(input?: {
   limit?: number;
   providers?: ReconciliationProviders;
-}): Promise<{ attempted: number; updated: number; failed: number }> {
+}): Promise<{
+  attempted: number;
+  updated: number;
+  failed: number;
+  /** Provider facts that did not match our prices: review items, never grants. */
+  discrepancies: number;
+  /** Bindings the provider could not be asked about this tick. */
+  unavailable: number;
+}> {
   const candidates = await selectReconciliationCandidates(
     input?.limit ?? ACCOUNT_BATCH,
   );
 
   let updated = 0;
   let failed = 0;
+  let discrepancies = 0;
+  let unavailable = 0;
 
   for (const account of candidates) {
     try {
@@ -216,6 +226,8 @@ export async function runBillingReconciliationSweep(input?: {
         providers: input?.providers,
       });
       if (summary.outcome === "UPDATED") updated += 1;
+      discrepancies += summary.discrepancies;
+      unavailable += summary.unavailable;
     } catch (err) {
       // Per-account isolation: one broken account must not end the tick.
       failed += 1;
@@ -230,7 +242,15 @@ export async function runBillingReconciliationSweep(input?: {
     attempted: candidates.length,
     updated,
     failed,
+    discrepancies,
+    unavailable,
   });
+  // A discrepancy is a customer who paid and was not credited. Each one is
+  // now a durable review item; the warning makes the tick that found it
+  // visible rather than folded into a success line.
+  if (discrepancies > 0) {
+    logWarn("billing.reconciliation.discrepancies_found", { discrepancies });
+  }
 
-  return { attempted: candidates.length, updated, failed };
+  return { attempted: candidates.length, updated, failed, discrepancies, unavailable };
 }

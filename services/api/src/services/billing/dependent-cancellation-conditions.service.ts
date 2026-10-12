@@ -31,7 +31,11 @@ import * as prismaPkg from "@prisma/client";
 
 import { prisma } from "../../db.js";
 import { recordIncident } from "../observability/incident.service.js";
-import { UNRESOLVED_STATES } from "./dependent-cancellation.service.js";
+import {
+  payerOwnedAddonWhere,
+  UNGRANTABLE_PROVIDER_ACTIVE,
+  UNRESOLVED_STATES,
+} from "./dependent-cancellation.service.js";
 
 const S = prismaPkg.DependentCancellationState;
 
@@ -65,6 +69,21 @@ export function dependentCancellationWording(input: {
     ? "You pay for this add-on on your personal account"
     : "This workspace's billing owner pays for this add-on";
   const providerUnreachable = input.reasonCode === "PROVIDER_UNAVAILABLE";
+  // An UNGRANTABLE obligation has no cancelled plan behind it: the provider
+  // activated a storage subscription PROOVRA refused to grant, and the
+  // subscription is being stopped so it does not bill for nothing. Saying
+  // "this add-on's plan was cancelled" there is simply untrue.
+  if (input.reasonCode === UNGRANTABLE_PROVIDER_ACTIVE) {
+    const manual = input.state === S.MANUAL_INTERVENTION;
+    return {
+      title: manual
+        ? "Ungranted storage add-on still billing — support needed"
+        : "Ungranted storage add-on being stopped",
+      safeSummary: manual
+        ? `The payment provider activated a storage add-on that could not be added to this account. Automatic retries to stop it are exhausted and the provider has not confirmed it is stopped, so it may still be charging. Retry from Billing or contact support. ${payer}.`
+        : `The payment provider activated a storage add-on that could not be added to this account, so stopping it has been requested from the provider. It may still be charging until the provider confirms; PROOVRA retries automatically. ${payer}.`,
+    };
+  }
   switch (input.state) {
     case S.PENDING:
       return {
@@ -111,6 +130,46 @@ function humanBytes(bytes: bigint): string {
  * it reaches CONFIRMED. Nothing in this file may close it, because closing it
  * would not stop the charge.
  */
+export type DependentCancellationConditionSync = {
+  /** Conditions opened or refreshed. */
+  opened: number;
+  /** Obligations examined (attributed or skipped). */
+  scanned: number;
+  /**
+   * Obligations whose owner has no Personal Space team, so there is no
+   * workspace to attribute the condition to. Counted, never guessed.
+   */
+  skippedUnscoped: number;
+  /**
+   * More unresolved obligations exist beyond what this call examined. A
+   * caller that reports readiness from this sweep must not call it complete.
+   */
+  truncated: boolean;
+};
+
+const CONDITION_ROW_SELECT = {
+  id: true,
+  ownerUserId: true,
+  teamId: true,
+  addonKey: true,
+  extraStorageBytes: true,
+  paymentProvider: true,
+  dependentCancellationState: true,
+  dependentCancellationAttemptCount: true,
+  dependentCancellationReasonCode: true,
+  dependentCancellationRequestedAtUtc: true,
+  dependentCancellationFailedAtUtc: true,
+  dependentCancellationNextRetryAtUtc: true,
+} as const;
+type ConditionRow = prismaPkg.Prisma.WorkspaceStorageAddonGetPayload<{
+  select: typeof CONDITION_ROW_SELECT;
+}>;
+
+/** Rows per keyset page. */
+const DEFAULT_PAGE_SIZE = 100;
+/** Pages per call: the bound that keeps a sweep from being a table scan. */
+const DEFAULT_MAX_PAGES = 10;
+
 export async function syncDependentCancellationConditions(input?: {
   /**
    * Bound the sweep to ONE workspace.
@@ -118,12 +177,20 @@ export async function syncDependentCancellationConditions(input?: {
    * The Operations discovery sweep runs per workspace and its readiness is a
    * statement about that workspace, so a source that quietly scanned every
    * tenant would be reporting one workspace's success using another's data.
-   * Omitted only by the billing retry sweep, which is global by design.
    */
   teamId?: string | null;
-  /** Bound one sweep. Never a full-table scan. */
+  /**
+   * Bound the sweep to ONE payer's add-ons (`payerOwnedAddonWhere`): the
+   * Personal billing account's reconciliation. Each condition is still
+   * attributed to the workspace the add-on belongs to. Omitting both
+   * `teamId` and `payerUserId` is reserved for the global billing retry sweep.
+   */
+  payerUserId?: string | null;
+  /** Rows per keyset page. */
   limit?: number;
-}): Promise<{ opened: number; skippedUnscoped: number }> {
+  /** Pages per call. Never a full-table scan. */
+  maxPages?: number;
+}): Promise<DependentCancellationConditionSync> {
   // A workspace-scoped sweep must see the add-ons that belong to it in BOTH
   // shapes: a shared workspace's carry its team id, and a personal one's carry
   // `teamId: null` with the owner's personal team resolved below. The personal
@@ -136,117 +203,125 @@ export async function syncDependentCancellationConditions(input?: {
       })
     : null;
 
-  const rows = await prisma.workspaceStorageAddon.findMany({
-    where: {
-      dependentCancellationState: { in: [...UNRESOLVED_STATES] },
-      ...(input?.teamId
-        ? {
-            OR: [
-              { teamId: input.teamId },
-              ...(personalOwner
-                ? [{ ownerUserId: personalOwner.ownerUserId, teamId: null }]
-                : []),
-            ],
-          }
+  const where: prismaPkg.Prisma.WorkspaceStorageAddonWhereInput = {
+    dependentCancellationState: { in: [...UNRESOLVED_STATES] },
+    ...(input?.teamId
+      ? {
+          OR: [
+            { teamId: input.teamId },
+            ...(personalOwner
+              ? [{ ownerUserId: personalOwner.ownerUserId, teamId: null }]
+              : []),
+          ],
+        }
+      : input?.payerUserId
+        ? { AND: [payerOwnedAddonWhere(input.payerUserId)] }
         : {}),
-    },
-    orderBy: { dependentCancellationRequestedAtUtc: "asc" },
-    take: input?.limit ?? 100,
-    select: {
-      id: true,
-      ownerUserId: true,
-      teamId: true,
-      addonKey: true,
-      extraStorageBytes: true,
-      paymentProvider: true,
-      dependentCancellationState: true,
-      dependentCancellationAttemptCount: true,
-      dependentCancellationReasonCode: true,
-      dependentCancellationRequestedAtUtc: true,
-      dependentCancellationFailedAtUtc: true,
-      dependentCancellationNextRetryAtUtc: true,
-    },
-  });
+  };
+
+  const pageSize = Math.max(1, input?.limit ?? DEFAULT_PAGE_SIZE);
+  const maxPages = Math.max(1, input?.maxPages ?? DEFAULT_MAX_PAGES);
 
   let opened = 0;
+  let scanned = 0;
   let skippedUnscoped = 0;
+  let truncated = false;
+  let afterId: string | null = null;
 
-  for (const addon of rows) {
-    // TENANT ISOLATION, and the PERSONAL case is not an afterthought.
-    //
-    // A shared workspace's add-on carries that workspace's team id. A PERSONAL
-    // add-on carries `teamId: null` — that is what makes it personal — so the
-    // condition is attributed to the owner's own Personal Space team, which is
-    // the canonical workspace identity for personal-scope Operations
-    // conditions. Skipping null rows instead, as a first pass did, would have
-    // meant personal customers never saw this condition at all, which is the
-    // majority of the accounts that can hit it.
-    //
-    // An owner with no personal team is a malformed row: it is counted and
-    // skipped rather than attributed to a guessed workspace, because putting
-    // one customer's billing condition in another's Operations page is worse
-    // than not raising it.
-    const scopeTeamId =
-      addon.teamId ??
-      (
-        await prisma.team.findFirst({
-          where: { ownerUserId: addon.ownerUserId, isPersonal: true },
-          select: { id: true },
-        })
-      )?.id ??
-      null;
-
-    if (!scopeTeamId) {
-      skippedUnscoped += 1;
-      continue;
-    }
-
-    const manual =
-      addon.dependentCancellationState === S.MANUAL_INTERVENTION;
-    const wording = dependentCancellationWording({
-      state: addon.dependentCancellationState,
-      reasonCode: addon.dependentCancellationReasonCode ?? null,
-      personal: addon.teamId === null,
+  // KEYSET on the primary key, so a page boundary is stable while rows are
+  // resolved underneath it, and one row more than the page is read so "there
+  // is more" is a fact rather than an inference from a full page.
+  for (let page = 0; page < maxPages; page++) {
+    const fetched: ConditionRow[] = await prisma.workspaceStorageAddon.findMany({
+      where: afterId ? { AND: [where, { id: { gt: afterId } }] } : where,
+      orderBy: { id: "asc" },
+      take: pageSize + 1,
+      select: CONDITION_ROW_SELECT,
     });
+    const more: boolean = fetched.length > pageSize;
+    const rows: ConditionRow[] = more ? fetched.slice(0, pageSize) : fetched;
+    if (rows.length > 0) afterId = rows[rows.length - 1]!.id;
+    truncated = more && page === maxPages - 1;
 
-    await recordIncident({
-      teamId: scopeTeamId,
-      // The LITERAL, not the constant above it. The emitter-totality gate
-      // reads the id at the writer call site to prove every registered ACTIVE
-      // source has a real producer, and a constant hides that identity from it
-      // — which would let a source be registered with nothing writing it.
-      sourceId: "billing.dependent_cancellation_failed",
-      category: "STORAGE",
-      // HIGH throughout: the customer is being charged for the whole time this
-      // is open. Escalation is expressed by the state and the attempt count,
-      // not by pretending the earlier attempts mattered less.
-      severity: "HIGH",
-      fingerprint: dependentCancellationFingerprint(addon.id),
-      title: wording.title,
-      safeSummary: wording.safeSummary,
-      // The provider NAME is safe and useful for triage; no identifier is.
-      relatedProvider: addon.paymentProvider ?? null,
-      metadata: {
-        addonId: addon.id,
-        addonKey: addon.addonKey,
-        storage: humanBytes(addon.extraStorageBytes),
+    for (const addon of rows) {
+      scanned += 1;
+      // TENANT ISOLATION, and the PERSONAL case is not an afterthought.
+      //
+      // A shared workspace's add-on carries that workspace's team id. A PERSONAL
+      // add-on carries `teamId: null` — that is what makes it personal — so the
+      // condition is attributed to the owner's own Personal Space team, which is
+      // the canonical workspace identity for personal-scope Operations
+      // conditions. Skipping null rows instead, as a first pass did, would have
+      // meant personal customers never saw this condition at all, which is the
+      // majority of the accounts that can hit it.
+      //
+      // An owner with no personal team is a malformed row: it is counted and
+      // skipped rather than attributed to a guessed workspace, because putting
+      // one customer's billing condition in another's Operations page is worse
+      // than not raising it.
+      const scopeTeamId =
+        addon.teamId ??
+        (
+          await prisma.team.findFirst({
+            where: { ownerUserId: addon.ownerUserId, isPersonal: true },
+            select: { id: true },
+          })
+        )?.id ??
+        null;
+
+      if (!scopeTeamId) {
+        skippedUnscoped += 1;
+        continue;
+      }
+
+      const manual =
+        addon.dependentCancellationState === S.MANUAL_INTERVENTION;
+      const wording = dependentCancellationWording({
         state: addon.dependentCancellationState,
-        attemptCount: addon.dependentCancellationAttemptCount,
-        reasonCode: addon.dependentCancellationReasonCode,
-        requestedAtUtc:
-          addon.dependentCancellationRequestedAtUtc?.toISOString() ?? null,
-        lastAttemptAtUtc:
-          addon.dependentCancellationFailedAtUtc?.toISOString() ?? null,
-        nextRetryAtUtc:
-          addon.dependentCancellationNextRetryAtUtc?.toISOString() ?? null,
-        supportRequired: manual,
-        // Who can act, as a ROLE: the personal account holder or the
-        // workspace's billing owner. Never a name or provider identifier.
-        payer: addon.teamId === null ? "PERSONAL_ACCOUNT_HOLDER" : "WORKSPACE_BILLING_OWNER",
-      },
-    });
-    opened += 1;
+        reasonCode: addon.dependentCancellationReasonCode ?? null,
+        personal: addon.teamId === null,
+      });
+
+      await recordIncident({
+        teamId: scopeTeamId,
+        // The LITERAL, not the constant above it. The emitter-totality gate
+        // reads the id at the writer call site to prove every registered ACTIVE
+        // source has a real producer, and a constant hides that identity from it
+        // — which would let a source be registered with nothing writing it.
+        sourceId: "billing.dependent_cancellation_failed",
+        category: "STORAGE",
+        // HIGH throughout: the customer is being charged for the whole time this
+        // is open. Escalation is expressed by the state and the attempt count,
+        // not by pretending the earlier attempts mattered less.
+        severity: "HIGH",
+        fingerprint: dependentCancellationFingerprint(addon.id),
+        title: wording.title,
+        safeSummary: wording.safeSummary,
+        // The provider NAME is safe and useful for triage; no identifier is.
+        relatedProvider: addon.paymentProvider ?? null,
+        metadata: {
+          addonId: addon.id,
+          addonKey: addon.addonKey,
+          storage: humanBytes(addon.extraStorageBytes),
+          state: addon.dependentCancellationState,
+          attemptCount: addon.dependentCancellationAttemptCount,
+          reasonCode: addon.dependentCancellationReasonCode,
+          requestedAtUtc:
+            addon.dependentCancellationRequestedAtUtc?.toISOString() ?? null,
+          lastAttemptAtUtc:
+            addon.dependentCancellationFailedAtUtc?.toISOString() ?? null,
+          nextRetryAtUtc:
+            addon.dependentCancellationNextRetryAtUtc?.toISOString() ?? null,
+          supportRequired: manual,
+          // Who can act, as a ROLE: the personal account holder or the
+          // workspace's billing owner. Never a name or provider identifier.
+          payer: addon.teamId === null ? "PERSONAL_ACCOUNT_HOLDER" : "WORKSPACE_BILLING_OWNER",
+        },
+      });
+      opened += 1;
+    }
+    if (!more) break;
   }
 
-  return { opened, skippedUnscoped };
+  return { opened, scanned, skippedUnscoped, truncated };
 }

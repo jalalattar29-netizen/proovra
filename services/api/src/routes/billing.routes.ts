@@ -103,7 +103,7 @@ import {
 } from "../services/billing/pending-payments.service.js";
 import { cancelStorageAddonAtProvider } from "../services/billing/storage-addon-cancellation.service.js";
 import {
-  attemptDependentCancellations,
+  attemptPayerDependentCancellations,
   summarizeDependentCancellations,
 } from "../services/billing/dependent-cancellation.service.js";
 import { createErrorResponse, ErrorCode } from "../errors.js";
@@ -1786,30 +1786,17 @@ export async function billingRoutes(app: FastifyInstance) {
           .send({ outcome: "NO_CHANGE", summary: null, supportRequired: false });
       }
 
-      const scope =
-        account.type === "PERSONAL"
-          ? { ownerUserId: account.id, teamId: null as string | null }
-          : await (async () => {
-              const row = await prisma.workspaceStorageAddon.findFirst({
-                where: { teamId: account.id },
-                select: { ownerUserId: true },
-              });
-              return row
-                ? { ownerUserId: row.ownerUserId, teamId: account.id }
-                : null;
-            })();
-
-      if (!scope) {
-        return reply
-          .code(200)
-          .send({ outcome: "NO_CHANGE", summary: null, supportRequired: false });
-      }
-
-      const attempt = await attemptDependentCancellations({
-        ownerUserId: scope.ownerUserId,
-        teamId: scope.teamId,
+      // The PERSONAL account is the only self-service billing subject, and it
+      // acts on every add-on this payer pays for, including legacy
+      // workspace-scoped ones that Operations names as "retry from Billing".
+      const attempt = await attemptPayerDependentCancellations({
+        userId: account.id,
       });
-      const summary = await summarizeDependentCancellations(scope);
+      const summary = await summarizeDependentCancellations({
+        ownerUserId: account.id,
+        teamId: null,
+        payerScope: true,
+      });
 
       auditBillingAction(req, {
         userId,

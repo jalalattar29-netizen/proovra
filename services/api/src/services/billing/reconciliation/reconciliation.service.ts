@@ -52,13 +52,16 @@ import { recordPayment, type PaymentProduct } from "../../billing.service.js";
 import { getPlanPriceCents, getStorageAddonPriceCents } from "../../billing-pricing.service.js";
 import { grantEvidenceCredits } from "../evidence-credits.service.js";
 import {
-  attemptDependentCancellations,
+  attemptPayerDependentCancellations,
   confirmObligationFromProviderTruth,
+  payerOwnedAddonWhere,
   recordDependentCancellationObligations,
   reopenObligationFromProviderTruth,
   UNRESOLVED_STATES,
 } from "../dependent-cancellation.service.js";
 import { syncDependentCancellationConditions } from "../dependent-cancellation-conditions.service.js";
+import { recordBillingReviewItem } from "../billing-review.service.js";
+import { noteProviderObservation } from "../provider-authorization-signal.service.js";
 import type { StorageAddonProviderCanceller } from "../storage-addon-cancellation.service.js";
 import {
   syncPlanForSubscription,
@@ -234,22 +237,7 @@ async function convergeDependentCancellations(ctx: {
   // subject. An ORGANIZATION account is contract-managed and owns no
   // self-service add-on, so it has nothing to converge here.
   if (ctx.account.type !== "PERSONAL") return;
-  const subject = { ownerUserId: ctx.account.id, teamId: null as string | null };
-
-  // A WORKSPACE subject is identified by its team id; the owner is read from
-  // the workspace's own add-on rows so a personal id can never leak in.
-  const scope =
-    subject ??
-    (await (async () => {
-      const row = await prisma.workspaceStorageAddon.findFirst({
-        where: { teamId: ctx.account.id },
-        select: { ownerUserId: true },
-      });
-      return row
-        ? { ownerUserId: row.ownerUserId, teamId: ctx.account.id }
-        : null;
-    })());
-  if (!scope) return;
+  const scope = { ownerUserId: ctx.account.id, teamId: null as string | null };
 
   // ---- 1. Create obligations the crash window swallowed --------------------
   //
@@ -272,9 +260,12 @@ async function convergeDependentCancellations(ctx: {
   }
 
   // ---- 2. Attempt every unresolved obligation ------------------------------
-  const attempt = await attemptDependentCancellations({
-    ownerUserId: scope.ownerUserId,
-    teamId: scope.teamId,
+  //
+  // Every obligation this PAYER owns, including legacy workspace-scoped
+  // add-ons, which bill through (and can only be acted on from) this Personal
+  // account. Each subject keeps its own dependency re-validation.
+  const attempt = await attemptPayerDependentCancellations({
+    userId: scope.ownerUserId,
     cancelAtProvider: ctx.cancelAddonAtProvider,
   });
   ctx.summary.subscriptionsUpdated += attempt.confirmed;
@@ -282,9 +273,7 @@ async function convergeDependentCancellations(ctx: {
   // ---- 3. Report what is still owed, durably -------------------------------
   const stillOwed = await prisma.workspaceStorageAddon.count({
     where: {
-      ...(scope.teamId
-        ? { teamId: scope.teamId }
-        : { ownerUserId: scope.ownerUserId, teamId: null }),
+      ...payerOwnedAddonWhere(scope.ownerUserId),
       dependentCancellationState: { in: [...UNRESOLVED_STATES] },
     },
   });
@@ -292,13 +281,98 @@ async function convergeDependentCancellations(ctx: {
     ctx.summary.actionRequired += stillOwed;
     // The condition is the durable half of ACTION_REQUIRED: a summary counter
     // can be discarded by a caller, an Operations condition cannot.
-    await syncDependentCancellationConditions();
+    //
+    // Bounded to THIS payer's add-ons. It used to be the global sweep, so one
+    // customer's re-check wrote (up to a page of) every other tenant's
+    // conditions inside their request.
+    await syncDependentCancellationConditions({ payerUserId: scope.ownerUserId });
   }
 }
 
 // ===========================================================================
 // Evidence credits
 // ===========================================================================
+
+/** Pages of credit payments one run may read while skipping granted ones. */
+export const MAX_CREDIT_CANDIDATE_PAGES = 8;
+
+/**
+ * The newest credit payments of one personal account that have NO PURCHASE
+ * ledger grant, up to `MAX_BINDINGS_PER_RUN`. A granted historic row with no
+ * product is classified on the way past, as the loop below always did.
+ */
+export async function selectUngrantedCreditCandidates(
+  userId: string,
+  classify: (id: string, product: PaymentProduct) => Promise<unknown>,
+) {
+  const select = {
+    id: true,
+    provider: true,
+    providerPaymentId: true,
+    amountCents: true,
+    currency: true,
+    status: true,
+    providerStateAtUtc: true,
+    product: true,
+    checkoutAttemptId: true,
+    createdAt: true,
+  } as const;
+  const base: prismaPkg.Prisma.PaymentWhereInput = {
+    userId,
+    teamId: null,
+    status: {
+      in: [prismaPkg.PaymentStatus.SUCCEEDED, prismaPkg.PaymentStatus.PENDING],
+    },
+    OR: [{ product: "EVIDENCE_CREDIT" }, { product: null }],
+  };
+
+  const out: Array<prismaPkg.Prisma.PaymentGetPayload<{ select: typeof select }>> = [];
+  let after: { createdAt: Date; id: string } | null = null;
+  for (let page = 0; page < MAX_CREDIT_CANDIDATE_PAGES; page++) {
+    const rows: Array<prismaPkg.Prisma.PaymentGetPayload<{ select: typeof select }>> =
+      await prisma.payment.findMany({
+        where: after
+          ? {
+              AND: [
+                base,
+                {
+                  OR: [
+                    { createdAt: { lt: after.createdAt } },
+                    { createdAt: after.createdAt, id: { lt: after.id } },
+                  ],
+                },
+              ],
+            }
+          : base,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: MAX_BINDINGS_PER_RUN,
+        select,
+      });
+    if (rows.length === 0) break;
+
+    const granted = await prisma.evidenceCreditLedgerEntry.findMany({
+      where: {
+        entryType: prismaPkg.EvidenceCreditEntryType.PURCHASE,
+        providerRef: { in: rows.map((r) => r.providerPaymentId) },
+      },
+      select: { provider: true, providerRef: true },
+    });
+    const grantedKeys = new Set(granted.map((g) => `${String(g.provider)}:${g.providerRef}`));
+
+    for (const row of rows) {
+      if (grantedKeys.has(`${String(row.provider)}:${row.providerPaymentId}`)) {
+        if (!row.product) await classify(row.id, "EVIDENCE_CREDIT");
+        continue;
+      }
+      out.push(row);
+      if (out.length >= MAX_BINDINGS_PER_RUN) return out;
+    }
+    if (rows.length < MAX_BINDINGS_PER_RUN) break;
+    const last = rows[rows.length - 1]!;
+    after = { createdAt: last.createdAt, id: last.id };
+  }
+  return out;
+}
 
 /**
  * Recover credits for a settled purchase whose webhook was lost.
@@ -327,32 +401,21 @@ async function reconcileEvidenceCredits(ctx: {
    * historic row (product NULL) is examined once and classified from what the
    * provider object itself says, never from its amount.
    */
-  const candidates = await prisma.payment.findMany({
-    where: {
-      userId: ctx.account.id,
-      teamId: null,
-      status: {
-        in: [prismaPkg.PaymentStatus.SUCCEEDED, prismaPkg.PaymentStatus.PENDING],
-      },
-      OR: [{ product: "EVIDENCE_CREDIT" }, { product: null }],
-    },
-    orderBy: { createdAt: "desc" },
-    take: MAX_BINDINGS_PER_RUN,
-    select: {
-      id: true,
-      provider: true,
-      providerPaymentId: true,
-      amountCents: true,
-      currency: true,
-      status: true,
-      providerStateAtUtc: true,
-      product: true,
-      checkoutAttemptId: true,
-    },
-  });
-
   const classify = (id: string, product: PaymentProduct) =>
     prisma.payment.updateMany({ where: { id, product: null }, data: { product } });
+
+  /*
+   * ALREADY-GRANTED PURCHASES ARE NOT CANDIDATES.
+   *
+   * The window was "the 25 newest credit payments", granted or not, so an
+   * account with 25 settled-and-granted purchases newer than a lost grant
+   * never reached it: the paid-but-not-credited purchase starved behind ones
+   * that needed nothing. Pages are read newest-first by keyset and granted
+   * rows (the durable PURCHASE ledger entry is the authority) are filtered
+   * out until the run's budget of UNGRANTED candidates is full, within a
+   * bounded number of pages.
+   */
+  const candidates = await selectUngrantedCreditCandidates(ctx.account.id, classify);
 
   for (const binding of candidates) {
     // Already granted? The durable PURCHASE row is the authority, and it is
@@ -389,12 +452,24 @@ async function reconcileEvidenceCredits(ctx: {
 
     ctx.summary.checked += 1;
     const observation = await adapter.observePayment(binding.providerPaymentId);
+    const historicUnmatched =
+      observation.state === "UNKNOWN" &&
+      !binding.product &&
+      (observation.failure === "NOT_FOUND" || observation.failure === "REFERENCE_INVALID");
+    // The platform credential condition is raised and closed from what the
+    // sweep observes too, not only from a customer's button. A historic row
+    // the provider never knew is a classification, not a provider failure.
+    if (!historicUnmatched) {
+      noteProviderObservation({
+        provider: binding.provider,
+        operation: "RECONCILE_ACCOUNT",
+        observation,
+        paymentId: binding.id,
+      });
+    }
 
     if (observation.state === "UNKNOWN") {
-      if (
-        !binding.product &&
-        (observation.failure === "NOT_FOUND" || observation.failure === "REFERENCE_INVALID")
-      ) {
+      if (historicUnmatched) {
         // Neither a capture nor an order the provider knows: a historic
         // subscription sale, not a credit purchase. Recorded as such, so it
         // is not asked about — or reported as an outage — again.
@@ -453,7 +528,7 @@ async function reconcileEvidenceCredits(ctx: {
     }
 
     const attemptId = binding.checkoutAttemptId ?? observation.attemptId ?? null;
-    if (!(await validateCreditPurchase(observation, ctx.account.id, attemptId, ctx.summary))) continue;
+    if (!(await validateCreditPurchase(observation, ctx.account.id, attemptId, ctx.summary, binding))) continue;
 
     // The canonical quantity, never the provider's. The provider's quantity is
     // checked above; what is GRANTED comes from the catalog.
@@ -479,15 +554,49 @@ async function reconcileEvidenceCredits(ctx: {
  * attempts existed is compared with the current catalogue. A mismatch is a
  * discrepancy an operator reviews, never a grant.
  */
-async function validateCreditPurchase(
+export async function validateCreditPurchase(
   observation: PaymentObservation,
   userId: string,
   attemptId: string | null,
   summary: ReconciliationSummary,
+  binding: { provider: prismaPkg.PaymentProvider; providerPaymentId: string },
 ): Promise<boolean> {
-  if (!currencyMatches(observation.currency, SUPPORTED_CURRENCIES)) {
+  /*
+   * A DISCREPANCY IS A REVIEW ITEM, NOT ONLY A COUNTER.
+   *
+   * The customer has paid and is not credited. The settlement paths already
+   * record this as an AMOUNT_MISMATCH review; the reconciliation path only
+   * incremented a summary counter the scheduled sweep then discarded, while
+   * the Billing banner tells the customer support is reviewing it. The review
+   * row is the durable fact behind that sentence. Amounts and currencies only,
+   * no provider payload. Best-effort: the counter always lands.
+   */
+  const mismatch = async (
+    kind: "CURRENCY" | "AMOUNT" | "QUANTITY",
+    expected: { amountCents: number; currency: string } | null,
+  ): Promise<false> => {
     summary.discrepancies += 1;
+    await recordBillingReviewItem({
+      userId,
+      provider: binding.provider,
+      providerResourceId: binding.providerPaymentId,
+      product: "EVIDENCE_CREDIT",
+      reason: "AMOUNT_MISMATCH",
+      detail: {
+        source: "reconciliation",
+        mismatch: kind,
+        observedAmountCents: observation.amountCents ?? null,
+        observedCurrency: observation.currency ?? null,
+        observedQuantity: observation.quantity ?? null,
+        expectedAmountCents: expected?.amountCents ?? null,
+        expectedCurrency: expected?.currency ?? null,
+      },
+    }).catch(() => undefined);
     return false;
+  };
+
+  if (!currencyMatches(observation.currency, SUPPORTED_CURRENCIES)) {
+    return mismatch("CURRENCY", null);
   }
 
   let expected: { amountCents: number; currency: string } | null = null;
@@ -509,8 +618,7 @@ async function validateCreditPurchase(
     expected = { amountCents: getPlanPriceCents(prismaPkg.PlanType.PAYG, currency), currency };
   }
   if (observation.amountCents !== expected.amountCents || observation.currency !== expected.currency) {
-    summary.discrepancies += 1;
-    return false;
+    return mismatch("AMOUNT", expected);
   }
 
   // A quantity the provider states must be the canonical one. `null` means the
@@ -520,8 +628,7 @@ async function validateCreditPurchase(
     observation.quantity !== null &&
     observation.quantity !== EVIDENCE_CREDIT_PRODUCT.creditsGrantedPerPurchase
   ) {
-    summary.discrepancies += 1;
-    return false;
+    return mismatch("QUANTITY", expected);
   }
 
   return true;
@@ -541,7 +648,7 @@ export function payerOwnedSubscriptionScope(userId: string): prismaPkg.Prisma.Su
 }
 
 export function payerOwnedStorageScope(userId: string): prismaPkg.Prisma.WorkspaceStorageAddonWhereInput {
-  return { ownerUserId: userId, OR: [{ teamId: null }, { team: { ownerUserId: userId } }] };
+  return payerOwnedAddonWhere(userId);
 }
 
 async function reconcileSubscriptions(ctx: {
@@ -604,6 +711,11 @@ async function reconcileSubscriptions(ctx: {
 
     ctx.summary.checked += 1;
     const observation = await adapter.observeSubscription(binding.providerSubId);
+    noteProviderObservation({
+      provider: binding.provider,
+      operation: "RECONCILE_ACCOUNT",
+      observation,
+    });
 
     if (observation.state === "UNKNOWN") {
       ctx.summary.unavailable += 1;
@@ -925,6 +1037,7 @@ async function reconcileStorageAddonRow(input: {
   if (!adapter) return unresolved("PROVIDER_UNAVAILABLE");
 
   const observation = await adapter.observeSubscription(ref);
+  noteProviderObservation({ provider, operation: "RECHECK_CHECKOUT_ATTEMPT", observation });
   if (observation.state === "UNKNOWN") {
     return unresolved(storageAttemptFailureOutcome(observation.failure));
   }

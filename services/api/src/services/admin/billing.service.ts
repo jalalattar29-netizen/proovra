@@ -251,6 +251,13 @@ export type AdminBillingDetail = {
     paypal: { total: number; failed: number; lastReceivedAt: string | null };
   };
   reconciliation: AdminBillingReconciliation;
+  /**
+   * Open billing review items: provider money PROOVRA would not silently turn
+   * into (or away from) an entitlement. The customer Billing banner tells the
+   * payer "support is reviewing" these; this is the queue that sentence
+   * refers to, which no operator surface could read before.
+   */
+  reviewQueue: Metric<AdminBillingReviewQueue>;
   mrrCents: Metric<number>;
   arrCents: Metric<number>;
 };
@@ -289,6 +296,79 @@ export type AdminBillingReconciliation = {
     note: string;
   };
 };
+
+export type AdminBillingReviewQueue = {
+  /** Exact count of OPEN items. */
+  open: number;
+  byReason: Array<{ reason: string; count: number }>;
+  /** Oldest first, capped at the attention limit. */
+  rows: Array<{
+    id: string;
+    userId: string;
+    provider: string;
+    product: string;
+    reason: string;
+    providerAction: string;
+    refundReviewRequired: boolean;
+    createdAtUtc: string;
+  }>;
+  truncated: boolean;
+};
+
+/**
+ * The OPEN review queue, bounded. No provider resource id and no detail JSON
+ * are projected: the row names the internal item, its payer and why.
+ */
+export async function readOpenBillingReviewQueue(
+  client: Pick<PrismaClient, "billingReviewItem">,
+  limit: number,
+): Promise<Metric<AdminBillingReviewQueue>> {
+  try {
+    const [groups, rows] = await Promise.all([
+      client.billingReviewItem.groupBy({
+        by: ["reason"],
+        where: { status: "OPEN" },
+        _count: { _all: true },
+      }),
+      client.billingReviewItem.findMany({
+        where: { status: "OPEN" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: limit,
+        select: {
+          id: true,
+          userId: true,
+          provider: true,
+          product: true,
+          reason: true,
+          providerAction: true,
+          refundReviewRequired: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+    const byReason = groups
+      .map((g) => ({ reason: g.reason, count: g._count._all }))
+      .sort((a, b) => b.count - a.count);
+    const open = byReason.reduce((n, g) => n + g.count, 0);
+    return metricValue({
+      open,
+      byReason,
+      rows: rows.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        provider: String(r.provider),
+        product: r.product,
+        reason: r.reason,
+        providerAction: r.providerAction,
+        refundReviewRequired: r.refundReviewRequired,
+        createdAtUtc: r.createdAt.toISOString(),
+      })),
+      truncated: open > rows.length,
+    });
+  } catch {
+    return metricNotMeasured("The billing review queue could not be read this cycle.");
+  }
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -633,6 +713,7 @@ export async function buildAdminBillingDetail(
           "The scheduled billing sweep persists no run row — it writes its corrections onto the subscription and add-on rows and logs the rest. These figures are provider-agreement FRESHNESS (Subscription.providerStateAtUtc, written only by a reconciliation or a webhook). They do not assert that a sweep ran, which nothing in the schema can currently prove.",
       },
     },
+    reviewQueue: await readOpenBillingReviewQueue(client, limit),
     // Unchanged and correct: `Subscription` carries no billed amount.
     mrrCents: metricNotMeasured(
       "Subscription rows carry no billed-amount column, so recurring monthly revenue is not derivable from the schema. Not estimated. Storage add-on MRR IS derivable and is reported separately.",

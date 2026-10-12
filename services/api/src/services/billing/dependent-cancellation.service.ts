@@ -62,6 +62,53 @@ export const UNRESOLVED_STATES = [
 ] as const;
 
 /**
+ * THE PAYER'S add-ons: the ones this person PAID for with no workspace, or
+ * with a legacy workspace this person still OWNS. Never another payer's row.
+ *
+ * A PERSONAL billing account is the only self-service billing surface, so a
+ * legacy team-scoped add-on (bought under the old workspace-shaped TEAM model)
+ * is billed — and can only be acted on — from its payer's Personal account.
+ * Selecting strictly `teamId: null` there left those obligations raised in
+ * Operations ("retry from Billing") while Billing neither showed nor retried
+ * them. The same scope reconciliation already uses for these rows.
+ */
+export function payerOwnedAddonWhere(
+  userId: string,
+): prismaPkg.Prisma.WorkspaceStorageAddonWhereInput {
+  return { ownerUserId: userId, OR: [{ teamId: null }, { team: { ownerUserId: userId } }] };
+}
+
+/** One dependency subject: the personal arm or one legacy workspace. */
+export type DependentCancellationSubject = { ownerUserId: string; teamId: string | null };
+
+/**
+ * Every subject under which a payer has an UNRESOLVED obligation: always the
+ * personal subject, plus each legacy workspace the payer owns that carries
+ * one. Each subject keeps its own dependency context — a team-scoped add-on's
+ * obligation is re-validated against that workspace's bases, exactly as the
+ * retry worker does.
+ */
+export async function payerObligationSubjects(
+  userId: string,
+): Promise<DependentCancellationSubject[]> {
+  const rows = await prisma.workspaceStorageAddon.findMany({
+    where: {
+      ownerUserId: userId,
+      teamId: { not: null },
+      team: { ownerUserId: userId },
+      dependentCancellationState: { in: [...UNRESOLVED_STATES] },
+    },
+    distinct: ["teamId"],
+    select: { teamId: true },
+  });
+  const teams = [...new Set(rows.map((r) => r.teamId).filter((t): t is string => !!t))];
+  return [
+    { ownerUserId: userId, teamId: null },
+    ...teams.map((teamId) => ({ ownerUserId: userId, teamId })),
+  ];
+}
+
+/**
  * THE RETRY SCHEDULE, in minutes after the failure that scheduled it.
  *
  * Fast at first because most provider failures are transient and a customer
@@ -509,6 +556,12 @@ export type DependentCancellationSummary = {
   nextRetryAtUtc: string | null;
   actionAvailable: boolean;
   supportRequired: boolean;
+  /**
+   * How many of these are owed because the provider ACTIVATED an add-on
+   * PROOVRA could not grant: no plan was cancelled for those, so the Billing
+   * banner must not say one was. A count, never a reason code.
+   */
+  ungrantableCount: number;
 };
 
 /**
@@ -521,15 +574,24 @@ export type DependentCancellationSummary = {
 export async function summarizeDependentCancellations(input: {
   ownerUserId: string;
   teamId: string | null;
+  /**
+   * The PERSONAL billing account: every add-on this payer pays for, including
+   * legacy workspace-scoped ones (`payerOwnedAddonWhere`). Ignored when a
+   * `teamId` is given.
+   */
+  payerScope?: boolean;
 }): Promise<DependentCancellationSummary | null> {
   const rows = await prisma.workspaceStorageAddon.findMany({
     where: {
       ...(input.teamId
         ? { teamId: input.teamId }
-        : { ownerUserId: input.ownerUserId, teamId: null }),
+        : input.payerScope
+          ? payerOwnedAddonWhere(input.ownerUserId)
+          : { ownerUserId: input.ownerUserId, teamId: null }),
       dependentCancellationState: { in: [...UNRESOLVED_STATES] },
     },
     select: {
+      dependentCancellationReasonCode: true,
       dependentCancellationState: true,
       dependentCancellationFailedAtUtc: true,
       dependentCancellationNextRetryAtUtc: true,
@@ -565,5 +627,35 @@ export async function summarizeDependentCancellations(input: {
     nextRetryAtUtc: nextRetry?.toISOString() ?? null,
     actionAvailable: true,
     supportRequired,
+    ungrantableCount: rows.filter(
+      (r) => r.dependentCancellationReasonCode === UNGRANTABLE_PROVIDER_ACTIVE,
+    ).length,
   };
+}
+
+/**
+ * Attempt every unresolved obligation a PAYER owns (the personal subject and
+ * each legacy workspace subject) one subject at a time, so each keeps its own
+ * dependency re-validation. The Personal billing account's retry and its
+ * reconciliation both go through here.
+ */
+export async function attemptPayerDependentCancellations(input: {
+  userId: string;
+  cancelAtProvider?: StorageAddonProviderCanceller;
+  now?: Date;
+}): Promise<ObligationAttemptResult> {
+  const total: ObligationAttemptResult = { attempted: 0, confirmed: 0, failed: 0, escalated: 0 };
+  for (const subject of await payerObligationSubjects(input.userId)) {
+    const r = await attemptDependentCancellations({
+      ownerUserId: subject.ownerUserId,
+      teamId: subject.teamId,
+      cancelAtProvider: input.cancelAtProvider,
+      now: input.now,
+    });
+    total.attempted += r.attempted;
+    total.confirmed += r.confirmed;
+    total.failed += r.failed;
+    total.escalated += r.escalated;
+  }
+  return total;
 }
