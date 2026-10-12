@@ -137,7 +137,7 @@ const GENERATION_OUTCOME_MESSAGE: Record<GenerationRequestOutcome, string> = {
   QUEUE_UNAVAILABLE:
     "We could not schedule generation right now. The request is saved and will be picked up automatically; the record is unaffected.",
   NOT_INCLUDED:
-    "Reports and verification packages are not issued for this evidence record: they are not included in this workspace's current plan. The original evidence remains finalized and verifiable.",
+    "Reports and verification packages are not issued for this evidence record: they are not included in the plan that covers this record. The original evidence remains finalized and verifiable.",
   ENTITLEMENT_UNAVAILABLE:
     "We could not confirm the subscription right now, so nothing was requested. Please try again shortly; the record is unaffected.",
   RECOVERABLE_BLOCKED:
@@ -252,6 +252,7 @@ import {
   readStoredBytesIntegrity,
   recordVerificationShareUse,
   requestIntegrityRecheck,
+  resolveEvidenceWorkspaceId,
   STORED_BYTES_INTEGRITY_SELECT,
   storedBytesVersionPinned,
   resolveVerificationShareToken,
@@ -11299,7 +11300,7 @@ if (
       }
       const evidenceRecord = await prisma.evidence.findUnique({
         where: { id },
-        select: { status: true, teamId: true },
+        select: { status: true, teamId: true, ownerUserId: true },
       });
       if (!evidenceRecord) return reply.code(404).send({ message: "Evidence not found" });
 
@@ -11467,10 +11468,17 @@ if (
               : "Too many generation requests were made recently. Try again later.",
           });
         }
-        if (isNewVersion && evidenceRecord.teamId) {
+        // The cap is per WORKSPACE by the canonical rule — the record's team,
+        // or its owner's personal workspace for a Personal record stored with
+        // team_id NULL — the same id the writer stamps on every request row.
+        // Keyed on team_id alone, Personal records were never capped.
+        const capWorkspaceId = isNewVersion
+          ? await resolveEvidenceWorkspaceId(evidenceRecord, prisma)
+          : null;
+        if (isNewVersion && capWorkspaceId) {
           const live = await prisma.reportGenerationRequest.count({
             where: {
-              teamId: evidenceRecord.teamId,
+              teamId: capWorkspaceId,
               intent: "NEW_VERSION",
               state: { in: ["QUEUED", "PROCESSING"] },
             },
@@ -11481,7 +11489,7 @@ if (
               action: "evidence.report.regenerate_requested",
               outcome: "blocked",
               resourceId: id,
-              teamId: evidenceRecord.teamId,
+              teamId: capWorkspaceId,
               metadata: { reason: "concurrency_limited", liveNewVersions: live },
             });
             reply.header("Retry-After", "60");

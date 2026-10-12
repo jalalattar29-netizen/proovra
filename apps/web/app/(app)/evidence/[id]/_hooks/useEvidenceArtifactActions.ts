@@ -91,7 +91,30 @@ export type EvidenceArtifactActions = {
     offerRevision: string | null;
   }) => Promise<NewVersionSubmitResult>;
   generateOutputsBusy: boolean;
+  /**
+   * A stored file the server answered 410 for (the row exists, the object
+   * does not), with WHEN it was seen. Learned only from a real download — no
+   * per-load storage probe — and kept for this page's life so the Artifacts
+   * tab states it persistently instead of in a toast that disappears.
+   */
+  missingStoredArtifacts: MissingStoredArtifacts;
 };
+
+/**
+ * A 410 "stored file missing" answer: when it was seen, and for which version
+ * (`null` = the "latest" route, which names none).
+ */
+export type MissingStoredArtifact = { at: number; version: number | null } | null;
+export type MissingStoredArtifacts = {
+  report: MissingStoredArtifact;
+  verificationPackage: MissingStoredArtifact;
+};
+
+/** The bounded 410 codes the download routes answer for a missing object. */
+const MISSING_OBJECT_CODE = {
+  report: "report_artifact_missing",
+  verificationPackage: "verification_package_artifact_missing",
+} as const;
 
 /** The intents a per-output control sends; NEW_VERSION has its own call. */
 export type OutputRequestIntent = "GENERATE" | "RETRY" | "RECOVER";
@@ -114,6 +137,21 @@ export function useEvidenceArtifactActions(input: {
   getOfferRevision?: () => string | null;
 }): EvidenceArtifactActions {
   const { evidenceId, addToast, reloadWorkspace, getOfferRevision } = input;
+
+  const [missingStoredArtifacts, setMissingStoredArtifacts] = useState<MissingStoredArtifacts>({
+    report: null,
+    verificationPackage: null,
+  });
+  const noteMissingObject = (
+    kind: keyof MissingStoredArtifacts,
+    err: unknown,
+    version: number | null = null,
+  ) => {
+    const e = err as { statusCode?: number; code?: string } | null;
+    if (e?.statusCode !== 410) return;
+    if ((e.code ?? "").toLowerCase() !== MISSING_OBJECT_CODE[kind]) return;
+    setMissingStoredArtifacts((prev) => ({ ...prev, [kind]: { at: Date.now(), version } }));
+  };
 
 /**
  * COMMERCIAL CLOSURE (2026-09-08) — DOWNLOADING AN ARTIFACT THAT EXISTS IS
@@ -152,6 +190,7 @@ const downloadReport = async () => {
     // outcome, not a fault: it never files a Sentry issue.
     const feedback = describeReportDownloadFailure(downloadError);
     addToast(feedback.message, feedback.tone);
+    noteMissingObject("report", downloadError);
     if (feedback.report) {
       captureException(downloadError, {
         feature: "web_evidence_download_report",
@@ -195,6 +234,7 @@ const downloadVerificationPackage = async () => {
     // refusals are outcomes, not faults; only an unrecognised failure is filed.
     const feedback = describeArtifactDownloadFailure("verificationPackage", downloadError);
     addToast(feedback.message, feedback.tone);
+    noteMissingObject("verificationPackage", downloadError);
     if (feedback.report) {
       captureException(downloadError, {
         feature: "web_evidence_download_verification_package",
@@ -270,11 +310,13 @@ const generateOutputs = async (
     await reloadWorkspace();
   } catch (err) {
     // RGA-01 — the ONE typed operation-error authority.
-    const e = err as { statusCode?: number; code?: string; details?: { reason?: string } };
+    const e = err as { statusCode?: number; code?: string; details?: { reason?: string; outcome?: string } };
     const typed = resolveOutputOperationError({
       status: e?.statusCode ?? null,
       code: e?.code ?? null,
       reason: e?.details?.reason ?? null,
+      // A declined request's typed outcome, read before the generic 409.
+      outcome: e?.details?.outcome ?? null,
       network: e?.statusCode === 0,
     });
     addToast(`${typed.title}. ${typed.description}`, typed.severity === "error" ? "error" : "info");
@@ -314,7 +356,12 @@ const createNewVersion = async (submission: {
     })) as GenerationResponse & { requestId?: string | null };
     const read = readGenerationOutcome(raw);
     if (read.tone === "error") {
-      const typed = resolveOutputOperationError({ status: 200, code: null, reason: (raw as { reason?: string }).reason ?? null });
+      const typed = resolveOutputOperationError({
+        status: 200,
+        code: null,
+        reason: (raw as { reason?: string }).reason ?? null,
+        outcome: (raw as { outcome?: string }).outcome ?? null,
+      });
       return { kind: "error", key: typed.key, title: typed.title, description: read.message, answered: true };
     }
     // ACCEPTED, NOT COMPLETE: the durable request now carries the progress.
@@ -323,7 +370,7 @@ const createNewVersion = async (submission: {
     const e = err as {
       statusCode?: number;
       code?: string;
-      details?: { changeMessages?: unknown; reason?: string };
+      details?: { changeMessages?: unknown; reason?: string; outcome?: string };
     };
     if (e?.code === "OUTPUT_OFFER_STALE" || e?.code === "OUTPUT_OFFER_REQUIRED") {
       const msgs = Array.isArray(e.details?.changeMessages)
@@ -335,6 +382,7 @@ const createNewVersion = async (submission: {
       status: e?.statusCode ?? null,
       code: e?.code ?? null,
       reason: e?.details?.reason ?? null,
+      outcome: e?.details?.outcome ?? null,
       network: e?.statusCode === 0 || e?.statusCode == null,
     });
     // No answer (network) or a server fault: the request may have landed, so
@@ -377,6 +425,7 @@ const downloadReportVersion = async (version: number) => {
   } catch (downloadError) {
     const feedback = describeArtifactDownloadFailure("report", downloadError, { version });
     addToast(feedback.message, feedback.tone);
+    noteMissingObject("report", downloadError, version);
     if (feedback.report) {
       captureException(downloadError, { feature: "web_evidence_download_report_version", evidenceId });
     }
@@ -402,6 +451,7 @@ const downloadVerificationPackageVersion = async (version: number) => {
   } catch (downloadError) {
     const feedback = describeArtifactDownloadFailure("verificationPackage", downloadError, { version });
     addToast(feedback.message, feedback.tone);
+    noteMissingObject("verificationPackage", downloadError, version);
     if (feedback.report) {
       captureException(downloadError, { feature: "web_evidence_download_package_version", evidenceId });
     }
@@ -440,5 +490,6 @@ const downloadVerificationPackageVersion = async (version: number) => {
     generateOutputs,
     createNewVersion,
     generateOutputsBusy,
+    missingStoredArtifacts,
   };
 }

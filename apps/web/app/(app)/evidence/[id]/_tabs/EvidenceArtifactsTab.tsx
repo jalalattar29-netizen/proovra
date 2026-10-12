@@ -29,11 +29,13 @@
 
 "use client";
 
+import Link from "next/link";
 import { ChevronRight, Globe, ShieldCheck } from "lucide-react";
 import {
   NEW_VERSION_ACTION,
   outputActionLabel,
   outputNoteCopy,
+  outputOperationError,
   type OutputTerminalReasonClass,
 } from "@proovra/shared";
 import { formatValue, OUTPUT_STATE_COPY, type EvidenceDetailCtx } from "./_lib";
@@ -200,6 +202,130 @@ export function reportPanelStatesGenerationIncident(
   return report.action !== "NONE" || newVersion?.action === NEW_VERSION_ACTION;
 }
 
+/**
+ * NOT INCLUDED, SAID FOR ITS ACTUAL REASON (2026-10-12).
+ *
+ * One sentence used to serve every exclusion: a record on a plan without
+ * outputs, a subscription whose payment lapsed and one that ended were all
+ * told the same plan list. They end differently — a lapse ends when payment
+ * is updated, an exclusion when the plan changes — so each says its own, and
+ * a payment destination is linked only where paying is what resolves it.
+ * Personal and workspace records alike: the subject is "the plan that covers
+ * this record", never "this workspace's plan".
+ */
+function NotIncludedPanel({ output }: { output: EvidenceOutputProjection }) {
+  const reason = output.ineligibilityReason;
+  const preserved =
+    "The evidence record itself is signed and preserved — its chain of custody is intact and public verification still works.";
+  const copy =
+    reason === "PAYMENT_LAPSED"
+      ? {
+          title: "Reports are paused: the subscription payment has lapsed",
+          body: `The subscription that covers this record is past due beyond its grace period, so no new report or verification package is issued. Updating the payment in Billing restores issuance. ${preserved}`,
+          link: { href: "/billing", label: "Update payment in Billing", key: "billing" },
+        }
+      : reason === "SUBSCRIPTION_ENDED"
+        ? {
+            title: "Reports are paused: the subscription has ended",
+            body: `The subscription that covers this record has ended, so no new report or verification package is issued. Renewing it in Billing restores issuance. ${preserved}`,
+            link: { href: "/billing", label: "Renew in Billing", key: "billing" },
+          }
+        : reason === "ENTITLEMENT_UNRESOLVED"
+          ? {
+              title: "Checking whether reports are included",
+              body: "The subscription could not be confirmed just now, so no report is being issued yet. This is not a plan refusal; this page updates on its own.",
+              link: null,
+            }
+          : {
+              title: "Reports are not included for this record",
+              body: `The plan that covers this record does not include a report PDF or verification package. They are included with Pay-per-evidence credits and with the Pro, Team and Enterprise plans. ${preserved}`,
+              link: { href: "/pricing", label: "Compare plans and credits", key: "pricing" },
+            };
+  return (
+    <div
+      className="app-alert app-alert--warn"
+      role="status"
+      data-evidence-section="reports-plan-gated"
+      data-evidence-output-state={output.state}
+      data-evidence-ineligibility-reason={reason ?? ""}
+    >
+      <strong>{copy.title}</strong>
+      <p>{copy.body}</p>
+      {copy.link ? (
+        <p>
+          <Link href={copy.link.href} data-evidence-link={copy.link.key}>
+            {copy.link.label}
+          </Link>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A STORED FILE THE SERVER COULD NOT FIND (2026-10-12).
+ *
+ * Learned only from a real download that answered 410 — never from a storage
+ * probe on page load. An issued version is immutable and is never
+ * regenerated in place (the recovery decision treats a committed report as
+ * present, and the package rebuild refuses a missing report object as an
+ * integrity review), so no recovery verb is offered here: the honest answer
+ * is an escalation, stated persistently rather than in a passing toast.
+ */
+export function MissingStoredArtifactBanner({
+  missing,
+  reportStatus,
+  packageStatus,
+}: {
+  missing: EvidenceDetailCtx["missingStoredArtifacts"];
+  reportStatus: { version: number | null; generatedAtUtc: string | null };
+  packageStatus: { version: number | null; generatedAtUtc: string | null };
+}) {
+  // Still about the CURRENT artifact: the named version is the current one,
+  // or (latest route) no newer artifact has landed since the answer.
+  const current = (
+    entry: { at: number; version: number | null } | null | undefined,
+    status: { version: number | null; generatedAtUtc: string | null },
+  ): number | null => {
+    if (!entry || status.version == null) return null;
+    if (entry.version != null) return entry.version === status.version ? entry.version : null;
+    const generated = status.generatedAtUtc ? Date.parse(status.generatedAtUtc) : NaN;
+    return Number.isFinite(generated) && generated > entry.at ? null : status.version;
+  };
+  const items = (
+    [
+      ["report", current(missing?.report, reportStatus)],
+      ["verificationPackage", current(missing?.verificationPackage, packageStatus)],
+    ] as const
+  ).filter(([, version]) => version != null);
+  if (items.length === 0) return null;
+  return (
+    <>
+      {items.map(([kind, version]) => {
+        const e = outputOperationError(kind === "report" ? "REPORT_OBJECT_MISSING" : "PACKAGE_OBJECT_MISSING");
+        return (
+          <div
+            key={kind}
+            className="app-alert app-alert--warn"
+            role="status"
+            data-evidence-section="artifact-object-missing"
+            data-evidence-output={kind}
+          >
+            <strong>
+              {e.title} (version {version})
+            </strong>
+            <p>
+              {e.description} An issued version is never regenerated in place, so
+              no recovery is offered on this page. The evidence record, its
+              fingerprint, signature and custody history are unchanged.
+            </p>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function ArtifactLifecyclePanel({
   ctx,
   output,
@@ -292,25 +418,31 @@ function ArtifactLifecyclePanel({
       );
 
     case "NOT_INCLUDED":
-      return (
-        <div
-          className="app-alert app-alert--warn"
-          role="status"
-          data-evidence-section="reports-plan-gated"
-          data-evidence-output-state={output.state}
-        >
-          <strong>Reports are not included for this record</strong>
-          <p>
-            Report PDFs and verification packages are included with
-            Pay-per-evidence credits and with the Pro, Team and Enterprise
-            plans. Your evidence record itself is signed and preserved — the
-            chain of custody is intact, and public verification still works —
-            but no downloadable report artifact is produced for it.
-          </p>
-        </div>
-      );
+      return <NotIncludedPanel output={output} />;
 
     case "ELIGIBLE_NOT_GENERATED":
+      // ET-COM-06 — the plan includes outputs, but this record's FIRST report
+      // is issued only once payment is confirmed. Said as that, never as
+      // "your plan includes it" beside a Generate the server would refuse.
+      if (output.actionUnavailableReason === "AWAITING_CONFIRMED_PAYMENT") {
+        return (
+          <div
+            className="app-alert"
+            role="status"
+            data-evidence-section="reports-awaiting-confirmed-payment"
+            data-evidence-output-state={output.state}
+            data-evidence-action-unavailable={output.actionUnavailableReason}
+          >
+            <strong>The first report waits for confirmed payment</strong>
+            <p>{reasonCopy}</p>
+            <p>
+              <Link href="/billing" data-evidence-link="billing">
+                Open Billing
+              </Link>
+            </p>
+          </div>
+        );
+      }
       return (
         <div
           className="app-alert"
@@ -842,6 +974,11 @@ export function EvidenceArtifactsTab({ ctx }: { ctx: EvidenceDetailCtx }) {
         report={reportOutput}
         pkg={packageOutput}
         progressShown={progressShown}
+      />
+      <MissingStoredArtifactBanner
+        missing={ctx.missingStoredArtifacts}
+        reportStatus={reportStatus}
+        packageStatus={packageStatus}
       />
 
       {/* Latest verification link. `shareUrl` is derived from the SAME

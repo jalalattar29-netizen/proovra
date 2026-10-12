@@ -653,6 +653,7 @@ function EvidenceDetailPageInner() {
     generateOutputs,
     createNewVersion,
     generateOutputsBusy,
+    missingStoredArtifacts,
   } = useEvidenceArtifactActions({
     evidenceId: evidenceId ?? null,
     addToast,
@@ -1022,6 +1023,7 @@ function EvidenceDetailPageInner() {
     generateOutputs,
     createNewVersion,
     generateOutputsBusy,
+    missingStoredArtifacts,
     runRecordAction,
     restoreTrash,
     removeCase,

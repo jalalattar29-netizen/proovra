@@ -279,7 +279,21 @@ export function classifyTerminalReason(
     code === "REPORT_INTEGRITY_UNVERIFIABLE" ||
     code === "REPORT_OBJECT_MISSING" ||
     code === "REPORT_VERSION_NOT_FOUND" ||
-    code === "REPORT_MISSING_FOR_REPORTED_EVIDENCE"
+    code === "REPORT_MISSING_FOR_REPORTED_EVIDENCE" ||
+    /*
+     * A CONFIRMED MISSING ORIGINAL IS NOT TECHNICAL (2026-10-12). The signed
+     * original is not readable at its recorded location (a confirmed store
+     * 404); no retry and no deploy brings it back, so offering "Retry" only
+     * burned the writer's bounded supersessions to fail again. A person
+     * reviews it.
+     *
+     * The output-verification refusals (REPORT_OUTPUT_INCONSISTENT,
+     * PACKAGE_OUTPUT_INCONSISTENT, REPORT_RENDER_INPUT_INCONSISTENT) stay
+     * TECHNICAL on purpose: they are raised by the product's own render or
+     * seal check, a corrected release removes their cause, and the audited
+     * supersession — bounded and counted — is their canonical recovery.
+     */
+    code === "EVIDENCE_ORIGINAL_NOT_FOUND"
   ) {
     return "INTEGRITY";
   }
@@ -650,6 +664,13 @@ export const OUTPUT_ACTION_UNAVAILABLE_REASONS = [
   "NOT_INCLUDED",
   /** Entitlement could not be determined; nothing is offered until it can. */
   "ENTITLEMENT_UNAVAILABLE",
+  /**
+   * The plan includes outputs, but a FIRST report for a record finalized
+   * before this entitlement is issued only once payment is confirmed (a
+   * trial or a payment grace is not confirmed payment — ET-COM-06). The
+   * request authority refuses it; the action is withheld with this reason.
+   */
+  "AWAITING_CONFIRMED_PAYMENT",
   /** The caller may read the record but not generate or recover its outputs. */
   "PERMISSION_DENIED",
   "LEGAL_HOLD_ACTIVE",
@@ -1067,6 +1088,14 @@ export type EvidenceOutputFacts = {
    * Absent = no: the failure stays escalated, stated read-only.
    */
   callerMaySupersede?: boolean;
+  /**
+   * ET-COM-06 — the entitlement does not yet permit issuing a record's FIRST
+   * report outside finalization (`mayIssueHistoricalFirstOutputs` is false:
+   * a trial or a payment grace, with no output earned at finalization). The
+   * request authority refuses such a request, so it is never offered.
+   * Absent = permitted.
+   */
+  firstIssuanceAwaitsConfirmedPayment?: boolean;
   /** Would a new pair fit the workspace storage allowance? `null` = unknown. */
   newVersionFitsStorage: boolean | null;
 };
@@ -1247,6 +1276,7 @@ export function resolveEvidenceOutputActions(
     if (f.latestPackageVersion != null) return none("CONSISTENCY_REVIEW_REQUIRED");
     if (f.reportEligibility === "UNRESOLVED") return none("ENTITLEMENT_UNAVAILABLE");
     if (f.reportEligibility !== "ELIGIBLE") return none("NOT_INCLUDED");
+    const awaitingPayment = f.firstIssuanceAwaitsConfirmedPayment === true;
     if (f.reportRequest) {
       // No report exists, so a retry of an exhausted technical failure is the
       // FIRST issuance again (report v1 and its package) — never a new version.
@@ -1255,8 +1285,15 @@ export function resolveEvidenceOutputActions(
         f.reportEligibility === "ELIGIBLE",
         f.callerMaySupersede === true ? "FULL_GENERATION" : null,
       );
+      // A supersession is a NEW first-issuance request, which the authority
+      // refuses until payment is confirmed. Re-running an existing retryable
+      // request creates nothing new and stays offered.
+      if (failed && awaitingPayment && failed.supersedesTechnicalTerminal) {
+        return none("AWAITING_CONFIRMED_PAYMENT");
+      }
       if (failed) return failed;
     }
+    if (awaitingPayment) return none("AWAITING_CONFIRMED_PAYMENT");
     return { action: "GENERATE", reason: null, operation: "FULL_GENERATION" };
   })();
 

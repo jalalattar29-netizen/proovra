@@ -84,6 +84,8 @@ export function outputUnavailableReasonCopy(
     case "NOT_INCLUDED":
     case "PAIR_INCOMPLETE":
       return null;
+    case "AWAITING_CONFIRMED_PAYMENT":
+      return "This record's first report and verification package are issued once the subscription's payment is confirmed. A trial or a payment grace period does not issue them; the evidence record itself is finalized and verifiable.";
     case "ESCALATED_TO_OPERATOR":
       return "Automatic retries were exhausted, so this has been reported to your workspace operators. A member who can resolve workspace operations can retry it from this record or from Operations. The evidence record and any existing downloads are unaffected.";
     case "REPORT_INTEGRITY_REVIEW":
@@ -130,6 +132,8 @@ export function outputUnavailableReasonShort(
 ): string | null {
   if (outputUnavailableReasonCopy(reason) === null) return null;
   switch (reason) {
+    case "AWAITING_CONFIRMED_PAYMENT":
+      return "Awaiting confirmed payment";
     case "ESCALATED_TO_OPERATOR":
       return "Escalated to operators";
     case "REPORT_INTEGRITY_REVIEW":
@@ -221,6 +225,16 @@ export function newVersionConsequence(input: {
 export const ORIGINAL_NOT_READABLE_TERMINAL_CODE = "EVIDENCE_ORIGINAL_NOT_FOUND";
 
 /**
+ * The worker's `OutputVerificationError` codes (non-retriable). Mirrors
+ * services/worker/src/output-verification-error.ts; the code is the contract.
+ */
+const OUTPUT_VERIFICATION_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  "REPORT_OUTPUT_INCONSISTENT",
+  "PACKAGE_OUTPUT_INCONSISTENT",
+  "REPORT_RENDER_INPUT_INCONSISTENT",
+]);
+
+/**
  * THE WORDS FOR A TERMINAL REASON THAT NEEDS ITS OWN SENTENCE (2026-09-29).
  *
  * Copy only — it decides nothing, and it does not change the action or the
@@ -237,7 +251,20 @@ export const ORIGINAL_NOT_READABLE_TERMINAL_CODE = "EVIDENCE_ORIGINAL_NOT_FOUND"
 export function outputTerminalReasonCopy(
   terminalReasonCode: string | null | undefined,
 ): { short: string; copy: string } | null {
-  if ((terminalReasonCode ?? "").trim().toUpperCase() !== ORIGINAL_NOT_READABLE_TERMINAL_CODE) {
+  const code = (terminalReasonCode ?? "").trim().toUpperCase();
+  if (OUTPUT_VERIFICATION_REFUSAL_CODES.has(code)) {
+    // The worker's own verification refused what it produced (2026-10-12).
+    // The product's own render or seal check refused the output. Nothing
+    // about the record's integrity failed. The cause is in the product, so a
+    // corrected release lets the audited supersession issue it — shown here
+    // when no action is offered to this reader (or the bounded budget is spent).
+    return {
+      short: "Output failed verification — needs review",
+      copy:
+        "The generated output did not pass its check against this record's facts, so it was not issued. PROOVRA reviews this failure; once its cause is corrected the output can be issued again. Contact support with the reference shown. The evidence record, its fingerprint, signature and custody history are unchanged.",
+    };
+  }
+  if (code !== ORIGINAL_NOT_READABLE_TERMINAL_CODE) {
     return null;
   }
   return {

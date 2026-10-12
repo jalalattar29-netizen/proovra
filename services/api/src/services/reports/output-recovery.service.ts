@@ -183,9 +183,15 @@ function toRequestFact(
   };
 }
 
-/** The writer's `<baseKey>:s<n>` ordinal (0 for the first identity). */
-function supersessionOrdinalOf(key: string | null | undefined): number {
-  const m = /:s(d+)$/.exec(key ?? "");
+/**
+ * The writer's `<baseKey>:s<n>` ordinal (0 for the first identity).
+ *
+ * Exported for its test: the pattern was once written without the digit
+ * escape (`/:s(d+)$/`), so every ordinal read 0 and an exhausted chain kept
+ * offering a Retry the writer could only collapse onto its terminal head.
+ */
+export function supersessionOrdinalOf(key: string | null | undefined): number {
+  const m = /:s(\d+)$/.exec(key ?? "");
   return m ? Number.parseInt(m[1]!, 10) : 0;
 }
 
@@ -395,6 +401,13 @@ export async function loadEvidenceOutputFacts(input: {
         },
         callerMayGenerate,
         callerMaySupersede,
+        // ET-COM-06 — the authority (`requestReportGeneration`) refuses a
+        // record's FIRST report outside finalization until payment is
+        // confirmed. The offer says so instead of a Generate it would refuse.
+        firstIssuanceAwaitsConfirmedPayment:
+          latestReport == null &&
+          eligibility?.issuance.decision === "ENTITLED" &&
+          eligibility.issuance.mayIssueHistoricalFirstOutputs === false,
         newVersionFitsStorage: newVersionEstimate?.fitsStorage ?? null,
       };
 
@@ -498,6 +511,34 @@ export type OutputRecoveryResult =
    */
   | { kind: "stale_offer"; changes: OutputOfferChangeCode[]; required?: boolean }
   | { kind: "not_found" };
+
+/**
+ * THE BOUNDED REASON FOR A REQUEST THE AUTHORITY DECLINED (2026-10-12).
+ *
+ * The authority answers with a typed outcome and no lifecycle reason, and a
+ * declined body with `reason: null` was read by the web as a generic 409 —
+ * "A newer version already exists" — for a plan refusal. Every outcome that
+ * has a truthful reason in the shared vocabulary carries it; the rest stay
+ * null and are read by their outcome.
+ */
+export function declinedOutcomeReason(
+  outcome: GenerationRequestOutcome,
+  authorityReason?: string | null,
+): OutputActionUnavailableReason | null {
+  switch (outcome) {
+    case "NOT_INCLUDED":
+      // ET-COM-06: the plan includes outputs; a first report awaits payment.
+      return authorityReason === "first_issuance_awaits_confirmed_payment"
+        ? "AWAITING_CONFIRMED_PAYMENT"
+        : "NOT_INCLUDED";
+    case "ENTITLEMENT_UNAVAILABLE":
+      return "ENTITLEMENT_UNAVAILABLE";
+    case "WORKSPACE_UNRESOLVED":
+      return "WORKSPACE_UNRESOLVED";
+    default:
+      return null;
+  }
+}
 
 /** Normalise a client's verb. `REGENERATE` is the legacy spelling of NEW_VERSION. */
 export function normalizeGenerationIntent(raw: unknown): GenerationIntent | undefined {
@@ -619,7 +660,12 @@ export async function requestOutputRecovery(input: {
           enqueued: requested.enqueued,
           loaded,
         }
-      : { kind: "declined", outcome: requested.outcome, reason: null, loaded };
+      : {
+          kind: "declined",
+          outcome: requested.outcome,
+          reason: declinedOutcomeReason(requested.outcome, requested.reason),
+          loaded,
+        };
 
   // ---- The package for ONE named report version (2026-09-29) --------------
   if (input.packageForReportVersion != null) {

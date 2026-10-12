@@ -152,6 +152,15 @@ export type EvidenceDetailCtx = {
     offerRevision: string | null;
   }) => Promise<NewVersionSubmitResult>;
   generateOutputsBusy: boolean;
+  /**
+   * A stored file the server answered 410 for: when (epoch ms) and which
+   * version (`null` = the latest route). Learned from a real download only;
+   * absent on older callers.
+   */
+  missingStoredArtifacts?: {
+    report: { at: number; version: number | null } | null;
+    verificationPackage: { at: number; version: number | null } | null;
+  };
   runRecordAction: (path: string, successMessage: string) => Promise<void> | void;
   restoreTrash: () => Promise<void> | void;
   removeCase: (caseId?: string) => Promise<void> | void;
@@ -456,7 +465,7 @@ export const OUTPUT_STATE_COPY: Record<
   READY: { reason: () => "" },
   NOT_INCLUDED: {
     reason: (noun) =>
-      `No ${noun} has been issued for this record: reports are not included in this workspace's current plan. The original evidence is finalized and can be verified.`,
+      `No ${noun} has been issued for this record: reports are not included in the plan that covers this record. The original evidence is finalized and can be verified.`,
   },
   ENTITLEMENT_UNAVAILABLE: {
     reason: (noun) =>

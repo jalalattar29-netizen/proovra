@@ -550,6 +550,10 @@ export const OUTPUT_OPERATION_ERROR_KEYS = [
   "PERMISSION_REFUSED",
   "MEMBERSHIP_REFUSED",
   "PLAN_REFUSED",
+  /** ET-COM-06 — a first report waits for confirmed payment (trial / grace). */
+  "PAYMENT_CONFIRMATION_REQUIRED",
+  /** The record has no workspace a request can be scoped to. */
+  "WORKSPACE_UNRESOLVED",
   "CREDIT_REFUSED",
   "STORAGE_REFUSED",
   "POLICY_REFUSED",
@@ -609,7 +613,9 @@ export const OUTPUT_OPERATION_ERRORS: Record<OutputOperationErrorKey, Def> = {
   INTEGRITY_TERMINAL: def("This record needs review", "A stored artifact or the record itself failed an integrity check, so nothing is regenerated automatically. Contact support with the reference below.", "error", false, "CONTACT_SUPPORT", true),
   PERMISSION_REFUSED: def("You don't have permission to do that", "You can view this record, but you can't generate or recover its report and verification package.", "warning", false, "NONE"),
   MEMBERSHIP_REFUSED: def("This record isn't available to you", "You may no longer be a member of the workspace that holds it.", "warning", false, "NONE"),
-  PLAN_REFUSED: def("Not included in the workspace plan", "The workspace's current plan does not include this report.", "info", false, "NONE"),
+  PLAN_REFUSED: def("Not included for this record", "The plan that covers this record does not include its report and verification package.", "info", false, "NONE"),
+  PAYMENT_CONFIRMATION_REQUIRED: def("Waiting for confirmed payment", "This record's first report is issued once the subscription's payment is confirmed. A trial or a payment grace period does not issue it, so nothing was requested.", "info", false, "NONE"),
+  WORKSPACE_UNRESOLVED: def("This record needs a workspace association", "A new report or verification package can't be requested until this older record is associated with a workspace. Everything already generated for it stays available.", "info", false, "NONE"),
   CREDIT_REFUSED: def("Not enough evidence credit", "This action needs an evidence credit the workspace does not have.", "info", false, "NONE"),
   STORAGE_REFUSED: def("Workspace storage is full", "A new report and verification package would exceed the workspace storage allowance.", "warning", false, "NONE"),
   POLICY_REFUSED: def("Blocked by workspace policy", "The workspace's policy does not allow this now.", "info", false, "NONE"),
@@ -647,6 +653,10 @@ export function outputOperationErrorForReason(reason: string | null | undefined)
     case "NOT_INCLUDED":
     case "ENTITLEMENT_UNAVAILABLE":
       return outputOperationError("PLAN_REFUSED");
+    case "AWAITING_CONFIRMED_PAYMENT":
+      return outputOperationError("PAYMENT_CONFIRMATION_REQUIRED");
+    case "WORKSPACE_UNRESOLVED":
+      return outputOperationError("WORKSPACE_UNRESOLVED");
     case "STORAGE_LIMIT":
       return outputOperationError("STORAGE_REFUSED");
     case "LEGAL_HOLD_ACTIVE":
@@ -721,10 +731,35 @@ export function outputOperationErrorForTerminal(input: {
  * from the generation endpoint, the status endpoint or a download, mapped to
  * one typed error. `null` input fields are fine. Never returns raw server text.
  */
+export function outputOperationErrorForOutcome(outcome: string | null | undefined): OutputOperationError | null {
+  switch ((outcome ?? "").trim().toUpperCase()) {
+    case "NOT_INCLUDED":
+    case "ENTITLEMENT_UNAVAILABLE":
+      return outputOperationError("PLAN_REFUSED");
+    case "WORKSPACE_UNRESOLVED":
+      return outputOperationError("WORKSPACE_UNRESOLVED");
+    case "EVIDENCE_NOT_FOUND":
+      return outputOperationError("MEMBERSHIP_REFUSED");
+    case "RECOVERABLE_BLOCKED":
+      return outputOperationError("POLICY_REFUSED");
+    case "QUEUE_UNAVAILABLE":
+      return outputOperationError("QUEUE_UNAVAILABLE");
+    case "ALREADY_ACTIVE":
+      return outputOperationError("REQUEST_ACTIVE");
+    case "REQUEST_PERSIST_FAILED":
+    case "REQUESTER_REQUIRED":
+      return outputOperationError("UNKNOWN");
+    default:
+      return null;
+  }
+}
+
 export function resolveOutputOperationError(input: {
   status?: number | null;
   code?: string | null;
   reason?: string | null;
+  /** The declined request's typed generation outcome (`details.outcome`). */
+  outcome?: string | null;
   /** The request never received an answer (network loss, timeout). */
   network?: boolean;
 }): OutputOperationError {
@@ -766,6 +801,11 @@ export function resolveOutputOperationError(input: {
   }
   const byReason = outputOperationErrorForReason(input.reason);
   if (byReason) return byReason;
+  // A declined generation request carries its typed OUTCOME (`details.outcome`)
+  // even when it has no bounded reason. Read it before the status fallback:
+  // a 409 refusal for a commercial or scoping answer is not a version conflict.
+  const byOutcome = outputOperationErrorForOutcome(input.outcome);
+  if (byOutcome) return byOutcome;
   switch (input.status ?? 0) {
     case 400:
       return outputOperationError("REASON_INVALID");

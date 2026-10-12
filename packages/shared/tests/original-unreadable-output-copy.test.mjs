@@ -101,8 +101,22 @@ test("the note names the real condition, not exhausted retries", () => {
     // Nothing storage-identifying.
     assert.doesNotMatch(text, /evidence\/|s3:|bucket|\.jpg|\.png|parts\//i);
   }
-  // …and the copy it replaces is the one that would have been wrong.
-  assert.match(outputUnavailableReasonCopy(a.verificationPackage.reason) ?? "", /retries were exhausted/);
+  // 2026-10-12 — the code is classified INTEGRITY (deterministic), not an
+  // exhausted TECHNICAL failure, so the reason is no longer the escalation
+  // whose copy would claim retries were exhausted.
+  assert.equal(a.verificationPackage.reason, "INTEGRITY_FAILED");
+});
+
+test("the supersession-right holder is NOT offered a retry of an unreadable original", () => {
+  const terminal = { state: "FAILED_TERMINAL", terminalReasonCode: CODE };
+  for (const over of [
+    { packageRequest: terminal },
+    { latestReportVersion: null, reportRequest: terminal, packageRequest: terminal },
+  ]) {
+    const a = resolveEvidenceOutputActions(facts({ ...over, callerMaySupersede: true }));
+    assert.equal(a.report.action === "RETRY" || a.verificationPackage.action === "RETRY", false);
+    assert.equal(a.verificationPackage.supersedesTechnicalTerminal, undefined);
+  }
 });
 
 test("matching is exact and case-insensitive on the bounded code only", () => {

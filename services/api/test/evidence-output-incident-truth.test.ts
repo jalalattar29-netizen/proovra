@@ -111,13 +111,15 @@ describe("TSA_ENABLED — one reader", () => {
   });
 });
 
-describe("'not included' copy names the WORKSPACE's current plan, identically everywhere", () => {
+// A Personal record is covered by its owner's plan, not a workspace's, so the
+// copy names "the plan that covers this record" — identically everywhere.
+describe("'not included' copy names the plan that covers the record, identically everywhere", () => {
   it("download reason (web + mobile) and generation outcome (API + web + mobile)", () => {
-    const reason = "reports are not included in this workspace's current plan";
+    const reason = "reports are not included in the plan that covers this record";
     expect(read("apps/web/app/(app)/evidence/[id]/_tabs/_lib.tsx")).toContain(reason);
     expect(read("apps/mobile/src/product/evidence-record.ts")).toContain(reason);
     const outcome =
-      "Reports and verification packages are not issued for this evidence record: they are not included in this workspace's current plan. The original evidence remains finalized and verifiable.";
+      "Reports and verification packages are not issued for this evidence record: they are not included in the plan that covers this record. The original evidence remains finalized and verifiable.";
     for (const p of [
       "services/api/src/routes/evidence.routes.ts",
       "apps/web/lib/evidence/generation-outcome.ts",
