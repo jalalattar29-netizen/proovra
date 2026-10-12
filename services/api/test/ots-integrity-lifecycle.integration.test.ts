@@ -23,7 +23,7 @@
  * leave the other free to drift back.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +32,12 @@ import { JOB_NAMES, getWorkEntryOrThrow } from "@proovra/shared";
 import type { IntegrationHarness } from "./integration-harness.js";
 
 const ENTRY = getWorkEntryOrThrow(JOB_NAMES.UPGRADE_OTS);
+
+/** The canonical fingerprint and its SHA-256, as finalization writes them. */
+const fingerprintOf = (json: string) => ({
+  fingerprintCanonicalJson: json,
+  fingerprintHash: createHash("sha256").update(json).digest("hex"),
+});
 
 /** The OTS command boundary — recorded, so attempts can be counted. */
 const ots = vi.hoisted(() => ({
@@ -49,14 +55,19 @@ const ots = vi.hoisted(() => ({
 
 vi.mock("../../worker/src/ots.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
+  // (2026-10-12) Every OTS boundary reads the digest a proof commits to from
+  // its bytes: the doubled CLI returns a real-shaped pending proof over the
+  // stamped content, exactly as a calendar would.
+  const { pendingOtsProofFor } = await import("./helpers/ots-proof-bytes.js");
   return {
     ...actual,
     createOpenTimestamp: async (params: { content: Buffer }) => {
       ots.stampCalls.push(params.content.toString("utf8").slice(0, 40));
       if (ots.throwOnStamp) throw new Error("ots: binary not found");
+      const stamped = pendingOtsProofFor(params.content);
       const base = {
-        proofBase64: Buffer.from(`proof-${randomUUID()}`).toString("base64"),
-        hash: randomUUID().replace(/-/g, "").repeat(2).slice(0, 64),
+        proofBase64: stamped.proofBase64,
+        hash: stamped.digestHex,
         calendar: "https://alice.btc.calendar.opentimestamps.org",
         bitcoinTxid: null as string | null,
         anchoredAtUtc: null as string | null,
@@ -194,9 +205,9 @@ describe("OTS integrity lifecycle (live PostgreSQL 16)", () => {
         teamId: personal.teamId,
         organizationId: personal.organizationId,
         ownerUserId: personal.userId,
-        // The stamped content. Its presence is what makes the record
-        // stampable, and it is written by the finalize transaction.
-        fingerprintCanonicalJson: JSON.stringify({ v: 1, id: randomUUID() }),
+        // The stamped content and its digest. Their presence is what makes
+        // the record stampable; the finalize transaction writes both.
+        ...fingerprintOf(JSON.stringify({ v: 1, id: randomUUID() })),
         ...overrides,
       },
       select: { id: true },
@@ -224,7 +235,10 @@ describe("OTS integrity lifecycle (live PostgreSQL 16)", () => {
       await processor.processOtsUpgrade(otsJob(evidenceId));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (!/OTS_UPGRADE_FAILED/i.test(message)) throw err;
+      // OTS_UPGRADE_ATTEMPT_FAILED is the same declared retry signal for an
+      // upgrade ATTEMPT that errored (no `ots` CLI in this suite): the row keeps
+      // every established fact and the job retry budget brings it back.
+      if (!/OTS_UPGRADE(_ATTEMPT)?_FAILED/i.test(message)) throw err;
     }
   }
 

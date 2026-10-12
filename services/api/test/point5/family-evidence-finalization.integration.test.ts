@@ -65,6 +65,12 @@ const ots = vi.hoisted(() => ({
   },
 }));
 
+/** The canonical fingerprint and its SHA-256, as finalization writes them. */
+const fingerprintOf = (json: string) => ({
+  fingerprintCanonicalJson: json,
+  fingerprintHash: createHash("sha256").update(json).digest("hex"),
+});
+
 vi.mock("../../../worker/src/ots.service.js", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
@@ -77,15 +83,19 @@ vi.mock("../../../worker/src/ots.service.js", async (importOriginal) => {
       ots.upgradeCalls.push("info");
       return { status: "UNAVAILABLE" as const };
     },
-    createOpenTimestamp: async () => {
+    createOpenTimestamp: async (params: { content: Buffer }) => {
       ots.upgradeCalls.push("create");
       if (ots.stamp === "throw") {
         throw new Error("ots: command not found");
       }
+      // (2026-10-12) A real-shaped pending proof over the stamped content:
+      // every OTS boundary reads the committed digest from the bytes.
+      const { pendingOtsProofFor } = await import("../helpers/ots-proof-bytes.js");
+      const stamped = pendingOtsProofFor(params.content);
       return {
         status: "PENDING" as const,
-        proofBase64: Buffer.from(`stamp-${Math.random()}`).toString("base64"),
-        hash: "b".repeat(64),
+        proofBase64: stamped.proofBase64,
+        hash: stamped.digestHex,
         calendar: "https://alice.btc.calendar.opentimestamps.org",
         bitcoinTxid: null,
         anchoredAtUtc: null,
@@ -473,7 +483,8 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
       otsHash: null,
       // The digest OTS stamps. Its presence is what makes the record
       // finalized for this purpose — the same predicate the initializer uses.
-      fingerprintCanonicalJson: JSON.stringify({ v: randomUUID() }),
+      // The stamped content and its digest, as finalization writes them.
+      ...fingerprintOf(JSON.stringify({ v: randomUUID() })),
       ...overrides,
     });
     // Older than the sweep's handoff window. A fresh record is NOT a stalled
@@ -519,7 +530,8 @@ describe("POINT 5 FAMILY — evidence finalization / OTS (live PostgreSQL 16)", 
       otsStatus: null,
       otsProofBase64: null,
       otsHash: null,
-      fingerprintCanonicalJson: JSON.stringify({ v: randomUUID() }),
+      // The stamped content and its digest, as finalization writes them.
+      ...fingerprintOf(JSON.stringify({ v: randomUUID() })),
     });
 
     await reconciler.runOtsInitializationReconciler({ trigger: "point5" });

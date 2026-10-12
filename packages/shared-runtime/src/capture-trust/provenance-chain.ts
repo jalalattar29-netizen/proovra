@@ -284,6 +284,15 @@ export async function loadProvenanceChain(
       otsBitcoinTxid: true,
       otsUpgradedAtUtc: true,
       otsProofBase64: true,
+      // (2026-10-12) The recorded independent chain check: "verified" is that
+      // check with its evidence, never the anchor-check label alone.
+      otsChainVerificationStatus: true,
+      otsChainVerifiedAtUtc: true,
+      otsChainBlockHeight: true,
+      otsChainBlockHash: true,
+      otsChainBlockTimeUtc: true,
+      otsChainConfirmations: true,
+      otsChainVerifier: true,
     },
   });
   const acquisition = resolveEvidenceAcquisition({
@@ -452,6 +461,17 @@ export async function loadProvenanceChain(
     proofPresent: Boolean(evidence?.otsProofBase64),
     upgradedAtUtc: evidence?.otsUpgradedAtUtc ?? null,
     submittedAtUtc: evidence?.signedAtUtc ?? null,
+    chain: evidence
+      ? {
+          chainVerificationStatus: evidence.otsChainVerificationStatus,
+          chainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc,
+          chainBlockHeight: evidence.otsChainBlockHeight,
+          chainBlockHash: evidence.otsChainBlockHash,
+          chainBlockTimeUtc: evidence.otsChainBlockTimeUtc,
+          chainConfirmations: evidence.otsChainConfirmations,
+          chainVerifier: evidence.otsChainVerifier,
+        }
+      : null,
     now,
   });
   const otsRecordedAnchor = otsStatus === "VERIFIED" || otsStatus === "ANCHORED_UNVERIFIED";

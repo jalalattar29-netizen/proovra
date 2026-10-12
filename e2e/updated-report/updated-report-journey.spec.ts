@@ -401,7 +401,7 @@ test.describe("updated report — the real stack, end to end", () => {
     expect(claims2.tsaStatus).toBe("VERIFIED");
     expect(claims2.tsaStatement ?? "").toMatch(/^RFC 3161 timestamp validated\./);
     expect(claims2.otsStatus).toBe("NOT_CHECKED");
-    expect(claims2.otsStatement ?? "").toMatch(/anchor/i);
+    expect(claims2.otsStatement ?? "").toMatch(/Bitcoin attestation present; not independently verified against the Bitcoin blockchain/);
     expect(claims2.otsStatement ?? "").not.toMatch(/does not match|concern|review required|pending|not recorded/i);
 
     // v1 is untouched: same bytes, same hashes, still downloadable.

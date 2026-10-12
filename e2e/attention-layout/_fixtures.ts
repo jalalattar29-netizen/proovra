@@ -906,6 +906,19 @@ export async function installApi(
           }),
         );
       }
+      // The resolved section's read (the server's 7-day window): these four
+      // conditions are all open, so it answers with none.
+      if (url.searchParams.has("resolvedWithinDays")) {
+        return route.fulfill(
+          json({
+            groups: [],
+            totals: { groups: 0, conditions: 0 },
+            conservation: { conditions: 0, grouped: 0 },
+            completeness: { complete: true, mayAssertAllClear: true },
+            window: { resolvedWithinDays: 7, resolvedSinceUtc: new Date(Date.now() - 7 * 86_400_000).toISOString(), serverNowUtc: new Date().toISOString() },
+          }),
+        );
+      }
       const worst = rows[0]!;
       return route.fulfill(
         json({

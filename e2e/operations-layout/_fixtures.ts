@@ -786,8 +786,20 @@ export async function installApi(
           }),
         );
       }
+      // THE SERVER'S WINDOW (2026-10-12): "Resolved in the last 7 days" asks
+      // for resolvedWithinDays and gets only RESOLVED conditions whose
+      // resolvedAtUtc is inside it — the page no longer filters in the browser.
+      const windowDays = Number(url.searchParams.get("resolvedWithinDays") ?? "");
+      const scoped = Number.isFinite(windowDays) && windowDays > 0
+        ? rows.filter(
+            (r) =>
+              r.status === "RESOLVED" &&
+              typeof r.resolvedAtUtc === "string" &&
+              Date.parse(r.resolvedAtUtc) >= Date.now() - windowDays * 24 * 60 * 60 * 1000,
+          )
+        : rows;
       const bySource = new Map();
-      for (const r of rows) {
+      for (const r of scoped) {
         // These rows all carry the same `tsa_failure:` fingerprint prefix, so
         // the CATEGORY is the dimension that actually separates them here —
         // REPORT, EVIDENCE_INTEGRITY, PACKAGE. Grouping on the prefix collapsed
@@ -838,8 +850,8 @@ export async function installApi(
       return route.fulfill(
         json({
           groups,
-          totals: { groups: groups.length, conditions: rows.length },
-          conservation: { conditions: rows.length, grouped: rows.length },
+          totals: { groups: groups.length, conditions: scoped.length },
+          conservation: { conditions: scoped.length, grouped: scoped.length },
           completeness: { complete: true, mayAssertAllClear: true },
         }),
       );

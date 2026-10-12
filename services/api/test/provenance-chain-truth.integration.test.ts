@@ -116,11 +116,28 @@ describe("provenance chain truth (live PostgreSQL 16)", () => {
   });
 
   it("TRUST-002: a chain-verified anchor is the only 'applied' OTS layer", async () => {
+    // (2026-10-12) Chain-verified means the recorded independent chain check
+    // WITH its evidence; a BITCOIN_VERIFIED label alone is attestation present.
+    const bare = await record({
+      otsStatus: "ANCHORED",
+      otsAnchoredAtUtc: new Date(),
+      otsAnchorCheck: "PROOF_STRUCTURE",
+      otsBitcoinTxid: "a".repeat(64),
+    });
+    expect((await runtime.loadProvenanceChain(prisma as never, bare.id)).time.ots).toMatchObject({ applied: false });
     const ev = await record({
       otsStatus: "ANCHORED",
       otsAnchoredAtUtc: new Date(),
       otsAnchorCheck: "BITCOIN_VERIFIED",
       otsBitcoinTxid: "a".repeat(64),
+      otsChainVerificationStatus: "VERIFIED",
+      otsChainCheckedAtUtc: new Date(),
+      otsChainVerifiedAtUtc: new Date(),
+      otsChainBlockHeight: 860000,
+      otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+      otsChainBlockTimeUtc: new Date("2024-08-27T08:00:00Z"),
+      otsChainConfirmations: 12,
+      otsChainVerifier: "test-double/1",
       tsaStatus: "STAMPED",
       tsaValidatedAtUtc: new Date(),
       tsaGenTimeUtc: new Date(),
