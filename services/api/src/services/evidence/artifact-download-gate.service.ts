@@ -321,11 +321,28 @@ export async function evaluateArtifactDownload(input: {
     const { gateVerificationAction } = await import(
       "../governance/policy-runtime-gates.service.js"
     );
-    const verifyGate = await gateVerificationAction({
-      teamId,
-      evidenceId,
-      action: "PUBLISH_PACKAGE",
-    });
+    let verifyGate: Awaited<ReturnType<typeof gateVerificationAction>>;
+    try {
+      verifyGate = await gateVerificationAction({
+        teamId,
+        evidenceId,
+        action: "PUBLISH_PACKAGE",
+      });
+    } catch {
+      // FAIL CLOSED — the verification policy could not be read, so whether
+      // this package may leave is unknown. Same 503 code as the governance
+      // lookup above; never allow-through.
+      return denied(
+        teamId,
+        503,
+        {
+          code: "GOVERNANCE_CHECK_FAILED",
+          reason: "verification_policy_unavailable",
+          message: SUBJECT[kind] + " is blocked by workspace governance policy.",
+        },
+        { action: "verification_package_publish_gate", reason: "verification_policy_unavailable" },
+      );
+    }
     if (!verifyGate.ok) {
       return denied(
         teamId,

@@ -477,20 +477,28 @@ export async function applyObjectRetention(params: {
     };
   }
 
-  if (params.mode && params.retainUntilDate) {
-    await s3.send(
-      new PutObjectRetentionCommand({
-        Bucket: bucket,
-        Key: key,
-        ...(clean(params.versionId ?? null) ? { VersionId: clean(params.versionId ?? null)! } : {}),
-        Retention: {
-          Mode: params.mode,
-          RetainUntilDate: params.retainUntilDate,
-        },
-        ...(params.bypassGovernance ? { BypassGovernanceRetention: true } : {}),
-      })
-    );
+  // Object Lock is switched on but the mode / retain-days defaults are missing
+  // or invalid: nothing can be written, so nothing was applied. Reporting
+  // `applied: true` here claimed a retention that no command ever set.
+  if (!params.mode || !params.retainUntilDate) {
+    return {
+      applied: false,
+      reason: "object_lock_defaults_incomplete",
+    };
   }
+
+  await s3.send(
+    new PutObjectRetentionCommand({
+      Bucket: bucket,
+      Key: key,
+      ...(clean(params.versionId ?? null) ? { VersionId: clean(params.versionId ?? null)! } : {}),
+      Retention: {
+        Mode: params.mode,
+        RetainUntilDate: params.retainUntilDate,
+      },
+      ...(params.bypassGovernance ? { BypassGovernanceRetention: true } : {}),
+    })
+  );
 
   return {
     applied: true,

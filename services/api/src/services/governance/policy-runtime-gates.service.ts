@@ -18,6 +18,12 @@
  *     remains in control of UX.
  *   * Maps BLOCK to `POLICY_BLOCK` — the caller must short-circuit.
  *
+ * A gate REJECTS (it does not resolve) when the evaluator could not read
+ * what the decision depends on: `PolicyEvaluationUnavailableError`, code
+ * `GOVERNANCE_CHECK_FAILED`. That is never a verdict and never ALLOW —
+ * every caller fails closed on it (auth → 503 SECURITY_CONTEXT_UNAVAILABLE,
+ * downloads → 503 GOVERNANCE_CHECK_FAILED).
+ *
  * Bounded reason strings come straight from the evaluator (already
  * snake-case, <=80 chars, no PII). On ALLOW we drop the reason — a
  * gate does not need to explain itself when it lets you through.

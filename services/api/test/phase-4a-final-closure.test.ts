@@ -65,6 +65,12 @@ function makePrismaStub(overrides: Record<string, unknown> = {}) {
     policyAssignment: {
       findMany: async () => [],
     },
+    // The read resolveEffectivePolicies makes. A real EMPTY result — "no
+    // policy configured" — not a missing delegate whose TypeError used to be
+    // swallowed into ALLOW (a failed read now refuses).
+    governancePolicyAssignment: {
+      findMany: async () => [],
+    },
     evidence: {
       findFirst: async () => null,
     },

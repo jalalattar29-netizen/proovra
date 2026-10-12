@@ -108,4 +108,29 @@ describe("applying default Object Lock retention", () => {
     expect(result.applied).toBe(false);
     expect(sent).toHaveLength(0);
   });
+
+  // Object Lock switched on but its defaults unusable: no PutObjectRetention
+  // can be built, so nothing was applied — reporting `applied: true` claimed a
+  // retention no command ever set.
+  for (const [label, mode, days] of [
+    ["mode missing", undefined, "2920"],
+    ["mode invalid", "FOREVER", "2920"],
+    ["retain days missing", "COMPLIANCE", undefined],
+    ["retain days not a positive integer", "COMPLIANCE", "0"],
+  ] as const) {
+    it(`with Object Lock enabled but ${label}: applied=false (object_lock_defaults_incomplete), nothing sent`, async () => {
+      if (mode === undefined) delete process.env.S3_OBJECT_LOCK_MODE;
+      else process.env.S3_OBJECT_LOCK_MODE = mode;
+      if (days === undefined) delete process.env.S3_OBJECT_LOCK_RETAIN_DAYS;
+      else process.env.S3_OBJECT_LOCK_RETAIN_DAYS = days;
+
+      const result = await applyDefaultObjectRetention({
+        bucket: "disposable-test-bucket",
+        key: "fictional/object-lock-probe.bin",
+      });
+
+      expect(result).toEqual({ applied: false, reason: "object_lock_defaults_incomplete" });
+      expect(sent).toHaveLength(0);
+    });
+  }
 });

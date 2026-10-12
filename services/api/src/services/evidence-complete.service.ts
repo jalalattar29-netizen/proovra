@@ -51,6 +51,7 @@ import { safeTransitionUploadSession } from "./reliability/upload-session.servic
 import { evaluateUploadSessionFinalizeGate } from "./uploads/upload-session.service.js";
 import { enqueueGraphReconcileJob } from "../queue/graph-reconcile-queue.js";
 import { warn as logWarn } from "../utils/logger.js";
+import { bump } from "./ops/metrics.service.js";
 import { AppError, ErrorCode } from "../errors.js";
 import { effectiveChecklistPlan, validateRequiredChecklistMapping } from "./capture-checklist-gate.js";
 import { getIntakeTemplate } from "./capture-intake-templates.js";
@@ -92,7 +93,7 @@ type ProcessedPart = {
   versionId: string | null;
 };
 
-type RetentionTarget = {
+export type RetentionTarget = {
   bucket: string;
   key: string;
   /** ET-SM-03 — the sealed version; retention and the lock snapshot address it. */
@@ -202,7 +203,18 @@ function isNotFoundLike(e: unknown): boolean {
   );
 }
 
-function isAlreadyObjectLockedLike(e: unknown): boolean {
+/**
+ * S3 refused the retention write with AccessDenied. That is ALL it says: an
+ * IAM / KMS denial and a refusal to shorten an existing COMPLIANCE retention
+ * look the same. It is never, by itself, "already locked" — only a HEAD of the
+ * exact target version can confirm that (see {@link applyRetentionOrThrow}).
+ *
+ * Deliberately narrow. The old classifier also matched any message containing
+ * "object lock" / "retention" / "legal hold", which swallowed
+ * `InvalidRequest: Bucket is missing Object Lock Configuration` as success.
+ * Every error not matched here throws as before.
+ */
+export function isAccessDeniedLike(e: unknown): boolean {
   const err = e as {
     name?: unknown;
     code?: unknown;
@@ -215,14 +227,23 @@ function isAlreadyObjectLockedLike(e: unknown): boolean {
   const msg = String(err?.message ?? "").toLowerCase();
 
   return (
-    name.includes("accessdenied") ||
-    code.includes("accessdenied") ||
+    name === "accessdenied" ||
     code === "accessdenied" ||
-    msg.includes("access denied because object protected by object lock") ||
-    msg.includes("object protected by object lock") ||
-    msg.includes("object lock") ||
-    msg.includes("retention") ||
-    msg.includes("legal hold")
+    msg.includes("object protected by object lock")
+  );
+}
+
+/** The object version carries a lock that is in force right now. */
+function retentionConfirmedByHead(meta: {
+  objectLockMode?: unknown;
+  objectLockRetainUntilDate?: unknown;
+} | null | undefined): boolean {
+  const mode = meta?.objectLockMode ? String(meta.objectLockMode) : null;
+  const until = meta?.objectLockRetainUntilDate;
+  return (
+    (mode === "COMPLIANCE" || mode === "GOVERNANCE") &&
+    until instanceof Date &&
+    until.getTime() > Date.now()
   );
 }
 
@@ -296,15 +317,28 @@ async function safeGetStream(bucket: string, key: string, versionId?: string | n
  * Object Lock is disabled in the environment, applyDefaultObjectRetention is a
  * no-op that returns { applied: false, reason: "object_lock_disabled" } — that
  * must propagate to the caller so the chain remains honest.
+ *
+ * `allConfirmed` is true only when EVERY target was either written (the
+ * retention call succeeded) or positively confirmed locked by a HEAD of that
+ * exact version after an AccessDenied. EVIDENCE_LOCKED speaks for all
+ * `itemCount` items, so it requires `allConfirmed`.
+ *
+ * An AccessDenied that HEAD does not confirm is recorded, not thrown:
+ * `retention_access_denied_unconfirmed` (HEAD shows no lock in force) or
+ * `retention_unverifiable` (the HEAD itself failed). The record is already
+ * sealed when this runs, and the truthful outcome is "not locked" — which the
+ * caller writes as STORAGE_PROTECTION_UNAVAILABLE, leaving the lock columns
+ * empty so a repeat complete can repair it. Every other error throws as before.
  */
-async function applyRetentionOrThrow(
+export async function applyRetentionOrThrow(
   targets: RetentionTarget[]
-): Promise<{ anyApplied: boolean; reason: string | null }> {
+): Promise<{ anyApplied: boolean; allConfirmed: boolean; reason: string | null }> {
   const deduped = Array.from(
     new Map(targets.map((item) => [`${item.bucket}:${item.key}:${item.versionId ?? ""}`, item])).values()
   );
 
   let anyApplied = false;
+  let allConfirmed = deduped.length > 0;
   let reason: string | null = null;
 
   for (const target of deduped) {
@@ -316,13 +350,41 @@ async function applyRetentionOrThrow(
       });
       if (result?.applied === true) {
         anyApplied = true;
-      } else if (!reason && typeof result?.reason === "string") {
-        reason = result.reason;
+      } else {
+        allConfirmed = false;
+        if (!reason && typeof result?.reason === "string") {
+          reason = result.reason;
+        }
       }
     } catch (error) {
-      if (isAlreadyObjectLockedLike(error)) {
-        // Object already locked by an earlier write — that counts as applied.
-        anyApplied = true;
+      if (isAccessDeniedLike(error)) {
+        // AccessDenied is unknown, not "already locked". Only the version's
+        // own metadata can confirm a lock is in force.
+        let confirmed = false;
+        let unconfirmedReason = "retention_access_denied_unconfirmed";
+        try {
+          const meta = await headObject({
+            bucket: target.bucket,
+            key: target.key,
+            versionId: target.versionId ?? null,
+          });
+          confirmed = retentionConfirmedByHead(meta);
+        } catch {
+          unconfirmedReason = "retention_unverifiable";
+        }
+        if (confirmed) {
+          anyApplied = true;
+          continue;
+        }
+        allConfirmed = false;
+        if (!reason) reason = unconfirmedReason;
+        bump("evidence_retention_unconfirmed_total");
+        logWarn("evidence_complete.retention_unconfirmed", {
+          reason: unconfirmedReason,
+          bucket: target.bucket,
+          hasVersionId: Boolean(target.versionId),
+          isPart: Boolean(target.evidencePartId),
+        });
         continue;
       }
 
@@ -335,7 +397,7 @@ async function applyRetentionOrThrow(
     }
   }
 
-  return { anyApplied, reason };
+  return { anyApplied, allConfirmed, reason };
 }
 
 function buildMultipartSummary(parts: ProcessedPart[], totalSizeBytes: number) {
@@ -1630,9 +1692,11 @@ const captureMethod =
         // Decide truthfully whether to append EVIDENCE_LOCKED.
         //
         // We require ALL of the following to be true:
-        //   1. applyRetentionOrThrow reported at least one target had retention
-        //      actually applied (i.e. Object Lock enabled in the environment
-        //      AND a PutObjectRetention call succeeded).
+        //   1. applyRetentionOrThrow reported EVERY target confirmed: retention
+        //      written (Object Lock enabled AND PutObjectRetention succeeded)
+        //      or, after an AccessDenied, a HEAD of that exact version showing
+        //      a lock in force. The event speaks for `itemCount` items, so one
+        //      unconfirmed part is enough to withhold it.
         //   2. headObject() reports a non-null objectLockMode on the object.
         //   3. headObject() reports a future objectLockRetainUntilDate.
         //
@@ -1649,6 +1713,7 @@ const captureMethod =
 
         const lockTrulyApplied =
           retentionResult.anyApplied === true &&
+          retentionResult.allConfirmed === true &&
           (lockMode === "COMPLIANCE" || lockMode === "GOVERNANCE") &&
           retentionInForce;
 

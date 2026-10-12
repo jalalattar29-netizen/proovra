@@ -25,8 +25,13 @@
  *     never PII.
  *   * Audit-only enforcement maps to ALLOW (the audit row is the
  *     consequence).
- *   * Failure to load policies degrades to ALLOW with a bounded
- *     reason — never a 5xx — but still emits an audit row.
+ *   * "No configured policy" and "could not load policy" are NOT the
+ *     same answer. An empty effective set evaluates to ALLOW; a failed
+ *     read REJECTS with `PolicyEvaluationUnavailableError`
+ *     (code `GOVERNANCE_CHECK_FAILED`). Callers fail closed on it — a
+ *     security-sensitive caller answers 503, never allow-through. The
+ *     same holds for a decision input a configured rule depends on
+ *     (e.g. the legal-hold read behind `requireLegalHoldCheck`).
  *   * Single canonical write path: `emitPolicyAudit` (governance audit
  *     table). The dashboard already counts POLICY_BLOCK +
  *     POLICY_VIOLATION there.
@@ -51,6 +56,52 @@ import {
   emitPolicyAudit,
   resolveEffectivePolicies,
 } from "./governance-policy.service.js";
+import { error as logError } from "../../utils/logger.js";
+import { bump } from "../ops/metrics.service.js";
+
+// ===========================================================================
+// Unavailability — the evaluation could not be made
+// ===========================================================================
+
+/**
+ * Thrown when an evaluator cannot read what its decision depends on (the
+ * effective policy set, or an input a configured rule needs). It is never
+ * converted to ALLOW: an empty policy set means "nothing configured", a
+ * failed read means "unknown", and unknown is refused by every caller.
+ */
+export class PolicyEvaluationUnavailableError extends Error {
+  readonly code = "GOVERNANCE_CHECK_FAILED" as const;
+  /** Bounded snake-case chip, e.g. `security_policy_unavailable`. */
+  readonly reason: string;
+  constructor(reason: string, options?: { cause?: unknown }) {
+    super(`GOVERNANCE_CHECK_FAILED:${reason}`);
+    this.name = "PolicyEvaluationUnavailableError";
+    this.reason = reason;
+    if (options && "cause" in options) {
+      (this as { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
+
+export function isPolicyEvaluationUnavailable(
+  err: unknown,
+): err is PolicyEvaluationUnavailableError {
+  return err instanceof PolicyEvaluationUnavailableError;
+}
+
+function policyUnavailable(
+  kind: string,
+  what: "policy" | "input",
+  err: unknown,
+): PolicyEvaluationUnavailableError {
+  const reason = `${kind.toLowerCase()}_${what === "policy" ? "policy" : "policy_input"}_unavailable`;
+  bump("governance_policy_evaluation_unavailable_total");
+  logError("governance.policy_evaluation.unavailable", {
+    reason,
+    errorName: err instanceof Error ? err.name.slice(0, 60) : "unknown",
+  });
+  return new PolicyEvaluationUnavailableError(reason, { cause: err });
+}
 
 // ===========================================================================
 // Internal helpers
@@ -246,8 +297,10 @@ async function loadEffective(
       workspaceId: scope.workspaceId ?? teamId,
       kind,
     });
-  } catch {
-    return [];
+  } catch (err) {
+    // NEVER `[]`: an empty set means "no configured policy" and evaluates
+    // to ALLOW. A read that failed is unknown, and unknown is refused.
+    throw policyUnavailable(kind, "policy", err);
   }
 }
 
@@ -358,16 +411,28 @@ export async function evaluateRetentionPolicy(
       const ms = Date.now() - evidence.createdAt.getTime();
       ageDays = Math.floor(ms / (1000 * 60 * 60 * 24));
     }
-    const holdCount = await prisma.evidenceLegalHold.count({
-      where: {
-        evidenceId: input.evidenceId,
-        teamId: input.teamId,
-        status: "ACTIVE",
-      },
-    });
-    hasUnresolvedLegalHold = holdCount > 0;
   } catch {
     /* swallow — degrade to policy-only evaluation */
+  }
+  // The legal-hold read is a decision input whenever a configured policy
+  // asks for it. A failed read there is NOT "no hold": it is unknown, and
+  // the evaluation is refused rather than allowed.
+  const legalHoldRequired = policies.some((p) =>
+    ruleBool(ruleObject(p), "requireLegalHoldCheck"),
+  );
+  if (legalHoldRequired) {
+    try {
+      const holdCount = await prisma.evidenceLegalHold.count({
+        where: {
+          evidenceId: input.evidenceId,
+          teamId: input.teamId,
+          status: "ACTIVE",
+        },
+      });
+      hasUnresolvedLegalHold = holdCount > 0;
+    } catch (err) {
+      throw policyUnavailable("RETENTION", "input", err);
+    }
   }
 
   for (const policy of policies) {

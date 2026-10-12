@@ -209,11 +209,21 @@ export async function runProviderOperation(
   // Phase P3 — canonical Workspace AI policy gate. The Settings toggles
   // (contentIntelligenceEnabled / ocrAllowed / transcriptionAllowed /
   // rawContentProcessingAllowed) are enforced HERE, before any provider
-  // dispatch. On policy-table read failure (environment not yet migrated)
-  // enforcement is skipped (legacy behavior); once the table exists, a
-  // missing row means the safe defaults (content intelligence OFF).
-  const wsPolicy = await resolveWorkspaceAiPolicy(input.teamId).catch(() => null);
-  if (wsPolicy) {
+  // dispatch. A missing row means the safe defaults (content intelligence
+  // OFF). A policy READ FAILURE is not "no policy": whether this workspace
+  // allows the operation is unknown, so the call is REFUSED before any
+  // provider dispatch — never skipped into an allow.
+  let wsPolicy: Awaited<ReturnType<typeof resolveWorkspaceAiPolicy>>;
+  try {
+    wsPolicy = await resolveWorkspaceAiPolicy(input.teamId);
+  } catch {
+    return {
+      ok: false,
+      decision: "BLOCK",
+      reason: "workspace_ai_policy_unavailable",
+    };
+  }
+  {
     const isRawBytes = "byteSource" in input;
     const op = input.operation;
     const deny = (code: string): RunProviderOperationResult => ({
@@ -231,14 +241,21 @@ export async function runProviderOperation(
   }
 
   // Phase 4A Closure: evaluate intelligence policy before budget gate.
+  // An evaluator that could not read the effective INTELLIGENCE policy
+  // REJECTS; that is refused exactly like a BLOCK verdict (no provider call)
+  // with its own bounded reason — never converted to allow.
   const policyResult = await evaluateIntelligencePolicy({
     prisma,
     teamId: input.teamId,
     provider: input.provider,
     operation: input.operation,
     evidenceId: input.evidenceId,
-  }).catch(() => null);
-  if (policyResult?.decision === "BLOCK") {
+  }).catch(() => ({
+    decision: "BLOCK" as const,
+    reason: "intelligence_policy_unavailable",
+    policyId: null,
+  }));
+  if (policyResult.decision === "BLOCK") {
     const reason = policyResult.reason ?? "intelligence_policy_block";
     await recordProviderUsage({
       prisma,
