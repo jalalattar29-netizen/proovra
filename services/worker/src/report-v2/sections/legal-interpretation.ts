@@ -1,5 +1,4 @@
 import { ReportViewModel } from "../types.js";
-import { renderPageSection } from "../ui.js";
 import { escapeHtml } from "../formatters.js";
 
 function renderLegalCard(params: {
@@ -17,59 +16,37 @@ function renderLegalCard(params: {
   `;
 }
 
-export function renderLegalInterpretationSection(vm: ReportViewModel): string {
-  const previewNote = vm.presentation.decisions.compactLegalSection
-    ? ""
-    : renderLegalCard({
-        title: "Presentation materials",
-        body:
-          "Embedded previews in this PDF are reviewer-facing representations only. For deeper review, expert comparison, or formal process, rely on the preserved original evidence and the verification workflow rather than the PDF rendering alone.",
-        tone: "verify", // ✅ بدل الأصفر → أخضر
-      });
-
-  return renderPageSection(
-    "Legal Interpretation & Report Boundary",
-    `
-      <div class="legal-interpretation-page">
-        <div class="legal-interpretation-hero">
-          <div>
-            <div class="legal-interpretation-kicker">Legal and evidentiary boundary</div>
-            <div class="legal-interpretation-title">
-              This report is a technical preservation and verification record, not a final legal judgment.
-            </div>
-            <div class="legal-interpretation-copy">
-              Reviewers should keep the recorded integrity, custody, timestamping and storage controls separate from the questions this report cannot answer, set out below.
-            </div>
-          </div>
-        </div>
-
-        <div class="legal-interpretation-grid">
-
+/**
+ * THE REPORT BOUNDARY (2026-10-13): stated once, concisely, on the review
+ * index page. The cover carries its one-line form; nothing else repeats it.
+ */
+export function renderReportBoundary(vm: ReportViewModel): string {
+  return `
+    <section class="legal-interpretation-compact" data-report-boundary>
+      <div class="executive-outcome-title">Report boundary</div>
+      <div class="legal-interpretation-grid">
         ${renderLegalCard({
-            title: "This report does not prove",
-            body:
-              "Truth, authorship, intent, context, completeness, admissibility, evidentiary weight, or acceptance by any court, insurer, regulator, or authority.\n\nTechnical verification supports detection of post-completion changes only.",
-            tone: "verify", // ✅ كان أصفر → صار أخضر
-          })}
-
-          ${renderLegalCard({
-            title: "Integrity vs. factual accuracy",
-            body:
-              "A valid integrity record can support that the preserved evidence state has not changed after the recorded workflow point. It does not independently prove that the content is true, complete, fairly contextualized, or authored by a particular person.",
-            tone: "neutral",
-          })}
-
-          ${renderLegalCard({
-            title: "Legal review posture",
-            body:
-              "Use this report as a technical and procedural record. The questions above remain for the relevant court, investigator, regulator, insurer, employer or expert process.",
-            tone: "neutral",
-          })}
-
-          ${previewNote}
-        </div>
+          title: "What this report is",
+          body:
+            "A technical record of the preserved evidence's integrity, signature, timestamps, storage and custody. It supports detecting changes after the recorded workflow point.",
+          tone: "verify",
+        })}
+        ${renderLegalCard({
+          title: "What it does not establish",
+          body:
+            "Factual truth, authorship, intent, context, completeness, admissibility or evidentiary weight; those remain for the relevant court, investigator or expert process.",
+          tone: "neutral",
+        })}
+        ${
+          vm.presentation.decisions.compactLegalSection
+            ? ""
+            : renderLegalCard({
+                title: "Previews",
+                body: "Embedded previews are reviewer aids; rely on the preserved originals and the verification package.",
+                tone: "neutral",
+              })
+        }
       </div>
-    `,
-    { pageBreakBefore: true, className: "legal-interpretation-section" }
-  );
+    </section>
+  `;
 }

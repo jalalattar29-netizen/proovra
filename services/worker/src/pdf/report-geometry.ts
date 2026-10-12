@@ -72,7 +72,8 @@ export async function readReportGeometry(pdf: Uint8Array | Buffer): Promise<Page
 
 export type GeometryExpectation = {
   /** Statements the report must carry in full (whitespace-insensitive). */
-  requiredStatements: ReadonlyArray<{ name: string; text: string }>;
+  /** A statement the PDF must carry in full; with `anyOf`, one of those. */
+  requiredStatements: ReadonlyArray<{ name: string; text: string; anyOf?: readonly string[] }>;
 };
 
 const TOLERANCE = 0.75;
@@ -83,7 +84,8 @@ const SECTION_TITLE_MIN_SIZE = 13;
 /** The kicker every section prints above its title (letter-spaced in the PDF). */
 const SECTION_KICKER = /^PROOVRAVERIFICATIONREPORT$/i;
 
-const norm = (s: string) => s.replace(/­/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+// A line break after a hyphen is layout, not text ("pre-\nPROOVRA").
+const norm = (s: string) => s.replace(/­/g, "").replace(/(?<=\w)-\s+(?=\w)/g, "-").replace(/\s+/g, " ").trim().toLowerCase();
 const clip = (s: string) => (s.length > 48 ? `${s.slice(0, 48)}…` : s);
 
 /** The footer row of a page: the runs on the baseline of its "Page n/N". */
@@ -140,7 +142,8 @@ export function checkReportGeometry(pages: ReadonlyArray<PageGeometry>, expect: 
 
   const text = norm(bodyText.join(" "));
   for (const s of expect.requiredStatements) {
-    if (!text.includes(norm(s.text))) {
+    const candidates = s.anyOf?.length ? s.anyOf : [s.text];
+    if (!candidates.some((c) => text.includes(norm(c)))) {
       out.push({ check: "REQUIRED_STATEMENT", detail: `the ${s.name} is absent or cut ("${clip(s.text)}")` });
     }
   }

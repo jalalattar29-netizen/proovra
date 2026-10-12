@@ -69,6 +69,7 @@ import { bump } from "@proovra/shared-runtime/ops";
 import { prisma } from "./db.js";
 import { logger } from "./logger.js";
 import { enqueueOtsUpgradeJob, isOtsUpgradeScheduled } from "./queue.js";
+import { resolveOtsChainVerifier } from "./ots-chain-verifier.js";
 
 export interface RunOtsInitializationReconcilerOptions {
   trigger?: string;
@@ -102,6 +103,10 @@ export interface OtsInitializationReconcilerResult {
   pendingAlreadyScheduled: number;
   /** ...of which the ladder was gone and an upgrade was re-scheduled. */
   pendingRescheduled: number;
+  /** (2026-10-13) Attestations awaiting a chain check a configured verifier can now run. */
+  chainCheckScanned: number;
+  /** ...of which a check was enqueued (none was already scheduled). */
+  chainCheckEnqueued: number;
 }
 
 const DEFAULT_MIN_AGE_MS = 30 * 60 * 1000;
@@ -184,6 +189,8 @@ export async function runOtsInitializationReconciler(
     pendingScanned: 0,
     pendingAlreadyScheduled: 0,
     pendingRescheduled: 0,
+    chainCheckScanned: 0,
+    chainCheckEnqueued: 0,
   };
 
   const candidates = await prisma.evidence.findMany({
@@ -271,7 +278,36 @@ export async function runOtsInitializationReconciler(
     }
   }
 
-  if (result.enqueued > 0 || result.failed > 0 || result.pendingRescheduled > 0) {
+  // (2026-10-13) THE THIRD STRANDED SHAPE: an attestation recorded while no
+  // chain verifier was configured (or whose check never concluded) finished its
+  // upgrade ladder, so nothing revisits it — configuring a Bitcoin node would
+  // never verify it. When a verifier IS configured, schedule the canonical
+  // upgrade job for it; the processor runs the chain check and persists the
+  // result. No age bound: a check only reads the chain, it anchors nothing new.
+  if (otsChainVerifierConfigured()) {
+    const awaiting = await prisma.evidence.findMany({
+      where: chainCheckAwaitingWhere(),
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: batchSize,
+      select: { id: true },
+    });
+    for (const row of awaiting) {
+      result.chainCheckScanned += 1;
+      try {
+        if (await isOtsUpgradeScheduled(row.id)) continue;
+        const outcome = await enqueueOtsUpgradeJob(row.id, { traceId: "ots_chain_check_backfill", delayMs: 0 });
+        if (outcome.enqueued && !outcome.collapsed) {
+          result.chainCheckEnqueued += 1;
+          logger.info({ evidenceId: row.id, trigger }, "ots.chain_check.enqueued");
+        }
+      } catch (err) {
+        result.failed += 1;
+        logger.error({ err, evidenceId: row.id, trigger }, "ots.chain_check.enqueue_failed");
+      }
+    }
+  }
+
+  if (result.enqueued > 0 || result.failed > 0 || result.pendingRescheduled > 0 || result.chainCheckEnqueued > 0) {
     logger.info(
       { ...result, trigger },
       "ots.initialization.reconciler.completed",
@@ -299,6 +335,33 @@ export function pendingWithoutProgressWhere(bounds: {
     OR: [
       { otsUpgradedAtUtc: null, updatedAt: { lte: bounds.notAfter } },
       { otsUpgradedAtUtc: { lte: bounds.notAfter } },
+    ],
+  };
+}
+
+/** Whether the worker's environment configures a Bitcoin chain verifier. */
+function otsChainVerifierConfigured(): boolean {
+  try {
+    return resolveOtsChainVerifier().kind !== "none";
+  } catch {
+    // A misconfiguration is logged by the processor; nothing is scheduled.
+    return false;
+  }
+}
+
+/**
+ * (2026-10-13) Attested proofs whose independent chain check has not
+ * concluded: never run, run without a verifier, or not concluded (node
+ * unavailable, too few confirmations). VERIFIED and FAILED are conclusions.
+ */
+export function chainCheckAwaitingWhere(): Prisma.EvidenceWhereInput {
+  return {
+    deletedAt: null,
+    otsStatus: "ANCHORED",
+    otsProofBase64: { not: null },
+    OR: [
+      { otsChainVerificationStatus: null },
+      { otsChainVerificationStatus: { in: ["NOT_CONFIGURED", "UNAVAILABLE", "INSUFFICIENT_CONFIRMATIONS"] } },
     ],
   };
 }

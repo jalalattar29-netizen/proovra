@@ -1,6 +1,6 @@
 
 import { escapeHtml } from "./formatters.js";
-import { VERIFICATION_STATUS_LABELS, type VerificationMatrix, type VerificationStatus } from "@proovra/shared";
+import type { SignalCard } from "./signal-cards.js";
 import {
   CalloutModel,
   CustodyHashRow,
@@ -326,42 +326,25 @@ export function renderInlineQrBlock(
   `;
 }
 
-/** The tone of one verification status: only VERIFIED is a success. */
-export function verificationStatusTone(status: VerificationStatus): "success" | "danger" | "warning" | "neutral" {
-  switch (status) {
-    case "VERIFIED":
-      return "success";
-    case "FAILED":
-      return "danger";
-    case "NOT_CHECKED":
-      return "warning";
-    default:
-      return "neutral";
-  }
-}
-
-function verificationStatusMark(status: VerificationStatus): string {
-  return status === "VERIFIED" ? "✓" : status === "FAILED" || status === "NOT_CHECKED" ? "!" : "i";
-}
-
 /**
- * THE verification matrix: one card per signal, its status word and its
- * factual statement. No score, no weight, no overall verdict.
+ * THE EIGHT EVIDENCE SIGNALS (signal-cards.ts), in the original two-column
+ * grid: label and status word, the card's headline, one supporting sentence.
  */
-export function renderVerificationMatrix(matrix: VerificationMatrix): string {
+export function renderSignalCardGrid(cards: readonly SignalCard[]): string {
   return `
-    <div class="trust-signal-grid" data-verification-matrix>
-      ${matrix.rows
+    <div class="trust-signal-grid" data-evidence-signals="${cards.length}">
+      ${cards
         .map(
-          (row) => `
-            <article class="trust-signal-card tone-${verificationStatusTone(row.status)}" data-matrix-row="${escapeHtml(row.key)}" data-matrix-status="${row.status}">
-              <div class="trust-signal-mark">${escapeHtml(verificationStatusMark(row.status))}</div>
+          (card) => `
+            <article class="trust-signal-card tone-${card.tone}" data-signal="${escapeHtml(card.key)}" data-signal-status="${escapeHtml(card.status)}">
+              <div class="trust-signal-mark">${escapeHtml(card.mark)}</div>
               <div class="trust-signal-content">
                 <div class="trust-signal-top">
-                  <div class="trust-signal-label">${escapeHtml(row.label)}</div>
-                  <div class="trust-signal-score">${escapeHtml(row.statusLabel ?? VERIFICATION_STATUS_LABELS[row.status])}</div>
+                  <div class="trust-signal-label">${escapeHtml(card.label)}</div>
+                  <div class="trust-signal-score">${escapeHtml(card.status)}</div>
                 </div>
-                <div class="trust-signal-detail">${escapeHtml(row.statement)}</div>
+                <div class="trust-signal-summary">${escapeHtml(card.title)}</div>
+                <div class="trust-signal-detail">${escapeHtml(card.sentence)}</div>
               </div>
             </article>
           `

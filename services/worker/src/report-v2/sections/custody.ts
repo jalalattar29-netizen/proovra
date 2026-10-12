@@ -2,39 +2,20 @@ import { ReportViewModel, TimelineRow } from "../types.js";
 import { escapeHtml } from "../formatters.js";
 import { renderCallout, renderPageSection } from "../ui.js";
 
-const FIRST_PAGE_EVENTS = 10;
-const CONTINUED_PAGE_EVENTS = 12;
+/** The custody introduction, in full. */
+export const CUSTODY_INTRO =
+  "This PDF shows a curated forensic subset in chain order. The verification package contains the complete custody chain, hashes and access records.";
 
-function chunkRows<T>(rows: T[], firstSize: number, nextSize: number): T[][] {
-  if (rows.length <= firstSize) return [rows];
-
-  const chunks: T[][] = [rows.slice(0, firstSize)];
-  for (let i = firstSize; i < rows.length; i += nextSize) {
-    chunks.push(rows.slice(i, i + nextSize));
-  }
-
-  return chunks;
-}
-
-function renderCustodyStats(vm: ReportViewModel): string {
-  return `
-    <div class="custody-stats-grid">
-      <div class="custody-stat-card">
-        <div class="custody-stat-label">Forensic Events (Report Snapshot)</div>
-<div class="custody-stat-value">${escapeHtml(vm.custodyCounts.label)}</div>
-      </div>
-      <div class="custody-stat-card">
-        <div class="custody-stat-label">Hash Chain</div>
-        <div class="custody-stat-value">${
-          vm.custodyHashRows.length > 0 ? "Recorded" : "Not reported"
-        }</div>
-      </div>
-<div class="custody-stat-card">
-  <div class="custody-stat-label">Package Access Snapshot</div>
-  <div class="custody-stat-value">Snapshot preserved at package generation; current live access activity is reviewed on the verification page.</div>
-</div>
-    </div>
-  `;
+/**
+ * Items rendered so that neither end of a list is stranded alone on a page:
+ * the first two and the last two travel together (break-inside: avoid).
+ */
+export function keepEndsTogether(items: string[], className: string): string {
+  if (items.length < 4) return `<div class="${className} report-keep-together">${items.join("")}</div>`;
+  const head = items.slice(0, 2).join("");
+  const body = items.slice(2, -2).join("");
+  const tail = items.slice(-2).join("");
+  return `<div class="${className} report-keep-together">${head}</div>${body}<div class="${className} report-keep-together">${tail}</div>`;
 }
 
 function renderLifecycleSummary(vm: ReportViewModel): string {
@@ -105,10 +86,7 @@ function renderForensicTimeline(
     return { html: "", pendingNoteRendered };
   }
 
-  const html = `
-    <div class="timeline-list custody-forensic-timeline">
-      ${rows
-        .map((row, index) => {
+  const items = rows.map((row, index) => {
           const displaySequence = String(opts.sequenceOffset + index + 1);
 
           const shouldShowPendingNote =
@@ -139,10 +117,8 @@ function renderForensicTimeline(
               </div>
             </article>
           `;
-        })
-        .join("")}
-    </div>
-  `;
+        });
+  const html = `<div class="timeline-list custody-forensic-timeline">${keepEndsTogether(items, "custody-timeline-group")}</div>`;
 
   return { html, pendingNoteRendered };
 }
@@ -153,88 +129,36 @@ export function renderCustodySection(vm: ReportViewModel): string {
       "Chain of Custody",
       `
         <div class="custody-page">
+          <div class="custody-intro">${escapeHtml(CUSTODY_INTRO)}</div>
           ${renderCallout({
-            title: "Recorded Forensic Lifecycle",
-            body:
-              "The events below show the system-recorded custody path of the evidence package. Routine viewing, download, and verification access activity is intentionally kept out of this PDF and should be reviewed through the verification page or internal audit trail when needed.",
-            tone: "neutral",
+            title: "No forensic custody events returned",
+            body: "This report received no forensic custody events for this record; that is not proof that no handling occurred.",
+            tone: "warning",
           })}
-
-          ${renderCustodyStats(vm)}
-
-          ${renderLifecycleSummary(vm)}
-
-          <div class="custody-timeline-panel">
-            ${renderCallout({
-              title: "No forensic custody events returned",
-              body:
-                "This report did not receive internal forensic custody-event entries for this evidence record. That means no system-recorded forensic chain was available in this output; it should not be treated as proof that no handling occurred outside the recorded workflow.",
-              tone: "warning",
-            })}
-          </div>
         </div>
       `,
       { pageBreakBefore: true, className: "custody-section" }
     );
   }
 
-  const chunks = chunkRows(
-    vm.forensicRows,
-    FIRST_PAGE_EVENTS,
-    CONTINUED_PAGE_EVENTS
+  // ONE flowing timeline: it continues onto as many pages as it needs, and
+  // no page is cut to a fixed number of events.
+  const timeline = renderForensicTimeline(vm.forensicRows, {
+    sequenceOffset: 0,
+    anchoringCompletesLater: hasAnchoringCompletion(vm.forensicRows),
+    pendingNoteAlreadyRendered: false,
+  });
+  return renderPageSection(
+    "Chain of Custody",
+    `
+      <div class="custody-page">
+        <div class="custody-intro">${escapeHtml(CUSTODY_INTRO)}</div>
+        ${renderLifecycleSummary(vm)}
+        <div class="custody-timeline-panel">
+          ${timeline.html}
+        </div>
+      </div>
+    `,
+    { pageBreakBefore: true, className: "custody-section" }
   );
-
-  const anchoringCompletesLater = hasAnchoringCompletion(vm.forensicRows);
-  let pendingNoteRendered = false;
-  let sequenceOffset = 0;
-
-  return chunks
-    .map((chunk, pageIndex) => {
-      const timeline = renderForensicTimeline(chunk, {
-        sequenceOffset,
-        anchoringCompletesLater,
-        pendingNoteAlreadyRendered: pendingNoteRendered,
-      });
-
-      pendingNoteRendered = timeline.pendingNoteRendered;
-      sequenceOffset += chunk.length;
-
-      if (pageIndex === 0) {
-        return renderPageSection(
-          "Chain of Custody",
-          `
-            <div class="custody-page">
-              ${renderCallout({
-                title: "Recorded Forensic Lifecycle",
-                body:
-                  "The events below show the system-recorded custody path of the evidence package. Routine viewing, download, and verification access activity is intentionally kept out of this PDF and should be reviewed through the verification page or internal audit trail when needed.",
-                tone: "neutral",
-              })}
-
-              ${renderCustodyStats(vm)}
-
-              ${renderLifecycleSummary(vm)}
-
-              <div class="custody-timeline-panel">
-                ${timeline.html}
-              </div>
-            </div>
-          `,
-          { pageBreakBefore: true, className: "custody-section" }
-        );
-      }
-
-      return renderPageSection(
-        "Chain of Custody — Continued",
-        `
-          <div class="custody-page custody-page-continued">
-            <div class="custody-timeline-panel">
-              ${timeline.html}
-            </div>
-          </div>
-        `,
-        { pageBreakBefore: true, className: "custody-section custody-section-continued" }
-      );
-    })
-    .join("");
 }

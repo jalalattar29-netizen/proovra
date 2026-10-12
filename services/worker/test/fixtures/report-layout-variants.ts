@@ -413,3 +413,72 @@ export const LAYOUT_VARIANTS: ReadonlyArray<VariantOptions> = [
   // production image: an updated (v3) report over a 14-event detailed chain.
   { name: "v3 · supersession · 14 detailed custody events", supersession: true, version: 3, custodyEvents: 14 },
 ];
+
+/**
+ * THE REGRESSION RECORD (2026-10-13): shaped like evidence
+ * ce465a9e-43c2-4702-87e5-32fcb2dc52fc's report v2 — a five-part web upload
+ * from a personal email account, 23 forensic custody events, a validated
+ * timestamp, COMPLIANCE retention, a verified signature and custody chain, and
+ * an OpenTimestamps proof carrying a Bitcoin attestation (txid and block
+ * height) that no chain verifier checked; v2 reissued with no changed facts.
+ * `location` chooses what the record holds for location.
+ */
+export function regressionRecordInput(
+  location: "absent" | "recorded" | "incomplete" = "absent",
+): ReportV2Input {
+  const { input } = layoutVariant({
+    name: "regression record",
+    parts: 5,
+    custodyEvents: 23,
+    ots: "attestation_not_verified",
+    supersession: true,
+  });
+  const gps =
+    location === "recorded"
+      ? { lat: "52.521", lng: "13.405", accuracyMeters: "102", locationSource: null }
+      : location === "incomplete"
+        ? { lat: "52.521", lng: null, accuracyMeters: "102", locationSource: null }
+        : { lat: null, lng: null, accuracyMeters: null, locationSource: null };
+  return {
+    ...input,
+    evidence: {
+      ...input.evidence,
+      verificationStatus: "RECORDED_INTEGRITY_VERIFIED",
+      signatureVerified: true,
+      custodyChainValid: true,
+      storageImmutable: true,
+      storageObjectLockMode: "COMPLIANCE",
+      storageObjectLockRetainUntilUtc: "2036-10-08T15:10:02.000Z",
+      submittedByEmail: "submitter@example.test",
+      submittedByAuthProvider: "EMAIL",
+      identityLevelSnapshot: "VERIFIED_EMAIL",
+      workspaceNameSnapshot: null,
+      organizationNameSnapshot: null,
+      organizationVerifiedSnapshot: false,
+      acquisitionIdentity: {
+        basis: "OBSERVED_AT_CAPTURE",
+        recordedAtUtc: "2026-10-08T15:09:52.000Z",
+        identityLevel: "VERIFIED_EMAIL",
+        authProvider: "EMAIL",
+        emailVerified: true,
+        workspaceKind: "PERSONAL",
+        workspaceName: null,
+        organizationName: null,
+        organizationVerified: null,
+        submittedByEmail: "submitter@example.test",
+        submittedByUserId: "user-1",
+        actorKind: "ACCOUNT_USER",
+        accountRole: "SUBMITTER",
+        contributorEmailProvided: null,
+      },
+      gps,
+      // The record carries an anchor record too (the v2 report printed its
+      // "Anchor Mode" row — with the PENDING sentence).
+      anchorMode: "PUBLIC",
+      anchorProvider: "OpenTimestamps",
+    } as ReportV2Input["evidence"],
+    supersession: input.supersession
+      ? { ...input.supersession, changes: [], reason: "OTS STATUS" }
+      : null,
+  };
+}

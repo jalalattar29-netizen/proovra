@@ -151,7 +151,7 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
     return { vm, html, text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") };
   }
 
-  it("an unchecked OTS proof reads NOT_CHECKED; no score, verdict, reliance or tally anywhere", async () => {
+  it("an unchecked OTS proof is never Verified; no score, verdict, reliance or tally anywhere", async () => {
     const { vm, html, text } = await render({
       otsStatus: "ANCHORED",
       otsAnchoredAtUtc: "2026-01-01T02:00:00.000Z",
@@ -160,13 +160,13 @@ describe("evidence claims (2026-10-08) — the rendered report states a verifica
       acquisitionMode: "PROOVRA_WEB_UPLOAD",
     });
     expect(vm.verificationMatrix.rows.find((r) => r.key === "ots_anchoring")!.status).toBe("NOT_CHECKED");
-    expect(html).toContain('data-matrix-row="ots_anchoring" data-matrix-status="NOT_CHECKED"');
+    // (2026-10-13) The evidence signal card: the public word, never "Verified".
+    expect(html).toContain('data-signal="bitcoin_anchoring" data-signal-status="Attestation recorded"');
     expect(findForbiddenCustomerClaims(text)).toEqual([]);
     expect(text).not.toMatch(/Technical Confidence|Trust Decision|Overall trust decision|STRONGLY/);
     expect(text).toContain(VERIFICATION_LIMITATION);
-    expect(text).toContain("Any signal marked “Not checked” was not independently verified.");
-    // Upload is not capture.
-    expect(text).toContain("PROOVRA did not observe creation or editing before submission.");
+    // Upload is not capture: the upload boundary, once.
+    expect(text.split("PROOVRA observed the files from upload onward; creation and editing before upload were not observed.").length - 1).toBe(1);
   });
 
   it("a validated timestamp is stated with the bounded TSA sentence, never as qualified", async () => {

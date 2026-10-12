@@ -190,6 +190,8 @@ type ModeDescriptor = {
   attested: string;
   /** What happened before PROOVRA had any visibility of the material. */
   beforeProovraVisibility: string;
+  /** The one-sentence observation boundary a report states once (2026-10-13). */
+  boundary: string;
   /**
    * True for the direct-capture CHANNELS (a PROOVRA capture client in a
    * server-issued session). It names the channel only — see provenanceTier.
@@ -275,6 +277,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "File names and any device or browser details sent with the upload.",
     beforeProovraVisibility:
       "How, when and by whom the files were created, and any editing before submission.",
+    boundary: "PROOVRA observed the files from upload onward; creation and editing before upload were not observed.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["CREATION_NOT_OBSERVED_BY_PROOVRA"],
@@ -290,6 +293,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "Everything the contributor entered or their browser reported, including file names and any location the contributor shared.",
     beforeProovraVisibility:
       "How, when and by whom the files were created, and any editing before submission. The contributor's identity is not independently verified.",
+    boundary: "PROOVRA observed the files from upload onward; creation and editing before upload, and the contributor's identity, were not observed.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["CREATION_NOT_OBSERVED_BY_PROOVRA"],
@@ -305,6 +309,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "Whether an item came from the app's camera or from files on the device, and the device details the app reported.",
     beforeProovraVisibility:
       "How the material was produced on the device, and any editing before submission.",
+    boundary: "PROOVRA observed the material from the capture session onward; how it was produced on the device was not observed.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: [
@@ -324,6 +329,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "That the PROOVRA extension captured the page, when it did so relative to the session, and the page address and browser details it reported.",
     beforeProovraVisibility:
       "The page's content and how it was served or altered in the browser before capture.",
+    boundary: "PROOVRA observed the captured artifacts from the capture session onward; how the page was served or altered before capture was not observed.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -344,6 +350,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "That the PROOVRA Android app captured the screen, when, and the device details it reported.",
     beforeProovraVisibility:
       "What produced the content shown on screen, and the state of the device.",
+    boundary: "PROOVRA observed the captured frames from the capture session onward; what produced the on-screen content was not observed.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -364,6 +371,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "That the PROOVRA Android app recorded the screen continuously, the interruptions it reported, and the device details it reported.",
     beforeProovraVisibility:
       "What produced the content shown on screen, and the state of the device.",
+    boundary: "PROOVRA observed the recorded segments from the capture session onward; what produced the on-screen content was not observed.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -385,6 +393,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "That the PROOVRA iOS app recorded Apple's system screen broadcast, the interruptions it reported, and the device details it reported.",
     beforeProovraVisibility:
       "What produced the content shown on screen, and the state of the device.",
+    boundary: "PROOVRA observed the recorded segments from the capture session onward; what produced the on-screen content was not observed.",
     isDirectCapture: true,
     provenanceTier: "CLIENT_ATTESTED_CAPTURE",
     limitations: [
@@ -406,6 +415,7 @@ const DESCRIPTORS: Readonly<Record<ProjectedAcquisitionMode, ModeDescriptor>> = 
       "Not recorded.",
     beforeProovraVisibility:
       "Not known.",
+    boundary: "How this record entered PROOVRA was not recorded.",
     isDirectCapture: false,
     provenanceTier: "IMPORTED_EXISTING_MEDIA",
     limitations: ["ACQUISITION_NOT_RECORDED"],
@@ -426,11 +436,16 @@ export type EvidenceAcquisitionProjection = {
   observedByProovra: string;
   attested: string;
   beforeProovraVisibility: string;
+  /** The one-sentence observation boundary a report states once. */
+  boundary: string;
   isDirectCapture: boolean;
   /** Owner decision 4: what may be said about who produced the bytes. */
   provenanceTier: EvidenceProvenanceTier;
   limitations: ReadonlyArray<AcquisitionLimitationCode>;
 };
+
+/** Every channel's one-sentence observation boundary (a report states exactly one). */
+export const ACQUISITION_BOUNDARY_STATEMENTS: readonly string[] = Object.values(DESCRIPTORS).map((d) => d.boundary);
 
 /**
  * THE resolver. Input is exactly the two persisted columns. An unknown or
@@ -461,6 +476,7 @@ export function resolveEvidenceAcquisition(input: {
     observedByProovra: d.observedByProovra,
     attested: d.attested,
     beforeProovraVisibility: d.beforeProovraVisibility,
+    boundary: d.boundary,
     isDirectCapture: d.isDirectCapture,
     provenanceTier: d.provenanceTier,
     limitations: d.limitations,

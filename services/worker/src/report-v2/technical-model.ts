@@ -22,10 +22,14 @@ import {
   reportIdentityLevelLabel,
   reportIdentityRows,
   mapAnchorModePublicLabel,
-  mapPublicAnchoringLabelFromOts,
   mapTimestampStatusPublicLabel,
 } from "./normalizers.js";
-import { OTS_REPORTED_BY_PROOF_QUALIFIER, deriveAnchorSemantics, formatTimestampForReportUtc } from "@proovra/shared";
+import {
+  OTS_REPORTED_BY_PROOF_QUALIFIER,
+  TSA_VALIDATED_QUALIFICATION_STATEMENT,
+  deriveAnchorSemantics,
+  formatTimestampForReportUtc,
+} from "@proovra/shared";
 import { buildOtsTruthRows, otsStatusLineFor } from "./ots-presentation.js";
 import { captureMethodDisplayLabel } from "@proovra/shared-runtime/technical-metadata";
 
@@ -285,6 +289,10 @@ export function buildTimestampRows(
       label: "Timestamp Status",
       value: mapTimestampStatusPublicLabel(evidence.tsaStatus),
     },
+    // The validation's scope, stated here once rather than in the signal card.
+    ...(/^trusted timestamp validated$/i.test(mapTimestampStatusPublicLabel(evidence.tsaStatus))
+      ? [{ label: "Validation Scope", value: TSA_VALIDATED_QUALIFICATION_STATEMENT }]
+      : []),
     {
       label: "Timestamped Digest Type",
       value: timestampDigestLabel,
@@ -332,31 +340,20 @@ export function buildAnchorRows(
     otsAnchoredAtUtc?: string | null;
     otsProofPresent?: boolean | null;
     otsAnchorCheck?: string | null;
+    /** The canonical OTS truth state (resolveOtsTruth). */
+    truthState?: string | null;
   } | null
 ): KeyValueRow[] {
   if (!anchorSummary) return [];
 
-  // The "Anchor Mode" row summarizes PUBLIC ANCHORING state (OTS /
-  // Bitcoin). Drive the label
-  // from canonical OTS facts when supplied; fall back to the
-  // EvidenceAnchor-derived mode label only when OTS state is absent.
-  const anchorModeLabel = otsFacts
-    ? mapPublicAnchoringLabelFromOts({
-        otsStatus: otsFacts.otsStatus ?? null,
-        otsBitcoinTxid: otsFacts.otsBitcoinTxid ?? null,
-        otsAnchoredAtUtc: otsFacts.otsAnchoredAtUtc ?? null,
-        otsProofPresent: otsFacts.otsProofPresent ?? null,
-        fallbackAnchorMode: anchorSummary.mode,
-        otsAnchorCheck: otsFacts.otsAnchorCheck ?? null,
-      })
-    : mapAnchorModePublicLabel(anchorSummary.mode);
-
-  // (2026-10-12) No "anchored at" row: the anchor summary's time is the
-  // recording time unless the chain was verified, and the OTS rows already
-  // state the verified block time when there is one.
-  const verified = (otsFacts as { truthState?: string } | null | undefined)?.truthState === "CHAIN_VERIFIED";
+  // (2026-10-13) With OTS facts there is no "Anchor Mode" row: the OTS rows
+  // above state the canonical status once. It used to re-derive a state from
+  // the anchor time alone — an attestation has none until it is independently
+  // verified — and so printed the PENDING sentence beside an upgraded proof
+  // carrying a txid and a block height.
+  const verified = otsFacts?.truthState === "CHAIN_VERIFIED";
   return [
-    { label: "Anchor Mode", value: anchorModeLabel },
+    ...(otsFacts ? [] : [{ label: "Anchor Mode", value: mapAnchorModePublicLabel(anchorSummary.mode) }]),
     { label: "Anchor Provider", value: safe(anchorSummary.provider) },
     {
       label: "Anchor Transaction ID",
@@ -452,6 +449,7 @@ const fingerprintRows: KeyValueRow[] = [
         otsAnchoredAtUtc: canonicalMaterials.otsState.otsAnchoredAtUtc,
         otsProofPresent: canonicalMaterials.otsState.proofPresent,
         otsAnchorCheck: canonicalMaterials.otsState.otsAnchorCheck,
+        truthState: canonicalMaterials.otsState.truthState,
       })
     ),
     timestampStatusLabel: mapTimestampStatusPublicLabel(

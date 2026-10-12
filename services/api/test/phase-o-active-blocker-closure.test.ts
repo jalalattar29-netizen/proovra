@@ -285,10 +285,15 @@ describe("C-1 — cover PDF compactValue is derived from the canonical state", (
     // sees the shared words for that status (VERIFICATION_STATUS_LABELS), never
     // the raw code.
     const src = read(COVER);
-    // The OpenTimestamps row carries its public word (statusLabel) instead.
-    expect(src).toMatch(/value:\s*row\.statusLabel \?\? VERIFICATION_STATUS_LABELS\[row\.status\]/);
-    expect(src).toMatch(/verificationStatusTone\(row\.status\)/);
+    // (2026-10-13) The cover states the first five of the eight evidence signal
+    // cards (signal-cards.ts): each card's status and tone come from its
+    // canonical state, and "Verified" is printed for a passed state only.
+    expect(src).toMatch(/const cards = buildSignalCards\(vm\);/);
+    expect(src).toMatch(/renderDecisionIndicator\(\{ label: c\.label, value: c\.status, tone: c\.tone, mark: c\.mark \}\)/);
     expect(src).not.toMatch(/compactValue\s*=\s*"Verified"/);
+    const cards = read("services/worker/src/report-v2/signal-cards.ts");
+    expect(cards).toMatch(/PASSED: "Verified"/);
+    expect(cards.match(/status: "Verified"/g)?.length ?? 0).toBeLessThanOrEqual(2);
     expect(src).not.toMatch(/"Anchored"/);
   });
 

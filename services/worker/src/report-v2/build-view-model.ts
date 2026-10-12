@@ -1258,7 +1258,7 @@ function buildTechnicalAppendixCourtRows(params: {
 {
   label: "Access Activity",
   value:
-    "Package access snapshot is taken at generation. Current live access activity should be reviewed on the verification page or audit trail when enabled.",
+    "Recorded in the verification package with the complete custody chain.",
 },
     {
       label: "Immutable Storage",
@@ -1430,7 +1430,7 @@ const primaryContentItem = resolvePrimaryContentItem(
     packageSeal: { kind: "SELF" },
     publication: { kind: "DOCUMENT" },
   });
-  const executiveConclusion = buildExecutiveConclusion(trustDecision, verificationMatrix);
+  const executiveConclusion = buildExecutiveConclusion(trustDecision);
   const legalLimitationShort = buildLegalLimitationShort();
   const reviewSequence = buildReviewSequence(
     primaryContentItem?.originalFileName ?? primaryContentItem?.label
@@ -1888,6 +1888,11 @@ const captureContext = hasCaptureContext && captureLat !== null && captureLng !=
       acquisition: input.acquisition ?? null,
       acquisitionMode: input.evidence.acquisitionMode ?? null,
       captureContext,
+      captureLocationState: captureContext
+        ? "recorded"
+        : [captureLat, captureLng, input.evidence.gps.accuracyMeters].some((v) => v !== null && v !== undefined && String(v).trim() !== "")
+          ? "incomplete"
+          : "absent",
       previewPolicy,
       anchorSummary,
       display,

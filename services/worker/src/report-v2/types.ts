@@ -843,6 +843,12 @@ export type ReportViewModel = {
     acquisition: ReportAcquisitionInput | null;
     /** UC-0 — this report's acquisition snapshot (incl. LEGACY_NOT_RECORDED). */
     acquisitionMode: string | null;
+    /**
+     * What the record holds for location: coordinates ("recorded"), nothing
+     * ("absent" — never asked, declined or unavailable), or a partial or
+     * invalid reading that is not shown ("incomplete").
+     */
+    captureLocationState?: "recorded" | "absent" | "incomplete";
     captureContext: {
       statusLabel: string;
       description: string;

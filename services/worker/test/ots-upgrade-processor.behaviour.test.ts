@@ -795,3 +795,30 @@ describe("independent chain verification outcomes (verifier double)", () => {
     expect(h.row).toEqual(before);
   });
 });
+
+describe("(2026-10-13) an attestation recorded with no verifier is verified once a verifier is configured", () => {
+  it("THE ce465a9e SHAPE: NOT_CONFIGURED is re-checked when the job runs again, and the verified result is persisted", async () => {
+    // 1. No verifier configured: the attestation is recorded, not verified.
+    h.row = baseRow();
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.info = infoAnchored;
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({ otsStatus: "ANCHORED", otsAnchorCheck: "PROOF_STRUCTURE", otsChainVerificationStatus: "NOT_CONFIGURED" });
+
+    // 2. A verifier is configured and the backfill sweep re-enqueues the job:
+    //    the same canonical path runs the chain check and persists its result.
+    h.custody = [];
+    h.upgrades.push(upgradedTo(PROOF_V2));
+    h.chainVerifier = chainDouble(CHAIN_VERIFIED);
+    await processOtsUpgrade(job() as never);
+    expect(h.row).toMatchObject({
+      otsStatus: "ANCHORED",
+      otsAnchorCheck: "BITCOIN_VERIFIED",
+      otsChainVerificationStatus: "VERIFIED",
+      otsChainBlockHeight: 860000,
+      otsChainVerifier: "test-double/1",
+    });
+    expect(h.row!.otsChainVerifiedAtUtc).toBeInstanceOf(Date);
+    expect((h.chainVerifier as { calls: Array<Record<string, unknown>> }).calls[0]).toMatchObject({ digestHex: OTS_HASH });
+  });
+});

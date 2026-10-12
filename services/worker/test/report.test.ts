@@ -240,7 +240,7 @@ describe("report v2 pipeline", () => {
     expect(html).not.toContain("Important boundary");
     expect(html).toContain(VERIFICATION_LIMITATION);
     expect(html).toContain("Chain of Custody");
-    expect(html).toContain("Legal Interpretation");
+    expect(html).toContain("data-report-boundary");
     expect(html).toContain("Technical Appendix");
     // The cover advises the reader about the report's scope once: the
     // canonical limitation closing its verification summary (2026-10-12).
@@ -257,8 +257,9 @@ describe("report v2 pipeline", () => {
       "Executive Summary",
       "executive-conclusion-card",
       "Trust Signal Analysis",
+      // (2026-10-13) The report boundary, once, on the review index page.
+      "data-report-boundary",
       "Chain of Custody",
-      "Legal Interpretation",
       "Technical Appendix",
     ]);
   });
@@ -410,7 +411,7 @@ describe("report v2 pipeline", () => {
     // previews and checks are reviewer-facing aids, not substitutes for
     // the preserved original — remains in the Legal Interpretation section,
     // stated once (2026-10-12).
-    expect(html).toContain("Legal and evidentiary boundary");
+    expect(html).toContain("What it does not establish");
     expect(html).toContain("supporting.pdf");
     expect(html).toContain("note.txt");
     expect(html).toContain(FULL_HASH_A);
@@ -638,12 +639,12 @@ describe("report v2 pipeline", () => {
     // canonical limitation closes its verification summary (2026-10-12). The
     // second boundary paragraph beside it said the same thing again; the
     // panel now points to where every signal can be checked.
+    // (2026-10-13) Its one-line report boundary, as in the original report.
     expect(coverHtml).toContain(VERIFICATION_LIMITATION);
-    expect(coverHtml).toContain("Independent review.");
-    expect(coverHtml).not.toContain("Report Boundary.");
+    expect(coverHtml.split(VERIFICATION_LIMITATION).length - 1).toBe(1);
+    expect(coverHtml).toContain("Report boundary.");
     expect(coverHtml).not.toContain("court acceptance");
     expect(coverHtml).not.toContain("examiner-grade forensic acquisition");
-    expect(html).toContain("Legal and evidentiary boundary");
-    expect(html).toContain("This report does not prove");
+    expect(html).toContain("What it does not establish");
   });
 });
