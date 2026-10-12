@@ -339,7 +339,7 @@ test("J2 v2 — TSA validated + attested OTS proof: present, not chain-verified;
   expect(text).toMatch(/supersedes report v1/);
   expect(text).toMatch(/trusted timestamp was validated after report v1/i);
   // The OpenTimestamps card: one status, one sentence.
-  expect(text).toMatch(/OpenTimestamps\s+Attestation recorded\s+Independent Bitcoin verification was not performed\./);
+  expect(text).toMatch(/Bitcoin anchoring\s+Attestation recorded\s+OpenTimestamps attestation recorded\s+Independent Bitcoin verification was not performed\./);
   expect(text).not.toMatch(/chain-verified/i);
   expect(text).not.toMatch(/OpenTimestamps\s+Verified|Bitcoin anchoring\s+Verified/);
   // A validated token is a certificate-chain fact, never a qualification.
@@ -392,7 +392,7 @@ test("J3 v3 — with NO trusted Bitcoin verifier, anchoring stays present-not-ve
   expect([200, 202]).toContain(r.status);
   await waitForPair(owner.api, evidenceId, 3);
   const text = pdfText(await downloadVersion(owner.api, evidenceId, "report", 3), "v3.pdf");
-  expect(text).toMatch(/OpenTimestamps\s+Attestation recorded\s+Independent Bitcoin verification was not performed\./);
+  expect(text).toMatch(/Bitcoin anchoring\s+Attestation recorded\s+OpenTimestamps attestation recorded\s+Independent Bitcoin verification was not performed\./);
   expect(text).not.toMatch(/chain-verified/i);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(text).not.toContain("Anchored, chain-verified");
@@ -652,7 +652,7 @@ test("J10 OTS PENDING at issuance — Report v1 and BOTH packages are generated 
 
   // Report v1: OTS pending, NOT_CHECKED, never chain-verified.
   const text = pdfText(await downloadVersion(session.api, id, "report", 1), "ots-pending-v1.pdf");
-  expect(text).toMatch(/OpenTimestamps\s+Pending\s+The anchoring proof is still being prepared\./);
+  expect(text).toMatch(/Bitcoin anchoring\s+Pending\s+OpenTimestamps pending\s+The anchoring proof is still being prepared\./);
   expect(text).not.toContain("Anchored in Bitcoin; verified against the Bitcoin chain");
   expect(findForbiddenCustomerClaims(text)).toEqual([]);
 
