@@ -84,8 +84,51 @@ export function normalizeOtsAnchorCheck(value: string | null | undefined): OtsAn
  *   NOT_CONFIGURED        no OTS state at all
  *
  * A status string, a txid, an anchored-at time or the mere presence of a proof
- * is never enough for VERIFIED.
+ * is never enough for VERIFIED. Neither is a recorded BITCOIN_VERIFIED check on
+ * its own (2026-10-12): VERIFIED also requires the recorded chain evidence
+ * (`chain`), so a caller that does not hold it can never overstate.
  */
+/**
+ * THE RECORDED EVIDENCE OF AN INDEPENDENT BITCOIN CHAIN CHECK (2026-10-12),
+ * persisted as evidence.ots_chain_*. A check that verified is claimable only
+ * with every field present: the verifier, when it verified, and the block it
+ * verified against (height, hash, time) with its confirmation count.
+ */
+export type OtsChainEvidenceInput = {
+  chainVerificationStatus?: string | null;
+  chainVerifiedAtUtc?: Date | string | null;
+  chainBlockHeight?: number | string | null;
+  chainBlockHash?: string | null;
+  chainBlockTimeUtc?: Date | string | null;
+  chainConfirmations?: number | string | null;
+  chainVerifier?: string | null;
+};
+
+const CHAIN_HASH = /^[0-9a-f]{64}$/i;
+const validDate = (v: Date | string | null | undefined) =>
+  v != null && Number.isFinite((v instanceof Date ? v : new Date(v)).getTime());
+const nonNegativeInt = (v: unknown) => {
+  const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : null;
+};
+
+/** True only when a VERIFIED chain check is recorded with all of its evidence. */
+export function isCompleteOtsChainEvidence(input: OtsChainEvidenceInput | null | undefined): boolean {
+  if (!input || input.chainVerificationStatus !== "VERIFIED") return false;
+  const confirmations = nonNegativeInt(input.chainConfirmations);
+  return (
+    validDate(input.chainVerifiedAtUtc) &&
+    nonNegativeInt(input.chainBlockHeight) !== null &&
+    typeof input.chainBlockHash === "string" &&
+    CHAIN_HASH.test(input.chainBlockHash) &&
+    validDate(input.chainBlockTimeUtc) &&
+    confirmations !== null &&
+    confirmations > 0 &&
+    typeof input.chainVerifier === "string" &&
+    input.chainVerifier.trim().length > 0
+  );
+}
+
 export type OtsAnchorClaim =
   | "VERIFIED"
   | "ANCHORED_NOT_CHECKED"
@@ -106,6 +149,8 @@ export function resolveOtsAnchorClaim(input: {
    * ANCHORED_NOT_CHECKED. Never promotes anything.
    */
   bitcoinTxid?: string | null;
+  /** evidence.ots_chain_* — required for VERIFIED; absent reads as unverified. */
+  chain?: OtsChainEvidenceInput | null;
 }): OtsAnchorClaim {
   const effective = resolveEffectiveOtsStatus({
     status: input.status,
@@ -115,7 +160,9 @@ export function resolveOtsAnchorClaim(input: {
     const chainChecked = normalizeOtsAnchorCheck(input.anchorCheck) === "BITCOIN_VERIFIED";
     const txidRequiredButMissing =
       "bitcoinTxid" in input && !isValidOtsBitcoinTxid(input.bitcoinTxid ?? null);
-    return chainChecked && !txidRequiredButMissing ? "VERIFIED" : "ANCHORED_NOT_CHECKED";
+    return chainChecked && !txidRequiredButMissing && isCompleteOtsChainEvidence(input.chain)
+      ? "VERIFIED"
+      : "ANCHORED_NOT_CHECKED";
   }
   if (effective === "PENDING") return "PENDING";
   if (effective === "FAILED") return "FAILED";
@@ -157,9 +204,9 @@ export function otsClaimBadge(claim: OtsAnchorClaim): {
 } {
   switch (claim) {
     case "VERIFIED":
-      return { label: "ANCHORED · VERIFIED", tone: "success" };
+      return { label: "BITCOIN · INDEPENDENTLY VERIFIED", tone: "success" };
     case "ANCHORED_NOT_CHECKED":
-      return { label: "ANCHORED · CHAIN NOT CHECKED", tone: "info" };
+      return { label: "ATTESTATION PRESENT · NOT VERIFIED", tone: "info" };
     case "PENDING":
       return { label: "PENDING", tone: "warning" };
     case "FAILED":
@@ -172,9 +219,9 @@ export function otsClaimBadge(claim: OtsAnchorClaim): {
 }
 
 export const OTS_ANCHOR_CLAIM_LABELS: Readonly<Record<OtsAnchorClaim, string>> = {
-  VERIFIED: "OpenTimestamps Bitcoin anchoring verified",
+  VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
   ANCHORED_NOT_CHECKED:
-    "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
+    "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
   PENDING: "OpenTimestamps proof present; Bitcoin anchoring pending",
   FAILED: "OpenTimestamps anchoring failed",
   UNAVAILABLE: "OpenTimestamps unavailable",

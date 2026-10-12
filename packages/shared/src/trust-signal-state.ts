@@ -30,6 +30,7 @@
  * checked, never a confidence score.
  */
 import { resolveOtsProofStatus, type OtsProofStatus, type OtsProofStatusInput } from "./ots-status.js";
+import { resolveOtsTruth, type OtsTruthInput } from "./ots-truth.js";
 
 export const TRUST_SIGNAL_STATES = [
   "PASSED",
@@ -288,6 +289,8 @@ export function resolveTsaTrustState(input: TsaTrustStateInput): TsaTrustState {
 // ---------------------------------------------------------------------------
 
 export type OtsTrustStateInput = OtsProofStatusInput & {
+  /** The new OTS truth inputs (ots_attestation_*, ots_chain_*, the digest binding). */
+  truth?: Omit<OtsTruthInput, "status" | "anchoredAtUtc" | "anchorCheck"> | null;
   /**
    * When the canonical verifier last recorded its check (the `observedAtUtc`
    * of the OTS_APPLIED custody event that wrote the check). Null when not
@@ -309,20 +312,46 @@ export type OtsTrustState = {
  * PASSED; a proof read by structure alone is PRESENT_NOT_INDEPENDENTLY_VERIFIED.
  */
 export function resolveOtsTrustState(input: OtsTrustStateInput): OtsTrustState {
-  const proofStatus = resolveOtsProofStatus(input);
+  const chain = input.chain ?? input.truth ?? null;
+  const proofStatus = resolveOtsProofStatus({ ...input, chain });
+  // THE TRUTH MODEL DECIDES (2026-10-12). A proof that does not commit to the
+  // fingerprint, or a configured chain check that failed, is FAILED whatever
+  // the status column says; only recorded chain evidence is PASSED.
+  const truth = resolveOtsTruth({
+    ...(input.truth ?? {}),
+    status: input.status,
+    anchoredAtUtc: input.anchoredAtUtc,
+    anchorCheck: input.anchorCheck,
+    bitcoinTxid: input.bitcoinTxid ?? input.truth?.bitcoinTxid ?? null,
+    proofPresent: input.proofPresent ?? null,
+    upgradedAtUtc: input.upgradedAtUtc ?? null,
+    submittedAtUtc: input.submittedAtUtc ?? null,
+    now: input.now,
+  });
+  if (truth.state === "PROOF_INVALID" || truth.state === "CHAIN_VERIFICATION_FAILED") {
+    return { state: "FAILED", proofStatus: "FAILED", label: truth.headline, measuredAtUtc: truth.chainCheck?.checkedAtUtc ?? null };
+  }
+  if (truth.state === "CHAIN_VERIFIED" && truth.chain) {
+    return {
+      state: "PASSED",
+      proofStatus: "VERIFIED",
+      label: "Bitcoin attestation independently verified against the Bitcoin blockchain",
+      measuredAtUtc: truth.chain.verifiedAtUtc,
+    };
+  }
   switch (proofStatus) {
     case "VERIFIED":
       return {
         state: "PASSED",
         proofStatus,
-        label: "Anchored in Bitcoin; verified against the Bitcoin chain",
+        label: "Bitcoin attestation independently verified against the Bitcoin blockchain",
         measuredAtUtc: isoOrNull(input.anchorCheckedAtUtc),
       };
     case "ANCHORED_UNVERIFIED":
       return {
         state: "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
         proofStatus,
-        label: "Anchoring proof present; not independently chain-verified",
+        label: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
         measuredAtUtc: isoOrNull(input.anchorCheckedAtUtc),
       };
     case "SUBMITTED":

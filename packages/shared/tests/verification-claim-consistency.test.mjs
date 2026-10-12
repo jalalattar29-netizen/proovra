@@ -100,10 +100,10 @@ test("ET-TSA-01: a kept token that was never validated is not_checked, never ver
 });
 
 test("D8: one badge per claim — green only when the chain was checked", () => {
-  assert.deepEqual(otsClaimBadge("VERIFIED"), { label: "ANCHORED · VERIFIED", tone: "success" });
+  assert.deepEqual(otsClaimBadge("VERIFIED"), { label: "BITCOIN · INDEPENDENTLY VERIFIED", tone: "success" });
   const unchecked = otsClaimBadge("ANCHORED_NOT_CHECKED");
   assert.equal(unchecked.tone, "info");
-  assert.match(unchecked.label, /CHAIN NOT CHECKED/);
+  assert.match(unchecked.label, /ATTESTATION PRESENT · NOT VERIFIED/);
   assert.notEqual(otsClaimBadge("PENDING").tone, "success");
   assert.notEqual(otsClaimBadge("FAILED").tone, "success");
   assert.equal(parseOtsAnchorClaim("VERIFIED"), "VERIFIED");
@@ -118,7 +118,16 @@ test("D8: an anchor recorded without a txid is anchored-not-checked, never 'pend
 });
 
 test("txid precondition: a chain-checked claim needs its txid when the caller holds one; nothing is promoted", () => {
-  const r = (over) => resolveOtsAnchorClaim({ status: "ANCHORED", anchoredAtUtc: AT, anchorCheck: "BITCOIN_VERIFIED", ...over });
+  const chain = {
+    chainVerificationStatus: "VERIFIED",
+    chainVerifiedAtUtc: "2026-10-01T03:00:00.000Z",
+    chainBlockHeight: 970507,
+    chainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+    chainBlockTimeUtc: "2026-10-01T01:24:48.000Z",
+    chainConfirmations: 6,
+    chainVerifier: "test-double/1",
+  };
+  const r = (over) => resolveOtsAnchorClaim({ status: "ANCHORED", anchoredAtUtc: AT, anchorCheck: "BITCOIN_VERIFIED", chain, ...over });
   assert.equal(r({ bitcoinTxid: TXID }), "VERIFIED");
   assert.equal(r({ bitcoinTxid: null }), "ANCHORED_NOT_CHECKED");
   assert.equal(r({ bitcoinTxid: "not-a-txid" }), "ANCHORED_NOT_CHECKED");

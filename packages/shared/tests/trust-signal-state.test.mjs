@@ -20,6 +20,26 @@ import {
   trustSignalStateIsPassed,
 } from "../dist/index.js";
 
+const OTS_CHAIN_INPUT = {
+  chainVerificationStatus: "VERIFIED",
+  chainVerifiedAtUtc: "2026-10-01T03:00:00.000Z",
+  chainBlockHeight: 970507,
+  chainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+  chainBlockTimeUtc: "2026-10-01T01:24:48.000Z",
+  chainConfirmations: 6,
+  chainVerifier: "test-double/1",
+};
+/** A complete recorded chain check (test values; not a real verification). */
+const OTS_CHAIN = {
+  otsChainVerificationStatus: "VERIFIED",
+  otsChainVerifiedAtUtc: "2026-10-01T03:00:00.000Z",
+  otsChainBlockHeight: 970507,
+  otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+  otsChainBlockTimeUtc: "2026-10-01T01:24:48.000Z",
+  otsChainConfirmations: 6,
+  otsChainVerifier: "test-double/1",
+};
+
 test("every state has one presentation, and only PASSED is a passed signal", () => {
   assert.deepEqual([...TRUST_SIGNAL_STATES].sort(), [
     "FAILED",
@@ -95,8 +115,19 @@ test("OTS: an attestation is present; only a recorded chain check is PASSED; lon
   const base = { status: "ANCHORED", anchoredAtUtc: "2026-10-01T00:00:00Z", bitcoinTxid: "c".repeat(64) };
   assert.equal(resolveOtsTrustState({ ...base, anchorCheck: "PROOF_STRUCTURE" }).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
   assert.equal(resolveOtsTrustState({ ...base, anchorCheck: null }).state, "PRESENT_NOT_INDEPENDENTLY_VERIFIED");
-  const verified = resolveOtsTrustState({ ...base, anchorCheck: "BITCOIN_VERIFIED", anchorCheckedAtUtc: "2026-10-02T00:00:00Z" });
+  // A recorded check without its chain evidence is not PASSED (2026-10-12).
+  assert.equal(
+    resolveOtsTrustState({ ...base, anchorCheck: "BITCOIN_VERIFIED", anchorCheckedAtUtc: "2026-10-02T00:00:00Z" }).state,
+    "PRESENT_NOT_INDEPENDENTLY_VERIFIED",
+  );
+  const verified = resolveOtsTrustState({
+    ...base,
+    anchorCheck: "BITCOIN_VERIFIED",
+    anchorCheckedAtUtc: "2026-10-02T00:00:00Z",
+    chain: { ...OTS_CHAIN_INPUT, chainVerifiedAtUtc: "2026-10-02T00:00:00Z" },
+  });
   assert.equal(verified.state, "PASSED");
+  // The time of a verified check is the verifier's own recorded time.
   assert.equal(verified.measuredAtUtc, "2026-10-02T00:00:00.000Z");
   const now = new Date("2026-10-20T00:00:00Z");
   assert.equal(resolveOtsTrustState({ status: "PENDING", anchoredAtUtc: null, anchorCheck: null, submittedAtUtc: "2026-10-19T00:00:00Z", now }).state, "PENDING");
@@ -174,7 +205,7 @@ test("TSA valid + OTS proof present, not checked → NOT_CHECKED, no verified cl
   assert.equal(d.anchoringState, "present_not_verified");
   assert.equal(toVerificationStatus(anchoring(d).state), "NOT_CHECKED");
   assert.notEqual(d.presentationState, "VERIFIED_FINALIZED");
-  assert.equal(d.anchoringStatusLabel, "Anchoring proof present; not independently chain-verified");
+  assert.equal(d.anchoringStatusLabel, "Bitcoin attestation present; not independently verified against the Bitcoin blockchain");
   assert.match(d.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
   assert.match(d.reviewerAction, /PROOVRA has not checked it against the chain/);
   assertNoOverclaim(d);
@@ -187,6 +218,7 @@ test("TSA valid + OTS independently verified → every time layer VERIFIED and f
     otsBitcoinTxid: "c".repeat(64),
     otsAnchorCheck: "BITCOIN_VERIFIED",
     otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z",
+    ...OTS_CHAIN,
   });
   assert.equal(anchoring(d).state, "PASSED");
   assert.equal(anchoring(d).measuredAtUtc, "2026-10-01T03:00:00.000Z");

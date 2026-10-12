@@ -16,6 +16,17 @@ import {
   parseVerificationMatrix,
 } from "../dist/index.js";
 
+/** A complete recorded chain check (test values; not a real verification). */
+const OTS_CHAIN = {
+  otsChainVerificationStatus: "VERIFIED",
+  otsChainVerifiedAtUtc: "2026-10-01T03:00:00.000Z",
+  otsChainBlockHeight: 970507,
+  otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+  otsChainBlockTimeUtc: "2026-10-01T01:24:48.000Z",
+  otsChainConfirmations: 6,
+  otsChainVerifier: "test-double/1",
+};
+
 const forensic = Array.from({ length: 6 }, (_, i) => ({
   eventType: `FORENSIC_${i}`,
   category: "forensic",
@@ -99,8 +110,9 @@ test("an unchecked OTS proof is NOT_CHECKED — never verified, passed or scored
     const m = matrix({ evidence: { otsAnchorCheck } });
     const ots = rowOf(m, "ots_anchoring");
     assert.equal(ots.status, "NOT_CHECKED");
-    assert.match(ots.statement, /PROOVRA has not checked the proof against the Bitcoin chain/);
-    assert.doesNotMatch(ots.statement, /verified against the Bitcoin chain/);
+    assert.match(ots.statement, /not independently verified against the Bitcoin blockchain/);
+    assert.match(ots.statement, /No independent Bitcoin verification result is recorded\./);
+    assert.doesNotMatch(ots.statement, /attestation independently verified|anchored/i);
     const json = JSON.stringify(m);
     assert.doesNotMatch(json, /"(points|maxPoints|score|verdict)"/);
     assert.deepEqual(findForbiddenCustomerClaims(json), []);
@@ -108,7 +120,9 @@ test("an unchecked OTS proof is NOT_CHECKED — never verified, passed or scored
   // Pending and stale are not checked either.
   assert.equal(statusOf(matrix({ evidence: { otsStatus: "PENDING", otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null, otsProofPresent: true, otsSubmittedAtUtc: new Date().toISOString() } }), "ots_anchoring"), "NOT_CHECKED");
   // Only a recorded chain check with a txid is VERIFIED.
-  assert.equal(statusOf(matrix({ evidence: { otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z" } }), "ots_anchoring"), "VERIFIED");
+  assert.equal(statusOf(matrix({ evidence: { otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z", ...OTS_CHAIN } }), "ots_anchoring"), "VERIFIED");
+  // A recorded check without its chain evidence is NOT_CHECKED (2026-10-12).
+  assert.equal(statusOf(matrix({ evidence: { otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z" } }), "ots_anchoring"), "NOT_CHECKED");
 });
 
 test("genuinely verified integrity, custody, record signature and TSA stay VERIFIED", () => {
@@ -265,14 +279,14 @@ test("OTS projection per state: pending, present, verified, failed and not reque
   const pending = ots({ otsStatus: "PENDING", otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null, otsProofPresent: false, otsSubmittedAtUtc: new Date().toISOString() });
   assert.equal(pending.status, "NOT_CHECKED");
   assert.match(pending.statement, /Bitcoin anchoring is pending/);
-  assert.match(pending.statement, /has not been independently chain-verified/);
+  assert.match(pending.statement, /has not been independently verified against the Bitcoin blockchain/);
   assert.doesNotMatch(pending.statement, /verified against the Bitcoin chain|anchored in Bitcoin/i);
 
   const present = ots({});
   assert.equal(present.status, "NOT_CHECKED");
-  assert.match(present.statement, /not independently chain-verified/);
+  assert.match(present.statement, /not independently verified against the Bitcoin blockchain/);
 
-  assert.equal(ots({ otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z" }).status, "VERIFIED");
+  assert.equal(ots({ otsAnchorCheck: "BITCOIN_VERIFIED", otsAnchorCheckedAtUtc: "2026-10-01T03:00:00Z", ...OTS_CHAIN }).status, "VERIFIED");
 
   const failedMatrix = matrix({ evidence: { otsStatus: "FAILED", otsAnchoredAtUtc: null, otsBitcoinTxid: null, otsAnchorCheck: null, otsFailureReason: "calendar unreachable" } });
   const failed = rowOf(failedMatrix, "ots_anchoring");

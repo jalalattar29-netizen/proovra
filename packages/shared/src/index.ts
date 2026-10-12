@@ -498,7 +498,38 @@ export type {
   OtsAnchorCheck,
   OtsAnchorClaim,
   OtsAnchorCompletenessInput,
+  OtsChainEvidenceInput,
 } from "./ots.js";
+export { isCompleteOtsChainEvidence } from "./ots.js";
+export {
+  OTS_CHAIN_FAILURE_CODES,
+  OTS_CHAIN_VERIFICATION_STATUSES,
+  OTS_NOT_INDEPENDENTLY_VERIFIED,
+  OTS_PROOF_RECORDED_AT_LABEL,
+  OTS_REPORTED_BY_PROOF_QUALIFIER,
+  OTS_TRUTH_STATES,
+  completeOtsChainEvidence,
+  isOtsChainVerified,
+  normalizeOtsChainVerificationStatus,
+  resolveOtsTruth,
+} from "./ots-truth.js";
+export type {
+  OtsChainEvidence,
+  OtsChainFailureCode,
+  OtsChainVerificationStatus,
+  OtsTruth,
+  OtsTruthInput,
+  OtsTruthState,
+} from "./ots-truth.js";
+export {
+  OtsDigestBindingError,
+  OtsProofParseError,
+  assertOtsDigestBinding,
+  checkOtsDigestBinding,
+  decodeOtsProofBase64,
+  parseOtsProof,
+} from "./ots-proof.js";
+export type { OtsDigestAlgorithm, OtsDigestBinding, OtsProofAttestation, ParsedOtsProof } from "./ots-proof.js";
 
 export type { VerificationPackageMetadata } from "./verification-package-metadata.js";
 

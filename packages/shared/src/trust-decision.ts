@@ -3,6 +3,7 @@ import {
   type CustodyEventCategory,
 } from "./custody.js";
 import { normalizeOtsAnchorCheck } from "./ots.js";
+import { checkOtsDigestBinding } from "./ots-proof.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
@@ -165,9 +166,9 @@ export function getTrustSignalPresentationLabel(
 function getAnchoringStateLabel(state: TrustAnchoringState): string {
   switch (state) {
     case "finalized":
-      return "Anchored in Bitcoin; verified against the Bitcoin chain";
+      return "Bitcoin attestation independently verified against the Bitcoin blockchain";
     case "present_not_verified":
-      return "Anchoring proof present; not independently chain-verified";
+      return "Bitcoin attestation present; not independently verified against the Bitcoin blockchain";
     case "stale":
       return "Anchoring state unknown (pending longer than expected)";
     case "pending":
@@ -245,6 +246,23 @@ export type TrustDecisionEvidenceInput = {
   /** When the proof was requested; drives STALE for a long-pending proof. */
   otsSubmittedAtUtc?: string | null;
   otsUpgradedAtUtc?: string | null;
+  /**
+   * (2026-10-12) The proof bytes, when the caller holds them: the anchoring
+   * signal is FAILED unless the proof commits to the fingerprint digest.
+   */
+  otsProofBase64?: string | null;
+  /** evidence.ots_attestation_* / ots_chain_* — the OTS truth inputs. */
+  otsAttestationRecordedAtUtc?: string | null;
+  otsAttestationBlockHeight?: number | null;
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: string | null;
+  otsChainVerifiedAtUtc?: string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
   /**
    * The result of verifying the Ed25519 signature over the recomputed
    * fingerprint IN THE EVALUATION that builds this decision. Omitted/null:
@@ -664,20 +682,38 @@ function buildAnchoringSignal(
     // the record is never "verified". Passed whenever the caller supplied the
     // field (null = known to be absent).
     ...(evidence.otsBitcoinTxid !== undefined ? { bitcoinTxid: evidence.otsBitcoinTxid } : {}),
+    truth: {
+      attestationRecordedAtUtc: evidence.otsAttestationRecordedAtUtc ?? null,
+      attestationBlockHeight: evidence.otsAttestationBlockHeight ?? null,
+      chainVerificationStatus: evidence.otsChainVerificationStatus ?? null,
+      chainCheckedAtUtc: evidence.otsChainCheckedAtUtc ?? null,
+      chainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc ?? null,
+      chainBlockHeight: evidence.otsChainBlockHeight ?? null,
+      chainBlockHash: evidence.otsChainBlockHash ?? null,
+      chainBlockTimeUtc: evidence.otsChainBlockTimeUtc ?? null,
+      chainConfirmations: evidence.otsChainConfirmations ?? null,
+      chainVerifier: evidence.otsChainVerifier ?? null,
+      chainFailureCode: evidence.otsChainFailureCode ?? null,
+      digestBinding: evidence.otsProofBase64
+        ? checkOtsDigestBinding({
+            proofBase64: evidence.otsProofBase64,
+            fingerprintHash: evidence.fingerprintHash ?? null,
+            otsHash: evidence.otsHash ?? null,
+          })
+        : null,
+    },
   });
 
   const detail: Readonly<Record<TrustSignalState, string>> = {
-    PASSED: ots.measuredAtUtc
-      ? `The OpenTimestamps proof was verified against the Bitcoin chain (check recorded ${ots.measuredAtUtc}).`
-      : "The OpenTimestamps proof was verified against the Bitcoin chain (the time of the check was not recorded).",
+    PASSED: `The OpenTimestamps proof was independently verified against the Bitcoin blockchain (verified ${ots.measuredAtUtc ?? "at an unrecorded time"}).`,
     PRESENT_NOT_INDEPENDENTLY_VERIFIED:
-      "An OpenTimestamps proof with a Bitcoin block attestation is recorded, but the attestation has not been independently checked against the Bitcoin chain. Bitcoin anchoring is therefore not claimed as verified.",
+      "The OpenTimestamps proof carries a Bitcoin attestation for this record's fingerprint digest. It has not been independently verified against the Bitcoin blockchain, so no Bitcoin anchor is claimed.",
     NOT_CHECKED: "The anchoring proof was not checked in this evaluation.",
     PENDING: "OpenTimestamps proof material is present, but Bitcoin anchoring has not finalized yet.",
     STALE:
       "The OpenTimestamps proof has been pending for longer than Bitcoin anchoring normally takes; its current state is not known and is not claimed.",
     UNAVAILABLE: "Anchoring was not recorded for this evidence record.",
-    FAILED: "OpenTimestamps anchoring processing reported a failure state.",
+    FAILED: "The OpenTimestamps proof is unusable for this record, or an independent Bitcoin check did not verify it.",
     NOT_APPLICABLE: "",
   };
 
@@ -1125,8 +1161,8 @@ const TRUST_LAYER_STATE_LABELS: Readonly<
     UNAVAILABLE: "Not obtained",
   },
   bitcoin_anchoring: {
-    PASSED: "Anchored, chain-verified",
-    PRESENT_NOT_INDEPENDENTLY_VERIFIED: "Proof present, not chain-verified",
+    PASSED: "Independently verified",
+    PRESENT_NOT_INDEPENDENTLY_VERIFIED: "Attestation present, not verified",
     PENDING: "Pending",
     STALE: "State unknown",
     FAILED: "Failed",

@@ -3,6 +3,7 @@ import {
   OTS_ANCHOR_CLAIM_LABELS,
   resolveOtsAnchorClaim,
 } from "./ots.js";
+import type { OtsChainEvidenceInput } from "./ots.js";
 
 export type AnchorSemanticsInput = {
   transactionId?: string | null;
@@ -11,6 +12,8 @@ export type AnchorSemanticsInput = {
   otsProofPresent?: boolean | null;
   /** How the anchor was established: BITCOIN_VERIFIED | PROOF_STRUCTURE | null (not recorded). */
   otsAnchorCheck?: string | null;
+  /** evidence.ots_chain_* — required before anything reads as verified. */
+  chain?: OtsChainEvidenceInput | null;
   evidenceId?: string | null;
 };
 
@@ -68,6 +71,7 @@ export function deriveAnchorSemantics(
           anchorCheck: input.otsAnchorCheck ?? null,
           proofPresent: input.otsProofPresent ?? null,
           bitcoinTxid,
+          chain: input.chain ?? null,
         });
   const publicAnchoringVerified = claim === "VERIFIED";
   const anchorMode: AnchorSemantics["anchorMode"] =

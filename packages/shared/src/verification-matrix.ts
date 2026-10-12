@@ -183,18 +183,18 @@ function signalRow(
  *   UNAVAILABLE         not requested / not available            UNAVAILABLE
  *   PENDING, STALE      request accepted, upgrade pending         NOT_CHECKED
  *   PRESENT / NOT_CHECKED  proof present, chain not checked       NOT_CHECKED
- *   PASSED              independently chain-verified              VERIFIED
+ *   PASSED              independently verified against Bitcoin    VERIFIED
  *   FAILED              the OTS operation failed                  FAILED
  */
 export function otsMatrixStatement(state: TrustSignalState, summary: string): string {
   switch (state) {
     case "PENDING":
-      return "Bitcoin anchoring is pending: the OpenTimestamps request was accepted and its Bitcoin attestation has not completed. It has not been independently chain-verified.";
+      return "Bitcoin anchoring is pending: the OpenTimestamps request was accepted and its Bitcoin attestation has not completed. It has not been independently verified against the Bitcoin blockchain.";
     case "STALE":
-      return "Bitcoin anchoring has been pending longer than expected; its current state is not known. It has not been independently chain-verified.";
+      return "Bitcoin anchoring has been pending longer than expected; its current state is not known. It has not been independently verified against the Bitcoin blockchain.";
     case "PRESENT_NOT_INDEPENDENTLY_VERIFIED":
     case "NOT_CHECKED":
-      return `${summary.replace(/\.$/, "")}. PROOVRA has not checked the proof against the Bitcoin chain; no trusted Bitcoin verifier result is recorded.`;
+      return `${summary.replace(/\.$/, "")}. No independent Bitcoin verification result is recorded.`;
     case "FAILED":
       return `${summary.replace(/\.$/, "")}. This concerns Bitcoin anchoring only; it does not change the file-integrity, signature or custody checks.`;
     case "UNAVAILABLE":

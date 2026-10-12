@@ -17,6 +17,8 @@
  */
 import { resolveAcquisitionIdentitySnapshot, type AcquisitionIdentitySnapshot } from "./acquisition-identity.js";
 import { normalizeOtsAnchorCheck } from "./ots.js";
+import { checkOtsDigestBinding, type OtsDigestBinding } from "./ots-proof.js";
+import { resolveOtsTruth, type OtsTruthState } from "./ots-truth.js";
 import { presentedTsaStatus } from "./tsa-validation-state.js";
 import {
   TSA_VALIDATED_QUALIFICATION_STATEMENT,
@@ -41,6 +43,25 @@ export type CanonicalFactsSource = {
   otsBitcoinTxid?: string | null;
   otsProofPresent?: boolean | null;
   otsUpgradedAtUtc?: Date | string | null;
+  /**
+   * (2026-10-12) The digest every OTS proof must commit to, the record's OTS
+   * hash and the proof bytes. With the bytes present the binding is read from
+   * them; a proof bound to another digest is PROOF_INVALID whatever the status.
+   */
+  fingerprintHash?: string | null;
+  otsHash?: string | null;
+  otsProofBase64?: string | null;
+  otsAttestationRecordedAtUtc?: Date | string | null;
+  otsAttestationBlockHeight?: number | null;
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: Date | string | null;
+  otsChainVerifiedAtUtc?: Date | string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: Date | string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
   acquisitionMode?: string | null;
   identityLevelSnapshot?: string | null;
   submittedByAuthProvider?: string | null;
@@ -55,6 +76,10 @@ export type CanonicalArtifactFacts = {
   evidenceFileSha256: string | null;
   tsaState: TrustSignalState;
   otsState: TrustSignalState;
+  /** The OTS truth state (ots-truth.ts) — what every surface may say. */
+  otsTruthState: OtsTruthState;
+  /** The proof's digest binding; NOT_EVALUATED when the bytes were not supplied. */
+  otsDigestBinding: OtsDigestBinding["kind"] | "NOT_EVALUATED";
   acquisition: AcquisitionIdentitySnapshot;
 };
 
@@ -72,7 +97,40 @@ export function deriveCanonicalArtifactFacts(source: CanonicalFactsSource, custo
   });
   const anchorCheck = normalizeOtsAnchorCheck(source.otsAnchorCheck ?? null);
   const custody = resolveOtsCustodyFacts(custodyEvents, anchorCheck);
+  const binding =
+    source.otsProofBase64 !== undefined
+      ? checkOtsDigestBinding({
+          proofBase64: source.otsProofBase64 ?? null,
+          fingerprintHash: source.fingerprintHash ?? null,
+          otsHash: source.otsHash ?? null,
+        })
+      : null;
+  const truthInputs = {
+    attestationRecordedAtUtc: source.otsAttestationRecordedAtUtc ?? null,
+    attestationBlockHeight: source.otsAttestationBlockHeight ?? null,
+    chainVerificationStatus: source.otsChainVerificationStatus ?? null,
+    chainCheckedAtUtc: source.otsChainCheckedAtUtc ?? null,
+    chainVerifiedAtUtc: source.otsChainVerifiedAtUtc ?? null,
+    chainBlockHeight: source.otsChainBlockHeight ?? null,
+    chainBlockHash: source.otsChainBlockHash ?? null,
+    chainBlockTimeUtc: source.otsChainBlockTimeUtc ?? null,
+    chainConfirmations: source.otsChainConfirmations ?? null,
+    chainVerifier: source.otsChainVerifier ?? null,
+    chainFailureCode: source.otsChainFailureCode ?? null,
+    digestBinding: binding,
+  };
+  const truth = resolveOtsTruth({
+    ...truthInputs,
+    status: source.otsStatus ?? null,
+    anchoredAtUtc: source.otsAnchoredAtUtc ?? null,
+    anchorCheck,
+    bitcoinTxid: source.otsBitcoinTxid ?? null,
+    proofPresent: source.otsProofPresent ?? null,
+    upgradedAtUtc: source.otsUpgradedAtUtc ?? null,
+    submittedAtUtc: custody.submittedAtUtc,
+  });
   const ots = resolveOtsTrustState({
+    truth: truthInputs,
     status: source.otsStatus ?? null,
     anchoredAtUtc: source.otsAnchoredAtUtc ?? null,
     anchorCheck,
@@ -86,6 +144,8 @@ export function deriveCanonicalArtifactFacts(source: CanonicalFactsSource, custo
     evidenceFileSha256: source.fileSha256 ? source.fileSha256.toLowerCase() : null,
     tsaState: tsa.state,
     otsState: ots.state,
+    otsTruthState: truth.state,
+    otsDigestBinding: binding ? binding.kind : "NOT_EVALUATED",
     acquisition: resolveAcquisitionIdentitySnapshot({
       custodyEvents,
       row: source,
@@ -104,6 +164,9 @@ export function compareCanonicalFacts(record: CanonicalArtifactFacts, rendered: 
   const out: CanonicalFactsFinding[] = [];
   if (record.tsaState !== rendered.tsaState) out.push({ check: "TSA_STATE", detail: `record ${record.tsaState}, payload ${rendered.tsaState}` });
   if (record.otsState !== rendered.otsState) out.push({ check: "OTS_STATE", detail: `record ${record.otsState}, payload ${rendered.otsState}` });
+  if (record.otsTruthState !== rendered.otsTruthState) {
+    out.push({ check: "OTS_TRUTH", detail: `record ${record.otsTruthState}, payload ${rendered.otsTruthState}` });
+  }
   if (record.evidenceFileSha256 !== rendered.evidenceFileSha256) out.push({ check: "EVIDENCE_DIGEST", detail: "payload digest differs from the record" });
   for (const k of ["basis", "actorKind", "accountRole", "identityLevel", "authProvider", "emailVerified", "workspaceKind", "organizationVerified"] as const) {
     if (record.acquisition[k] !== rendered.acquisition[k]) {
@@ -174,7 +237,19 @@ export function compareIssuanceFactsToRecord(issuance: CanonicalArtifactFacts, l
 }
 
 /** Phrases that state a STRONGER fact than PRESENT / PENDING / FAILED. */
-const OTS_VERIFIED_PHRASES = ["Anchored in Bitcoin; verified against the Bitcoin chain", "Anchored, chain-verified"];
+const OTS_VERIFIED_PHRASES = ["Bitcoin attestation independently verified", "Independently verified against the Bitcoin blockchain"];
+/**
+ * (2026-10-12) Retired OTS wording no report may print in any state: it calls a
+ * recorded proof "anchored" and the worker's recording time "anchored at".
+ */
+const OTS_RETIRED_PHRASES = [
+  /anchored to a Bitcoin block/i,
+  /\bOTS Anchored At\b/i,
+  /Anchored in Bitcoin/i,
+  /not independently chain-verified/i,
+  /chain-verified/i,
+];
+const OTS_NOT_VERIFIED_STATEMENT = "not independently verified against the Bitcoin blockchain";
 const TSA_VALIDATED_PHRASES = ["RFC 3161 timestamp validated", TSA_VALIDATED_QUALIFICATION_STATEMENT];
 /** Raw codes that must never reach a reader. */
 const RAW_CODES = /\b(ORGANIZATION_ACCOUNT|VERIFIED_EMAIL|BITCOIN_VERIFIED|PROOF_STRUCTURE|PRESENT_NOT_INDEPENDENTLY_VERIFIED|OBSERVED_AT_CAPTURE|RECORDED_ON_RECORD|INTAKE_CONTRIBUTOR|INTAKE_LINK_ISSUER|ACCOUNT_USER|GUEST_SESSION|tsa_[a-z_]+)\b/;
@@ -197,8 +272,12 @@ export function checkRenderedReportText(
   if (facts.otsState !== "PASSED") {
     for (const p of OTS_VERIFIED_PHRASES) if (text.includes(p)) out.push({ check: "OTS_OVERCLAIM", detail: `states "${p}" while anchoring is ${facts.otsState}` });
   }
-  if (facts.otsState === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" && !/not independently (?:checked|chain-verified)/.test(text)) {
-    out.push({ check: "OTS_PRESENT", detail: "does not say the anchoring proof is not independently chain-verified" });
+  if (facts.otsState === "PRESENT_NOT_INDEPENDENTLY_VERIFIED" && !text.toLowerCase().includes(OTS_NOT_VERIFIED_STATEMENT.toLowerCase())) {
+    out.push({ check: "OTS_PRESENT", detail: "does not say the Bitcoin attestation is not independently verified against the Bitcoin blockchain" });
+  }
+  for (const p of OTS_RETIRED_PHRASES) {
+    const m = text.match(p);
+    if (m) out.push({ check: "OTS_RETIRED_WORDING", detail: `states "${m[0]}"` });
   }
   if (facts.tsaState === "PASSED") {
     for (const p of TSA_VALIDATED_PHRASES) if (!text.includes(norm(p))) out.push({ check: "TSA_VALIDATED", detail: `does not state "${p}"` });

@@ -15,8 +15,10 @@
  *   SUBMITTED            a calendar proof exists; no upgrade toward a Bitcoin
  *                        anchor has been attempted yet
  *   PENDING              upgrade attempted; Bitcoin anchoring still pending
- *   ANCHORED_UNVERIFIED  recorded as anchored, the Bitcoin chain was NOT checked
- *   VERIFIED             anchored AND verified against the Bitcoin chain
+ *   ANCHORED_UNVERIFIED  the proof carries a Bitcoin attestation; it was NOT
+ *                        independently verified against the Bitcoin chain
+ *   VERIFIED             independently verified against the Bitcoin chain, with
+ *                        the chain evidence recorded
  *   FAILED               the proof is established to be unusable
  *   STALE_UNKNOWN        pending for longer than anchoring takes: the current
  *                        state is not known and is not claimed
@@ -29,7 +31,7 @@
  * Only VALIDATED may be shown as an applied/trusted timestamp. A legacy token
  * kept without validation is "Recorded, not validated" — never "Applied".
  */
-import { resolveOtsAnchorClaim } from "./ots.js";
+import { resolveOtsAnchorClaim, type OtsChainEvidenceInput } from "./ots.js";
 import { presentedTsaStatus, TSA_RECORDED_NOT_VALIDATED } from "./tsa-validation-state.js";
 
 export const OTS_PROOF_STATUSES = [
@@ -70,6 +72,8 @@ export type OtsProofStatusInput = {
   submittedAtUtc?: Date | string | null;
   now?: Date;
   staleAfterDays?: number;
+  /** evidence.ots_chain_* — VERIFIED requires it (see resolveOtsAnchorClaim). */
+  chain?: OtsChainEvidenceInput | null;
 };
 
 export function resolveOtsProofStatus(input: OtsProofStatusInput): OtsProofStatus {
@@ -78,6 +82,7 @@ export function resolveOtsProofStatus(input: OtsProofStatusInput): OtsProofStatu
     anchoredAtUtc: input.anchoredAtUtc,
     anchorCheck: input.anchorCheck,
     proofPresent: input.proofPresent ?? null,
+    chain: input.chain ?? null,
     ...("bitcoinTxid" in input ? { bitcoinTxid: input.bitcoinTxid ?? null } : {}),
   });
   switch (claim) {
@@ -109,8 +114,8 @@ export const OTS_PROOF_STATUS_LABELS: Readonly<Record<OtsProofStatus, string>> =
   NOT_REQUESTED: "Not requested",
   SUBMITTED: "Submitted to OpenTimestamps calendars; Bitcoin anchoring not yet attempted",
   PENDING: "Bitcoin anchoring pending",
-  ANCHORED_UNVERIFIED: "Recorded as anchored; not checked against the Bitcoin chain",
-  VERIFIED: "Anchored in Bitcoin and verified",
+  ANCHORED_UNVERIFIED: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+  VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
   FAILED: "Anchoring failed",
   STALE_UNKNOWN: "Anchoring state unknown (pending longer than expected)",
 };
@@ -122,8 +127,8 @@ export const OTS_PROOF_STATUS_BADGES: Readonly<
   NOT_REQUESTED: { label: "Not requested", tone: "neutral" },
   SUBMITTED: { label: "Submitted", tone: "info" },
   PENDING: { label: "Pending", tone: "warning" },
-  ANCHORED_UNVERIFIED: { label: "Anchored · chain not checked", tone: "info" },
-  VERIFIED: { label: "Anchored · verified", tone: "success" },
+  ANCHORED_UNVERIFIED: { label: "Attestation present · not verified", tone: "info" },
+  VERIFIED: { label: "Independently verified", tone: "success" },
   FAILED: { label: "Failed", tone: "warning" },
   STALE_UNKNOWN: { label: "State unknown", tone: "neutral" },
 };

@@ -7,6 +7,17 @@ import {
   toVerificationStatus,
 } from "../dist/index.js";
 
+/** A complete recorded chain check (test values; not a real verification). */
+const OTS_CHAIN = {
+  otsChainVerificationStatus: "VERIFIED",
+  otsChainVerifiedAtUtc: "2026-10-01T03:00:00.000Z",
+  otsChainBlockHeight: 970507,
+  otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+  otsChainBlockTimeUtc: "2026-10-01T01:24:48.000Z",
+  otsChainConfirmations: 6,
+  otsChainVerifier: "test-double/1",
+};
+
 function buildForensicEvent(index) {
   return {
     eventType: `FORENSIC_EVENT_${index}`,
@@ -178,6 +189,7 @@ test("an attested proof with a txid is present, not passed, until the chain chec
         otsBitcoinTxid: "c".repeat(64),
         otsAnchoredAtUtc: "2026-05-02T11:00:00.000Z",
         otsAnchorCheck,
+        ...(otsAnchorCheck === "BITCOIN_VERIFIED" ? OTS_CHAIN : {}),
       }),
       custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
     }).signals.find((signal) => signal.key === "bitcoin_anchoring");
@@ -258,6 +270,7 @@ test("finalized publication requires a validated timestamp and a chain-verified 
         otsBitcoinTxid: "c".repeat(64),
         otsAnchoredAtUtc: "2026-05-02T11:00:00.000Z",
         otsAnchorCheck,
+        ...(otsAnchorCheck === "BITCOIN_VERIFIED" ? OTS_CHAIN : {}),
         signatureVerified: true,
         custodyChainValid: true,
       }),
@@ -285,7 +298,7 @@ test("finalized publication requires a validated timestamp and a chain-verified 
   // The same record with a structure-only anchor is NOT finalized.
   const unchecked = decide("PROOF_STRUCTURE");
   assert.notEqual(unchecked.presentationState, "VERIFIED_FINALIZED");
-  assert.match(unchecked.anchoringStatusLabel, /not independently chain-verified/);
+  assert.match(unchecked.anchoringStatusLabel, /not independently verified against the Bitcoin blockchain/);
   assert.match(unchecked.summary, /Any signal marked NOT_CHECKED was not independently verified\./);
   assert.match(unchecked.reviewerAction, /verify the OpenTimestamps proof against the Bitcoin chain yourself/);
 });
@@ -351,6 +364,7 @@ test("valid txid with matching ots hash passes anchoring only with a recorded ch
         otsBitcoinTxid: "c".repeat(64),
         otsAnchoredAtUtc: "2026-05-02T11:00:00.000Z",
         otsAnchorCheck: "BITCOIN_VERIFIED",
+        ...OTS_CHAIN,
       }),
       custodyEvents: [buildForensicEvent(1), buildForensicEvent(2), buildForensicEvent(3)],
     }).signals.find((signal) => signal.key === "bitcoin_anchoring");
