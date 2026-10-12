@@ -79,13 +79,15 @@ export function tsaLabel(t: ArtifactTrust["tsa"] | null | undefined): TruthFact 
 
 export function otsLabel(o: ArtifactTrust["ots"] | null | undefined): TruthFact {
   if (!o) return { label: "Not available", tone: "neutral", state: null, status: "UNAVAILABLE", measuredAtUtc: null };
-  // An attested proof is "present, not chain-verified"; only a recorded chain
-  // check is verified (resolveOtsTrustState).
+  // An attested proof is "present, not independently verified"; only recorded
+  // chain evidence is verified (resolveOtsTrustState).
   const s = resolveOtsTrustState({
     status: o.status,
     anchoredAtUtc: o.anchoredAtUtc,
     anchorCheck: o.anchorCheck,
     anchorCheckedAtUtc: o.anchorCheckedAtUtc ?? null,
+    // The recorded chain evidence; without it nothing reads as verified.
+    chain: o,
   });
   return {
     label: getTrustLayerStateLabel({ key: "bitcoin_anchoring", status: TRUST_SIGNAL_STATE_PRESENTATION[s.state].legacyStatus, state: s.state }),
@@ -107,9 +109,9 @@ export function tsaNote(t: ReturnType<typeof tsaLabel>, fmt: (v: string) => stri
 
 export function otsNote(o: ReturnType<typeof otsLabel>, fmt: (v: string) => string): string | null {
   if (!o.measuredAtUtc) return null;
-  if (o.state === "PASSED") return `Checked against the Bitcoin chain ${fmt(o.measuredAtUtc)}`;
+  if (o.state === "PASSED") return `Independently verified against the Bitcoin blockchain ${fmt(o.measuredAtUtc)}`;
   if (o.state === "PRESENT_NOT_INDEPENDENTLY_VERIFIED") {
-    return `Proof structure checked ${fmt(o.measuredAtUtc)}; not checked against the Bitcoin chain`;
+    return `Bitcoin attestation recorded ${fmt(o.measuredAtUtc)}; not independently verified against the Bitcoin blockchain`;
   }
   return null;
 }

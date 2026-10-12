@@ -74,6 +74,14 @@ type EvidenceIntelligenceInput = {
     /** 2026-09-29: the one OTS claim needs the anchor time and how it was established. */
     otsAnchoredAtUtc?: Date | string | null;
     otsAnchorCheck?: string | null;
+    /** (2026-10-12) evidence.ots_chain_* — VERIFIED requires them. */
+    otsChainVerificationStatus?: string | null;
+    otsChainVerifiedAtUtc?: Date | string | null;
+    otsChainBlockHeight?: number | null;
+    otsChainBlockHash?: string | null;
+    otsChainBlockTimeUtc?: Date | string | null;
+    otsChainConfirmations?: number | null;
+    otsChainVerifier?: string | null;
     reportGeneratedAtUtc: Date | string | null;
     verificationPackageGeneratedAtUtc: Date | string | null;
     latestReportVersion: number | null;
@@ -544,6 +552,15 @@ export function buildVerificationProof(params: EvidenceIntelligenceInput["eviden
     status: params.otsStatus,
     anchoredAtUtc: params.otsAnchoredAtUtc ?? null,
     anchorCheck: params.otsAnchorCheck ?? null,
+    chain: {
+      chainVerificationStatus: params.otsChainVerificationStatus ?? null,
+      chainVerifiedAtUtc: params.otsChainVerifiedAtUtc ?? null,
+      chainBlockHeight: params.otsChainBlockHeight ?? null,
+      chainBlockHash: params.otsChainBlockHash ?? null,
+      chainBlockTimeUtc: params.otsChainBlockTimeUtc ?? null,
+      chainConfirmations: params.otsChainConfirmations ?? null,
+      chainVerifier: params.otsChainVerifier ?? null,
+    },
   });
   const rawOts = normalizeOtsStatusValue(params.otsStatus);
   const otsStatus: EvidenceIntelligence["verificationProof"]["otsStatus"] =
@@ -863,12 +880,15 @@ function buildLibrarySummary(params: {
   outputs: EvidenceIntelligenceOutputs;
   anchorClaim: OtsAnchorClaim;
 }): EvidenceIntelligence["librarySummary"] {
-  // An anchor RECORDED counts as prepared; chain verification is not a
-  // preparation step this deployment can take. A disabled deployment
-  // (UNAVAILABLE) leaves the denominator rather than scoring zero.
+  // (2026-10-12) Only an anchor VERIFIED against the Bitcoin chain earns the
+  // point. An attestation that was not independently verified earns nothing
+  // and costs nothing: it leaves the denominator, exactly like a disabled
+  // deployment (UNAVAILABLE) does. A pending or failed proof scores zero.
   const signals: number[] = [params.chainValid ? 1 : 0];
-  if (params.anchorClaim !== "UNAVAILABLE") {
-    signals.push(isAnchorRecordedClaim(params.anchorClaim) ? 1 : 0);
+  if (params.anchorClaim === "VERIFIED") {
+    signals.push(1);
+  } else if (params.anchorClaim !== "UNAVAILABLE" && params.anchorClaim !== "ANCHORED_NOT_CHECKED") {
+    signals.push(0);
   }
   if (outputParticipatesInReadinessScore(params.outputs.report.state)) {
     signals.push(params.outputs.report.state === "READY" ? 1 : 0);
@@ -907,13 +927,34 @@ function formatNullableDate(value: Date | string | null | undefined): string | n
  * or an anchored-at time on the anchor summary is anchor material, not a check.
  */
 function anchorClaimFor(params: {
-  evidence: { otsStatus: string | null; otsAnchoredAtUtc?: Date | string | null; otsAnchorCheck?: string | null };
+  evidence: Pick<
+    EvidenceIntelligenceInput["evidence"],
+    | "otsStatus"
+    | "otsAnchoredAtUtc"
+    | "otsAnchorCheck"
+    | "otsChainVerificationStatus"
+    | "otsChainVerifiedAtUtc"
+    | "otsChainBlockHeight"
+    | "otsChainBlockHash"
+    | "otsChainBlockTimeUtc"
+    | "otsChainConfirmations"
+    | "otsChainVerifier"
+  >;
   anchor?: { anchoredAtUtc?: Date | string | null } | null;
 }): OtsAnchorClaim {
   return resolveOtsAnchorClaim({
     status: params.evidence.otsStatus,
     anchoredAtUtc: params.evidence.otsAnchoredAtUtc ?? params.anchor?.anchoredAtUtc ?? null,
     anchorCheck: params.evidence.otsAnchorCheck ?? null,
+    chain: {
+      chainVerificationStatus: params.evidence.otsChainVerificationStatus ?? null,
+      chainVerifiedAtUtc: params.evidence.otsChainVerifiedAtUtc ?? null,
+      chainBlockHeight: params.evidence.otsChainBlockHeight ?? null,
+      chainBlockHash: params.evidence.otsChainBlockHash ?? null,
+      chainBlockTimeUtc: params.evidence.otsChainBlockTimeUtc ?? null,
+      chainConfirmations: params.evidence.otsChainConfirmations ?? null,
+      chainVerifier: params.evidence.otsChainVerifier ?? null,
+    },
   });
 }
 

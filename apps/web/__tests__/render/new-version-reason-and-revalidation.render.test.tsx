@@ -441,11 +441,11 @@ describe("artifact truth header", () => {
     expect(getByTestId("truth-freshness").textContent).toContain("New verification facts are available");
     expect(getByTestId("truth-tsa").textContent).toBe("Validated");
     // A structure-only anchor is a PRESENT proof, never "Anchored" (canonical state).
-    expect(getByTestId("truth-ots").textContent).toBe("Proof present, not chain-verified");
+    expect(getByTestId("truth-ots").textContent).toBe("Attestation present, not verified");
     // Its date is the proof-structure check, never a chain check.
     const presentNote = getByTestId("truth-ots-measured").textContent ?? "";
-    expect(presentNote).toContain("Proof structure checked");
-    expect(presentNote).toContain("not checked against the Bitcoin chain");
+    expect(presentNote).toContain("Bitcoin attestation recorded");
+    expect(presentNote).toContain("not independently verified against the Bitcoin blockchain");
     expect(presentNote).not.toContain("Checked against the Bitcoin chain");
     // 2026-10-08 — the canonical status is stated beside each fact: a present
     // but unchecked proof is NOT_CHECKED, never verified.
@@ -455,7 +455,22 @@ describe("artifact truth header", () => {
     rerender(
       <ArtifactTruthHeader
         latest={history.versions[1]!}
-        trust={{ ...trust, ots: { ...trust.ots, anchorCheck: "BITCOIN_VERIFIED", anchorCheckedAtUtc: "2026-10-06T10:00:00.000Z" } }}
+        trust={{
+          ...trust,
+          ots: {
+            ...trust.ots,
+            anchorCheck: "BITCOIN_VERIFIED",
+            anchorCheckedAtUtc: "2026-10-06T10:00:00.000Z",
+            // (2026-10-12) Verified means the recorded chain evidence.
+            chainVerificationStatus: "VERIFIED",
+            chainVerifiedAtUtc: "2026-10-06T10:00:00.000Z",
+            chainBlockHeight: 970507,
+            chainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+            chainBlockTimeUtc: "2026-10-06T09:24:48.000Z",
+            chainConfirmations: 6,
+            chainVerifier: "test-double/1",
+          },
+        }}
         freshness={freshness}
         activeRequest={null}
         formatDateTime={fmt}
@@ -463,7 +478,7 @@ describe("artifact truth header", () => {
         actions={null}
       />,
     );
-    expect(getByTestId("truth-ots-measured").textContent).toContain("Checked against the Bitcoin chain");
+    expect(getByTestId("truth-ots-measured").textContent).toContain("Independently verified against the Bitcoin blockchain");
     expect(getByTestId("truth-ots-status").textContent).toBe("VERIFIED");
     rerender(
       <ArtifactTruthHeader latest={history.versions[0]!} trust={trust} freshness={{ ...freshness, reportVersion: 2, hasNewerFacts: false, changes: [] }} activeRequest={null} formatDateTime={fmt} formatBytes={fmt} actions={null} />,

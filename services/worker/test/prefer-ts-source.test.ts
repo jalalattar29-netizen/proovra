@@ -61,7 +61,18 @@ describe("tests run the TypeScript source, not a compiled sibling", () => {
       writeFileSync(path.join(src, "a.ts"), "export {};\n");
       writeFileSync(path.join(src, "a.js"), "export {};\n");
       writeFileSync(path.join(src, "plain.js"), "export {};\n");
-      expect(findCompiledSiblings(root, ["services/worker/src"])).toEqual([
+      // Outside a git checkout only siblings are detectable.
+      expect(findCompiledSiblings(root, ["services/worker/src"], null)).toEqual([
+        path.join("services", "worker", "src", "nested", "a.js"),
+      ]);
+      // In a checkout, an UNTRACKED .js with no TypeScript source is an old
+      // build's orphan; a tracked one is authored code.
+      const plain = path.join("services", "worker", "src", "nested", "plain.js");
+      expect(findCompiledSiblings(root, ["services/worker/src"], new Set())).toEqual([
+        path.join("services", "worker", "src", "nested", "a.js"),
+        plain,
+      ]);
+      expect(findCompiledSiblings(root, ["services/worker/src"], new Set([plain]))).toEqual([
         path.join("services", "worker", "src", "nested", "a.js"),
       ]);
     } finally {

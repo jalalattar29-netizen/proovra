@@ -22,8 +22,8 @@ describe("provenance time layers (UC-TRUST-002)", () => {
     const text = otsLayerText(chain({ rfc3161: {}, ots: { applied: true, status: "SUBMITTED", confirmations: null } }));
     expect(text).not.toMatch(/^Anchored/);
     expect(text).toMatch(/not yet attempted/);
-    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: false, status: "ANCHORED_UNVERIFIED" } }))).toMatch(/not checked/);
-    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: true, status: "VERIFIED" } }))).toBe("Anchored in Bitcoin and verified");
+    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: false, status: "ANCHORED_UNVERIFIED" } }))).toMatch(/not independently verified/);
+    expect(otsLayerText(chain({ rfc3161: {}, ots: { applied: true, status: "VERIFIED" } }))).toBe("Bitcoin attestation independently verified against the Bitcoin blockchain");
   });
 
   it("a legacy STAMPED token never validated is 'Recorded, not validated', never 'Applied'", () => {

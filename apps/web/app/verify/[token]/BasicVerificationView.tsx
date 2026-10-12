@@ -174,18 +174,23 @@ export default function BasicVerificationView({
         : data.timestamp.state === "pending"
           ? "The timestamp has not been completed yet."
           : "No trusted timestamp was issued for this record.";
+  // (2026-10-12) The OTS truth: a recording time is never an anchor time, and
+  // only an independent chain check is "verified". An older response carried
+  // the recording time in anchoredAtUtc, so it is read as such when
+  // proofRecordedAtUtc is absent.
+  const otsRecordedAt = data.anchoring.proofRecordedAtUtc ?? (data.anchoring.truthState ? null : data.anchoring.anchoredAtUtc);
   const otsDetail =
     data.anchoring.state === "verified"
-      ? `Anchored in Bitcoin; confirmed ${fmt(data.anchoring.anchoredAtUtc)}. This confirmation may be later than any report issued for this record.`
+      ? `Bitcoin attestation independently verified against the Bitcoin blockchain; verified block time ${fmt(data.anchoring.anchoredAtUtc)}. This verification may be later than any report issued for this record.`
       : data.anchoring.state === "not_checked"
         ? data.anchoring.basis === "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
-          ? `Recorded as anchored in Bitcoin (${fmt(data.anchoring.anchoredAtUtc)}) before this service recorded how anchors were checked. The proof is kept; neither its structure nor the Bitcoin chain has been checked here.`
-          : `The OpenTimestamps proof carries a Bitcoin block attestation for this record (${fmt(data.anchoring.anchoredAtUtc)}). The Bitcoin chain itself was not checked by this service.`
+          ? `A Bitcoin attestation was recorded${otsRecordedAt ? ` (proof recorded by PROOVRA ${fmt(otsRecordedAt)})` : ""} before this service recorded how attestations were checked. The proof is kept. Not independently verified against the Bitcoin blockchain.`
+          : `Bitcoin attestation present: the OpenTimestamps proof carries a Bitcoin attestation for this record${otsRecordedAt ? ` (proof recorded by PROOVRA ${fmt(otsRecordedAt)})` : ""}. Not independently verified against the Bitcoin blockchain.`
       : data.anchoring.state === "pending"
-        ? "Submitted for Bitcoin anchoring; confirmation has not completed yet."
+        ? "The OpenTimestamps proof does not carry a Bitcoin attestation yet."
         : data.anchoring.state === "failed"
-          ? "Bitcoin anchoring did not complete."
-          : "No Bitcoin anchoring proof exists for this record.";
+          ? "The OpenTimestamps proof is unusable for this record, or an independent Bitcoin check did not verify it."
+          : "No OpenTimestamps proof exists for this record.";
 
   return (
     <main

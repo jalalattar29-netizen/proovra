@@ -168,7 +168,17 @@ export type VerifyOts = {
   hash?: string | null;
   calendar?: string | null;
   bitcoinTxid?: string | null;
+  /**
+   * (2026-10-12) With truthState present: the VERIFIED Bitcoin block time only.
+   * Older responses carried the time PROOVRA recorded the proof here.
+   */
   anchoredAtUtc?: string | null;
+  /** The OTS truth state and its one line (packages/shared/src/ots-truth.ts). */
+  truthState?: string | null;
+  statusLine?: string | null;
+  /** When PROOVRA recorded the attestation-bearing proof. Never an anchor time. */
+  proofRecordedAtUtc?: string | null;
+  bitcoinTxidVerified?: boolean | null;
   upgradedAtUtc?: string | null;
   failureReason?: string | null;
   proofPresent?: boolean | null;
@@ -323,7 +333,17 @@ export type OtsDetails = {
   hash: string | null;
   calendar: string | null;
   bitcoinTxid: string | null;
+  /**
+   * INTERNAL completeness time for the client-side rules (an anchor needs a
+   * time): the verified block time, else the proof-recorded time. NEVER shown
+   * as an anchor time — display reads verifiedAnchorAtUtc / proofRecordedAtUtc.
+   */
   anchoredAtUtc: string | null;
+  /** The VERIFIED Bitcoin block time (CHAIN_VERIFIED only). */
+  verifiedAnchorAtUtc: string | null;
+  /** When PROOVRA recorded the attestation-bearing proof. */
+  proofRecordedAtUtc: string | null;
+  statusLine: string | null;
   upgradedAtUtc: string | null;
   failureReason: string | null;
   proofBase64: string | null;
@@ -434,7 +454,10 @@ export type VerifySnapshotSection = {
 
 export type VerifyLiveAnchoring = {
   currentOtsStatus?: string | null;
+  /** (2026-10-12) The VERIFIED Bitcoin block time only. */
   otsAnchoredAtUtc?: string | null;
+  /** When PROOVRA recorded the attestation-bearing proof. */
+  otsProofRecordedAtUtc?: string | null;
   otsBitcoinTxid?: string | null;
   lastUpdatedAtUtc?: string | null;
   hasAdvancedSinceSnapshot?: boolean | null;

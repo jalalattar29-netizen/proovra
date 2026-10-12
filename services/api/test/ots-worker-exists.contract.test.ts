@@ -96,12 +96,14 @@ describe("OTS truth contract — UI claims must remain backed by a real worker",
     expect(report).not.toMatch(/createOpenTimestamp/);
   });
 
-  it("OTS upgrade processor invokes `ots verify` (transitions PENDING → ANCHORED)", () => {
+  it("OTS upgrade processor reaches `ots verify` only through the configured chain verifier (2026-10-12)", () => {
     const src = readFileSync(UPGRADE_PROCESSOR, "utf8");
-    // The CLI name appears in both the runtime invocation and the
-    // descriptive comments; we just need one match to prove the
-    // module hasn't been gutted.
-    expect(src).toMatch(/ots\s+verify/);
+    // The processor binds the proof to the fingerprint digest, then asks the
+    // canonical verifier; the verifier runs `ots --bitcoin-node … verify`.
+    expect(src).toMatch(/checkOtsDigestBinding\(/);
+    expect(src).toMatch(/resolveOtsChainVerifier/);
+    const verifier = readFileSync(resolve(WORKER_DIR, "ots-chain-verifier.ts"), "utf8");
+    expect(verifier).toMatch(/"--bitcoin-node", opts\.nodeUrl, "verify", "-d"/);
   });
 
   it("Trust-summary `otsBucket` recognises the worker's status values", () => {

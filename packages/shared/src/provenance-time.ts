@@ -26,8 +26,10 @@
  *                            signed
  *   TSA                      the RFC 3161 authority's genTime — independently
  *                            established ONLY when the token was validated
- *   OTS                      the Bitcoin anchoring time — independently
- *                            established ONLY when verified against the chain
+ *   OTS                      the Bitcoin anchoring time — the verified block
+ *                            time of an independent chain check, nothing else
+ *   OTS_PROOF_RECORDED       the PROOVRA server clock when it recorded an
+ *                            attestation-bearing proof that was NOT verified
  *
  * A capture time is stated only from SOURCE_DECLARED_CAPTURE,
  * DEVICE_OBSERVED or APPLICATION_OBSERVED, always labelled with who declared
@@ -35,6 +37,7 @@
  * answer is "Capture time not available". Legacy records project what they
  * have — normally the server-received time only; no history is fabricated.
  */
+import type { OtsChainEvidenceInput } from "./ots.js";
 import { resolveOtsProofStatus, resolveTsaProofStatus } from "./ots-status.js";
 
 export const PROVENANCE_TIME_KINDS = [
@@ -47,6 +50,7 @@ export const PROVENANCE_TIME_KINDS = [
   "FINALIZED",
   "TSA",
   "OTS",
+  "OTS_PROOF_RECORDED",
 ] as const;
 export type ProvenanceTimeKind = (typeof PROVENANCE_TIME_KINDS)[number];
 
@@ -93,6 +97,9 @@ export const PROVENANCE_TIME_LABELS: Readonly<Record<ProvenanceTimeKind, string>
   FINALIZED: "Finalized and signed",
   TSA: "RFC 3161 timestamp time",
   OTS: "Bitcoin anchor time",
+  // (2026-10-12) When PROOVRA recorded an attestation-bearing proof — the time
+  // that used to be shown as an anchor time. It is a PROOVRA server time.
+  OTS_PROOF_RECORDED: "OpenTimestamps proof recorded by PROOVRA",
 };
 
 /** The one sentence for "no capture time is known". */
@@ -124,6 +131,10 @@ export type ProvenanceTimeInput = {
     anchoredAtUtc?: Date | string | null;
     anchorCheck?: string | null;
     bitcoinTxid?: string | null;
+    /** (2026-10-12) evidence.ots_attestation_recorded_at_utc. */
+    attestationRecordedAtUtc?: Date | string | null;
+    /** evidence.ots_chain_* — the only source of a Bitcoin anchor time. */
+    chain?: OtsChainEvidenceInput | null;
   } | null;
 };
 
@@ -191,14 +202,18 @@ export function buildProvenanceTimeline(input: ProvenanceTimeInput): ProvenanceT
       status: input.ots.status,
       anchoredAtUtc: input.ots.anchoredAtUtc ?? null,
       anchorCheck: input.ots.anchorCheck ?? null,
+      chain: input.ots.chain ?? null,
       ...(input.ots.bitcoinTxid !== undefined ? { bitcoinTxid: input.ots.bitcoinTxid } : {}),
     });
-    if (otsStatus === "VERIFIED" || otsStatus === "ANCHORED_UNVERIFIED") {
+    if (otsStatus === "VERIFIED") {
+      // The verified block time — never the time PROOVRA recorded the proof.
+      push("OTS", iso(input.ots.chain?.chainBlockTimeUtc ?? null), "BITCOIN_ANCHOR", "INDEPENDENTLY_VALIDATED");
+    } else if (otsStatus === "ANCHORED_UNVERIFIED") {
       push(
-        "OTS",
-        iso(input.ots.anchoredAtUtc),
-        "BITCOIN_ANCHOR",
-        otsStatus === "VERIFIED" ? "INDEPENDENTLY_VALIDATED" : "RECORDED_NOT_VALIDATED",
+        "OTS_PROOF_RECORDED",
+        iso(input.ots.attestationRecordedAtUtc ?? input.ots.anchoredAtUtc ?? null),
+        "PROOVRA_SERVER",
+        "SERVER_OBSERVED",
       );
     }
   }

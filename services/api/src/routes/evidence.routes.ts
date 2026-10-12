@@ -57,7 +57,7 @@ import {
   isPrimaryReviewerArtifactRole,
   resolveReviewerArtifactRole,
   resolveEffectiveOtsStatus,
-  resolveOtsAnchorClaim,
+  resolveRecordOtsTruth,
   // Phase 2 — canonical legal boundary so the public-verify response
   // emits the same boundary copy as the snapshot outputs (Report PDF
   // and Verification Package) will in Phase 3.
@@ -1139,6 +1139,18 @@ const SAFE_EVIDENCE_SELECT = {
   otsUpgradedAtUtc: true,
   otsFailureReason: true,
   otsAnchorCheck: true,
+  // (2026-10-12) The OTS truth columns.
+  otsAttestationRecordedAtUtc: true,
+  otsAttestationBlockHeight: true,
+  otsChainVerificationStatus: true,
+  otsChainCheckedAtUtc: true,
+  otsChainVerifiedAtUtc: true,
+  otsChainBlockHeight: true,
+  otsChainBlockHash: true,
+  otsChainBlockTimeUtc: true,
+  otsChainConfirmations: true,
+  otsChainVerifier: true,
+  otsChainFailureCode: true,
   signedAtUtc: true,
   capturedAtUtc: true,
   reportGeneratedAtUtc: true,
@@ -9774,6 +9786,10 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
         });
         const effectiveOtsAnchoredAtUtc =
           effectiveOtsStatus === "ANCHORED" ? evidence.otsAnchoredAtUtc : null;
+        // (2026-10-12) THE OTS TRUTH: the proof bytes bound to the fingerprint
+        // digest, the recording time named for what it is, and an anchor time
+        // only from an independent chain check.
+        const otsTruth = resolveRecordOtsTruth(evidence, { submittedAtUtc: evidence.signedAtUtc });
         const otsHashMatches =
           evidence.otsHash && evidence.fingerprintHash
             ? evidence.otsHash.toLowerCase() ===
@@ -10209,17 +10225,18 @@ const timestampDigestMatches: boolean | null = compareTimestampDigest({
                 // 2026-09-29: how the anchor was established, and the one claim
                 // it supports — clients render this, never re-derive "verified".
                 anchorCheck: evidence.otsAnchorCheck ?? null,
-                anchorClaim: resolveOtsAnchorClaim({
-                  status: evidence.otsStatus,
-                  anchoredAtUtc: effectiveOtsAnchoredAtUtc,
-                  anchorCheck: evidence.otsAnchorCheck,
-                  proofPresent: Boolean(evidence.otsProofBase64),
-                  bitcoinTxid: evidence.otsBitcoinTxid ?? null,
-                }),
+                anchorClaim: otsTruth.claim,
+                truthState: otsTruth.state,
+                statusLine: otsTruth.statusLine,
+                proofRecordedAtUtc: otsTruth.proofRecordedAtUtc,
+                bitcoinTxidVerified: otsTruth.state === "CHAIN_VERIFIED",
+                reportedBlockHeight: otsTruth.reported?.blockHeight ?? null,
+                chainVerification: otsTruth.chain,
+                chainCheck: otsTruth.chainCheck,
                 proofPresent: Boolean(evidence.otsProofBase64),
                 hashMatches: otsHashMatches,
-                anchoredAtUtc:
-                  effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+                // The verified Bitcoin block time only — never a recording time.
+                anchoredAtUtc: otsTruth.verifiedAnchorTimeUtc,
                 upgradedAtUtc:
                   evidence.otsUpgradedAtUtc?.toISOString() ?? null,
                 lastUpdatedAtUtc:
@@ -13146,6 +13163,18 @@ action: "evidence.certification_requested",
         otsUpgradedAtUtc: true,
         otsFailureReason: true,
         otsAnchorCheck: true,
+        // (2026-10-12) The OTS truth columns.
+        otsAttestationRecordedAtUtc: true,
+        otsAttestationBlockHeight: true,
+        otsChainVerificationStatus: true,
+        otsChainCheckedAtUtc: true,
+        otsChainVerifiedAtUtc: true,
+        otsChainBlockHeight: true,
+        otsChainBlockHash: true,
+        otsChainBlockTimeUtc: true,
+        otsChainConfirmations: true,
+        otsChainVerifier: true,
+        otsChainFailureCode: true,
         storageBucket: true,
         storageKey: true,
         // ET-SM-03 — the signed version of the original (the page links it).
@@ -13822,6 +13851,18 @@ const effectiveOtsStatus = resolveEffectiveOtsStatus({
 });
     const effectiveOtsAnchoredAtUtc =
       effectiveOtsStatus === "ANCHORED" ? evidence.otsAnchoredAtUtc : null;
+    // (2026-10-12) THE OTS TRUTH — the same projection the report and the
+    // package state. A proof bound to another digest is PROOF_INVALID here too.
+    const otsTruth = resolveRecordOtsTruth(evidence, { submittedAtUtc: evidence.signedAtUtc });
+    const otsChainInput = {
+      chainVerificationStatus: evidence.otsChainVerificationStatus ?? null,
+      chainVerifiedAtUtc: evidence.otsChainVerifiedAtUtc ?? null,
+      chainBlockHeight: evidence.otsChainBlockHeight ?? null,
+      chainBlockHash: evidence.otsChainBlockHash ?? null,
+      chainBlockTimeUtc: evidence.otsChainBlockTimeUtc ?? null,
+      chainConfirmations: evidence.otsChainConfirmations ?? null,
+      chainVerifier: evidence.otsChainVerifier ?? null,
+    };
     const otsHashMatches =
       evidence.otsHash && evidence.fingerprintHash
         ? evidence.otsHash.toLowerCase() ===
@@ -14383,7 +14424,9 @@ const { verificationSnapshot, liveAnchoring } =
     latestVerificationPackage,
     verificationPackageIntegrity,
     currentOtsStatus: effectiveOtsStatus,
-    otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc?.toISOString() ?? null,
+    // (2026-10-12) The verified block time only; the recording time beside it.
+    otsAnchoredAtUtc: otsTruth.verifiedAnchorTimeUtc,
+    otsProofRecordedAtUtc: otsTruth.proofRecordedAtUtc,
     otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
     otsUpgradedAtUtc: evidence.otsUpgradedAtUtc
       ? evidence.otsUpgradedAtUtc.toISOString()
@@ -14625,6 +14668,16 @@ const basicVerification = buildBasicVerification({
   otsBitcoinTxid: evidence.otsBitcoinTxid ?? null,
   otsAnchoredAtUtc: effectiveOtsAnchoredAtUtc ?? null,
   otsAnchorCheck: evidence.otsAnchorCheck ?? null,
+  ots: {
+    proofBase64: evidence.otsProofBase64 ?? null,
+    fingerprintHash: evidence.fingerprintHash ?? null,
+    otsHash: evidence.otsHash ?? null,
+    attestationRecordedAtUtc: evidence.otsAttestationRecordedAtUtc ?? null,
+    attestationBlockHeight: evidence.otsAttestationBlockHeight ?? null,
+    chainCheckedAtUtc: evidence.otsChainCheckedAtUtc ?? null,
+    chainFailureCode: evidence.otsChainFailureCode ?? null,
+    ...otsChainInput,
+  },
   latestReport: latestReport
     ? { version: latestReport.version, generatedAtUtc: latestReport.generatedAtUtc, pdfSha256: latestReport.pdfSha256 ?? null }
     : null,
@@ -14815,9 +14868,17 @@ timestampedDigestNote:
       hash: evidence.otsHash ?? null,
       calendar: evidence.otsCalendar ?? null,
       bitcoinTxid: evidence.otsBitcoinTxid ?? null,
-      anchoredAtUtc: effectiveOtsAnchoredAtUtc
-        ? effectiveOtsAnchoredAtUtc.toISOString()
-        : null,
+      // (2026-10-12) The verified Bitcoin block time only.
+      anchoredAtUtc: otsTruth.verifiedAnchorTimeUtc,
+      truthState: otsTruth.state,
+      statusLine: otsTruth.statusLine,
+      headline: otsTruth.headline,
+      detail: otsTruth.detail,
+      proofRecordedAtUtc: otsTruth.proofRecordedAtUtc,
+      bitcoinTxidVerified: otsTruth.state === "CHAIN_VERIFIED",
+      reportedBlockHeight: otsTruth.reported?.blockHeight ?? null,
+      chainVerification: otsTruth.chain,
+      chainCheck: otsTruth.chainCheck,
       upgradedAtUtc: evidence.otsUpgradedAtUtc
         ? evidence.otsUpgradedAtUtc.toISOString()
         : null,
@@ -14825,13 +14886,7 @@ timestampedDigestNote:
       proofPresent: Boolean(evidence.otsProofBase64),
       hashMatchesFingerprintHash: otsHashMatches,
       anchorCheck: evidence.otsAnchorCheck ?? null,
-      anchorClaim: resolveOtsAnchorClaim({
-        status: evidence.otsStatus,
-        anchoredAtUtc: effectiveOtsAnchoredAtUtc,
-        anchorCheck: evidence.otsAnchorCheck,
-        proofPresent: Boolean(evidence.otsProofBase64),
-        bitcoinTxid: evidence.otsBitcoinTxid ?? null,
-      }),
+      anchorClaim: otsTruth.claim,
       // UC-TRUST-002 — the one OTS status every surface shows.
       proofStatus: publicVerifyTrustShared.resolveOtsProofStatus({
         status: evidence.otsStatus,
@@ -14842,6 +14897,7 @@ timestampedDigestNote:
         upgradedAtUtc: evidence.otsUpgradedAtUtc,
         submittedAtUtc: evidence.signedAtUtc,
         now: verifiedAt,
+        chain: otsChainInput,
       }),
     },
     anchor,
@@ -14858,6 +14914,8 @@ timestampedDigestNote:
       anchoredAtUtc: effectiveOtsAnchoredAtUtc,
       anchorCheck: evidence.otsAnchorCheck,
       bitcoinTxid: evidence.otsBitcoinTxid ?? null,
+      attestationRecordedAtUtc: evidence.otsAttestationRecordedAtUtc ?? null,
+      chain: otsChainInput,
     },
   }),
   technicalMaterials,

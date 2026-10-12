@@ -380,7 +380,7 @@ export function reportFreshnessChangeCopy(
     case "OTS_ANCHORED_AFTER_REPORT":
       return `A Bitcoin attestation was added to the OpenTimestamps proof after ${v} was generated.`;
     case "OTS_CHAIN_VERIFIED_AFTER_REPORT":
-      return `The OpenTimestamps anchor was verified against the Bitcoin chain after ${v} was generated.`;
+      return `The Bitcoin attestation was independently verified against the Bitcoin blockchain after ${v} was generated.`;
     case "CUSTODY_CHANGED_AFTER_REPORT":
       return `${change.count ?? "Some"} reportable custody event${change.count === 1 ? " was" : "s were"} recorded after ${v}.`;
     case "INTEGRITY_REVERIFIED_AFTER_REPORT":

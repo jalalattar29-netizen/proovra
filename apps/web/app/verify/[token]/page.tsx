@@ -299,7 +299,14 @@ function buildOtsDetails(data: VerifyResponse): OtsDetails {
     hash: firstNonEmpty(ots?.hash, data.otsHash),
     calendar: firstNonEmpty(ots?.calendar, data.otsCalendar),
     bitcoinTxid: firstNonEmpty(ots?.bitcoinTxid, data.otsBitcoinTxid),
-    anchoredAtUtc: firstNonEmpty(ots?.anchoredAtUtc, data.otsAnchoredAtUtc),
+    // (2026-10-12) A response carrying truthState states the VERIFIED block
+    // time in anchoredAtUtc; an older one carried the recording time there.
+    verifiedAnchorAtUtc: ots?.truthState ? firstNonEmpty(ots.anchoredAtUtc) : null,
+    proofRecordedAtUtc: ots?.truthState
+      ? firstNonEmpty(ots.proofRecordedAtUtc)
+      : firstNonEmpty(ots?.anchoredAtUtc, data.otsAnchoredAtUtc),
+    statusLine: firstNonEmpty(ots?.statusLine),
+    anchoredAtUtc: firstNonEmpty(ots?.anchoredAtUtc, ots?.proofRecordedAtUtc, data.otsAnchoredAtUtc),
     upgradedAtUtc: firstNonEmpty(ots?.upgradedAtUtc, data.otsUpgradedAtUtc),
     failureReason: firstNonEmpty(ots?.failureReason, data.otsFailureReason),
     proofBase64: firstNonEmpty(ots?.proofBase64, data.otsProofBase64),
@@ -2452,6 +2459,8 @@ export default function VerifyPage() {
   const [otsCalendar, setOtsCalendar] = useState<string | null>(null);
   const [otsBitcoinTxid, setOtsBitcoinTxid] = useState<string | null>(null);
   const [otsAnchoredAtUtc, setOtsAnchoredAtUtc] = useState<string | null>(null);
+  const [otsVerifiedAnchorAtUtc, setOtsVerifiedAnchorAtUtc] = useState<string | null>(null);
+  const [otsProofRecordedAtUtc, setOtsProofRecordedAtUtc] = useState<string | null>(null);
   const [otsAnchorClaim, setOtsAnchorClaim] = useState<string | null>(null);
   const [otsAnchorCheck, setOtsAnchorCheck] = useState<string | null>(null);
   const [otsUpgradedAtUtc, setOtsUpgradedAtUtc] = useState<string | null>(null);
@@ -2887,6 +2896,8 @@ setFullCustodyTimeline(fullTimeline);
     setOtsCalendar(otsDetails.calendar);
     setOtsBitcoinTxid(otsDetails.bitcoinTxid);
     setOtsAnchoredAtUtc(otsDetails.anchoredAtUtc);
+    setOtsVerifiedAnchorAtUtc(otsDetails.verifiedAnchorAtUtc);
+    setOtsProofRecordedAtUtc(otsDetails.proofRecordedAtUtc);
     setOtsAnchorClaim(otsDetails.anchorClaim);
     setOtsAnchorCheck(otsDetails.anchorCheck);
     setOtsUpgradedAtUtc(otsDetails.upgradedAtUtc);
@@ -3990,13 +4001,19 @@ tone={
           ),
           show: otsProofPresent !== null,
         },
+        // (2026-10-12) A recording time is never an anchor time.
         {
-          label: "OTS Anchored At",
-          content: otsAnchoredAtUtc ? formatDateTime(otsAnchoredAtUtc) : null,
-          show: Boolean(otsAnchoredAtUtc),
+          label: "Bitcoin Anchor Time (independently verified)",
+          content: otsVerifiedAnchorAtUtc ? formatDateTime(otsVerifiedAnchorAtUtc) : null,
+          show: Boolean(otsVerifiedAnchorAtUtc),
         },
         {
-          label: "OTS Upgraded At",
+          label: "Proof Recorded by PROOVRA (UTC)",
+          content: otsProofRecordedAtUtc ? formatDateTime(otsProofRecordedAtUtc) : null,
+          show: Boolean(otsProofRecordedAtUtc),
+        },
+        {
+          label: "Proof Upgraded by PROOVRA (UTC)",
           content: otsUpgradedAtUtc ? formatDateTime(otsUpgradedAtUtc) : null,
           show: Boolean(otsUpgradedAtUtc),
         },
@@ -4104,8 +4121,9 @@ tone={
           "Signing Key Version",
           "OTS Calendar",
           "OTS Proof",
-          "OTS Anchored At",
-          "OTS Upgraded At",
+          "Bitcoin Anchor Time (independently verified)",
+          "Proof Recorded by PROOVRA (UTC)",
+          "Proof Upgraded by PROOVRA (UTC)",
           "OTS Hash Check",
         ].includes(card.label)
       ),
@@ -5030,10 +5048,18 @@ Reviewer Action
           value={liveAnchoring?.currentOtsStatus ?? otsStatus ?? "Not recorded"}
         />
         <SummaryField
-          label="Anchored At"
+          label="Bitcoin Anchor Time (independently verified)"
           value={
             liveAnchoring?.otsAnchoredAtUtc
               ? formatDateTime(liveAnchoring.otsAnchoredAtUtc)
+              : "Not independently verified"
+          }
+        />
+        <SummaryField
+          label="Proof Recorded by PROOVRA (UTC)"
+          value={
+            liveAnchoring?.otsProofRecordedAtUtc
+              ? formatDateTime(liveAnchoring.otsProofRecordedAtUtc)
               : "Not recorded"
           }
         />

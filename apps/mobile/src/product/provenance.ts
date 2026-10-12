@@ -107,8 +107,8 @@ const OTS_LABELS: Record<string, string> = {
   NOT_REQUESTED: "Not requested",
   SUBMITTED: "Submitted to OpenTimestamps calendars; Bitcoin anchoring not yet attempted",
   PENDING: "Bitcoin anchoring pending",
-  ANCHORED_UNVERIFIED: "Recorded as anchored; not checked against the Bitcoin chain",
-  VERIFIED: "Anchored in Bitcoin and verified",
+  ANCHORED_UNVERIFIED: "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+  VERIFIED: "Bitcoin attestation independently verified against the Bitcoin blockchain",
   FAILED: "Anchoring failed",
   STALE_UNKNOWN: "Anchoring state unknown (pending longer than expected)",
 };

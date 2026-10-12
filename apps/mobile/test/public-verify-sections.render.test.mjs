@@ -297,7 +297,7 @@ test("a legacy trustDecision (score, verdict, confidence, reliance) renders only
   assert.ok(headline.endsWith(VERIFICATION_LIMITATION), headline);
   // A legacy "passed" OpenTimestamps signal was never chain-checked: NOT_CHECKED, never VERIFIED.
   assert.deepEqual(badges(r, "verify-matrix-bitcoin_anchoring"), ["NOT_CHECKED"]);
-  has(r, "Publication posture: Anchoring proof present; not independently chain-verified.");
+  has(r, "Publication posture: Bitcoin attestation present; not independently verified against the Bitcoin blockchain.");
   has(r, "To rely on Bitcoin anchoring, verify the OpenTimestamps proof against the Bitcoin chain yourself; PROOVRA has not checked it against the chain.");
 });
 
@@ -361,7 +361,7 @@ test("verificationMatrix, when the reply carries it, is the matrix and the headl
   assert.deepEqual(badges(r, "verify-matrix-file_integrity"), ["VERIFIED"]);
   has(r, "OpenTimestamps / Bitcoin anchoring");
   assert.deepEqual(badges(r, "verify-matrix-ots_anchoring"), ["NOT_CHECKED"], "an unchecked OTS proof is NOT_CHECKED");
-  assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("PROOVRA has not checked the proof against the Bitcoin chain")));
+  assert.ok(textsIn(r, "verify-matrix-ots_anchoring").some((t) => t.includes("No independent Bitcoin verification result is recorded.")));
   has(r, "Public Verify publication");
   assert.deepEqual(findForbiddenCustomerClaims(r.texts().join("\n")), []);
 });

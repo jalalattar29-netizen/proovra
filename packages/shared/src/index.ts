@@ -508,7 +508,9 @@ export {
   OTS_PROOF_RECORDED_AT_LABEL,
   OTS_REPORTED_BY_PROOF_QUALIFIER,
   OTS_TRUTH_STATES,
+  OTS_TRUTH_RECORD_SELECT,
   OTS_TRUTH_STATUS_LINES,
+  resolveRecordOtsTruth,
   completeOtsChainEvidence,
   isOtsChainVerified,
   normalizeOtsChainVerificationStatus,
@@ -520,6 +522,7 @@ export type {
   OtsChainVerificationStatus,
   OtsTruth,
   OtsTruthInput,
+  OtsRecordColumns,
   OtsTruthState,
 } from "./ots-truth.js";
 export {

@@ -49,9 +49,32 @@ describe("Basic Verify — honest 'not checked'", () => {
       />,
     );
     const text = container.textContent ?? "";
-    expect(text).toMatch(/carries a Bitcoin block attestation for this record/);
-    expect(text).toMatch(/Bitcoin chain itself was not checked/);
-    expect(text).not.toMatch(/No Bitcoin anchoring proof exists/);
+    // (2026-10-12) An older response carried the recording time in
+    // anchoredAtUtc: it is named as the time PROOVRA recorded the proof.
+    expect(text).toMatch(/Bitcoin attestation present: the OpenTimestamps proof carries a Bitcoin attestation for this record/);
+    expect(text).toMatch(/proof recorded by PROOVRA/);
+    expect(text).toMatch(/Not independently verified against the Bitcoin blockchain/);
+    expect(text).not.toMatch(/No OpenTimestamps proof exists|anchored/i);
+  });
+
+  it("THE INCIDENT: a current response shows no anchor time, only the time PROOVRA recorded the proof", () => {
+    const { container } = render(
+      <BasicVerificationView
+        data={data({
+          anchoring: {
+            state: "not_checked",
+            basis: "PROOF_COMMITS_TO_RECORD_CHAIN_NOT_CHECKED",
+            anchoredAtUtc: null,
+            truthState: "ATTESTATION_PRESENT_NOT_VERIFIED",
+            proofRecordedAtUtc: AT,
+          } as never,
+        })}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/proof recorded by PROOVRA/);
+    expect(text).toMatch(/Not independently verified against the Bitcoin blockchain/);
+    expect(text).not.toMatch(/anchored|confirmed/i);
   });
 
   it("a historical anchor with no recorded check claims no structure or chain check", () => {
@@ -61,10 +84,10 @@ describe("Basic Verify — honest 'not checked'", () => {
       />,
     );
     const text = container.textContent ?? "";
-    expect(text).toMatch(/before this service recorded how anchors were checked/);
-    expect(text).toMatch(/neither its structure nor the Bitcoin chain has been checked/);
-    expect(text).not.toMatch(/carries a Bitcoin block attestation/);
-    expect(text).not.toMatch(/No Bitcoin anchoring proof exists/);
+    expect(text).toMatch(/before this service recorded how attestations were checked/);
+    expect(text).toMatch(/Not independently verified against the Bitcoin blockchain/);
+    expect(text).not.toMatch(/carries a Bitcoin attestation for this record/);
+    expect(text).not.toMatch(/No OpenTimestamps proof exists/);
   });
 
   it("a timestamp whose imprint was never stored is 'not compared', not 'matches' and not 'failed'", () => {

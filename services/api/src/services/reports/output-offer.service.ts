@@ -62,6 +62,14 @@ export type ReportableFacts = {
     anchoredAtUtc: string | null;
     /** When the current anchor check was recorded (custody), when known. */
     anchorCheckedAtUtc: string | null;
+    /** (2026-10-12) The recorded independent chain check — VERIFIED requires it. */
+    chainVerificationStatus?: string | null;
+    chainVerifiedAtUtc?: string | null;
+    chainBlockHeight?: number | null;
+    chainBlockHash?: string | null;
+    chainBlockTimeUtc?: string | null;
+    chainConfirmations?: number | null;
+    chainVerifier?: string | null;
   };
   freshness: ReportFreshness;
 };
@@ -88,6 +96,13 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
         otsUpgradedAtUtc: true,
         otsAnchorCheck: true,
         otsBitcoinTxid: true,
+        otsChainVerificationStatus: true,
+        otsChainVerifiedAtUtc: true,
+        otsChainBlockHeight: true,
+        otsChainBlockHash: true,
+        otsChainBlockTimeUtc: true,
+        otsChainConfirmations: true,
+        otsChainVerifier: true,
         lastVerifiedAtUtc: true,
       },
     }),
@@ -141,7 +156,7 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
   const fingerprint = [
     `status:${ev?.status ?? "-"}`,
     `tsa:${tsaStatus ?? "-"}:${iso(ev?.tsaValidatedAtUtc) ?? "-"}:${ev?.tsaFailureCode ?? "-"}`,
-    `ots:${otsStatus ?? "-"}:${iso(ev?.otsAnchoredAtUtc) ?? "-"}:${anchorCheck ?? "-"}`,
+    `ots:${otsStatus ?? "-"}:${iso(ev?.otsAnchoredAtUtc) ?? "-"}:${anchorCheck ?? "-"}:${ev?.otsChainVerificationStatus ?? "-"}`,
     `custody:${maxReportable._max.sequence ?? 0}`,
     `verified:${iso(ev?.lastVerifiedAtUtc) ?? "-"}`,
   ].join("|");
@@ -160,6 +175,13 @@ export async function loadReportableFacts(evidenceId: string): Promise<Reportabl
       anchorCheck,
       anchoredAtUtc: otsStatus === "ANCHORED" ? iso(ev?.otsAnchoredAtUtc) : null,
       anchorCheckedAtUtc: otsCustody.anchorCheckedAtUtc,
+      chainVerificationStatus: ev?.otsChainVerificationStatus ?? null,
+      chainVerifiedAtUtc: iso(ev?.otsChainVerifiedAtUtc),
+      chainBlockHeight: ev?.otsChainBlockHeight ?? null,
+      chainBlockHash: ev?.otsChainBlockHash ?? null,
+      chainBlockTimeUtc: iso(ev?.otsChainBlockTimeUtc),
+      chainConfirmations: ev?.otsChainConfirmations ?? null,
+      chainVerifier: ev?.otsChainVerifier ?? null,
     },
     freshness: deriveReportFreshness({
       reportVersion: latest?.version ?? null,

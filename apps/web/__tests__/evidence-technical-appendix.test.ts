@@ -253,15 +253,21 @@ test("anchoring label follows the one OTS claim (2026-09-29); timestamp labels m
   // A txid and an anchor time are anchor material, not a chain verification.
   assert.equal(
     anchoringStatusLabel(anchored),
-    "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
+    "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
   );
   assert.equal(
     anchoringStatusLabel({ ...anchored, anchorCheck: "PROOF_STRUCTURE" }),
-    "OpenTimestamps proof anchored to a Bitcoin block; not checked against the Bitcoin chain",
+    "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
   );
+  // (2026-10-12) A recorded check is not verification without its chain
+  // evidence — which only the server holds. The server's VERIFIED claim is.
   assert.equal(
     anchoringStatusLabel({ ...anchored, anchorCheck: "BITCOIN_VERIFIED" }),
-    "OpenTimestamps Bitcoin anchoring verified",
+    "Bitcoin attestation present; not independently verified against the Bitcoin blockchain",
+  );
+  assert.equal(
+    anchoringStatusLabel({ ...anchored, anchorCheck: "BITCOIN_VERIFIED", anchorClaim: "VERIFIED" }),
+    "Bitcoin attestation independently verified against the Bitcoin blockchain",
   );
   // The server's claim wins when present — the client never re-derives "verified".
   assert.equal(

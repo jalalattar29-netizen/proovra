@@ -31,7 +31,21 @@ type Ots = {
 };
 
 const OTS: Record<string, Ots> = {
-  VERIFIED: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsAnchorCheck: "BITCOIN_VERIFIED" },
+  // (2026-10-12) Verified means a recorded chain check WITH its evidence.
+  VERIFIED: {
+    otsStatus: "ANCHORED",
+    otsAnchoredAtUtc: "2026-09-01T00:00:00Z",
+    otsAnchorCheck: "BITCOIN_VERIFIED",
+    otsChainVerificationStatus: "VERIFIED",
+    otsChainVerifiedAtUtc: "2026-09-02T00:00:00Z",
+    otsChainBlockHeight: 860000,
+    otsChainBlockHash: "00000000000000000001ec3f183cf87a623516376df048fed10a1696ed0f328f",
+    otsChainBlockTimeUtc: "2026-09-01T00:00:00Z",
+    otsChainConfirmations: 6,
+    otsChainVerifier: "test-double/1",
+  },
+  // A recorded check whose chain evidence is missing is not verified.
+  VERIFIED_WITHOUT_EVIDENCE: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsAnchorCheck: "BITCOIN_VERIFIED" },
   PROOF_STRUCTURE: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsAnchorCheck: "PROOF_STRUCTURE" },
   HISTORICAL_NULL_CHECK: { otsStatus: "ANCHORED", otsAnchoredAtUtc: "2026-09-01T00:00:00Z", otsAnchorCheck: null },
   PENDING: { otsStatus: "PENDING", otsAnchoredAtUtc: null, otsAnchorCheck: null },
@@ -139,17 +153,19 @@ describe.each([
   );
 
   it("never says 'verified' unless the anchor was checked against the chain", async () => {
-    for (const otsKey of ["PROOF_STRUCTURE", "HISTORICAL_NULL_CHECK", "PENDING"] as const) {
+    for (const otsKey of ["PROOF_STRUCTURE", "HISTORICAL_NULL_CHECK", "PENDING", "VERIFIED_WITHOUT_EVIDENCE"] as const) {
       const i = await build(otsKey, outputs);
-      expect(allText(i), otsKey).not.toMatch(/anchoring verified/i);
+      expect(allText(i), otsKey).not.toMatch(/attestation independently verified|anchoring verified/i);
     }
     const verified = await build("VERIFIED", outputs);
-    expect(verified.reviewerDecision.reasons).toContain("OpenTimestamps Bitcoin anchoring verified.");
+    expect(verified.reviewerDecision.reasons).toContain(
+      "Bitcoin attestation independently verified against the Bitcoin blockchain.",
+    );
   });
 
   it("an anchor recorded but not checked says so", async () => {
     const i = await build("PROOF_STRUCTURE", outputs);
-    expect(i.reviewerDecision.reasons.join(" ")).toMatch(/not checked against the Bitcoin chain/);
+    expect(i.reviewerDecision.reasons.join(" ")).toMatch(/not independently verified against the Bitcoin blockchain/);
   });
 
   it("a FAILED proof is a review gap, worded as a failure of anchoring only", async () => {

@@ -16,6 +16,8 @@ import {
   OTS_REPORTED_BY_PROOF_QUALIFIER,
   OtsDigestBindingError,
   assertOtsDigestBinding,
+  buildProvenanceTimeline,
+  resolveRecordOtsTruth,
   checkOtsDigestBinding,
   parseOtsProof,
   resolveOtsTruth,
@@ -159,4 +161,39 @@ test("a proof bound to another digest is PROOF_INVALID in every state, verified 
     assert.equal(t.reported, null);
     assert.equal(t.verifiedAnchorTimeUtc, null);
   }
+});
+
+test("the provenance timeline never calls a recording time a Bitcoin anchor time", () => {
+  const unverified = buildProvenanceTimeline({ ots: { status: "ANCHORED", anchoredAtUtc: RECORDED, anchorCheck: "PROOF_STRUCTURE", bitcoinTxid: TXID } });
+  assert.deepEqual(
+    unverified.entries.map((e) => [e.kind, e.atUtc, e.source, e.confidence, e.label]),
+    [["OTS_PROOF_RECORDED", RECORDED, "PROOVRA_SERVER", "SERVER_OBSERVED", "OpenTimestamps proof recorded by PROOVRA"]],
+  );
+  const verified = buildProvenanceTimeline({
+    ots: { status: "ANCHORED", anchoredAtUtc: RECORDED, anchorCheck: "BITCOIN_VERIFIED", bitcoinTxid: TXID, chain: CHAIN },
+  });
+  assert.deepEqual(
+    verified.entries.map((e) => [e.kind, e.atUtc, e.confidence]),
+    [["OTS", "2026-10-08T15:24:48.000Z", "INDEPENDENTLY_VALIDATED"]],
+  );
+});
+
+test("resolveRecordOtsTruth binds the proof bytes of a row and never promotes on absence", () => {
+  const row = {
+    otsStatus: "ANCHORED",
+    otsAnchoredAtUtc: RECORDED,
+    otsAnchorCheck: "PROOF_STRUCTURE",
+    otsBitcoinTxid: TXID,
+    otsHash: PROOFS.boundFingerprintHash,
+  };
+  assert.equal(
+    resolveRecordOtsTruth({ ...row, otsProofBase64: PROOFS.boundProofBase64, fingerprintHash: PROOFS.boundFingerprintHash }).state,
+    "ATTESTATION_PRESENT_NOT_VERIFIED",
+  );
+  assert.equal(
+    resolveRecordOtsTruth({ ...row, otsProofBase64: PROOFS.otherProofBase64, fingerprintHash: PROOFS.boundFingerprintHash }).state,
+    "PROOF_INVALID",
+  );
+  // Without the fingerprint digest selected, the binding is not evaluated, and nothing is promoted.
+  assert.equal(resolveRecordOtsTruth({ ...row, otsProofBase64: PROOFS.otherProofBase64 }).state, "ATTESTATION_PRESENT_NOT_VERIFIED");
 });

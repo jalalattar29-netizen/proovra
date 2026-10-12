@@ -12,30 +12,30 @@
   },
   "conservation": {
     "equation": "FilesystemMigrations = ClassifiedMigrations = AppliedInProduction + PendingInProduction + ProductionSnapshotUnknown",
-    "filesystemMigrations": 320,
-    "classifiedMigrations": 320,
+    "filesystemMigrations": 321,
+    "classifiedMigrations": 321,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 320,
+    "productionSnapshotUnknown": 321,
     "holds": true
   },
   "metrics": {
-    "filesystemMigrations": 320,
-    "classifiedMigrations": 320,
+    "filesystemMigrations": 321,
+    "classifiedMigrations": 321,
     "appliedInProduction": 0,
     "pendingInProduction": 0,
-    "productionSnapshotUnknown": 320,
+    "productionSnapshotUnknown": 321,
     "byClassification": {
       "BASELINE": 1,
       "HISTORICAL_PRESERVE": 184,
-      "EXPAND": 94,
+      "EXPAND": 95,
       "BACKFILL": 25,
       "CONTRACT_DROP": 12,
       "REPAIR": 4
     },
     "byReleaseWave": {
       "HISTORICAL_PRESERVE_NEVER_REWRITE": 185,
-      "SAFE_TO_APPLY_NOW": 107,
+      "SAFE_TO_APPLY_NOW": 108,
       "WAIT_FOR_BACKFILL_READINESS": 14,
       "CONTRACT_DROP_LATER": 12,
       "WAIT_FOR_RUNTIME_CUTOVER": 2
@@ -49,7 +49,7 @@
     "FirstDeploymentContractDrops": 0,
     "UnguardedDestructiveStatementsPending": 0,
     "UnguardedDestructiveStatementsHistorical": 11,
-    "ProductionMigrationStateUnknown": 320
+    "ProductionMigrationStateUnknown": 321
   },
   "gateFailures": [],
   "migrations": [
@@ -24330,8 +24330,85 @@
       "evidence": "SIGNING-KEY PURPOSE (2026-10-07). signing_keys rows now state what they may verify: purpose VARCHAR(32) NOT NULL DEFAULT 'EVIDENCE_SIGNATURE' (CHECK EVIDENCE_SIGNATURE | PACKAGE_SEAL; every existing row was written by the evidence signer or its seed, so the constant default is true and catalog-only), algorithm VARCHAR(16) NOT NULL DEFAULT 'Ed25519' (CHECK), fingerprint_sha256 VARCHAR(64) recorded at registration (NULL on older rows, computed on read). WHY: the package seal registered its key in the same rows with no purpose, so a seal key was indistinguishable from an evidence-signing key and, in the default configuration, shared its (key_id, version). Uniqueness becomes (key_id, version, purpose) — guarded by an information_schema check — and, in ONE guarded block that RAISEs unless that key exists, DROP INDEX IF EXISTS signing_keys_key_id_version_key. The immutability trigger function is replaced to also freeze purpose, algorithm and a recorded fingerprint; a revocation still cannot be cleared and rows are still never deleted. SAFE BEFORE THE NEW CODE: previous images register evidence keys without a purpose (getting EVIDENCE_SIGNATURE) and look them up by (key_id, version), which still finds their row. No backfill, no row rewritten. Idempotent. ROLLBACK is code-first. NOT APPLIED TO PRODUCTION."
     },
     {
-      "name": "email_password_auth",
+      "name": "20281012000000_evidence_ots_truth_columns",
       "order": 319,
+      "sqlPresent": true,
+      "byteLength": 4699,
+      "checksumSha256": "560e19194894c940021bf38d73d3c37877356e804e1cdcc5eb1ee3275d36ddab",
+      "checksumSha256Raw": "560e19194894c940021bf38d73d3c37877356e804e1cdcc5eb1ee3275d36ddab",
+      "checksumBasis": "checksumSha256 = sha256 over LF-normalised migration.sql; checksumSha256Raw = sha256 over the raw bytes on disk, which is the basis Prisma uses for _prisma_migrations.checksum",
+      "gitTracked": true,
+      "gitIntroductionCommit": null,
+      "sqlChangedSinceIntroduction": true,
+      "classification": "EXPAND",
+      "sqlShape": "EXPAND",
+      "sqlShapeEvidence": "additive only — tables:0 columns:11 types:0 extensions:0",
+      "classificationEvidence": null,
+      "schemaObjectsTouched": {
+        "createdTables": [],
+        "droppedTables": [],
+        "alteredTables": [
+          "evidence"
+        ],
+        "addedColumns": [
+          "ots_attestation_block_height",
+          "ots_attestation_recorded_at_utc",
+          "ots_chain_block_hash",
+          "ots_chain_block_height",
+          "ots_chain_block_time_utc",
+          "ots_chain_checked_at_utc",
+          "ots_chain_confirmations",
+          "ots_chain_failure_code",
+          "ots_chain_verification_status",
+          "ots_chain_verified_at_utc",
+          "ots_chain_verifier"
+        ],
+        "droppedColumns": [],
+        "createdTypes": [],
+        "droppedTypes": [],
+        "alteredTypes": [],
+        "createdIndexes": [],
+        "droppedIndexes": [],
+        "addedConstraints": [
+          "evidence_ots_bitcoin_verified_requires_chain_evidence",
+          "evidence_ots_chain_status_vocabulary",
+          "evidence_ots_chain_verified_requires_evidence"
+        ],
+        "droppedConstraints": []
+      },
+      "dataTablesTouched": [],
+      "dataTablesMutatedPreexisting": [],
+      "dependencies": [
+        "20260131235343_init"
+      ],
+      "softDependencies": [],
+      "unknownDependencies": [],
+      "dependentRuntimeCode": [],
+      "compatibleCodeVersions": null,
+      "requiredExtensions": [],
+      "destructiveStatements": [],
+      "guardBlocks": 0,
+      "guardRaises": 0,
+      "destructiveGuarded": null,
+      "guardedByPrecedingMigration": null,
+      "prodApplied": "UNKNOWN_AWAITING_SNAPSHOT",
+      "prodChecksum": null,
+      "prodStatus": null,
+      "believedProductionState": null,
+      "believedProductionEvidence": null,
+      "safeBeforeCodeDeployment": true,
+      "requiresBackfill": false,
+      "readinessCommand": "psql \"$P6_TARGET\" -Atc \"SELECT (SELECT count(*) FROM information_schema.columns WHERE table_name='evidence' AND column_name LIKE 'ots_chain_%' OR (table_name='evidence' AND column_name LIKE 'ots_attestation_%')) || ':' || (SELECT count(*) FROM pg_constraint WHERE conname IN ('evidence_ots_chain_status_vocabulary','evidence_ots_chain_verified_requires_evidence','evidence_ots_bitcoin_verified_requires_chain_evidence')) || ':' || (SELECT count(*) FROM evidence WHERE ots_anchor_check = 'BITCOIN_VERIFIED')\"",
+      "blockingReadinessCategories": [],
+      "rollbackDisposition": null,
+      "releaseWave": "SAFE_TO_APPLY_NOW",
+      "ownerAction": null,
+      "removalCondition": null,
+      "evidence": "OTS TRUTH (2026-10-12). Eleven nullable evidence columns: ots_attestation_recorded_at_utc (when PROOVRA recorded the attestation-bearing proof — never an anchor time), ots_attestation_block_height (reported by the proof, unverified), and the latest independent chain check ots_chain_verification_status (NOT_CONFIGURED | UNAVAILABLE | INSUFFICIENT_CONFIRMATIONS | FAILED | VERIFIED), ots_chain_checked_at_utc, ots_chain_verified_at_utc, ots_chain_block_height/_hash/_time_utc, ots_chain_confirmations, ots_chain_verifier, ots_chain_failure_code. Three NOT VALID CHECK constraints (enforced for every row written or updated from now on, existing rows not scanned): the status vocabulary; VERIFIED requires the complete chain evidence; ots_anchor_check = 'BITCOIN_VERIFIED' requires a VERIFIED chain status. WHY: the worker's recording time was stored in ots_anchored_at_utc and printed as 'OTS anchored at'; a chain verification had nowhere to live. ots_anchored_at_utc keeps being written as the completeness marker every previous-release reader requires, so rollback stays coherent; the shared projection reads it as the proof-recorded time. READINESS: the last count (rows already BITCOIN_VERIFIED) is expected to be 0 — the deployed worker had no Bitcoin node; a non-zero count is resolved with the owner before deploy because an update of such a row would be refused. SAFE BEFORE THE NEW CODE: previous images never read or write the columns and never write BITCOIN_VERIFIED without a node. No backfill, no row rewritten. ROLLBACK is code-first; the columns are not dropped. NOT APPLIED TO PRODUCTION."
+    },
+    {
+      "name": "email_password_auth",
+      "order": 320,
       "sqlPresent": true,
       "byteLength": 1293,
       "checksumSha256": "4b5f69c0bb765a1ffa4259569d3c5ca500149398187b1df42870eb12ba6c0934",

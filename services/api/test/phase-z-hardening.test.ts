@@ -520,9 +520,9 @@ describe("Phase Z [FM-OTS-002] — empty / malformed proof never produces a .ots
       "../../worker/src/verification-package.ts",
     );
     expect(src).toContain("decideOtsPackageArtifact");
-    // The decision helper must enforce length > 0 before emitting bytes.
-    expect(src).toMatch(/Buffer\.from\(input\.proofBase64,\s*"base64"\)/);
-    expect(src).toMatch(/buf\.length\s*>\s*0/);
+    // (2026-10-12) Bytes are emitted only for a proof whose digest binding,
+    // read from its bytes, is MATCH — an empty or malformed proof cannot be.
+    expect(src).toMatch(/if \(binding\.kind === "MATCH"\) \{\s*proofBytes = Buffer\.from\(input\.proofBase64 as string, "base64"\);/);
   });
 });
 

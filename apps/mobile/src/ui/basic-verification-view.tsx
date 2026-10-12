@@ -145,16 +145,21 @@ export function BasicVerificationView({ data, matrix = null }: { data: BasicVeri
             state={data.anchoring.state}
             detail={
               data.anchoring.state === "verified"
-                ? `Confirmed ${fmt(data.anchoring.anchoredAtUtc)} — possibly later than any report.`
+                ? `Independently verified against the Bitcoin blockchain; verified block time ${fmt(data.anchoring.anchoredAtUtc)} — possibly later than any report.`
                 : data.anchoring.state === "not_checked"
-                  ? data.anchoring.basis === "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
-                    ? `Recorded as anchored (${fmt(data.anchoring.anchoredAtUtc)}) before checks were recorded. The proof is kept; neither its structure nor the Bitcoin chain has been checked here.`
-                    : `The proof carries a Bitcoin block attestation for this record (${fmt(data.anchoring.anchoredAtUtc)}). The Bitcoin chain itself was not checked here.`
+                  ? (() => {
+                      // (2026-10-12) A recording time is never an anchor time.
+                      const recorded = data.anchoring.proofRecordedAtUtc ?? (data.anchoring.truthState ? null : data.anchoring.anchoredAtUtc);
+                      const at = recorded ? ` (proof recorded by PROOVRA ${fmt(recorded)})` : "";
+                      return data.anchoring.basis === "ANCHOR_RECORDED_CHECK_NOT_RECORDED"
+                        ? `A Bitcoin attestation was recorded${at} before checks were recorded. Not independently verified against the Bitcoin blockchain.`
+                        : `Bitcoin attestation present${at}. Not independently verified against the Bitcoin blockchain.`;
+                    })()
                 : data.anchoring.state === "pending"
-                  ? "Submitted; confirmation has not completed yet."
+                  ? "The proof does not carry a Bitcoin attestation yet."
                   : data.anchoring.state === "failed"
-                    ? "Anchoring did not complete."
-                    : "No anchoring proof exists for this record."
+                    ? "The proof is unusable for this record, or an independent Bitcoin check did not verify it."
+                    : "No OpenTimestamps proof exists for this record."
             }
           />
           {/* UC-PROV-001 — the server clock at record creation is never a device-declared capture time. */}

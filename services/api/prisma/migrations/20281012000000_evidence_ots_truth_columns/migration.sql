@@ -68,7 +68,8 @@ ALTER TABLE "evidence"
 ALTER TABLE "evidence"
   ADD CONSTRAINT "evidence_ots_chain_verified_requires_evidence"
   CHECK (
-    "ots_chain_verification_status" IS DISTINCT FROM 'VERIFIED'
+    "ots_chain_verification_status" IS NULL
+    OR "ots_chain_verification_status" <> 'VERIFIED'
     OR (
       "ots_chain_verified_at_utc" IS NOT NULL
       AND "ots_chain_block_height" IS NOT NULL
@@ -82,6 +83,7 @@ ALTER TABLE "evidence"
 ALTER TABLE "evidence"
   ADD CONSTRAINT "evidence_ots_bitcoin_verified_requires_chain_evidence"
   CHECK (
-    "ots_anchor_check" IS DISTINCT FROM 'BITCOIN_VERIFIED'
+    "ots_anchor_check" IS NULL
+    OR "ots_anchor_check" <> 'BITCOIN_VERIFIED'
     OR "ots_chain_verification_status" = 'VERIFIED'
   ) NOT VALID;

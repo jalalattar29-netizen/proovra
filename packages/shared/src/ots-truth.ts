@@ -38,7 +38,7 @@ import {
   resolveEffectiveOtsStatus,
   type OtsAnchorClaim,
 } from "./ots.js";
-import type { OtsDigestBinding } from "./ots-proof.js";
+import { checkOtsDigestBinding, type OtsDigestBinding } from "./ots-proof.js";
 
 export const OTS_TRUTH_STATES = [
   "NOT_REQUESTED",
@@ -349,4 +349,86 @@ export function resolveOtsTruth(input: OtsTruthInput): OtsTruth {
 /** True only for a proof independently verified against the Bitcoin chain. */
 export function isOtsChainVerified(truth: Pick<OtsTruth, "state">): boolean {
   return truth.state === "CHAIN_VERIFIED";
+}
+
+/**
+ * The evidence row's OTS columns, as every reader selects them. The proof
+ * bytes and the fingerprint digest are optional: without them the binding is
+ * not evaluated (and nothing is promoted by its absence).
+ */
+export type OtsRecordColumns = {
+  otsStatus?: string | null;
+  otsAnchoredAtUtc?: Date | string | null;
+  otsAnchorCheck?: string | null;
+  otsBitcoinTxid?: string | null;
+  otsUpgradedAtUtc?: Date | string | null;
+  otsProofBase64?: string | null;
+  otsHash?: string | null;
+  fingerprintHash?: string | null;
+  otsAttestationRecordedAtUtc?: Date | string | null;
+  otsAttestationBlockHeight?: number | null;
+  otsChainVerificationStatus?: string | null;
+  otsChainCheckedAtUtc?: Date | string | null;
+  otsChainVerifiedAtUtc?: Date | string | null;
+  otsChainBlockHeight?: number | null;
+  otsChainBlockHash?: string | null;
+  otsChainBlockTimeUtc?: Date | string | null;
+  otsChainConfirmations?: number | null;
+  otsChainVerifier?: string | null;
+  otsChainFailureCode?: string | null;
+};
+
+/** The selection every OTS reader adds to its evidence query (Prisma field names). */
+export const OTS_TRUTH_RECORD_SELECT = {
+  otsStatus: true,
+  otsAnchoredAtUtc: true,
+  otsAnchorCheck: true,
+  otsBitcoinTxid: true,
+  otsUpgradedAtUtc: true,
+  otsProofBase64: true,
+  otsHash: true,
+  fingerprintHash: true,
+  otsAttestationRecordedAtUtc: true,
+  otsAttestationBlockHeight: true,
+  otsChainVerificationStatus: true,
+  otsChainCheckedAtUtc: true,
+  otsChainVerifiedAtUtc: true,
+  otsChainBlockHeight: true,
+  otsChainBlockHash: true,
+  otsChainBlockTimeUtc: true,
+  otsChainConfirmations: true,
+  otsChainVerifier: true,
+  otsChainFailureCode: true,
+} as const;
+
+/** The OTS truth of one evidence row, its proof bytes bound to its fingerprint digest. */
+export function resolveRecordOtsTruth(
+  row: OtsRecordColumns,
+  opts: { now?: Date; submittedAtUtc?: Date | string | null } = {},
+): OtsTruth {
+  return resolveOtsTruth({
+    status: row.otsStatus ?? null,
+    anchoredAtUtc: row.otsAnchoredAtUtc ?? null,
+    anchorCheck: row.otsAnchorCheck ?? null,
+    bitcoinTxid: row.otsBitcoinTxid ?? null,
+    proofPresent: Boolean(row.otsProofBase64),
+    upgradedAtUtc: row.otsUpgradedAtUtc ?? null,
+    submittedAtUtc: opts.submittedAtUtc ?? null,
+    attestationRecordedAtUtc: row.otsAttestationRecordedAtUtc ?? null,
+    attestationBlockHeight: row.otsAttestationBlockHeight ?? null,
+    chainVerificationStatus: row.otsChainVerificationStatus ?? null,
+    chainCheckedAtUtc: row.otsChainCheckedAtUtc ?? null,
+    chainVerifiedAtUtc: row.otsChainVerifiedAtUtc ?? null,
+    chainBlockHeight: row.otsChainBlockHeight ?? null,
+    chainBlockHash: row.otsChainBlockHash ?? null,
+    chainBlockTimeUtc: row.otsChainBlockTimeUtc ?? null,
+    chainConfirmations: row.otsChainConfirmations ?? null,
+    chainVerifier: row.otsChainVerifier ?? null,
+    chainFailureCode: row.otsChainFailureCode ?? null,
+    digestBinding:
+      row.otsProofBase64 && row.fingerprintHash !== undefined
+        ? checkOtsDigestBinding({ proofBase64: row.otsProofBase64, fingerprintHash: row.fingerprintHash, otsHash: row.otsHash ?? null })
+        : null,
+    ...(opts.now ? { now: opts.now } : {}),
+  });
 }

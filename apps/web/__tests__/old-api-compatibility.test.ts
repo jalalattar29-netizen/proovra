@@ -44,7 +44,7 @@ test("Verify: an old-API ANCHORED record with a txid but no claim/check is not s
     bitcoinTxid: TXID,
   });
   assert.notEqual(badge.tone, "success");
-  assert.equal(badge.label, "ANCHORED · CHAIN NOT CHECKED");
+  assert.equal(badge.label, "ATTESTATION PRESENT · NOT VERIFIED");
 });
 
 test("Verify: an old-API ANCHORED record with NO txid is never shown as anchored-and-verified", () => {

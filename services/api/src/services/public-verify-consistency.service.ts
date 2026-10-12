@@ -27,7 +27,10 @@ export type PublicVerifySnapshotSection = {
 
 export type PublicVerifyLiveAnchoringSection = {
   currentOtsStatus: string | null;
+  /** (2026-10-12) The VERIFIED Bitcoin block time only. */
   otsAnchoredAtUtc: string | null;
+  /** When PROOVRA recorded the attestation-bearing proof. Never an anchor time. */
+  otsProofRecordedAtUtc: string | null;
   otsBitcoinTxid: string | null;
   lastUpdatedAtUtc: string | null;
   hasAdvancedSinceSnapshot: boolean;
@@ -117,6 +120,7 @@ export function buildPublicVerifyConsistencySections(params: {
   } | null;
   currentOtsStatus: string | null;
   otsAnchoredAtUtc: string | null;
+  otsProofRecordedAtUtc?: string | null;
   otsBitcoinTxid: string | null;
   otsUpgradedAtUtc: string | null;
 }): {
@@ -166,8 +170,9 @@ export function buildPublicVerifyConsistencySections(params: {
   const liveAnchoring: PublicVerifyLiveAnchoringSection = {
     currentOtsStatus: params.currentOtsStatus,
     otsAnchoredAtUtc: params.otsAnchoredAtUtc,
+    otsProofRecordedAtUtc: params.otsProofRecordedAtUtc ?? null,
     otsBitcoinTxid: params.otsBitcoinTxid,
-    lastUpdatedAtUtc: params.otsUpgradedAtUtc ?? params.otsAnchoredAtUtc ?? null,
+    lastUpdatedAtUtc: params.otsUpgradedAtUtc ?? params.otsAnchoredAtUtc ?? params.otsProofRecordedAtUtc ?? null,
     hasAdvancedSinceSnapshot:
       rankOtsStatus(params.currentOtsStatus) > rankOtsStatus(otsStatusAtGeneration),
     newerReportAvailable: isLaterThan(

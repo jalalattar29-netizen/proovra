@@ -110,7 +110,7 @@ describe("Public Verify — matrix panels (old API without verificationMatrix)",
     // An unchecked OpenTimestamps proof reads NOT_CHECKED.
     expect(getByTestId("verify-matrix-status-ots_anchoring").textContent).toBe("NOT_CHECKED");
     expect(getByTestId("verify-matrix-row-ots_anchoring").textContent).toMatch(
-      /has not checked the proof against the Bitcoin chain/,
+      /No independent Bitcoin verification result is recorded/,
     );
     expect(getByTestId("verify-matrix-status-file_integrity").textContent).toBe("VERIFIED");
     // The old wire summary and reviewer action never reach the page.

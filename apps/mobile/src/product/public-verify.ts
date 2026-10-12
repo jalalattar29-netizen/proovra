@@ -1018,7 +1018,9 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
   const pkgSig = obj(snap["verificationPackageSignature"]);
   const snapGen = str(snap["generatedAtUtc"]);
   const currentOts = str(live["currentOtsStatus"]) ?? otsStatus;
+  // (2026-10-12) The verified block time only; the recording time beside it.
   const liveAnchored = str(live["otsAnchoredAtUtc"]);
+  const liveRecorded = str(live["otsProofRecordedAtUtc"]);
   const liveUpdated = str(live["lastUpdatedAtUtc"]);
   return {
     snapshotRows: [
@@ -1037,7 +1039,11 @@ export function parseVerifyAnchoring(payload: unknown, fmt: (iso: string) => str
     ],
     liveRows: [
       { label: "Current OTS Status", value: currentOts ?? "Not recorded" },
-      { label: "Anchored At", value: liveAnchored ? fmt(liveAnchored) : "Not recorded" },
+      {
+        label: "Bitcoin Anchor Time (independently verified)",
+        value: liveAnchored ? fmt(liveAnchored) : "Not independently verified",
+      },
+      { label: "Proof Recorded by PROOVRA (UTC)", value: liveRecorded ? fmt(liveRecorded) : "Not recorded" },
       { label: "Bitcoin Transaction", value: str(live["otsBitcoinTxid"]) ?? "Not recorded" },
       { label: "Last Anchoring Update", value: liveUpdated ? fmt(liveUpdated) : "Not recorded" },
       { label: "Latest Report", value: live["newerReportAvailable"] === true ? "Latest report available" : "No newer report recorded" },
@@ -1720,7 +1726,11 @@ export function verifyIntegrityTab(
   const keyId = str(tm["signingKeyId"]);
   const keyVersion = num(tm["signingKeyVersion"]);
   const genTime = str(tsa["genTimeUtc"]);
-  const anchoredAt = str(ots["anchoredAtUtc"]);
+  // (2026-10-12) A response with truthState states the VERIFIED block time in
+  // anchoredAtUtc; an older one carried the recording time there.
+  const truthState = str(ots["truthState"]);
+  const anchoredAt = truthState ? str(ots["anchoredAtUtc"]) : null;
+  const proofRecordedAt = truthState ? str(ots["proofRecordedAtUtc"]) : str(ots["anchoredAtUtc"]);
   const upgradedAt = str(ots["upgradedAtUtc"]);
   const text = (label: string, value: string | null): VerifyStatusCard | null => (value ? { label, value, tone: null } : null);
   const cards: Array<VerifyStatusCard | null> = [
@@ -1750,8 +1760,9 @@ export function verifyIntegrityTab(
     text("Signing Key Version", keyVersion !== null ? String(keyVersion) : null),
     text("OTS Calendar", str(ots["calendar"])),
     proofPresent !== null ? { label: "OTS Proof", value: proofPresent ? "Proof Present" : "Not Present", tone: proofPresent ? "success" : "neutral" } : null,
-    text("OTS Anchored At", anchoredAt ? fmt(anchoredAt) : null),
-    text("OTS Upgraded At", upgradedAt ? fmt(upgradedAt) : null),
+    text("Bitcoin Anchor Time (independently verified)", anchoredAt ? fmt(anchoredAt) : null),
+    text("Proof Recorded by PROOVRA (UTC)", proofRecordedAt ? fmt(proofRecordedAt) : null),
+    text("Proof Upgraded by PROOVRA (UTC)", upgradedAt ? fmt(upgradedAt) : null),
     {
       label: "OTS Hash Check",
       value: s.otsHashMatches === true ? "Hash Matches" : s.otsHashMatches === false ? "Hash Mismatch" : "Unavailable",

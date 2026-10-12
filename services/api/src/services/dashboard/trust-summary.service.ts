@@ -137,12 +137,21 @@ export function otsBucket(row: {
   otsStatus: string | null;
   otsAnchoredAtUtc?: Date | string | null;
   otsAnchorCheck?: string | null;
+  /** (2026-10-12) evidence.ots_chain_verification_status. */
+  otsChainVerificationStatus?: string | null;
 }): "anchored" | "anchoredNotChecked" | "pending" | "failed" | "none" {
   const claim = resolveOtsAnchorClaim({
     status: row.otsStatus,
     anchoredAtUtc: row.otsAnchoredAtUtc ?? null,
     anchorCheck: row.otsAnchorCheck ?? null,
   });
+  // A grouped count carries no per-row evidence. BITCOIN_VERIFIED together with
+  // a VERIFIED chain status is enough here: the database refuses either without
+  // the complete chain evidence (evidence_ots_chain_verified_requires_evidence,
+  // evidence_ots_bitcoin_verified_requires_chain_evidence).
+  if (claim === "ANCHORED_NOT_CHECKED" && row.otsAnchorCheck === "BITCOIN_VERIFIED" && row.otsChainVerificationStatus === "VERIFIED") {
+    return "anchored";
+  }
   if (claim === "VERIFIED") return "anchored";
   if (claim === "ANCHORED_NOT_CHECKED") return "anchoredNotChecked";
   if (claim === "PENDING") return "pending";
@@ -208,7 +217,7 @@ export async function buildTrustSummary(input: {
       }),
       prisma.evidence.groupBy({
         // UC-TRUST-007 — grouped by how the anchor was established too.
-        by: ["otsStatus", "otsAnchorCheck", "otsAnchoredAtUtc"],
+        by: ["otsStatus", "otsAnchorCheck", "otsAnchoredAtUtc", "otsChainVerificationStatus"],
         where: baseWhere,
         _count: { _all: true },
       }),

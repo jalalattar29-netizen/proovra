@@ -29,6 +29,14 @@ export type ArtifactTrust = {
     anchoredAtUtc: string | null;
     /** When the current anchor check was recorded (absent from an older API). */
     anchorCheckedAtUtc?: string | null;
+    /** (2026-10-12) The recorded independent chain check — VERIFIED requires it. */
+    chainVerificationStatus?: string | null;
+    chainVerifiedAtUtc?: string | null;
+    chainBlockHeight?: number | null;
+    chainBlockHash?: string | null;
+    chainBlockTimeUtc?: string | null;
+    chainConfirmations?: number | null;
+    chainVerifier?: string | null;
   };
 };
 
