@@ -2585,7 +2585,7 @@ function extractEvidenceContent(data: VerifyResponse) {
 }
 
 /**
- * (2026-10-12) A stored OTS status in the public vocabulary. "Verified" only
+ * (2026-10-12) A stored anchoring status in the public vocabulary; the chain-checked word only
  * with an independently verified Bitcoin time; a raw status is never shown.
  */
 function otsPublicWord(status: string | null | undefined, chainVerified: boolean): string {
