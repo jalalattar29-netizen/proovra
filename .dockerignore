@@ -6,3 +6,7 @@
 **/coverage
 .git
 .gitignore
+# Compiled JavaScript beside TypeScript source is a stale in-place build, never
+# authored code (every package builds to dist/). Keep it out of every image.
+services/*/src/**/*.js
+packages/*/src/**/*.js

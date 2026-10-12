@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { defineConfig } from "vitest/config";
 
+import { preferTsSource } from "../../scripts/vitest-prefer-ts-source.mjs";
+
 /**
  * PHASE 12 — POINT 7: the canonical bootstrap is a --import PRELOAD.
  *
@@ -76,6 +78,8 @@ const POINT7_RUN_ID = process.env.POINT7_RUN_ID ?? randomUUID();
  * available.
  */
 export default defineConfig({
+  // Tests execute the TypeScript source, never a stale compiled sibling.
+  plugins: [preferTsSource()],
   test: {
     environment: "node",
     // PHASE 12 POINT 7 CORRECTIVE PASS — the safe-environment authority runs

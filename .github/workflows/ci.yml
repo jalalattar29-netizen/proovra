@@ -108,6 +108,12 @@ jobs:
       - name: Runbook endpoint integrity
         run: pnpm --filter proovra-api run verify:runbook-endpoints
 
+      # No compiled JavaScript beside TypeScript source. Every package builds
+      # to dist/; a .js sibling under src/ is a stale in-place build that Node
+      # and Vite would load instead of the current .ts.
+      - name: Gate — no compiled source siblings
+        run: node scripts/check-compiled-source-siblings.mjs
+
       - name: Lint
         run: pnpm -r lint
 

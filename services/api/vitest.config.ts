@@ -2,6 +2,8 @@ import { availableParallelism } from "node:os";
 
 import { defineConfig } from "vitest/config";
 
+import { preferTsSource } from "../../scripts/vitest-prefer-ts-source.mjs";
+
 /**
  * A CEILING on workers, because several suites spawn their own CPU-heavy children.
  *
@@ -58,6 +60,8 @@ process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--import ${POINT7_BOOTSTR
  * together discover every test file in `test/`.
  */
 export default defineConfig({
+  // Tests execute the TypeScript source, never a stale compiled sibling.
+  plugins: [preferTsSource()],
   test: {
     environment: "node",
     // PHASE 12 POINT 7 CORRECTIVE PASS — the safe-environment authority runs

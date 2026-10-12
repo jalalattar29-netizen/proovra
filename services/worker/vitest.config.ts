@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 
+import { preferTsSource } from "../../scripts/vitest-prefer-ts-source.mjs";
+
 /**
  * PHASE 12 — POINT 7: the same canonical bootstrap as the API projects.
  *
@@ -17,6 +19,8 @@ process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--import ${POINT7_BOOTSTR
 
 
 export default defineConfig({
+  // Tests execute the TypeScript source, never a stale compiled sibling.
+  plugins: [preferTsSource()],
   test: {
     environment: "node",
     include: ["test/**/*.test.ts"],
