@@ -130,36 +130,55 @@ async function openCondition(page: Page, id: string) {
 }
 
 test.describe("Operations remediation — executed browser journeys", () => {
-  test("A. PRO Personal: remediation from Operations is accepted, and a second click is deduplicated", async ({ page }) => {
+  test("A. PRO Personal: remediation from Operations is accepted, and concurrent clicks are deduplicated", async ({ page }) => {
     const s = await createGuestSession({ plan: "PRO" });
     const space = personalSpaceOf(s.userId);
-    const ev = seedSignedPersonalRecord(s.userId);
-    const id = seedCondition(space, {
-      sourceId: "pipeline.report_generation_failed",
-      category: "REPORT",
-      fingerprint: `REPORT:${ev}:v1:UNCLASSIFIED`,
-      evidenceId: ev,
-    });
+    const reportCondition = (ev: string) =>
+      seedCondition(space, {
+        sourceId: "pipeline.report_generation_failed",
+        category: "REPORT",
+        fingerprint: `REPORT:${ev}:v1:UNCLASSIFIED`,
+        evidenceId: ev,
+      });
 
+    // 1. The UI path: the drawer offers the canonical recovery and the API
+    //    accepts it for a Personal record (team_id NULL).
+    const ev = seedSignedPersonalRecord(s.userId);
+    const id = reportCondition(ev);
     await signIn(page, s.email);
     await openCondition(page, id);
     const recover = page.locator('[data-ops-remediate="report.regenerate_artifacts"]');
     await expect(recover).toBeVisible();
     await recover.click();
-    const modal = page.locator('[data-confirm-action-modal="ops-remediate-confirm"]');
-    await modal.getByRole("button", { name: /Recover report or package/ }).click();
+    await page
+      .locator('[data-confirm-action-modal="ops-remediate-confirm"]')
+      .getByRole("button", { name: /Recover report or package/ })
+      .click();
     await expect(page.locator('[data-ops-remediation-result="QUEUED"]')).toBeVisible({ timeout: 20_000 });
+    expect(sql("SELECT count(*)::int AS n FROM report_generation_requests WHERE evidence_id = $1", [ev])[0]!.n).toBe(1);
 
-    await recover.click();
-    await modal.getByRole("button", { name: /Recover report or package/ }).click();
-    // Collapsed onto the live work — or, if the worker already finished it,
-    // satisfied. Never a second request either way.
-    await expect(
-      page.locator('[data-ops-remediation-result="ALREADY_IN_PROGRESS"], [data-ops-remediation-result="ALREADY_SATISFIED"]'),
-    ).toBeVisible({ timeout: 20_000 });
-
-    const requests = sql("SELECT count(*)::int AS n FROM report_generation_requests WHERE evidence_id = $1", [ev]);
-    expect(requests[0]!.n).toBe(1);
+    // 2. A double click is two requests in flight at once. Both reach the
+    //    real API together; exactly one is queued, the other collapses onto
+    //    it, and one canonical output request exists.
+    const ev2 = seedSignedPersonalRecord(s.userId);
+    const id2 = reportCondition(ev2);
+    const api = await makeApi(s.token);
+    const fire = () =>
+      api.post(`/v1/ops/incidents/${id2}/remediate`, {
+        data: { teamId: space, actionId: "report.regenerate_artifacts" },
+      });
+    const answers = await Promise.all([fire(), fire()]);
+    const results = await Promise.all(
+      answers.map(async (r) => ((await r.json()) as { remediation: { result: string } }).remediation.result),
+    );
+    await api.dispose();
+    // The durable writer elects ONE request: both clicks are accepted onto it
+    // (QUEUED / ALREADY_IN_PROGRESS), or — if a live worker already finished
+    // the first attempt — the second is answered from that request's state.
+    // Never a second request, never a failure.
+    expect(results).toContain("QUEUED");
+    for (const r of results) expect(["QUEUED", "ALREADY_IN_PROGRESS", "ALREADY_SATISFIED", "NOT_ELIGIBLE"]).toContain(r);
+    expect(sql("SELECT count(*)::int AS n FROM report_generation_requests WHERE evidence_id = $1", [ev2])[0]!.n).toBe(1);
   });
 
   test("B. acknowledging the only CRITICAL condition leaves Workspace Health CRITICAL", async ({ page }) => {

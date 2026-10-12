@@ -421,7 +421,10 @@ test.describe("Journey B — billing/storage mismatch, through Operations and Bi
     // The PAYER's workspace — this person's Personal Space — and a title that
     // says what the obligation's state is.
     expect(row).toMatchObject({ team_id: space, status: "OPEN" });
-    expect(String(row.title)).toBe("Storage add-on cancellation in progress");
+    // The obligation is UNGRANTABLE_PROVIDER_ACTIVE: no plan was cancelled,
+    // the provider activated an add-on PROOVRA refused to grant, and the title
+    // says exactly that.
+    expect(String(row.title)).toBe("Ungranted storage add-on being stopped");
     expect(String(row.safe_summary)).toContain("You pay for this add-on on your personal account");
 
     await page.goto(`/operations?incident=${incidentId}`);
@@ -429,7 +432,8 @@ test.describe("Journey B — billing/storage mismatch, through Operations and Bi
     await expect(drawer).toBeVisible({ timeout: 30_000 });
     // No hand-close while the provider may still be charging, in the page ...
     await expect(drawer.locator('[data-ops-action="resolve"]')).toHaveCount(0);
-    await expect(drawer.locator("[data-ops-remediation-link]")).toHaveAttribute("href", "/billing");
+    // The exact canonical card: the payer's Personal billing account.
+    await expect(drawer.locator("[data-ops-remediation-link]")).toHaveAttribute("href", "/billing?workspace=personal#billing-action-required");
     // ... or behind it.
     const refused = await P.api.post(`/v1/ops/incidents/${incidentId}/resolve`, {
       data: { teamId: space, resolutionNote: "looks fine" },

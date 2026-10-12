@@ -319,6 +319,10 @@ async function recoverArtifacts(
   if (result.kind === "stale_offer") return outcome("REFUSED");
   if (result.kind === "declined") {
     if (result.outcome === "NOTHING_TO_RECOVER") return outcome("ALREADY_SATISFIED");
+    // A live request already exists for this output (QUEUED / PROCESSING) —
+    // most often the first of two clicks. The intent is being met: collapse
+    // onto it rather than telling the operator the record is ineligible.
+    if (result.reason === "IN_PROGRESS") return outcome("ALREADY_IN_PROGRESS");
     if (result.requiresExplicitNewVersion) {
       return {
         result: "NOT_ELIGIBLE",
