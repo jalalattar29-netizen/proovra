@@ -404,7 +404,20 @@ export type OpsScenario =
   /** The incident source answers 404. Same latch, different cause. */
   | "source-404"
   /** The work queue is down. Remediation must say so, never claim completion. */
-  | "queue-unavailable";
+  | "queue-unavailable"
+  /**
+   * 2026-10-12 — the summary was answered but could not be READ: every count
+   * is null, `incompleteReason: "SOURCE_FAILED"`. Unknown, never zero.
+   */
+  | "unknown-summary"
+  /** The summary scan reached its bound: counts are a floor ("at least N"). */
+  | "bounded-summary"
+  /** A workspace re-check refused for a TRANSIENT reason (retryable). */
+  | "reconcile-temporary"
+  /** A workspace re-check refused because the deployment does not match. */
+  | "reconcile-schema"
+  /** Workspace Health answers UNKNOWN: nothing has scanned the workspace. */
+  | "health-unknown";
 
 /** A title nobody would shorten by hand, in a language that does not wrap. */
 const LONG_TITLE =
@@ -674,6 +687,40 @@ function summaryFor(scenario: OpsScenario, operatorCount: number) {
   if (scenario === "overdue") {
     return { ...base, overdue: 5 };
   }
+  if (scenario === "unknown-summary") {
+    return {
+      ...base,
+      open: null,
+      critical: null,
+      high: null,
+      warning: null,
+      info: null,
+      acknowledged: null,
+      assignedToMe: null,
+      unassigned: null,
+      resolved: null,
+      slaBreached: null,
+      slaAtRisk: null,
+      slaOnTrack: null,
+      slaUntracked: null,
+      complete: false,
+      mayAssertAllClear: false,
+      incompleteReason: "SOURCE_FAILED",
+      // The honest floor of an unreadable summary — not a fact about discovery.
+      readiness: "NEVER_RUN",
+      clearRefusalReason: "NEVER_RUN",
+    };
+  }
+  if (scenario === "bounded-summary") {
+    return {
+      ...base,
+      open: 5000,
+      critical: 40,
+      complete: false,
+      mayAssertAllClear: false,
+      incompleteReason: "SCAN_BOUND_REACHED",
+    };
+  }
   void operatorCount;
   return base;
 }
@@ -790,6 +837,13 @@ export async function installApi(
       // for resolvedWithinDays and gets only RESOLVED conditions whose
       // resolvedAtUtc is inside it — the page no longer filters in the browser.
       const windowDays = Number(url.searchParams.get("resolvedWithinDays") ?? "");
+      const statusFilter = url.searchParams.get("status") ?? "UNRESOLVED";
+      const matchesStatus = (status: string) =>
+        statusFilter === "ALL"
+          ? true
+          : statusFilter === "UNRESOLVED"
+            ? status === "OPEN" || status === "ACKNOWLEDGED" || status === "SUPPRESSED"
+            : status === statusFilter;
       const scoped = Number.isFinite(windowDays) && windowDays > 0
         ? rows.filter(
             (r) =>
@@ -797,7 +851,7 @@ export async function installApi(
               typeof r.resolvedAtUtc === "string" &&
               Date.parse(r.resolvedAtUtc) >= Date.now() - windowDays * 24 * 60 * 60 * 1000,
           )
-        : rows;
+        : rows.filter((r) => matchesStatus(String(r.status)));
       const bySource = new Map();
       for (const r of scoped) {
         // These rows all carry the same `tsa_failure:` fingerprint prefix, so
@@ -920,6 +974,63 @@ export async function installApi(
     }
     if (path.includes("/v1/ops/saved-views")) {
       return route.fulfill(json({ ok: true }, method === "DELETE" ? 204 : 201));
+    }
+
+    // ---- workspace re-check (2026-10-12 refusal vocabulary) --------------
+    if (method === "POST" && path.endsWith("/v1/ops/workspace-reconcile")) {
+      if (scenario === "reconcile-temporary") {
+        return route.fulfill(
+          json({ ran: false, alreadyRunning: false, refusedReason: "database_unavailable", retryable: true, readiness: "READY" }),
+        );
+      }
+      if (scenario === "reconcile-schema") {
+        return route.fulfill(
+          json(
+            {
+              ran: false,
+              refusedReason: "schema_mismatch",
+              retryable: false,
+              error: { code: "schema_mismatch", retryable: false },
+            },
+            503,
+          ),
+        );
+      }
+      return route.fulfill(json({ ran: true, alreadyRunning: false, refusedReason: null, retryable: true, readiness: "READY" }));
+    }
+
+    // ---- Workspace Health (tenant) ----------------------------------------
+    if (/\/v1\/teams\/[^/]+\/operations\/health$/.test(path)) {
+      const unknown = scenario === "health-unknown";
+      return route.fulfill(
+        json({
+          scope: "WORKSPACE",
+          workspaceId: WORKSPACE_ID,
+          state: unknown ? "UNKNOWN" : "ATTENTION",
+          unknownReason: unknown ? "NEVER_RUN" : null,
+          readiness: unknown ? "NEVER_RUN" : "READY",
+          openIncidents: unknown ? { total: 0, bySeverity: {} } : { total: 3, bySeverity: { WARNING: 3 } },
+          unresolvedIncidents: unknown ? 0 : 3,
+          untriagedIncidents: unknown ? 0 : 2,
+          lastIncidentActivityUtc: unknown ? null : NOW,
+          evaluatedAtUtc: NOW,
+        }),
+      );
+    }
+    if (/\/v1\/teams\/[^/]+\/operations\/alerts$/.test(path)) {
+      const unknown = scenario === "health-unknown";
+      const items = unknown ? [] : rows.filter((r) => r.status !== "RESOLVED").slice(0, 2);
+      return route.fulfill(
+        json({
+          scope: "WORKSPACE",
+          workspaceId: WORKSPACE_ID,
+          items,
+          counts: { total: unknown ? 0 : 3, critical: 0, high: 0 },
+          // Capped below the total: the page must say so.
+          complete: unknown,
+          evaluatedAtUtc: NOW,
+        }),
+      );
     }
 
     // ---- mutations -------------------------------------------------------

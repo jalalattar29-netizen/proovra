@@ -21,6 +21,8 @@
  * are in.
  */
 
+import { operationsDict, type OperationsCopy } from "@proovra/shared/i18n";
+
 import type { AppTone } from "../../../../components/app-primitives/AppStatusBadge";
 import type { IncidentSla, SlaPosture } from "./types";
 
@@ -151,34 +153,45 @@ export type SeverityEntry = {
   explanation: string;
 };
 
+/**
+ * D10 (2026-10-12) — the WORDS come from the shared dictionary; this module
+ * owns only tone and rank. `severityVocabulary(copy)` is the localized table
+ * every component reads; the constant below is its English instance, kept for
+ * the non-React callers and the tests that pin the English vocabulary.
+ */
+const SEVERITY_RANK: Readonly<Record<IncidentSeverity, number>> = Object.freeze({
+  CRITICAL: 4,
+  HIGH: 3,
+  WARNING: 2,
+  INFO: 1,
+});
+
+export function severityVocabulary(
+  copy: OperationsCopy = operationsDict.en,
+): Readonly<Record<IncidentSeverity, SeverityEntry>> {
+  const entry = (k: IncidentSeverity): SeverityEntry => ({
+    label: copy.severity[k].label,
+    tone: OPERATIONS_TONE[k],
+    rank: SEVERITY_RANK[k],
+    explanation: copy.severity[k].explanation,
+  });
+  return {
+    CRITICAL: entry("CRITICAL"),
+    HIGH: entry("HIGH"),
+    WARNING: entry("WARNING"),
+    INFO: entry("INFO"),
+  };
+}
+
 export const SEVERITY_VOCABULARY: Readonly<
   Record<IncidentSeverity, SeverityEntry>
-> = Object.freeze({
-  CRITICAL: {
-    label: "Critical",
-    tone: OPERATIONS_TONE.CRITICAL,
-    rank: 4,
-    explanation: "Records or delivery are affected now.",
-  },
-  HIGH: {
-    label: "High",
-    tone: OPERATIONS_TONE.HIGH,
-    rank: 3,
-    explanation: "Needs an operator before it becomes critical.",
-  },
-  WARNING: {
-    label: "Warning",
-    tone: OPERATIONS_TONE.WARNING,
-    rank: 2,
-    explanation: "Worth attention; nothing is blocked yet.",
-  },
-  INFO: {
-    label: "Info",
-    tone: OPERATIONS_TONE.INFO,
-    rank: 1,
-    explanation: "Recorded for context, no action expected.",
-  },
-});
+> = Object.freeze(severityVocabulary());
+
+/** One severity entry, falling back to Info for a value this build does not know. */
+export function severityEntry(raw: string, copy: OperationsCopy = operationsDict.en): SeverityEntry {
+  const table = severityVocabulary(copy);
+  return (table as Record<string, SeverityEntry | undefined>)[raw] ?? table.INFO;
+}
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -200,32 +213,30 @@ export type StatusEntry = {
  * says so: an operations queue where "acknowledged" quietly reads as "handled"
  * is a queue that hides unfinished work.
  */
-export const STATUS_VOCABULARY: Readonly<Record<IncidentStatus, StatusEntry>> =
-  Object.freeze({
-    OPEN: {
-      label: "Open",
-      tone: OPERATIONS_TONE.OPEN,
-      explanation: "Nobody has taken this on yet.",
-    },
-    ACKNOWLEDGED: {
-      label: "Acknowledged",
-      tone: OPERATIONS_TONE.ACKNOWLEDGED,
-      explanation:
-        "An operator has seen this and taken it on. It does not mean the underlying problem is fixed.",
-    },
-    RESOLVED: {
-      label: "Resolved",
-      tone: OPERATIONS_TONE.RESOLVED,
-      explanation:
-        "Closed. If the same condition happens again it reopens with its history intact.",
-    },
-    SUPPRESSED: {
-      label: "Suppressed",
-      tone: OPERATIONS_TONE.SUPPRESSED,
-      explanation:
-        "This workspace decided to stop being told about it. Repeat occurrences are still recorded, and it resolves on its own when the source recovers.",
-    },
+export function statusVocabulary(
+  copy: OperationsCopy = operationsDict.en,
+): Readonly<Record<IncidentStatus, StatusEntry>> {
+  const entry = (k: IncidentStatus): StatusEntry => ({
+    label: copy.status[k].label,
+    tone: OPERATIONS_TONE[k],
+    explanation: copy.status[k].explanation,
   });
+  return {
+    OPEN: entry("OPEN"),
+    ACKNOWLEDGED: entry("ACKNOWLEDGED"),
+    RESOLVED: entry("RESOLVED"),
+    SUPPRESSED: entry("SUPPRESSED"),
+  };
+}
+
+export const STATUS_VOCABULARY: Readonly<Record<IncidentStatus, StatusEntry>> =
+  Object.freeze(statusVocabulary());
+
+/** One status entry, falling back to Open for a value this build does not know. */
+export function statusEntry(raw: string, copy: OperationsCopy = operationsDict.en): StatusEntry {
+  const table = statusVocabulary(copy);
+  return (table as Record<string, StatusEntry | undefined>)[raw] ?? table.OPEN;
+}
 
 // ---------------------------------------------------------------------------
 // Category: which part of the product produced the condition
@@ -239,22 +250,7 @@ export const STATUS_VOCABULARY: Readonly<Record<IncidentStatus, StatusEntry>> =
  * "Evidence integrity" tells them which of their records is affected.
  */
 export const CATEGORY_LABEL: Readonly<Record<IncidentCategory, string>> =
-  Object.freeze({
-    UPLOAD: "Capture and upload",
-    REPORT: "Report generation",
-    PACKAGE: "Verification packages",
-    WEBHOOK: "Webhook delivery",
-    COMMUNICATIONS: "Communications",
-    IDENTITY_SECURITY: "Identity and access",
-    GOVERNANCE: "Governance",
-    STORAGE: "Storage",
-    AI: "AI processing",
-    INTEGRATION: "Integrations",
-    DATABASE: "Database",
-    WORKER: "Background processing",
-    RECONCILIATION: "Reconciliation",
-    EVIDENCE_INTEGRITY: "Evidence integrity",
-  });
+  Object.freeze({ ...operationsDict.en.category });
 
 /**
  * A category the server knows and this build does not still renders.
@@ -264,8 +260,8 @@ export const CATEGORY_LABEL: Readonly<Record<IncidentCategory, string>> =
  * conditions a newly-deployed writer produces, which is when hiding them is
  * most expensive.
  */
-export function categoryLabel(raw: string): string {
-  const known = (CATEGORY_LABEL as Record<string, string | undefined>)[raw];
+export function categoryLabel(raw: string, copy: OperationsCopy = operationsDict.en): string {
+  const known = (copy.category as Record<string, string | undefined>)[raw];
   if (known) return known;
   const lower = raw.replace(/_/g, " ").toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
@@ -334,80 +330,42 @@ export const QUEUE_METRIC_ORDER: readonly QueueMetricKey[] = Object.freeze([
  * and the two cards below read the SAME projection the row badge does.
  */
 
+const QUEUE_METRIC_SHAPE: Readonly<
+  Record<QueueMetricKey, { tone: AppTone; collaborative: boolean }>
+> = Object.freeze({
+  // The TOTAL, so it wears the total's tone rather than competing with the
+  // severities it contains. It counts the canonical UNRESOLVED set — open,
+  // acknowledged or suppressed — and its note says so.
+  open: { tone: OPERATIONS_TONE.UNRESOLVED, collaborative: false },
+  critical: { tone: OPERATIONS_TONE.CRITICAL, collaborative: false },
+  high: { tone: OPERATIONS_TONE.HIGH, collaborative: false },
+  // THE THIRD SEVERITY: the same summary field, from the same projection.
+  warning: { tone: OPERATIONS_TONE.WARNING, collaborative: false },
+  slaBreached: { tone: OPERATIONS_TONE.OVERDUE, collaborative: false },
+  slaAtRisk: { tone: OPERATIONS_TONE.DUE_SOON, collaborative: false },
+  resolved: { tone: OPERATIONS_TONE.RESOLVED, collaborative: false },
+  assignedToMe: { tone: OPERATIONS_TONE.OWNED_BY_ME, collaborative: true },
+  unassigned: { tone: OPERATIONS_TONE.UNOWNED, collaborative: true },
+});
+
+/** The KPI cards' words for a locale, with tone and density from this module. */
+export function queueMetricVocabulary(
+  copy: OperationsCopy = operationsDict.en,
+): Readonly<Record<QueueMetricKey, QueueMetricEntry>> {
+  const out = {} as Record<QueueMetricKey, QueueMetricEntry>;
+  for (const key of QUEUE_METRIC_ORDER) {
+    out[key] = {
+      label: copy.metrics[key].label,
+      note: copy.metrics[key].note,
+      ...QUEUE_METRIC_SHAPE[key],
+    };
+  }
+  return out;
+}
+
 export const QUEUE_METRIC_VOCABULARY: Readonly<
   Record<QueueMetricKey, QueueMetricEntry>
-> = Object.freeze({
-  open: {
-    label: "Unresolved",
-    // The TOTAL, so it wears the total's tone rather than competing with the
-    // severities it contains.
-    tone: OPERATIONS_TONE.UNRESOLVED,
-    note: "Open or acknowledged.",
-    collaborative: false,
-  },
-  critical: {
-    label: "Critical",
-    tone: OPERATIONS_TONE.CRITICAL,
-    note: "Affecting records now.",
-    collaborative: false,
-  },
-  high: {
-    label: "High",
-    tone: OPERATIONS_TONE.HIGH,
-    note: "Needs an operator soon.",
-    collaborative: false,
-  },
-  /**
-   * THE THIRD SEVERITY, which the strip was missing.
-   *
-   * The field has been in the server summary the whole time — the same scan
-   * that produces Critical and High produces it — and the strip simply did
-   * not render it. So a tenant whose queue held nothing but Warning conditions
-   * read a summary saying Critical 0, High 0 and concluded there was nothing
-   * to look at.
-   *
-   * Not a new counter, not a second authority, and nothing counted in the
-   * browser: the same field, from the same projection, finally shown.
-   */
-  warning: {
-    label: "Warning",
-    tone: OPERATIONS_TONE.WARNING,
-    note: "Worth attention; nothing is blocked yet.",
-    collaborative: false,
-  },
-  slaBreached: {
-    label: "Overdue",
-    tone: OPERATIONS_TONE.OVERDUE,
-    // Names the AUTHORITY rather than a number: the promise differs per
-    // workspace and, for a historical condition, differs from today's.
-    note: "Past the time this workspace committed to.",
-    collaborative: false,
-  },
-  slaAtRisk: {
-    label: "Due soon",
-    tone: OPERATIONS_TONE.DUE_SOON,
-    note: "Approaching the committed time.",
-    collaborative: false,
-  },
-  resolved: {
-    label: "Resolved · all time",
-    tone: OPERATIONS_TONE.RESOLVED,
-    note: "Conditions currently closed in this workspace.",
-    collaborative: false,
-  },
-  assignedToMe: {
-    label: "Assigned to me",
-    tone: OPERATIONS_TONE.OWNED_BY_ME,
-    note: "You own these.",
-    collaborative: true,
-  },
-  unassigned: {
-    label: "Unassigned",
-    tone: OPERATIONS_TONE.UNOWNED,
-    note: "Waiting for an owner.",
-    collaborative: true,
-  },
-});
+> = Object.freeze(queueMetricVocabulary());
 
 /**
  * The summary cards deliberately OVERLAP, and the surface says so.
@@ -417,8 +375,7 @@ export const QUEUE_METRIC_VOCABULARY: Readonly<
  * up and finding they exceed the queue length is how a surface loses its
  * credibility over a fact that was never a defect.
  */
-export const QUEUE_METRIC_OVERLAP_NOTE =
-  "A condition can be counted by more than one card. These are filters, not a breakdown.";
+export const QUEUE_METRIC_OVERLAP_NOTE = operationsDict.en.metricsOverlapNote;
 
 // ---------------------------------------------------------------------------
 // The timeline
@@ -432,18 +389,10 @@ export const QUEUE_METRIC_OVERLAP_NOTE =
  * build does not recognise would silently shorten that history.
  */
 export const TIMELINE_EVENT_LABEL: Readonly<Record<string, string>> =
-  Object.freeze({
-    opened: "Opened",
-    reopened: "Reopened",
-    occurrence: "Happened again",
-    acknowledged: "Acknowledged",
-    resolved: "Resolved",
-    suppressed: "Suppressed",
-    assigned: "Owner changed",
-  });
+  Object.freeze({ ...operationsDict.en.timeline });
 
-export function timelineEventLabel(raw: string): string {
-  const known = TIMELINE_EVENT_LABEL[raw];
+export function timelineEventLabel(raw: string, copy: OperationsCopy = operationsDict.en): string {
+  const known = (copy.timeline as Record<string, string | undefined>)[raw];
   if (known) return known;
   const lower = raw.replace(/[_.]/g, " ").toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
@@ -462,12 +411,7 @@ export const SORT_VALUES = [
 export type SortValue = (typeof SORT_VALUES)[number];
 
 export const SORT_LABEL: Readonly<Record<SortValue, string>> = Object.freeze({
-  recent: "Most recent activity",
-  severity: "Most severe first",
-  oldest: "Oldest first",
-  // The same phrase the queue row and the Inspector use. "Most occurrences"
-  // named nothing; this says which of the row's three numbers it sorts by.
-  occurrences: "Most source observations",
+  ...operationsDict.en.sort,
 });
 
 // ---------------------------------------------------------------------------
@@ -478,26 +422,10 @@ export const SORT_LABEL: Readonly<Record<SortValue, string>> = Object.freeze({
 // late, not to learn a vocabulary first.
 // ---------------------------------------------------------------------------
 
-export function slaLabel(posture: SlaPosture): string {
-  switch (posture) {
-    case "BREACHED":
-      return "Overdue";
-    case "AT_RISK":
-      return "Due soon";
-    case "ON_TRACK":
-      return "On time";
-    case "ACKNOWLEDGED":
-      return "Owned";
-    case "RESOLVED":
-      return "Resolved";
-    case "UNTRACKED_LEGACY":
-      // Said plainly, because "—" reads as a loading state and "N/A" reads as
-      // a product gap. Neither is what happened: nobody recorded a promise.
-      return "No SLA recorded";
-    case "NOT_APPLICABLE":
-    default:
-      return "No SLA applies";
-  }
+export function slaLabel(posture: SlaPosture, copy: OperationsCopy = operationsDict.en): string {
+  // "No SLA recorded" is said plainly, because "—" reads as a loading state
+  // and "N/A" reads as a product gap. Neither is what happened.
+  return (copy.sla as Record<string, string | undefined>)[posture] ?? copy.sla.NOT_APPLICABLE;
 }
 
 export function slaTone(posture: SlaPosture): AppTone {
@@ -528,53 +456,49 @@ export function slaTone(posture: SlaPosture): AppTone {
  * States the obligation and the promise, because "Overdue" alone leaves the
  * reader to guess whether the workspace promised four hours or four days.
  */
-export function slaExplanation(sla: IncidentSla): string {
-  const duty =
-    sla.obligation === "ACKNOWLEDGEMENT"
-      ? "for someone to take this on"
-      : "for this to be resolved";
-  const promise =
+export function slaExplanation(sla: IncidentSla, copy: OperationsCopy = operationsDict.en): string {
+  const x = copy.slaExplain;
+  const ack = sla.obligation === "ACKNOWLEDGEMENT";
+  const hours =
     sla.targetHours === null
-      ? ""
-      : ` This workspace allowed ${sla.targetHours} ${sla.targetHours === 1 ? "hour" : "hours"} ${duty}.`;
+      ? null
+      : sla.targetHours === 1
+        ? x.hoursOne
+        : x.hoursMany.replace("{n}", String(sla.targetHours));
+  const promise =
+    hours === null ? "" : " " + (ack ? x.promiseAck : x.promiseRes).replace("{hours}", hours);
 
   switch (sla.posture) {
     case "BREACHED":
-      return `Past the time this workspace allowed ${duty}.${promise}`;
+      return (ack ? x.breachedAck : x.breachedRes) + promise;
     case "AT_RISK":
-      return `Approaching the time this workspace allowed ${duty}.${promise}`;
+      return (ack ? x.atRiskAck : x.atRiskRes) + promise;
     case "ON_TRACK":
-      return `Within the time this workspace allowed ${duty}.${promise}`;
+      return (ack ? x.onTrackAck : x.onTrackRes) + promise;
     case "ACKNOWLEDGED":
-      return `Someone has taken this on and no commitment has been missed.${promise}`;
+      return x.acknowledged + promise;
     case "RESOLVED":
-      return sla.resolutionBreached
-        ? "This was resolved, but after the time this workspace allowed."
-        : "This was resolved within the time this workspace allowed.";
+      return sla.resolutionBreached ? x.resolvedLate : x.resolvedOnTime;
     case "UNTRACKED_LEGACY":
       // The honest sentence. Applying today's policy to a record from before
-      // the policy existed would invent a deadline and then invent whether it
-      // was missed.
-      return "No historical SLA was recorded for this incident, so no commitment can be reported for it.";
+      // the policy existed would invent a deadline and whether it was missed.
+      return x.untracked;
     case "NOT_APPLICABLE":
     default:
-      return "No time commitment applies to this condition.";
+      return x.notApplicable;
   }
 }
 
 /**
- * The latched record, when it differs from the posture.
- *
- * A condition can be RESOLVED and still have missed its promise, and a
- * suppressed one can carry a breach nobody should be able to erase. Returning
- * null when there is nothing extra to say keeps the drawer from repeating the
- * verdict it just rendered.
+ * The latched record, when it differs from the posture. Null when there is
+ * nothing extra to say, so the drawer does not repeat its own verdict.
  */
-export function slaBreachRecord(sla: IncidentSla): string | null {
-  const missed: string[] = [];
-  if (sla.acknowledgementBreached) missed.push("was not taken on in time");
-  if (sla.resolutionBreached) missed.push("was not resolved in time");
-  if (missed.length === 0) return null;
+export function slaBreachRecord(sla: IncidentSla, copy: OperationsCopy = operationsDict.en): string | null {
   if (sla.posture === "BREACHED") return null;
-  return `Recorded: this condition ${missed.join(" and ")}.`;
+  const ack = sla.acknowledgementBreached;
+  const res = sla.resolutionBreached;
+  if (ack && res) return copy.slaExplain.missedBoth;
+  if (ack) return copy.slaExplain.missedAck;
+  if (res) return copy.slaExplain.missedRes;
+  return null;
 }

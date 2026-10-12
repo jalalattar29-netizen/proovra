@@ -31,6 +31,20 @@ export const INCIDENT_STATUSES = [
 export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
 
 /**
+ * The status FILTER vocabulary (2026-10-12): one stored status, UNRESOLVED
+ * (OPEN + ACKNOWLEDGED + SUPPRESSED — the canonical set every count uses) or
+ * ALL. Re-exported from the shared contract so the queue cannot spell a
+ * status the server does not accept.
+ */
+export {
+  DEFAULT_INCIDENT_STATUS_FILTER,
+  INCIDENT_STATUS_FILTERS,
+  UNRESOLVED_INCIDENT_STATUSES,
+  isUnresolvedIncidentStatus,
+  type IncidentStatusFilter,
+} from "@proovra/shared";
+
+/**
  * The `IncidentCategory` enum, mirrored.
  *
  * Kept in the SAME order as `prisma/schema.prisma` so a diff between the two
@@ -217,6 +231,11 @@ export type IncidentGroup = {
 export type IncidentGroupTotals = {
   groups: number;
   conditions: number;
+  /**
+   * False when the grouped read stopped at its scan bound (5,000 conditions):
+   * the totals are then a floor. Absent on an older server.
+   */
+  complete?: boolean;
 };
 
 /** One member of a group, as the drill-down returns it. Bounded. */
@@ -336,14 +355,24 @@ export type IncidentListResponse = {
 export type OperationsSummary = {
   workspaceId: string;
   generatedAtUtc: string;
-  open: number;
-  critical: number;
-  high: number;
-  warning: number;
-  info: number;
-  acknowledged: number;
-  assignedToMe: number;
-  unassigned: number;
+  /**
+   * EVERY COUNT IS `number | null` (2026-10-12).
+   *
+   * Null means the summary could not be read (`complete: false`,
+   * `incompleteReason: "SOURCE_FAILED"`) — unknown, which no surface may
+   * render as 0 or as an all-clear. Non-null with `complete: false` and
+   * `incompleteReason: "SCAN_BOUND_REACHED"` means the counts are a FLOOR.
+   *
+   * `open` is the canonical unresolved set: OPEN + ACKNOWLEDGED + SUPPRESSED.
+   */
+  open: number | null;
+  critical: number | null;
+  high: number | null;
+  warning: number | null;
+  info: number | null;
+  acknowledged: number | null;
+  assignedToMe: number | null;
+  unassigned: number | null;
   /**
    * SLA counters, from the SAME projection the rows carry — so a card and the
    * list it summarises cannot disagree about whether something is late.
@@ -353,10 +382,10 @@ export type OperationsSummary = {
    * the SLA authority as a broken promise would manufacture a failure that
    * never happened.
    */
-  slaBreached: number;
-  slaAtRisk: number;
-  slaOnTrack: number;
-  slaUntracked: number;
+  slaBreached: number | null;
+  slaAtRisk: number | null;
+  slaOnTrack: number | null;
+  slaUntracked: number | null;
   /**
    * Closed conditions, all time. Counted by the same authority, disjoint from
    * `open`. Null when the count could not be read: unavailable, not zero.

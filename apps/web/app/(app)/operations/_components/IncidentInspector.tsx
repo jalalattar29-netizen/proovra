@@ -41,9 +41,8 @@ import Link from "next/link";
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
-import { useOpsCopy } from "../_lib/copy";
+import { fillOperationsCopy, useOpsCopy, useOpsNumber, useOpsTime } from "../_lib/copy";
 import { formatUserDateTime } from "../../../../lib/date";
-import { describeRelativeTime } from "../../../../lib/relative-time";
 import type {
   AssignableOperator,
   IncidentDetail,
@@ -60,6 +59,7 @@ import { IconClose, IconExternal, IconSpinner } from "./icons";
 /** A bounded, LTR-isolated, copyable identifier. */
 function Identifier({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = React.useState(false);
+  const copy = useOpsCopy();
   return (
     <div className="opsw-ident">
       <span className="opsw-ident__label">{label}</span>
@@ -72,7 +72,7 @@ function Identifier({ label, value }: { label: string; value: string }) {
       <button
         type="button"
         className="app-ghost-action opsw-ident__copy"
-        aria-label={`Copy ${label.toLowerCase()}`}
+        aria-label={fillOperationsCopy(copy.drawer.copyIdentifier, { label })}
         onClick={() => {
           try {
             void navigator.clipboard?.writeText(value);
@@ -83,7 +83,7 @@ function Identifier({ label, value }: { label: string; value: string }) {
           }
         }}
       >
-        {copied ? "Copied" : "Copy"}
+        {copied ? copy.drawer.copied : copy.drawer.copy}
       </button>
     </div>
   );
@@ -122,6 +122,7 @@ export function IncidentInspector({
   remediationBusy,
   remediationOutcome,
   onRemediate,
+  onRetryRemediation,
 }: {
   /** The row model for the condition, already in the list. */
   row: OperationsRowModel;
@@ -164,9 +165,17 @@ export function IncidentInspector({
   remediationOutcome: RemediationOutcome | null;
   /** `reason` is sent only for an action whose projection `requiresReason`. */
   onRemediate: (actionId: string, reason?: string) => void;
+  /**
+   * Present ONLY when the last remediation answer was retryable (a 502/503
+   * the server marked `retryable: true`). A refusal or an ineligible record
+   * gets no "Try again" — pressing it would change nothing (D6).
+   */
+  onRetryRemediation?: (() => void) | null;
 }) {
   const { confirm: confirmAction } = useConfirmAction();
   const copy = useOpsCopy();
+  const fmt = useOpsNumber();
+  const time = useOpsTime();
   // The operator's stated reason, per action that requires one. It is
   // recorded in the audit trail and on the condition's timeline.
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
@@ -177,6 +186,8 @@ export function IncidentInspector({
   const [suppressReason, setSuppressReason] = React.useState("");
   const panelRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
+  const resolveHintId = React.useId();
+  const suppressHintId = React.useId();
 
   // OPS-020 — focus moves INTO the drawer, Tab stays inside it, Escape closes
   // it, and focus returns to the control that opened it. The opener is
@@ -238,12 +249,12 @@ export function IncidentInspector({
             <h3 className="opsw-drawer__section-title">{copy.whatHappened}</h3>
             <p className="opsw-summary-text">{row.summary}</p>
             <dl className="opsw-facts">
-              <Fact term="Source">{row.categoryLabel}</Fact>
-              <Fact term="Severity">
+              <Fact term={copy.drawer.factSource}>{row.categoryLabel}</Fact>
+              <Fact term={copy.drawer.factSeverity}>
                 {row.severityLabel} — {row.severityExplanation}
               </Fact>
               {row.affectedLabel ? (
-                <Fact term="Affected record">
+                <Fact term={copy.drawer.factAffectedRecord}>
                   {row.affectedHref ? (
                     <Link
                       className="app-secondary-action opsw-affected-link"
@@ -281,47 +292,46 @@ export function IncidentInspector({
             <section className="opsw-drawer__section" data-ops-metric-section>
               <h3 className="opsw-drawer__section-title">{copy.howMuch}</h3>
               <dl className="opsw-facts">
-                <Fact term="Affected now">
+                <Fact term={copy.drawer.factAffectedNow}>
                   <span data-ops-metric-exact={row.metric.currentValue}>
-                    {row.metric.currentValue.toLocaleString("en-US")}{" "}
-                    {row.metric.unit}
+                    {fmt(row.metric.currentValue)}{" "}
+                    {(copy.group.unitWord as Record<string, string | undefined>)[row.metric.unit] ??
+                      row.metric.unit}
                   </span>
                   {row.metric.truncated ? (
                     <span className="opsw-muted">
                       {" "}
-                      (at least — the read was bounded)
+                      {copy.drawer.atLeastBounded}
                     </span>
                   ) : null}
                 </Fact>
-                <Fact term="Threshold">
-                  {row.metric.thresholdValue.toLocaleString("en-US")}
+                <Fact term={copy.drawer.factThreshold}>
+                  {fmt(row.metric.thresholdValue)}
                   {row.metric.criticalThresholdValue != null ? (
                     <span className="opsw-muted">
                       {" "}
-                      (critical at{" "}
-                      {row.metric.criticalThresholdValue.toLocaleString(
-                        "en-US",
-                      )}
-                      )
+                      {fillOperationsCopy(copy.drawer.criticalAt, {
+                        n: fmt(row.metric.criticalThresholdValue),
+                      })}
                     </span>
                   ) : null}
                 </Fact>
                 {row.metric.previousValue != null ? (
-                  <Fact term="Previous observation">
-                    {row.metric.previousValue.toLocaleString("en-US")}
+                  <Fact term={copy.drawer.factPrevious}>
+                    {fmt(row.metric.previousValue)}
                     {row.metric.delta != null ? (
                       <span className="opsw-muted">
                         {" "}
                         ({row.metric.delta >= 0 ? "+" : ""}
-                        {row.metric.delta.toLocaleString("en-US")})
+                        {fmt(row.metric.delta)})
                       </span>
                     ) : null}
                   </Fact>
                 ) : null}
-                <Fact term="Observed">
+                <Fact term={copy.drawer.factObserved}>
                   {formatUserDateTime(row.metric.observedAtUtc)}{" "}
                   <span className="opsw-muted">
-                    ({describeRelativeTime(row.metric.observedAtUtc)})
+                    ({time.ago(row.metric.observedAtUtc)})
                   </span>
                   {/* A value whose last observation FAILED says so. Silence
                       here would present the last successful read as current,
@@ -329,8 +339,7 @@ export function IncidentInspector({
                   {row.metric.stale ? (
                     <span className="opsw-muted" data-ops-metric-stale="true">
                       {" "}
-                      — the most recent check could not reach this source, so
-                      this is the last confirmed value.
+                      {copy.drawer.metricStaleNote}
                     </span>
                   ) : null}
                 </Fact>
@@ -341,16 +350,16 @@ export function IncidentInspector({
           <section className="opsw-drawer__section">
             <h3 className="opsw-drawer__section-title">{copy.when}</h3>
             <dl className="opsw-facts">
-              <Fact term="First seen">
+              <Fact term={copy.drawer.factFirstSeen}>
                 {formatUserDateTime(row.firstSeenAtUtc)}{" "}
                 <span className="opsw-muted">
-                  ({describeRelativeTime(row.firstSeenAtUtc)})
+                  ({time.ago(row.firstSeenAtUtc)})
                 </span>
               </Fact>
-              <Fact term="Latest occurrence">
+              <Fact term={copy.drawer.factLatestOccurrence}>
                 {formatUserDateTime(row.lastSeenAtUtc)}{" "}
                 <span className="opsw-muted">
-                  ({describeRelativeTime(row.lastSeenAtUtc)})
+                  ({time.ago(row.lastSeenAtUtc)})
                 </span>
               </Fact>
               {/*
@@ -358,21 +367,23 @@ export function IncidentInspector({
                 "26 occurrences" there were two names for one number on two
                 halves of one screen.
               */}
-              <Fact term="Source observations">
-                Observed in {row.occurrenceCount.toLocaleString("en-US")} checks
+              <Fact term={copy.drawer.factSourceObservations}>
+                {fillOperationsCopy(copy.observedInChecks, { n: fmt(row.occurrenceCount) })}
               </Fact>
               {/* The commitment, beside the instants it is measured from —
                   so the reader sees the promise and the verdict together
                   rather than a bare word like "Overdue". */}
               {row.sla ? (
-                <Fact term="Time commitment">
+                <Fact term={copy.drawer.factTimeCommitment}>
                   <span data-ops-sla-fact={row.sla.posture}>
                     {row.sla.label}
                     {row.sla.dueAtUtc ? (
                       <>
                         {" — "}
-                        {row.sla.posture === "RESOLVED" ? "was due " : "due "}
-                        {formatUserDateTime(row.sla.dueAtUtc)}
+                        {fillOperationsCopy(
+                          row.sla.posture === "RESOLVED" ? copy.drawer.wasDue : copy.drawer.due,
+                          { when: formatUserDateTime(row.sla.dueAtUtc) },
+                        )}
                       </>
                     ) : null}
                   </span>
@@ -451,9 +462,7 @@ export function IncidentInspector({
                     <div key={action.actionId} className="opsw-remediation__action">
                       {action.requiresReason ? (
                         <label className="opsw-remediation__reason">
-                          <span className="opsw-muted">
-                            Reason (required, recorded in the audit trail)
-                          </span>
+                          <span className="opsw-muted">{copy.drawer.reasonLabel}</span>
                           <textarea
                             className="app-form-input"
                             rows={2}
@@ -514,7 +523,7 @@ export function IncidentInspector({
                       >
                         {remediationBusy === action.actionId ? (
                           <>
-                            <IconSpinner size={14} /> Starting…
+                            <IconSpinner size={14} /> {copy.drawer.starting}
                           </>
                         ) : (
                           action.label
@@ -525,8 +534,7 @@ export function IncidentInspector({
                         {action.async ? (
                           <>
                             {" "}
-                            This runs in the background; this condition closes
-                            on its own once the record recovers.
+                            {copy.drawer.runsInBackground}
                           </>
                         ) : null}
                       </p>
@@ -545,6 +553,20 @@ export function IncidentInspector({
                   data-ops-remediation-result={remediationOutcome.result}
                 >
                   {remediationOutcome.message}
+                  {onRetryRemediation ? (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="app-secondary-action"
+                        onClick={onRetryRemediation}
+                        disabled={remediationBusy !== null || pending}
+                        data-ops-remediation-retry
+                      >
+                        {copy.retry}
+                      </button>
+                    </>
+                  ) : null}
                 </p>
               ) : null}
 
@@ -587,27 +609,24 @@ export function IncidentInspector({
             <h3 className="opsw-drawer__section-title">{copy.history}</h3>
             {detail.kind === "loading" ? (
               <p className="opsw-muted" role="status">
-                <IconSpinner size={14} /> Loading history…
+                <IconSpinner size={14} /> {copy.drawer.loadingHistory}
               </p>
             ) : detail.kind === "error" ? (
               // A history that failed to load is NOT an empty history, and
               // this says so rather than rendering an empty list that reads
               // as "nothing has ever happened to this".
               <p className="opsw-muted" role="alert" data-ops-timeline-error>
-                {detail.message} The history could not be loaded, so what is
-                shown here is not the full record.
+                {detail.message} {copy.drawer.historyFailed}
               </p>
             ) : detail.data.timeline.length === 0 ? (
-              <p className="opsw-muted">
-                Nothing has happened to this condition since it opened.
-              </p>
+              <p className="opsw-muted">{copy.drawer.historyEmpty}</p>
             ) : (
               <>
                 <ol className="opsw-timeline" data-ops-timeline>
                   {detail.data.timeline.map((entry) => (
                     <li key={entry.id} className="opsw-timeline__item">
                       <span className="opsw-timeline__type">
-                        {timelineEventLabel(entry.eventType)}
+                        {timelineEventLabel(entry.eventType, copy)}
                       </span>
                       <span className="opsw-timeline__message">
                         {entry.safeMessage}
@@ -616,14 +635,14 @@ export function IncidentInspector({
                         className="opsw-timeline__when"
                         title={formatUserDateTime(entry.occurredAtUtc)}
                       >
-                        {describeRelativeTime(entry.occurredAtUtc)}
+                        {time.ago(entry.occurredAtUtc)}
                       </span>
                     </li>
                   ))}
                 </ol>
                 {!detail.data.timelineComplete ? (
                   <p className="opsw-muted" data-ops-timeline-truncated="true">
-                    Older history exists beyond what is shown here.
+                    {copy.drawer.historyTruncated}
                   </p>
                 ) : null}
               </>
@@ -642,21 +661,18 @@ export function IncidentInspector({
               <h3 className="opsw-drawer__section-title">
                 {copy.technicalReferences}
               </h3>
-              <p className="opsw-muted">
-                Identifiers to quote if you contact support about this
-                condition.
-              </p>
+              <p className="opsw-muted">{copy.drawer.technicalHint}</p>
               {detail.data.relatedProvider ? (
-                <Identifier label="Provider" value={detail.data.relatedProvider} />
+                <Identifier label={copy.drawer.identProvider} value={detail.data.relatedProvider} />
               ) : null}
               {detail.data.relatedJobId ? (
-                <Identifier label="Job" value={detail.data.relatedJobId} />
+                <Identifier label={copy.drawer.identJob} value={detail.data.relatedJobId} />
               ) : null}
               {detail.data.requestId ? (
-                <Identifier label="Request" value={detail.data.requestId} />
+                <Identifier label={copy.drawer.identRequest} value={detail.data.requestId} />
               ) : null}
               {detail.data.traceId ? (
-                <Identifier label="Trace" value={detail.data.traceId} />
+                <Identifier label={copy.drawer.identTrace} value={detail.data.traceId} />
               ) : null}
             </section>
           ) : null}
@@ -675,6 +691,11 @@ export function IncidentInspector({
               onChange={(e) => setResolutionNote(e.target.value)}
               data-ops-resolution-note-input
             />
+            {resolutionNote.trim().length === 0 ? (
+              <span id={resolveHintId} className="opsw-muted" data-ops-disabled-reason>
+                {copy.resolveNoteRequiredHint}
+              </span>
+            ) : null}
           </label>
         ) : null}
 
@@ -691,6 +712,11 @@ export function IncidentInspector({
               onChange={(e) => setSuppressReason(e.target.value)}
               data-ops-suppress-reason-input
             />
+            {suppressReason.trim().length < 3 ? (
+              <span id={suppressHintId} className="opsw-muted" data-ops-disabled-reason>
+                {copy.suppressReasonTooShort}
+              </span>
+            ) : null}
           </label>
         ) : null}
 
@@ -726,6 +752,17 @@ export function IncidentInspector({
                 type="button"
                 className="app-primary-action"
                 disabled={pending || (row.requiresResolutionNote && resolutionNote.trim().length === 0)}
+                // A disabled control says WHY: the note is required first.
+                aria-describedby={
+                  row.requiresResolutionNote && resolutionNote.trim().length === 0
+                    ? resolveHintId
+                    : undefined
+                }
+                title={
+                  row.requiresResolutionNote && resolutionNote.trim().length === 0
+                    ? copy.resolveNoteRequiredHint
+                    : undefined
+                }
                 onClick={() =>
                   onResolve(row.requiresResolutionNote ? resolutionNote.trim() : undefined)
                 }
@@ -741,6 +778,8 @@ export function IncidentInspector({
                     type="button"
                     className="app-secondary-action app-secondary-action--danger"
                     disabled={pending || suppressReason.trim().length < 3}
+                    aria-describedby={suppressReason.trim().length < 3 ? suppressHintId : undefined}
+                    title={suppressReason.trim().length < 3 ? copy.suppressReasonTooShort : undefined}
                     onClick={() => {
                       const reason = suppressReason.trim();
                       void confirmAction({

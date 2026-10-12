@@ -40,22 +40,46 @@ import * as React from "react";
 import type { OperationsSummary } from "../_lib/types";
 import {
   QUEUE_METRIC_ORDER,
-  QUEUE_METRIC_OVERLAP_NOTE,
-  QUEUE_METRIC_VOCABULARY,
+  queueMetricVocabulary,
   type QueueMetricKey,
 } from "../_lib/vocabulary";
+import { fillOperationsCopy, useOpsCopy, useOpsNumber } from "../_lib/copy";
 
 /**
- * A count, or an honest mark that it is missing.
+ * WHAT ONE CARD CAN HONESTLY SAY (D4, 2026-10-12).
  *
- * A metric card whose value is `undefined` renders its label and its note
- * above empty space — a caption for a number that is not there, which reads as
- * a rendering fault rather than as missing data. Falling back to `0` would be
- * worse: it is a confident FALSE statement about a field the server did not
- * send, on a surface whose entire job is not making those.
+ *   unknown  the summary could not be read (every count null,
+ *            `incompleteReason: "SOURCE_FAILED"`). The card says
+ *            "Unavailable" — never 0, which would be the confident claim that
+ *            nothing is wrong about a workspace nobody could read.
+ *   floor    the summary scan reached its bound (`complete: false` with
+ *            counts). The card says "at least N".
+ *   exact    everything else.
+ *
+ * `resolved` is its own COUNT, not part of the bounded unresolved scan, so it
+ * is never shown as a floor; it is unknown only when it is itself null.
  */
-function metricValue(raw: number | null | undefined): string {
-  return typeof raw === "number" && Number.isFinite(raw) ? String(raw) : "—";
+type MetricDisplay =
+  | { kind: "unknown" }
+  | { kind: "floor"; value: number }
+  | { kind: "exact"; value: number };
+
+export function metricDisplay(
+  summary: OperationsSummary,
+  key: QueueMetricKey,
+): MetricDisplay {
+  const raw = summary[key];
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return { kind: "unknown" };
+  const floor =
+    key !== "resolved" &&
+    summary.complete === false &&
+    summary.incompleteReason === "SCAN_BOUND_REACHED";
+  return floor ? { kind: "floor", value: raw } : { kind: "exact", value: raw };
+}
+
+/** True when the summary itself could not be read: every count is unknown. */
+export function summaryUnknown(summary: OperationsSummary): boolean {
+  return summary.open === null || summary.incompleteReason === "SOURCE_FAILED";
 }
 
 export function QueueSummary({
@@ -71,20 +95,50 @@ export function QueueSummary({
   showCollaborative: boolean;
 }) {
   const noteId = React.useId();
+  const copy = useOpsCopy();
+  const fmt = useOpsNumber();
+  const vocabulary = queueMetricVocabulary(copy);
   const keys = QUEUE_METRIC_ORDER.filter(
-    (k) => showCollaborative || !QUEUE_METRIC_VOCABULARY[k].collaborative,
+    (k) => showCollaborative || !vocabulary[k].collaborative,
   );
+  const unknown = summaryUnknown(summary);
+  const floor =
+    !unknown &&
+    summary.complete === false &&
+    summary.incompleteReason === "SCAN_BOUND_REACHED";
+
+  const valueText = (d: MetricDisplay): string =>
+    d.kind === "unknown"
+      ? "—"
+      : d.kind === "floor"
+        ? fillOperationsCopy(copy.metricAtLeast, { n: fmt(d.value) })
+        : fmt(d.value);
 
   return (
-    <section className="opsw-summary" aria-labelledby={`${noteId}-h`}>
+    <section
+      className="opsw-summary"
+      aria-labelledby={`${noteId}-h`}
+      data-ops-summary-state={unknown ? "unknown" : floor ? "floor" : "exact"}
+    >
       <h2 className="app-visually-hidden" id={`${noteId}-h`}>
-        Queue summary
+        {copy.metricsHeading}
       </h2>
+      {unknown ? (
+        <p className="opsw-summary__note" role="status" data-ops-summary-unavailable>
+          {copy.metricsUnavailableNote}
+        </p>
+      ) : floor ? (
+        <p className="opsw-summary__note" role="status" data-ops-summary-floor>
+          {copy.metricsFloorNote}
+        </p>
+      ) : null}
       <ul className="opsw-summary__grid" data-ops-summary aria-describedby={noteId}>
         {keys.map((key) => {
-          const entry = QUEUE_METRIC_VOCABULARY[key];
+          const entry = vocabulary[key];
           const isCurrent = selected === key;
           const descId = `${noteId}-${key}`;
+          const display = metricDisplay(summary, key);
+          const text = valueText(display);
           return (
             <li key={key}>
               <button
@@ -95,14 +149,15 @@ export function QueueSummary({
                 className="app-metric-card opsw-metric"
                 data-opsw-tone={entry.tone}
                 data-ops-metric={key}
-                data-ops-metric-value={metricValue(summary[key])}
+                data-ops-metric-value={text}
+                data-ops-metric-kind={display.kind}
                 data-ops-metric-active={isCurrent ? "true" : "false"}
                 aria-pressed={isCurrent}
                 aria-describedby={descId}
                 onClick={() => onSelect(key)}
               >
                 <span className="app-metric-card__value opsw-metric__value">
-                  {metricValue(summary[key])}
+                  {text}
                 </span>
                 <span className="app-metric-card__label opsw-metric__label">
                   {entry.label}
@@ -111,7 +166,7 @@ export function QueueSummary({
                   className="app-metric-card__meta opsw-metric__meta"
                   id={descId}
                 >
-                  {entry.note}
+                  {display.kind === "unknown" ? `${copy.metricUnavailable} · ${entry.note}` : entry.note}
                 </span>
               </button>
             </li>
@@ -119,7 +174,7 @@ export function QueueSummary({
         })}
       </ul>
       <p className="opsw-summary__note" id={noteId} data-ops-summary-overlap-note>
-        {QUEUE_METRIC_OVERLAP_NOTE}
+        {copy.metricsOverlapNote}
       </p>
     </section>
   );

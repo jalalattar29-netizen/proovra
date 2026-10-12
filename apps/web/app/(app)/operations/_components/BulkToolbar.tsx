@@ -40,7 +40,7 @@
 
 import * as React from "react";
 
-import { useOpsCopy } from "../_lib/copy";
+import { fillOperationsCopy, useOpsCopy, useOpsNumber } from "../_lib/copy";
 
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import type { AssignableOperator, OperationsCapabilities } from "../_lib/types";
@@ -79,6 +79,8 @@ export function BulkToolbar({
 }) {
   const [assignee, setAssignee] = React.useState("");
   const copy = useOpsCopy();
+  const fmt = useOpsNumber();
+  const reasonHintId = React.useId();
   // OPS-030 — the reason a bulk suppression needs, asked before it is sent.
   const [suppressOpen, setSuppressOpen] = React.useState(false);
   const [suppressReason, setSuppressReason] = React.useState("");
@@ -107,12 +109,14 @@ export function BulkToolbar({
     <div
       className="opsw-bulk"
       role="region"
-      aria-label="Actions for the selected conditions"
+      aria-label={copy.bulkRegionLabel}
       data-ops-bulk-toolbar
       data-ops-bulk-count={count}
     >
       <p className="opsw-bulk__count" role="status">
-        {count === 1 ? "1 condition selected" : `${count} conditions selected`}
+        {count === 1
+          ? copy.bulkSelectedOne
+          : fillOperationsCopy(copy.bulkSelectedMany, { n: fmt(count) })}
       </p>
       <div className="opsw-bulk__actions">
         {capabilities.canAcknowledge ? (
@@ -123,7 +127,7 @@ export function BulkToolbar({
             onClick={onAcknowledge}
             data-ops-bulk-action="acknowledge"
           >
-            Acknowledge
+            {copy.acknowledge}
           </button>
         ) : null}
         {capabilities.canSuppress ? (
@@ -153,11 +157,11 @@ export function BulkToolbar({
                 if (next) onAssign(next);
               }}
               disabled={busy}
-              aria-label="Assign the selected conditions to"
+              aria-label={copy.bulkAssignTo}
               options={[
-                { value: "", label: "Assign to…" },
+                { value: "", label: copy.bulkAssignPlaceholder },
                 ...(selfUserId
-                  ? [{ value: selfUserId, label: "Me" }]
+                  ? [{ value: selfUserId, label: copy.bulkMe }]
                   : []),
                 ...operators
                   .filter((o) => o.userId !== selfUserId)
@@ -178,7 +182,7 @@ export function BulkToolbar({
           onClick={onClear}
           data-ops-bulk-clear
         >
-          Clear selection
+          {copy.bulkClear}
         </button>
       </div>
       {capabilities.canSuppress && suppressOpen ? (
@@ -198,11 +202,19 @@ export function BulkToolbar({
             type="button"
             className="app-secondary-action app-secondary-action--danger"
             disabled={busy || suppressReason.trim().length < 3}
+            // A disabled control says WHY (a11y): the reason is required.
+            aria-describedby={suppressReason.trim().length < 3 ? reasonHintId : undefined}
+            title={suppressReason.trim().length < 3 ? copy.bulkReasonTooShort : undefined}
             onClick={() => onSuppress(suppressReason.trim())}
             data-ops-bulk-action="suppress-confirm"
           >
             {copy.stopNotifying}
           </button>
+          {suppressReason.trim().length < 3 ? (
+            <span id={reasonHintId} className="opsw-muted" data-ops-disabled-reason>
+              {copy.bulkReasonTooShort}
+            </span>
+          ) : null}
         </div>
       ) : null}
       {outcome ? (

@@ -17,6 +17,10 @@
  * source said `complete` AND `mayAssertAllClear`. An operations surface that
  * reports an all-clear over a partial read is worse than one that reports
  * nothing at all, because the operator stops looking.
+ *
+ * D10 (2026-10-12) — every sentence below comes from the shared Operations
+ * dictionary, so a German or Arabic reader gets these states in their own
+ * language rather than an English panel inside a translated page.
  */
 
 import * as React from "react";
@@ -31,17 +35,19 @@ import Link from "next/link";
  */
 import { ProovraSupportReference } from "../../../../components/feedback/ProovraSupportReference";
 import type { SafeUserError } from "../../../../lib/feedback/toSafeUserError";
+import { useOpsCopy } from "../_lib/copy";
 import { IconOperations, IconSpinner } from "./icons";
 
 // ---------------------------------------------------------------------------
 
 export function LoadingState() {
+  const copy = useOpsCopy();
   return (
     <div className="app-empty" data-ops-loading="true" role="status">
       <span className="app-empty__icon">
         <IconSpinner size={24} />
       </span>
-      <strong>Loading operational conditions…</strong>
+      <strong>{copy.loadingConditions}</strong>
     </div>
   );
 }
@@ -55,22 +61,20 @@ export function LoadingState() {
  * shortcut to a refusal is not a next step.
  */
 export function ClearState() {
+  const copy = useOpsCopy();
   return (
     <div className="app-empty" data-ops-empty="clear" data-tone="ok">
       <span className="app-empty__icon">
         <IconOperations size={24} />
       </span>
-      <strong>Workspace operations are clear</strong>
-      <p>
-        There are no unresolved operational conditions requiring action in this
-        workspace.
-      </p>
+      <strong>{copy.clearTitle}</strong>
+      <p>{copy.clearBody}</p>
       <div className="app-empty__actions">
         <Link className="app-secondary-action" href="/evidence">
-          Evidence library
+          {copy.clearEvidenceLink}
         </Link>
         <Link className="app-secondary-action" href="/home">
-          Workspace overview
+          {copy.clearOverviewLink}
         </Link>
       </div>
     </div>
@@ -79,16 +83,37 @@ export function ClearState() {
 
 /** The filters excluded everything. Not the same statement as "clear". */
 export function NoMatchState({ onClear }: { onClear: () => void }) {
+  const copy = useOpsCopy();
   return (
     <div className="app-empty" data-ops-empty="filtered">
-      <strong>No operational conditions match these filters</strong>
-      <p>
-        This workspace may still have unresolved work. Widen the filters to see
-        it.
-      </p>
+      <strong>{copy.noMatchTitle}</strong>
+      <p>{copy.noMatchBody}</p>
       <div className="app-empty__actions">
         <button type="button" className="app-primary-action" onClick={onClear}>
-          Clear filters
+          {copy.clearFilters}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * D4 (2026-10-12) — the list came back empty, but the SUMMARY could not be
+ * read, so nothing is known about whether this workspace has been examined.
+ *
+ * Neither "clear" (unlicensed), nor "Preparing" (an unreadable summary reports
+ * `readiness: NEVER_RUN` as its honest floor, and claiming a first check is
+ * running would be invented), nor "no match" (no filter is narrowing).
+ */
+export function UnconfirmedEmptyState({ onRetry }: { onRetry: () => void }) {
+  const copy = useOpsCopy();
+  return (
+    <div className="app-empty" data-ops-empty="unconfirmed" role="status">
+      <strong>{copy.unconfirmedTitle}</strong>
+      <p>{copy.unconfirmedBody}</p>
+      <div className="app-empty__actions">
+        <button type="button" className="app-primary-action" onClick={onRetry}>
+          {copy.refresh}
         </button>
       </div>
     </div>
@@ -110,20 +135,12 @@ export type RestrictedReason =
   | "account_not_active";
 
 export function RestrictedState({ reason }: { reason: RestrictedReason }) {
-  const copy =
-    reason === "not_included"
-      ? "Operations is available to workspaces that produce operational conditions, or that more than one person shares. This workspace does neither right now, so there is no shared triage queue to show."
-      : reason === "no_workspace"
-        ? "No workspace is selected yet. Choose a workspace to see its operational conditions."
-        : reason === "context_mismatch"
-          ? // The envelope disagrees with itself about which workspace is
-            // active, so the permissions it carries may describe a different
-            // one. Reading anything here would be authorised by the wrong
-            // evidence, which is worse than showing nothing.
-            "This workspace couldn't be confirmed. Reload the page, or switch workspace again."
-          : reason === "account_not_active"
-            ? "This account is suspended, so operational work can't be shown or acted on. Contact a workspace owner."
-            : "Your access for this workspace hasn't been confirmed. Reload the page, or ask a workspace owner to check your role.";
+  // context_mismatch: the envelope disagrees with itself about which
+  // workspace is active, so the permissions it carries may describe a
+  // different one. Reading anything here would be authorised by the wrong
+  // evidence, which is worse than showing nothing.
+  const copy = useOpsCopy();
+  const sentence = copy.restricted[reason] ?? copy.restricted.no_envelope;
   return (
     <div
       className="app-empty"
@@ -131,8 +148,8 @@ export function RestrictedState({ reason }: { reason: RestrictedReason }) {
       data-ops-restricted={reason}
       role="status"
     >
-      <strong>Operations isn&apos;t available for this workspace</strong>
-      <p>{copy}</p>
+      <strong>{copy.restrictedTitle}</strong>
+      <p>{sentence}</p>
     </div>
   );
 }
@@ -156,16 +173,19 @@ export function DegradedNotice({
   requestId?: string;
   onRetry?: () => void;
 }) {
+  const copy = useOpsCopy();
   return (
     <div className="app-alert app-alert--warn" data-ops-degraded={what} role="alert">
       <div>
-        <strong>{what} could not be loaded.</strong>{" "}
-        <span>{message} Anything shown below may be incomplete.</span>
+        <strong>{what}</strong>{" "}
+        <span>
+          {message} {copy.degradedBody}
+        </span>
         <ProovraSupportReference reference={requestId} compact />
       </div>
       {onRetry ? (
         <button type="button" className="app-secondary-action" onClick={onRetry}>
-          Retry
+          {copy.retry}
         </button>
       ) : null}
     </div>
@@ -182,14 +202,15 @@ export function UnavailableState({
   requestId?: string;
   onRetry: () => void;
 }) {
+  const copy = useOpsCopy();
   return (
     <div className="app-empty" data-tone="error" data-ops-unavailable="true" role="alert">
-      <strong>Operational conditions are temporarily unavailable</strong>
+      <strong>{copy.unavailableTitle}</strong>
       <p>{message}</p>
       <ProovraSupportReference reference={requestId} />
       <div className="app-empty__actions">
         <button type="button" className="app-primary-action" onClick={onRetry}>
-          Try again
+          {copy.retry}
         </button>
       </div>
     </div>
@@ -206,28 +227,58 @@ export function UnavailableState({
 export function InlineMutationError({
   error,
   onDismiss,
+  onRetry,
 }: {
   error: SafeUserError;
   onDismiss: () => void;
+  /**
+   * Offered ONLY when the failure is retryable (D6). A "Try again" beside a
+   * permission refusal or a deployment mismatch teaches the operator that the
+   * button does nothing.
+   */
+  onRetry?: () => void;
 }) {
+  const copy = useOpsCopy();
   return (
-    <div className="app-alert app-alert--danger" role="alert" data-ops-mutation-error>
+    <div
+      className={
+        error.severity === "warning"
+          ? "app-alert app-alert--warn"
+          : "app-alert app-alert--danger"
+      }
+      role="alert"
+      data-ops-mutation-error
+      data-ops-mutation-retryable={onRetry ? "true" : "false"}
+    >
       <div>
         <span>{error.message}</span>
         <ProovraSupportReference reference={error.supportReference} compact />
       </div>
-      <button type="button" className="app-ghost-action" onClick={onDismiss}>
-        Dismiss
-      </button>
+      <div className="opsw-alert-actions">
+        {onRetry ? (
+          <button
+            type="button"
+            className="app-secondary-action"
+            onClick={onRetry}
+            data-ops-mutation-retry
+          >
+            {copy.retry}
+          </button>
+        ) : null}
+        <button type="button" className="app-ghost-action" onClick={onDismiss}>
+          {copy.dismiss}
+        </button>
+      </div>
     </div>
   );
 }
 
 /** A refresh is in flight over content that is already on screen. */
 export function RefreshingNotice() {
+  const copy = useOpsCopy();
   return (
     <p className="opsw-refreshing" role="status" data-ops-refreshing="true">
-      <IconSpinner size={14} /> <span>Refreshing…</span>
+      <IconSpinner size={14} /> <span>{copy.refreshingNotice}</span>
     </p>
   );
 }
@@ -255,30 +306,28 @@ export function RefreshingNotice() {
  *
  * DELIBERATELY not an empty state and deliberately not reassuring. The count
  * of conditions is zero and that number means nothing at all until the first
- * run completes.
+ * run completes. Rendered ONLY when the summary was actually read and said
+ * NEVER_RUN — never for an unreadable summary (see UnconfirmedEmptyState).
  */
 export function PreparingState() {
+  const copy = useOpsCopy();
   return (
     <div className="app-empty" data-ops-empty="preparing" role="status">
       <span className="app-empty__icon">
         <IconSpinner size={24} />
       </span>
-      <strong>Preparing workspace operations</strong>
-      <p>
-        This workspace hasn&apos;t been checked for operational conditions yet.
-        The first check is running now — this page will update when it
-        finishes.
-      </p>
+      <strong>{copy.preparingTitle}</strong>
+      <p>{copy.preparingBody}</p>
     </div>
   );
 }
 
 /** A discovery run holds the lock right now. */
 export function ReconcilingNotice() {
+  const copy = useOpsCopy();
   return (
     <p className="opsw-refreshing" role="status" data-ops-reconciling="true">
-      <IconSpinner size={14} />{" "}
-      <span>Refreshing operational conditions…</span>
+      <IconSpinner size={14} /> <span>{copy.reconcilingNotice}</span>
     </p>
   );
 }
@@ -304,18 +353,18 @@ export function PartialCoverageNotice({
    *
    * SERVER-COMPUTED, from the bounded failure category on the run row. A
    * deployment/schema disagreement fails identically every time until
-   * something is deployed, so offering  for one is an
-   * instruction to waste an operator's time during an incident — and, worse,
-   * a suggestion that the problem is transient when it is not.
+   * something is deployed, so offering a re-check for one is an instruction
+   * to waste an operator's time during an incident.
    */
   retryable?: boolean;
 }) {
+  const copy = useOpsCopy();
   const what =
     truncatedCount > 0 && failedCount > 0
-      ? "Some checks failed and others returned more than they could read"
+      ? copy.reconcile.partialBoth
       : truncatedCount > 0
-        ? "Some checks returned more than they could read in one pass"
-        : "Some checks could not be completed";
+        ? copy.reconcile.partialTruncated
+        : copy.reconcile.partialFailed;
   return (
     <div
       className="app-alert app-alert--warn"
@@ -323,24 +372,17 @@ export function PartialCoverageNotice({
       role="alert"
     >
       <div>
-        <strong>{what}.</strong>{" "}
-        <span>
-          The conditions below are what could be found, not necessarily all of
-          them. This workspace can&apos;t be reported as clear until a complete
-          check succeeds.
-        </span>
+        <strong>{what}.</strong> <span>{copy.reconcile.partialBody}</span>
         {!retryable ? (
           <span data-ops-partial-nonretryable="true">
             {" "}
-            Checking again won&apos;t change this — the app and its data store
-            don&apos;t currently match, so the same checks will fail until that
-            is corrected. Contact whoever manages this deployment.
+            {copy.reconcile.partialNonRetryable}
           </span>
         ) : null}
       </div>
       {onRetry && retryable ? (
         <button type="button" className="app-secondary-action" onClick={onRetry}>
-          Check again
+          {copy.checkAgain}
         </button>
       ) : null}
     </div>
@@ -354,6 +396,7 @@ export function PartialCoverageNotice({
  * exactly like a busy one, and nobody investigates busy.
  */
 export function ReconciliationStalledNotice({ onRetry }: { onRetry?: () => void }) {
+  const copy = useOpsCopy();
   return (
     <div
       className="app-alert app-alert--warn"
@@ -361,15 +404,12 @@ export function ReconciliationStalledNotice({ onRetry }: { onRetry?: () => void 
       role="alert"
     >
       <div>
-        <strong>The last check didn&apos;t finish.</strong>{" "}
-        <span>
-          It started but stopped before completing, so anything below may be out
-          of date. A new check can be started now.
-        </span>
+        <strong>{copy.reconcile.stalledTitle}</strong>{" "}
+        <span>{copy.reconcile.stalledBody}</span>
       </div>
       {onRetry ? (
         <button type="button" className="app-secondary-action" onClick={onRetry}>
-          Check again
+          {copy.checkAgain}
         </button>
       ) : null}
     </div>
@@ -391,6 +431,7 @@ export function ReconciliationFailedNotice({
   category: string | null;
   onRetry?: () => void;
 }) {
+  const copy = useOpsCopy();
   // `schema_mismatch` and `permission_denied` describe a deployment, not a
   // transient. Retrying cannot change either, and the copy has to say so
   // instead of implying the operator simply caught a bad moment.
@@ -398,14 +439,14 @@ export function ReconciliationFailedNotice({
     category !== "schema_mismatch" && category !== "permission_denied";
   const explanation =
     category === "database_unavailable"
-      ? "The workspace's data couldn't be reached."
+      ? copy.reconcile.failedDatabase
       : category === "timeout"
-        ? "The check took too long and was stopped."
+        ? copy.reconcile.failedTimeout
         : category === "schema_mismatch"
-          ? "This version of the app and its data store don't currently match, so the check can't run at all. Checking again won't change that — it needs whoever manages this deployment."
+          ? copy.reconcile.failedSchema
           : category === "permission_denied"
-            ? "The check wasn't allowed to read what it needs. Checking again won't change that — it needs whoever manages this deployment."
-            : "The check couldn't be completed.";
+            ? copy.reconcile.failedPermission
+            : copy.reconcile.failedGeneric;
   return (
     <div
       className="app-alert app-alert--danger"
@@ -414,15 +455,14 @@ export function ReconciliationFailedNotice({
       role="alert"
     >
       <div>
-        <strong>The last check for operational conditions failed.</strong>{" "}
+        <strong>{copy.reconcile.failedTitle}</strong>{" "}
         <span>
-          {explanation} Anything below is from an earlier check and may be out
-          of date.
+          {explanation} {copy.reconcile.failedEarlier}
         </span>
       </div>
       {onRetry && retryable ? (
         <button type="button" className="app-secondary-action" onClick={onRetry}>
-          Try again
+          {copy.retry}
         </button>
       ) : null}
     </div>
@@ -433,25 +473,11 @@ export function ReconciliationFailedNotice({
  * =============================================================================
  * `ReconciliationStaleNotice` WAS DELETED HERE (2026-09-10).
  * =============================================================================
- * It rendered "These conditions may be out of date. The last complete check
- * was <time>. A new one is being scheduled." with a "Check again" button, on
- * every read whose last complete run had aged past the freshness window.
- *
- * Its own docblock said the important thing: "this workspace WAS seen
- * completely, just not recently". The data under the banner was correct. And
- * the sentence "a new one is being scheduled" described something that had
- * ALREADY happened — `ensureWorkspaceOperationsFreshness` lists STALE among
- * the five states that want a fresh run and starts one on the same read — so
- * the banner announced a scheduled check and then offered a button to schedule
- * it.
- *
- * Removed as PRESENTATION, not as semantics. `readiness: "STALE"` is untouched
- * on the wire, and `mayAssertOperationsClear` still returns
- * `{ clear: false, reason: "STALE" }`, so a stale workspace still cannot be
- * reported clear. The refusal never lived here.
- *
- * The component is deleted rather than left exported-and-unused: an exported
- * renderer with no call site is the orphan pattern this codebase removes on
- * sight, and keeping it would invite a future surface to bring the banner back
- * without the reasoning above.
+ * It rendered "These conditions may be out of date. … A new one is being
+ * scheduled." with a "Check again" button on every read whose last complete
+ * run had aged past the freshness window. The data under the banner was
+ * correct, and the scheduled check it announced had already been started on
+ * the same read. Removed as PRESENTATION, not as semantics: `readiness:
+ * "STALE"` is untouched on the wire, and `mayAssertOperationsClear` still
+ * refuses the all-clear for it.
  */

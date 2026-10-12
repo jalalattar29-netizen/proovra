@@ -235,12 +235,14 @@ test("an unavailable summary does NOT fall back to the notification feed", () =>
     inputs({ inbox: feedWithFailures(false), operationsSummary: null }),
   );
   assert.equal(withFeed.operations.available, false);
+  // UNKNOWN, never zero (2026-10-12): an unavailable summary has no counts,
+  // and a rich notification feed must not populate them.
   assert.equal(
     withFeed.operations.open,
-    0,
+    null,
     "a rich notification feed must not populate the workspace summary",
   );
-  assert.equal(withFeed.operations.critical, 0);
+  assert.equal(withFeed.operations.critical, null);
 });
 
 test("the priorities card may not print 'All clear' over an unknown read", () => {
@@ -290,7 +292,7 @@ test("GATE: the same holds when the feed is EMPTY but work remains", () => {
   );
   assert.equal(vm.operations.open, 7);
   assert.ok(
-    vm.operations.critical > 0,
+    (vm.operations.critical ?? 0) > 0,
     "an empty inbox is not an empty workspace",
   );
 });

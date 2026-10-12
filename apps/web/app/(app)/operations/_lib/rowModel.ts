@@ -9,12 +9,15 @@
  */
 
 import type { AppTone } from "../../../../components/app-primitives/AppStatusBadge";
-import { describeDuration } from "../../../../lib/relative-time";
+import { opsDuration } from "./time";
 
 import type { Incident, OperationsCapabilities, SlaPosture } from "./types";
+import { operationsDict, type OperationsCopy } from "@proovra/shared/i18n";
+
+import { formatOpsNumber } from "./format";
 import {
-  SEVERITY_VOCABULARY,
-  STATUS_VOCABULARY,
+  severityEntry,
+  statusEntry,
   categoryLabel,
   slaBreachRecord,
   slaExplanation,
@@ -158,7 +161,7 @@ export type OperationsRowModel = {
  * name are operator context, not navigable resources, and rendering them as
  * links would be three affordances that cannot do what they say.
  */
-function affectedFor(i: Incident): {
+function affectedFor(i: Incident, copy: OperationsCopy): {
   label: string | null;
   href: string | null;
 } {
@@ -166,11 +169,11 @@ function affectedFor(i: Incident): {
     return {
       // The EXACT record: its reference, the same eight characters the
       // condition's own title and the record page show.
-      label: `Evidence record ${i.relatedEvidenceId.slice(0, 8)}`,
+      label: copy.drawer.evidenceRecord.replace("{id}", i.relatedEvidenceId.slice(0, 8)),
       href: `/evidence/${encodeURIComponent(i.relatedEvidenceId)}`,
     };
   }
-  if (i.relatedJobId) return { label: "Background job", href: null };
+  if (i.relatedJobId) return { label: copy.drawer.backgroundJob, href: null };
   if (i.relatedProvider) return { label: i.relatedProvider, href: null };
   return { label: null, href: null };
 }
@@ -186,11 +189,11 @@ function affectedFor(i: Incident): {
  */
 const METRIC_DISPLAY_CAP = 2000;
 
-function formatMetricValue(value: number): string {
+function formatMetricValue(value: number, locale: string): string {
   if (value > METRIC_DISPLAY_CAP) {
-    return `${METRIC_DISPLAY_CAP.toLocaleString("en-US")}+`;
+    return `${formatOpsNumber(METRIC_DISPLAY_CAP, locale)}+`;
   }
-  return value.toLocaleString("en-US");
+  return formatOpsNumber(value, locale);
 }
 
 /**
@@ -210,7 +213,11 @@ function isAgeMetric(i: Incident): boolean {
     i.metric?.unit === "minutes";
 }
 
-function metricFor(i: Incident): OperationsRowModel["metric"] {
+function metricFor(
+  i: Incident,
+  locale: string,
+  copy: OperationsCopy,
+): OperationsRowModel["metric"] {
   const m = i.metric;
   if (!m) return null;
   const age = isAgeMetric(i);
@@ -219,11 +226,13 @@ function metricFor(i: Incident): OperationsRowModel["metric"] {
     // it cannot be misread as an observation count or a group member count —
     // the three numbers this surface used to render identically.
     label: age
-      ? `last sample ${describeDuration(m.currentValue * 60)} ago`
-      : `${formatMetricValue(m.currentValue)} affected ${m.unit}`,
+      ? copy.group.lastSampleAgo.replace("{span}", opsDuration(m.currentValue * 60, locale, copy))
+      : copy.group.affectedGeneric
+          .replace("{n}", formatMetricValue(m.currentValue, locale))
+          .replace("{unit}", (copy.group.unitWord as Record<string, string | undefined>)[m.unit] ?? m.unit),
     thresholdLabel: age
-      ? `window ${describeDuration(m.thresholdValue * 60)}`
-      : `threshold ${m.thresholdValue.toLocaleString("en-US")}`,
+      ? copy.group.window.replace("{span}", opsDuration(m.thresholdValue * 60, locale, copy))
+      : copy.group.threshold.replace("{n}", formatOpsNumber(m.thresholdValue, locale)),
     currentValue: m.currentValue,
     thresholdValue: m.thresholdValue,
     criticalThresholdValue: m.criticalThresholdValue,
@@ -243,18 +252,14 @@ function metricFor(i: Incident): OperationsRowModel["metric"] {
  * the missing button have the same cause. Nothing here is inferred from a
  * category, a severity or a capability.
  */
-function resolutionNoteFor(i: Incident): string | null {
+function resolutionNoteFor(i: Incident, copy: OperationsCopy): string | null {
   const authority = i.lifecycle?.resolutionAuthority;
-  if (authority === "SOURCE_TRUTH") {
-    return "This condition closes itself when its source recovers. It cannot be marked resolved by hand.";
-  }
-  if (authority === "NO_DIRECT_RESOLUTION") {
-    return "This condition is owned by a surface outside this workspace. It cannot be marked resolved here.";
-  }
+  if (authority === "SOURCE_TRUTH") return copy.drawer.closesSourceTruth;
+  if (authority === "NO_DIRECT_RESOLUTION") return copy.drawer.closesNoDirect;
   if (authority === "OPERATOR_DECISION") {
     return i.lifecycle?.requiresResolutionNote
-      ? "This condition closes when an operator resolves it with a written conclusion, which is kept in its history."
-      : "This condition closes when an operator resolves it.";
+      ? copy.drawer.closesOperatorWithNote
+      : copy.drawer.closesOperator;
   }
   return null;
 }
@@ -263,10 +268,11 @@ function ownerFor(
   i: Incident,
   viewerUserId: string | null,
   operatorLabels: ReadonlyMap<string, string>,
+  youLabel: string,
 ): OwnerDisplay {
   if (!i.assignedOperatorUserId) return { kind: "unassigned" };
   if (viewerUserId && i.assignedOperatorUserId === viewerUserId) {
-    return { kind: "self", label: "You" };
+    return { kind: "self", label: youLabel };
   }
   // A resolved display name when the workspace could supply one, and a short
   // id when it could not. The short id is deliberately still shown: "assigned
@@ -293,11 +299,16 @@ export function buildRowModel(
      * applies is the server's judgement, not a duplicate of it.
      */
     slaAttentionPostures?: ReadonlyArray<SlaPosture>;
+    /** D10 — the reader's dictionary and locale. English when omitted. */
+    copy?: OperationsCopy;
+    locale?: string;
   },
 ): OperationsRowModel {
-  const severity = SEVERITY_VOCABULARY[i.severity] ?? SEVERITY_VOCABULARY.INFO;
-  const status = STATUS_VOCABULARY[i.status] ?? STATUS_VOCABULARY.OPEN;
-  const affected = affectedFor(i);
+  const copy = ctx.copy ?? operationsDict.en;
+  const locale = ctx.locale ?? "en";
+  const severity = severityEntry(i.severity, copy);
+  const status = statusEntry(i.status, copy);
+  const affected = affectedFor(i, copy);
 
   const isOpen = i.status === "OPEN";
   const isUnresolved = isOpen || i.status === "ACKNOWLEDGED";
@@ -317,7 +328,7 @@ export function buildRowModel(
     statusExplanation: status.explanation,
     statusValue: i.status,
 
-    categoryLabel: categoryLabel(i.category),
+    categoryLabel: categoryLabel(i.category, copy),
     categoryValue: i.category,
 
     affectedLabel: affected.label,
@@ -326,20 +337,20 @@ export function buildRowModel(
     firstSeenAtUtc: i.firstSeenAtUtc,
     lastSeenAtUtc: i.lastSeenAtUtc,
     occurrenceCount: i.occurrenceCount,
-    metric: metricFor(i),
-    resolutionNote: resolutionNoteFor(i),
+    metric: metricFor(i, locale, copy),
+    resolutionNote: resolutionNoteFor(i, copy),
     requiresResolutionNote: i.lifecycle?.requiresResolutionNote === true,
 
-    owner: ownerFor(i, ctx.viewerUserId, ctx.operatorLabels),
+    owner: ownerFor(i, ctx.viewerUserId, ctx.operatorLabels, copy.ownerYou),
     assignedOperatorUserId: i.assignedOperatorUserId,
     sla: i.sla
       ? {
-          label: slaLabel(i.sla.posture),
+          label: slaLabel(i.sla.posture, copy),
           tone: slaTone(i.sla.posture),
-          explanation: slaExplanation(i.sla),
+          explanation: slaExplanation(i.sla, copy),
           posture: i.sla.posture,
           dueAtUtc: i.sla.dueAtUtc,
-          breachRecord: slaBreachRecord(i.sla),
+          breachRecord: slaBreachRecord(i.sla, copy),
           // Membership is decided by the SERVER's list, not by a set repeated
           // here — so the queue's emphasis, the filter and any future alert
           // all agree by construction.

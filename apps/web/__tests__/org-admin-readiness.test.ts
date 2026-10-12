@@ -186,10 +186,16 @@ test("Readiness surfaces evidence-ops and marks TSA/OTS as not surfaced at org s
   }
   // Timestamping (TSA) + anchoring (OTS) have no org-scoped signal — must
   // say so honestly, never invent a status.
+  // D10 — the sentence lives in the shared Operations dictionary (en/de/ar);
+  // the page renders that key for a surface with no org-scoped category.
   assert.match(
     s,
-    /Not surfaced at organization scope/,
+    /surface\.category == null[\s\S]{0,200}copy\.readiness\.notSurfaced/,
     "TSA/OTS must render an honest not-surfaced state",
+  );
+  assert.match(
+    readFileSync(resolve(APP_ROOT, "../../packages/shared/src/i18n.ts"), "utf8"),
+    /notSurfaced: "Not surfaced at organization scope"/,
   );
 });
 

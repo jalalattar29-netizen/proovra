@@ -696,10 +696,13 @@ describe("Phase IA-home-findings — Needs Fixing strip (real failure categories
     expect(
       (vm as unknown as Record<string, unknown>).operationalQueue,
     ).toBeUndefined();
-    expect(vm.operations.open).toBe(0);
-    expect(vm.operations.critical).toBe(0);
+    // NULL, not 0 (2026-10-12): the failures in the feed do not reach the
+    // workspace counts, and with no summary those counts are UNKNOWN — a 0
+    // would itself be the claim "no open work" about an unread workspace.
+    expect(vm.operations.open).toBeNull();
+    expect(vm.operations.critical).toBeNull();
     // And with no summary supplied, Home is honest about not knowing rather
-    // than reporting the zeros above as good news.
+    // than reporting any count as good news.
     expect(vm.operations.available).toBe(false);
     expect(vm.operations.mayAssertAllClear).toBe(false);
   });

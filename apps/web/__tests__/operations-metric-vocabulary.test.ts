@@ -107,16 +107,24 @@ describe("the defect wording is gone from the modules", () => {
   it("the queue row and the Inspector use ONE phrase for that number", () => {
     // Two names for one number, on two halves of one screen, was the whole
     // problem: "26 occurrences" in the row and "Times seen: 26" in the panel.
+    // D10 (2026-10-12) — the phrase lives ONCE, in the shared Operations
+    // dictionary, and all three surfaces read that one key — so they cannot
+    // drift into two names for one number, in any language.
     for (const file of [
       `${OPERATIONS}/_components/IncidentSurface.tsx`,
       `${OPERATIONS}/_components/IncidentInspector.tsx`,
       `${OPERATIONS}/_components/GroupInspector.tsx`,
     ]) {
       assert.ok(
-        read(file).includes("Observed in "),
+        read(file).includes("copy.observedInChecks"),
         `${file} does not use the shared observation phrase`,
       );
     }
+    const dict = readFileSync(
+      resolve(APP_ROOT, "..", "..", "packages", "shared", "src", "i18n.ts"),
+      "utf8",
+    );
+    assert.match(dict, /observedInChecks: "Observed in \{n\} checks"/);
     // CODE only: the comment beside the replacement quotes the old label in
     // order to explain what it replaced, and a check that read the raw file
     // would fail on the sentence documenting the very property it asserts.

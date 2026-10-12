@@ -25,13 +25,13 @@
 import {
   INCIDENT_CATEGORIES,
   INCIDENT_SEVERITIES,
-  INCIDENT_STATUSES,
+  INCIDENT_STATUS_FILTERS,
   type IncidentCategory,
   type IncidentSeverity,
-  type IncidentStatus,
+  type IncidentStatusFilter,
 } from "./types";
 import type { SlaPosture } from "./types";
-import { SORT_VALUES, type SortValue } from "./vocabulary";
+import { SORT_VALUES, type QueueMetricKey, type SortValue } from "./vocabulary";
 
 /** The sentinel an AppListbox uses for "no constraint". */
 export const ANY = "__any__";
@@ -53,7 +53,12 @@ export type FilterState = {
    * shareable and a saved view can restore it.
    */
   sla: SlaPosture | "";
-  status: IncidentStatus | "";
+  /**
+   * One stored status, the canonical unresolved set (UNRESOLVED = OPEN +
+   * ACKNOWLEDGED + SUPPRESSED), or ALL (history included). Never "": an
+   * absent status is the server default, UNRESOLVED, and the state says so.
+   */
+  status: IncidentStatusFilter;
   severity: IncidentSeverity | "";
   category: IncidentCategory | "";
   owner: OwnerFilter;
@@ -62,21 +67,20 @@ export type FilterState = {
 };
 
 /**
- * The default view is EVERY STATUS.
+ * The default view is UNRESOLVED work (2026-10-12).
  *
- * It opened on `status=OPEN`, which is a filter the operator never chose:
- * the page presented itself as the queue while silently withholding everything
- * acknowledged, suppressed or resolved, and the Status control showed "Open"
- * as though that had been asked for. A default that narrows the collection is
- * indistinguishable from a collection that is small.
+ * The SAME predicate every KPI counts with: OPEN, ACKNOWLEDGED or SUPPRESSED
+ * (`UNRESOLVED_INCIDENT_STATUSES`). It used to be "" (every status), which
+ * mixed resolved history into the queue under an "Unresolved" count, and
+ * before that OPEN, which silently withheld acknowledged and suppressed work.
+ * The Status control names it — "Unresolved (default)" — and "All, including
+ * resolved" is one choice away.
  *
- * An explicit `?status=` in the URL still wins — see `filtersFromParams` —
- * so a shared link, a saved view, a metric card and the browser's Back button
- * all keep saying exactly what they said before.
+ * An explicit `?status=` in the URL still wins — see `filtersFromParams`.
  */
 export const DEFAULT_FILTERS: FilterState = Object.freeze({
   sla: "",
-  status: "",
+  status: "UNRESOLVED",
   severity: "",
   category: "",
   owner: "any",
@@ -84,16 +88,27 @@ export const DEFAULT_FILTERS: FilterState = Object.freeze({
   sort: "recent",
 });
 
-/** True when anything narrows the collection beyond the default view. */
+/** True when anything differs from the default view, the sort order included. */
 export function anyFilterActive(f: FilterState): boolean {
+  return anyNarrowingFilter(f) || f.sort !== DEFAULT_FILTERS.sort;
+}
+
+/**
+ * True when anything changes WHICH conditions are selected.
+ *
+ * The sort order is deliberately not one of them. It reorders the flat list
+ * and nothing else, so it must never decide whether the grouped default
+ * view's sections render — a sort control that silently hid "Action
+ * required" and "Monitoring" was the defect (2026-10-12).
+ */
+export function anyNarrowingFilter(f: FilterState): boolean {
   return (
     f.sla !== "" ||
     f.status !== DEFAULT_FILTERS.status ||
     f.severity !== "" ||
     f.category !== "" ||
     f.owner !== "any" ||
-    f.q.trim() !== "" ||
-    f.sort !== DEFAULT_FILTERS.sort
+    f.q.trim() !== ""
   );
 }
 
@@ -140,10 +155,12 @@ export function filtersFromParams(
 ): FilterState {
   if (!params) return { ...DEFAULT_FILTERS };
   const statusRaw = params.get("status");
-  const status =
+  // `status=all` is the legacy spelling of ALL, kept so an old link still
+  // means what it said.
+  const status: IncidentStatusFilter =
     statusRaw === "all"
-      ? ""
-      : (readEnum(statusRaw, INCIDENT_STATUSES) || DEFAULT_FILTERS.status);
+      ? "ALL"
+      : (readEnum(statusRaw, INCIDENT_STATUS_FILTERS) || DEFAULT_FILTERS.status);
   const sortRaw = params.get("sort");
   const sort = (SORT_VALUES as readonly string[]).includes(sortRaw ?? "")
     ? (sortRaw as SortValue)
@@ -167,14 +184,13 @@ export function filtersFromParams(
  * Serialise filters for the address bar.
  *
  * Only non-default values are written, so the ordinary view has a clean URL
- * and a pasted link carries exactly the deviations the sender chose.
- * `status=all` is spelled out because an ABSENT status means the default
- * (Open), not "no filter".
+ * and a pasted link carries exactly the deviations the sender chose. An
+ * ABSENT status means the default (UNRESOLVED), never "no filter".
  */
 export function filtersToParams(f: FilterState): URLSearchParams {
   const p = new URLSearchParams();
   if (f.sla) p.set("sla", f.sla);
-  if (f.status !== DEFAULT_FILTERS.status) p.set("status", f.status || "all");
+  if (f.status !== DEFAULT_FILTERS.status) p.set("status", f.status);
   if (f.severity) p.set("severity", f.severity);
   if (f.category) p.set("category", f.category);
   if (f.owner !== "any") p.set("owner", f.owner);
@@ -197,6 +213,23 @@ export const PAGE_SIZE = 50;
  * page": every filter is re-sent verbatim, so a page-2 read cannot silently
  * apply a different predicate from the page-1 read that produced its cursor.
  */
+/**
+ * The query for `GET /v1/ops/incident-groups`: the SAME predicate as the flat
+ * list (minus sort and paging), so the grouped and flat views select the same
+ * conditions.
+ */
+export function groupsQuery(input: { teamId: string; filters: FilterState }): string {
+  const p = new URLSearchParams({ teamId: input.teamId });
+  p.set("status", input.filters.status || DEFAULT_FILTERS.status);
+  if (input.filters.severity) p.set("severity", input.filters.severity);
+  if (input.filters.category) p.set("category", input.filters.category);
+  if (input.filters.owner && input.filters.owner !== "any") p.set("owner", input.filters.owner);
+  if (input.filters.sla) p.set("sla", input.filters.sla);
+  const q = input.filters.q.trim();
+  if (q) p.set("q", q);
+  return p.toString();
+}
+
 export function incidentsQuery(input: {
   teamId: string;
   filters: FilterState;
@@ -205,7 +238,10 @@ export function incidentsQuery(input: {
   const p = new URLSearchParams();
   p.set("teamId", input.teamId);
   if (input.filters.sla) p.set("sla", input.filters.sla);
-  if (input.filters.status) p.set("status", input.filters.status);
+  // ALWAYS sent, the default included: the list must be read with the exact
+  // predicate the KPI that opened it counted with, not with whatever the
+  // server happens to default to.
+  p.set("status", input.filters.status || DEFAULT_FILTERS.status);
   if (input.filters.severity) p.set("severity", input.filters.severity);
   if (input.filters.category) p.set("category", input.filters.category);
   if (input.filters.owner !== "any") p.set("owner", input.filters.owner);
@@ -215,4 +251,64 @@ export function incidentsQuery(input: {
   p.set("limit", String(PAGE_SIZE));
   if (input.cursor) p.set("cursor", input.cursor);
   return p.toString();
+}
+
+// ---------------------------------------------------------------------------
+// KPI <-> filters (2026-10-12)
+// ---------------------------------------------------------------------------
+
+/**
+ * The KPI a filter state is EXACTLY the predicate of, or null.
+ *
+ * Derived from the filters rather than stored, so a browser Back that changes
+ * the URL never leaves a highlighted card disagreeing with the queue.
+ */
+export function metricForFilters(f: FilterState): QueueMetricKey | null {
+  if (f.category !== "" || f.q.trim() !== "") return null;
+  if (f.status === "RESOLVED") {
+    return f.sla === "" && f.severity === "" && f.owner === "any" ? "resolved" : null;
+  }
+  if (f.status !== "UNRESOLVED") return null;
+  const onlySla = f.severity === "" && f.owner === "any";
+  const onlySeverity = f.sla === "" && f.owner === "any";
+  const onlyOwner = f.sla === "" && f.severity === "";
+  if (f.sla === "BREACHED" && onlySla) return "slaBreached";
+  if (f.sla === "AT_RISK" && onlySla) return "slaAtRisk";
+  if (f.severity === "CRITICAL" && onlySeverity) return "critical";
+  if (f.severity === "HIGH" && onlySeverity) return "high";
+  if (f.severity === "WARNING" && onlySeverity) return "warning";
+  if (f.owner === "me" && onlyOwner) return "assignedToMe";
+  if (f.owner === "unassigned" && onlyOwner) return "unassigned";
+  return null;
+}
+
+/**
+ * The filter state a KPI card opens: EXACTLY the predicate that produced its
+ * count. Every card sets every axis it implies and clears the ones it does
+ * not; the unresolved cards all carry status UNRESOLVED, Resolved carries
+ * RESOLVED.
+ */
+export function filtersForMetric(key: QueueMetricKey): FilterState {
+  const base: FilterState = { ...DEFAULT_FILTERS, status: "UNRESOLVED" };
+  switch (key) {
+    case "slaBreached":
+      return { ...base, sla: "BREACHED" };
+    case "slaAtRisk":
+      return { ...base, sla: "AT_RISK" };
+    case "critical":
+      return { ...base, severity: "CRITICAL" };
+    case "high":
+      return { ...base, severity: "HIGH" };
+    case "warning":
+      return { ...base, severity: "WARNING" };
+    case "resolved":
+      return { ...base, status: "RESOLVED" };
+    case "assignedToMe":
+      return { ...base, owner: "me" };
+    case "unassigned":
+      return { ...base, owner: "unassigned" };
+    case "open":
+    default:
+      return base;
+  }
 }

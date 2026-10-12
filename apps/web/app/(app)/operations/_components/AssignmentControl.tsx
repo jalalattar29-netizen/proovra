@@ -32,6 +32,7 @@ import * as React from "react";
 import { AppListbox } from "../../../../components/app-primitives/AppListbox";
 import type { AssignableOperator } from "../_lib/types";
 import type { OwnerDisplay } from "../_lib/rowModel";
+import { useOpsCopy } from "../_lib/copy";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -62,6 +63,7 @@ export function AssignmentControl({
   onAssign: (assigneeUserId: string | null) => void;
 }) {
   const labelId = React.useId();
+  const copy = useOpsCopy();
 
   // -------------------------------------------------------------------
   // READ-ONLY. A viewer may see WHO owns a condition — that is part of
@@ -74,16 +76,16 @@ export function AssignmentControl({
         data-ops-assignee-readonly
         data-assigned={assignedOperatorUserId ? "true" : "false"}
       >
-        <span className="opsw-owner-readonly__label">Owner</span>{" "}
+        <span className="opsw-owner-readonly__label">{copy.drawer.owner}</span>{" "}
         <span>
-          {ownerDisplay.kind === "unassigned" ? "Unassigned" : ownerDisplay.label}
+          {ownerDisplay.kind === "unassigned" ? copy.ownerUnassigned : ownerDisplay.label}
         </span>
       </p>
     );
   }
 
   const options = [
-    { value: UNASSIGNED, label: "Unassigned" },
+    { value: UNASSIGNED, label: copy.ownerUnassigned },
     ...operators.map((o) => ({
       value: o.userId,
       label: operatorLabel(o),
@@ -94,7 +96,7 @@ export function AssignmentControl({
   return (
     <div className="opsw-assign" data-ops-assignment-control={incidentId}>
       <span className="app-field-label" id={labelId}>
-        Owner
+        {copy.drawer.owner}
       </span>
       <div className="opsw-assign__row">
         <AppListbox
@@ -116,13 +118,13 @@ export function AssignmentControl({
             onClick={() => onAssign(selfUserId)}
             data-ops-action="self-assign"
           >
-            Take it
+            {copy.drawer.takeIt}
           </button>
         ) : null}
       </div>
       {operators.length === 0 ? (
         <p className="opsw-muted" data-ops-assignment-empty="true">
-          Nobody else in this workspace can take operational work yet.
+          {copy.drawer.nobodyElse}
         </p>
       ) : null}
     </div>

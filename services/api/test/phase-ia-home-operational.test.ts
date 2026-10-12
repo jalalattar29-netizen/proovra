@@ -179,8 +179,11 @@ describe("Phase IA-home-operational — Operations summary is consumed, not buil
     // The coupling this phase removed, asserted directly: personal items in
     // the feed contribute nothing to shared operational counts.
     const vm = build();
-    expect(vm.operations.open).toBe(0);
-    expect(vm.operations.critical).toBe(0);
+    // NULL, not 0 (2026-10-12): with no summary the counts are UNKNOWN. A 0
+    // here was itself a claim ("no open work"); null is the absence the feed
+    // must not fill — so this still proves the feed contributes nothing.
+    expect(vm.operations.open).toBeNull();
+    expect(vm.operations.critical).toBeNull();
   });
 });
 

@@ -36,14 +36,16 @@ import * as React from "react";
 
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
 import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
-import { describeDuration, describeRelativeTime } from "../../../../lib/relative-time";
 import { formatUserDateTime } from "../../../../lib/date";
 import type {
   IncidentGroup,
   IncidentSeverity,
   IncidentStatus,
 } from "../_lib/types";
-import { SEVERITY_VOCABULARY, STATUS_VOCABULARY, categoryLabel } from "../_lib/vocabulary";
+import { categoryLabel, severityEntry, statusEntry } from "../_lib/vocabulary";
+import { formatOpsNumber } from "../_lib/format";
+import { fillOperationsCopy, useOpsCopy, useOpsLocale, useOpsTime, type OperationsCopy } from "../_lib/copy";
+import { opsDuration } from "../_lib/time";
 
 /**
  * A bounded rendering of a count.
@@ -54,9 +56,9 @@ import { SEVERITY_VOCABULARY, STATUS_VOCABULARY, categoryLabel } from "../_lib/v
  */
 const DISPLAY_CAP = 2000;
 
-function formatCount(value: number): string {
-  if (value > DISPLAY_CAP) return `${DISPLAY_CAP.toLocaleString("en-US")}+`;
-  return value.toLocaleString("en-US");
+function formatCount(value: number, locale = "en"): string {
+  if (value > DISPLAY_CAP) return `${formatOpsNumber(DISPLAY_CAP, locale)}+`;
+  return formatOpsNumber(value, locale);
 }
 
 /**
@@ -76,12 +78,16 @@ function formatCount(value: number): string {
  * conditions are the ones whose occurrence counts crossed the storm
  * threshold, which is a different fact from being affected by anything.
  */
-function describeAffected(count: number, unit: string | null): string {
-  const n = formatCount(count);
-  if (unit === "conditions") return `${n} repeatedly observed conditions`;
-  if (unit === "workflows") return `${n} affected workflows`;
-  if (unit === "items") return `${n} affected items`;
-  return `${n} affected records`;
+function describeAffected(
+  count: number,
+  unit: string | null,
+  locale: string,
+  copy: OperationsCopy,
+): string {
+  const n = formatCount(count, locale);
+  const key =
+    unit === "conditions" || unit === "workflows" || unit === "items" ? unit : "records";
+  return fillOperationsCopy(copy.group.affected[key], { n });
 }
 
 /**
@@ -92,11 +98,11 @@ function describeAffected(count: number, unit: string | null): string {
  * described as "902 affected records", after having been described in its own
  * title as "(902m)". Neither is a thing an operator can read at a glance.
  */
-function describeAge(group: IncidentGroup): string | null {
+function describeAge(group: IncidentGroup, locale: string, copy: OperationsCopy): string | null {
   if (group.durationSeconds == null) return null;
-  const span = describeDuration(group.durationSeconds);
+  const span = opsDuration(group.durationSeconds, locale, copy);
   if (span === "—") return null;
-  return `Last observed ${span} ago`;
+  return fillOperationsCopy(copy.group.lastObservedAgo, { span });
 }
 
 export function GroupSurface({
@@ -116,14 +122,15 @@ export function GroupSurface({
    */
   timeline?: "activity" | "resolution";
 }) {
+  const copy = useOpsCopy();
+  const locale = useOpsLocale();
+  const time = useOpsTime();
   return (
     <ul className="opsw-groups" data-ops-groups>
       {groups.map((g) => {
-        const severity =
-          SEVERITY_VOCABULARY[g.severity as IncidentSeverity] ?? SEVERITY_VOCABULARY.INFO;
-        const status =
-          STATUS_VOCABULARY[g.statusPosture as IncidentStatus] ?? STATUS_VOCABULARY.OPEN;
-        const age = describeAge(g);
+        const severity = severityEntry(g.severity as IncidentSeverity, copy);
+        const status = statusEntry(g.statusPosture as IncidentStatus, copy);
+        const age = describeAge(g, locale, copy);
         return (
           <li
             key={g.groupKey}
@@ -181,7 +188,7 @@ export function GroupSurface({
 
               <span className="opsw-group__meta">
                 <span className="opsw-group__source">
-                  {categoryLabel(g.category)}
+                  {categoryLabel(g.category, copy)}
                 </span>
 
                 {/*
@@ -225,7 +232,7 @@ export function GroupSurface({
                       data-ops-group-affected={g.affectedRecordCount}
                       data-ops-group-affected-unit={g.affectedUnit ?? "records"}
                     >
-                      {describeAffected(g.affectedRecordCount, g.affectedUnit)}
+                      {describeAffected(g.affectedRecordCount, g.affectedUnit, locale, copy)}
                     </span>
                   </>
                 ) : (
@@ -236,8 +243,8 @@ export function GroupSurface({
                       data-ops-group-conditions={g.conditionCount}
                     >
                       {g.conditionCount === 1
-                        ? "1 condition"
-                        : `${formatCount(g.conditionCount)} conditions`}
+                        ? copy.resultConditionOne
+                        : copy.resultConditions.replace("{n}", formatCount(g.conditionCount, locale))}
                     </span>
                   </>
                 )}
@@ -256,7 +263,7 @@ export function GroupSurface({
                       className="opsw-group__threshold"
                       data-ops-group-threshold={g.metric.thresholdValue}
                     >
-                      threshold {g.metric.thresholdValue.toLocaleString("en-US")}
+                      {fillOperationsCopy(copy.group.threshold, { n: formatOpsNumber(g.metric.thresholdValue, locale) })}
                     </span>
                   </>
                 ) : null}
@@ -273,7 +280,7 @@ export function GroupSurface({
                       className="opsw-group__stale"
                       data-ops-group-metric-stale="true"
                     >
-                      last confirmed {describeRelativeTime(g.metric.observedAtUtc)}
+                      {fillOperationsCopy(copy.group.lastConfirmed, { when: time.ago(g.metric.observedAtUtc) })}
                     </span>
                   </>
                 ) : null}
@@ -293,7 +300,7 @@ export function GroupSurface({
                   <>
                     <span aria-hidden="true">·</span>
                     <span className="opsw-group__owned">
-                      {g.assignedCount} owned
+                      {fillOperationsCopy(copy.group.ownedCount, { n: formatOpsNumber(g.assignedCount, locale) })}
                     </span>
                   </>
                 ) : null}
@@ -305,14 +312,14 @@ export function GroupSurface({
                     data-ops-group-resolved-at={g.latestResolvedAtUtc}
                     title={formatUserDateTime(g.latestResolvedAtUtc)}
                   >
-                    resolved {describeRelativeTime(g.latestResolvedAtUtc)}
+                    {fillOperationsCopy(copy.group.resolvedAgo, { when: time.ago(g.latestResolvedAtUtc) })}
                   </span>
                 ) : (
                   <span
                     className="opsw-group__activity"
                     title={formatUserDateTime(g.latestActivityAtUtc)}
                   >
-                    last seen {describeRelativeTime(g.latestActivityAtUtc)}
+                    {fillOperationsCopy(copy.group.lastSeenAgo, { when: time.ago(g.latestActivityAtUtc) })}
                   </span>
                 )}
               </span>

@@ -39,14 +39,8 @@ import {
   type AssignableOperator,
 } from "../_lib/types";
 import { ANY, type FilterState } from "../_lib/filters";
-import {
-  CATEGORY_LABEL,
-  SEVERITY_VOCABULARY,
-  SORT_LABEL,
-  SORT_VALUES,
-  STATUS_VOCABULARY,
-  type SortValue,
-} from "../_lib/vocabulary";
+import { SORT_VALUES, type SortValue } from "../_lib/vocabulary";
+import { useOpsCopy } from "../_lib/copy";
 import { IconSearch } from "./icons";
 
 export function FilterToolbar({
@@ -58,6 +52,7 @@ export function FilterToolbar({
   showOwnerFilter,
   operators,
   busy,
+  showSort = true,
 }: {
   filters: FilterState;
   onChange: (patch: Partial<FilterState>) => void;
@@ -72,40 +67,58 @@ export function FilterToolbar({
    */
   operators: ReadonlyArray<AssignableOperator>;
   busy: boolean;
+  /**
+   * Whether the sort control applies to what is on screen. The grouped view is
+   * ordered by the server's grouping, not by this control, so there it is
+   * not rendered at all — a control that changes nothing, or that silently
+   * hides the default sections, is worse than none (2026-10-12).
+   */
+  showSort?: boolean;
 }) {
   const ids = React.useId();
   const labelId = (k: string) => `${ids}-${k}`;
+  const copy = useOpsCopy();
 
+  /*
+   * THE STATUS VOCABULARY IS THE KPI VOCABULARY (2026-10-12).
+   *
+   * "Unresolved (default)" is the canonical set every count on this page uses
+   * — open, acknowledged or suppressed — and "All, including resolved" is the
+   * only way resolved history enters the queue. "Any status" used to mean
+   * ALL and was the default, so the queue mixed history into a list captioned
+   * by an Unresolved count.
+   */
   const statusOptions = [
-    { value: ANY, label: "Any status" },
+    { value: "UNRESOLVED", label: copy.statusUnresolvedDefault },
+    { value: "ALL", label: copy.statusAll },
     ...INCIDENT_STATUSES.map((s) => ({
       value: s as string,
-      label: STATUS_VOCABULARY[s].label,
+      label: copy.status[s].label,
     })),
   ];
 
   const severityOptions = [
-    { value: ANY, label: "Any severity" },
+    { value: ANY, label: copy.anySeverity },
     // Most severe first: a filter list is scanned, and the value an operator
     // reaches for on a busy queue is Critical.
     ...[...INCIDENT_SEVERITIES].reverse().map((s) => ({
       value: s as string,
-      label: SEVERITY_VOCABULARY[s].label,
+      label: copy.severity[s].label,
     })),
   ];
 
   const categoryOptions = [
-    { value: ANY, label: "Any source" },
+    { value: ANY, label: copy.anySource },
     ...INCIDENT_CATEGORIES.map((c) => ({
       value: c as string,
-      label: CATEGORY_LABEL[c],
+      label: copy.category[c],
     })),
   ];
 
   const ownerOptions = [
-    { value: "any", label: "Anyone" },
-    { value: "me", label: "Assigned to me" },
-    { value: "unassigned", label: "Unassigned" },
+    { value: "any", label: copy.ownerAnyone },
+    { value: "me", label: copy.ownerMe },
+    { value: "unassigned", label: copy.ownerUnassigned },
     ...operators.map((o) => ({
       value: o.userId,
       label: o.displayName?.trim() || o.email?.trim() || o.userId.slice(0, 8),
@@ -115,7 +128,7 @@ export function FilterToolbar({
 
   const sortOptions = SORT_VALUES.map((s) => ({
     value: s as string,
-    label: SORT_LABEL[s],
+    label: copy.sort[s],
   }));
 
   // The input types locally; the URL write (and, on Operations, the incident
@@ -134,30 +147,28 @@ export function FilterToolbar({
             className="app-search-input"
             value={search.value}
             onChange={(e) => search.onChange(e.target.value)}
-            placeholder="Search conditions"
-            aria-label="Search operational conditions"
+            placeholder={copy.filterSearchPlaceholder}
+            aria-label={copy.filterSearchLabel}
             data-ops-search
           />
         </div>
 
         <div className="opsw-toolbar__filter">
           <span className="app-visually-hidden" id={labelId("status")}>
-            Filter by lifecycle status
+            {copy.filterStatusLabel}
           </span>
           <AppListbox
-            value={filters.status || ANY}
+            value={filters.status || "UNRESOLVED"}
             options={statusOptions}
             ariaLabelledby={labelId("status")}
             disabled={busy}
-            onChange={(v) =>
-              onChange({ status: v === ANY ? "" : (v as FilterState["status"]) })
-            }
+            onChange={(v) => onChange({ status: v as FilterState["status"] })}
           />
         </div>
 
         <div className="opsw-toolbar__filter">
           <span className="app-visually-hidden" id={labelId("severity")}>
-            Filter by severity
+            {copy.filterSeverityLabel}
           </span>
           <AppListbox
             value={filters.severity || ANY}
@@ -174,7 +185,7 @@ export function FilterToolbar({
 
         <div className="opsw-toolbar__filter">
           <span className="app-visually-hidden" id={labelId("category")}>
-            Filter by the part of the product that produced the condition
+            {copy.filterCategoryLabel}
           </span>
           <AppListbox
             value={filters.category || ANY}
@@ -192,7 +203,7 @@ export function FilterToolbar({
         {showOwnerFilter ? (
           <div className="opsw-toolbar__filter" data-ops-owner-filter>
             <span className="app-visually-hidden" id={labelId("owner")}>
-              Filter by who owns the condition
+              {copy.filterOwnerLabel}
             </span>
             <AppListbox
               value={filters.owner}
@@ -204,18 +215,20 @@ export function FilterToolbar({
           </div>
         ) : null}
 
-        <div className="opsw-toolbar__filter opsw-toolbar__filter--sort">
-          <span className="app-visually-hidden" id={labelId("sort")}>
-            Sort conditions
-          </span>
-          <AppListbox
-            value={filters.sort}
-            options={sortOptions}
-            ariaLabelledby={labelId("sort")}
-            disabled={busy}
-            onChange={(v) => onChange({ sort: v as SortValue })}
-          />
-        </div>
+        {showSort ? (
+          <div className="opsw-toolbar__filter opsw-toolbar__filter--sort" data-ops-sort>
+            <span className="app-visually-hidden" id={labelId("sort")}>
+              {copy.filterSortLabel}
+            </span>
+            <AppListbox
+              value={filters.sort}
+              options={sortOptions}
+              ariaLabelledby={labelId("sort")}
+              disabled={busy}
+              onChange={(v) => onChange({ sort: v as SortValue })}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="opsw-resultbar">
@@ -228,7 +241,7 @@ export function FilterToolbar({
             which would return an empty queue that reads as good news. */}
         <div className="opsw-toolbar__filter">
           <span className="app-visually-hidden" id={labelId("sla")}>
-            Filter by time commitment
+            {copy.filterSlaLabel}
           </span>
           <AppListbox
             value={filters.sla}
@@ -236,10 +249,10 @@ export function FilterToolbar({
             disabled={busy}
             ariaLabelledby={labelId("sla")}
             options={[
-              { value: "", label: "Any commitment" },
-              { value: "BREACHED", label: "Overdue" },
-              { value: "AT_RISK", label: "Due soon" },
-              { value: "ON_TRACK", label: "On time" },
+              { value: "", label: copy.anyCommitment },
+              { value: "BREACHED", label: copy.sla.BREACHED },
+              { value: "AT_RISK", label: copy.sla.AT_RISK },
+              { value: "ON_TRACK", label: copy.sla.ON_TRACK },
               /* "Owned" (ACKNOWLEDGED) and "Resolved" USED TO SIT HERE, and
                  neither is a time commitment.
                  They are lifecycle states that the SLA projection also reports
@@ -251,8 +264,8 @@ export function FilterToolbar({
                  nothing, which reads as "there are none" rather than as a
                  filter asking the wrong axis. This dropdown now offers only
                  states a commitment can actually be in. */
-              { value: "UNTRACKED_LEGACY", label: "No SLA recorded" },
-              { value: "NOT_APPLICABLE", label: "No SLA applies" },
+              { value: "UNTRACKED_LEGACY", label: copy.sla.UNTRACKED_LEGACY },
+              { value: "NOT_APPLICABLE", label: copy.sla.NOT_APPLICABLE },
             ]}
             data-ops-filter="sla"
           />
@@ -264,7 +277,7 @@ export function FilterToolbar({
             onClick={onClear}
             data-ops-clear-filters
           >
-            Clear filters
+            {copy.clearFilters}
           </button>
         ) : null}
       </div>

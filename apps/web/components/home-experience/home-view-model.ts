@@ -659,15 +659,28 @@ export type HomeOperationsSummary = {
    * The one field a UI must consult before it says anything at all.
    */
   loadState: HomeSliceLoadState;
-  /** Unresolved conditions (OPEN + ACKNOWLEDGED). */
-  open: number;
-  critical: number;
-  high: number;
-  warning: number;
-  /** Unattended and past the overdue age. */
-  overdue: number;
+  /**
+   * Unresolved conditions — OPEN, ACKNOWLEDGED or SUPPRESSED, the canonical
+   * set the Operations summary counts.
+   *
+   * EVERY COUNT IS `number | null` (2026-10-12). Null means unknown — the
+   * summary could not be read, or this slice is not available — and no Home
+   * surface may render it as 0 or as healthy. A number with `complete: false`
+   * is a floor ("at least N").
+   */
+  open: number | null;
+  critical: number | null;
+  high: number | null;
+  warning: number | null;
+  /** Unresolved and past the workspace's own SLA commitment. */
+  overdue: number | null;
   /** Assigned to the viewer specifically. */
-  assignedToMe: number;
+  assignedToMe: number | null;
+  /**
+   * False when the counts are a FLOOR (the summary scan reached its bound) or
+   * unknown. A floor is rendered as "at least N", never as an exact total.
+   */
+  complete: boolean;
   /**
    * PHASE 2.3 — false when the underlying read was bounded or failed. NO
    * surface may render "0 issues" / "all clear" while this is false.
@@ -3526,12 +3539,23 @@ function buildKpis(args: {
  * workspace truth; nothing here is per-recipient.
  */
 export type HomeOperationsSummaryInput = {
-  open: number;
-  critical: number;
-  high: number;
-  warning: number;
-  overdue: number;
-  assignedToMe: number;
+  /**
+   * Nullable (2026-10-12): every count is null when the summary could not be
+   * read (`complete: false`, `incompleteReason: "SOURCE_FAILED"`).
+   */
+  open: number | null;
+  critical: number | null;
+  high: number | null;
+  warning: number | null;
+  /**
+   * REMOVED server-side in favour of `slaBreached` (the persisted SLA cycle
+   * is the one authority on lateness). Read only as a fallback.
+   */
+  overdue?: number | null;
+  slaBreached?: number | null;
+  assignedToMe: number | null;
+  complete?: boolean;
+  incompleteReason?: string | null;
   mayAssertAllClear: boolean;
   /** `GET /v1/ops/summary` has always sent this; Home simply never read it. */
   clearRefusalReason?: HomeClearRefusalReason | null;
@@ -3787,17 +3811,34 @@ export function normalizeHomeViewModel(
   // honest absence rather than substituting a number it derived itself.
   const operationsLoading =
     inputs.loadingSlices?.has("operationsSummary") === true;
-  const operations: HomeOperationsSummary = inputs.operationsSummary
+  /*
+   * A SUMMARY THAT WAS ANSWERED BUT NOT READ IS UNAVAILABLE (D4, 2026-10-12).
+   *
+   * The server now answers an unreadable summary with null counts and
+   * `incompleteReason: "SOURCE_FAILED"` instead of zeros. Treating that
+   * response as "available" would hand every Home surface a set of nulls
+   * beside `available: true`; it is the same honest absence as a failed
+   * request, and is projected as one.
+   */
+  const opsInput = inputs.operationsSummary ?? null;
+  const opsReadable =
+    opsInput !== null &&
+    typeof opsInput.open === "number" &&
+    opsInput.incompleteReason !== "SOURCE_FAILED";
+  const nullableCount = (v: number | null | undefined): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const operations: HomeOperationsSummary = inputs.operationsSummary && opsReadable
     ? {
         available: true,
         loadState: "ready",
-        open: inputs.operationsSummary.open,
-        critical: inputs.operationsSummary.critical,
-        high: inputs.operationsSummary.high,
-        warning: inputs.operationsSummary.warning,
-        overdue: inputs.operationsSummary.overdue,
-        assignedToMe: inputs.operationsSummary.assignedToMe,
-        mayAssertAllClear: inputs.operationsSummary.mayAssertAllClear,
+        open: nullableCount(inputs.operationsSummary.open),
+        critical: nullableCount(inputs.operationsSummary.critical),
+        high: nullableCount(inputs.operationsSummary.high),
+        warning: nullableCount(inputs.operationsSummary.warning),
+        overdue: nullableCount(inputs.operationsSummary.slaBreached ?? inputs.operationsSummary.overdue),
+        assignedToMe: nullableCount(inputs.operationsSummary.assignedToMe),
+        complete: inputs.operationsSummary.complete !== false,
+        mayAssertAllClear: inputs.operationsSummary.mayAssertAllClear === true,
         clearRefusalReason:
           inputs.operationsSummary.clearRefusalReason ?? null,
         href: "/operations",
@@ -3809,15 +3850,16 @@ export function normalizeHomeViewModel(
          * flight is not an absent one, and the UI renders a skeleton for the
          * first and a refusal for the second.
          */
-        loadState: operationsLoading ? "loading" : "failed",
-        open: 0,
-        critical: 0,
-        high: 0,
-        warning: 0,
-        overdue: 0,
-        assignedToMe: 0,
-        // UNAVAILABLE IS NOT HEALTHY. The zeros above exist only so the type
-        // stays total; this flag is what any UI must read first.
+        loadState: operationsLoading && !opsInput ? "loading" : "failed",
+        // UNKNOWN, never zero: an unavailable summary has no counts at all.
+        open: null,
+        critical: null,
+        high: null,
+        warning: null,
+        overdue: null,
+        assignedToMe: null,
+        complete: false,
+        // UNAVAILABLE IS NOT HEALTHY.
         mayAssertAllClear: false,
         // No summary means no verdict to carry; `available: false` is the
         // fact the UI renders in that case.

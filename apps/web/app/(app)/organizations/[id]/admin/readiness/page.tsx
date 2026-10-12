@@ -56,7 +56,7 @@
  */
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageRouteGate } from "../../../../../../components/navigation/PageRouteGate";
 import { apiFetch } from "../../../../../../lib/api";
@@ -67,8 +67,13 @@ import { Card } from "../../../../../../components/ui/Card";
 import { Badge, type BadgeTone } from "../../../../../../components/ui/Badge";
 import { EmptyState } from "../../../../../../components/ui/EmptyState";
 import { identityProviderLabel } from "../../../../../../lib/labels/identityOrgLabels";
-import { SEVERITY_VOCABULARY, STATUS_VOCABULARY } from "../../../../operations/_lib/vocabulary";
-import type { IncidentSeverity, IncidentStatus } from "../../../../operations/_lib/types";
+import { severityEntry, statusEntry } from "../../../../operations/_lib/vocabulary";
+import {
+  fillOperationsCopy,
+  useOpsCopy,
+  useOpsNumber,
+  type OperationsCopy,
+} from "../../../../operations/_lib/copy";
 
 // ---------------------------------------------------------------------------
 // Per-panel bounded state machine (mirrors the /operations page). A single
@@ -107,7 +112,15 @@ interface WorkspacesResponse {
 interface OpsHealth {
   ok: boolean;
   database: string; // "up" | "down"
-  incidents: { openTotal: number; openHigh: number; openCritical: number };
+  /**
+   * The canonical UNRESOLVED set (open, acknowledged or suppressed). Each is
+   * NULL when it could not be read — unknown, never a reassuring 0.
+   */
+  incidents: {
+    openTotal: number | null;
+    openHigh: number | null;
+    openCritical: number | null;
+  };
 }
 
 interface SsoConnectionHealth {
@@ -162,6 +175,11 @@ export default function OrganizationAdminReadinessPage() {
 function ReadinessTab() {
   const params = useParams<{ id: string }>();
   const orgId = params?.id ?? "";
+  // The Operations panels' failure sentences, in the reader's language. Read
+  // through a ref so a locale change does not re-issue every request.
+  const opsCopy = useOpsCopy();
+  const opsCopyRef = useRef(opsCopy);
+  opsCopyRef.current = opsCopy;
 
   // Workspace picker — only this org's workspaces (server-gated).
   const [workspacesPanel, setWorkspacesPanel] =
@@ -192,7 +210,7 @@ function ReadinessTab() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setRollupPanel(panelError(err, "Unable to load Operations across this organization."));
+        setRollupPanel(panelError(err, opsCopyRef.current.readiness.rollupFailed));
       });
     return () => {
       cancelled = true;
@@ -251,7 +269,7 @@ function ReadinessTab() {
       apiFetch(`/v1/ops/health${qs}`, { method: "GET" }),
       apiFetch(`/v1/sso/health${qs}`, { method: "GET" }),
       apiFetch(`/v1/integrations/health${qs}`, { method: "GET" }),
-      apiFetch(`/v1/ops/incidents${qs}&status=OPEN`, { method: "GET" }),
+      apiFetch(`/v1/ops/incidents${qs}&status=UNRESOLVED`, { method: "GET" }),
     ]).then(([opsR, ssoR, intR, incR]) => {
       if (cancelled) return;
       const now = new Date().toISOString();
@@ -263,7 +281,7 @@ function ReadinessTab() {
           checkedAt: now,
         });
       } else {
-        setOpsPanel(panelError(opsR.reason, "Unable to load operational status."));
+        setOpsPanel(panelError(opsR.reason, opsCopyRef.current.readiness.opsFailed));
       }
 
       if (ssoR.status === "fulfilled") {
@@ -298,7 +316,7 @@ function ReadinessTab() {
         setEvidencePanel({ status: "ready", data: rows, checkedAt: now });
       } else {
         setEvidencePanel(
-          panelError(incR.reason, "Unable to load evidence-operations readiness."),
+          panelError(incR.reason, opsCopyRef.current.readiness.evidenceFailed),
         );
       }
     });
@@ -364,20 +382,32 @@ function ReadinessTab() {
 // OPS-034 — Operations across this organization
 // ---------------------------------------------------------------------------
 
+type RollupCounts = {
+  /** Null when the workspace's summary could not be read (UNKNOWN). */
+  open: number | null;
+  critical: number | null;
+  high: number | null;
+  warning: number | null;
+  info: number | null;
+  unassigned: number | null;
+};
+
 type OperationsRollup = {
   organizationId: string;
   workspaces: Array<{
     workspaceId: string;
     name: string;
-    summary: {
-      open: number;
-      critical: number;
-      high: number;
-      warning: number;
-      info: number;
-      unassigned: number;
+    /**
+     * KNOWN — read in full. UNKNOWN — the summary could not be read (counts
+     * null; excluded from the totals). PARTIAL — read, but the scan was
+     * bounded (counts are a floor). Absent on an older server: inferred.
+     */
+    coverage?: "KNOWN" | "UNKNOWN" | "PARTIAL";
+    summary: RollupCounts & {
       readiness: string;
       mayAssertAllClear: boolean;
+      complete?: boolean;
+      incompleteReason?: string | null;
     };
   }>;
   totals: { open: number; critical: number; high: number; warning: number; info: number; unassigned: number };
@@ -385,9 +415,21 @@ type OperationsRollup = {
     workspacesInOrganization: number;
     workspacesIncluded: number;
     workspacesNotReadable: number;
+    workspacesUnknown?: number;
+    workspacesPartial?: number;
+    workspaceListTruncated?: boolean;
     complete: boolean;
   };
 };
+
+type RollupWorkspace = OperationsRollup["workspaces"][number];
+
+/** A workspace's coverage, inferred for an older server that omits it. */
+function coverageOf(w: RollupWorkspace): "KNOWN" | "UNKNOWN" | "PARTIAL" {
+  if (w.coverage) return w.coverage;
+  if (w.summary.open === null || w.summary.open === undefined) return "UNKNOWN";
+  return w.summary.complete === false ? "PARTIAL" : "KNOWN";
+}
 
 /**
  * The organisation's unresolved Operations conditions, by workspace.
@@ -404,47 +446,96 @@ function OperationsRollupSection({
   panel: PanelState<OperationsRollup>;
   orgId: string;
 }) {
-  if (panel.status === "loading") {
+  const copy = useOpsCopy();
+  const fmt = useOpsNumber();
+  if (panel.status === "loading" || panel.status === "error") {
     return (
-      <SectionCard section="operations-rollup" title="Operations across this organization" panel={panel}>
-        {null}
-      </SectionCard>
-    );
-  }
-  if (panel.status === "error") {
-    return (
-      <SectionCard section="operations-rollup" title="Operations across this organization" panel={panel}>
+      <SectionCard section="operations-rollup" title={copy.rollup.title} panel={panel}>
         {null}
       </SectionCard>
     );
   }
   const r = panel.data;
+  const unknown =
+    r.coverage.workspacesUnknown ?? r.workspaces.filter((w) => coverageOf(w) === "UNKNOWN").length;
+  const partial =
+    r.coverage.workspacesPartial ?? r.workspaces.filter((w) => coverageOf(w) === "PARTIAL").length;
+  const unavailable = unknown + r.coverage.workspacesNotReadable;
+  const readable = r.workspaces.length - unknown;
+  const workspacesText =
+    readable === 1
+      ? copy.rollup.workspaceOne
+      : fillOperationsCopy(copy.rollup.workspaceMany, { n: fmt(readable) });
+  // The totals are incomplete whenever the server says so — for whichever of
+  // the four reasons applies, each named (D: roll-up honesty).
+  const reasons: string[] = [];
+  if (r.coverage.workspacesNotReadable > 0) {
+    reasons.push(fillOperationsCopy(copy.rollup.reasonNotReadable, { n: fmt(r.coverage.workspacesNotReadable) }));
+  }
+  if (unknown > 0) reasons.push(fillOperationsCopy(copy.rollup.reasonUnknown, { n: fmt(unknown) }));
+  if (partial > 0) reasons.push(fillOperationsCopy(copy.rollup.reasonPartial, { n: fmt(partial) }));
+  if (r.coverage.workspaceListTruncated) reasons.push(copy.rollup.reasonTruncated);
   return (
-    <SectionCard section="operations-rollup" title="Operations across this organization" panel={panel}>
+    <SectionCard section="operations-rollup" title={copy.rollup.title} panel={panel}>
       <p style={mutedStyle} data-rollup-totals>
-        {r.totals.open === 1 ? "1 unresolved condition" : `${r.totals.open} unresolved conditions`}
+        {fillOperationsCopy(copy.rollup.unresolvedAcross, {
+          n: fmt(r.totals.open),
+          workspaces: workspacesText,
+        })}
+        {unavailable > 0 ? (
+          <span data-rollup-unavailable-count={unavailable}>
+            {" · "}
+            {fillOperationsCopy(copy.rollup.workspacesUnavailable, { n: fmt(unavailable) })}
+          </span>
+        ) : null}
         {" · "}
-        {r.totals.critical} critical · {r.totals.high} high · {r.totals.unassigned} unassigned
+        {fillOperationsCopy(copy.rollup.severityLine, {
+          critical: fmt(r.totals.critical),
+          high: fmt(r.totals.high),
+          unassigned: fmt(r.totals.unassigned),
+        })}
       </p>
-      {r.coverage.workspacesNotReadable > 0 ? (
-        <p style={mutedStyle} data-rollup-partial>
-          {r.coverage.workspacesNotReadable === 1
-            ? "1 workspace in this organization is not included, because you are not an Operations reader there."
-            : `${r.coverage.workspacesNotReadable} workspaces in this organization are not included, because you are not an Operations reader there.`}
+      {r.coverage.complete === false ? (
+        <p style={mutedStyle} data-rollup-partial role="status">
+          {copy.rollup.incompleteLead}{" "}
+          {reasons.length > 0 ? reasons.join(" · ") : copy.health.unknownReason.DEFAULT}
         </p>
       ) : null}
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }} data-rollup-workspaces>
-        {r.workspaces.map((w) => (
-          <li key={w.workspaceId} data-rollup-workspace={w.workspaceId}>
-            <strong>{w.name}</strong>{" "}
-            <span style={mutedStyle}>
-              {w.summary.open} unresolved · {w.summary.critical} critical · {w.summary.high} high
-            </span>
-          </li>
-        ))}
+        {r.workspaces.map((w) => {
+          const coverage = coverageOf(w);
+          return (
+            <li key={w.workspaceId} data-rollup-workspace={w.workspaceId} data-rollup-coverage={coverage}>
+              <strong>{w.name}</strong>{" "}
+              <span style={mutedStyle}>{rollupWorkspaceLine(w, coverage, copy, fmt)}</span>
+            </li>
+          );
+        })}
       </ul>
       <OrganizationIncidentList orgId={orgId} workspaces={r.workspaces} />
     </SectionCard>
+  );
+}
+
+/**
+ * One workspace's line. UNKNOWN is "Unavailable", never "0 unresolved";
+ * PARTIAL is "at least N".
+ */
+function rollupWorkspaceLine(
+  w: RollupWorkspace,
+  coverage: "KNOWN" | "UNKNOWN" | "PARTIAL",
+  copy: OperationsCopy,
+  fmt: (n: number) => string,
+): string {
+  if (coverage === "UNKNOWN" || w.summary.open === null) return copy.rollup.workspaceUnavailable;
+  const values = {
+    n: fmt(w.summary.open),
+    critical: w.summary.critical === null ? "—" : fmt(w.summary.critical),
+    high: w.summary.high === null ? "—" : fmt(w.summary.high),
+  };
+  return fillOperationsCopy(
+    coverage === "PARTIAL" ? copy.rollup.workspaceAtLeast : copy.rollup.workspaceCounts,
+    values,
   );
 }
 
@@ -460,9 +551,11 @@ type OrgIncidentRow = {
 
 /**
  * OPS-034 — the drilldown: the ORIGINAL conditions across the readable
- * workspaces, filterable by workspace and severity, paged by the server. A row
- * opens in its own workspace's Operations page, where every action runs
- * against that original condition.
+ * workspaces, filterable by workspace, severity and status (default
+ * UNRESOLVED, the same set the totals count), paged by the server on a stable
+ * keyset. A row opens in ITS OWN workspace's Operations page — the workspace
+ * is switched first and the condition is opened only if that succeeded — so
+ * every action runs against the original condition there.
  */
 function OrganizationIncidentList({
   orgId,
@@ -472,42 +565,90 @@ function OrganizationIncidentList({
   workspaces: OperationsRollup["workspaces"];
 }) {
   const router = useRouter();
+  const copy = useOpsCopy();
   const { switchWorkspace } = usePlatformContext();
   const [workspaceFilter, setWorkspaceFilter] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("UNRESOLVED");
   const [rows, setRows] = useState<OrgIncidentRow[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [notice, setNotice] = useState<string | null>(null);
+  const seqRef = useRef(0);
 
   const load = useCallback(
     (next: string | null) => {
       const qs = new URLSearchParams();
       if (workspaceFilter) qs.set("workspaceId", workspaceFilter);
       if (severityFilter) qs.set("severity", severityFilter);
+      qs.set("status", statusFilter);
       if (next) qs.set("cursor", next);
+      // A response for a previous filter is discarded, not appended.
+      const seq = ++seqRef.current;
       setState("loading");
+      if (!next) setNotice(null);
       apiFetch(`/v1/orgs/${encodeURIComponent(orgId)}/operations/incidents?${qs.toString()}`, { method: "GET" })
         .then((res) => {
+          if (seq !== seqRef.current) return;
           const v = res as { incidents: OrgIncidentRow[]; pagination: { nextCursor: string | null } };
           setRows((prev) => (next ? [...prev, ...(v.incidents ?? [])] : (v.incidents ?? [])));
           setCursor(v.pagination?.nextCursor ?? null);
           setState("ready");
         })
-        .catch(() => setState("error"));
+        .catch((err: unknown) => {
+          if (seq !== seqRef.current) return;
+          const code =
+            (err as { body?: { error?: { code?: unknown } } })?.body?.error?.code ??
+            (err as { code?: unknown })?.code;
+          if (next && code === "invalid_cursor") {
+            // The cursor is no longer valid: reload from the start, and say so,
+            // rather than presenting a failure or a silently shorter list.
+            setNotice(copy.rollup.cursorReset);
+            setCursor(null);
+            const retrySeq = ++seqRef.current;
+            const fresh = new URLSearchParams(qs);
+            fresh.delete("cursor");
+            apiFetch(`/v1/orgs/${encodeURIComponent(orgId)}/operations/incidents?${fresh.toString()}`, { method: "GET" })
+              .then((res) => {
+                if (retrySeq !== seqRef.current) return;
+                const v = res as { incidents: OrgIncidentRow[]; pagination: { nextCursor: string | null } };
+                setRows(v.incidents ?? []);
+                setCursor(v.pagination?.nextCursor ?? null);
+                setState("ready");
+              })
+              .catch(() => {
+                if (retrySeq === seqRef.current) setState("error");
+              });
+            return;
+          }
+          setState("error");
+        });
     },
-    [orgId, workspaceFilter, severityFilter],
+    [orgId, workspaceFilter, severityFilter, statusFilter, copy],
   );
   useEffect(() => {
     load(null);
   }, [load]);
 
+  const openInWorkspace = async (row: OrgIncidentRow) => {
+    if (!row.workspaceId) return;
+    setNotice(null);
+    try {
+      await switchWorkspace(row.workspaceId);
+    } catch {
+      setNotice(copy.rollup.switchFailed);
+      return;
+    }
+    router.push(`/operations?incident=${encodeURIComponent(row.id)}`);
+  };
+
   return (
     <div style={{ display: "grid", gap: 8, marginTop: 12 }} data-rollup-incidents>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <label style={mutedStyle}>
-          Workspace{" "}
+          {copy.rollup.filterWorkspace}{" "}
           <select value={workspaceFilter} onChange={(e) => setWorkspaceFilter(e.target.value)} data-rollup-filter-workspace>
-            <option value="">All readable workspaces</option>
+            <option value="">{copy.rollup.allWorkspaces}</option>
             {workspaces.map((w) => (
               <option key={w.workspaceId} value={w.workspaceId}>
                 {w.name}
@@ -516,19 +657,35 @@ function OrganizationIncidentList({
           </select>
         </label>
         <label style={mutedStyle}>
-          Severity{" "}
+          {copy.rollup.filterSeverity}{" "}
           <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} data-rollup-filter-severity>
-            <option value="">Any</option>
-            <option value="CRITICAL">Critical</option>
-            <option value="HIGH">High</option>
-            <option value="WARNING">Warning</option>
-            <option value="INFO">Info</option>
+            <option value="">{copy.rollup.any}</option>
+            <option value="CRITICAL">{copy.severity.CRITICAL.label}</option>
+            <option value="HIGH">{copy.severity.HIGH.label}</option>
+            <option value="WARNING">{copy.severity.WARNING.label}</option>
+            <option value="INFO">{copy.severity.INFO.label}</option>
+          </select>
+        </label>
+        <label style={mutedStyle}>
+          {copy.rollup.filterStatus}{" "}
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} data-rollup-filter-status>
+            <option value="UNRESOLVED">{copy.statusUnresolvedDefault}</option>
+            <option value="ALL">{copy.statusAll}</option>
+            <option value="OPEN">{copy.status.OPEN.label}</option>
+            <option value="ACKNOWLEDGED">{copy.status.ACKNOWLEDGED.label}</option>
+            <option value="SUPPRESSED">{copy.status.SUPPRESSED.label}</option>
+            <option value="RESOLVED">{copy.status.RESOLVED.label}</option>
           </select>
         </label>
       </div>
+      {notice ? (
+        <p style={mutedStyle} role="status" data-rollup-notice>
+          {notice}
+        </p>
+      ) : null}
       {state === "error" ? (
-        <div style={errorBoxStyle} data-rollup-incidents-error>
-          The conditions across this organization could not be loaded.
+        <div style={errorBoxStyle} data-rollup-incidents-error role="alert">
+          {copy.rollup.incidentsError}
         </div>
       ) : null}
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
@@ -537,26 +694,34 @@ function OrganizationIncidentList({
             <button
               type="button"
               className="app-secondary-action"
-              onClick={async () => {
-                if (!i.workspaceId) return;
-                await switchWorkspace(i.workspaceId);
-                router.push(`/operations?incident=${encodeURIComponent(i.id)}`);
-              }}
+              onClick={() => void openInWorkspace(i)}
+              disabled={!i.workspaceId}
+              aria-label={
+                i.workspaceName
+                  ? `${i.title} — ${fillOperationsCopy(copy.rollup.openIn, { workspace: i.workspaceName })}`
+                  : i.title
+              }
               data-rollup-open={i.id}
+              data-rollup-open-workspace={i.workspaceId ?? ""}
             >
               {i.title}
             </button>{" "}
             <span style={mutedStyle}>
-              {i.workspaceName ?? "—"} ·{" "}
-              {(SEVERITY_VOCABULARY[i.severity as IncidentSeverity] ?? SEVERITY_VOCABULARY.INFO).label} ·{" "}
-              {(STATUS_VOCABULARY[i.status as IncidentStatus] ?? STATUS_VOCABULARY.OPEN).label}
+              {i.workspaceName ?? "—"} · {severityEntry(i.severity, copy).label} ·{" "}
+              {statusEntry(i.status, copy).label}
             </span>
           </li>
         ))}
       </ul>
       {cursor ? (
-        <button type="button" className="app-secondary-action" onClick={() => load(cursor)} data-rollup-more>
-          Load more
+        <button
+          type="button"
+          className="app-secondary-action"
+          onClick={() => load(cursor)}
+          disabled={state === "loading"}
+          data-rollup-more
+        >
+          {copy.rollup.loadMore}
         </button>
       ) : null}
     </div>
@@ -623,43 +788,44 @@ function WorkspacePicker({
 // ---------------------------------------------------------------------------
 
 function OperationalStatusSection({ panel }: { panel: PanelState<OpsHealth> }) {
+  const copy = useOpsCopy();
+  const fmt = useOpsNumber();
+  // A count the server could not read is null: "Unavailable", never a green 0.
+  const countBadge = (
+    value: number | null | undefined,
+    riskTone: BadgeTone,
+  ): { tone: BadgeTone; text: string } =>
+    typeof value !== "number"
+      ? { tone: "neutral", text: copy.readiness.unavailable }
+      : { tone: value > 0 ? riskTone : "verified", text: fmt(value) };
   return (
     <SectionCard
       section="operational-status"
-      title="Operational status"
+      title={copy.readiness.opsTitle}
       panel={panel}
     >
       {panel.status === "ready" ? (
         <>
           <div style={gridStyle}>
             <StatCell
-              label="Database"
+              label={copy.readiness.database}
               badge={
                 panel.data.database === "up"
-                  ? { tone: "verified", text: "Reachable" }
-                  : { tone: "risk", text: "Unreachable" }
+                  ? { tone: "verified", text: copy.readiness.reachable }
+                  : { tone: "risk", text: copy.readiness.unreachable }
               }
             />
             <StatCell
-              label="Open incidents"
-              badge={{
-                tone: panel.data.incidents.openTotal > 0 ? "pending" : "verified",
-                text: String(panel.data.incidents.openTotal),
-              }}
+              label={copy.readiness.unresolvedIncidents}
+              badge={countBadge(panel.data.incidents?.openTotal, "pending")}
             />
             <StatCell
-              label="High severity (open)"
-              badge={{
-                tone: panel.data.incidents.openHigh > 0 ? "risk" : "verified",
-                text: String(panel.data.incidents.openHigh),
-              }}
+              label={copy.readiness.highUnresolved}
+              badge={countBadge(panel.data.incidents?.openHigh, "risk")}
             />
             <StatCell
-              label="Critical (open)"
-              badge={{
-                tone: panel.data.incidents.openCritical > 0 ? "risk" : "verified",
-                text: String(panel.data.incidents.openCritical),
-              }}
+              label={copy.readiness.criticalUnresolved}
+              badge={countBadge(panel.data.incidents?.openCritical, "risk")}
             />
           </div>
           <LastChecked at={panel.checkedAt} />
@@ -873,6 +1039,8 @@ const EVIDENCE_SURFACES: ReadonlyArray<{
 ];
 
 function EvidenceOperationsSection({ panel }: { panel: PanelState<IncidentRow[]> }) {
+  const copy = useOpsCopy();
+  const fmt = useOpsNumber();
   const bySurface = useMemo(() => {
     const map = new Map<string, IncidentRow[]>();
     if (panel.status === "ready") {
@@ -888,7 +1056,7 @@ function EvidenceOperationsSection({ panel }: { panel: PanelState<IncidentRow[]>
   return (
     <SectionCard
       section="evidence-operations"
-      title="Evidence-operations readiness"
+      title={copy.readiness.evidenceTitle}
       panel={panel}
     >
       {panel.status === "ready" ? (
@@ -903,14 +1071,18 @@ function EvidenceOperationsSection({ panel }: { panel: PanelState<IncidentRow[]>
               );
               let badge: { tone: BadgeTone; text: string };
               if (surface.category == null) {
-                badge = { tone: "neutral", text: "Not surfaced at organization scope" };
+                // TSA/OTS have no org-scoped signal: said honestly, never invented.
+                badge = { tone: "neutral", text: copy.readiness.notSurfaced };
               } else if (incidents.length === 0) {
-                badge = { tone: "verified", text: "Operating normally" };
-              } else if (hasCritical) {
-                badge = { tone: "risk", text: `${incidents.length} open incident(s)` };
+                badge = { tone: "verified", text: copy.readiness.operatingNormally };
               } else {
-                badge = { tone: "pending", text: `${incidents.length} open incident(s)` };
+                const text =
+                  incidents.length === 1
+                    ? copy.readiness.unresolvedOne
+                    : fillOperationsCopy(copy.readiness.unresolvedMany, { n: fmt(incidents.length) });
+                badge = { tone: hasCritical ? "risk" : "pending", text };
               }
+              const words = copy.readiness.surfaces[surface.key as keyof typeof copy.readiness.surfaces];
               return (
                 <li
                   key={surface.key}
@@ -919,11 +1091,14 @@ function EvidenceOperationsSection({ panel }: { panel: PanelState<IncidentRow[]>
                   data-surfaced={surface.category == null ? "false" : "true"}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600 }}>{surface.label}</div>
-                    <div style={mutedStyle}>{surface.description}</div>
+                    <div style={{ fontWeight: 600 }}>{words?.label ?? surface.label}</div>
+                    <div style={mutedStyle}>{words?.description ?? surface.description}</div>
                     {incidents.slice(0, 3).map((i) => (
                       <div key={i.id} style={{ ...mutedStyle, marginTop: 4 }}>
-                        {i.title} · last {formatUserDateTime(i.lastSeenAtUtc)}
+                        {i.title} ·{" "}
+                        {fillOperationsCopy(copy.readiness.lastSeenAt, {
+                          when: formatUserDateTime(i.lastSeenAtUtc),
+                        })}
                       </div>
                     ))}
                   </div>
@@ -932,12 +1107,7 @@ function EvidenceOperationsSection({ panel }: { panel: PanelState<IncidentRow[]>
               );
             })}
           </ul>
-          <p style={mutedStyle}>
-            Report / package / storage readiness reflects open operational
-            incidents in those categories for the selected workspace.
-            Timestamping and anchoring have no organization-scoped health
-            signal, so their state is reported honestly as not surfaced here.
-          </p>
+          <p style={mutedStyle}>{copy.readiness.evidenceNote}</p>
           <LastChecked at={panel.checkedAt} />
         </>
       ) : null}
@@ -960,10 +1130,11 @@ function SectionCard({
   panel: PanelState<unknown>;
   children: React.ReactNode;
 }) {
+  const copy = useOpsCopy();
   return (
     <Card variant="admin" data-section={`readiness-${section}`} title={title}>
       {panel.status === "loading" ? (
-        <p style={mutedStyle}>Loading…</p>
+        <p style={mutedStyle}>{copy.loading}</p>
       ) : panel.status === "error" ? (
         <div data-testid={`readiness-${section}-error`} style={errorBoxStyle}>
           {panel.message}
@@ -993,9 +1164,10 @@ function StatCell({
 }
 
 function LastChecked({ at }: { at: string }) {
+  const copy = useOpsCopy();
   return (
     <div data-testid="readiness-last-checked" style={{ ...mutedStyle, marginTop: 12 }}>
-      Last checked: {formatUserDateTime(at)}
+      {fillOperationsCopy(copy.readiness.lastChecked, { when: formatUserDateTime(at) })}
     </div>
   );
 }

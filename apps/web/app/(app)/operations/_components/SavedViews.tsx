@@ -34,6 +34,7 @@ import { AppRowMenu } from "../../../../components/app-primitives/AppRowMenu";
 import { useConfirmAction } from "../../../../components/ui/ConfirmActionModal";
 import type { OperationsSavedView } from "../_lib/types";
 import { IconDots, IconSpinner } from "./icons";
+import { useOpsCopy } from "../_lib/copy";
 
 export function SavedViews({
   views,
@@ -66,6 +67,7 @@ export function SavedViews({
    */
   canManageShared: boolean;
 }) {
+  const copy = useOpsCopy();
   const { confirm: confirmAction } = useConfirmAction();
   const [naming, setNaming] = React.useState(false);
   /** The view being renamed, or null when the form is creating a new one. */
@@ -91,11 +93,11 @@ export function SavedViews({
 
   return (
     <div className="opsw-views" data-ops-saved-views>
-      <span className="opsw-views__label">Views</span>
+      <span className="opsw-views__label">{copy.savedViewsLabel}</span>
 
       {loading ? (
         <span className="opsw-muted" role="status">
-          <IconSpinner size={14} /> Loading…
+          <IconSpinner size={14} /> {copy.loading}
         </span>
       ) : null}
 
@@ -116,19 +118,19 @@ export function SavedViews({
                   see this is the one property worth being sure about before
                   naming a view after the person you are chasing. */}
               {view.visibility === "TEAM" ? (
-                <span className="opsw-views__scope">Shared</span>
+                <span className="opsw-views__scope">{copy.views.shared}</span>
               ) : null}
             </button>
             {(view.visibility === "TEAM" ? canManageShared : view.ownedByViewer) ? (
               <AppRowMenu
-                label={`Actions for the view ${view.name}`}
+                label={copy.views.actionsFor.replace("{name}", view.name)}
                 dataPrefix="ops-view"
                 testId={`ops-view-menu-${view.id}`}
                 icon={<IconDots size={16} />}
                 actions={[
                   {
                     key: "rename",
-                    label: "Rename view",
+                    label: copy.views.rename,
                     onSelect: () => {
                       // `window.prompt` is not used here for the same reason
                       // `window.confirm` is banned: it is unstyled, not
@@ -141,16 +143,17 @@ export function SavedViews({
                   },
                   {
                     key: "delete",
-                    label: "Delete view",
+                    label: copy.views.remove,
                     danger: true,
                     onSelect: () => {
                       void confirmAction({
-                        title: `Delete “${view.name}”?`,
+                        title: copy.views.deleteTitle.replace("{name}", view.name),
                         description:
                           view.visibility === "TEAM"
-                            ? "This view is shared, so it will disappear for everyone in this workspace. The conditions themselves are not affected."
-                            : "The conditions themselves are not affected.",
-                        confirmLabel: "Delete view",
+                          ? copy.views.deleteSharedBody
+                          : copy.views.deleteBody,
+                        confirmLabel: copy.views.remove,
+                        cancelLabel: copy.cancel,
                         tone: "danger",
                         testId: "ops-view-delete-confirm",
                       }).then((ok) => {
@@ -186,9 +189,9 @@ export function SavedViews({
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={120}
-            placeholder={renaming ? "Rename this view" : "Name this view"}
+            placeholder={renaming ? copy.views.renamePlaceholder : copy.views.namePlaceholder}
             aria-label={
-              renaming ? "New name for the saved view" : "Name for the saved view"
+              renaming ? copy.views.renameLabel : copy.views.nameLabel
             }
             data-ops-view-name
             onKeyDown={(e) => {
@@ -209,7 +212,7 @@ export function SavedViews({
               onChange={(e) => setShared(e.target.checked)}
               data-ops-view-share
             />
-            <span>Share with this workspace</span>
+            <span>{copy.views.share}</span>
           </label>
           )}
           <button
@@ -218,10 +221,10 @@ export function SavedViews({
             disabled={busy || name.trim().length === 0}
             data-ops-view-save
           >
-            {renaming ? "Rename" : "Save"}
+            {renaming ? copy.views.renameButton : copy.views.saveButton}
           </button>
           <button type="button" className="app-ghost-action" onClick={close}>
-            Cancel
+            {copy.cancel}
           </button>
         </form>
       ) : canSave ? (
@@ -232,7 +235,7 @@ export function SavedViews({
           disabled={busy}
           data-ops-view-start-save
         >
-          Save this view
+          {copy.saveView}
         </button>
       ) : null}
     </div>

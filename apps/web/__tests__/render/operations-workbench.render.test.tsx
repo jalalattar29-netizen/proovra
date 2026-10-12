@@ -719,34 +719,34 @@ describe("Operations — one design, three densities", () => {
 // ===========================================================================
 
 describe("Operations — filtering asks the server, not the page", () => {
-  it("opens on every status, and still sends one when it is chosen", async () => {
+  it("opens on UNRESOLVED work, says so, and still sends a chosen status", async () => {
     /*
-     * THE DEFAULT DELIBERATELY DOES NOT NARROW.
+     * THE DEFAULT IS THE KPI PREDICATE (2026-10-12).
      *
-     * This asserted `status=OPEN` on the opening read, which is what the page
-     * used to send. `DEFAULT_FILTERS` was changed on purpose — the page
-     * presented itself as the queue while silently withholding everything
-     * acknowledged, suppressed or resolved, and the Status control read "Open"
-     * as though the operator had asked for it. A default that narrows the
-     * collection is indistinguishable from a collection that is small.
-     *
-     * So the opening read must carry NO status, and the assertion that a
-     * status still reaches the server moves to where a status is actually
-     * chosen — otherwise correcting the default would have deleted the only
-     * proof that this filter is a server filter at all.
+     * The queue opened on every status ("" = ALL) while the card above it
+     * counted UNRESOLVED work, so resolved history sat in a list captioned
+     * by an Unresolved count. The default is now status UNRESOLVED (open,
+     * acknowledged or suppressed) — the same set the summary counts — and it
+     * is SENT explicitly, so the list never depends on a server default to
+     * mean what the card meant. The URL stays clean: the default is absent.
      */
     await mount(envelope(TEAM_ADMIN));
-    expect(lastListQuery()).not.toMatch(/status=/);
+    expect(lastListQuery()).toMatch(/status=UNRESOLVED/);
     expect(lastListQuery()).toMatch(/limit=50/);
+    expect(replaced.every((href) => !/status=/.test(href))).toBe(true);
 
-    // ...and an explicit status still reaches the server, which is the half
-    // that must not be lost. `filtersFromParams` is documented to let an
-    // explicit `?status=` win over the default precisely so a shared link, a
-    // saved view and the Back button keep saying what they said before.
+    // ...and an explicit status still reaches the server.
     cleanup();
     currentSearch = "status=OPEN";
     await mount(envelope(TEAM_ADMIN));
     expect(lastListQuery()).toMatch(/status=OPEN/);
+
+    // "All, including resolved" is the only way history enters the queue,
+    // and a legacy `status=all` link still means exactly that.
+    cleanup();
+    currentSearch = "status=all";
+    await mount(envelope(TEAM_ADMIN));
+    expect(lastListQuery()).toMatch(/status=ALL/);
   });
 
   it("a summary card sets one coherent view and re-reads", async () => {
@@ -2563,7 +2563,10 @@ describe("Operations — the grouped queue is the default", () => {
     // nothing to say how the two numbers were related. A group is a SOURCE,
     // which can hold several conditions, across every status.
     await mount(envelope(TEAM_ADMIN), "grouped");
-    expect(document.body.textContent).toContain("2 sources · 5,001 conditions · all statuses");
+    // The default is UNRESOLVED work, so the header no longer says "all
+    // statuses" — it says that only when "All, including resolved" is chosen.
+    expect(document.body.textContent).toContain("2 sources · 5,001 conditions");
+    expect(document.body.textContent).not.toContain("all statuses");
   });
 
   it("AN AGE RENDERS AS A SPAN, NEVER AS A RAW MINUTE COUNT", async () => {
@@ -2747,10 +2750,22 @@ describe("Operations — the grouped queue is the default", () => {
     expect(drill[0].path).toContain(`teamId=${WS}`);
 
     expect(q("[data-ops-affected-row='c-1']")).not.toBeNull();
-    // …and a record an authorized operator may open.
-    expect(q("[data-ops-affected-link]")).not.toBeNull();
+    // D15 — the "Open record" link needs EVIDENCE_VIEW, which TEAM_ADMIN's
+    // Operations capabilities do not include: Operations access is not
+    // evidence access, so the link is withheld rather than refused.
+    expect(q("[data-ops-affected-link]")).toBeNull();
     // More to come, so the control to fetch it is offered.
     expect(q("[data-ops-affected-more]")).not.toBeNull();
+
+    // …and a reader who holds evidence read is offered the record.
+    await mount(envelope({ ...TEAM_ADMIN, EVIDENCE_VIEW: true }), "grouped");
+    await act(async () => {
+      fireEvent.click(
+        q('[data-ops-group-open-button="evidence_integrity.tsa_failed"]')!,
+      );
+    });
+    await settle();
+    expect(q("[data-ops-affected-link]")).not.toBeNull();
   });
 
   it("paging the drill-down APPENDS rather than replacing", async () => {
@@ -3744,6 +3759,11 @@ describe("Operations truth closure — web", () => {
     // with it; the outcome is announced AND stays on screen. Before OPS-011
     // the row stayed selected under "0 of 1 updated. 1 could not be changed";
     // after the first fix the answer vanished with the toolbar.
+    // D9 — the live region is cleared and re-set on the next task, so a
+    // repeated sentence is announced again; wait for that task.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
     expect(q("[data-ops-live]")?.textContent).toBe("1 of 1 updated.");
     expect(q("[data-ops-bulk-toolbar]")).toBeNull();
     expect(q("[data-ops-bulk-outcome]")?.textContent).toBe("1 of 1 updated.");
@@ -4016,7 +4036,7 @@ describe("Operations truth closure — web", () => {
     expect(section.querySelector("[data-ops-section-empty]")).toBeNull();
   });
 
-  it("the grouped header counts sources and conditions across all statuses", async () => {
+  it("the grouped header counts sources and conditions, and names 'all statuses' only when chosen", async () => {
     groupsReply = () => ({
       groups: [
         group({ groupKey: "evidence_integrity.tsa_failed", statusPosture: "OPEN" }),
@@ -4026,6 +4046,12 @@ describe("Operations truth closure — web", () => {
       conservation: { conditions: 5, grouped: 5 },
       completeness: { complete: true, mayAssertAllClear: true },
     });
+    await mount(envelope(TEAM_ADMIN), "grouped");
+    expect(document.body.textContent).toContain("2 sources · 5 conditions");
+    expect(document.body.textContent).not.toContain("all statuses");
+
+    cleanup();
+    currentSearch = "status=ALL";
     await mount(envelope(TEAM_ADMIN), "grouped");
     expect(document.body.textContent).toContain("2 sources · 5 conditions · all statuses");
   });

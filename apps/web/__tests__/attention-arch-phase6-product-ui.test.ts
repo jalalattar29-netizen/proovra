@@ -258,9 +258,13 @@ test("an all-clear is impossible over a partial or failed read", () => {
   assert.match(OPERATIONS, /incidents\.kind === "ready" &&/);
   assert.match(OPERATIONS, /complete &&/);
   assert.match(OPERATIONS, /rows\.length === 0 &&/);
-  assert.match(OPERATIONS, /!anyFilterActive\(filters\)/);
-  // A truncated read announces itself instead of reading as an empty one.
-  assert.match(OPERATIONS, /Part of the condition list/);
+  // Nothing NARROWS the read (the sort order is not a filter), and the
+  // summary was actually read: an unreadable summary is unknown, never clear.
+  assert.match(OPERATIONS, /!narrowing &&/);
+  assert.match(OPERATIONS, /!summaryIsUnknown &&/);
+  // A truncated read announces itself instead of reading as an empty one:
+  // the count beside the list reads "N+" while a next page exists.
+  assert.match(OPERATIONS, /nextCursor \? copy\.resultConditionsMore/);
 });
 
 test("the workbench explains read-only access instead of failing silently", () => {

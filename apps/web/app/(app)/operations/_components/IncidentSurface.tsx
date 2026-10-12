@@ -30,13 +30,19 @@ import * as React from "react";
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
 import { AppStatusText } from "../../../../components/app-primitives/AppStatusText";
 import { formatUserDateTime } from "../../../../lib/date";
-import { describeRelativeTime } from "../../../../lib/relative-time";
 import type { OperationsRowModel } from "../_lib/rowModel";
 import {
   AppRowMenu,
   type AppRowAction,
 } from "../../../../components/app-primitives/AppRowMenu";
 import { IconDots, IconSpinner } from "./icons";
+import {
+  fillOperationsCopy,
+  useOpsCopy,
+  useOpsNumber,
+  useOpsTime,
+  type OperationsCopy,
+} from "../_lib/copy";
 
 export type SurfaceHandlers = {
   onOpen: (incidentId: string) => void;
@@ -52,6 +58,7 @@ export type SurfaceHandlers = {
 function buildActions(
   row: OperationsRowModel,
   handlers: SurfaceHandlers,
+  copy: OperationsCopy,
 ): ReadonlyArray<AppRowAction> {
   const pending = handlers.pendingId === row.id;
 
@@ -72,7 +79,7 @@ function buildActions(
   if (row.canAssign) {
     actions.push({
       key: "assign",
-      label: "Change owner",
+      label: copy.changeOwner,
       pending,
       onSelect: () => handlers.onAssign(row.id),
     });
@@ -80,7 +87,7 @@ function buildActions(
   if (row.canAcknowledge) {
     actions.push({
       key: "acknowledge",
-      label: "Acknowledge",
+      label: copy.acknowledge,
       pending,
       onSelect: () => handlers.onAcknowledge(row.id),
     });
@@ -88,7 +95,7 @@ function buildActions(
   if (row.canResolve) {
     actions.push({
       key: "resolve",
-      label: "Resolve",
+      label: copy.resolve,
       pending,
       onSelect: () => handlers.onResolve(row.id),
     });
@@ -96,7 +103,7 @@ function buildActions(
   if (row.canSuppress) {
     actions.push({
       key: "suppress",
-      label: "Stop notifying about this",
+      label: copy.stopNotifyingAbout,
       danger: true,
       separated: true,
       pending,
@@ -107,7 +114,7 @@ function buildActions(
   return [
     {
       key: "open",
-      label: "Open details",
+      label: copy.openDetails,
       onSelect: () => handlers.onOpen(row.id),
     },
     ...actions,
@@ -161,22 +168,26 @@ function StatusBadge({ row }: { row: OperationsRowModel }) {
  * somebody has from work nobody has.
  */
 function Owner({ row }: { row: OperationsRowModel }) {
+  const copy = useOpsCopy();
   return (
     <span
       className="opsw-owner"
       data-ops-owner={row.owner.kind}
       data-ops-owner-assigned={row.owner.kind === "unassigned" ? "false" : "true"}
     >
-      {row.owner.kind === "unassigned" ? "Unassigned" : row.owner.label}
+      {row.owner.kind === "unassigned" ? copy.ownerUnassigned : row.owner.label}
     </span>
   );
 }
 
 function Activity({ row }: { row: OperationsRowModel }) {
+  const copy = useOpsCopy();
+  const fmt = useOpsNumber();
+  const time = useOpsTime();
   return (
     <span className="opsw-activity">
       <span className="opsw-activity__last" title={formatUserDateTime(row.lastSeenAtUtc)}>
-        {describeRelativeTime(row.lastSeenAtUtc)}
+        {time.ago(row.lastSeenAtUtc)}
       </span>
       {/*
         WHAT THE NUMBER IS.
@@ -192,7 +203,7 @@ function Activity({ row }: { row: OperationsRowModel }) {
       */}
       {row.occurrenceCount > 1 ? (
         <span className="opsw-activity__count" data-ops-occurrences={row.occurrenceCount}>
-          Observed in {row.occurrenceCount.toLocaleString("en-US")} checks
+          {fillOperationsCopy(copy.observedInChecks, { n: fmt(row.occurrenceCount) })}
         </span>
       ) : null}
     </span>
@@ -222,10 +233,11 @@ function Activity({ row }: { row: OperationsRowModel }) {
  */
 function Age({ row }: { row: OperationsRowModel }) {
   const sla = row.sla;
+  const time = useOpsTime();
   return (
     <span className="opsw-age" data-ops-sla={sla?.posture ?? "none"}>
       <span title={formatUserDateTime(row.firstSeenAtUtc)}>
-        {describeRelativeTime(row.firstSeenAtUtc)}
+        {time.ago(row.firstSeenAtUtc)}
       </span>
       {/* Lateness is a WORD as well as a colour, because an operator who
           cannot distinguish the two reds still has to be able to triage. */}
@@ -255,6 +267,8 @@ function Age({ row }: { row: OperationsRowModel }) {
  * observation FAILED says so rather than presenting stale values as current.
  */
 function Condition({ row }: { row: OperationsRowModel }) {
+  const copy = useOpsCopy();
+  const time = useOpsTime();
   return (
     <div className="opsw-condition">
       <span className="app-table__primary opsw-condition__title">{row.title}</span>
@@ -268,7 +282,7 @@ function Condition({ row }: { row: OperationsRowModel }) {
               data-ops-metric-value={row.metric.currentValue}
               data-ops-metric-unit={row.metric.unit}
               data-ops-metric-stale={row.metric.stale ? "true" : "false"}
-              title={`Observed ${formatUserDateTime(row.metric.observedAtUtc)}`}
+              title={`${copy.drawer.factObserved}: ${formatUserDateTime(row.metric.observedAtUtc)}`}
             >
               {row.metric.label}
             </span>
@@ -280,7 +294,7 @@ function Condition({ row }: { row: OperationsRowModel }) {
               <>
                 <span aria-hidden="true">·</span>
                 <span className="opsw-condition__metric-stale">
-                  last confirmed {describeRelativeTime(row.metric.observedAtUtc)}
+                  {fillOperationsCopy(copy.group.lastConfirmed, { when: time.ago(row.metric.observedAtUtc) })}
                 </span>
               </>
             ) : null}
@@ -315,6 +329,7 @@ export function IncidentSurface({
   showOwnerColumn: boolean;
   showSelection: boolean;
 }) {
+  const copy = useOpsCopy();
   return (
     <>
       {/* ---------------------------------------------------------------- */}
@@ -322,30 +337,28 @@ export function IncidentSurface({
       {/* ---------------------------------------------------------------- */}
       <div className="app-table-surface opsw-table-surface" data-ops-table-surface>
         <table className="app-table opsw-table">
-          <caption className="app-visually-hidden">
-            Operational conditions in this workspace
-          </caption>
+          <caption className="app-visually-hidden">{copy.tableCaption}</caption>
           <thead>
             <tr>
               {showSelection ? (
                 <th scope="col" className="opsw-col-select">
-                  <span className="app-visually-hidden">Select</span>
+                  <span className="app-visually-hidden">{copy.colSelect}</span>
                 </th>
               ) : null}
               <th scope="col" className="opsw-col-severity">
-                Severity
+                {copy.colSeverity}
               </th>
-              <th scope="col">Condition</th>
+              <th scope="col">{copy.colCondition}</th>
               {showOwnerColumn ? (
                 <th scope="col" className="opsw-col-owner">
-                  Owner
+                  {copy.colOwner}
                 </th>
               ) : null}
               <th scope="col" className="opsw-col-age">
-                First seen
+                {copy.colFirstSeen}
               </th>
               <th scope="col" className="opsw-col-activity">
-                Latest activity
+                {copy.colLatestActivity}
               </th>
               {/*
                 STATUS SITS AT THE RIGHT EDGE.
@@ -361,16 +374,16 @@ export function IncidentSurface({
                 track, right-aligned, so the answer reads straight down.
               */}
               <th scope="col" className="opsw-col-status">
-                Status
+                {copy.colStatus}
               </th>
               <th scope="col" className="opsw-col-actions">
-                <span className="app-visually-hidden">Actions</span>
+                <span className="app-visually-hidden">{copy.colActions}</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
-              const actions = buildActions(row, handlers);
+              const actions = buildActions(row, handlers, copy);
               return (
                 <tr
                   key={row.id}
@@ -386,7 +399,7 @@ export function IncidentSurface({
                         className="app-checkbox"
                         checked={markedIds.has(row.id)}
                         onChange={() => handlers.onToggleMark(row.id)}
-                        aria-label={`Select ${row.title} for a bulk action`}
+                        aria-label={fillOperationsCopy(copy.selectForBulk, { title: row.title })}
                         data-ops-row-mark={row.id}
                       />
                     </td>
@@ -425,10 +438,10 @@ export function IncidentSurface({
                   <td className="opsw-col-actions">
                     <AppRowMenu
                       actions={actions}
-                      label={`Actions for ${row.title}`}
+                      label={fillOperationsCopy(copy.rowActionsFor, { title: row.title })}
                       dataPrefix="ops"
                       testId={`ops-row-menu-${row.id}`}
-                      triggerLabel="Actions"
+                      triggerLabel={copy.colActions}
                       triggerLabelClassName="opsw-when-wide"
                       icon={<IconDots size={16} />}
                       pendingIcon={<IconSpinner size={14} />}
@@ -446,7 +459,7 @@ export function IncidentSurface({
       {/* ---------------------------------------------------------------- */}
       <ul className="opsw-cards" data-ops-cards>
         {rows.map((row) => {
-          const actions = buildActions(row, handlers);
+          const actions = buildActions(row, handlers, copy);
           return (
             <li
               key={row.id}
@@ -461,7 +474,7 @@ export function IncidentSurface({
                     className="app-checkbox"
                     checked={markedIds.has(row.id)}
                     onChange={() => handlers.onToggleMark(row.id)}
-                    aria-label={`Select ${row.title} for a bulk action`}
+                    aria-label={fillOperationsCopy(copy.selectForBulk, { title: row.title })}
                     data-ops-row-mark={row.id}
                   />
                 ) : null}
@@ -486,20 +499,20 @@ export function IncidentSurface({
               <dl className="opsw-card__facts">
                 {showOwnerColumn ? (
                   <div className="opsw-card__fact">
-                    <dt>Owner</dt>
+                    <dt>{copy.colOwner}</dt>
                     <dd>
                       <Owner row={row} />
                     </dd>
                   </div>
                 ) : null}
                 <div className="opsw-card__fact">
-                  <dt>First seen</dt>
+                  <dt>{copy.colFirstSeen}</dt>
                   <dd>
                     <Age row={row} />
                   </dd>
                 </div>
                 <div className="opsw-card__fact">
-                  <dt>Latest activity</dt>
+                  <dt>{copy.colLatestActivity}</dt>
                   <dd>
                     <Activity row={row} />
                   </dd>
@@ -509,7 +522,7 @@ export function IncidentSurface({
               <div className="opsw-card__foot">
                 <AppRowMenu
                   actions={actions}
-                  label={`Actions for ${row.title}`}
+                  label={fillOperationsCopy(copy.rowActionsFor, { title: row.title })}
                   dataPrefix="ops"
                   testId={`ops-card-menu-${row.id}`}
                   icon={<IconDots size={16} />}

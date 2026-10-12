@@ -38,7 +38,6 @@ import * as React from "react";
 import Link from "next/link";
 
 import { AppStatusBadge } from "../../../../components/app-primitives/AppStatusBadge";
-import { describeDuration, describeRelativeTime } from "../../../../lib/relative-time";
 import { formatUserDateTime } from "../../../../lib/date";
 import type {
   AffectedRecord,
@@ -46,10 +45,10 @@ import type {
   IncidentSeverity,
   IncidentStatus,
 } from "../_lib/types";
-import { SEVERITY_VOCABULARY, STATUS_VOCABULARY, categoryLabel } from "../_lib/vocabulary";
+import { categoryLabel, severityEntry, statusEntry } from "../_lib/vocabulary";
 import { IconClose, IconExternal, IconSpinner } from "./icons";
 import { useDialogFocusTrap } from "../../../../components/ui/useDialogFocusTrap";
-import { useOpsCopy } from "../_lib/copy";
+import { fillOperationsCopy, useOpsCopy, useOpsNumber, useOpsTime } from "../_lib/copy";
 
 export function GroupInspector({
   group,
@@ -74,9 +73,10 @@ export function GroupInspector({
   /**
    * May this reader open an individual Evidence record?
    *
-   * Server-projected. A link the reader cannot follow is withheld rather than
-   * rendered and refused — the same rule the condition inspector's deep links
-   * already follow.
+   * Server-projected (D15, 2026-10-12): the envelope's EVIDENCE_VIEW
+   * capability for this workspace. Operations access alone does not grant
+   * evidence read, so a link the reader cannot follow is withheld rather than
+   * rendered and refused.
    */
   canOpenRecords: boolean;
   /** OPS-012 — open one member's condition drawer (where its action is). */
@@ -85,6 +85,8 @@ export function GroupInspector({
   const panelRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
   const copy = useOpsCopy();
+  const fmt = useOpsNumber();
+  const time = useOpsTime();
 
   // OPS-020 — the shared focus contract: into the drawer, trapped, Escape
   // closes, back to the group row that opened it.
@@ -96,10 +98,8 @@ export function GroupInspector({
       ? (records[0]?.conditionId ?? group.affectedSample[0]?.conditionId ?? null)
       : null;
 
-  const severity =
-    SEVERITY_VOCABULARY[group.severity as IncidentSeverity] ?? SEVERITY_VOCABULARY.INFO;
-  const status =
-    STATUS_VOCABULARY[group.statusPosture as IncidentStatus] ?? STATUS_VOCABULARY.OPEN;
+  const severity = severityEntry(group.severity as IncidentSeverity, copy);
+  const status = statusEntry(group.statusPosture as IncidentStatus, copy);
 
   return (
     <div
@@ -154,12 +154,12 @@ export function GroupInspector({
 
         <div className="opsw-drawer__body">
           <section className="opsw-drawer__section">
-            <h3 className="opsw-drawer__section-title">What this is</h3>
+            <h3 className="opsw-drawer__section-title">{copy.group.whatThisIs}</h3>
             <dl className="opsw-facts">
               <div className="opsw-fact">
-                <dt>Source</dt>
+                <dt>{copy.drawer.factSource}</dt>
                 <dd>
-                  <span className="opsw-muted">{categoryLabel(group.category)}</span>
+                  <span className="opsw-muted">{categoryLabel(group.category, copy)}</span>
                 </dd>
               </div>
               {/*
@@ -168,9 +168,9 @@ export function GroupInspector({
                 three digits are shown.
               */}
               <div className="opsw-fact">
-                <dt>Conditions</dt>
+                <dt>{copy.group.factConditions}</dt>
                 <dd data-ops-group-exact-conditions={group.conditionCount}>
-                  {group.conditionCount.toLocaleString("en-US")}
+                  {fmt(group.conditionCount)}
                 </dd>
               </div>
               {group.affectedRecordCount != null ? (
@@ -178,9 +178,16 @@ export function GroupInspector({
                   {/* The SOURCE's unit. The retry-storm group counts
                       conditions, and calling those records would send an
                       operator looking for evidence that does not exist. */}
-                  <dt>Affected {group.affectedUnit ?? "records"}</dt>
+                  <dt>
+                    {fillOperationsCopy(copy.group.factAffected, {
+                      unit:
+                        (copy.group.unitWord as Record<string, string | undefined>)[
+                          group.affectedUnit ?? "records"
+                        ] ?? (group.affectedUnit ?? copy.group.unitWord.records),
+                    })}
+                  </dt>
                   <dd data-ops-group-exact-affected={group.affectedRecordCount}>
-                    {group.affectedRecordCount.toLocaleString("en-US")}
+                    {fmt(group.affectedRecordCount)}
                   </dd>
                 </div>
               ) : null}
@@ -188,14 +195,15 @@ export function GroupInspector({
                 <div className="opsw-fact">
                   {/* SEPARATE from the count, because "26" is not actionable
                       without the number it is measured against. */}
-                  <dt>Threshold</dt>
+                  <dt>{copy.drawer.factThreshold}</dt>
                   <dd data-ops-group-exact-threshold={group.metric.thresholdValue}>
-                    {group.metric.thresholdValue.toLocaleString("en-US")}
+                    {fmt(group.metric.thresholdValue)}
                     {group.metric.criticalThresholdValue != null ? (
                       <span className="opsw-muted">
                         {" "}
-                        (critical at{" "}
-                        {group.metric.criticalThresholdValue.toLocaleString("en-US")})
+                        {fillOperationsCopy(copy.drawer.criticalAt, {
+                          n: fmt(group.metric.criticalThresholdValue),
+                        })}
                       </span>
                     ) : null}
                   </dd>
@@ -205,9 +213,9 @@ export function GroupInspector({
                 <div className="opsw-fact">
                   {/* An elapsed span, in words. The raw "902m" this replaces
                       was a number nobody reads fifteen hours out of. */}
-                  <dt>Elapsed</dt>
+                  <dt>{copy.group.factElapsed}</dt>
                   <dd data-ops-group-exact-duration={group.durationSeconds}>
-                    {describeDuration(group.durationSeconds)}
+                    {time.span(group.durationSeconds)}
                   </dd>
                 </div>
               ) : null}
@@ -219,36 +227,36 @@ export function GroupInspector({
                 conditions the group holds.
               */}
               <div className="opsw-fact">
-                <dt>Source observations</dt>
+                <dt>{copy.drawer.factSourceObservations}</dt>
                 <dd data-ops-group-observations={group.observations}>
-                  Observed in {group.observations.toLocaleString("en-US")} checks
+                  {copy.observedInChecks.replace("{n}", fmt(group.observations))}
                 </dd>
               </div>
               {group.metric?.stale ? (
                 <div className="opsw-fact">
-                  <dt>Metric freshness</dt>
+                  <dt>{copy.group.factMetricFreshness}</dt>
                   <dd data-ops-group-metric-stale="true">
-                    Last confirmed {formatUserDateTime(group.metric.observedAtUtc)}.
-                    The most recent attempt to read this source did not
-                    complete, so the values above are the last ones observed.
+                    {fillOperationsCopy(copy.group.metricFreshnessNote, {
+                      when: formatUserDateTime(group.metric.observedAtUtc),
+                    })}
                   </dd>
                 </div>
               ) : null}
               <div className="opsw-fact">
-                <dt>First seen</dt>
+                <dt>{copy.drawer.factFirstSeen}</dt>
                 <dd>
                   {formatUserDateTime(group.firstSeenAtUtc)}{" "}
                   <span className="opsw-muted">
-                    ({describeRelativeTime(group.firstSeenAtUtc)})
+                    ({time.ago(group.firstSeenAtUtc)})
                   </span>
                 </dd>
               </div>
               <div className="opsw-fact">
-                <dt>Last seen</dt>
+                <dt>{copy.group.factLastSeen}</dt>
                 <dd>
                   {formatUserDateTime(group.latestActivityAtUtc)}{" "}
                   <span className="opsw-muted">
-                    ({describeRelativeTime(group.latestActivityAtUtc)})
+                    ({time.ago(group.latestActivityAtUtc)})
                   </span>
                 </dd>
               </div>
@@ -259,7 +267,7 @@ export function GroupInspector({
           {/* THE AFFECTED RECORDS                                        */}
           {/* ---------------------------------------------------------- */}
           <section className="opsw-drawer__section" data-ops-affected-section>
-            <h3 className="opsw-drawer__section-title">Affected records</h3>
+            <h3 className="opsw-drawer__section-title">{copy.group.affectedHeading}</h3>
 
             {error ? (
               <p className="opsw-summary-text" data-ops-affected-error>
@@ -268,9 +276,7 @@ export function GroupInspector({
             ) : null}
 
             {records.length === 0 && !loading && !error ? (
-              <p className="opsw-summary-text">
-                No individual records to show for this group.
-              </p>
+              <p className="opsw-summary-text">{copy.group.noRecords}</p>
             ) : null}
 
             <ul className="opsw-affected" data-ops-affected-list>
@@ -282,28 +288,22 @@ export function GroupInspector({
                 >
                   <span className="opsw-affected__title">{r.title}</span>
                   <span className="opsw-affected__meta">
-                    <AppStatusBadge
-                      tone={
-                        (SEVERITY_VOCABULARY[r.severity as IncidentSeverity] ??
-                          SEVERITY_VOCABULARY.INFO).tone
-                      }
-                    >
-                      {(SEVERITY_VOCABULARY[r.severity as IncidentSeverity] ??
-                        SEVERITY_VOCABULARY.INFO).label}
+                    <AppStatusBadge tone={severityEntry(r.severity, copy).tone}>
+                      {severityEntry(r.severity, copy).label}
                     </AppStatusBadge>
                     <span aria-hidden="true">·</span>
                     {/* OPS-012 — each member's OWN current state. */}
                     <span data-ops-affected-status={r.status}>
-                      {(STATUS_VOCABULARY[r.status as IncidentStatus] ?? STATUS_VOCABULARY.OPEN).label}
+                      {statusEntry(r.status, copy).label}
                     </span>
                     <span aria-hidden="true">·</span>
                     <span title={formatUserDateTime(r.firstSeenAtUtc)}>
-                      {describeRelativeTime(r.firstSeenAtUtc)}
+                      {time.ago(r.firstSeenAtUtc)}
                     </span>
                     {r.assignedOperatorUserId ? (
                       <>
                         <span aria-hidden="true">·</span>
-                        <span>owned</span>
+                        <span>{copy.group.owned}</span>
                       </>
                     ) : null}
                     <span aria-hidden="true">·</span>
@@ -311,6 +311,7 @@ export function GroupInspector({
                       type="button"
                       className="app-ghost-action opsw-affected__open"
                       onClick={() => onOpenCondition(r.conditionId)}
+                      aria-label={`${copy.openCondition}: ${r.title}`}
                       data-ops-affected-open={r.conditionId}
                     >
                       {copy.openCondition}
@@ -329,7 +330,7 @@ export function GroupInspector({
                           className="opsw-affected__link"
                           data-ops-affected-link={r.evidenceId}
                         >
-                          Open record <IconExternal />
+                          {copy.group.openRecord} <IconExternal />
                         </Link>
                       </>
                     ) : null}
@@ -340,7 +341,7 @@ export function GroupInspector({
 
             {loading ? (
               <p className="opsw-summary-text" data-ops-affected-loading>
-                <IconSpinner /> Loading affected records…
+                <IconSpinner /> {copy.group.loadingAffected}
               </p>
             ) : null}
 
@@ -351,7 +352,7 @@ export function GroupInspector({
                 onClick={onLoadMore}
                 data-ops-affected-more
               >
-                View more affected records
+                {copy.group.viewMore}
               </button>
             ) : null}
           </section>

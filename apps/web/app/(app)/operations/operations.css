@@ -1307,3 +1307,58 @@
   flex-direction: column;
   gap: 6px;
 }
+
+/* --------------------------------------------------------------------------
+ * 2026-10-12 — retry affordance, disabled-control reasons, summary notes, and
+ * the 375px floor.
+ * ------------------------------------------------------------------------ */
+
+/* An inline error's actions: "Try again" (only when retryable) and Dismiss. */
+.opsw-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* WHY a control is disabled, said in words beside it (not only by a dimmed
+   button), and never wider than the line it sits on. */
+[data-ops-disabled-reason],
+[data-ops-view-save-blocked] {
+  flex-basis: 100%;
+  min-inline-size: 0;
+  font: var(--font-meta);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The summary's "unavailable" / "minimum" explanation sits above the cards. */
+.opsw-summary [data-ops-summary-unavailable],
+.opsw-summary [data-ops-summary-floor] {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+/* THE PHONE FLOOR. At 375px (16px gutters) the content box is 343px; every
+   fixed width on this route is released below 420px so nothing pushes the
+   page sideways. */
+@media (max-width: 420px) {
+  .opsw-views__save .app-input {
+    inline-size: 100%;
+  }
+  .opsw-bulk__assign {
+    flex: 1 1 100%;
+    min-inline-size: 0;
+  }
+  .opsw-toolbar__search,
+  .opsw-toolbar__filter,
+  .opsw-toolbar__filter--sort {
+    flex-basis: 100%;
+  }
+  .opsw-bulk__reason .opsw-remediation__reason {
+    flex-basis: 100%;
+  }
+  .opsw-view-toggle {
+    flex-wrap: wrap;
+  }
+}
